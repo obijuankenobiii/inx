@@ -1,64 +1,156 @@
-# Inx | CrossPoint Reader
+# Inx
 
-Firmware for the **Xteink X4** e-paper display reader (unaffiliated with Xteink).
-Built using **PlatformIO** and targeting the **ESP32-C3** microcontroller.
+Reimagined. Improved. Simplified.
 
-CrossPoint Reader is a purpose-built firmware designed to be a drop-in, fully open-source replacement for the official 
-Xteink firmware. It aims to match or improve upon the standard EPUB reading experience.
+*This project is a fork of CrossPoint and is not affiliated with Xteink; it's built as a community project.*
+
+---
 
 ![](./docs/images/cover.jpg)
 
-## Motivation
+## Pages
 
-E-paper devices are fantastic for reading, but most commercially available readers are closed systems with limited 
-customisation. The **Xteink X4** is an affordable, e-paper device, however the official firmware remains closed.
-CrossPoint exists partly as a fun side-project and partly to open up the ecosystem and truely unlock the device's
-potential.
+- **Home** – Grid and statistics view modes for quick access
+- **Library** – All your books, organized with file explorer support
+- **Settings** – Individual and book-specific configuration options
+- **Sync** – WiFi book upload and OTA updates
+- **Statistics** – Reading insights and system usage data
 
-CrossPoint Reader aims to:
-* Provide a **fully open-source alternative** to the official firmware.
-* Offer a **document reader** capable of handling EPUB content on constrained hardware.
-* Support **customisable font, layout, and display** options.
-* Run purely on the **Xteink X4 hardware**.
+---
 
-This project is **not affiliated with Xteink**; it's built as a community project.
-
-## Features & Usage
+### eBook Support
 
 - [x] EPUB parsing and rendering (EPUB 2 and EPUB 3)
-- [ ] Image support within EPUB
-- [x] Saved reading position
+  - [x] Image support within EPUB (JPG, PNG)
+  - [x] Saved reading position
+  - [x] Bookmarks
+- [x] XTC format support
+- [x] TXT format support
+
+---
+
+### File Management
+
 - [x] File explorer with file picker
-  - [x] Basic EPUB picker from root directory
-  - [x] Support nested folders
-  - [ ] EPUB picker with cover art
+- [x] Sorting [A-Z]
+- [x] Support nested folders
+- [x] Folder and list mode
+- [x] Favorites
+
+---
+
+### Display
+
+- [x] Screen rotation
 - [x] Custom sleep screen
   - [x] Cover sleep screen
-- [x] Wifi book upload
-- [x] Wifi OTA updates
-- [x] Configurable font, layout, and display options
-  - [ ] User provided fonts
-  - [ ] Full UTF support
-- [x] Screen rotation
+  - [x] Recent book sleep screen
+  - [x] Transparent sleep screen
 
-Multi-language support: Read EPUBs in various languages, including English, Spanish, French, German, Italian, Portuguese, Russian, Ukrainian, Polish, Swedish, Norwegian, [and more](./USER_GUIDE.md#supported-languages).
+---
 
-See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint. 
+### Wireless
+
+- [x] WiFi book upload
+- [x] WiFi OTA updates
+
+---
+
+### Menu Navigation
+
+Simplified menu navigation with left and right swipes to move between pages. Clean, intuitive, and designed for one-handed use.
+
+---
+
+### Settings
+
+#### Global Settings (System)
+
+**Display**
+- Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None)
+- Sleep Screen Cover Mode (Fit, Crop)
+- Sleep Screen Cover Filter (None, Contrast, Inverted)
+
+**Battery**
+- Hide Battery % (Never, In Reader, Always)
+
+**Library**
+- Recent Library Mode (Grid, Default)
+- Use Index for Library (On/Off)
+
+**Buttons**
+- Front Button Layout (Bck Cnfrm Lft Rght / Lft Rght Bck Cnfrm / Lft Bck Cnfrm Rght / Bck Cnfrm Rght Lft)
+- Short Power Button Click (Ignore, Sleep, Page Refresh)
+
+**System**
+- Time to Sleep (1 min, 5 min, 10 min, 15 min, 30 min)
+- Boot Mode (Recent Books, Home Page)
+
+**Actions**
+- KOReader Sync
+- OPDS Browser
+- Clear Cache
+- Check for updates
+
+---
+
+#### Global Settings (Book)
+
+**Font**
+- Font Family (Bookerly, Atkinson Hyperlegible, Literata)
+- Font Size (Extra Small, Small, Medium, Large, X Large)
+
+**Layout**
+- Line Spacing (Tight, Normal, Wide)
+- Screen Margin (5-80)
+- Paragraph Alignment (Justify, Left, Center, Right)
+- Extra Paragraph Spacing (On/Off)
+- Reading Orientation (Portrait, Landscape CW, Inverted, Landscape CCW)
+- Hyphenation (On/Off)
+
+**Navigation**
+- Next & Previous Mapping (Left/Right, Right/Left, Up/Down, Down/Up, None)
+- Book Settings Toggle (Up, Down, Left, Right, Confirm)
+- Long-press Chapter Skip (On/Off)
+- Short Power Button (Page Turn, Page Refresh)
+
+**Display**
+- Text Anti-Aliasing (On/Off)
+- Refresh Frequency (1 page, 5 pages, 10 pages, 15 pages, 30 pages)
+
+**Status Bar**
+
+**Status Bar Mode**
+- None
+- No Progress
+- Full w/ Percentage
+- Full w/ Progress Bar
+- Progress Bar
+- Battery %
+- Percentage
+- Page Bars
+
+**Left / Middle / Right Section**
+- None
+- Page Numbers
+- Percentage
+- Chapter Title
+- Battery Icon
+- Battery %
+- Battery Icon+%
+- Progress Bar
+- Progress Bar+%
+- Page Bars
+- Book Title
+- Author Name
+---
 
 ## Installing
-
-### Web (latest firmware)
-
-1. Connect your Xteink X4 to your computer via USB-C
-2. Go to https://xteink.dve.al/ and click "Flash CrossPoint firmware"
-
-To revert back to the official firmware, you can flash the latest official firmware from https://xteink.dve.al/, or swap
-back to the other partition using the "Swap boot partition" button here https://xteink.dve.al/debug.
 
 ### Web (specific firmware version)
 
 1. Connect your Xteink X4 to your computer via USB-C
-2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/daveallie/crosspoint-reader/releases)
+2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/obijuankenobiii/inx/releases)
 3. Go to https://xteink.dve.al/ and flash the firmware file using the "OTA fast flash controls" section
 
 To revert back to the official firmware, you can flash the latest official firmware from https://xteink.dve.al/, or swap
@@ -82,7 +174,7 @@ See [Development](#development) below.
 CrossPoint uses PlatformIO for building and flashing the firmware. To get started, clone the repository:
 
 ```
-git clone --recursive https://github.com/daveallie/crosspoint-reader
+git clone --recursive https://github.com/obijuankenobiii/inx
 
 # Or, if you've already cloned without --recursive:
 git submodule update --init --recursive
@@ -117,19 +209,21 @@ Minor adjustments may be required for Windows.
 
 ## Internals
 
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only
+INX is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only
 has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based
 on this constraint.
 
 ### Data caching
 
 The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the 
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
+cache. This cache directory exists at `.metadata` on the SD card. The structure is as follows:
 
 
 ```
-.crosspoint/
-├── epub_12471232/       # Each EPUB is cached to a subdirectory named `epub_<hash>`
+.metadata/
+├── 12471232/       # Each EPUB is cached to a subdirectory named `epub_<hash>`
+│   ├── setting.bin     # Stores reading progress (chapter, page, etc.)
+│   ├── statistics.bin     # Stores reading statistics (chapter count, page count, session count, time read)
 │   ├── progress.bin     # Stores reading progress (chapter, page, etc.)
 │   ├── cover.bmp        # Book cover image (once generated)
 │   ├── book.bin         # Book metadata (title, author, spine, table of contents, etc.)
@@ -138,22 +232,16 @@ cache. This cache directory exists at `.crosspoint` on the SD card. The structur
 │       ├── 1.bin        #     files are named by their index in the spine
 │       └── ...
 │
-└── epub_189013891/
+└── 189013891/
 ```
 
-Deleting the `.crosspoint` directory will clear the entire cache. 
+Deleting the `.metadata` directory will clear the entire cache. 
 
-Due the way it's currently implemented, the cache is not automatically cleared when a book is deleted and moving a book
-file will use a new cache directory, resetting the reading progress.
-
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
 
 ## Contributing
 
 Contributions are very welcome!
 
-If you're looking for a way to help out, take a look at the [ideas discussion board](https://github.com/daveallie/crosspoint-reader/discussions/categories/ideas).
-If there's something there you'd like to work on, leave a comment so that we can avoid duplicated effort.
 
 ### To submit a contribution:
 
@@ -162,9 +250,3 @@ If there's something there you'd like to work on, leave a comment so that we can
 3. Make changes
 4. Submit a PR
 
----
-
-CrossPoint Reader is **not affiliated with Xteink or any manufacturer of the X4 hardware**.
-
-Huge shoutout to [**diy-esp32-epub-reader** by atomic14](https://github.com/atomic14/diy-esp32-epub-reader), which was a project I took a lot of inspiration from as I
-was making CrossPoint.
