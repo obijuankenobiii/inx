@@ -18,7 +18,7 @@ class FileGuard {
 private:
     FsFile& file;
 public:
-    FileGuard(FsFile& f) : file(f) {}
+    explicit FileGuard(FsFile& f) : file(f) {}
     ~FileGuard() { 
         if (file) {
             file.close();

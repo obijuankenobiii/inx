@@ -50,7 +50,7 @@ bool BookProgress::remove() {
 
 bool BookProgress::validate(const Data& data, int totalSpines) const {
     if (totalSpines <= 0) return false;
-    return (data.spineIndex >= 0 && data.spineIndex < totalSpines);
+    return (data.spineIndex < static_cast<unsigned int>(totalSpines));
 }
 
 void BookProgress::sanitize(Data& data, int totalSpines) const {

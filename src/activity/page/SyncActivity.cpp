@@ -78,7 +78,6 @@ void SyncActivity::loop() {
     updateRequired = true;
     return;
   }
-  const bool backPressed = mappedInput.isPressed(MappedInputManager::Button::Back);
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);

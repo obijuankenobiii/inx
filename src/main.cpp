@@ -349,7 +349,6 @@ void loop() {
     }
 
     if (currentActivity) {
-        const unsigned long activityStartTime = millis();
         currentActivity->loop();
     }
 

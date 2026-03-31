@@ -54,8 +54,6 @@ private:
      */
     void renderScreen();
 
-    GfxRenderer& renderer;
-    MappedInputManager& mappedInput;
     std::vector<Bookmark> bookmarks;
     std::string bookTitle;
     int currentSpine;

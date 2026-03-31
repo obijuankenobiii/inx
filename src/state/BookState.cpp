@@ -29,9 +29,8 @@ void BookState::addOrUpdateBook(const std::string& path,
 
 std::vector<BookState::Book> BookState::getFavoriteBooks() const {
   std::vector<Book> result;
-  for (const auto& book : books) {
-    if (book.isFavorite) result.push_back(book);
-  }
+  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
+               [](const Book& book) { return book.isFavorite; });
   std::sort(result.begin(), result.end(),
             [](const Book& a, const Book& b) { return a.id > b.id; });
   return result;
@@ -39,9 +38,8 @@ std::vector<BookState::Book> BookState::getFavoriteBooks() const {
 
 std::vector<BookState::Book> BookState::getReadingBooks() const {
   std::vector<Book> result;
-  for (const auto& book : books) {
-    if (book.isReading) result.push_back(book);
-  }
+  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
+               [](const Book& book) { return book.isReading; });
   std::sort(result.begin(), result.end(),
             [](const Book& a, const Book& b) { return a.id > b.id; });
   return result;
@@ -49,9 +47,9 @@ std::vector<BookState::Book> BookState::getReadingBooks() const {
 
 std::vector<BookState::Book> BookState::getFinishedBooks() const {
   std::vector<Book> result;
-  for (const auto& book : books) {
-    if (book.isFinished) result.push_back(book);
-  }
+  // FIXED: Use std::copy_if instead of raw loop
+  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
+               [](const Book& book) { return book.isFinished; });
   std::sort(result.begin(), result.end(),
             [](const Book& a, const Book& b) { return a.id > b.id; });
   return result;

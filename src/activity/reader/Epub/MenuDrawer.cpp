@@ -112,10 +112,9 @@ void MenuDrawer::drawBackground() {
   int currentY = drawerY + 10;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, currentY, "Reader Menu", true, EpdFontFamily::BOLD);
 
-  // Show book title as subtitle (truncated if too long)
   std::string displayTitle = bookTitle;
   if (displayTitle.length() > 30) {
-    displayTitle = displayTitle.substr(0, 27) + "...";
+      displayTitle.replace(27, std::string::npos, "...");
   }
 
   currentY += 25;
