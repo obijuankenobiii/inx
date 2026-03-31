@@ -55,7 +55,7 @@ bool BookProgress::validate(const Data& data, int totalSpines) const {
 
 void BookProgress::sanitize(Data& data, int totalSpines) const {
     if (totalSpines > 0) {
-        if (data.spineIndex < 0 || data.spineIndex >= totalSpines) {
+        if (data.spineIndex >= totalSpines) {
             data.spineIndex = 0;
             data.pageNumber = 0;
             data.chapterPageCount = 0;

@@ -12,11 +12,12 @@ constexpr char STATE_FILE[] = "/.system/state.bin";
 Session Session::instance;
 
 bool Session::saveToFile() const {
-  // Ensure directory exists
   std::string dirPath = STATE_FILE;
-  dirPath = dirPath.substr(0, dirPath.find_last_of('/'));
-  SdMan.mkdir(dirPath.c_str());
-  
+  size_t lastSlash = dirPath.find_last_of('/');
+  if (lastSlash != std::string::npos) {
+    dirPath.resize(lastSlash);
+  }
+
   FsFile outputFile;
   if (!SdMan.openFileForWrite("CPS", STATE_FILE, outputFile)) {
     return false;
@@ -25,7 +26,7 @@ bool Session::saveToFile() const {
   serialization::writePod(outputFile, STATE_FILE_VERSION);
   serialization::writeString(outputFile, lastRead);
   serialization::writePod(outputFile, lastSleepImage);
-  
+
   outputFile.close();
   return true;
 }
@@ -47,7 +48,7 @@ bool Session::loadFromFile() {
 
   uint8_t version;
   serialization::readPod(inputFile, version);
-  
+
   if (version > STATE_FILE_VERSION) {
     inputFile.close();
     lastRead = "";
@@ -64,13 +65,13 @@ bool Session::loadFromFile() {
   }
 
   inputFile.close();
-  
+
   // Basic sanity check
   if (lastRead.length() > 512) {
     lastRead = "";
     lastSleepImage = 0;
     return saveToFile();
   }
-  
+
   return true;
 }

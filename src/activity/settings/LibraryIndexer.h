@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDCardManager.h>
+
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -20,14 +21,15 @@ class LibraryIndexer {
     while (file.openNext(&dir, O_RDONLY)) {
       file.getName(name, sizeof(name));
       if (name[0] == '.' || strcmp(name, ".metadata") == 0) {
-        file.close(); continue;
+        file.close();
+        continue;
       }
       if (file.isDirectory()) {
         count += countBooks(file, depth + 1);
       } else {
         const char* ext = strrchr(name, '.');
-        if (ext && (strcasecmp(ext, ".epub") == 0 || strcasecmp(ext, ".txt") == 0 || 
-                    strcasecmp(ext, ".md") == 0 || strcasecmp(ext, ".xtc") == 0)) {
+        if (ext && (strcasecmp(ext, ".epub") == 0 || strcasecmp(ext, ".txt") == 0 || strcasecmp(ext, ".md") == 0 ||
+                    strcasecmp(ext, ".xtc") == 0)) {
           count++;
         }
       }
@@ -41,7 +43,7 @@ class LibraryIndexer {
     if (!SdMan.exists("/.metadata/library")) SdMan.mkdir("/.metadata/library");
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    
+
     int totalBooks = 0;
     FsFile root = SdMan.open("/");
     if (root) {
@@ -64,10 +66,9 @@ class LibraryIndexer {
     uint8_t version = 1;
     idxFile.write(&version, 1);
 
-    int currentBook = 0;  // Add back the currentBook variable
     root = SdMan.open("/");
     if (root) {
-      // FIXED: Pass all 7 arguments
+      int currentBook = 0;
       indexDirectory(root, idxFile, currentBook, totalBooks, progressCallback, std::string("/"), 0);
       root.close();
     }
@@ -78,7 +79,7 @@ class LibraryIndexer {
 
  private:
   static void indexDirectory(FsFile& dir, FsFile& idxFile, int& currentBook, int totalBooks,
-                             std::function<void(int, int, const char*)> progressCallback, 
+                             std::function<void(int, int, const char*)> progressCallback,
                              const std::string& currentPath, int depth) {
     if (depth > 10) return;
 
@@ -101,22 +102,23 @@ class LibraryIndexer {
       file.getName(name, sizeof(name));
 
       if (name[0] == '.' || strcmp(name, ".metadata") == 0) {
-        file.close(); continue;
+        file.close();
+        continue;
       }
 
       std::string thisItemPath;
-      if (currentPath == "/") thisItemPath = "/" + std::string(name);
-      else thisItemPath = currentPath + "/" + std::string(name);
+      if (currentPath == "/")
+        thisItemPath = "/" + std::string(name);
+      else
+        thisItemPath = currentPath + "/" + std::string(name);
 
       if (file.isDirectory()) {
         indexDirectory(file, idxFile, currentBook, totalBooks, progressCallback, thisItemPath, depth + 1);
         entryCount++;
       } else {
         const char* ext = strrchr(name, '.');
-        if (ext && (strcasecmp(ext, ".epub") == 0 || strcasecmp(ext, ".txt") == 0 || 
-                    strcasecmp(ext, ".md") == 0 || strcasecmp(ext, ".xtc") == 0 || 
-                    strcasecmp(ext, ".xtch") == 0)) {
-          
+        if (ext && (strcasecmp(ext, ".epub") == 0 || strcasecmp(ext, ".txt") == 0 || strcasecmp(ext, ".md") == 0 ||
+                    strcasecmp(ext, ".xtc") == 0 || strcasecmp(ext, ".xtch") == 0)) {
           uint8_t bookMarker = 0x01;
           idxFile.write(&bookMarker, 1);
 
