@@ -43,12 +43,28 @@ public:
                                  const std::function<void()>& onGoBack)
         : ActivityWithSubactivity("LocalNetwork", renderer, mappedInput), 
           Menu(),
+          displayTaskHandle(nullptr),
+          renderingMutex(nullptr),
+          updateRequired(false),
+          state(LocalNetworkState::WIFI_SELECTION),
+          lastHandleClientTime(0),
           onGoBack(onGoBack) {
         tabSelectorIndex = 3;
     }
     
+    /**
+     * @brief Called when activity becomes active
+     * @details Initializes WiFi connection or starts web server
+     */
     void onEnter() override;
+    
+    /**
+     * @brief Called when activity is exited
+     * @details Stops web server and cleans up resources
+     */
     void onExit() override;
+    
+    /** @brief Main loop - processes network connections */
     void loop() override;
     
     /**
@@ -64,24 +80,48 @@ public:
     bool preventAutoSleep() override { return state == LocalNetworkState::SERVER_RUNNING; }
 
 private:
+    /**
+     * @brief Static trampoline function for FreeRTOS task
+     * @param param Pointer to LocalNetworkActivity instance
+     */
     static void taskTrampoline(void* param);
+    
+    /**
+     * @brief Background task loop for display updates
+     * @details Never returns - [[noreturn]] attribute
+     */
     [[noreturn]] void displayTaskLoop();
+    
+    /** @brief Main rendering function */
     void render() const;
+    
+    /** @brief Renders the server running state UI */
     void renderServerRunning() const;
+    
+    /**
+     * @brief Callback for WiFi selection completion
+     * @param connected True if WiFi connection successful
+     */
     void onWifiSelectionComplete(bool connected);
+    
+    /** @brief Initializes and starts the web server */
     void startWebServer();
+    
+    /** @brief Stops the web server and cleans up resources */
     void stopWebServer();
+    
+    /** @brief Navigate to selected menu tab (not used in this activity) */
     void navigateToSelectedMenu() override {}
 
-    TaskHandle_t displayTaskHandle;
-    SemaphoreHandle_t renderingMutex;
-    bool updateRequired;
-    LocalNetworkState state;
+    TaskHandle_t displayTaskHandle;               /**< Handle for display update task */
+    SemaphoreHandle_t renderingMutex;             /**< Mutex for thread-safe rendering */
+    bool updateRequired;                          /**< Flag indicating render update needed */
+    LocalNetworkState state;                      /**< Current activity state */
 
-    std::string connectedIP;
-    std::string connectedSSID;
-    std::unique_ptr<LocalServer> webServer;
-    unsigned long lastHandleClientTime;
+    std::string connectedIP;                      /**< IP address of connected WiFi */
+    std::string connectedSSID;                    /**< SSID of connected WiFi network */
+    std::unique_ptr<LocalServer> webServer;       /**< Web server instance */
+    unsigned long lastHandleClientTime;           /**< Timestamp of last client handling */
 
-    const std::function<void()> onGoBack;
+    const std::function<void()> onGoBack;         /**< Callback invoked when going back */
 };

@@ -28,7 +28,12 @@ class Menu {
   Menu() = default;
   virtual ~Menu() = default;
 
-  void renderTabBar(GfxRenderer& renderer, int startY) const {
+  /**
+   * @brief Renders the tab bar with icons and selection indicator
+   * @param renderer Reference to the graphics renderer (const)
+   * @param startY Y-coordinate where the tab bar starts
+   */
+  void renderTabBar(const GfxRenderer& renderer, int startY) const {
     const int screenWidth = renderer.getScreenWidth();
     const int tabButtonWidth = screenWidth / TAB_COUNT;
 
@@ -67,14 +72,27 @@ class Menu {
     drawBattery(renderer);
   }
 
-  void drawBattery(GfxRenderer& renderer) const {
+  /**
+   * @brief Draws the battery icon and percentage on the screen
+   * @param renderer Reference to the graphics renderer (const)
+   */
+  void drawBattery(const GfxRenderer& renderer) const {
     ScreenComponents::drawBattery(
         renderer, renderer.getScreenWidth() - 80, renderer.getScreenHeight() - 30,
         SETTINGS.hideBatteryPercentage != SystemSetting::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS);
   }
 
+  /**
+   * @brief Pure virtual function to navigate to the selected menu tab
+   * Must be implemented by derived classes
+   */
   virtual void navigateToSelectedMenu() = 0;
 
+  /**
+   * @brief Handles left/right navigation between tabs
+   * @param leftPressed True if left button is pressed
+   * @param rightPressed True if right button is pressed
+   */
   void handleTabNavigation(bool leftPressed, bool rightPressed) {
     if (leftPressed) {
       tabSelectorIndex = (tabSelectorIndex - 1 + TAB_COUNT) % TAB_COUNT;
