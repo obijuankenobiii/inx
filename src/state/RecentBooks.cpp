@@ -150,7 +150,7 @@ bool RecentBooks::loadFromFile() {
     if (version < RECENT_BOOKS_FILE_VERSION) {
       saveToFile();
     }
-  } else if (version == RECENT_BOOKS_FILE_VERSION) {
+  } else (version == RECENT_BOOKS_FILE_VERSION) {
     uint8_t count;
     serialization::readPod(inputFile, count);
     
@@ -179,9 +179,6 @@ bool RecentBooks::loadFromFile() {
       
       recentBooks.push_back({path, cachePath, title, author, progress});
     }
-  } else {
-    inputFile.close();
-    return false;
   }
 
   inputFile.close();

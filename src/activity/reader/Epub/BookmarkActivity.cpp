@@ -102,10 +102,10 @@ void BookmarkActivity::renderScreen() {
     const int headerY = 20;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
     
-    // Draw book title (truncated if too long)
     std::string displayTitle = bookTitle;
     if (displayTitle.length() > 30) {
-        displayTitle = displayTitle.substr(0, 27) + "...";
+        displayTitle.erase(27);
+        displayTitle += "...";
     }
     
     int subtitleY = headerY + 40;

@@ -440,7 +440,7 @@ void CalibreConnectActivity::loop() {
                     }
                 }
             }
-            else if (bytesRead == 0 || (bytesRead < 0 && errno != EAGAIN)) {
+            else if (bytesRead == 0 || errno != EAGAIN) {
                 if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
                     serverCtx->uploadFile.close();
                 }

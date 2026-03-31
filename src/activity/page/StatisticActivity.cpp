@@ -144,7 +144,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
             std::string line;
             int lineWidth = 0;
 
-            while (!remaining.empty() && lineCount < 3) {
+            while (!remaining.empty()) {
                 size_t spacePos = remaining.find(' ');
                 std::string word = (spacePos != std::string::npos) ? remaining.substr(0, spacePos) : remaining;
 
