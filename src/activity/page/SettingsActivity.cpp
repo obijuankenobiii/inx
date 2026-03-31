@@ -320,7 +320,7 @@ void SettingsActivity::enterCategory(int categoryIndex) {
  */
 void SettingsActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(Activity::renderer, 0);
+  renderTabBar(renderer);
 
   const int startY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
@@ -447,7 +447,7 @@ void SettingsActivity::showIndexingProgress() {
   }
 
   renderer.clearScreen();
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
 
   int screenWidth = renderer.getScreenWidth();
   int screenHeight = renderer.getScreenHeight();

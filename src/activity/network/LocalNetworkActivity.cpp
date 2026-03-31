@@ -243,7 +243,7 @@ void LocalNetworkActivity::displayTaskLoop() {
  */
 void LocalNetworkActivity::render() const {
     renderer.clearScreen();
-    renderTabBar(renderer, 0);
+    renderTabBar(renderer);
     
     int screenHeight = renderer.getScreenHeight();
     int startY = TAB_BAR_HEIGHT;

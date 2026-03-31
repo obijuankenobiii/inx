@@ -72,7 +72,7 @@ void SettingsDrawer::setupMenu() {
     fontFamEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* families[] = {"Bookerly", "Atkinson Hyperlegible", "Literata"};
       int index = s.fontFamily;
-      if (index < 0 || index > 2) index = 0;
+      if (index > 2) index = 0;
       return families[index];
     };
     fontFamEntry.change = [](BookSettings& s, int delta) {
@@ -91,7 +91,7 @@ void SettingsDrawer::setupMenu() {
     fontEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* sizes[] = {"Extra Small", "Small", "Medium", "Large", "X Large"};
       int index = s.fontSize;
-      if (index < 0 || index > 4) index = 1;
+      if (index > 4) index = 1;
       return sizes[index];
     };
     fontEntry.change = [](BookSettings& s, int delta) {
@@ -124,7 +124,7 @@ void SettingsDrawer::setupMenu() {
     lineEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* spacing[] = {"Tight", "Normal", "Wide"};
       int index = s.lineSpacing;
-      if (index < 0 || index > 2) index = 1;
+      if (index > 2) index = 1;
       return spacing[index];
     };
     lineEntry.change = [](BookSettings& s, int delta) {
@@ -143,7 +143,7 @@ void SettingsDrawer::setupMenu() {
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* align[] = {"Justify", "Left", "Center", "Right"};
       int index = s.paragraphAlignment;
-      if (index < 0 || index > 3) index = 0;
+      if (index > 3) index = 0;
       return align[index];
     };
     alignEntry.change = [](BookSettings& s, int delta) {
@@ -193,7 +193,7 @@ void SettingsDrawer::setupMenu() {
     orientationEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* orientation[] = {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"};
       int index = s.orientation;
-      if (index < 0 || index > 3) index = 0;
+      if (index > 3) index = 0;
       return orientation[index];
     };
     orientationEntry.change = [](BookSettings& s, int delta) {
@@ -253,17 +253,19 @@ void SettingsDrawer::setupMenu() {
       return "30 pages";
     };
     refreshEntry.change = [](BookSettings& s, int delta) {
-      int currentIdx;
-      if (s.refreshFrequency <= 1)
+      int currentIdx = 4;
+      if (s.refreshFrequency <= 1) {
         currentIdx = 0;
-      else if (s.refreshFrequency <= 5)
+      }
+      if (s.refreshFrequency <= 5) {
         currentIdx = 1;
-      else if (s.refreshFrequency <= 10)
+      }
+      if (s.refreshFrequency <= 10) {
         currentIdx = 2;
-      else if (s.refreshFrequency <= 15)
+      }
+      if (s.refreshFrequency <= 15) {
         currentIdx = 3;
-      else
-        currentIdx = 4;
+      }
 
       int newIdx = currentIdx + delta;
       if (newIdx >= 0 && newIdx <= 4) {
@@ -357,11 +359,11 @@ void SettingsDrawer::setupMenu() {
  * @return String representation of the item
  */
 const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
-  static const char* names[] = {"None",      "Page Numbers",   "Percentage",   "Chapter Title",  "Battery Icon",
-                                "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
-                                     "Book Title",     "Author Name"};
+  static const char* names[] = {"None",           "Page Numbers", "Percentage",     "Chapter Title",
+                                "Battery Icon",   "Battery %",    "Battery Icon+%", "Progress Bar",
+                                "Progress Bar+%", "Page Bars",    "Book Title",     "Author Name"};
   int index = static_cast<int>(item);
-  if (index < 0 || index > static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
+  if (index > static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
     index = 0;
   }
   return names[index];
@@ -482,7 +484,7 @@ void SettingsDrawer::drawMenuItems() {
  * @brief Draws a scroll indicator when content exceeds visible area
  */
 void SettingsDrawer::drawScrollIndicator() {
-  int totalItems = (int)menuItems.size();
+  int totalItems = static_cast<int>(menuItems.size());
   if (totalItems <= itemsPerPage) return;
 
   int startY = drawerY + 80;
@@ -504,7 +506,7 @@ void SettingsDrawer::toggleGroup(GroupType group) {
   for (size_t i = 0; i < menuItems.size(); i++) {
     if (menuItems[i].group == group &&
         (menuItems[i].item == MenuItem::Separator || menuItems[i].item == MenuItem::StatusBarSeparator)) {
-      selectedIndex = i;
+      selectedIndex = static_cast<int>(i);
       if (selectedIndex < scrollOffset) {
         scrollOffset = selectedIndex;
       } else if (selectedIndex >= scrollOffset + itemsPerPage) {
@@ -535,22 +537,30 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
       needRedraw = true;
     }
-  } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+  }
+
+  if (input.wasPressed(MappedInputManager::Button::Down)) {
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
-      int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
+      int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
       if (selectedIndex > scrollOffset + itemsPerPage - 1) {
         scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
       }
       needRedraw = true;
     }
-  } else if (input.wasPressed(MappedInputManager::Button::Left)) {
+  }
+
+  if (input.wasPressed(MappedInputManager::Button::Left)) {
     applyChange(-1);
     needRedraw = true;
-  } else if (input.wasPressed(MappedInputManager::Button::Right)) {
+  }
+
+  if (input.wasPressed(MappedInputManager::Button::Right)) {
     applyChange(1);
     needRedraw = true;
-  } else if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+  }
+
+  if (input.wasPressed(MappedInputManager::Button::Confirm)) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       const auto& selected = menuItems[selectedIndex];
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
@@ -558,7 +568,9 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
         needRedraw = true;
       }
     }
-  } else if (input.isPressed(MappedInputManager::Button::Back)) {
+  }
+
+  if (input.isPressed(MappedInputManager::Button::Back)) {
     hide();
     needRedraw = true;
   }

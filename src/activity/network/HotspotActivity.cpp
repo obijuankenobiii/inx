@@ -282,7 +282,7 @@ void HotspotActivity::drawQRCode(int x, int y, const std::string& data) const {
  */
 void HotspotActivity::render() const {
     renderer.clearScreen();
-    renderTabBar(renderer, 0);
+    renderTabBar(renderer);
     
     int screenHeight = renderer.getScreenHeight();
     int startY = TAB_BAR_HEIGHT;

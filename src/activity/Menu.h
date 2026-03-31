@@ -18,7 +18,7 @@
 
 class Menu {
  protected:
-  static constexpr int TAB_BAR_HEIGHT = 72;
+  static constexpr int TAB_BAR_HEIGHT = 65;
   static constexpr int TAB_COUNT = 5;
   static constexpr int ICON_SIZE = 40;
   static constexpr int BATTERY_Y = 30;
@@ -31,18 +31,16 @@ class Menu {
   /**
    * @brief Renders the tab bar with icons and selection indicator
    * @param renderer Reference to the graphics renderer (const)
-   * @param startY Y-coordinate where the tab bar starts
    */
-  void renderTabBar(const GfxRenderer& renderer, int startY) const {
+  void renderTabBar(const GfxRenderer& renderer) const {
     const int screenWidth = renderer.getScreenWidth();
     const int tabButtonWidth = screenWidth / TAB_COUNT;
 
     for (int i = 0; i < TAB_COUNT; ++i) {
       int buttonX = i * tabButtonWidth;
-      int buttonY = startY;
       bool isSelected = (tabSelectorIndex == i);
       int iconX = buttonX + (tabButtonWidth - ICON_SIZE) / 2;
-      int iconY = buttonY + (TAB_BAR_HEIGHT - ICON_SIZE) / 2 + 5;
+      int iconY = (TAB_BAR_HEIGHT - ICON_SIZE) / 2 + 5;
 
       switch (i) {
         case 0:
@@ -62,12 +60,11 @@ class Menu {
           break;
       }
 
-      int bottomLineY = startY + TAB_BAR_HEIGHT - 5;
       if (isSelected) {
-        renderer.fillRect(iconX - 10, bottomLineY - 2, 60, SELECTED_BORDER_HEIGHT, 1);
+        renderer.fillRect(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, 1);
       }
 
-      renderer.drawLine(buttonX, bottomLineY, buttonX + tabButtonWidth, bottomLineY);
+      renderer.drawLine(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);
     }
     drawBattery(renderer);
   }

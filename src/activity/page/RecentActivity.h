@@ -118,19 +118,7 @@ class RecentActivity final : public Activity, public Menu {
    */
   void renderListItem(int index, int startY, const RecentBook& book, bool selected, bool next = false);
 
-  /**
-   * Renders the complete list view including all visible books and a scrollbar.
-   * 
-   * @param startY Starting Y coordinate for the list
-   */
-  void renderListView(int startY);
 
-  /**
-   * Calculates the X coordinate where the grid should start to be centered on screen.
-   * 
-   * @return X coordinate for the start of the grid
-   */
-  int getGridStartX() const;
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.
@@ -173,7 +161,7 @@ class RecentActivity final : public Activity, public Menu {
         onSelectBook(onSelectBook),
         onGoToStatistics(onGoToStatistics),
         onGoToRecent(onGoToRecent),
-        hasRandomFavorite(false)  // Initialize the member variable
+        hasRandomFavorite(false)
      {}
 
  private:
@@ -184,5 +172,5 @@ class RecentActivity final : public Activity, public Menu {
   void loop() override;
 
   RecentBook randomFavoriteBook;
-  bool hasRandomFavorite;  // Now properly initialized in constructor
+  bool hasRandomFavorite;
 };

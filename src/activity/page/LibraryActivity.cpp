@@ -23,7 +23,7 @@ namespace {
 
 /**
  * @brief RAII guard for FreeRTOS mutex semaphore
- * 
+ *
  * Automatically acquires mutex on construction and releases on destruction.
  * Provides exception-safe mutex management.
  */
@@ -127,7 +127,7 @@ std::string LibraryActivity::getBaseFilename(const std::string& filename) const 
 
   size_t lastDot = basename.find_last_of('.');
   if (lastDot != std::string::npos) {
-    basename = basename.substr(0, lastDot);
+    basename.resize(lastDot);  // Fixed: use resize() instead of substr assignment
   }
 
   if (!basename.empty()) {
@@ -434,26 +434,23 @@ void LibraryActivity::render() const {
 
   const int screenWidth = renderer.getScreenWidth() - 1;
 
-  renderTabBar(Activity::renderer, 0);
-
-  const int startY = TAB_BAR_HEIGHT + 8;
-  const int headerY = startY;
+  renderTabBar(renderer);
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY = headerY + (TAB_BAR_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = TAB_BAR_HEIGHT + (TAB_BAR_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   int containerWidth = screenWidth - 110;
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
-  if (headerSelected) renderer.fillRect(0, headerY, containerWidth, TAB_BAR_HEIGHT);
+  if (headerSelected) renderer.fillRect(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT);
 
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                     EpdFontFamily::BOLD);
-  drawSortButton(headerY, TAB_BAR_HEIGHT, screenWidth);
+  drawSortButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, screenWidth);
 
-  renderer.drawLine(0, headerY + TAB_BAR_HEIGHT, screenWidth, headerY + TAB_BAR_HEIGHT);
+  renderer.drawLine(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
 
-  renderLibraryList(TAB_BAR_HEIGHT * 2 + 6);
+  renderLibraryList(TAB_BAR_HEIGHT * 2);
   drawButtonHints();
   renderer.displayBuffer();
 }
@@ -562,7 +559,7 @@ void LibraryActivity::onExit() {
  * @brief Main input handling loop for library navigation
  */
 void LibraryActivity::loop() {
-    if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     updateRequired = true;
@@ -1174,7 +1171,9 @@ void LibraryActivity::loadLibraryFromIndex() {
   idxFile.seek(5);
 
   std::string cleanBase = basepath;
-  if (cleanBase.length() > 1 && cleanBase.back() == '/') cleanBase.pop_back();
+  if (cleanBase.length() > 1 && cleanBase.back() == '/') {
+    cleanBase.pop_back();
+  }
 
   while (idxFile.available()) {
     uint8_t marker;
@@ -1226,8 +1225,8 @@ void LibraryActivity::loadLibraryFromIndex() {
           libraryItems.push_back(item);
         }
       }
-
-    } else if (marker == 0xFF) {
+    }
+    if (marker == 0xFF) {
       uint16_t pathLen;
       idxFile.read(&pathLen, sizeof(pathLen));
       std::vector<char> pathBuf(pathLen + 1, 0);
@@ -1241,7 +1240,9 @@ void LibraryActivity::loadLibraryFromIndex() {
         if (dirPath == "/" || dirPath == cleanBase || dirPath == cleanBase + "/") continue;
 
         std::string checkDir = dirPath;
-        if (checkDir.length() > 1 && checkDir.back() == '/') checkDir.pop_back();
+        if (checkDir.length() > 1 && checkDir.back() == '/') {
+          checkDir.pop_back();  // Fixed: use pop_back() instead of substr assignment
+        }
 
         size_t lastSlash = checkDir.find_last_of('/');
         std::string parentOfDir = (lastSlash == 0) ? "/" : checkDir.substr(0, lastSlash);
@@ -1302,9 +1303,9 @@ void LibraryActivity::loadLibraryItems() {
       }
     } else {
       std::string filename = name;
-    if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
-        StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
-        StringUtils::checkFileExtension(filename, ".md")) {
+      if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
+          StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
+          StringUtils::checkFileExtension(filename, ".md")) {
         LibraryItem item;
         item.type = LibraryItem::Type::BOOK;
         item.name = filename;

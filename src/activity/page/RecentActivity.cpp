@@ -30,7 +30,7 @@ static std::string getBaseFilename(const std::string& filename) {
   std::string basename = (lastSlash != std::string::npos) ? filename.substr(lastSlash + 1) : filename;
   size_t lastDot = basename.find_last_of('.');
   if (lastDot != std::string::npos) {
-    basename.resize(lastDot);  // Fixed: use resize() instead of substr assignment
+    basename.resize(lastDot);
   }
   std::replace(basename.begin(), basename.end(), '_', ' ');
   return basename;
@@ -80,14 +80,6 @@ class MutexGuard {
 constexpr unsigned long GO_HOME_MS = 1000;
 
 }  // namespace
-
-/**
- * Calculates the X coordinate where the grid should start to be centered on screen.
- */
-int RecentActivity::getGridStartX() const {
-  int totalGridWidth = GRID_COLS * GRID_ITEM_WIDTH + (GRID_COLS - 1) * GRID_SPACING;
-  return (renderer.getScreenWidth() - totalGridWidth) / 2;
-}
 
 /**
  * Calculates the number of rows that can be displayed on screen at once.
@@ -176,7 +168,7 @@ void RecentActivity::onExit() {
  * Renders the complete grid view including all visible books.
  */
 void RecentActivity::renderGrid(int startY) {
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
   int totalBooks = static_cast<int>(recentBooks.size());
   if (totalBooks == 0) {
     renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
@@ -341,7 +333,7 @@ void RecentActivity::displayTaskLoop() {
       MutexGuard guard(renderingMutex);
       if (guard.isAcquired() && updateRequired) {
         renderer.clearScreen();
-        renderTabBar(renderer, 0);
+        renderTabBar(renderer);
 
         if (currentViewMode == ViewMode::Default) {
           renderDefault();
@@ -435,11 +427,16 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
     }
   }
 
-  const std::string& title = book.title.empty() ? formatTitle(getBaseFilename(book.path)) : book.title;
-  std::string truncatedTitle =
-      renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, title.c_str(), textWidth, EpdFontFamily::BOLD);
+  std::string titleString;
+  if (book.title.empty()) {
+    titleString = formatTitle(getBaseFilename(book.path));
+  } else {
+    titleString = book.title;
+  }
 
   if (textX >= 0 && textX < renderer.getScreenWidth()) {
+    std::string truncatedTitle =
+        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleString.c_str(), textWidth, EpdFontFamily::BOLD);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, truncatedTitle.c_str(), true,
                       EpdFontFamily::BOLD);
   }
@@ -450,12 +447,13 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
   }
 
   if (book.progress >= 0.0f && book.progress <= 1.0f && !next) {
-    int progressBarX = textX;
     int progressBarY = itemY + LIST_ITEM_HEIGHT - 40;
-    int progressBarWidth = static_cast<int>(textWidth);
-    int progressBarHeight = 8;
 
     if (progressBarY >= 0 && progressBarY < renderer.getScreenHeight()) {
+      int progressBarX = textX;
+      int progressBarWidth = static_cast<int>(textWidth);
+      int progressBarHeight = 8;
+
       renderer.fillRect(progressBarX, progressBarY, progressBarWidth, progressBarHeight, false);
       renderer.drawRect(progressBarX, progressBarY, progressBarWidth, progressBarHeight, true);
 
@@ -472,7 +470,8 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
         if (completedX >= 0 && completedY >= 0) {
           renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText);
         }
-      } else if (book.progress > 0.0f) {
+      }
+      if (book.progress > 0.0f) {
         char progressText[8];
         int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
         int len = snprintf(progressText, sizeof(progressText), "%d%%", percent);
@@ -488,36 +487,6 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
     }
   }
 }
-
-/**
- * Renders the complete list view including all visible books and a scrollbar.
- */
-void RecentActivity::renderListView(int startY) {
-  int totalBooks = static_cast<int>(recentBooks.size());
-  int visibleItems = LIST_VISIBLE_ITEMS;
-
-  if (totalBooks == 0) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
-    return;
-  }
-
-  int endIdx = std::min(scrollOffset + visibleItems, totalBooks);
-  for (int i = scrollOffset; i < endIdx; ++i) {
-    bool isSelected = (selectorIndex == i);
-    renderListItem(i - scrollOffset, startY, recentBooks[i], isSelected);
-  }
-
-  if (totalBooks > visibleItems) {
-    int screenHeight = renderer.getScreenHeight();
-    int scrollBarHeight = screenHeight - startY - 20;
-    int scrollThumbHeight = std::max(10, (visibleItems * scrollBarHeight) / totalBooks);
-    int scrollThumbY = startY + 10 + (scrollOffset * scrollBarHeight) / totalBooks;
-    int scrollX = renderer.getScreenWidth() - 10;
-    renderer.drawRect(scrollX, startY + 10, 4, scrollBarHeight);
-    renderer.fillRect(scrollX, scrollThumbY, 4, scrollThumbHeight);
-  }
-}
-
 /**
  * Formats milliseconds into a human-readable time string.
  */
@@ -529,11 +498,11 @@ std::string RecentActivity::formatTime(uint32_t milliseconds) const {
   uint32_t days = hours / 24;
 
   if (days > 0) {
-    snprintf(buffer, sizeof(buffer), "%d d %d h", days, hours % 24);
+    snprintf(buffer, sizeof(buffer), "%u d %u h", days, hours % 24);
   } else if (hours > 0) {
-    snprintf(buffer, sizeof(buffer), "%d h %d m", hours, minutes);
+    snprintf(buffer, sizeof(buffer), "%u h %u m", hours, minutes);
   } else {
-    snprintf(buffer, sizeof(buffer), "%d m", minutes);
+    snprintf(buffer, sizeof(buffer), "%u m", minutes);
   }
   return std::string(buffer);
 }
@@ -562,9 +531,7 @@ void RecentActivity::renderDefault() {
   }
 
   const int screenW = renderer.getScreenWidth();
-  const int screenH __attribute__((unused)) = renderer.getScreenHeight(); // Fixed unused variable
   const int startY = TAB_BAR_HEIGHT - 6;
-  const int GRID_SPACING = 20;
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
@@ -579,7 +546,7 @@ void RecentActivity::renderDefault() {
 
   int coverAreaX = coverItemX;
   int coverAreaY = coverItemY + 45;
-  int coverWidth __attribute__((unused)) = containerWidth - 10; // Fixed unused variable
+  int coverWidth = containerWidth - 10;
   int coverHeight = static_cast<int>((containerHeight - 40) * 0.75);
 
   bool coverDrawn = false;
@@ -676,13 +643,11 @@ void RecentActivity::renderDefault() {
 
   std::string trunc =
       renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleBuf, textWidth, EpdFontFamily::BOLD);
-  // renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY + 5, trunc.c_str(), true, EpdFontFamily::BOLD);
 
   int authorY = textY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) + 2;
   char authorBuf[64];
   strncpy(authorBuf, currentBook.author.c_str(), sizeof(authorBuf));
   authorBuf[sizeof(authorBuf) - 1] = '\0';
-  std::string truncAuthor __attribute__((unused)) = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, authorBuf, textWidth - 40); // Fixed unused variable
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, trunc.c_str());
 
   float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
@@ -729,7 +694,7 @@ void RecentActivity::renderDefault() {
   currentY += 87;
 
   uint32_t pagesRead = hasStats ? stats.totalPagesRead : 0;
-  snprintf(buffer, sizeof(buffer), "%u", pagesRead); // Fixed: use %u for unsigned int
+  snprintf(buffer, sizeof(buffer), "%u", pagesRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
 
   if (hasStats && hasSecondStats && recentBooks.size() > 1) {
@@ -738,14 +703,14 @@ void RecentActivity::renderDefault() {
     renderer.drawIcon(stats.totalPagesRead > secondStats.totalPagesRead ? Up : Down, iconX, iconY + 10, 40, 40,
                       GfxRenderer::Rotate270CW);
     char prevBuffer[32];
-    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalPagesRead); // Fixed: use %u
+    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalPagesRead);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true, EpdFontFamily::BOLD);
   }
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Pages", true);
   currentY += 87;
 
   uint32_t chaptersRead = hasStats ? stats.totalChaptersRead : 0;
-  snprintf(buffer, sizeof(buffer), "%u", chaptersRead); // Fixed: use %u
+  snprintf(buffer, sizeof(buffer), "%u", chaptersRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
 
   if (hasStats && hasSecondStats && recentBooks.size() > 1) {
@@ -754,7 +719,7 @@ void RecentActivity::renderDefault() {
     renderer.drawIcon(stats.totalChaptersRead > secondStats.totalChaptersRead ? Up : Down, iconX, iconY + 10, 40, 40,
                       GfxRenderer::Rotate270CW);
     char prevBuffer[32];
-    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalChaptersRead); // Fixed: use %u
+    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalChaptersRead);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true, EpdFontFamily::BOLD);
   }
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
@@ -762,7 +727,7 @@ void RecentActivity::renderDefault() {
 
   uint32_t avgPageTime = hasStats ? stats.avgPageTimeMs : 0;
   if (avgPageTime > 0) {
-    snprintf(buffer, sizeof(buffer), "%u s", avgPageTime / 1000); // Fixed: use %u
+    snprintf(buffer, sizeof(buffer), "%u s", avgPageTime / 1000);
   } else {
     snprintf(buffer, sizeof(buffer), "-");
   }
@@ -774,7 +739,7 @@ void RecentActivity::renderDefault() {
     uint32_t prevAvgPageTime = secondStats.avgPageTimeMs;
     if (prevAvgPageTime > 0) {
       char prevBuffer[32];
-      snprintf(prevBuffer, sizeof(prevBuffer), "%u s", prevAvgPageTime / 1000); // Fixed: use %u
+      snprintf(prevBuffer, sizeof(prevBuffer), "%u s", prevAvgPageTime / 1000);
       renderer.drawIcon(avgPageTime > prevAvgPageTime ? Up : Down, iconX, iconY + 10, 40, 40, GfxRenderer::Rotate270CW);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true,
                         EpdFontFamily::BOLD);
@@ -856,9 +821,9 @@ void RecentActivity::loop() {
   bool selectorChanged = false;
 
   if (isDefaultView) {
-    int maxIndex = std::min(2, totalBooks - 1);
-
+    // Move maxIndex declaration closer to its usage
     if (downPressed) {
+      int maxIndex = std::min(2, totalBooks - 1);
       if (selectorIndex < maxIndex) {
         selectorIndex++;
         selectorChanged = true;

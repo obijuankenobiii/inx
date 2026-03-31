@@ -165,7 +165,7 @@ void SyncActivity::render() const {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
 
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
 
   const int startY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;

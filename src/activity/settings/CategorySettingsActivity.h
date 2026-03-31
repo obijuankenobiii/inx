@@ -29,6 +29,9 @@ struct ValueRange {
     uint8_t min;
     uint8_t max;
     uint8_t step;
+    
+    ValueRange() : min(0), max(0), step(0) {}
+    ValueRange(uint8_t minVal, uint8_t maxVal, uint8_t stepVal) : min(minVal), max(maxVal), step(stepVal) {}
 };
 
 struct SettingInfo {
@@ -39,15 +42,15 @@ struct SettingInfo {
     ValueRange valueRange;
     GroupType group;
 
-    SettingInfo() : name(nullptr), type(SettingType::SEPARATOR), valuePtr(nullptr), group(GroupType::NONE) {}
+    SettingInfo() : name(nullptr), type(SettingType::SEPARATOR), valuePtr(nullptr), valueRange(), group(GroupType::NONE) {}
     
     SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, GroupType g)
-        : name(n), type(t), valuePtr(ptr), group(g) {}
+        : name(n), type(t), valuePtr(ptr), valueRange(), group(g) {}
     
-    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, std::vector<std::string> values, GroupType g)
-        : name(n), type(t), valuePtr(ptr), enumValues(values), group(g) {}
+    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values, GroupType g)
+        : name(n), type(t), valuePtr(ptr), enumValues(values), valueRange(), group(g) {}
     
-    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, ValueRange range, GroupType g)
+    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const ValueRange& range, GroupType g)
         : name(n), type(t), valuePtr(ptr), valueRange(range), group(g) {}
 
     static SettingInfo Toggle(const char* name, uint8_t SystemSetting::* ptr, GroupType group = GroupType::NONE) {
@@ -55,16 +58,18 @@ struct SettingInfo {
         info.name = name;
         info.type = SettingType::TOGGLE;
         info.valuePtr = ptr;
+        info.valueRange = ValueRange();
         info.group = group;
         return info;
     }
 
-    static SettingInfo Enum(const char* name, uint8_t SystemSetting::* ptr, std::vector<std::string> values, GroupType group = GroupType::NONE) {
+    static SettingInfo Enum(const char* name, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values, GroupType group = GroupType::NONE) {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::ENUM;
         info.valuePtr = ptr;
         info.enumValues = values;
+        info.valueRange = ValueRange();
         info.group = group;
         return info;
     }
@@ -74,6 +79,7 @@ struct SettingInfo {
         info.name = name;
         info.type = SettingType::ACTION;
         info.valuePtr = nullptr;
+        info.valueRange = ValueRange();
         info.group = group;
         return info;
     }
@@ -92,6 +98,7 @@ struct SettingInfo {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::SEPARATOR;
+        info.valueRange = ValueRange();
         info.group = group;
         return info;
     }

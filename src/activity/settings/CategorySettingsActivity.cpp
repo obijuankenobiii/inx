@@ -92,8 +92,10 @@ void CategorySettingsActivity::setupMenu() {
       entry.name = setting.name;
       entry.type = SettingType::SEPARATOR;
       entry.group = setting.group;
-      GroupType group = setting.group;
-      entry.getValueText = [this, group]() -> const char* {
+      entry.valuePtr = nullptr;
+      entry.enumValues.clear();
+      entry.valueRange = {0, 0, 0};
+      entry.getValueText = [this, group = setting.group]() -> const char* {
         static char indicator[4];
         snprintf(indicator, sizeof(indicator), "%s", groupExpanded[group] ? "-" : "+");
         return indicator;
@@ -101,7 +103,6 @@ void CategorySettingsActivity::setupMenu() {
       entry.change = [](int) {};
       menuItems.push_back(entry);
     } else {
-      // Only add if group is expanded or group is NONE
       if (setting.group == GroupType::NONE || groupExpanded[setting.group]) {
         MenuEntry entry;
         entry.name = setting.name;
@@ -120,7 +121,8 @@ void CategorySettingsActivity::setupMenu() {
             SETTINGS.saveToFile();
             updateRequired = true;
           };
-        } else if (setting.type == SettingType::ENUM) {
+        }
+        if (setting.type == SettingType::ENUM) {
           entry.getValueText = [this, setting]() -> const char* {
             int index = SETTINGS.*(setting.valuePtr);
             if (index >= 0 && index < (int)setting.enumValues.size()) {
@@ -137,7 +139,8 @@ void CategorySettingsActivity::setupMenu() {
             SETTINGS.saveToFile();
             updateRequired = true;
           };
-        } else if (setting.type == SettingType::VALUE) {
+        }
+        if (setting.type == SettingType::VALUE) {
           entry.getValueText = [this, setting]() -> const char* {
             static char buffer[32];
             snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(setting.valuePtr));
@@ -152,7 +155,8 @@ void CategorySettingsActivity::setupMenu() {
             SETTINGS.saveToFile();
             updateRequired = true;
           };
-        } else if (setting.type == SettingType::ACTION) {
+        }
+        if (setting.type == SettingType::ACTION) {
           entry.getValueText = []() -> const char* { return "→"; };
           entry.change = [this, setting](int) {
             if (strcmp(setting.name, "KOReader Sync") == 0) {
@@ -161,19 +165,22 @@ void CategorySettingsActivity::setupMenu() {
                 exitActivity();
                 updateRequired = true;
               }));
-            } else if (strcmp(setting.name, "OPDS Browser") == 0) {
+            }
+            if (strcmp(setting.name, "OPDS Browser") == 0) {
               exitActivity();
               enterNewActivity(new CalibreSettingsActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
-            } else if (strcmp(setting.name, "Clear Cache") == 0) {
+            }
+            if (strcmp(setting.name, "Clear Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
-            } else if (strcmp(setting.name, "Check for updates") == 0) {
+            }
+            if (strcmp(setting.name, "Check for updates") == 0) {
               exitActivity();
               enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -316,7 +323,7 @@ void CategorySettingsActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  renderTabBar(Activity::renderer, 0);
+  renderTabBar(renderer);
 
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
@@ -359,8 +366,7 @@ void CategorySettingsActivity::render() const {
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
         int indicatorW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, textY, indicator,
-                          !isSelected);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, textY, indicator, !isSelected);
       }
 
       renderer.drawLine(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);

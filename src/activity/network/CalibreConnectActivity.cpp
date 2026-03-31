@@ -488,7 +488,7 @@ void CalibreConnectActivity::displayTaskLoop() {
  */
 void CalibreConnectActivity::render() const {
     renderer.clearScreen();
-    renderTabBar(renderer, 0);
+    renderTabBar(renderer);
     
     int screenWidth = renderer.getScreenWidth();
     int screenHeight = renderer.getScreenHeight();

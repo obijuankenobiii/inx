@@ -431,7 +431,7 @@ void WifiSelectionActivity::displayTaskLoop() {
  */
 void WifiSelectionActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   const int startY = TAB_BAR_HEIGHT;
