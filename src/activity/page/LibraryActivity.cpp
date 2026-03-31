@@ -742,7 +742,7 @@ void LibraryActivity::loop() {
     if (lastSlash == 0) {
       newPath = "/";
     } else if (lastSlash != std::string::npos) {
-      newPath = newPath.substr(0, lastSlash);
+      newPath.resize(lastSlash);
     } else {
       newPath = "/";
     }

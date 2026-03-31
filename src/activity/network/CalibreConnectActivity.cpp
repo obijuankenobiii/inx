@@ -105,7 +105,7 @@ namespace {
      * @param title Header title text
      * @param subtitle Optional subtitle text
      */
-    void renderActivityHeader(GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+    void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
         const int headerHeight = TAB_BAR_HEIGHT;
         
         renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,

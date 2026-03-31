@@ -11,7 +11,6 @@ class LibraryIndexer {
   static bool hasIndex() { return SdMan.exists("/.metadata/library/library.idx"); }
   static bool deleteIndex() { return SdMan.remove("/.metadata/library/library.idx"); }
 
-  // MOVE THIS TO PUBLIC so SettingsActivity can see it
   static int countBooks(FsFile& dir, int depth = 0) {
     if (depth > 10) return 0;
     int count = 0;
@@ -65,11 +64,11 @@ class LibraryIndexer {
     uint8_t version = 1;
     idxFile.write(&version, 1);
 
-    int currentBook = 0;
+    int currentBook = 0;  // Add back the currentBook variable
     root = SdMan.open("/");
     if (root) {
-      // Pass "/" to start the nested path construction
-      indexDirectory(root, idxFile, currentBook, totalBooks, progressCallback, "/", 0);
+      // FIXED: Pass all 7 arguments
+      indexDirectory(root, idxFile, currentBook, totalBooks, progressCallback, std::string("/"), 0);
       root.close();
     }
 
@@ -80,7 +79,7 @@ class LibraryIndexer {
  private:
   static void indexDirectory(FsFile& dir, FsFile& idxFile, int& currentBook, int totalBooks,
                              std::function<void(int, int, const char*)> progressCallback, 
-                             std::string currentPath, int depth) {
+                             const std::string& currentPath, int depth) {
     if (depth > 10) return;
 
     dir.rewindDirectory();
@@ -105,7 +104,6 @@ class LibraryIndexer {
         file.close(); continue;
       }
 
-      // THE NESTING FIX: Construct the path relative to the accumulated parent path
       std::string thisItemPath;
       if (currentPath == "/") thisItemPath = "/" + std::string(name);
       else thisItemPath = currentPath + "/" + std::string(name);
@@ -122,23 +120,19 @@ class LibraryIndexer {
           uint8_t bookMarker = 0x01;
           idxFile.write(&bookMarker, 1);
 
-          // Full Absolute Path (Properly nested now)
           uint16_t pLen = (uint16_t)thisItemPath.length();
           idxFile.write(&pLen, sizeof(pLen));
           idxFile.write(thisItemPath.c_str(), pLen);
 
-          // Raw Filename
           uint8_t nLen = (uint8_t)strlen(name);
           idxFile.write(&nLen, sizeof(nLen));
           idxFile.write(name, nLen);
 
-          // Display Name
           std::string displayName = cleanFilename(name);
           uint8_t dLen = (uint8_t)displayName.length();
           idxFile.write(&dLen, sizeof(dLen));
           idxFile.write(displayName.c_str(), dLen);
 
-          // Folder Name (The parent folder)
           std::string folderName = extractRawFolderName(currentPath.c_str());
           uint8_t fLen = (uint8_t)folderName.length();
           idxFile.write(&fLen, sizeof(fLen));
@@ -166,14 +160,19 @@ class LibraryIndexer {
     if (result.empty() || result == "/") return "Root";
     if (result.back() == '/') result.pop_back();
     size_t lastSlash = result.find_last_of('/');
-    if (lastSlash != std::string::npos) return result.substr(lastSlash + 1);
+    if (lastSlash != std::string::npos) {
+      std::string folderName = result.substr(lastSlash + 1);
+      return folderName.empty() ? "Root" : folderName;
+    }
     return result;
   }
 
   static std::string cleanFilename(const char* name) {
     std::string result = name;
     size_t dot = result.find_last_of('.');
-    if (dot != std::string::npos) result = result.substr(0, dot);
+    if (dot != std::string::npos) {
+      result.resize(dot);
+    }
     std::replace(result.begin(), result.end(), '_', ' ');
     std::replace(result.begin(), result.end(), '-', ' ');
     return result;
