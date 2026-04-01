@@ -244,13 +244,14 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   }
 
   if (!coverDrawn) {
-    int bookX = coverAreaX - 5;
-    int bookY = coverAreaY - 20;
-    int bookWidth = containerWidth - 10;
-    int bookHeightInt = static_cast<int>(containerHeight * 0.78);
+    int bookX = coverAreaX ;
+    int bookY = coverAreaY + GRID_SPACING;
+    int bookWidth = containerWidth;
+    int bookHeightInt = static_cast<int>(containerHeight);
 
-    renderer.fillRect(bookX, bookY, bookWidth, bookHeightInt, true);
-
+    renderer.drawRect(bookX, bookY, bookWidth, bookHeightInt, true);
+    renderer.fillRect(bookX, bookY, bookWidth, bookHeightInt);
+    renderer.drawIcon(Tree, bookX, bookY + 100, 200, 200, GfxRenderer::Rotate270CW, true);
     char titleBuf[128];
     if (!book.title.empty()) {
       strncpy(titleBuf, book.title.c_str(), sizeof(titleBuf));
@@ -285,7 +286,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     if (!book.author.empty()) {
       char authorBuf[64];
       snprintf(authorBuf, sizeof(authorBuf), "- %s", book.author.c_str());
-      int authorY = bookY + bookHeightInt - 30;
+      int authorY = bookY + bookHeightInt;
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftMargin, authorY, authorBuf, false);
     }
   }
@@ -301,7 +302,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
     int barX = coverAreaX + 15;
-    int barY = coverAreaY + containerHeight - 40;
+    int barY = coverAreaY + containerHeight;
     int barW = containerWidth - 30;
     int barH = 10;
 
@@ -317,7 +318,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
       snprintf(pText, sizeof(pText), "%d%%", percent);
       int pW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pText);
       renderer.fillRect(barX + barW - pW - 5, barY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 10,
-                        pW + 5, pW + 3, false, true);
+                        pW + 5, 30, false, true);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barX + barW - pW,
                         barY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 6, pText);
     }

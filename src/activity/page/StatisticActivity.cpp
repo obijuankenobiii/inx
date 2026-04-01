@@ -290,8 +290,8 @@ void StatisticActivity::render() const {
             char pText[8];
             snprintf(pText, sizeof(pText), "%.0f%%", progress);
             int pW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pText);
-            renderer.fillRect(coverWidth - 20, barY - 20, pW + 8, pW + 8, false, true);
-            renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, coverWidth - 13, barY - (pW / 2), pText);
+            renderer.fillRect(coverWidth - 20, barY - 20, pW + 8, 30, false, true);
+            renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, coverWidth - 13, barY - 15, pText);
 
             renderer.fillRect(barX, barY, barW, barH, false);
             renderer.drawRect(barX, barY, barW, barH, true);

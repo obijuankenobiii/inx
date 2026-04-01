@@ -7,7 +7,7 @@
 #include "esp_wifi.h"
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/inx/inx/releases/latest";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
 
 /* This is buffer and size holder to keep upcoming data from latestReleaseUrl */
 char* local_buf;
