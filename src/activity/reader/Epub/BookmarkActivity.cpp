@@ -28,8 +28,6 @@ BookmarkActivity::BookmarkActivity(
     DeleteCallback onDelete,
     BackCallback onBack)
     : Activity("EpubReaderBookmark", renderer, mappedInput)
-    , renderer(renderer)
-    , mappedInput(mappedInput)
     , bookmarks(bookmarks)
     , bookTitle(bookTitle)
     , currentSpine(currentSpine)
@@ -50,9 +48,7 @@ void BookmarkActivity::onEnter() {
 /**
  * @brief Main loop function called repeatedly while activity is active
  */
-void BookmarkActivity::loop() {
-    bool needUpdate = false;
-    
+void BookmarkActivity::loop() {    
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
         onBack();
         return;
@@ -71,7 +67,6 @@ void BookmarkActivity::loop() {
             if (selectedIndex >= static_cast<int>(bookmarks.size())) {
                 selectedIndex = bookmarks.size() - 1;
             }
-            needUpdate = true;
         }
         return;
     }
@@ -79,19 +74,13 @@ void BookmarkActivity::loop() {
     if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
         if (!bookmarks.empty()) {
             selectedIndex = (selectedIndex - 1 + bookmarks.size()) % bookmarks.size();
-            needUpdate = true;
         }
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
         if (!bookmarks.empty()) {
             selectedIndex = (selectedIndex + 1) % bookmarks.size();
-            needUpdate = true;
         }
-    }
-
-    if (needUpdate) {
-        renderScreen();
     }
 }
 
@@ -113,10 +102,10 @@ void BookmarkActivity::renderScreen() {
     const int headerY = 20;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
     
-    // Draw book title (truncated if too long)
     std::string displayTitle = bookTitle;
     if (displayTitle.length() > 30) {
-        displayTitle = displayTitle.substr(0, 27) + "...";
+        displayTitle.erase(27);
+        displayTitle += "...";
     }
     
     int subtitleY = headerY + 40;

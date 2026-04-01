@@ -18,7 +18,7 @@
 
 class Menu {
  protected:
-  static constexpr int TAB_BAR_HEIGHT = 72;
+  static constexpr int TAB_BAR_HEIGHT = 65;
   static constexpr int TAB_COUNT = 5;
   static constexpr int ICON_SIZE = 40;
   static constexpr int BATTERY_Y = 30;
@@ -28,16 +28,19 @@ class Menu {
   Menu() = default;
   virtual ~Menu() = default;
 
-  void renderTabBar(GfxRenderer& renderer, int startY) const {
+  /**
+   * @brief Renders the tab bar with icons and selection indicator
+   * @param renderer Reference to the graphics renderer (const)
+   */
+  void renderTabBar(const GfxRenderer& renderer) const {
     const int screenWidth = renderer.getScreenWidth();
     const int tabButtonWidth = screenWidth / TAB_COUNT;
 
     for (int i = 0; i < TAB_COUNT; ++i) {
       int buttonX = i * tabButtonWidth;
-      int buttonY = startY;
       bool isSelected = (tabSelectorIndex == i);
       int iconX = buttonX + (tabButtonWidth - ICON_SIZE) / 2;
-      int iconY = buttonY + (TAB_BAR_HEIGHT - ICON_SIZE) / 2 + 5;
+      int iconY = (TAB_BAR_HEIGHT - ICON_SIZE) / 2 + 5;
 
       switch (i) {
         case 0:
@@ -57,24 +60,36 @@ class Menu {
           break;
       }
 
-      int bottomLineY = startY + TAB_BAR_HEIGHT - 5;
       if (isSelected) {
-        renderer.fillRect(iconX - 10, bottomLineY - 2, 60, SELECTED_BORDER_HEIGHT, 1);
+        renderer.fillRect(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, 1);
       }
 
-      renderer.drawLine(buttonX, bottomLineY, buttonX + tabButtonWidth, bottomLineY);
+      renderer.drawLine(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);
     }
     drawBattery(renderer);
   }
 
-  void drawBattery(GfxRenderer& renderer) const {
+  /**
+   * @brief Draws the battery icon and percentage on the screen
+   * @param renderer Reference to the graphics renderer (const)
+   */
+  void drawBattery(const GfxRenderer& renderer) const {
     ScreenComponents::drawBattery(
         renderer, renderer.getScreenWidth() - 80, renderer.getScreenHeight() - 30,
         SETTINGS.hideBatteryPercentage != SystemSetting::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS);
   }
 
+  /**
+   * @brief Pure virtual function to navigate to the selected menu tab
+   * Must be implemented by derived classes
+   */
   virtual void navigateToSelectedMenu() = 0;
 
+  /**
+   * @brief Handles left/right navigation between tabs
+   * @param leftPressed True if left button is pressed
+   * @param rightPressed True if right button is pressed
+   */
   void handleTabNavigation(bool leftPressed, bool rightPressed) {
     if (leftPressed) {
       tabSelectorIndex = (tabSelectorIndex - 1 + TAB_COUNT) % TAB_COUNT;

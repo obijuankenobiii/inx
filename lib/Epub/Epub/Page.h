@@ -2,6 +2,7 @@
 #include <SdFat.h>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "blocks/TextBlock.h"
 
@@ -168,10 +169,10 @@ class Page {
    * @return true if at least one image element exists
    */
   bool hasImages() const {
-    for (auto& element : elements) {
-      if (element->getTag() == TAG_PageImage) return true;
-    }
-    return false;
+    return std::any_of(elements.begin(), elements.end(),
+                       [](const std::shared_ptr<PageElement>& element) {
+                         return element->getTag() == TAG_PageImage;
+                       });
   }
   
   /**

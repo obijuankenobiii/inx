@@ -59,7 +59,7 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       onGoToRecent(onGoToRecent),
       currentSpineIndex(0),
       nextPageNumber(0),
-      pagesUntilFullRefresh(0),
+      pagesUntilFullRefresh(bookSettings.refreshFrequency),
       cachedSpineIndex(0),
       cachedChapterTotalPageCount(0),
       updateRequired(false),
@@ -105,7 +105,7 @@ void EpubActivity::taskTrampoline(void* param) {
 void EpubActivity::drawLoadingScreen() {
   const int barWidth = renderer.getScreenWidth();
   const int barHeight = 25;
-  const int barX = (renderer.getScreenWidth() - barWidth) / 2;
+  const int barX = 0;
   const int barY = renderer.getScreenHeight() - barHeight;
 
   renderer.fillRect(barX, barY, barWidth, barHeight, false);
@@ -221,19 +221,20 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
   if (!epub) return nullptr;
 
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
-  auto section = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
+  auto loadedSection = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
 
-  bool isCached = section->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
-                                           bookSettings.paragraphAlignment, info.width, info.height,
-                                           bookSettings.hyphenationEnabled);
+  bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+                                                 bookSettings.paragraphAlignment, info.width, info.height,
+                                                 bookSettings.hyphenationEnabled);
 
-  if (!isCached && section) {
+  if (!isCached && loadedSection) {
     buildSection(spineIndex, info, true, false);
-    section->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
-                             bookSettings.paragraphAlignment, info.width, info.height, bookSettings.hyphenationEnabled);
+    loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+                                   bookSettings.paragraphAlignment, info.width, info.height,
+                                   bookSettings.hyphenationEnabled);
   }
 
-  return section;
+  return loadedSection;
 }
 
 /**
@@ -306,7 +307,7 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount) 
 
   bookProgress->save(data);
 
-  if (epub && pageCount > 0) {
+  if (pageCount > 0) {
     float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
     float bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
     RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
@@ -353,9 +354,10 @@ void EpubActivity::displayCoverOrTitle() {
  */
 void EpubActivity::loadCurrentSection() {
   ViewportInfo info = calculateViewport();
-  section = loadSection(currentSpineIndex, info);
+  auto newSection = loadSection(currentSpineIndex, info);
 
-  if (section) {
+  if (newSection) {
+    section = std::move(newSection);
     if (nextPageNumber == UINT16_MAX) {
       section->currentPage = section->pageCount - 1;
     } else {
@@ -399,8 +401,8 @@ void EpubActivity::updateExternalState() {
   APP_STATE.saveToFile();
 
   float spineProgress = section ? static_cast<float>(section->currentPage) / section->pageCount : 0;
-  float bookProgress = epub->calculateProgress(currentSpineIndex, spineProgress);
-  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgress);
+  float bookProgressValue = epub->calculateProgress(currentSpineIndex, spineProgress);
+  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
 }
 
 /**
@@ -480,7 +482,6 @@ void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
   renderer.clearScreen();
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-  if (!epub) return;
   epub->setupCacheDir();
 
   setupOrientation();
@@ -489,7 +490,7 @@ void EpubActivity::onEnter() {
   bookProgress.reset(new BookProgress(epub->getCachePath()));
 
   bool hasProgress = bookProgress->exists();
-  auto* book = BOOK_STATE.findBookByPath(epub->getPath());
+  const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
 
   if (book && hasProgress) {
     fastPath();
@@ -1072,8 +1073,8 @@ void EpubActivity::pageTurn(bool forward) {
     return;
   }
 
-  if (section->pageCount <= 0) {
-    xSemaphoreGive(renderingMutex);  // Release BEFORE reset
+  if (section->pageCount == 0) {
+    xSemaphoreGive(renderingMutex);
     section.reset();
     updateRequired = true;
     return;
@@ -1112,11 +1113,10 @@ void EpubActivity::pageTurn(bool forward) {
     }
   }
 
-  // Apply changes while still holding mutex
   if (needSectionReset) {
     currentSpineIndex = newSpineIndex;
     nextPageNumber = newNextPageNumber;
-    xSemaphoreGive(renderingMutex);  // Release BEFORE reset
+    xSemaphoreGive(renderingMutex);
     section.reset();
   } else {
     xSemaphoreGive(renderingMutex);
@@ -1136,7 +1136,7 @@ void EpubActivity::pageTurn(bool forward) {
 
       if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         renderScreen();
-        xSemaphoreGive(renderingMutex);  // Make sure to release
+        xSemaphoreGive(renderingMutex);
       } else {
         updateRequired = true;
       }
@@ -1354,16 +1354,21 @@ void EpubActivity::saveBookmarks() {
 /**
  * @brief Adds a bookmark at the current position
  */
+/**
+ * @brief Adds a bookmark at the current position
+ */
 void EpubActivity::addBookmark() {
   if (!section) return;
   isBookmarking = true;
-  if (isCurrentPageBookmarked()) {
-    for (auto it = bookmarks.begin(); it != bookmarks.end(); ++it) {
-      if (it->spineIndex == currentSpineIndex && it->pageNumber == section->currentPage) {
-        bookmarks.erase(it);
-        break;
-      }
-    }
+  
+  auto it = std::find_if(bookmarks.begin(), bookmarks.end(),
+                         [this](const Bookmark& bookmark) {
+                           return bookmark.spineIndex == currentSpineIndex &&
+                                  bookmark.pageNumber == section->currentPage;
+                         });
+  
+  if (it != bookmarks.end()) {
+    bookmarks.erase(it);
     saveBookmarks();
     showBookmarkIndicator = false;
     updateRequired = true;
@@ -1410,12 +1415,11 @@ void EpubActivity::removeBookmark(int index) {
 bool EpubActivity::isCurrentPageBookmarked() const {
   if (!section) return false;
 
-  for (const auto& bookmark : bookmarks) {
-    if (bookmark.spineIndex == currentSpineIndex && bookmark.pageNumber == section->currentPage) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(bookmarks.begin(), bookmarks.end(),
+                     [this](const Bookmark& bookmark) {
+                       return bookmark.spineIndex == currentSpineIndex &&
+                              bookmark.pageNumber == section->currentPage;
+                     });
 }
 
 /**
@@ -1490,10 +1494,6 @@ void EpubActivity::loadBookSettings() {
  * @brief Saves book settings to file
  */
 void EpubActivity::saveBookSettings() {
-  if (!epub) {
-    return;
-  }
-
   std::string cachePath = epub->getCachePath();
   if (cachePath.empty()) {
     return;
@@ -1677,14 +1677,14 @@ void EpubActivity::displayBookStats() {
 
   // Pages Read
   uint32_t pagesRead = stats.totalPagesRead;
-  snprintf(buffer, sizeof(buffer), "%d", pagesRead);
+  snprintf(buffer, sizeof(buffer), "%u", pagesRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Pages", true);
   currentY += 87;
 
   // Chapters Read
   uint32_t chaptersRead = stats.totalChaptersRead;
-  snprintf(buffer, sizeof(buffer), "%d", chaptersRead);
+  snprintf(buffer, sizeof(buffer), "%u", chaptersRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
   currentY += 87;
@@ -1692,16 +1692,15 @@ void EpubActivity::displayBookStats() {
   // Average Time Per Page
   uint32_t avgPageTime = stats.avgPageTimeMs;
   if (avgPageTime > 0) {
-    snprintf(buffer, sizeof(buffer), "%ds", avgPageTime / 1000);
+    snprintf(buffer, sizeof(buffer), "%us", avgPageTime / 1000);
   } else {
     snprintf(buffer, sizeof(buffer), "-");
   }
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Average / Page", true);
 
-  // Session count (optional)
   currentY += 87;
-  snprintf(buffer, sizeof(buffer), "%d", stats.sessionCount);
+  snprintf(buffer, sizeof(buffer), "%u", stats.sessionCount);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Reading Sessions", true);
 
@@ -1712,18 +1711,18 @@ std::string EpubActivity::formatTime(uint32_t timeMs) {
   uint32_t seconds = timeMs / 1000;
   uint32_t minutes = seconds / 60;
   uint32_t hours = minutes / 60;
-  
+
   if (hours > 0) {
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%dh %dm", hours, minutes % 60);
+    snprintf(buffer, sizeof(buffer), "%uh %um", hours, minutes % 60);
     return std::string(buffer);
   } else if (minutes > 0) {
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%dm", minutes);
+    snprintf(buffer, sizeof(buffer), "%um", minutes);
     return std::string(buffer);
   } else {
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%ds", seconds);
+    snprintf(buffer, sizeof(buffer), "%us", seconds);
     return std::string(buffer);
   }
 }

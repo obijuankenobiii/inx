@@ -43,7 +43,7 @@ constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;  // 33 modules for version 4
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
     const int headerHeight = TAB_BAR_HEIGHT;
     
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
@@ -282,7 +282,7 @@ void HotspotActivity::drawQRCode(int x, int y, const std::string& data) const {
  */
 void HotspotActivity::render() const {
     renderer.clearScreen();
-    renderTabBar(renderer, 0);
+    renderTabBar(renderer);
     
     int screenHeight = renderer.getScreenHeight();
     int startY = TAB_BAR_HEIGHT;

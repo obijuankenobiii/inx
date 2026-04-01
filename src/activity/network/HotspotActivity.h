@@ -40,12 +40,28 @@ public:
                              const std::function<void()>& onGoBack)
         : Activity("Hotspot", renderer, mappedInput), 
           Menu(),
+          displayTaskHandle(nullptr),
+          renderingMutex(nullptr),
+          updateRequired(false),
+          state(HotspotState::STARTING),
+          lastHandleClientTime(0),
           onGoBack(onGoBack) {
         tabSelectorIndex = 3;
     }
     
+    /**
+     * @brief Called when activity becomes active
+     * @details Initializes hotspot and web server
+     */
     void onEnter() override;
+    
+    /**
+     * @brief Called when activity is exited
+     * @details Stops web server and cleans up resources
+     */
     void onExit() override;
+    
+    /** @brief Main loop - processes network connections */
     void loop() override;
     
     /**
@@ -61,25 +77,53 @@ public:
     bool preventAutoSleep() override { return webServer && webServer->isRunning(); }
 
 private:
+    /**
+     * @brief Static trampoline function for FreeRTOS task
+     * @param param Pointer to HotspotActivity instance
+     */
     static void taskTrampoline(void* param);
+    
+    /**
+     * @brief Background task loop for display updates
+     * @details Never returns - [[noreturn]] attribute
+     */
     [[noreturn]] void displayTaskLoop();
+    
+    /** @brief Main rendering function */
     void render() const;
+    
+    /** @brief Renders the server running state UI */
     void renderServerRunning() const;
+    
+    /** @brief Initializes and starts the WiFi access point */
     void startAccessPoint();
+    
+    /** @brief Initializes and starts the web server */
     void startWebServer();
+    
+    /** @brief Stops the web server and cleans up resources */
     void stopWebServer();
+    
+    /**
+     * @brief Draws a QR code on the display
+     * @param x X-coordinate for QR code position
+     * @param y Y-coordinate for QR code position
+     * @param data String data to encode in QR code
+     */
     void drawQRCode(int x, int y, const std::string& data) const;
+    
+    /** @brief Navigate to selected menu tab (not used in this activity) */
     void navigateToSelectedMenu() override {}
 
-    TaskHandle_t displayTaskHandle;
-    SemaphoreHandle_t renderingMutex;
-    bool updateRequired;
-    HotspotState state;
+    TaskHandle_t displayTaskHandle;           /**< Handle for display update task */
+    SemaphoreHandle_t renderingMutex;         /**< Mutex for thread-safe rendering */
+    bool updateRequired;                      /**< Flag indicating render update needed */
+    HotspotState state;                       /**< Current activity state */
 
-    std::unique_ptr<LocalServer> webServer;
-    std::string connectedIP;
-    std::string connectedSSID;
-    unsigned long lastHandleClientTime;
+    std::unique_ptr<LocalServer> webServer;   /**< Web server instance */
+    std::string connectedIP;                  /**< IP address of the access point */
+    std::string connectedSSID;                /**< SSID of the access point */
+    unsigned long lastHandleClientTime;       /**< Timestamp of last client handling */
 
-    const std::function<void()> onGoBack;
+    const std::function<void()> onGoBack;     /**< Callback invoked when going back */
 };

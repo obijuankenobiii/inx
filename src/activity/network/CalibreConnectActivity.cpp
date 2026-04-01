@@ -17,94 +17,146 @@
 #include "WifiSelectionActivity.h"
 
 namespace {
-constexpr const char* HOSTNAME = "crosspoint";
-constexpr uint16_t HTTP_PORT = 8080;
 
-constexpr int CONTENT_MARGIN = 25;
-constexpr int LINE_SPACING = 28;
-constexpr int SMALL_SPACING = 25;
-constexpr int SECTION_SPACING = 40;
-constexpr int TAB_BAR_HEIGHT = 40;
-constexpr int HEADER_TITLE_Y_OFFSET = 10;
-constexpr int SUBTITLE_Y_OFFSET = 40;
-constexpr int DIVIDER_PADDING = 10;
-constexpr int BOTTOM_AREA_HEIGHT = 80;
+    /**
+     * @brief mDNS hostname for device discovery on local network
+     */
+    constexpr const char* HOSTNAME = "crosspoint";
 
-const char* HTML_HEADER = 
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Connection: close\r\n"
-    "\r\n"
-    "<!DOCTYPE html><html><head><title>CrossPoint Reader</title>"
-    "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-    "<style>body{font-family:sans-serif;padding:2rem;text-align:center}</style></head>"
-    "<body><h1>CrossPoint Reader</h1><p>Calibre wireless device connection active</p>"
-    "<p>Use the Calibre desktop app to send books</p></body></html>";
+    /**
+     * @brief HTTP port for Calibre wireless connection
+     */
+    constexpr uint16_t HTTP_PORT = 8080;
 
-const char* CDP_RESPONSE = 
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/plain\r\n"
-    "Content-Length: 2\r\n"
-    "Connection: close\r\n"
-    "\r\n"
-    "OK";
+    /**
+     * @brief Left/right margin for text content
+     */
+    constexpr int CONTENT_MARGIN = 25;
 
-/**
- * @brief Renders the header section for the activity
- * @param renderer Graphics renderer instance
- * @param startY Starting Y coordinate
- * @param title Header title text
- * @param subtitle Optional subtitle text
- */
-void renderActivityHeader(GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
-    const int headerHeight = TAB_BAR_HEIGHT;
-    
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                     startY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
-                     title, true, EpdFontFamily::BOLD);
-    
-    if (subtitle) {
-        int subtitleY = startY + SUBTITLE_Y_OFFSET;
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
+    /**
+     * @brief Vertical spacing between text lines
+     */
+    constexpr int LINE_SPACING = 28;
+
+    /**
+     * @brief Small vertical spacing between elements
+     */
+    constexpr int SMALL_SPACING = 25;
+
+    /**
+     * @brief Large vertical spacing between sections
+     */
+    constexpr int SECTION_SPACING = 40;
+
+    /**
+     * @brief Height of the tab bar at top of screen
+     */
+    constexpr int TAB_BAR_HEIGHT = 40;
+
+    /**
+     * @brief Y offset for header title positioning
+     */
+    constexpr int HEADER_TITLE_Y_OFFSET = 10;
+
+    /**
+     * @brief Y offset for subtitle positioning
+     */
+    constexpr int SUBTITLE_Y_OFFSET = 40;
+
+    /**
+     * @brief Padding above/below divider lines
+     */
+    constexpr int DIVIDER_PADDING = 10;
+
+    /**
+     * @brief Height of bottom area for button hints
+     */
+    constexpr int BOTTOM_AREA_HEIGHT = 80;
+
+    /**
+     * @brief HTML response for Calibre web interface root page
+     */
+    const char* HTML_HEADER = 
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "<!DOCTYPE html><html><head><title>CrossPoint Reader</title>"
+        "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+        "<style>body{font-family:sans-serif;padding:2rem;text-align:center}</style></head>"
+        "<body><h1>CrossPoint Reader</h1><p>Calibre wireless device connection active</p>"
+        "<p>Use the Calibre desktop app to send books</p></body></html>";
+
+    /**
+     * @brief Response for Calibre device protocol (CDP) endpoint
+     */
+    const char* CDP_RESPONSE = 
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: 2\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "OK";
+
+    /**
+     * @brief Renders the header section for the activity
+     * @param renderer Graphics renderer instance
+     * @param startY Starting Y coordinate
+     * @param title Header title text
+     * @param subtitle Optional subtitle text
+     */
+    void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+        const int headerHeight = TAB_BAR_HEIGHT;
         
-        int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-        renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
+                         startY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
+                         title, true, EpdFontFamily::BOLD);
+        
+        if (subtitle) {
+            int subtitleY = startY + SUBTITLE_Y_OFFSET;
+            renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
+            
+            int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
+            renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+        }
     }
-}
 
-/**
- * @brief Truncates a string to a maximum length, adding ellipsis if needed
- * @param str Input string to truncate
- * @param maxLength Maximum allowed length
- * @return Truncated string with ellipsis if original exceeds maxLength
- */
-std::string truncateString(const std::string& str, int maxLength) {
-    if (str.length() <= maxLength) return str;
-    std::string result = str;
-    result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
-    return result;
-}
+    /**
+     * @brief Truncates a string to a maximum length, adding ellipsis if needed
+     * @param str Input string to truncate
+     * @param maxLength Maximum allowed length
+     * @return Truncated string with ellipsis if original exceeds maxLength
+     */
+    std::string truncateString(const std::string& str, int maxLength) {
+        if (str.length() <= maxLength) return str;
+        std::string result = str;
+        result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
+        return result;
+    }
 }  // namespace
 
 /**
  * @brief Web server context structure managing connection state and upload progress
  */
 struct WebServerContext {
-    int serverSocket = -1;
-    int clientSocket = -1;
-    bool running = false;
+    int serverSocket = -1;     /**< Server socket file descriptor */
+    int clientSocket = -1;     /**< Client socket file descriptor */
+    bool running = false;      /**< Flag indicating if server is running */
     
-    bool uploadInProgress = false;
-    size_t uploadReceived = 0;
-    size_t uploadTotal = 0;
-    std::string uploadFilename;
-    unsigned long lastActivity = 0;
-    unsigned long lastCompleteAt = 0;
-    std::string lastCompleteName;
+    bool uploadInProgress = false;      /**< Flag indicating if upload is active */
+    size_t uploadReceived = 0;          /**< Bytes received so far */
+    size_t uploadTotal = 0;             /**< Total bytes expected */
+    std::string uploadFilename;         /**< Name of file being uploaded */
+    unsigned long lastActivity = 0;     /**< Timestamp of last network activity */
+    unsigned long lastCompleteAt = 0;   /**< Timestamp of last completed upload */
+    std::string lastCompleteName;       /**< Name of last completed upload */
     
-    FsFile uploadFile;
+    FsFile uploadFile;                  /**< File handle for writing upload data */
 };
 
+/**
+ * @brief Destructor - stops web server and cleans up resources
+ */
 CalibreConnectActivity::~CalibreConnectActivity() {
     stopWebServer();
 }
@@ -225,7 +277,7 @@ void CalibreConnectActivity::startWebServer() {
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(HTTP_PORT);
     
-    if (bind(serverCtx->serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+    if (bind(serverCtx->serverSocket, reinterpret_cast<struct sockaddr*>(&serverAddr), sizeof(serverAddr)) < 0) {
         close(serverCtx->serverSocket);
         serverCtx->serverSocket = -1;
         state = CalibreConnectState::ERROR;
@@ -291,7 +343,7 @@ void CalibreConnectActivity::loop() {
         if (serverCtx->clientSocket < 0) {
             struct sockaddr_in clientAddr;
             socklen_t clientLen = sizeof(clientAddr);
-            serverCtx->clientSocket = accept(serverCtx->serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+            serverCtx->clientSocket = accept(serverCtx->serverSocket, reinterpret_cast<struct sockaddr*>(&clientAddr), &clientLen);
             
             if (serverCtx->clientSocket >= 0) {
                 int flags = fcntl(serverCtx->clientSocket, F_GETFL, 0);
@@ -341,7 +393,7 @@ void CalibreConnectActivity::loop() {
                                 size_t dataLen = bytesRead - headerLen;
                                 
                                 if (dataLen > 0 && serverCtx->uploadFile) {
-                                    serverCtx->uploadFile.write((const uint8_t*)dataStart, dataLen);
+                                    serverCtx->uploadFile.write(reinterpret_cast<const uint8_t*>(dataStart), dataLen);
                                     serverCtx->uploadReceived += dataLen;
                                 }
                             }
@@ -361,13 +413,13 @@ void CalibreConnectActivity::loop() {
                 }
                 else {
                     if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
-                        serverCtx->uploadFile.write((const uint8_t*)buffer, bytesRead);
+                        serverCtx->uploadFile.write(reinterpret_cast<const uint8_t*>(buffer), bytesRead);
                         serverCtx->uploadReceived += bytesRead;
                         
                         lastProgressReceived = serverCtx->uploadReceived;
                         updateRequired = true;
                         
-                        if (bytesRead < sizeof(buffer) || strstr(buffer, "0\r\n\r\n")) {
+                        if (bytesRead < static_cast<int>(sizeof(buffer)) || strstr(buffer, "0\r\n\r\n")) {
                             serverCtx->uploadInProgress = false;
                             serverCtx->uploadFile.close();
                             serverCtx->lastCompleteAt = millis();
@@ -388,7 +440,7 @@ void CalibreConnectActivity::loop() {
                     }
                 }
             }
-            else if (bytesRead == 0 || (bytesRead < 0 && errno != EAGAIN)) {
+            else if (bytesRead == 0 || errno != EAGAIN) {
                 if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
                     serverCtx->uploadFile.close();
                 }
@@ -436,7 +488,7 @@ void CalibreConnectActivity::displayTaskLoop() {
  */
 void CalibreConnectActivity::render() const {
     renderer.clearScreen();
-    renderTabBar(renderer, 0);
+    renderTabBar(renderer);
     
     int screenWidth = renderer.getScreenWidth();
     int screenHeight = renderer.getScreenHeight();

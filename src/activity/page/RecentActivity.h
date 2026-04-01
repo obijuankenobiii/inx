@@ -17,7 +17,7 @@
  */
 class RecentActivity final : public Activity, public Menu {
  public:
-  static constexpr int MAX_RECENT_BOOKS = 4;
+  static constexpr int MAX_RECENT_BOOKS = 8;
   static constexpr int GRID_COLS = 2;
 
   static constexpr int COVER_WIDTH = 200;
@@ -59,10 +59,10 @@ class RecentActivity final : public Activity, public Menu {
   const std::function<void()> onGoToRecent;
 
   /**
- * Formats a time duration in milliseconds to a human-readable string.
- * Output formats: "Xd Xh" for days, "Xh Xm" for hours, "Xm" for minutes.
- */
-std::string formatTime(uint32_t milliseconds) const;
+   * Formats a time duration in milliseconds to a human-readable string.
+   * Output formats: "Xd Xh" for days, "Xh Xm" for hours, "Xm" for minutes.
+   */
+  std::string formatTime(uint32_t milliseconds) const;
 
   /**
    * Loads recent books from persistent storage.
@@ -114,22 +114,11 @@ std::string formatTime(uint32_t milliseconds) const;
    * @param startY Starting Y coordinate for the list
    * @param book Book information to render
    * @param selected Whether this item is selected
+   * @param next Whether to render next book (unused parameter, kept for compatibility)
    */
   void renderListItem(int index, int startY, const RecentBook& book, bool selected, bool next = false);
 
-  /**
-   * Renders the complete list view including all visible books and a scrollbar.
-   * 
-   * @param startY Starting Y coordinate for the list
-   */
-  void renderListView(int startY);
 
-  /**
-   * Calculates the X coordinate where the grid should start to be centered on screen.
-   * 
-   * @return X coordinate for the start of the grid
-   */
-  int getGridStartX() const;
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.
@@ -156,8 +145,8 @@ std::string formatTime(uint32_t milliseconds) const;
    * @param renderer Graphics renderer for display output
    * @param mappedInput Input manager for handling button presses
    * @param onLibraryOpen Callback for opening library tab
-   * @param onGoToStatistics Callback for when a book is selected to open
-   * @param onSelectBook Callback for returning to home screen
+   * @param onGoToStatistics Callback for opening statistics tab
+   * @param onSelectBook Callback when a book is selected to open
    * @param onGoToRecent Callback for returning to home screen
    */
   explicit RecentActivity(GfxRenderer& renderer, 
@@ -169,9 +158,10 @@ std::string formatTime(uint32_t milliseconds) const;
       : Activity("Recent", renderer, mappedInput),
         Menu(),
         onLibraryOpen(onLibraryOpen),
-        onGoToStatistics(onGoToStatistics),
         onSelectBook(onSelectBook),
-        onGoToRecent(onGoToRecent)
+        onGoToStatistics(onGoToStatistics),
+        onGoToRecent(onGoToRecent),
+        hasRandomFavorite(false)
      {}
 
  private:
@@ -182,5 +172,5 @@ std::string formatTime(uint32_t milliseconds) const;
   void loop() override;
 
   RecentBook randomFavoriteBook;
-  bool hasRandomFavorite; 
+  bool hasRandomFavorite;
 };

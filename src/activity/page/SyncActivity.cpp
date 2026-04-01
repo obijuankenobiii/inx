@@ -78,7 +78,6 @@ void SyncActivity::loop() {
     updateRequired = true;
     return;
   }
-  const bool backPressed = mappedInput.isPressed(MappedInputManager::Button::Back);
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
@@ -165,7 +164,7 @@ void SyncActivity::render() const {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
 
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
 
   const int startY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;

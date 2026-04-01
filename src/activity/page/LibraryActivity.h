@@ -44,7 +44,6 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int LIST_ITEM_HEIGHT = 60;
   static constexpr int FOLDER_ICON_WIDTH = 16;
   static constexpr int FOLDER_ICON_SPACING = 20;
-  static constexpr int TAB_BAR_HEIGHT = 60;
 
 
  private:
@@ -147,7 +146,7 @@ class LibraryActivity final : public Activity, public Menu {
     const std::function<void(const std::string& path)>& onSelectBook,
     const std::function<void()>& onRecentOpen,
     const std::function<void()>& onSettingsOpen,
-    std::string initialPath = "/"
+    const std::string& initialPath = "/"  // Changed to const reference
   );
 
   void loadLibraryFromIndex();

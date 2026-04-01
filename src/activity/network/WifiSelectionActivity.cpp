@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
+#include <algorithm>
 #include <map>
 
 #include "activity/util/KeyboardEntryActivity.h"
@@ -57,11 +58,7 @@ void WifiSelectionActivity::onEnter() {
 
   updateRequired = true;
 
-  xTaskCreate(&WifiSelectionActivity::taskTrampoline, "WifiSelectionTask",
-              4096,
-              this,
-              1,
-              &displayTaskHandle);
+  xTaskCreate(&WifiSelectionActivity::taskTrampoline, "WifiSelectionTask", 4096, this, 1, &displayTaskHandle);
 
   startWifiScan();
 }
@@ -72,28 +69,18 @@ void WifiSelectionActivity::onEnter() {
 void WifiSelectionActivity::onExit() {
   Activity::onExit();
 
-  Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit start: %d bytes\n", millis(), ESP.getFreeHeap());
-
-  Serial.printf("[%lu] [WIFI] Deleting WiFi scan...\n", millis());
   WiFi.scanDelete();
-  Serial.printf("[%lu] [WIFI] [MEM] Free heap after scanDelete: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  Serial.printf("[%lu] [WIFI] Acquiring rendering mutex before task deletion...\n", millis());
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
-  Serial.printf("[%lu] [WIFI] Deleting display task...\n", millis());
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
-    Serial.printf("[%lu] [WIFI] Display task deleted\n", millis());
   }
 
-  Serial.printf("[%lu] [WIFI] Deleting mutex...\n", millis());
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
-  Serial.printf("[%lu] [WIFI] Mutex deleted\n", millis());
 
-  Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
   exitActivity();
 }
 
@@ -150,9 +137,9 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   networks.clear();
-  for (const auto& pair : uniqueNetworks) {
-    networks.push_back(pair.second);
-  }
+  networks.reserve(uniqueNetworks.size());
+  std::transform(uniqueNetworks.begin(), uniqueNetworks.end(), std::back_inserter(networks),
+                 [](const std::pair<const std::string, WifiNetworkInfo>& pair) { return pair.second; });
 
   std::sort(networks.begin(), networks.end(),
             [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
@@ -186,8 +173,6 @@ void WifiSelectionActivity::selectNetwork(const int index) {
   if (savedCred && !savedCred->password.empty()) {
     enteredPassword = savedCred->password;
     usedSavedPassword = true;
-    Serial.printf("[%lu] [WiFi] Using saved password for %s, length: %zu\n", millis(), selectedSSID.c_str(),
-                  enteredPassword.size());
     attemptConnection();
     return;
   }
@@ -196,11 +181,7 @@ void WifiSelectionActivity::selectNetwork(const int index) {
     state = WifiSelectionState::PASSWORD_ENTRY;
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "Enter WiFi Password",
-        "",
-        50,
-        64,
-        false,
+        renderer, mappedInput, "Enter WiFi Password", "", 50, 64, false,
         [this](const std::string& text) {
           enteredPassword = text;
           exitActivity();
@@ -257,7 +238,6 @@ void WifiSelectionActivity::checkConnectionStatus() {
       savePromptSelection = 0;
       updateRequired = true;
     } else {
-      Serial.printf("[%lu] [WIFI] Connected with saved/open credentials, completing immediately\n", millis());
       onComplete(true);
     }
     return;
@@ -273,7 +253,7 @@ void WifiSelectionActivity::checkConnectionStatus() {
     return;
   }
 
-  if (millis() - connectionStartTime > CONNECTION_TIMEOUT_MS) {
+  if (millis() - connectionStartTime > 15000) {
     WiFi.disconnect();
     connectionError = "Error: Connection timeout";
     state = WifiSelectionState::CONNECTION_FAILED;
@@ -443,7 +423,7 @@ void WifiSelectionActivity::displayTaskLoop() {
  */
 void WifiSelectionActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer, 0);
+  renderTabBar(renderer);
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   const int startY = TAB_BAR_HEIGHT;
@@ -483,10 +463,10 @@ void WifiSelectionActivity::renderScanning(const int screenWidth, const int scre
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Scanning for networks...";
   int subtitleY = headerY + 40;
@@ -513,10 +493,10 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a network to connect";
   int subtitleY = headerY + 40;
@@ -582,7 +562,8 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
       renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15, listStartY, "^");
     }
     if (scrollOffset + maxVisibleNetworks < static_cast<int>(networks.size())) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15, listStartY + maxVisibleNetworks * LIST_ITEM_HEIGHT, "v");
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15,
+                        listStartY + maxVisibleNetworks * LIST_ITEM_HEIGHT, "v");
     }
 
     char countStr[32];
@@ -606,10 +587,10 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connecting...";
   int subtitleY = headerY + 40;
@@ -644,10 +625,10 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connected successfully!";
   int subtitleY = headerY + 40;
@@ -693,10 +674,10 @@ void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const 
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
   int subtitleY = headerY + 40;
@@ -729,10 +710,10 @@ void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int 
   const int headerY = startY;
 
   const char* headerText = "WiFi Networks";
-  int headerTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerText);
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
   int subtitleY = headerY + 40;
@@ -757,9 +738,11 @@ void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int 
   }
 
   if (forgetPromptSelection == 1) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[Forget network]");
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY,
+                      "[Forget network]");
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "Forget network");
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY,
+                      "Forget network");
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "Left", "Right");
@@ -791,27 +774,32 @@ void WifiSelectionActivity::drawWifiIcon(int x, int y, int32_t rssi, bool isSele
 
   bool drawColor = !isSelected;
 
+  int bar1Y = startY + (maxHeight - bar1Height);
+  int bar2Y = startY + (maxHeight - bar2Height);
+  int bar3Y = startY + (maxHeight - bar3Height);
+  int bar4Y = startY;
+
   if (visibleBars >= 1) {
-    renderer.fillRect(x, startY + (maxHeight - bar1Height), barWidth, bar1Height, drawColor);
+    renderer.fillRect(x, bar1Y, barWidth, bar1Height, drawColor);
   } else {
-    renderer.drawRect(x, startY + (maxHeight - bar1Height), barWidth, bar1Height, drawColor);
+    renderer.drawRect(x, bar1Y, barWidth, bar1Height, drawColor);
   }
 
   if (visibleBars >= 2) {
-    renderer.fillRect(x + 10, startY + (maxHeight - bar2Height), barWidth, bar2Height, drawColor);
+    renderer.fillRect(x + 10, bar2Y, barWidth, bar2Height, drawColor);
   } else {
-    renderer.drawRect(x + 10, startY + (maxHeight - bar2Height), barWidth, bar2Height, drawColor);
+    renderer.drawRect(x + 10, bar2Y, barWidth, bar2Height, drawColor);
   }
 
   if (visibleBars >= 3) {
-    renderer.fillRect(x + 20, startY + (maxHeight - bar3Height), barWidth, bar3Height, drawColor);
+    renderer.fillRect(x + 20, bar3Y, barWidth, bar3Height, drawColor);
   } else {
-    renderer.drawRect(x + 20, startY + (maxHeight - bar3Height), barWidth, bar3Height, drawColor);
+    renderer.drawRect(x + 20, bar3Y, barWidth, bar3Height, drawColor);
   }
 
   if (visibleBars >= 4) {
-    renderer.fillRect(x + 30, startY + (maxHeight - bar4Height), barWidth, bar4Height, drawColor);
+    renderer.fillRect(x + 30, bar4Y, barWidth, bar4Height, drawColor);
   } else {
-    renderer.drawRect(x + 30, startY + (maxHeight - bar4Height), barWidth, bar4Height, drawColor);
+    renderer.drawRect(x + 30, bar4Y, barWidth, bar4Height, drawColor);
   }
 }

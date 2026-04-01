@@ -123,9 +123,9 @@ private:
     
     /**
      * @brief Handles input when TOC is shown
-     * @param input Reference to the input manager
+     * @param input Reference to the input manager (const to avoid modification)
      */
-    void handleTocInput(MappedInputManager& input);
+    void handleTocInput(const MappedInputManager& input);
     
     /**
      * @brief Exits TOC view and returns to main menu
