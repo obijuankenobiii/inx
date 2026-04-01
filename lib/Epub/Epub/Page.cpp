@@ -6,8 +6,6 @@
 #include <Bitmap.h> 
 #include "JpegToBmpConverter.h"
 
-static bool G_IS_LARGE_IMAGE_PAGE = false;
-
 /**
  * Renders a text line on the screen.
  * 
@@ -118,8 +116,6 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
     int contentWidth = screenW - (xOffset * 2);
     int remainingHeight = screenH - yOffset;
     
-    G_IS_LARGE_IMAGE_PAGE = width > screenW * 0.7 && height > screenH * 0.7;
-    
     float widthScale = (float)contentWidth / (float)width;
     float scale = widthScale;
     
@@ -188,8 +184,6 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  * @param skipImages If true, images are not rendered
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset, bool skipImages) const {
-  G_IS_LARGE_IMAGE_PAGE = false;
-
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
