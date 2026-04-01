@@ -230,7 +230,6 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
         int bw = bitmap.getWidth();
         int bh = bitmap.getHeight();
 
-        // Scale down to 95%
         int scaledW = bw * 98 / 100;
         int scaledH = bh * 98 / 100;
 
@@ -349,7 +348,6 @@ void RecentActivity::displayTaskLoop() {
     vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
-
 /**
  * Renders a single list item with thumbnail and details.
  */
@@ -447,7 +445,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, book.author.c_str());
   }
 
-  if (book.progress >= 0.0f && book.progress <= 1.0f && !next) {
+  if (book.progress >= 0.0f && book.progress <= 1.0f && !next && book.progress < 0.99f) {
     int progressBarY = itemY + LIST_ITEM_HEIGHT - 40;
 
     if (progressBarY >= 0 && progressBarY < renderer.getScreenHeight()) {
@@ -462,47 +460,43 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
         int fillWidth = static_cast<int>(progressBarWidth * book.progress + 0.5f);
         renderer.fillRect(progressBarX, progressBarY, fillWidth, progressBarHeight);
       }
-
-      if (book.progress >= 0.99f) {
-        const char* completedText = "Completed";
-        int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedText);
-        int completedX = progressBarX + progressBarWidth - textW - 5;
-        int completedY = progressBarY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 2;
-        if (completedX >= 0 && completedY >= 0) {
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText);
+      char progressText[8];
+      int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
+      int len = snprintf(progressText, sizeof(progressText), "%d%%", percent);
+      if (len > 0) {
+        int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, progressText);
+        int percentX = progressBarX + progressBarWidth - textW - 5;
+        int percentY = progressBarY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 2;
+        if (percentX >= 0 && percentY >= 0) {
+          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentX, percentY, progressText);
         }
       }
-      if (book.progress > 0.0f) {
-        char progressText[8];
-        int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
-        int len = snprintf(progressText, sizeof(progressText), "%d%%", percent);
-        if (len > 0) {
-          int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, progressText);
-          int percentX = progressBarX + progressBarWidth - textW - 5;
-          int percentY = progressBarY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 2;
-          if (percentX >= 0 && percentY >= 0) {
-            renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentX, percentY, progressText);
-          }
-        }
+    }
+  } else if (book.progress >= 0.99f && !next) {
+    int completedY = itemY + LIST_ITEM_HEIGHT - 40;
+    if (completedY >= 0 && completedY < renderer.getScreenHeight()) {
+      const char* completedText = "Completed";
+      int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedText);
+      int completedX = textX + textWidth - textW - 5;
+      if (completedX >= 0 && completedX < renderer.getScreenWidth()) {
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText);
       }
     }
   }
 }
+
 /**
  * Formats milliseconds into a human-readable time string.
+ * Output format: "X.X h" for hours (with one decimal), "X m" for minutes.
  */
 std::string RecentActivity::formatTime(uint32_t milliseconds) const {
   char buffer[32];
-  uint32_t seconds = milliseconds / 1000;
-  uint32_t hours = seconds / 3600;
-  uint32_t minutes = (seconds % 3600) / 60;
-  uint32_t days = hours / 24;
-
-  if (days > 0) {
-    snprintf(buffer, sizeof(buffer), "%u d %u h", days, hours % 24);
-  } else if (hours > 0) {
-    snprintf(buffer, sizeof(buffer), "%u h %u m", hours, minutes);
+  float hours = milliseconds / (1000.0f * 3600.0f);
+  
+  if (hours >= 1.0f) {
+    snprintf(buffer, sizeof(buffer), "%.1f h", hours);
   } else {
+    uint32_t minutes = milliseconds / (1000 * 60);
     snprintf(buffer, sizeof(buffer), "%u m", minutes);
   }
   return std::string(buffer);
@@ -532,6 +526,7 @@ void RecentActivity::renderDefault() {
   }
 
   const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
   const int startY = TAB_BAR_HEIGHT - 6;
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
@@ -666,7 +661,12 @@ void RecentActivity::renderDefault() {
       renderer.fillRect(barX, barY, fillW, barH);
 
       char pText[8];
-      int percent = static_cast<int>(progress + 0.5f);
+      int percent;
+      if (progress >= 99.5f) {
+        percent = 100;
+      } else {
+        percent = static_cast<int>(progress + 0.5f);
+      }
       snprintf(pText, sizeof(pText), "%d%%", percent);
       int pW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pText);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, barX + barW - pW - 2,
@@ -752,14 +752,55 @@ void RecentActivity::renderDefault() {
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Average / Page", true);
 
   int bottomStartY = coverItemY + containerHeight + 20;
+  int listEndY = screenH - 30;
+  int availableListHeight = listEndY - bottomStartY;
 
+  int itemsToShow = 2;
   int listIndex = 0;
-  size_t maxBooks = std::min(static_cast<size_t>(3), recentBooks.size());
-  for (size_t i = 1; i < maxBooks; i++) {
-    if (i < recentBooks.size()) {
-      renderListItem(listIndex, bottomStartY + 20, recentBooks[i], (selectorIndex == static_cast<int>(i)));
+  
+  const int LIST_ITEM_HEIGHT = (renderer.getScreenHeight() - TAB_BAR_HEIGHT - 85) / 5 + 10;
+  const int ITEM_SPACING = 10;
+  
+  int startIndex = 1 + scrollOffsetDefault;
+  int endIndex = std::min(static_cast<int>(recentBooks.size()), startIndex + itemsToShow);
+  
+  for (int i = startIndex; i < endIndex; i++) {
+    if (i < static_cast<int>(recentBooks.size())) {
+      int itemIndex = i - startIndex;
+      int itemY = bottomStartY + 20 + itemIndex * (LIST_ITEM_HEIGHT + ITEM_SPACING);
+      if (itemIndex > 0) {
+        int borderY = itemY - 10;
+        for (int x = 0; x < screenW; x += 2) {
+          if (x >= 0 && x < renderer.getScreenWidth()) {
+            renderer.drawPixel(x, borderY, true);
+          }
+        }
+      }
+      
+      bool isSelected = (selectorIndex == i);
+      renderListItem(itemIndex, bottomStartY + 20, recentBooks[i], isSelected);
       listIndex++;
     }
+  }
+
+  int totalScrollableItems = static_cast<int>(recentBooks.size()) - 1;
+  int visibleItemsCount = itemsToShow;
+  
+  if (totalScrollableItems > visibleItemsCount) {
+    int scrollbarWidth = 4;
+    int scrollbarHeight = availableListHeight - 50;
+    int scrollbarX = screenW - scrollbarWidth - 10;
+    int scrollbarY = bottomStartY + 30;
+    int maxScrollOffset = std::max(0, totalScrollableItems - visibleItemsCount);
+  
+    renderer.fillRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, false);
+    renderer.drawRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, true);
+    
+    float scrollRatio = static_cast<float>(scrollOffsetDefault) / maxScrollOffset;
+    int thumbHeight = std::max(20, static_cast<int>(scrollbarHeight * visibleItemsCount / totalScrollableItems));
+    int thumbY = scrollbarY + static_cast<int>(scrollRatio * (scrollbarHeight - thumbHeight));
+    
+    renderer.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
   }
 }
 
@@ -822,12 +863,20 @@ void RecentActivity::loop() {
   bool selectorChanged = false;
 
   if (isDefaultView) {
-    // Move maxIndex declaration closer to its usage
+    int itemsToShow = 2;
+    int maxScrollOffset = std::max(0, totalBooks - 1 - itemsToShow);
+    
+    if (scrollOffsetDefault < 0) scrollOffsetDefault = 0;
+    if (scrollOffsetDefault > maxScrollOffset) scrollOffsetDefault = maxScrollOffset;
+    
     if (downPressed) {
-      int maxIndex = std::min(2, totalBooks - 1);
-      if (selectorIndex < maxIndex) {
+      if (selectorIndex < totalBooks - 1) {
         selectorIndex++;
         selectorChanged = true;
+        if (selectorIndex > scrollOffsetDefault + itemsToShow) {
+          scrollOffsetDefault = std::min(maxScrollOffset, scrollOffsetDefault + 1);
+        }
+        
         if (selectorIndex > 0) {
           statsSectionSelected = false;
         }
@@ -838,6 +887,10 @@ void RecentActivity::loop() {
       if (selectorIndex > 0) {
         selectorIndex--;
         selectorChanged = true;
+        if (selectorIndex < scrollOffsetDefault + 1) {
+          scrollOffsetDefault = std::max(0, scrollOffsetDefault - 1);
+        }
+        
         if (selectorIndex == 0) {
           statsSectionSelected = true;
         }

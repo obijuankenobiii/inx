@@ -50,6 +50,7 @@ class RecentActivity final : public Activity, public Menu {
   bool bookSelected = false;
   bool statsSectionSelected = false; 
   int scrollOffset = 0;
+  int scrollOffsetDefault = 0;
 
   std::vector<RecentBook> recentBooks;
 

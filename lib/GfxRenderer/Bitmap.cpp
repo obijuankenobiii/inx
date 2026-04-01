@@ -262,3 +262,115 @@ BmpReaderError Bitmap::rewindToData() const {
 
   return BmpReaderError::Ok;
 }
+
+BmpReaderError Bitmap::readRowAt(int rowIndex, uint8_t* data, uint8_t* rowBuffer) const {
+  // Save current position
+  uint32_t currentPos = file.position();
+  
+  // Seek to the start of pixel data
+  if (!file.seek(bfOffBits)) {
+    return BmpReaderError::SeekPixelDataFailed;
+  }
+  
+  // Calculate which row to read based on orientation
+  int rowToRead;
+  if (topDown) {
+    rowToRead = rowIndex;
+  } else {
+    rowToRead = height - 1 - rowIndex;
+  }
+  
+  // Seek to the row
+  if (!file.seek(bfOffBits + static_cast<uint32_t>(rowToRead) * rowBytes)) {
+    return BmpReaderError::SeekPixelDataFailed;
+  }
+  
+  // Read the row
+  if (file.read(rowBuffer, rowBytes) != rowBytes) {
+    return BmpReaderError::ShortReadRow;
+  }
+  
+  // Process the row into packed 2bpp format
+  uint8_t* outPtr = data;
+  uint8_t currentOutByte = 0;
+  int bitShift = 6;
+  int currentX = 0;
+  
+  auto packPixel = [&](const uint8_t lum) {
+    uint8_t color;
+    if (atkinsonDitherer) {
+      color = atkinsonDitherer->processPixel(adjustPixel(lum), currentX);
+    } else if (fsDitherer) {
+      color = fsDitherer->processPixel(adjustPixel(lum), currentX);
+    } else {
+      if (bpp > 2) {
+        color = quantize(adjustPixel(lum), currentX, rowIndex);
+      } else {
+        color = static_cast<uint8_t>(lum >> 6);
+      }
+    }
+    currentOutByte |= (color << bitShift);
+    if (bitShift == 0) {
+      *outPtr++ = currentOutByte;
+      currentOutByte = 0;
+      bitShift = 6;
+    } else {
+      bitShift -= 2;
+    }
+    currentX++;
+  };
+  
+  uint8_t lum;
+  
+  switch (bpp) {
+    case 32: {
+      const uint8_t* p = rowBuffer;
+      for (int x = 0; x < width; x++) {
+        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
+        packPixel(lum);
+        p += 4;
+      }
+      break;
+    }
+    case 24: {
+      const uint8_t* p = rowBuffer;
+      for (int x = 0; x < width; x++) {
+        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
+        packPixel(lum);
+        p += 3;
+      }
+      break;
+    }
+    case 8: {
+      for (int x = 0; x < width; x++) {
+        packPixel(paletteLum[rowBuffer[x]]);
+      }
+      break;
+    }
+    case 2: {
+      for (int x = 0; x < width; x++) {
+        lum = paletteLum[(rowBuffer[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03];
+        packPixel(lum);
+      }
+      break;
+    }
+    case 1: {
+      for (int x = 0; x < width; x++) {
+        const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
+        lum = paletteLum[palIndex];
+        packPixel(lum);
+      }
+      break;
+    }
+    default:
+      return BmpReaderError::UnsupportedBpp;
+  }
+  
+  // Flush remaining bits if width is not a multiple of 4
+  if (bitShift != 6) *outPtr = currentOutByte;
+  
+  // Restore original position (optional, but good practice)
+  file.seek(currentPos);
+  
+  return BmpReaderError::Ok;
+}
