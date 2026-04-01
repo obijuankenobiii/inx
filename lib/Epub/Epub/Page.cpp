@@ -113,13 +113,15 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
     int screenW = renderer.getScreenWidth();
     int screenH = renderer.getScreenHeight();
 
-    int renderX = 0;
+    int renderX = (screenW - bitmap.getWidth()) / 2;
     int renderY = yPos + yOffset;
 
-    if ((bitmap.getWidth() >= screenW * 0.95 && bitmap.getHeight() >= screenH * 0.65)) {
-      renderY = 3;
-    } 
+    bool isFullScreen = (bitmap.getWidth() >= screenW * 0.95 && bitmap.getHeight() >= screenH * 0.65);
     
+    if (isFullScreen) {
+      renderY = 3;
+    }
+
     renderer.drawBitmap(bitmap, renderX, renderY, 0, 0);
   }
 
