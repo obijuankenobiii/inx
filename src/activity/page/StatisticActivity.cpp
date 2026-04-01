@@ -15,24 +15,24 @@ namespace {
  * Thread-safe mutex operations wrapper
  */
 class MutexGuard {
-private:
-    SemaphoreHandle_t& mutex;
-    bool acquired;
+ private:
+  SemaphoreHandle_t& mutex;
+  bool acquired;
 
-public:
-    explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-        if (mutex) {
-            acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
-        }
+ public:
+  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
+    if (mutex) {
+      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
     }
+  }
 
-    ~MutexGuard() {
-        if (acquired && mutex) {
-            xSemaphoreGive(mutex);
-        }
+  ~MutexGuard() {
+    if (acquired && mutex) {
+      xSemaphoreGive(mutex);
     }
+  }
 
-    bool isAcquired() const { return acquired; }
+  bool isAcquired() const { return acquired; }
 };
 
 constexpr unsigned long GO_HOME_MS = 1000;
@@ -42,42 +42,38 @@ constexpr int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
 constexpr int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int PROGRESS_BAR_HEIGHT = 10;
 
-}
+}  // namespace
 
 /**
  * Static task trampoline that forwards to the displayTaskLoop member function.
  */
-void StatisticActivity::taskTrampoline(void* param) {
-    static_cast<StatisticActivity*>(param)->displayTaskLoop();
-}
+void StatisticActivity::taskTrampoline(void* param) { static_cast<StatisticActivity*>(param)->displayTaskLoop(); }
 
 /**
  * Background task loop that periodically checks if a display update is required.
  * Renders the display when updateRequired is true.
  */
 void StatisticActivity::displayTaskLoop() {
-    while (true) {
-        {
-            MutexGuard guard(renderingMutex);
-            if (guard.isAcquired() && updateRequired) {
-                updateRequired = false;
-                render();
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
+  while (true) {
+    {
+      MutexGuard guard(renderingMutex);
+      if (guard.isAcquired() && updateRequired) {
+        updateRequired = false;
+        render();
+      }
     }
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
 }
 
 /**
  * Loads reading statistics for all books and sorts them by most recently read.
  */
 void StatisticActivity::loadStats() {
-    allBooksStats = getAllBooksStats();
+  allBooksStats = getAllBooksStats();
 
-    std::sort(allBooksStats.begin(), allBooksStats.end(),
-              [](const BookReadingStats& a, const BookReadingStats& b) {
-                  return a.lastReadTimeMs > b.lastReadTimeMs;
-              });
+  std::sort(allBooksStats.begin(), allBooksStats.end(),
+            [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
 }
 
 /**
@@ -85,20 +81,20 @@ void StatisticActivity::loadStats() {
  * Output formats: "Xd Xh" for days, "Xh Xm" for hours, "Xm" for minutes.
  */
 std::string StatisticActivity::formatTime(uint32_t milliseconds) const {
-    char buffer[32];
-    uint32_t seconds = milliseconds / 1000;
-    uint32_t hours = seconds / 3600;
-    uint32_t minutes = (seconds % 3600) / 60;
-    uint32_t days = hours / 24;
+  char buffer[32];
+  uint32_t seconds = milliseconds / 1000;
+  uint32_t hours = seconds / 3600;
+  uint32_t minutes = (seconds % 3600) / 60;
+  uint32_t days = hours / 24;
 
-    if (days > 0) {
-        snprintf(buffer, sizeof(buffer), "%u %s %u %s", days, "d", hours % 24, "h");
-    } else if (hours > 0) {
-        snprintf(buffer, sizeof(buffer), "%u %s %u %s", hours, "h", minutes, "m");
-    } else {
-        snprintf(buffer, sizeof(buffer), "%u %s", minutes, "m");
-    }
-    return std::string(buffer);
+  if (days > 0) {
+    snprintf(buffer, sizeof(buffer), "%u %s %u %s", days, "d", hours % 24, "h");
+  } else if (hours > 0) {
+    snprintf(buffer, sizeof(buffer), "%u %s %u %s", hours, "h", minutes, "m");
+  } else {
+    snprintf(buffer, sizeof(buffer), "%u %s", minutes, "m");
+  }
+  return std::string(buffer);
 }
 
 /**
@@ -107,85 +103,86 @@ std::string StatisticActivity::formatTime(uint32_t milliseconds) const {
  */
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
                                     const std::string& title, const std::string& author) const {
-    std::string coverPath = bookPath + "/thumb.bmp";
-    bool coverDrawn = false;
+  std::string coverPath = bookPath + "/thumb.bmp";
+  bool coverDrawn = false;
 
-    FsFile file;
-    if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
-        Bitmap bitmap(file);
-        if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-            int bw = bitmap.getWidth();
-            int bh = bitmap.getHeight();
+  FsFile file;
+  if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
+    Bitmap bitmap(file);
+    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+      int bw = bitmap.getWidth();
+      int bh = bitmap.getHeight();
 
-            int drawX = x + (width - bw) / 2;
-            int drawY = y + (height - bh) / 2;
+      int drawX = x + (width - bw) / 2;
+      int drawY = y + (height - bh) / 2;
 
-            int scaledW = bw * 98 / 100;
-            int scaledH = bh * 98 / 100;
+      int scaledW = bw * 90 / 100;
+      int scaledH = bh * 90 / 100;
 
-            renderer.drawSmallBitmapClean(bitmap, drawX, drawY, scaledW, scaledH);
-            coverDrawn = true;
+      renderer.drawSmallBitmapClean(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
+      coverDrawn = true;
+    }
+    file.close();
+  }
+
+  if (coverDrawn) {
+    return;
+  }
+
+  renderer.drawRect(x, y, width, height);
+  
+  if (!title.empty()) {
+    int lineY = y + 20;
+    int maxWidth = width - 40;
+    int lineHeight = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+    
+    std::string remaining = title;
+    int lineCount = 0;
+
+    while (!remaining.empty() && lineCount < 3) {
+      std::string line;
+      int lineWidth = 0;
+
+      while (!remaining.empty()) {
+        size_t spacePos = remaining.find(' ');
+        std::string word = (spacePos != std::string::npos) ? remaining.substr(0, spacePos) : remaining;
+
+        int wordWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, word.c_str(), EpdFontFamily::BOLD);
+
+        if (lineWidth + wordWidth <= maxWidth) {
+          if (!line.empty()) line += " ";
+          line += word;
+          lineWidth += wordWidth;
+
+          if (spacePos != std::string::npos) {
+            remaining = remaining.substr(spacePos + 1);
+          } else {
+            remaining.clear();
+          }
+        } else {
+          break;
         }
-        file.close();
+      }
+
+      if (line.empty()) {
+        break;
+      }
+
+      int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, line.c_str(), EpdFontFamily::BOLD);
+      int textX = x + (width - textWidth) / 2;
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, lineY, line.c_str(), true, EpdFontFamily::BOLD);
+      lineY += lineHeight;
+      lineCount++;
     }
+  }
 
-    if (coverDrawn) {
-        return;
-    }
-
-    if (!title.empty()) {
-        int lineY = y + 10;
-        int maxWidth = width - 20;
-
-        std::string remaining = title;
-        int lineCount = 0;
-
-        while (!remaining.empty() && lineCount < 3) {
-            std::string line;
-            int lineWidth = 0;
-
-            while (!remaining.empty()) {
-                size_t spacePos = remaining.find(' ');
-                std::string word = (spacePos != std::string::npos) ? remaining.substr(0, spacePos) : remaining;
-
-                int wordWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, word.c_str(), EpdFontFamily::BOLD);
-
-                if (lineWidth + wordWidth <= maxWidth) {
-                    if (!line.empty()) line += " ";
-                    line += word;
-                    lineWidth += wordWidth;
-
-                    if (spacePos != std::string::npos) {
-                        remaining = remaining.substr(spacePos + 1);
-                    } else {
-                        remaining.clear();
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            if (line.empty()) {
-                break;
-            }
-
-            int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, line.c_str(), EpdFontFamily::BOLD);
-            int textX = x + (width - textWidth) / 2;
-            renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, lineY, line.c_str(), true, EpdFontFamily::BOLD);
-            lineY += renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
-            lineCount++;
-        }
-    }
-
-    if (author.empty()) {
-        return;
-    }
-
+  if (!author.empty()) {
     std::string authorText = "- " + author;
     int authorWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, authorText.c_str());
     int authorX = x + (width - authorWidth) / 2;
     int authorY = y + height - 30;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, authorX, authorY, authorText.c_str());
+  }
 }
 
 /**
@@ -193,20 +190,20 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
  * Initializes rendering resources and starts the display task.
  */
 void StatisticActivity::onEnter() {
-    Activity::onEnter();
+  Activity::onEnter();
 
-    loadStats();
+  loadStats();
 
-    renderingMutex = xSemaphoreCreateMutex();
-    if (!renderingMutex) return;
+  renderingMutex = xSemaphoreCreateMutex();
+  if (!renderingMutex) return;
 
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-    render();
+  render();
 
-    if (displayTaskHandle == nullptr) {
-        xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
-    }
+  if (displayTaskHandle == nullptr) {
+    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
+  }
 }
 
 /**
@@ -214,20 +211,20 @@ void StatisticActivity::onEnter() {
  * Cleans up rendering resources and stops the display task.
  */
 void StatisticActivity::onExit() {
-    Activity::onExit();
+  Activity::onExit();
 
-    if (displayTaskHandle) {
-        vTaskDelete(displayTaskHandle);
-        displayTaskHandle = nullptr;
-    }
+  if (displayTaskHandle) {
+    vTaskDelete(displayTaskHandle);
+    displayTaskHandle = nullptr;
+  }
 
-    if (renderingMutex) {
-        vSemaphoreDelete(renderingMutex);
-        renderingMutex = nullptr;
-    }
+  if (renderingMutex) {
+    vSemaphoreDelete(renderingMutex);
+    renderingMutex = nullptr;
+  }
 
-    allBooksStats.clear();
-    allBooksStats.shrink_to_fit();
+  allBooksStats.clear();
+  allBooksStats.shrink_to_fit();
 }
 
 /**
@@ -235,114 +232,129 @@ void StatisticActivity::onExit() {
  * and reading statistics in a 2x2 grid layout.
  */
 void StatisticActivity::render() const {
-    renderer.clearScreen();
-    renderTabBar(renderer);
-    
-    if (allBooksStats.empty()) {
-        int screenHeight = renderer.getScreenHeight();
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenHeight / 2, "No available data");
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenHeight / 2 + 30, "Reading statistics shown here");
-        renderer.displayBuffer();
-        return;
-    }
+  renderer.clearScreen();
+  renderTabBar(renderer);
 
-    int screenWidth = renderer.getScreenWidth();
-    int screenHeight = renderer.getScreenHeight() - 20;
-
-    int availableWidth = screenWidth - (GRID_COLS + 1) * GRID_SPACING;
-    int containerWidth = availableWidth / GRID_COLS + 12;
-
-    int visibleRows = 2;
-    int availableHeight = screenHeight - TAB_BAR_HEIGHT - (GRID_SPACING * 2);
-    int containerHeight = (availableHeight / visibleRows) - GRID_SPACING;
-
-    int startIndex = bookSelectorIndex * 2;
-    for (int row = 0; row < 2; row++) {
-        int bookIndex = startIndex + row;
-        if (bookIndex >= static_cast<int>(allBooksStats.size())) break;
-
-        int coverCol = 0;
-        int coverItemX = GRID_SPACING + coverCol * (containerWidth + GRID_SPACING);
-        int coverItemY = TAB_BAR_HEIGHT + GRID_SPACING + row * (containerHeight + GRID_SPACING) + 35;
-
-        int detailsCol = 1;
-        int detailsItemX = GRID_SPACING + detailsCol * (containerWidth + GRID_SPACING);
-        int detailsItemY = coverItemY - 30;
-
-        renderer.drawRect(coverItemX, coverItemY, containerWidth, containerHeight, false);
-        renderer.drawRect(detailsItemX, detailsItemY, containerWidth, containerHeight, false);
-
-        int coverAreaX = coverItemX + 10;
-        int coverAreaY = coverItemY + 25;
-        int coverWidth = containerWidth - 20;
-        int coverHeight = static_cast<int>((containerHeight - 40) * 0.75);
-
-        renderCover(allBooksStats[bookIndex].path, coverAreaX, coverAreaY, coverWidth, coverHeight,
-                    allBooksStats[bookIndex].title, allBooksStats[bookIndex].author);
-
-        float progress = allBooksStats[bookIndex].progressPercent;
-        if (progress >= 0) {
-            int barX = coverAreaX;
-            int barY = coverAreaY + coverHeight + 30;
-            int barW = coverWidth - 50;
-            int barH = PROGRESS_BAR_HEIGHT;
-
-            char pText[8];
-            snprintf(pText, sizeof(pText), "%.0f%%", progress);
-            int pW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pText);
-            renderer.fillRect(coverWidth - 20, barY - 20, pW + 8, 30, false, true);
-            renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, coverWidth - 13, barY - 15, pText);
-
-            renderer.fillRect(barX, barY, barW, barH, false);
-            renderer.drawRect(barX, barY, barW, barH, true);
-
-            if (progress > 0) {
-                int fillW = static_cast<int>(barW * (progress / 100.0f));
-                renderer.fillRect(barX, barY, fillW, barH);
-            }
-        }
-
-        int textX = detailsItemX + 10;
-        int textY = detailsItemY;
-        int currentY = textY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) - 13;
-        char buffer[32];
-
-        std::string timeStr = formatTime(allBooksStats[bookIndex].totalReadingTimeMs);
-        renderer.drawText(VALUE_FONT, textX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
-        renderer.drawText(LABEL_FONT, textX, currentY + 45, "Reading Time", true);
-        currentY += 80;
-
-        snprintf(buffer, sizeof(buffer), "%u", allBooksStats[bookIndex].totalPagesRead);
-        renderer.drawText(VALUE_FONT, textX, currentY, buffer, true, EpdFontFamily::BOLD);
-        renderer.drawText(LABEL_FONT, textX, currentY + 45, "Pages", true);
-        currentY += 80;
-
-        snprintf(buffer, sizeof(buffer), "%u", allBooksStats[bookIndex].totalChaptersRead);
-        renderer.drawText(VALUE_FONT, textX, currentY, buffer, true, EpdFontFamily::BOLD);
-        renderer.drawText(LABEL_FONT, textX, currentY + 45, "Chapters", true);
-        currentY += 80;
-
-        if (allBooksStats[bookIndex].avgPageTimeMs > 0) {
-            snprintf(buffer, sizeof(buffer), "%us", allBooksStats[bookIndex].avgPageTimeMs / 1000);
-        } else {
-            snprintf(buffer, sizeof(buffer), "-");
-        }
-        renderer.drawText(VALUE_FONT, textX, currentY, buffer, true, EpdFontFamily::BOLD);
-        renderer.drawText(LABEL_FONT, textX, currentY + 45, "Average / Page", true);
-    }
-
-    int totalItems = allBooksStats.size();
-    int itemsPerPage = 2;
-    int totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
-
-    if (totalPages > 1) {
-        char pageInfo[32];
-        snprintf(pageInfo, sizeof(pageInfo), "Page %d of %d", bookSelectorIndex + 1, totalPages);
-        int textWidth = renderer.getTextWidth(LABEL_FONT, pageInfo);
-        renderer.drawText(LABEL_FONT, (screenWidth - textWidth) / 2, renderer.getScreenHeight() - 40, pageInfo, true);
-    }
-
+  if (allBooksStats.empty()) {
+    int screenHeight = renderer.getScreenHeight();
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenHeight / 2, "No available data");
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenHeight / 2 + 30, "Reading statistics shown here");
     renderer.displayBuffer();
+    return;
+  }
+
+  int screenWidth = renderer.getScreenWidth();
+  int screenHeight = renderer.getScreenHeight();
+
+  int availableWidth = screenWidth - (GRID_COLS + 1) * GRID_SPACING;
+  int containerWidth = availableWidth / GRID_COLS;
+
+  int contentStartY = TAB_BAR_HEIGHT + 5;
+  int availableHeight = screenHeight - contentStartY - GRID_SPACING;
+  int containerHeight = (availableHeight / 2) - GRID_SPACING;
+
+  int startIndex = bookSelectorIndex * 2;
+  
+  for (int row = 0; row < 2; row++) {
+    int bookIndex = startIndex + row;
+    if (bookIndex >= static_cast<int>(allBooksStats.size())) break;
+
+    int rowY = contentStartY + row * (containerHeight + GRID_SPACING);
+    int coverX = GRID_SPACING;
+    int coverY = rowY;
+    int coverWidth = containerWidth;
+    int coverHeight = containerHeight;
+
+    int detailsX = coverX + containerWidth + GRID_SPACING;
+    int detailsY = rowY - 15;
+    int detailsWidth = containerWidth;
+    int detailsHeight = containerHeight;
+
+    renderer.drawRect(coverX, coverY, coverWidth, coverHeight, false);
+
+    int coverImageWidth = coverWidth - 20;
+    int coverImageHeight = coverHeight - 40;
+    int coverImageX = coverX + (coverWidth - coverImageWidth) / 2;
+    int coverImageY = coverY + 25;
+
+    renderCover(allBooksStats[bookIndex].path, coverImageX, coverImageY, coverImageWidth, coverImageHeight,
+                allBooksStats[bookIndex].title, allBooksStats[bookIndex].author);
+
+    float progress = allBooksStats[bookIndex].progressPercent;
+    if (progress >= 0) {
+      int barX = coverImageX;
+      int barY = coverImageY + coverImageHeight + 10;
+      int barW = coverImageWidth;
+      int barH = PROGRESS_BAR_HEIGHT;
+
+      renderer.fillRect(barX, barY, barW, barH, false);
+      renderer.drawRect(barX, barY, barW, barH, true);
+
+      if (progress > 0) {
+        int fillW = static_cast<int>(barW * (progress / 100.0f));
+        renderer.fillRect(barX, barY, fillW, barH);
+      }
+    }
+
+    int textX = detailsX + 15;
+    int textY = detailsY + 20;
+    int lineHeight = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+    int labelSpacing = 5;
+    char buffer[32];
+
+    float progressPercent = allBooksStats[bookIndex].progressPercent;
+    if (progressPercent >= 0) {
+      snprintf(buffer, sizeof(buffer), "%.0f%%", progressPercent);
+      renderer.drawText(VALUE_FONT, textX, textY, buffer, true, EpdFontFamily::BOLD);
+      renderer.drawText(LABEL_FONT, textX, textY + lineHeight + labelSpacing, "Progress", true);
+      textY += 70;
+    }
+
+    std::string timeStr = formatTime(allBooksStats[bookIndex].totalReadingTimeMs);
+    renderer.drawText(VALUE_FONT, textX, textY, timeStr.c_str(), true, EpdFontFamily::BOLD);
+    renderer.drawText(LABEL_FONT, textX, textY + lineHeight + labelSpacing, "Reading Time", true);
+    textY += 70;
+
+    snprintf(buffer, sizeof(buffer), "%u", allBooksStats[bookIndex].totalPagesRead);
+    renderer.drawText(VALUE_FONT, textX, textY, buffer, true, EpdFontFamily::BOLD);
+    renderer.drawText(LABEL_FONT, textX, textY + lineHeight + labelSpacing, "Pages", true);
+    textY += 70;
+
+    snprintf(buffer, sizeof(buffer), "%u", allBooksStats[bookIndex].totalChaptersRead);
+    renderer.drawText(VALUE_FONT, textX, textY, buffer, true, EpdFontFamily::BOLD);
+    renderer.drawText(LABEL_FONT, textX, textY + lineHeight + labelSpacing, "Chapters", true);
+    textY += 70;
+
+    if (allBooksStats[bookIndex].avgPageTimeMs > 0) {
+      snprintf(buffer, sizeof(buffer), "%us", allBooksStats[bookIndex].avgPageTimeMs / 1000);
+    } else {
+      snprintf(buffer, sizeof(buffer), "-");
+    }
+    renderer.drawText(VALUE_FONT, textX, textY, buffer, true, EpdFontFamily::BOLD);
+    renderer.drawText(LABEL_FONT, textX, textY + lineHeight + labelSpacing, "Average / Page", true);
+  }
+
+  int totalItems = allBooksStats.size();
+  int itemsPerPage = 2;
+  int totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
+  
+  if (totalPages > 1) {
+    int scrollbarWidth = 4;
+    int scrollbarHeight = 60;
+    int scrollbarX = screenWidth - scrollbarWidth - 10;
+    int scrollbarY = (screenHeight - scrollbarHeight) / 2;
+    
+    renderer.fillRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, false);
+    renderer.drawRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, true);
+    
+    float scrollRatio = static_cast<float>(bookSelectorIndex) / (totalPages - 1);
+    int thumbHeight = std::max(20, static_cast<int>(scrollbarHeight / totalPages));
+    int thumbY = scrollbarY + static_cast<int>(scrollRatio * (scrollbarHeight - thumbHeight));
+    
+    renderer.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
+  }
+
+  renderer.displayBuffer();
 }
 
 /**
@@ -350,51 +362,51 @@ void StatisticActivity::render() const {
  * Processes button presses for tab navigation and page scrolling.
  */
 void StatisticActivity::loop() {
-    if (Activity::mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-        if (Activity::mappedInput.getHeldTime() >= GO_HOME_MS) return;
-        onGoToRecent();
-        return;
+  if (Activity::mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    if (Activity::mappedInput.getHeldTime() >= GO_HOME_MS) return;
+    onGoToRecent();
+    return;
+  }
+
+  const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
+  const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
+  const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
+  const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
+
+  if (leftPressed) {
+    tabSelectorIndex = 3;
+    navigateToSelectedMenu();
+    return;
+  }
+
+  if (rightPressed) {
+    tabSelectorIndex = 0;
+    navigateToSelectedMenu();
+    return;
+  }
+
+  if (tabSelectorIndex != 4) {
+    return;
+  }
+
+  if (allBooksStats.empty()) return;
+
+  int booksPerPage = 2;
+  int totalPages = (allBooksStats.size() + booksPerPage - 1) / booksPerPage;
+
+  if (upPressed) {
+    if (bookSelectorIndex > 0) {
+      bookSelectorIndex--;
+      updateRequired = true;
     }
+    return;
+  }
 
-    const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
-    const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
-    const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
-    const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
-
-    if (leftPressed) {
-        tabSelectorIndex = 3;
-        navigateToSelectedMenu();
-        return;
+  if (downPressed) {
+    if (bookSelectorIndex < totalPages - 1) {
+      bookSelectorIndex++;
+      updateRequired = true;
     }
-
-    if (rightPressed) {
-        tabSelectorIndex = 0;
-        navigateToSelectedMenu();
-        return;
-    }
-
-    if (tabSelectorIndex != 4) {
-        return;
-    }
-
-    if (allBooksStats.empty()) return;
-
-    int booksPerPage = 2;
-    int totalPages = (allBooksStats.size() + booksPerPage - 1) / booksPerPage;
-
-    if (upPressed) {
-        if (bookSelectorIndex > 0) {
-            bookSelectorIndex--;
-            updateRequired = true;
-        }
-        return;
-    }
-
-    if (downPressed) {
-        if (bookSelectorIndex < totalPages - 1) {
-            bookSelectorIndex++;
-            updateRequired = true;
-        }
-        return;
-    }
+    return;
+  }
 }
