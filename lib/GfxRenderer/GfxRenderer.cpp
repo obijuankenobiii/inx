@@ -225,52 +225,6 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
   }
 }
 
-void GfxRenderer::drawImage(const uint8_t bitmap[], int x, int y, int width, int height, ImageOrientation imgOrientation) const {
-  int targetX = x;
-  int targetY = y;
-  int targetW = width;
-  int targetH = height;
-
-  // 1. If we need to rotate 90 degrees, we must re-calculate the buffer
-  if (imgOrientation == Rotate90CW || imgOrientation == Rotate270CW) {
-    targetW = height;
-    targetH = width;
-    
-    // Allocate a temporary buffer to hold the rotated bits
-    size_t bufferSize = (targetW * targetH + 7) / 8;
-    uint8_t* rotatedBitmap = (uint8_t*)calloc(bufferSize, 1);
-    
-    if (rotatedBitmap) {
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-          if (bitmap[i * ((width + 7) / 8) + j / 8] & (0x80 >> (j % 8))) {
-            int newX = (imgOrientation == Rotate90CW) ? (height - 1 - i) : i;
-            int newY = (imgOrientation == Rotate90CW) ? j : (width - 1 - j);
-            rotatedBitmap[newY * ((targetW + 7) / 8) + newX / 8] |= (0x80 >> (newX % 8));
-          }
-        }
-      }
-      // Recursively call with the new buffer and "None" orientation
-      drawImage(rotatedBitmap, x, y, targetW, targetH, None);
-      free(rotatedBitmap);
-      return;
-    }
-  }
-
-  // 2. Standard logic (how it was before)
-  int rotatedX = 0, rotatedY = 0;
-  rotateCoordinates(targetX, targetY, &rotatedX, &rotatedY);
-
-  switch (orientation) {
-    case Portrait:           rotatedY -= targetH; break;
-    case PortraitInverted:   rotatedX -= targetW; break;
-    case LandscapeClockwise: rotatedY -= targetH; rotatedX -= targetW; break;
-    case LandscapeCounterClockwise: break;
-  }
-
-  display.drawImage(bitmap, rotatedX, rotatedY, targetW, targetH);
-}
-
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY) const {
   // For 1-bit bitmaps, use optimized 1-bit rendering path (no crop support for 1-bit)
@@ -283,21 +237,29 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   bool isScaled = false;
   int cropPixX = std::floor(bitmap.getWidth() * cropX / 2.0f);
   int cropPixY = std::floor(bitmap.getHeight() * cropY / 2.0f);
-  Serial.printf("[%lu] [GFX] Cropping %dx%d by %dx%d pix, is %s\n", millis(), bitmap.getWidth(), bitmap.getHeight(),
-                cropPixX, cropPixY, bitmap.isTopDown() ? "top-down" : "bottom-up");
-
-  if (maxWidth > 0 && (1.0f - cropX) * bitmap.getWidth() > maxWidth) {
-    scale = static_cast<float>(maxWidth) / static_cast<float>((1.0f - cropX) * bitmap.getWidth());
+  
+  int srcWidth = bitmap.getWidth() - 2 * cropPixX;
+  int srcHeight = bitmap.getHeight() - 2 * cropPixY;
+  
+  int dstWidth = srcWidth;
+  int dstHeight = srcHeight;
+  
+  if (maxWidth > 0 && srcWidth > maxWidth) {
+    scale = static_cast<float>(maxWidth) / static_cast<float>(srcWidth);
+    dstWidth = maxWidth;
     isScaled = true;
   }
-  if (maxHeight > 0 && (1.0f - cropY) * bitmap.getHeight() > maxHeight) {
-    scale = std::min(scale, static_cast<float>(maxHeight) / static_cast<float>((1.0f - cropY) * bitmap.getHeight()));
+  if (maxHeight > 0 && srcHeight > maxHeight) {
+    float heightScale = static_cast<float>(maxHeight) / static_cast<float>(srcHeight);
+    scale = std::min(scale, heightScale);
+    dstHeight = maxHeight;
     isScaled = true;
   }
-  Serial.printf("[%lu] [GFX] Scaling by %f - %s\n", millis(), scale, isScaled ? "scaled" : "not scaled");
+  
+  Serial.printf("[%lu] [GFX] Scaling from %dx%d to %dx%d (scale %f)\n", 
+                millis(), srcWidth, srcHeight, dstWidth, dstHeight, scale);
 
   // Calculate output row size (2 bits per pixel, packed into bytes)
-  // IMPORTANT: Use int, not uint8_t, to avoid overflow for images > 1020 pixels wide
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
@@ -309,49 +271,56 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     return;
   }
 
-  for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
-    // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
-    // Screen's (0, 0) is the top-left corner.
-    int screenY = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
+  for (int dstY = 0; dstY < dstHeight; dstY++) {
+    // Calculate which source Y coordinate this destination pixel maps to
+    int srcY;
     if (isScaled) {
-      screenY = std::floor(screenY * scale);
+      // Map destination pixel to source coordinate with proper sampling
+      srcY = cropPixY + (dstY * srcHeight) / dstHeight;
+    } else {
+      srcY = cropPixY + dstY;
     }
-    screenY += y;  // the offset should not be scaled
-    if (screenY >= getScreenHeight()) {
-      break;
+    
+    // Ensure we don't go out of bounds
+    if (srcY >= bitmap.getHeight()) {
+      srcY = bitmap.getHeight() - 1;
     }
-
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      Serial.printf("[%lu] [GFX] Failed to read row %d from bitmap\n", millis(), bmpY);
+    
+    // Read the source row directly using readRowAt
+    if (bitmap.readRowAt(srcY, outputRow, rowBytes) != BmpReaderError::Ok) {
+      Serial.printf("[%lu] [GFX] Failed to read row %d from bitmap\n", millis(), srcY);
       free(outputRow);
       free(rowBytes);
       return;
     }
-
-    if (screenY < 0) {
+    
+    int screenY = y + dstY;
+    if (screenY >= getScreenHeight() || screenY < 0) {
       continue;
     }
-
-    if (bmpY < cropPixY) {
-      // Skip the row if it's outside the crop area
-      continue;
-    }
-
-    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
-      int screenX = bmpX - cropPixX;
+    
+    for (int dstX = 0; dstX < dstWidth; dstX++) {
+      // Calculate which source X coordinate this destination pixel maps to
+      int srcX;
       if (isScaled) {
-        screenX = std::floor(screenX * scale);
+        srcX = cropPixX + (dstX * srcWidth) / dstWidth;
+      } else {
+        srcX = cropPixX + dstX;
       }
-      screenX += x;  // the offset should not be scaled
-      if (screenX >= getScreenWidth()) {
-        break;
+      
+      // Ensure we don't go out of bounds
+      if (srcX >= bitmap.getWidth()) {
+        srcX = bitmap.getWidth() - 1;
       }
-      if (screenX < 0) {
+      
+      int screenX = x + dstX;
+      if (screenX >= getScreenWidth() || screenX < 0) {
         continue;
       }
-
-      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
-
+      
+      // Extract the 2-bit pixel value
+      const uint8_t val = outputRow[srcX / 4] >> (6 - ((srcX * 2) % 8)) & 0x3;
+      
       if (renderMode == BW && val < 3) {
         drawPixel(screenX, screenY);
       } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {

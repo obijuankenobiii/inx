@@ -37,6 +37,8 @@ class Bitmap {
   BmpReaderError parseHeaders();
   BmpReaderError readNextRow(uint8_t* data, uint8_t* rowBuffer) const;
   BmpReaderError rewindToData() const;
+  BmpReaderError readRowAt(int rowIndex, uint8_t* data, uint8_t* rowBuffer) const;
+
   int getWidth() const { return width; }
   int getHeight() const { return height; }
   bool isTopDown() const { return topDown; }
@@ -44,7 +46,6 @@ class Bitmap {
   int getRowBytes() const { return rowBytes; }
   bool is1Bit() const { return bpp == 1; }
   uint16_t getBpp() const { return bpp; }
-
 
  private:
   static uint16_t readLE16(FsFile& f);
