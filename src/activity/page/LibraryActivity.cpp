@@ -427,6 +427,16 @@ bool LibraryActivity::isBookOpened(const std::string& path) const {
 }
 
 /**
+ * @brief Checks if a book has been completed
+ * @param path Book file path
+ * @return true if book has been opened
+ */
+bool LibraryActivity::isBookFinished(const std::string& path) const {
+  auto* book = BOOK_STATE.findBookByPath(path);
+  return book ? book->isFinished : false;
+}
+
+/**
  * @brief Renders the complete library UI
  */
 void LibraryActivity::render() const {
@@ -1129,6 +1139,12 @@ void LibraryActivity::renderLibraryList(int startY) const {
         renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                           renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, secondLineText.c_str()) + iconX + 30,
                           drawY + 38, "(reading)", !isSelected, EpdFontFamily::ITALIC);
+      }
+
+      if (isBookFinished(item.path)) {
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                          renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, secondLineText.c_str()) + iconX + 30,
+                          drawY + 38, "(completed)", !isSelected, EpdFontFamily::ITALIC);
       }
 
     } else {

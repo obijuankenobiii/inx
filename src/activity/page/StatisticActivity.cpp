@@ -267,8 +267,6 @@ void StatisticActivity::render() const {
 
     int detailsX = coverX + containerWidth + GRID_SPACING;
     int detailsY = rowY - 15;
-    int detailsWidth = containerWidth;
-    int detailsHeight = containerHeight;
 
     renderer.drawRect(coverX, coverY, coverWidth, coverHeight, false);
 

@@ -6,8 +6,6 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
-#include "JpegToBmpConverter.h"
-
 /**
  * Renders a text line on the screen.
  *
@@ -172,6 +170,7 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
                   bool skipImages) const {
+  bool isHeader = elements[0]->getTag() == TAG_PageImage;
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
@@ -180,8 +179,10 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     if (element->getTag() == TAG_PageHeader) {      
       element->render(renderer, headerFontId, xOffset, yOffset);
     } else {
-      element->render(renderer, fontId, xOffset, yOffset);
+      element->render(renderer, fontId, xOffset, isHeader ? 10 : yOffset );
     }
+
+    isHeader = false;
   }
 }
 
