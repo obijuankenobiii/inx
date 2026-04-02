@@ -769,10 +769,10 @@ void RecentActivity::renderDefault() {
       int itemIndex = i - startIndex;
       int itemY = bottomStartY + 20 + itemIndex * (LIST_ITEM_HEIGHT + ITEM_SPACING);
       if (itemIndex > 0) {
-        int borderY = itemY - 10;
+        int itemBorderY = itemY - 10;
         for (int x = 0; x < screenW; x += 2) {
           if (x >= 0 && x < renderer.getScreenWidth()) {
-            renderer.drawPixel(x, borderY, true);
+            renderer.drawPixel(x, itemBorderY, true);
           }
         }
       }
