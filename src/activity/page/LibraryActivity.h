@@ -61,6 +61,7 @@ class LibraryActivity final : public Activity, public Menu {
   bool favoriteLongPressProcessed = false;
   bool isBookMarked(const std::string& path) const;
   bool isBookOpened(const std::string& path) const;
+  bool isBookFinished(const std::string& path) const;
 
   /**
    * Represents an item in the library (folder or book).

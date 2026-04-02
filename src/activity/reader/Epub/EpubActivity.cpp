@@ -263,7 +263,7 @@ void EpubActivity::setupOrientation() {
  * @brief Loads progress from file using BookProgress handler
  */
 void EpubActivity::loadProgress() {
-  if (!bookProgress || !epub) {
+  if (!bookProgress) {
     return;
   }
 
@@ -276,6 +276,7 @@ void EpubActivity::loadProgress() {
     cachedSpineIndex = currentSpineIndex;
     cachedChapterTotalPageCount = data.chapterPageCount;
   } else {
+    bookProgress->remove();
     currentSpineIndex = 0;
     nextPageNumber = 0;
     cachedSpineIndex = 0;
@@ -1061,7 +1062,7 @@ void EpubActivity::pageTurn(bool forward) {
     return;
   }
 
-  bool mutexAcquired = (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE);
+  bool mutexAcquired = (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(200)) == pdTRUE);
   if (!mutexAcquired) {
     updateRequired = true;
     return;
@@ -1116,8 +1117,8 @@ void EpubActivity::pageTurn(bool forward) {
   if (needSectionReset) {
     currentSpineIndex = newSpineIndex;
     nextPageNumber = newNextPageNumber;
-    xSemaphoreGive(renderingMutex);
     section.reset();
+    xSemaphoreGive(renderingMutex);
   } else {
     xSemaphoreGive(renderingMutex);
   }
@@ -1160,6 +1161,7 @@ void EpubActivity::renderScreen() {
 
   if (currentSpineIndex >= totalSpine) {
     displayBookStats();
+    BOOK_STATE.setFinished(epub->getPath(), true);
     return;
   }
 
