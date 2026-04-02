@@ -5,6 +5,7 @@
 
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
+#include "system/FontManager.h"
 
 #define SETTINGS SystemSetting::getInstance()
 
@@ -65,45 +66,99 @@ void SettingsDrawer::setupMenu() {
   menuItems.push_back(fontSeparator);
 
   if (groupExpanded[GroupType::FONT]) {
+    // Font Family Entry
     MenuEntry fontFamEntry;
     fontFamEntry.item = MenuItem::FontFamily;
     fontFamEntry.group = GroupType::FONT;
-    fontFamEntry.name = "Style";
-    fontFamEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* families[] = {"Bookerly", "Atkinson Hyperlegible", "Literata"};
-      int index = s.fontFamily;
-      if (index > 2) index = 0;
-      return families[index];
-    };
-    fontFamEntry.change = [](BookSettings& s, int delta) {
-      int newVal = s.fontFamily + delta;
-      if (newVal >= 0 && newVal <= 2) {
-        s.fontFamily = newVal;
-        s.useCustomSettings = true;
+    fontFamEntry.name = "Family";
+    
+    fontFamEntry.getValueText = [this](const BookSettings& s) -> const char* {
+      static char buf[64];
+      if (s.fontFamily.empty()) {
+        snprintf(buf, sizeof(buf), "Atkinson Hyperlegible");
+        return buf;
       }
+      snprintf(buf, sizeof(buf), "%s", s.fontFamily.c_str());
+      return buf;
+    };
+    
+    fontFamEntry.change = [this](BookSettings& s, int delta) {
+      auto families = FontManager::getAllFamilies();
+      if (families.empty()) return;
+      
+      // Find current family index
+      int currentIndex = 0;
+      for (size_t i = 0; i < families.size(); i++) {
+        if (families[i] == s.fontFamily) {
+          currentIndex = i;
+          break;
+        }
+      }
+      
+      int newIndex = currentIndex + delta;
+      if (newIndex < 0) newIndex = 0;
+      if (newIndex >= (int)families.size()) newIndex = (int)families.size() - 1;
+      
+      s.fontFamily = families[newIndex];
+      
+      // Reset font size to first available size for new family
+      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+      if (!sizes.empty()) {
+        s.fontSize = sizes[0].size;
+      }
+      
+      s.useCustomSettings = true;
     };
     menuItems.push_back(fontFamEntry);
-
+    
+    // Font Size Entry
     MenuEntry fontEntry;
     fontEntry.item = MenuItem::FontSize;
     fontEntry.group = GroupType::FONT;
     fontEntry.name = "Size";
-    fontEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* sizes[] = {"Extra Small", "Small", "Medium", "Large", "X Large"};
-      int index = s.fontSize;
-      if (index > 4) index = 1;
-      return sizes[index];
-    };
-    fontEntry.change = [](BookSettings& s, int delta) {
-      int newVal = s.fontSize + delta;
-      if (newVal >= 0 && newVal <= 4) {
-        s.fontSize = newVal;
-        s.useCustomSettings = true;
+    
+    fontEntry.getValueText = [this](const BookSettings& s) -> const char* {
+      static char buf[16];
+      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+      if (sizes.empty()) return "No sizes";
+      
+      // Find current size in the list
+      int currentSizeIndex = 0;
+      for (size_t i = 0; i < sizes.size(); i++) {
+        if (sizes[i].size == s.fontSize) {
+          currentSizeIndex = i;
+          break;
+        }
       }
+      
+      snprintf(buf, sizeof(buf), "%dpt", sizes[currentSizeIndex].size);
+      return buf;
+    };
+    
+    fontEntry.change = [this](BookSettings& s, int delta) {
+      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+      if (sizes.empty()) return;
+      
+      // Find current size index
+      int currentIndex = 0;
+      for (size_t i = 0; i < sizes.size(); i++) {
+        if (sizes[i].size == s.fontSize) {
+          currentIndex = i;
+          break;
+        }
+      }
+      
+      int newIndex = currentIndex + delta;
+      if (newIndex < 0) newIndex = 0;
+      if (newIndex >= (int)sizes.size()) newIndex = (int)sizes.size() - 1;
+      
+      s.fontSize = sizes[newIndex].size;
+      s.useCustomSettings = true;
     };
     menuItems.push_back(fontEntry);
   }
 
+  // Layout Separator
   MenuEntry layoutSeparator;
   layoutSeparator.item = MenuItem::Separator;
   layoutSeparator.group = GroupType::LAYOUT;
@@ -207,7 +262,7 @@ void SettingsDrawer::setupMenu() {
 
     MenuEntry hypenEntry;
     hypenEntry.item = MenuItem::Hyphenation;
-    hypenEntry.group = GroupType::CONTROLS;
+    hypenEntry.group = GroupType::LAYOUT;
     hypenEntry.name = "Hyphenation";
     hypenEntry.getValueText = [](const BookSettings& s) -> const char* { return s.hyphenationEnabled ? "On" : "Off"; };
     hypenEntry.change = [](BookSettings& s, int) {
@@ -353,11 +408,6 @@ void SettingsDrawer::setupMenu() {
   }
 }
 
-/**
- * @brief Gets the display name for a status bar item
- * @param item The status bar item enum value
- * @return String representation of the item
- */
 const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
   static const char* names[] = {"None",           "Page Numbers", "Percentage",     "Chapter Title",
                                 "Battery Icon",   "Battery %",    "Battery Icon+%", "Progress Bar",
@@ -369,38 +419,31 @@ const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
   return names[index];
 }
 
-/**
- * @brief Shows the settings drawer
- */
 void SettingsDrawer::show() {
   if (visible) return;
   visible = true;
   dismissed = false;
   selectedIndex = 0;
   scrollOffset = 0;
+  
+  Serial.println("Scanning for SD card fonts...");
+  FontManager::scanSDFonts("/fonts");
+  FontManager::printFontStats();
+  
+  setupMenu();
   renderWithRefresh(HalDisplay::FAST_REFRESH);
 }
 
-/**
- * @brief Hides the settings drawer
- */
 void SettingsDrawer::hide() {
   visible = false;
   dismissed = true;
 }
 
-/**
- * @brief Renders the settings drawer
- */
 void SettingsDrawer::render() {
   if (!visible) return;
   renderWithRefresh(HalDisplay::FAST_REFRESH);
 }
 
-/**
- * @brief Renders the settings drawer with specified refresh mode
- * @param mode Display refresh mode to use
- */
 void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   drawBackground();
   drawMenuItems();
@@ -409,9 +452,6 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   renderer.displayBuffer();
 }
 
-/**
- * @brief Draws the background panel of the settings drawer
- */
 void SettingsDrawer::drawBackground() {
   int screenW = renderer.getScreenWidth();
   renderer.fillRect(0, drawerY, screenW, drawerHeight, false);
@@ -428,9 +468,6 @@ void SettingsDrawer::drawBackground() {
   renderer.drawLine(0, dividerY, screenW, dividerY, true);
 }
 
-/**
- * @brief Draws all menu items in the current scroll view
- */
 void SettingsDrawer::drawMenuItems() {
   int startY = drawerY + 65;
   int screenW = renderer.getScreenWidth();
@@ -480,9 +517,6 @@ void SettingsDrawer::drawMenuItems() {
   }
 }
 
-/**
- * @brief Draws a scroll indicator when content exceeds visible area
- */
 void SettingsDrawer::drawScrollIndicator() {
   int totalItems = static_cast<int>(menuItems.size());
   if (totalItems <= itemsPerPage) return;
@@ -495,10 +529,6 @@ void SettingsDrawer::drawScrollIndicator() {
   renderer.fillRect(renderer.getScreenWidth() - 4, thumbY, 2, thumbH, true);
 }
 
-/**
- * @brief Toggles expansion state of a settings group
- * @param group The group to toggle
- */
 void SettingsDrawer::toggleGroup(GroupType group) {
   groupExpanded[group] = !groupExpanded[group];
   setupMenu();
@@ -517,10 +547,6 @@ void SettingsDrawer::toggleGroup(GroupType group) {
   }
 }
 
-/**
- * @brief Handles input for the settings drawer
- * @param input Reference to the input manager
- */
 void SettingsDrawer::handleInput(MappedInputManager& input) {
   if (!visible) return;
 
@@ -581,10 +607,6 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
   }
 }
 
-/**
- * @brief Applies a delta change to the currently selected menu item
- * @param delta Amount to change (-1 or 1)
- */
 void SettingsDrawer::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= static_cast<int>(menuItems.size())) return;
   const auto& selected = menuItems[selectedIndex];

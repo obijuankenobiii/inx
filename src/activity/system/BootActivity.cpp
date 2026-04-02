@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+#include "system/FontManager.h"
 
 #include "state/SystemSetting.h"
 #include "state/Session.h"
@@ -115,6 +116,8 @@ void BootActivity::initializeNextStage() {
 void BootActivity::onEnter() {
   Activity::onEnter();
 
+  FontManager::initialize(renderer);
+  
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 

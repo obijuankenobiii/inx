@@ -406,10 +406,15 @@ void EpubActivity::updateExternalState() {
   RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
 }
 
-/**
- * @brief Fast path for books that were opened before
- */
 void EpubActivity::fastPath() {
+  int fontId = bookSettings.getReaderFontId();
+  Serial.printf("fastPath: Loading font ID %d\n", fontId);
+  if (!FontManager::ensureFontReady(fontId, renderer)) {
+    Serial.printf("FAILED to load font ID %d\n", fontId);
+  } else {
+    Serial.printf("Successfully loaded font ID %d\n", fontId);
+  }
+  
   loadProgress();
 
   int totalSpineItems = epub->getSpineItemsCount();
@@ -431,11 +436,11 @@ void EpubActivity::fastPath() {
   updateRequired = true;
 }
 
-/**
- * @brief Slow path for new books
- */
 void EpubActivity::slowPath() {
   renderer.clearScreen();
+
+  int fontId = bookSettings.getReaderFontId();
+  FontManager::ensureFontReady(fontId, renderer);
   displayCoverOrTitle();
   vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -451,8 +456,7 @@ void EpubActivity::slowPath() {
 
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
   loadingProgress = 30;
-  drawLoadingScreen();
-
+  drawLoadingScreen();  
   preloadChapters();
   loadingProgress = 40;
   drawLoadingScreen();
