@@ -1,13 +1,15 @@
 #include "FontManager.h"
+
 #include <builtinFonts/all.h>
+
 #include <algorithm>
 #include <cctype>
 #include <map>
+#include <memory>
+
 #include "SDCardManager.h"
 #include "system/Fonts.h"
-#include <memory> 
 
-// Storage for SD card fonts (updated to store all style paths)
 struct SDFontEntry {
   int id;
   std::string family;
@@ -29,12 +31,15 @@ static int g_nextSDFontId = FontManager::SD_FONT_START_ID;
 static GfxRenderer* g_renderer = nullptr;
 static FontManager::ProgressCallback g_progressCallback = nullptr;
 
-// PERMANENT STORAGE - keeps fonts alive forever (like static built-in fonts)
 static std::vector<std::unique_ptr<EpdFontFamily>> g_fontFamilyStorage;
 static std::vector<std::unique_ptr<EpdFont>> g_fontStorage;
 
+/**
+ * @brief Extracts font size from filename
+ * @param filename The font filename
+ * @return The font size in points, or 0 if not found
+ */
 static int extractSizeFromFilename(const std::string& filename) {
-  // Find digits in the filename
   for (size_t i = 0; i < filename.length(); i++) {
     if (isdigit(filename[i])) {
       std::string numStr;
@@ -48,7 +53,11 @@ static int extractSizeFromFilename(const std::string& filename) {
   return 0;
 }
 
-// Helper to extract style from filename
+/**
+ * @brief Extracts font style from filename
+ * @param filename The font filename
+ * @return The font style (regular, bold, italic, bolditalic)
+ */
 static std::string extractStyleFromFilename(const std::string& filename) {
   if (filename.find("bolditalic") != std::string::npos) return "bolditalic";
   if (filename.find("bold") != std::string::npos) return "bold";
@@ -56,14 +65,18 @@ static std::string extractStyleFromFilename(const std::string& filename) {
   return "regular";
 }
 
+/**
+ * @brief Loads a binary font file from SD card
+ * @param binPath Path to the .bin font file
+ * @return Pointer to loaded EpdFont, or nullptr on failure
+ */
 static EpdFont* loadBinaryFont(const std::string& binPath) {
   FsFile file = SdMan.open(binPath.c_str(), FILE_READ);
   if (!file) return nullptr;
 
-  // 1. Header & Magic Check
   uint32_t magic = 0;
   file.read((uint8_t*)&magic, 4);
-  if (magic != 0x45504446) { // "EPDF"
+  if (magic != 0x45504446) {
     file.close();
     return nullptr;
   }
@@ -71,20 +84,17 @@ static EpdFont* loadBinaryFont(const std::string& binPath) {
   uint32_t version;
   file.read((uint8_t*)&version, 4);
 
-  // 2. Skip the font name string
   uint16_t nameLen;
   file.read((uint8_t*)&nameLen, 2);
-  file.seek(file.position() + nameLen); 
+  file.seek(file.position() + nameLen);
 
-  // 3. Global Metrics
   int16_t lineHeight, ascender, descender;
   uint8_t is2Bit;
   file.read((uint8_t*)&lineHeight, 2);
   file.read((uint8_t*)&ascender, 2);
   file.read((uint8_t*)&descender, 2);
-  file.read(&is2Bit, 1); // Always 1 for 2-bit mode
+  file.read(&is2Bit, 1);
 
-  // 4. Unicode Intervals
   uint16_t intervalCount;
   file.read((uint8_t*)&intervalCount, 2);
 
@@ -95,57 +105,47 @@ static EpdFont* loadBinaryFont(const std::string& binPath) {
     file.read((uint8_t*)&intervals[i].offset, 4);
   }
 
-  // 5. Glyph Headers (The 24-byte Sync Loop)
   uint32_t glyphCount;
   file.read((uint8_t*)&glyphCount, 4);
 
   EpdGlyph* glyphs = new EpdGlyph[glyphCount];
   for (int i = 0; i < (int)glyphCount; i++) {
-    // Read the core 18 bytes of the struct
-    file.read((uint8_t*)&glyphs[i].width, 2);      // Offset 0
-    file.read((uint8_t*)&glyphs[i].height, 2);     // Offset 2
-    file.read((uint8_t*)&glyphs[i].advanceX, 2);   // Offset 4
-    file.read((uint8_t*)&glyphs[i].left, 2);       // Offset 6
-    file.read((uint8_t*)&glyphs[i].top, 2);        // Offset 8
-    file.read((uint8_t*)&glyphs[i].dataLength, 4); // Offset 10
-    file.read((uint8_t*)&glyphs[i].dataOffset, 4); // Offset 14 (Total 18 bytes)
-    
-    // SYNC: Read the remaining 6 bytes added by the Python script
-    // 4 bytes for code_point + 2 bytes for the H (uint16) padding
+    file.read((uint8_t*)&glyphs[i].width, 2);
+    file.read((uint8_t*)&glyphs[i].height, 2);
+    file.read((uint8_t*)&glyphs[i].advanceX, 2);
+    file.read((uint8_t*)&glyphs[i].left, 2);
+    file.read((uint8_t*)&glyphs[i].top, 2);
+    file.read((uint8_t*)&glyphs[i].dataLength, 4);
+    file.read((uint8_t*)&glyphs[i].dataOffset, 4);
+
     uint8_t dummy[6];
-    file.read(dummy, 6); 
-    
-    // Now the file pointer is at byte 24 of this glyph, 
-    // perfectly aligned for the start of the next glyph.
+    file.read(dummy, 6);
   }
 
-  // 6. Bitmap Data Loading
   size_t currentPos = file.position();
   size_t bitmapSize = file.size() - currentPos;
-  
+
   if (bitmapSize <= 0) {
     file.close();
     delete[] glyphs;
     delete[] intervals;
-    return nullptr; 
+    return nullptr;
   }
 
   uint8_t* bitmapData = new uint8_t[bitmapSize];
   file.read(bitmapData, bitmapSize);
   file.close();
 
-  // 7. Storage & Final Data Construction
   EpdFontData* fontData = new EpdFontData();
   fontData->bitmap = bitmapData;
   fontData->glyph = glyphs;
   fontData->intervals = intervals;
   fontData->intervalCount = intervalCount;
-  fontData->advanceY = lineHeight; 
+  fontData->advanceY = lineHeight;
   fontData->ascender = ascender;
   fontData->descender = descender;
   fontData->is2Bit = (is2Bit != 0);
 
-  // Persistence: Prevent ESP32 memory cleanup of dynamic allocations
   static std::vector<std::unique_ptr<uint8_t[]>> bitmapStorage;
   static std::vector<std::unique_ptr<EpdGlyph[]>> glyphStorage;
   static std::vector<std::unique_ptr<EpdUnicodeInterval[]>> intervalStorage;
@@ -155,16 +155,19 @@ static EpdFont* loadBinaryFont(const std::string& binPath) {
   glyphStorage.push_back(std::unique_ptr<EpdGlyph[]>(glyphs));
   intervalStorage.push_back(std::unique_ptr<EpdUnicodeInterval[]>(intervals));
   fontDataStorage.push_back(std::unique_ptr<EpdFontData>(fontData));
-  
+
   g_fontStorage.push_back(std::unique_ptr<EpdFont>(new EpdFont(fontData)));
-  
+
   return g_fontStorage.back().get();
 }
 
+/**
+ * @brief Initializes the font manager with built-in fonts
+ * @param renderer The graphics renderer to register fonts with
+ */
 void FontManager::initialize(GfxRenderer& renderer) {
   g_renderer = &renderer;
 
-  // Atkinson Hyperlegible built-in fonts
   static EpdFont atkinson_hyperlegible8RegularFont(&atkinson_hyperlegible_8_regular);
   static EpdFontFamily atkinson_hyperlegible8FontFamily(&atkinson_hyperlegible8RegularFont, nullptr, nullptr, nullptr);
   renderer.insertFont(ATKINSON_HYPERLEGIBLE_8_FONT_ID, atkinson_hyperlegible8FontFamily);
@@ -215,6 +218,11 @@ void FontManager::initialize(GfxRenderer& renderer) {
   renderer.insertFont(ATKINSON_HYPERLEGIBLE_18_FONT_ID, atkinson_hyperlegible18FontFamily);
 }
 
+/**
+ * @brief Gets the next font ID in sequence
+ * @param currentFontId Current font ID
+ * @return Next font ID in the sequence
+ */
 int FontManager::getNextFont(int currentFontId) {
   static const std::unordered_map<int, int> NEXT_FONT = {
       {ATKINSON_HYPERLEGIBLE_8_FONT_ID, ATKINSON_HYPERLEGIBLE_10_FONT_ID},
@@ -229,7 +237,6 @@ int FontManager::getNextFont(int currentFontId) {
     return it->second;
   }
 
-  // Handle SD card fonts
   for (const auto& entry : g_sdFonts) {
     if (entry.id == currentFontId) {
       int nextId = currentFontId;
@@ -247,6 +254,11 @@ int FontManager::getNextFont(int currentFontId) {
   return currentFontId;
 }
 
+/**
+ * @brief Gets the previous font ID in sequence
+ * @param currentFontId Current font ID
+ * @return Previous font ID in the sequence
+ */
 int FontManager::getPreviousFont(int currentFontId) {
   static const std::unordered_map<int, int> PREV_FONT = {
       {ATKINSON_HYPERLEGIBLE_8_FONT_ID, ATKINSON_HYPERLEGIBLE_8_FONT_ID},
@@ -278,6 +290,11 @@ int FontManager::getPreviousFont(int currentFontId) {
   return currentFontId;
 }
 
+/**
+ * @brief Scans SD card for font files
+ * @param sdPath Path to scan for fonts
+ * @return true if scan completed successfully, false otherwise
+ */
 bool FontManager::scanSDFonts(const char* sdPath) {
   if (!SdMan.ready()) {
     Serial.println("SD Card not ready");
@@ -301,27 +318,25 @@ bool FontManager::scanSDFonts(const char* sdPath) {
   std::vector<std::string> families;
   char name[128];
 
-  // Find all directories (families)
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
     file.getName(name, sizeof(name));
     std::string itemName = name;
-    
+
     if (itemName.substr(0, 2) == "._") {
       file.close();
       continue;
     }
-    
+
     if (!file.isDirectory()) {
       file.close();
       continue;
     }
-    
+
     families.push_back(itemName);
     file.close();
   }
   root.close();
 
-  // Use map to group fonts by family and size
   struct FontGroup {
     std::string family;
     int size;
@@ -332,34 +347,31 @@ bool FontManager::scanSDFonts(const char* sdPath) {
   };
   std::map<std::pair<std::string, int>, FontGroup> groups;
 
-  // Scan each family directory
   for (const auto& family : families) {
     std::string familyPath = std::string(sdPath) + "/" + family;
     auto familyDir = SdMan.open(familyPath.c_str());
-    
+
     if (!familyDir || !familyDir.isDirectory()) {
       if (familyDir) familyDir.close();
       continue;
     }
-    
+
     for (auto file = familyDir.openNextFile(); file; file = familyDir.openNextFile()) {
       file.getName(name, sizeof(name));
       std::string filename = name;
-      
+
       if (filename.substr(0, 2) == "._") {
         file.close();
         continue;
       }
-      
-      if (!file.isDirectory() && filename.length() > 4 && 
-          filename.substr(filename.length() - 4) == ".bin") {
-        
+
+      if (!file.isDirectory() && filename.length() > 4 && filename.substr(filename.length() - 4) == ".bin") {
         int size = extractSizeFromFilename(filename);
         if (size > 0) {
           auto key = std::make_pair(family, size);
           std::string fullPath = familyPath + "/" + filename;
           std::string style = extractStyleFromFilename(filename);
-          
+
           if (style == "regular") {
             groups[key].regularPath = fullPath;
           } else if (style == "bold") {
@@ -378,7 +390,6 @@ bool FontManager::scanSDFonts(const char* sdPath) {
     familyDir.close();
   }
 
-  // Convert groups to SDFontEntry
   for (auto& group : groups) {
     SDFontEntry entry;
     entry.id = g_nextSDFontId++;
@@ -395,19 +406,23 @@ bool FontManager::scanSDFonts(const char* sdPath) {
     entry.fontFamily = nullptr;
     entry.isLoaded = false;
     g_sdFonts.push_back(entry);
-    
-    Serial.printf("Found font: %s %dpt (ID: %d)\n", 
-                 entry.family.c_str(), entry.size, entry.id);
+
+    Serial.printf("Found font: %s %dpt (ID: %d)\n", entry.family.c_str(), entry.size, entry.id);
   }
 
-  Serial.printf("Scanned %d font families, found %d font sizes\n", 
-               (int)families.size(), (int)g_sdFonts.size());
+  Serial.printf("Scanned %d font families, found %d font sizes\n", (int)families.size(), (int)g_sdFonts.size());
   return true;
 }
 
+/**
+ * @brief Loads a specific font from SD card by ID
+ * @param fontId Font ID to load
+ * @param renderer Graphics renderer to register the font with
+ * @return true if font loaded successfully, false otherwise
+ */
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   Serial.printf("=== loadFontFromSD called for ID %d ===\n", fontId);
-  
+
   SDFontEntry* entry = nullptr;
   for (auto& e : g_sdFonts) {
     if (e.id == fontId) {
@@ -426,45 +441,46 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     return true;
   }
 
-  // Load ONLY this specific font size (NOT all sizes in the family)
   Serial.printf("Loading font: %s %dpt from %s\n", entry->family.c_str(), entry->size, entry->regularPath.c_str());
-  
+
   EpdFont* regularFont = loadBinaryFont(entry->regularPath);
   if (!regularFont) {
     Serial.printf("Failed to load regular font for: %s %dpt\n", entry->family.c_str(), entry->size);
     return false;
   }
-  
-  // Create fallback fonts from the same data
+
   EpdFont* boldFont = new EpdFont(regularFont->data);
   EpdFont* italicFont = new EpdFont(regularFont->data);
   EpdFont* boldItalicFont = new EpdFont(regularFont->data);
-  
-  // Create font family
+
   EpdFontFamily* fontFamily = new EpdFontFamily(regularFont, boldFont, italicFont, boldItalicFont);
-  
+
   entry->regularFont = regularFont;
   entry->boldFont = boldFont;
   entry->italicFont = italicFont;
   entry->boldItalicFont = boldItalicFont;
   entry->fontFamily = fontFamily;
   entry->isLoaded = true;
-  
+
   renderer.insertFont(entry->id, *fontFamily);
   Serial.printf("Loaded and inserted font: %s %dpt (ID: %d)\n", entry->family.c_str(), entry->size, entry->id);
-  
+
   return true;
 }
 
+/**
+ * @brief Ensures a font is ready for use, loading it if necessary
+ * @param fontId Font ID to ensure is ready
+ * @param renderer Graphics renderer to use for loading
+ * @return true if font is ready, false otherwise
+ */
 bool FontManager::ensureFontReady(int fontId, GfxRenderer& renderer) {
   Serial.printf("ensureFontReady called for ID %d\n", fontId);
-  
-  // Check built-in fonts
+
   if (fontId >= ATKINSON_HYPERLEGIBLE_8_FONT_ID && fontId <= ATKINSON_HYPERLEGIBLE_18_FONT_ID) {
     Serial.println("Font is built-in, already ready");
     return true;
   }
-
 
   for (auto& entry : g_sdFonts) {
     if (entry.id == fontId) {
@@ -476,24 +492,33 @@ bool FontManager::ensureFontReady(int fontId, GfxRenderer& renderer) {
       return true;
     }
   }
-  
+
   Serial.printf("Font ID %d not found in any font list!\n", fontId);
   return false;
 }
 
+/**
+ * @brief Unloads a font from memory
+ * @param fontId Font ID to unload
+ * @return true if unloaded successfully, false otherwise
+ */
 bool FontManager::unloadFont(int fontId) {
-  // Note: With permanent storage, fonts are never unloaded
-  // This is intentional to keep them alive like static fonts
   Serial.printf("unloadFont called for %d - fonts are permanently stored\n", fontId);
   return true;
 }
 
+/**
+ * @brief Unloads all SD card fonts
+ */
 void FontManager::unloadAllSDFonts() {
-  // With permanent storage, we don't actually unload
-  // This prevents memory corruption
   Serial.println("unloadAllSDFonts called - fonts are permanently stored");
 }
 
+/**
+ * @brief Gets information about a specific font
+ * @param fontId Font ID to get info for
+ * @return Pointer to FontInfo structure, or nullptr if not found
+ */
 const FontManager::FontInfo* FontManager::getFontInfo(int fontId) {
   static FontInfo info;
 
@@ -527,6 +552,10 @@ const FontManager::FontInfo* FontManager::getFontInfo(int fontId) {
   }
 }
 
+/**
+ * @brief Gets all available fonts
+ * @return Vector of FontInfo structures
+ */
 std::vector<FontManager::FontInfo> FontManager::getAllAvailableFonts() {
   std::vector<FontInfo> fonts;
 
@@ -544,6 +573,11 @@ std::vector<FontManager::FontInfo> FontManager::getAllAvailableFonts() {
   return fonts;
 }
 
+/**
+ * @brief Gets all fonts belonging to a specific family
+ * @param family Font family name
+ * @return Vector of FontInfo structures for the family
+ */
 std::vector<FontManager::FontInfo> FontManager::getFontsByFamily(const std::string& family) {
   std::vector<FontInfo> result;
 
@@ -566,6 +600,10 @@ std::vector<FontManager::FontInfo> FontManager::getFontsByFamily(const std::stri
   return result;
 }
 
+/**
+ * @brief Gets all available font families
+ * @return Vector of font family names
+ */
 std::vector<std::string> FontManager::getAllFamilies() {
   std::vector<std::string> families;
   families.push_back("Atkinson Hyperlegible");
@@ -578,6 +616,11 @@ std::vector<std::string> FontManager::getAllFamilies() {
   return families;
 }
 
+/**
+ * @brief Checks if a specific font is loaded
+ * @param fontId Font ID to check
+ * @return true if font is loaded, false otherwise
+ */
 bool FontManager::isFontLoaded(int fontId) {
   if (fontId >= ATKINSON_HYPERLEGIBLE_8_FONT_ID && fontId <= ATKINSON_HYPERLEGIBLE_18_FONT_ID) {
     return true;
@@ -591,10 +634,15 @@ bool FontManager::isFontLoaded(int fontId) {
   return false;
 }
 
-void FontManager::setProgressCallback(ProgressCallback callback) { 
-  g_progressCallback = callback; 
-}
+/**
+ * @brief Sets the progress callback for font operations
+ * @param callback Progress callback function
+ */
+void FontManager::setProgressCallback(ProgressCallback callback) { g_progressCallback = callback; }
 
+/**
+ * @brief Prints font manager statistics to serial output
+ */
 void FontManager::printFontStats() {
   Serial.println("=== Font Manager Stats ===");
   Serial.printf("Built-in fonts: 6\n");
@@ -605,8 +653,8 @@ void FontManager::printFontStats() {
     if (entry.isLoaded) loadedCount++;
   }
   Serial.printf("SD fonts loaded: %d\n", loadedCount);
-  Serial.printf("Permanent font storage size: %d fonts, %d families\n", 
-                (int)g_fontStorage.size(), (int)g_fontFamilyStorage.size());
+  Serial.printf("Permanent font storage size: %d fonts, %d families\n", (int)g_fontStorage.size(),
+                (int)g_fontFamilyStorage.size());
 
   Serial.println("\nSD Font Families:");
   for (const auto& entry : g_sdFonts) {
@@ -615,27 +663,37 @@ void FontManager::printFontStats() {
   Serial.println("========================");
 }
 
+/**
+ * @brief Gets font ID for a specific family and size
+ * @param family Font family name
+ * @param size Font size in points
+ * @return Font ID, or default font ID if not found
+ */
 int FontManager::getFontId(const std::string& family, int size) {
-    // Check built-in fonts
-    if (family == "Atkinson Hyperlegible") {
-        switch (size) {
-            case 8: return ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-            case 10: return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-            case 12: return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-            case 14: return ATKINSON_HYPERLEGIBLE_14_FONT_ID;
-            case 16: return ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-            case 18: return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-            default: return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-        }
+  if (family == "Atkinson Hyperlegible") {
+    switch (size) {
+      case 8:
+        return ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+      case 10:
+        return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+      case 12:
+        return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+      case 14:
+        return ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+      case 16:
+        return ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+      case 18:
+        return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
+      default:
+        return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
     }
-    
-    // Check SD card fonts
-    for (const auto& entry : g_sdFonts) {
-        if (entry.family == family && entry.size == size) {
-            return entry.id;
-        }
+  }
+
+  for (const auto& entry : g_sdFonts) {
+    if (entry.family == family && entry.size == size) {
+      return entry.id;
     }
-    
-    // Fallback to Atkinson Hyperlegible 12pt
-    return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  }
+
+  return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
 }
