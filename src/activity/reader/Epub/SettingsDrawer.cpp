@@ -425,11 +425,7 @@ void SettingsDrawer::show() {
   dismissed = false;
   selectedIndex = 0;
   scrollOffset = 0;
-  
-  Serial.println("Scanning for SD card fonts...");
-  FontManager::scanSDFonts("/fonts");
-  FontManager::printFontStats();
-  
+    
   setupMenu();
   renderWithRefresh(HalDisplay::FAST_REFRESH);
 }

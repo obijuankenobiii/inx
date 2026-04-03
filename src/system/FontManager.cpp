@@ -5,6 +5,7 @@
 #include <map>
 #include "SDCardManager.h"
 #include "system/Fonts.h"
+#include <memory> 
 
 // Storage for SD card fonts (updated to store all style paths)
 struct SDFontEntry {
@@ -27,6 +28,10 @@ static std::vector<SDFontEntry> g_sdFonts;
 static int g_nextSDFontId = FontManager::SD_FONT_START_ID;
 static GfxRenderer* g_renderer = nullptr;
 static FontManager::ProgressCallback g_progressCallback = nullptr;
+
+// PERMANENT STORAGE - keeps fonts alive forever (like static built-in fonts)
+static std::vector<std::unique_ptr<EpdFontFamily>> g_fontFamilyStorage;
+static std::vector<std::unique_ptr<EpdFont>> g_fontStorage;
 
 static int extractSizeFromFilename(const std::string& filename) {
   // Find digits in the filename
@@ -51,30 +56,109 @@ static std::string extractStyleFromFilename(const std::string& filename) {
   return "regular";
 }
 
-// Load binary font file and create EpdFont
 static EpdFont* loadBinaryFont(const std::string& binPath) {
   FsFile file = SdMan.open(binPath.c_str(), FILE_READ);
-  if (!file) {
-    Serial.printf("Failed to open font file: %s\n", binPath.c_str());
-    return nullptr;
-  }
+  if (!file) return nullptr;
 
-  size_t fileSize = file.size();
-  if (fileSize == 0) {
+  // 1. Header & Magic Check
+  uint32_t magic = 0;
+  file.read((uint8_t*)&magic, 4);
+  if (magic != 0x45504446) { // "EPDF"
     file.close();
     return nullptr;
   }
 
-  EpdFontData* fontData = new EpdFontData();
-  if (file.read((uint8_t*)fontData, fileSize) != fileSize) {
-    delete fontData;
-    file.close();
-    return nullptr;
+  uint32_t version;
+  file.read((uint8_t*)&version, 4);
+
+  // 2. Skip the font name string
+  uint16_t nameLen;
+  file.read((uint8_t*)&nameLen, 2);
+  file.seek(file.position() + nameLen); 
+
+  // 3. Global Metrics
+  int16_t lineHeight, ascender, descender;
+  uint8_t is2Bit;
+  file.read((uint8_t*)&lineHeight, 2);
+  file.read((uint8_t*)&ascender, 2);
+  file.read((uint8_t*)&descender, 2);
+  file.read(&is2Bit, 1); // Always 1 for 2-bit mode
+
+  // 4. Unicode Intervals
+  uint16_t intervalCount;
+  file.read((uint8_t*)&intervalCount, 2);
+
+  EpdUnicodeInterval* intervals = new EpdUnicodeInterval[intervalCount];
+  for (int i = 0; i < intervalCount; i++) {
+    file.read((uint8_t*)&intervals[i].first, 4);
+    file.read((uint8_t*)&intervals[i].last, 4);
+    file.read((uint8_t*)&intervals[i].offset, 4);
   }
+
+  // 5. Glyph Headers (The 24-byte Sync Loop)
+  uint32_t glyphCount;
+  file.read((uint8_t*)&glyphCount, 4);
+
+  EpdGlyph* glyphs = new EpdGlyph[glyphCount];
+  for (int i = 0; i < (int)glyphCount; i++) {
+    // Read the core 18 bytes of the struct
+    file.read((uint8_t*)&glyphs[i].width, 2);      // Offset 0
+    file.read((uint8_t*)&glyphs[i].height, 2);     // Offset 2
+    file.read((uint8_t*)&glyphs[i].advanceX, 2);   // Offset 4
+    file.read((uint8_t*)&glyphs[i].left, 2);       // Offset 6
+    file.read((uint8_t*)&glyphs[i].top, 2);        // Offset 8
+    file.read((uint8_t*)&glyphs[i].dataLength, 4); // Offset 10
+    file.read((uint8_t*)&glyphs[i].dataOffset, 4); // Offset 14 (Total 18 bytes)
+    
+    // SYNC: Read the remaining 6 bytes added by the Python script
+    // 4 bytes for code_point + 2 bytes for the H (uint16) padding
+    uint8_t dummy[6];
+    file.read(dummy, 6); 
+    
+    // Now the file pointer is at byte 24 of this glyph, 
+    // perfectly aligned for the start of the next glyph.
+  }
+
+  // 6. Bitmap Data Loading
+  size_t currentPos = file.position();
+  size_t bitmapSize = file.size() - currentPos;
+  
+  if (bitmapSize <= 0) {
+    file.close();
+    delete[] glyphs;
+    delete[] intervals;
+    return nullptr; 
+  }
+
+  uint8_t* bitmapData = new uint8_t[bitmapSize];
+  file.read(bitmapData, bitmapSize);
   file.close();
 
-  EpdFont* font = new EpdFont(fontData);
-  return font;
+  // 7. Storage & Final Data Construction
+  EpdFontData* fontData = new EpdFontData();
+  fontData->bitmap = bitmapData;
+  fontData->glyph = glyphs;
+  fontData->intervals = intervals;
+  fontData->intervalCount = intervalCount;
+  fontData->advanceY = lineHeight; 
+  fontData->ascender = ascender;
+  fontData->descender = descender;
+  fontData->is2Bit = (is2Bit != 0);
+
+  // Persistence: Prevent ESP32 memory cleanup of dynamic allocations
+  static std::vector<std::unique_ptr<uint8_t[]>> bitmapStorage;
+  static std::vector<std::unique_ptr<EpdGlyph[]>> glyphStorage;
+  static std::vector<std::unique_ptr<EpdUnicodeInterval[]>> intervalStorage;
+  static std::vector<std::unique_ptr<EpdFontData>> fontDataStorage;
+
+  bitmapStorage.push_back(std::unique_ptr<uint8_t[]>(bitmapData));
+  glyphStorage.push_back(std::unique_ptr<EpdGlyph[]>(glyphs));
+  intervalStorage.push_back(std::unique_ptr<EpdUnicodeInterval[]>(intervals));
+  fontDataStorage.push_back(std::unique_ptr<EpdFontData>(fontData));
+  
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(new EpdFont(fontData)));
+  
+  return g_fontStorage.back().get();
 }
 
 void FontManager::initialize(GfxRenderer& renderer) {
@@ -322,6 +406,8 @@ bool FontManager::scanSDFonts(const char* sdPath) {
 }
 
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
+  Serial.printf("=== loadFontFromSD called for ID %d ===\n", fontId);
+  
   SDFontEntry* entry = nullptr;
   for (auto& e : g_sdFonts) {
     if (e.id == fontId) {
@@ -331,117 +417,81 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   }
 
   if (!entry) {
-    Serial.printf("Font ID %d not found\n", fontId);
+    Serial.printf("Font ID %d not found in g_sdFonts!\n", fontId);
     return false;
   }
 
   if (entry->isLoaded) {
+    Serial.printf("Font already loaded: %s %dpt\n", entry->family.c_str(), entry->size);
     return true;
   }
 
-  Serial.printf("Loading font: %s %dpt\n", entry->family.c_str(), entry->size);
-
-  // Load all available styles - store them as member variables of the entry
-  // They will persist as long as the entry exists in g_sdFonts
-  EpdFont* regularFont = nullptr;
-  EpdFont* boldFont = nullptr;
-  EpdFont* italicFont = nullptr;
-  EpdFont* boldItalicFont = nullptr;
+  // Load ONLY this specific font size (NOT all sizes in the family)
+  Serial.printf("Loading font: %s %dpt from %s\n", entry->family.c_str(), entry->size, entry->regularPath.c_str());
   
-  if (!entry->regularPath.empty()) {
-    regularFont = loadBinaryFont(entry->regularPath);
-    Serial.printf("Regular font loaded: %s\n", regularFont ? "YES" : "NO");
-  }
-  if (!entry->boldPath.empty()) {
-    boldFont = loadBinaryFont(entry->boldPath);
-  }
-  if (!entry->italicPath.empty()) {
-    italicFont = loadBinaryFont(entry->italicPath);
-  }
-  if (!entry->boldItalicPath.empty()) {
-    boldItalicFont = loadBinaryFont(entry->boldItalicPath);
-  }
-  
-  // Regular font is required
+  EpdFont* regularFont = loadBinaryFont(entry->regularPath);
   if (!regularFont) {
     Serial.printf("Failed to load regular font for: %s %dpt\n", entry->family.c_str(), entry->size);
     return false;
   }
   
-  // Use regular font as fallback for missing styles
-  if (!boldFont) boldFont = new EpdFont(regularFont->data);
-  if (!italicFont) italicFont = new EpdFont(regularFont->data);
-  if (!boldItalicFont) boldItalicFont = new EpdFont(regularFont->data);
-
-  // Store the fonts in the entry (they will persist)
+  // Create fallback fonts from the same data
+  EpdFont* boldFont = new EpdFont(regularFont->data);
+  EpdFont* italicFont = new EpdFont(regularFont->data);
+  EpdFont* boldItalicFont = new EpdFont(regularFont->data);
+  
+  // Create font family
+  EpdFontFamily* fontFamily = new EpdFontFamily(regularFont, boldFont, italicFont, boldItalicFont);
+  
   entry->regularFont = regularFont;
   entry->boldFont = boldFont;
   entry->italicFont = italicFont;
   entry->boldItalicFont = boldItalicFont;
-  
-  // Create font family using the stored fonts
-  entry->fontFamily = new EpdFontFamily(regularFont, boldFont, italicFont, boldItalicFont);
+  entry->fontFamily = fontFamily;
   entry->isLoaded = true;
-
-  // Insert into renderer
-  renderer.insertFont(entry->id, *entry->fontFamily);
-  Serial.printf("Inserted font ID %d into renderer\n", entry->id);
-
+  
+  renderer.insertFont(entry->id, *fontFamily);
+  Serial.printf("Loaded and inserted font: %s %dpt (ID: %d)\n", entry->family.c_str(), entry->size, entry->id);
+  
   return true;
 }
 
 bool FontManager::ensureFontReady(int fontId, GfxRenderer& renderer) {
+  Serial.printf("ensureFontReady called for ID %d\n", fontId);
+  
+  // Check built-in fonts
   if (fontId >= ATKINSON_HYPERLEGIBLE_8_FONT_ID && fontId <= ATKINSON_HYPERLEGIBLE_18_FONT_ID) {
+    Serial.println("Font is built-in, already ready");
     return true;
   }
+
 
   for (auto& entry : g_sdFonts) {
     if (entry.id == fontId) {
       if (!entry.isLoaded) {
+        Serial.printf("Font not loaded, calling loadFontFromSD for ID %d\n", fontId);
         return loadFontFromSD(fontId, renderer);
       }
+      Serial.println("Font already loaded");
       return true;
     }
   }
+  
+  Serial.printf("Font ID %d not found in any font list!\n", fontId);
   return false;
 }
 
 bool FontManager::unloadFont(int fontId) {
-  for (auto it = g_sdFonts.begin(); it != g_sdFonts.end(); ++it) {
-    if (it->id == fontId && it->isLoaded) {
-      delete it->regularFont;
-      delete it->boldFont;
-      delete it->italicFont;
-      delete it->boldItalicFont;
-      delete it->fontFamily;
-      it->regularFont = nullptr;
-      it->boldFont = nullptr;
-      it->italicFont = nullptr;
-      it->boldItalicFont = nullptr;
-      it->fontFamily = nullptr;
-      it->isLoaded = false;
-      return true;
-    }
-  }
-  return false;
+  // Note: With permanent storage, fonts are never unloaded
+  // This is intentional to keep them alive like static fonts
+  Serial.printf("unloadFont called for %d - fonts are permanently stored\n", fontId);
+  return true;
 }
 
 void FontManager::unloadAllSDFonts() {
-  for (auto& entry : g_sdFonts) {
-    if (entry.isLoaded) {
-      delete entry.regularFont;
-      delete entry.boldFont;
-      delete entry.italicFont;
-      delete entry.boldItalicFont;
-      delete entry.fontFamily;
-      entry.regularFont = nullptr;
-      entry.boldFont = nullptr;
-      entry.italicFont = nullptr;
-      entry.boldItalicFont = nullptr;
-      entry.fontFamily = nullptr;
-      entry.isLoaded = false;
-    }
-  }
+  // With permanent storage, we don't actually unload
+  // This prevents memory corruption
+  Serial.println("unloadAllSDFonts called - fonts are permanently stored");
 }
 
 const FontManager::FontInfo* FontManager::getFontInfo(int fontId) {
@@ -555,6 +605,8 @@ void FontManager::printFontStats() {
     if (entry.isLoaded) loadedCount++;
   }
   Serial.printf("SD fonts loaded: %d\n", loadedCount);
+  Serial.printf("Permanent font storage size: %d fonts, %d families\n", 
+                (int)g_fontStorage.size(), (int)g_fontFamilyStorage.size());
 
   Serial.println("\nSD Font Families:");
   for (const auto& entry : g_sdFonts) {

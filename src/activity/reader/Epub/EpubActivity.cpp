@@ -406,15 +406,7 @@ void EpubActivity::updateExternalState() {
   RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
 }
 
-void EpubActivity::fastPath() {
-  int fontId = bookSettings.getReaderFontId();
-  Serial.printf("fastPath: Loading font ID %d\n", fontId);
-  if (!FontManager::ensureFontReady(fontId, renderer)) {
-    Serial.printf("FAILED to load font ID %d\n", fontId);
-  } else {
-    Serial.printf("Successfully loaded font ID %d\n", fontId);
-  }
-  
+void EpubActivity::fastPath() {  
   loadProgress();
 
   int totalSpineItems = epub->getSpineItemsCount();
@@ -439,8 +431,6 @@ void EpubActivity::fastPath() {
 void EpubActivity::slowPath() {
   renderer.clearScreen();
 
-  int fontId = bookSettings.getReaderFontId();
-  FontManager::ensureFontReady(fontId, renderer);
   displayCoverOrTitle();
   vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -496,6 +486,29 @@ void EpubActivity::onEnter() {
 
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
+
+  Serial.printf("=== EpubActivity::fastPath ===\n");
+  Serial.printf("Book settings: fontFamily=%s, fontSize=%d\n", 
+                bookSettings.fontFamily.c_str(), bookSettings.fontSize);
+  
+  int fontId = bookSettings.getReaderFontId();
+  Serial.printf("Got fontId = %d\n", fontId);
+  
+  // THIS IS CRITICAL - Load the font into memory
+  bool loaded = FontManager::ensureFontReady(fontId, renderer);
+  Serial.printf("ensureFontReady returned: %s\n", loaded ? "true" : "false");
+  
+  // Check if font is now loaded
+  Serial.printf("Font loaded: %s\n", FontManager::isFontLoaded(fontId) ? "YES" : "NO");
+  
+  // Verify font is in renderer by trying to get info
+  const FontManager::FontInfo* info = FontManager::getFontInfo(fontId);
+  if (info) {
+    Serial.printf("Font info: name=%s, family=%s, id=%d, size=%d\n", 
+                  info->name.c_str(), info->family.c_str(), info->id, info->size);
+  } else {
+    Serial.printf("Font info is NULL for ID %d\n", fontId);
+  }
 
   if (book && hasProgress) {
     fastPath();
@@ -1513,7 +1526,7 @@ void EpubActivity::saveBookSettings() {
  */
 void EpubActivity::applyBookSettings() {
   if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
+  FontManager::ensureFontReady(bookSettings.getReaderFontId(), renderer);
   int currentPage = 0;
   int currentSpine = currentSpineIndex;
 

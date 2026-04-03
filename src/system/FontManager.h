@@ -49,7 +49,6 @@ public:
      */
     static bool loadFontFromSD(int fontId, GfxRenderer& renderer);
 
-    
     /**
      * Ensure font is ready to use (loads from SD if needed)
      * @param fontId The font ID to check/load
