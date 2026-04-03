@@ -1508,8 +1508,8 @@ void EpubActivity::applyBookSettings() {
 
   if (currentFontId != bookSettings.getReaderFontId())
   {
-    FontManager::unloadFont(currentFontId);
     FontManager::ensureFontReady(bookSettings.getReaderFontId(), renderer);
+    FontManager::unloadFont(currentFontId);
     currentFontId = bookSettings.getReaderFontId();
   }
   

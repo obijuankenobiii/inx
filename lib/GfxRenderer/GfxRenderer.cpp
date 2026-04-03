@@ -4,7 +4,10 @@
 #include <vector>
 #include <algorithm>
 
-void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) { fontMap.insert({fontId, font}); }
+void GfxRenderer::insertFont(int fontId, EpdFontFamily font) {
+    // Replace fontMap[fontId] = font; with:
+    fontMap.insert(std::make_pair(fontId, font));
+}
 
 void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int* rotatedY) const {
   switch (orientation) {
@@ -859,21 +862,45 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
     glyph = fontFamily.getGlyph(REPLACEMENT_GLYPH, style);
   }
 
-  // no glyph?
   if (!glyph) {
     Serial.printf("[%lu] [GFX] No glyph for codepoint %d\n", millis(), cp);
     return;
   }
 
-  const int is2Bit = fontFamily.getData(style)->is2Bit;
-  const uint32_t offset = glyph->dataOffset;
+  const EpdFontData* fontData = fontFamily.getData(style);
+  const int is2Bit = fontData->is2Bit;
   const uint8_t width = glyph->width;
   const uint8_t height = glyph->height;
   const int left = glyph->left;
 
+  // --- HYBRID BITMAP SELECTION ---
   const uint8_t* bitmap = nullptr;
-  bitmap = &fontFamily.getData(style)->bitmap[offset];
+  uint8_t localStackBuffer[1024]; // Standard buffer for most glyphs
+  uint8_t* heapBuffer = nullptr;  // Only used for very large glyphs
 
+  if (fontData->bitmap != nullptr) {
+    // RAM Font: Use direct pointer logic
+    bitmap = &fontData->bitmap[glyph->dataOffset];
+  } else {
+    // Streaming Font: Load from SD card
+    size_t dataLen = glyph->dataLength;
+    uint8_t* targetBuf = localStackBuffer;
+
+    if (dataLen > sizeof(localStackBuffer)) {
+      heapBuffer = new uint8_t[dataLen];
+      targetBuf = heapBuffer;
+    }
+
+    // Attempt to fetch from SD via our helper
+    if (getGlyphBitmap(fontFamily, glyph->dataOffset, dataLen, targetBuf)) {
+      bitmap = targetBuf;
+    } else {
+      if (heapBuffer) delete[] heapBuffer;
+      return; // Failed to read SD
+    }
+  }
+
+  // --- RENDERING LOOP (Same as before, using 'bitmap' pointer) ---
   if (bitmap != nullptr) {
     for (int glyphY = 0; glyphY < height; glyphY++) {
       const int screenY = *y - glyph->top + glyphY;
@@ -883,21 +910,14 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
 
         if (is2Bit) {
           const uint8_t byte = bitmap[pixelPosition / 4];
-          const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
-          // the direct bit from the font is 0 -> white, 1 -> light gray, 2 -> dark gray, 3 -> black
-          // we swap this to better match the way images and screen think about colors:
-          // 0 -> black, 1 -> dark grey, 2 -> light grey, 3 -> white
-          const uint8_t bmpVal = 3 - (byte >> bit_index) & 0x3;
+          const uint8_t bit_index = (3 - (pixelPosition % 4)) * 2;
+          const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
 
           if (renderMode == BW && bmpVal < 3) {
-            // Black (also paints over the grays in BW mode)
             drawPixel(screenX, screenY, pixelState);
           } else if (renderMode == GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-            // Light gray (also mark the MSB if it's going to be a dark gray too)
-            // We have to flag pixels in reverse for the gray buffers, as 0 leave alone, 1 update
             drawPixel(screenX, screenY, false);
           } else if (renderMode == GRAYSCALE_LSB && bmpVal == 1) {
-            // Dark gray
             drawPixel(screenX, screenY, false);
           }
         } else {
@@ -911,6 +931,9 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
       }
     }
   }
+
+  // Cleanup heap memory if it was allocated
+  if (heapBuffer) delete[] heapBuffer;
 
   *x += glyph->advanceX;
 }
@@ -1529,4 +1552,37 @@ void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y,
       }
     }
   }
+}
+
+void GfxRenderer::insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, EpdFontFamily font) {
+    // Replace fontMap[fontId] = font; with:
+    fontMap.insert(std::make_pair(fontId, font));
+    
+    // streamingFonts uses a unique_ptr, so [] or insert works here, 
+    // but let's be consistent:
+    streamingFonts.insert(std::make_pair(fontId, std::move(streamingFont)));
+}
+
+bool GfxRenderer::getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer) const {
+    const EpdFontData* targetData = fontFamily.getData(EpdFontFamily::REGULAR);
+
+    for (const auto& pair : fontMap) {
+        if (pair.second.getData(EpdFontFamily::REGULAR) == targetData) {
+            auto it = streamingFonts.find(pair.first);
+            if (it != streamingFonts.end()) {
+                bool success = it->second->getGlyphBitmap(offset, length, outputBuffer);
+                if (!success) {
+                    Serial.printf("[GFX-DEBUG] SD Read Failed! Offset: %u, Len: %u\n", offset, length);
+                }
+                return success;
+            } else {
+                Serial.println("[GFX-DEBUG] Found Font ID match, but NO streaming handle exists!");
+            }
+            break;
+        }
+    }
+    
+    // If we reach here, the renderer thinks this is a standard RAM font, 
+    // but the bitmap pointer was null in renderChar.
+    return false;
 }

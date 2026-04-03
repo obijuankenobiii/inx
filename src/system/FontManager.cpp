@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "SDCardManager.h"
+#include "ExternalFont.h"
 #include "system/Fonts.h"
 
 struct SDFontEntry {
@@ -71,93 +72,21 @@ static std::string extractStyleFromFilename(const std::string& filename) {
  * @return Pointer to loaded EpdFont, or nullptr on failure
  */
 static EpdFont* loadBinaryFont(const std::string& binPath) {
-  FsFile file = SdMan.open(binPath.c_str(), FILE_READ);
-  if (!file) return nullptr;
-
-  uint32_t magic = 0;
-  file.read((uint8_t*)&magic, 4);
-  if (magic != 0x45504446) {
-    file.close();
+  // Create streaming font instead of loading everything
+  ExternalFont* streamingFont = new ExternalFont();
+  if (!streamingFont->load(binPath.c_str())) {
+    delete streamingFont;
     return nullptr;
   }
 
-  uint32_t version;
-  file.read((uint8_t*)&version, 4);
+  // Create EpdFont wrapper
+  EpdFont* font = new EpdFont(streamingFont->getData());
 
-  uint16_t nameLen;
-  file.read((uint8_t*)&nameLen, 2);
-  file.seek(file.position() + nameLen);
+  // Store streaming font for cleanup
+  static std::vector<std::unique_ptr<ExternalFont>> streamingFonts;
+  streamingFonts.push_back(std::unique_ptr<ExternalFont>(streamingFont));
 
-  int16_t lineHeight, ascender, descender;
-  uint8_t is2Bit;
-  file.read((uint8_t*)&lineHeight, 2);
-  file.read((uint8_t*)&ascender, 2);
-  file.read((uint8_t*)&descender, 2);
-  file.read(&is2Bit, 1);
-
-  uint16_t intervalCount;
-  file.read((uint8_t*)&intervalCount, 2);
-
-  EpdUnicodeInterval* intervals = new EpdUnicodeInterval[intervalCount];
-  for (int i = 0; i < intervalCount; i++) {
-    file.read((uint8_t*)&intervals[i].first, 4);
-    file.read((uint8_t*)&intervals[i].last, 4);
-    file.read((uint8_t*)&intervals[i].offset, 4);
-  }
-
-  uint32_t glyphCount;
-  file.read((uint8_t*)&glyphCount, 4);
-
-  EpdGlyph* glyphs = new EpdGlyph[glyphCount];
-  for (int i = 0; i < (int)glyphCount; i++) {
-    file.read((uint8_t*)&glyphs[i].width, 2);
-    file.read((uint8_t*)&glyphs[i].height, 2);
-    file.read((uint8_t*)&glyphs[i].advanceX, 2);
-    file.read((uint8_t*)&glyphs[i].left, 2);
-    file.read((uint8_t*)&glyphs[i].top, 2);
-    file.read((uint8_t*)&glyphs[i].dataLength, 4);
-    file.read((uint8_t*)&glyphs[i].dataOffset, 4);
-
-    uint8_t dummy[6];
-    file.read(dummy, 6);
-  }
-
-  size_t currentPos = file.position();
-  size_t bitmapSize = file.size() - currentPos;
-
-  if (bitmapSize <= 0) {
-    file.close();
-    delete[] glyphs;
-    delete[] intervals;
-    return nullptr;
-  }
-
-  uint8_t* bitmapData = new uint8_t[bitmapSize];
-  file.read(bitmapData, bitmapSize);
-  file.close();
-
-  EpdFontData* fontData = new EpdFontData();
-  fontData->bitmap = bitmapData;
-  fontData->glyph = glyphs;
-  fontData->intervals = intervals;
-  fontData->intervalCount = intervalCount;
-  fontData->advanceY = lineHeight;
-  fontData->ascender = ascender;
-  fontData->descender = descender;
-  fontData->is2Bit = (is2Bit != 0);
-
-  static std::vector<std::unique_ptr<uint8_t[]>> bitmapStorage;
-  static std::vector<std::unique_ptr<EpdGlyph[]>> glyphStorage;
-  static std::vector<std::unique_ptr<EpdUnicodeInterval[]>> intervalStorage;
-  static std::vector<std::unique_ptr<EpdFontData>> fontDataStorage;
-
-  bitmapStorage.push_back(std::unique_ptr<uint8_t[]>(bitmapData));
-  glyphStorage.push_back(std::unique_ptr<EpdGlyph[]>(glyphs));
-  intervalStorage.push_back(std::unique_ptr<EpdUnicodeInterval[]>(intervals));
-  fontDataStorage.push_back(std::unique_ptr<EpdFontData>(fontData));
-
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(new EpdFont(fontData)));
-
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(font));
   return g_fontStorage.back().get();
 }
 
@@ -420,6 +349,12 @@ bool FontManager::scanSDFonts(const char* sdPath) {
  * @param renderer Graphics renderer to register the font with
  * @return true if font loaded successfully, false otherwise
  */
+/**
+ * @brief Loads a specific font from SD card by ID
+ * @param fontId Font ID to load
+ * @param renderer Graphics renderer to register the font with
+ * @return true if font loaded successfully, false otherwise
+ */
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   Serial.printf("=== loadFontFromSD called for ID %d ===\n", fontId);
 
@@ -432,29 +367,35 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   }
 
   if (!entry) {
-    Serial.printf("Font ID %d not found in g_sdFonts!\n", fontId);
+    Serial.printf("[FontManager] Error: Font ID %d not found\n", fontId);
     return false;
   }
 
   if (entry->isLoaded) {
-    Serial.printf("Font already loaded: %s %dpt\n", entry->family.c_str(), entry->size);
     return true;
   }
 
-  Serial.printf("Loading font: %s %dpt from %s\n", entry->family.c_str(), entry->size, entry->regularPath.c_str());
+  // C++11 Compatible version of unique_ptr creation
+  std::unique_ptr<ExternalFont> sFont(new ExternalFont());
 
-  EpdFont* regularFont = loadBinaryFont(entry->regularPath);
-  if (!regularFont) {
-    Serial.printf("Failed to load regular font for: %s %dpt\n", entry->family.c_str(), entry->size);
+  if (!sFont->load(entry->regularPath.c_str())) {
+    Serial.printf("[FontManager] Error: Failed to open streaming file %s\n", entry->regularPath.c_str());
     return false;
   }
 
-  EpdFont* boldFont = new EpdFont(regularFont->data);
-  EpdFont* italicFont = new EpdFont(regularFont->data);
-  EpdFont* boldItalicFont = new EpdFont(regularFont->data);
+  // Pull the data pointer from the streaming object
+  EpdFontData* sharedData = sFont->getData();
 
+  // Create 4 EpdFonts (Styles) linked to the same streaming data
+  EpdFont* regularFont = new EpdFont(sharedData);
+  EpdFont* boldFont = new EpdFont(sharedData);
+  EpdFont* italicFont = new EpdFont(sharedData);
+  EpdFont* boldItalicFont = new EpdFont(sharedData);
+
+  // Create the Font Family
   EpdFontFamily* fontFamily = new EpdFontFamily(regularFont, boldFont, italicFont, boldItalicFont);
 
+  // Track pointers for internal cleanup/persistence
   entry->regularFont = regularFont;
   entry->boldFont = boldFont;
   entry->italicFont = italicFont;
@@ -462,8 +403,17 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   entry->fontFamily = fontFamily;
   entry->isLoaded = true;
 
-  renderer.insertFont(entry->id, *fontFamily);
-  Serial.printf("Loaded and inserted font: %s %dpt (ID: %d)\n", entry->family.c_str(), entry->size, entry->id);
+  // Store in our global vectors to prevent memory leaks
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(regularFont));
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(boldFont));
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(italicFont));
+  g_fontStorage.push_back(std::unique_ptr<EpdFont>(boldItalicFont));
+  g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(fontFamily));
+
+  // Register with GfxRenderer using the specialized streaming map
+  renderer.insertStreamingFont(entry->id, std::move(sFont), *fontFamily);
+
+  Serial.printf("[FontManager] Successfully registered streaming font: %s %dpt\n", entry->family.c_str(), entry->size);
 
   return true;
 }
@@ -510,9 +460,7 @@ bool FontManager::unloadFont(int fontId) {
 /**
  * @brief Unloads all SD card fonts
  */
-void FontManager::unloadAllSDFonts() {
-  Serial.println("unloadAllSDFonts called - fonts are permanently stored");
-}
+void FontManager::unloadAllSDFonts() { Serial.println("unloadAllSDFonts called - fonts are permanently stored"); }
 
 /**
  * @brief Gets information about a specific font
