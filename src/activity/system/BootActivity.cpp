@@ -64,6 +64,7 @@ void BootActivity::initializeNextStage() {
       bootProgress = 10;
       drawProgressBar();
       SETTINGS.loadFromFile();
+      FontManager::ensureFontReady(SETTINGS.getReaderFontId(), renderer);
       bootStage++;
       break;
       

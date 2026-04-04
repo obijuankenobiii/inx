@@ -161,9 +161,8 @@ struct BookSettings {
     void loadFromGlobalSettings() {
         SystemSetting& global = SystemSetting::getInstance();
 
-        fontFamily = "Atkinson Hyperlegible";
-        fontSize = 12;
-        
+        fontFamily = global.fontFamily;
+        fontSize = global.fontSize;
         lineSpacing = global.lineSpacing;
         extraParagraphSpacing = global.extraParagraphSpacing;
         paragraphAlignment = global.paragraphAlignment;

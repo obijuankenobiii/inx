@@ -65,7 +65,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
         "Font Family", &SystemSetting::fontFamily,
         []() -> std::vector<std::string> { return FontManager::getAllFamilies(); }, GroupType::FONT),
 
-    SettingInfo::Value("Font Size", &SystemSetting::fontSize, ValueRange(8, 18, 2), GroupType::FONT),
+    SettingInfo::Value("Font Size", &SystemSetting::fontSize, ValueRange(10, 18, 2), GroupType::FONT),
 
     SettingInfo::Separator("═══ Layout ═══", GroupType::LAYOUT),
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide"}, GroupType::LAYOUT),

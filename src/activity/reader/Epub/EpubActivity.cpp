@@ -485,11 +485,6 @@ void EpubActivity::onEnter() {
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
 
-  currentFontId = bookSettings.getReaderFontId();
-  nextFontId = FontManager::getNextFont(currentFontId);
-  FontManager::ensureFontReady(currentFontId, renderer);
-  // FontManager::ensureFontReady(nextFontId, renderer);
-
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
 
@@ -1491,7 +1486,7 @@ void EpubActivity::loadBookSettings() {
     if (!loaded) {
       bookSettings.loadFromGlobalSettings();
       bookSettings.useCustomSettings = false;
-    }
+    }    
   }
 }
 
@@ -1512,17 +1507,6 @@ void EpubActivity::saveBookSettings() {
  */
 void EpubActivity::applyBookSettings() {
   if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
-  if (currentFontId != bookSettings.getReaderFontId())
-  {
-    FontManager::ensureFontReady(bookSettings.getReaderFontId(), renderer);
-    // FontManager::unloadFont(currentFontId);
-    nextFontId = FontManager::getNextFont(bookSettings.getReaderFontId());
-
-    // FontManager::ensureFontReady(nextFontId, renderer);
-
-    currentFontId = bookSettings.getReaderFontId();
-  }
   
   int currentPage = 0;
   int currentSpine = currentSpineIndex;

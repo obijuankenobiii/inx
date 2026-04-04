@@ -53,110 +53,110 @@ SettingsDrawer::~SettingsDrawer() {}
 void SettingsDrawer::setupMenu() {
   menuItems.clear();
 
-  MenuEntry fontSeparator;
-  fontSeparator.item = MenuItem::Separator;
-  fontSeparator.group = GroupType::FONT;
-  fontSeparator.name = "═══ Font ═══";
-  fontSeparator.getValueText = [this](const BookSettings&) -> const char* {
-    static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::FONT] ? "-" : "+");
-    return indicator;
-  };
-  fontSeparator.change = [](BookSettings&, int) {};
-  menuItems.push_back(fontSeparator);
+  // MenuEntry fontSeparator;
+  // fontSeparator.item = MenuItem::Separator;
+  // fontSeparator.group = GroupType::FONT;
+  // fontSeparator.name = "═══ Font ═══";
+  // fontSeparator.getValueText = [this](const BookSettings&) -> const char* {
+  //   static char indicator[4];
+  //   snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::FONT] ? "-" : "+");
+  //   return indicator;
+  // };
+  // fontSeparator.change = [](BookSettings&, int) {};
+  // menuItems.push_back(fontSeparator);
 
-  if (groupExpanded[GroupType::FONT]) {
-    // Font Family Entry
-    MenuEntry fontFamEntry;
-    fontFamEntry.item = MenuItem::FontFamily;
-    fontFamEntry.group = GroupType::FONT;
-    fontFamEntry.name = "Family";
+  // if (groupExpanded[GroupType::FONT]) {
+  //   // Font Family Entry
+  //   MenuEntry fontFamEntry;
+  //   fontFamEntry.item = MenuItem::FontFamily;
+  //   fontFamEntry.group = GroupType::FONT;
+  //   fontFamEntry.name = "Family";
     
-    fontFamEntry.getValueText = [this](const BookSettings& s) -> const char* {
-      static char buf[64];
-      if (s.fontFamily.empty()) {
-        snprintf(buf, sizeof(buf), "Atkinson Hyperlegible");
-        return buf;
-      }
-      snprintf(buf, sizeof(buf), "%s", s.fontFamily.c_str());
-      return buf;
-    };
+  //   fontFamEntry.getValueText = [this](const BookSettings& s) -> const char* {
+  //     static char buf[64];
+  //     if (s.fontFamily.empty()) {
+  //       snprintf(buf, sizeof(buf), "Atkinson Hyperlegible");
+  //       return buf;
+  //     }
+  //     snprintf(buf, sizeof(buf), "%s", s.fontFamily.c_str());
+  //     return buf;
+  //   };
     
-    fontFamEntry.change = [this](BookSettings& s, int delta) {
-      auto families = FontManager::getAllFamilies();
-      if (families.empty()) return;
+  //   fontFamEntry.change = [this](BookSettings& s, int delta) {
+  //     auto families = FontManager::getAllFamilies();
+  //     if (families.empty()) return;
       
-      // Find current family index
-      int currentIndex = 0;
-      for (size_t i = 0; i < families.size(); i++) {
-        if (families[i] == s.fontFamily) {
-          currentIndex = i;
-          break;
-        }
-      }
+  //     // Find current family index
+  //     int currentIndex = 0;
+  //     for (size_t i = 0; i < families.size(); i++) {
+  //       if (families[i] == s.fontFamily) {
+  //         currentIndex = i;
+  //         break;
+  //       }
+  //     }
       
-      int newIndex = currentIndex + delta;
-      if (newIndex < 0) newIndex = 0;
-      if (newIndex >= (int)families.size()) newIndex = (int)families.size() - 1;
+  //     int newIndex = currentIndex + delta;
+  //     if (newIndex < 0) newIndex = 0;
+  //     if (newIndex >= (int)families.size()) newIndex = (int)families.size() - 1;
       
-      s.fontFamily = families[newIndex];
+  //     s.fontFamily = families[newIndex];
       
-      // Reset font size to first available size for new family
-      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
-      if (!sizes.empty()) {
-        s.fontSize = sizes[0].size;
-      }
+  //     // Reset font size to first available size for new family
+  //     auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+  //     if (!sizes.empty()) {
+  //       s.fontSize = sizes[0].size;
+  //     }
       
-      s.useCustomSettings = true;
-    };
-    menuItems.push_back(fontFamEntry);
+  //     s.useCustomSettings = true;
+  //   };
+  //   menuItems.push_back(fontFamEntry);
     
-    // Font Size Entry
-    MenuEntry fontEntry;
-    fontEntry.item = MenuItem::FontSize;
-    fontEntry.group = GroupType::FONT;
-    fontEntry.name = "Size";
+  //   // Font Size Entry
+  //   MenuEntry fontEntry;
+  //   fontEntry.item = MenuItem::FontSize;
+  //   fontEntry.group = GroupType::FONT;
+  //   fontEntry.name = "Size";
     
-    fontEntry.getValueText = [this](const BookSettings& s) -> const char* {
-      static char buf[16];
-      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
-      if (sizes.empty()) return "No sizes";
+  //   fontEntry.getValueText = [this](const BookSettings& s) -> const char* {
+  //     static char buf[16];
+  //     auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+  //     if (sizes.empty()) return "No sizes";
       
-      // Find current size in the list
-      int currentSizeIndex = 0;
-      for (size_t i = 0; i < sizes.size(); i++) {
-        if (sizes[i].size == s.fontSize) {
-          currentSizeIndex = i;
-          break;
-        }
-      }
+  //     // Find current size in the list
+  //     int currentSizeIndex = 0;
+  //     for (size_t i = 0; i < sizes.size(); i++) {
+  //       if (sizes[i].size == s.fontSize) {
+  //         currentSizeIndex = i;
+  //         break;
+  //       }
+  //     }
       
-      snprintf(buf, sizeof(buf), "%dpt", sizes[currentSizeIndex].size);
-      return buf;
-    };
+  //     snprintf(buf, sizeof(buf), "%dpt", sizes[currentSizeIndex].size);
+  //     return buf;
+  //   };
     
-    fontEntry.change = [this](BookSettings& s, int delta) {
-      auto sizes = FontManager::getFontsByFamily(s.fontFamily);
-      if (sizes.empty()) return;
+  //   fontEntry.change = [this](BookSettings& s, int delta) {
+  //     auto sizes = FontManager::getFontsByFamily(s.fontFamily);
+  //     if (sizes.empty()) return;
       
-      // Find current size index
-      int currentIndex = 0;
-      for (size_t i = 0; i < sizes.size(); i++) {
-        if (sizes[i].size == s.fontSize) {
-          currentIndex = i;
-          break;
-        }
-      }
+  //     // Find current size index
+  //     int currentIndex = 0;
+  //     for (size_t i = 0; i < sizes.size(); i++) {
+  //       if (sizes[i].size == s.fontSize) {
+  //         currentIndex = i;
+  //         break;
+  //       }
+  //     }
       
-      int newIndex = currentIndex + delta;
-      if (newIndex < 0) newIndex = 0;
-      if (newIndex >= (int)sizes.size()) newIndex = (int)sizes.size() - 1;
+  //     int newIndex = currentIndex + delta;
+  //     if (newIndex < 0) newIndex = 0;
+  //     if (newIndex >= (int)sizes.size()) newIndex = (int)sizes.size() - 1;
       
-      s.fontSize = sizes[newIndex].size;
-      s.useCustomSettings = true;
-    };
-    menuItems.push_back(fontEntry);
-  }
+  //     s.fontSize = sizes[newIndex].size;
+  //     s.useCustomSettings = true;
+  //   };
+  //   menuItems.push_back(fontEntry);
+  // }
 
   // Layout Separator
   MenuEntry layoutSeparator;
