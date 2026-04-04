@@ -371,50 +371,51 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     return false;
   }
 
-  if (entry->isLoaded) {
-    return true;
-  }
+  if (entry->isLoaded) return true;
 
-  // C++11 Compatible version of unique_ptr creation
-  std::unique_ptr<ExternalFont> sFont(new ExternalFont());
+  // Helper lambda to load a style if the path exists
+  auto loadStyleStream = [&](const std::string& path, EpdFont** fontTarget) -> std::unique_ptr<ExternalFont> {
+    if (path.empty() || !SdMan.exists(path.c_str())) return nullptr;
 
-  if (!sFont->load(entry->regularPath.c_str())) {
-    Serial.printf("[FontManager] Error: Failed to open streaming file %s\n", entry->regularPath.c_str());
+    std::unique_ptr<ExternalFont> stream(new ExternalFont());
+    if (stream->load(path.c_str())) {
+      *fontTarget = new EpdFont(stream->getData());
+      g_fontStorage.push_back(std::unique_ptr<EpdFont>(*fontTarget));
+      return stream;
+    }
+    return nullptr;
+  };
+
+  // 1. Load Regular (Required)
+  std::unique_ptr<ExternalFont> regStream = loadStyleStream(entry->regularPath, &entry->regularFont);
+  if (!regStream) {
+    Serial.printf("[FontManager] Failed to load regular style for %d\n", fontId);
     return false;
   }
 
-  // Pull the data pointer from the streaming object
-  EpdFontData* sharedData = sFont->getData();
+  // 2. Try to load Bold, Italic, and BoldItalic
+  std::unique_ptr<ExternalFont> boldStream = loadStyleStream(entry->boldPath, &entry->boldFont);
+  std::unique_ptr<ExternalFont> italStream = loadStyleStream(entry->italicPath, &entry->italicFont);
+  std::unique_ptr<ExternalFont> bitalStream = loadStyleStream(entry->boldItalicPath, &entry->boldItalicFont);
 
-  // Create 4 EpdFonts (Styles) linked to the same streaming data
-  EpdFont* regularFont = new EpdFont(sharedData);
-  EpdFont* boldFont = new EpdFont(sharedData);
-  EpdFont* italicFont = new EpdFont(sharedData);
-  EpdFont* boldItalicFont = new EpdFont(sharedData);
+  // 3. Fallback logic: if a style is missing, use Regular
+  if (!entry->boldFont)       entry->boldFont = entry->regularFont;
+  if (!entry->italicFont)     entry->italicFont = entry->regularFont;
+  if (!entry->boldItalicFont) entry->boldItalicFont = (entry->boldFont != entry->regularFont) ? entry->boldFont : entry->regularFont;
 
-  // Create the Font Family
-  EpdFontFamily* fontFamily = new EpdFontFamily(regularFont, boldFont, italicFont, boldItalicFont);
-
-  // Track pointers for internal cleanup/persistence
-  entry->regularFont = regularFont;
-  entry->boldFont = boldFont;
-  entry->italicFont = italicFont;
-  entry->boldItalicFont = boldItalicFont;
+  // 4. Create the Font Family
+  EpdFontFamily* fontFamily = new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalicFont);
+  g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(fontFamily));
   entry->fontFamily = fontFamily;
   entry->isLoaded = true;
 
-  // Store in our global vectors to prevent memory leaks
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(regularFont));
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(boldFont));
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(italicFont));
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(boldItalicFont));
-  g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(fontFamily));
+  // 5. Register each style's file handle with the renderer
+  renderer.insertStreamingFont(entry->id, std::move(regStream), *fontFamily);
+  if (boldStream)  renderer.insertStreamingFont(entry->id, std::move(boldStream), *fontFamily);
+  if (italStream)  renderer.insertStreamingFont(entry->id, std::move(italStream), *fontFamily);
+  if (bitalStream) renderer.insertStreamingFont(entry->id, std::move(bitalStream), *fontFamily);
 
-  // Register with GfxRenderer using the specialized streaming map
-  renderer.insertStreamingFont(entry->id, std::move(sFont), *fontFamily);
-
-  Serial.printf("[FontManager] Successfully registered streaming font: %s %dpt\n", entry->family.c_str(), entry->size);
-
+  Serial.printf("[FontManager] Registered streaming family: %s %dpt\n", entry->family.c_str(), entry->size);
   return true;
 }
 
@@ -448,19 +449,30 @@ bool FontManager::ensureFontReady(int fontId, GfxRenderer& renderer) {
 }
 
 /**
- * @brief Unloads a font from memory
- * @param fontId Font ID to unload
- * @return true if unloaded successfully, false otherwise
+ * @brief Unloads a font from memory and closes SD handles
  */
 bool FontManager::unloadFont(int fontId) {
-  Serial.printf("unloadFont called for %d - fonts are permanently stored\n", fontId);
-  return true;
+  Serial.printf("[FontManager] Unloading font ID: %d\n", fontId);
+  
+  // Use g_renderer as suggested by the compiler
+  if (g_renderer != nullptr) {
+    g_renderer->removeFont(fontId); 
+    return true;
+  }
+  
+  return false;
 }
 
 /**
  * @brief Unloads all SD card fonts
  */
-void FontManager::unloadAllSDFonts() { Serial.println("unloadAllSDFonts called - fonts are permanently stored"); }
+void FontManager::unloadAllSDFonts() { 
+  Serial.println("[FontManager] Unloading all SD streaming fonts");
+  
+  if (g_renderer != nullptr) {
+    g_renderer->removeAllStreamingFonts();
+  }
+}
 
 /**
  * @brief Gets information about a specific font

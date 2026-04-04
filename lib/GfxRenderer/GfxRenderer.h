@@ -2,22 +2,17 @@
 
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
+
 #include <map>
-#include <memory> // Added for unique_ptr
+#include <memory>
+
+#include "../../src/system/ExternalFont.h"
 #include "Bitmap.h"
-#include "../../src/system/ExternalFont.h" // Added for streaming support
 
 class GfxRenderer {
  public:
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
-
-  enum Orientation {
-    Portrait,
-    LandscapeClockwise,
-    PortraitInverted,
-    LandscapeCounterClockwise
-  };
-
+  enum Orientation { Portrait, LandscapeClockwise, PortraitInverted, LandscapeCounterClockwise };
   enum ImageOrientation { None, Rotate90CW, Rotate180, Rotate270CW };
 
  private:
@@ -28,17 +23,20 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
-  
+
   // Font Storage
   std::map<int, EpdFontFamily> fontMap;
-  std::map<int, std::unique_ptr<ExternalFont>> streamingFonts; // Added for SD streaming
+
+  // Keyed by EpdFontData pointer to allow one ID to have separate files for Bold/Italic
+  std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
 
   // Text Rendering Helpers
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
-                  
-  // NEW: Helper to fetch glyph data from either RAM or SD
-  bool getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer) const;
+
+  // Helper to fetch glyph data from SD card streaming handles
+  bool getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer,
+                      EpdFontFamily::Style style) const;
 
   void freeBwBufferChunks();
   void rotateCoordinates(int x, int y, int* rotatedX, int* rotatedY) const;
@@ -52,11 +50,24 @@ class GfxRenderer {
   static constexpr int VIEWABLE_MARGIN_BOTTOM = 3;
   static constexpr int VIEWABLE_MARGIN_LEFT = 3;
 
-  // Setup
-  void insertFont(int fontId, EpdFontFamily font);
-  
-  // NEW: Method to insert a streaming font
-  void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, EpdFontFamily font);
+  // Font Registration
+  // For built-in fonts (Atkinson)
+  void insertFont(int fontId, const EpdFontFamily& font);
+
+  // For SD card fonts (Streaming)
+  void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, const EpdFontFamily& font);
+
+  /**
+   * @brief Unloads a specific font and closes its SD file handles
+   * @param fontId The ID used during registration
+   */
+  void removeFont(int fontId);
+
+  /**
+   * @brief Closes ALL active SD card font streams and clears the handle map
+   * Useful when exiting a book to free up system file descriptors.
+   */
+  void removeAllStreamingFonts();
 
   // Orientation control
   void setOrientation(const Orientation o) { orientation = o; }
@@ -115,8 +126,8 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
-  bool storeBwBuffer();    
-  void restoreBwBuffer();  
+  bool storeBwBuffer();
+  void restoreBwBuffer();
   void cleanupGrayscaleWithFrameBuffer() const;
 
   // Low level functions
@@ -132,8 +143,8 @@ class GfxRenderer {
   void drawSmallBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth = 0,
                        const int maxHeight = 0) const;
 
-  void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0, 
-                           uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
-  void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
-                               uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
+  void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0,
+                            uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
+  void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height, uint8_t alphaThreshold,
+                                ImageOrientation imgOrientation = None) const;
 };

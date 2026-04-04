@@ -198,10 +198,10 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     progressCallback = [this]() { ScreenComponents::drawPopup(renderer, "Loading Chapter..."); };
   }
 
-  int headerFontId = FontManager::getNextFont(info.fontId);
+  // int headerFontId = FontManager::getNextFont(info.fontId);
 
   bool success =
-      tempSection->createSectionFile(info.fontId, headerFontId, info.lineCompression,
+      tempSection->createSectionFile(info.fontId, currentFontId, info.lineCompression,
                                      bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
                                      info.height, bookSettings.hyphenationEnabled, progressCallback, skipImages);
 
@@ -485,7 +485,11 @@ void EpubActivity::onEnter() {
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
 
-  FontManager::ensureFontReady(bookSettings.getReaderFontId(), renderer);
+  currentFontId = bookSettings.getReaderFontId();
+  nextFontId = FontManager::getNextFont(currentFontId);
+  FontManager::ensureFontReady(currentFontId, renderer);
+  // FontManager::ensureFontReady(nextFontId, renderer);
+
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
 
@@ -514,6 +518,9 @@ void EpubActivity::onExit() {
     delete settingsDrawer;
     settingsDrawer = nullptr;
   }
+
+  // FontManager::unloadFont(currentFontId);
+  // FontManager::unloadFont(nextFontId);
 
   // Now stop the display task
   if (displayTaskHandle) {
@@ -1236,7 +1243,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.clearScreen(0xff);
   }
 
-  page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
+  page->render(renderer, bookSettings.getReaderFontId(), bookSettings.getReaderFontId(),
                orientedMarginLeft, orientedMarginTop, false);
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
@@ -1509,7 +1516,11 @@ void EpubActivity::applyBookSettings() {
   if (currentFontId != bookSettings.getReaderFontId())
   {
     FontManager::ensureFontReady(bookSettings.getReaderFontId(), renderer);
-    FontManager::unloadFont(currentFontId);
+    // FontManager::unloadFont(currentFontId);
+    nextFontId = FontManager::getNextFont(bookSettings.getReaderFontId());
+
+    // FontManager::ensureFontReady(nextFontId, renderer);
+
     currentFontId = bookSettings.getReaderFontId();
   }
   
