@@ -1235,8 +1235,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
 
-  bool currentPageHasImages = page->hasImages();
-  if (lastPageHadImages) {
+  if (lastPageHadImages || page->hasImages()) {
     renderer.clearScreen(0xff);
   }
 
@@ -1247,13 +1246,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
-  }
-
-  if (currentPageHasImages && !lastPageHadImages && !isBookmarking) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = true;
-    return;
   }
 
   if (lastPageHadImages && !isBookmarking) {

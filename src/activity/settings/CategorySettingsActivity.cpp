@@ -401,7 +401,7 @@ void CategorySettingsActivity::render() const {
     renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
-  const auto labels = mappedInput.mapLabels("« Back", "Toggle", "«", "»");
+  const auto labels = mappedInput.mapLabels("« Back", "Toggle", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
