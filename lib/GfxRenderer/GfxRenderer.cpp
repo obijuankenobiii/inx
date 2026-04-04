@@ -233,7 +233,7 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY) const {
-  // For 1-bit bitmaps, use optimized 1-bit rendering path (no crop support for 1-bit)
+
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     drawBitmap1Bit(bitmap, x, y, maxWidth, maxHeight);
     return;
@@ -244,88 +244,62 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   int cropPixX = std::floor(bitmap.getWidth() * cropX / 2.0f);
   int cropPixY = std::floor(bitmap.getHeight() * cropY / 2.0f);
 
-  int srcWidth = bitmap.getWidth() - 2 * cropPixX;
-  int srcHeight = bitmap.getHeight() - 2 * cropPixY;
-
-  int dstWidth = srcWidth;
-  int dstHeight = srcHeight;
-
-  if (maxWidth > 0 && srcWidth > maxWidth) {
-    scale = static_cast<float>(maxWidth) / static_cast<float>(srcWidth);
-    dstWidth = maxWidth;
+  if (maxWidth > 0 && (1.0f - cropX) * bitmap.getWidth() > maxWidth) {
+    scale = static_cast<float>(maxWidth) / static_cast<float>((1.0f - cropX) * bitmap.getWidth());
     isScaled = true;
   }
-  if (maxHeight > 0 && srcHeight > maxHeight) {
-    float heightScale = static_cast<float>(maxHeight) / static_cast<float>(srcHeight);
-    scale = std::min(scale, heightScale);
-    dstHeight = maxHeight;
+  if (maxHeight > 0 && (1.0f - cropY) * bitmap.getHeight() > maxHeight) {
+    scale = std::min(scale, static_cast<float>(maxHeight) / static_cast<float>((1.0f - cropY) * bitmap.getHeight()));
     isScaled = true;
   }
-
-  Serial.printf("[%lu] [GFX] Scaling from %dx%d to %dx%d (scale %f)\n", millis(), srcWidth, srcHeight, dstWidth,
-                dstHeight, scale);
-
-  // Calculate output row size (2 bits per pixel, packed into bytes)
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
 
   if (!outputRow || !rowBytes) {
-    Serial.printf("[%lu] [GFX] !! Failed to allocate BMP row buffers\n", millis());
     free(outputRow);
     free(rowBytes);
     return;
   }
 
-  for (int dstY = 0; dstY < dstHeight; dstY++) {
-    // Calculate which source Y coordinate this destination pixel maps to
-    int srcY;
+  for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
+    int screenY = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
     if (isScaled) {
-      // Map destination pixel to source coordinate with proper sampling
-      srcY = cropPixY + (dstY * srcHeight) / dstHeight;
-    } else {
-      srcY = cropPixY + dstY;
+      screenY = std::floor(screenY * scale);
+    }
+    screenY += y;
+    if (screenY >= getScreenHeight()) {
+      break;
     }
 
-    // Ensure we don't go out of bounds
-    if (srcY >= bitmap.getHeight()) {
-      srcY = bitmap.getHeight() - 1;
-    }
-
-    // Read the source row directly using readRowAt
-    if (bitmap.readRowAt(srcY, outputRow, rowBytes) != BmpReaderError::Ok) {
-      Serial.printf("[%lu] [GFX] Failed to read row %d from bitmap\n", millis(), srcY);
+    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
       free(outputRow);
       free(rowBytes);
       return;
     }
 
-    int screenY = y + dstY;
-    if (screenY >= getScreenHeight() || screenY < 0) {
+    if (screenY < 0) {
       continue;
     }
 
-    for (int dstX = 0; dstX < dstWidth; dstX++) {
-      // Calculate which source X coordinate this destination pixel maps to
-      int srcX;
+    if (bmpY < cropPixY) {
+      continue;
+    }
+
+    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
+      int screenX = bmpX - cropPixX;
       if (isScaled) {
-        srcX = cropPixX + (dstX * srcWidth) / dstWidth;
-      } else {
-        srcX = cropPixX + dstX;
+        screenX = std::floor(screenX * scale);
       }
-
-      // Ensure we don't go out of bounds
-      if (srcX >= bitmap.getWidth()) {
-        srcX = bitmap.getWidth() - 1;
+      screenX += x;
+      if (screenX >= getScreenWidth()) {
+        break;
       }
-
-      int screenX = x + dstX;
-      if (screenX >= getScreenWidth() || screenX < 0) {
+      if (screenX < 0) {
         continue;
       }
 
-      // Extract the 2-bit pixel value
-      const uint8_t val = outputRow[srcX / 4] >> (6 - ((srcX * 2) % 8)) & 0x3;
+      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
       if (renderMode == BW && val < 3) {
         drawPixel(screenX, screenY);
@@ -354,32 +328,27 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     isScaled = true;
   }
 
-  // For 1-bit BMP, output is still 2-bit packed (for consistency with readNextRow)
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
 
   if (!outputRow || !rowBytes) {
-    Serial.printf("[%lu] [GFX] !! Failed to allocate 1-bit BMP row buffers\n", millis());
     free(outputRow);
     free(rowBytes);
     return;
   }
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-    // Read rows sequentially using readNextRow
     if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      Serial.printf("[%lu] [GFX] Failed to read row %d from 1-bit bitmap\n", millis(), bmpY);
       free(outputRow);
       free(rowBytes);
       return;
     }
 
-    // Calculate screen Y based on whether BMP is top-down or bottom-up
     const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
     int screenY = y + (isScaled ? static_cast<int>(std::floor(bmpYOffset * scale)) : bmpYOffset);
     if (screenY >= getScreenHeight()) {
-      continue;  // Continue reading to keep row counter in sync
+      continue; 
     }
     if (screenY < 0) {
       continue;
@@ -394,15 +363,11 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
         continue;
       }
 
-      // Get 2-bit value (result of readNextRow quantization)
       const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
-      // For 1-bit source: 0 or 1 -> map to black (0,1,2) or white (3)
-      // val < 3 means black pixel (draw it)
       if (val < 3) {
         drawPixel(screenX, screenY, true);
       }
-      // White pixels (val == 3) are not drawn (leave background)
     }
   }
 

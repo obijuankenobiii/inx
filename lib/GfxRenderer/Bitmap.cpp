@@ -4,10 +4,12 @@
 #include <cstring>
 
 // ============================================================================
-// IMAGE PROCESSING OPTIONS - Toggle these to test different configurations
+// IMAGE PROCESSING OPTIONS
 // ============================================================================
-// Note: For cover images, dithering is done in JpegToBmpConverter.cpp
-// This file handles BMP reading - use simple quantization to avoid double-dithering
+// Dithering is applied when converting high-color BMPs to the display's native
+// 2-bit (4-level) grayscale. Images whose palette entries all map to native
+// gray levels (0, 85, 170, 255 ±21) are mapped directly without dithering.
+// For cover images, dithering is done in JpegToBmpConverter.cpp instead.
 constexpr bool USE_ATKINSON = true;  // Use Atkinson dithering instead of Floyd-Steinberg
 // ============================================================================
 
@@ -57,7 +59,7 @@ const char* Bitmap::errorToString(BmpReaderError err) {
     case BmpReaderError::BadPlanes:
       return "BadPlanes (!= 1)";
     case BmpReaderError::UnsupportedBpp:
-      return "UnsupportedBpp (expected 1, 2, 8, 24, or 32)";
+      return "UnsupportedBpp (expected 1, 2, 4, 8, 24, or 32)";
     case BmpReaderError::UnsupportedCompression:
       return "UnsupportedCompression (expected BI_RGB or BI_BITFIELDS for 32bpp)";
     case BmpReaderError::BadDimensions:
@@ -103,7 +105,7 @@ BmpReaderError Bitmap::parseHeaders() {
   const uint16_t planes = readLE16(file);
   bpp = readLE16(file);
   const uint32_t comp = readLE32(file);
-  const bool validBpp = bpp == 1 || bpp == 2 || bpp == 8 || bpp == 24 || bpp == 32;
+  const bool validBpp = bpp == 1 || bpp == 2 || bpp == 4 || bpp == 8 || bpp == 24 || bpp == 32;
 
   if (planes != 1) return BmpReaderError::BadPlanes;
   if (!validBpp) return BmpReaderError::UnsupportedBpp;
@@ -111,7 +113,9 @@ BmpReaderError Bitmap::parseHeaders() {
   if (!(comp == 0 || (bpp == 32 && comp == 3))) return BmpReaderError::UnsupportedCompression;
 
   file.seekCur(12);  // biSizeImage, biXPelsPerMeter, biYPelsPerMeter
-  const uint32_t colorsUsed = readLE32(file);
+  colorsUsed = readLE32(file);
+  // BMP spec: colorsUsed==0 means default (2^bpp for paletted formats)
+  if (colorsUsed == 0 && bpp <= 8) colorsUsed = 1u << bpp;
   if (colorsUsed > 256u) return BmpReaderError::PaletteTooLarge;
   file.seekCur(4);  // biClrImportant
 
@@ -140,9 +144,29 @@ BmpReaderError Bitmap::parseHeaders() {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
-  // Create ditherer if enabled (only for 2-bit output)
-  // Use OUTPUT dimensions for dithering (after prescaling)
-  if (bpp > 2 && dithering) {
+  // Check if palette luminances map cleanly to the display's 4 native gray levels.
+  // Native levels are 0, 85, 170, 255 — i.e. values where (lum >> 6) is lossless.
+  // If all palette entries are near a native level, we can skip dithering entirely.
+  nativePalette = bpp <= 2;  // 1-bit and 2-bit are always native
+  if (!nativePalette && colorsUsed > 0) {
+    nativePalette = true;
+    for (uint32_t i = 0; i < colorsUsed; i++) {
+      const uint8_t lum = paletteLum[i];
+      const uint8_t level = lum >> 6;            // quantize to 0-3
+      const uint8_t reconstructed = level * 85;  // back to 0, 85, 170, 255
+      if (lum > reconstructed + 21 || lum + 21 < reconstructed) {
+        nativePalette = false;  // luminance is too far from any native level
+        break;
+      }
+    }
+  }
+
+  // Decide pixel processing strategy:
+  //  - Native palette → direct mapping, no processing needed
+  //  - High-color + dithering enabled → error-diffusion dithering (Atkinson or Floyd-Steinberg)
+  //  - High-color + dithering disabled → simple quantization (no error diffusion)
+  const bool highColor = !nativePalette;
+  if (highColor && dithering) {
     if (USE_ATKINSON) {
       atkinsonDitherer = new AtkinsonDitherer(width);
     } else {
@@ -173,12 +197,12 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     } else if (fsDitherer) {
       color = fsDitherer->processPixel(adjustPixel(lum), currentX);
     } else {
-      if (bpp > 2) {
-        // Simple quantization or noise dithering
-        color = quantize(adjustPixel(lum), currentX, prevRowY);
+      if (nativePalette) {
+        // Palette matches native gray levels: direct mapping (still apply brightness/contrast/gamma)
+        color = static_cast<uint8_t>(adjustPixel(lum) >> 6);
       } else {
-        // do not quantize 2bpp image
-        color = static_cast<uint8_t>(lum >> 6);
+        // Non-native palette with dithering disabled: simple quantization
+        color = quantize(adjustPixel(lum), currentX, prevRowY);
       }
     }
     currentOutByte |= (color << bitShift);
@@ -216,6 +240,13 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     case 8: {
       for (int x = 0; x < width; x++) {
         packPixel(paletteLum[rowBuffer[x]]);
+      }
+      break;
+    }
+    case 4: {
+      for (int x = 0; x < width; x++) {
+        const uint8_t nibble = (x & 1) ? (rowBuffer[x >> 1] & 0x0F) : (rowBuffer[x >> 1] >> 4);
+        packPixel(paletteLum[nibble]);
       }
       break;
     }
@@ -260,117 +291,5 @@ BmpReaderError Bitmap::rewindToData() const {
   if (fsDitherer) fsDitherer->reset();
   if (atkinsonDitherer) atkinsonDitherer->reset();
 
-  return BmpReaderError::Ok;
-}
-
-BmpReaderError Bitmap::readRowAt(int rowIndex, uint8_t* data, uint8_t* rowBuffer) const {
-  // Save current position
-  uint32_t currentPos = file.position();
-  
-  // Seek to the start of pixel data
-  if (!file.seek(bfOffBits)) {
-    return BmpReaderError::SeekPixelDataFailed;
-  }
-  
-  // Calculate which row to read based on orientation
-  int rowToRead;
-  if (topDown) {
-    rowToRead = rowIndex;
-  } else {
-    rowToRead = height - 1 - rowIndex;
-  }
-  
-  // Seek to the row
-  if (!file.seek(bfOffBits + static_cast<uint32_t>(rowToRead) * rowBytes)) {
-    return BmpReaderError::SeekPixelDataFailed;
-  }
-  
-  // Read the row
-  if (file.read(rowBuffer, rowBytes) != rowBytes) {
-    return BmpReaderError::ShortReadRow;
-  }
-  
-  // Process the row into packed 2bpp format
-  uint8_t* outPtr = data;
-  uint8_t currentOutByte = 0;
-  int bitShift = 6;
-  int currentX = 0;
-  
-  auto packPixel = [&](const uint8_t lum) {
-    uint8_t color;
-    if (atkinsonDitherer) {
-      color = atkinsonDitherer->processPixel(adjustPixel(lum), currentX);
-    } else if (fsDitherer) {
-      color = fsDitherer->processPixel(adjustPixel(lum), currentX);
-    } else {
-      if (bpp > 2) {
-        color = quantize(adjustPixel(lum), currentX, rowIndex);
-      } else {
-        color = static_cast<uint8_t>(lum >> 6);
-      }
-    }
-    currentOutByte |= (color << bitShift);
-    if (bitShift == 0) {
-      *outPtr++ = currentOutByte;
-      currentOutByte = 0;
-      bitShift = 6;
-    } else {
-      bitShift -= 2;
-    }
-    currentX++;
-  };
-  
-  uint8_t lum;
-  
-  switch (bpp) {
-    case 32: {
-      const uint8_t* p = rowBuffer;
-      for (int x = 0; x < width; x++) {
-        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
-        packPixel(lum);
-        p += 4;
-      }
-      break;
-    }
-    case 24: {
-      const uint8_t* p = rowBuffer;
-      for (int x = 0; x < width; x++) {
-        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
-        packPixel(lum);
-        p += 3;
-      }
-      break;
-    }
-    case 8: {
-      for (int x = 0; x < width; x++) {
-        packPixel(paletteLum[rowBuffer[x]]);
-      }
-      break;
-    }
-    case 2: {
-      for (int x = 0; x < width; x++) {
-        lum = paletteLum[(rowBuffer[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03];
-        packPixel(lum);
-      }
-      break;
-    }
-    case 1: {
-      for (int x = 0; x < width; x++) {
-        const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
-        lum = paletteLum[palIndex];
-        packPixel(lum);
-      }
-      break;
-    }
-    default:
-      return BmpReaderError::UnsupportedBpp;
-  }
-  
-  // Flush remaining bits if width is not a multiple of 4
-  if (bitShift != 6) *outPtr = currentOutByte;
-  
-  // Restore original position (optional, but good practice)
-  file.seek(currentPos);
-  
   return BmpReaderError::Ok;
 }
