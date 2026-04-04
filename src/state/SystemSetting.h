@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <iosfwd>
 
 class SystemSetting {
@@ -111,21 +112,9 @@ public:
         READER_MENU_BUTTON_COUNT
     };
     
-    enum FONT_FAMILY { 
-        BOOKERLY = 0, 
-        ATKINSON_HYPERLEGIBLE = 1, 
-        LITERATA = 2, 
-        FONT_FAMILY_COUNT 
-    };
-    
-    enum FONT_SIZE { 
-        EXTRA_SMALL = 0,
-        SMALL = 1, 
-        MEDIUM = 2, 
-        LARGE = 3, 
-        EXTRA_LARGE = 4, 
-        FONT_SIZE_COUNT 
-    };
+    // Font settings - now using strings for dynamic font support
+    std::string fontFamily = "Atkinson Hyperlegible";
+    int fontSize = 12;  // Actual point size (8, 10, 12, 14, 16, 18)
     
     enum LINE_COMPRESSION { 
         TIGHT = 0, 
@@ -228,9 +217,7 @@ public:
     uint8_t readerDirectionMapping = MAP_NONE;
     uint8_t readerMenuButton = MENU_UP;
     
-    // Reader font settings
-    uint8_t fontFamily = LITERATA;
-    uint8_t fontSize = SMALL;
+    // Reader font settings (removed old enum types)
     uint8_t lineSpacing = TIGHT;
     uint8_t paragraphAlignment = JUSTIFIED;
     

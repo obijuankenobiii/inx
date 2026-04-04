@@ -8,7 +8,7 @@
 #include <HalGPIO.h>
 
 #include <GfxRenderer.h>
-#include <builtinFonts/all.h>
+#include <system/font/all.h>
 
 #include <SDCardManager.h>
 #include "system/Battery.h"

@@ -160,19 +160,9 @@ struct BookSettings {
 
     void loadFromGlobalSettings() {
         SystemSetting& global = SystemSetting::getInstance();
-        
-        // Only one built-in font now
+
         fontFamily = "Atkinson Hyperlegible";
-        
-        // Map size enum to actual points
-        switch (global.fontSize) {
-            case SystemSetting::EXTRA_SMALL: fontSize = 8; break;
-            case SystemSetting::SMALL: fontSize = 10; break;
-            case SystemSetting::MEDIUM: fontSize = 12; break;
-            case SystemSetting::LARGE: fontSize = 14; break;
-            case SystemSetting::EXTRA_LARGE: fontSize = 18; break;
-            default: fontSize = 12; break;
-        }
+        fontSize = 12;
         
         lineSpacing = global.lineSpacing;
         extraParagraphSpacing = global.extraParagraphSpacing;
@@ -203,13 +193,13 @@ struct BookSettings {
     
     float getReaderLineCompression() const {
         SystemSetting& global = SystemSetting::getInstance();
-        uint8_t oldFam = global.fontFamily;
+        std::string oldFam = global.fontFamily;
         uint8_t oldSpacing = global.lineSpacing;
-        global.fontFamily = SystemSetting::ATKINSON_HYPERLEGIBLE;
-        global.lineSpacing = this->lineSpacing;
+        const_cast<SystemSetting&>(global).fontFamily = "Atkinson Hyperlegible";
+        const_cast<SystemSetting&>(global).lineSpacing = this->lineSpacing;
         float comp = global.getReaderLineCompression();
-        global.fontFamily = oldFam;
-        global.lineSpacing = oldSpacing;
+        const_cast<SystemSetting&>(global).fontFamily = oldFam;
+        const_cast<SystemSetting&>(global).lineSpacing = oldSpacing;
         return comp;
     }
     

@@ -7,15 +7,15 @@
 #include "../settings/CategorySettingsActivity.h"
 #include "../settings/LibraryIndexer.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
-
 namespace {
 /**
  * @brief RAII wrapper for thread-safe mutex operations.
- * 
+ *
  * Automatically acquires a mutex on construction and releases it on destruction,
  * ensuring proper resource management even in exception scenarios.
  */
@@ -48,7 +48,8 @@ constexpr int LIST_ITEM_HEIGHT = 60;
 namespace {
 constexpr int displaySettingsCount = 5;
 const SettingInfo displaySettings[displaySettingsCount] = {
-    SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen, {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"}),
+    SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
+                      {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"}),
     SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fit", "Crop"}),
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None", "Contrast", "Inverted"}),
@@ -60,57 +61,60 @@ const SettingInfo displaySettings[displaySettingsCount] = {
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("═══ Font ═══", GroupType::FONT),
-    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly", "Atkinson Hyperlegible", "Literata"}, GroupType::FONT),
-    SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small", "Small", "Medium", "Large", "X Large"}, GroupType::FONT),
-    
+    SettingInfo::DynamicEnum(
+        "Font Family", &SystemSetting::fontFamily,
+        []() -> std::vector<std::string> { return FontManager::getAllFamilies(); }, GroupType::FONT),
+
+    SettingInfo::Value("Font Size", &SystemSetting::fontSize, ValueRange(8, 18, 2), GroupType::FONT),
+
     SettingInfo::Separator("═══ Layout ═══", GroupType::LAYOUT),
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
-    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
-                      {"Justify", "Left", "Center", "Right"}, GroupType::LAYOUT),
+    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment, {"Justify", "Left", "Center", "Right"},
+                      GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
                       {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
-    
+
     SettingInfo::Separator("═══ Navigation ═══", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
                       {"Left/Right", "Right/Left", "Up/Down", "Down/Up", "None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
                       {"Up", "Down", "Left", "Right", "Confirm"}, GroupType::READER_CONTROLS),
     SettingInfo::Toggle("Long-press Chapter Skip", &SystemSetting::longPressChapterSkip, GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn,
-                      {"Page Turn", "Page Refresh"}, GroupType::READER_CONTROLS),
-    
+    SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn, {"Page Turn", "Page Refresh"},
+                      GroupType::READER_CONTROLS),
+
     SettingInfo::Separator("═══ System ═══", GroupType::SYSTEM),
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}, GroupType::SYSTEM),
-    
+
     SettingInfo::Separator("═══ Status Bar ═══", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
-                      {"None", "No Progress", "Full w/ Percentage", "Full w/ Progress Bar", "Progress Bar",
-                       "Battery %", "Percentage", "Page Bars"}, GroupType::STATUS_BAR),
-    SettingInfo::Enum("Left Section", &SystemSetting::statusBarLeft, 
-                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon",
-                       "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
-                       "Book Title", "Author Name"}, GroupType::STATUS_BAR),
+                      {"None", "No Progress", "Full w/ Percentage", "Full w/ Progress Bar", "Progress Bar", "Battery %",
+                       "Percentage", "Page Bars"},
+                      GroupType::STATUS_BAR),
+    SettingInfo::Enum("Left Section", &SystemSetting::statusBarLeft,
+                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %",
+                       "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"},
+                      GroupType::STATUS_BAR),
     SettingInfo::Enum("Middle Section", &SystemSetting::statusBarMiddle,
-                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon",
-                       "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
-                       "Book Title", "Author Name"}, GroupType::STATUS_BAR),
+                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %",
+                       "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"},
+                      GroupType::STATUS_BAR),
     SettingInfo::Enum("Right Section", &SystemSetting::statusBarRight,
-                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon",
-                       "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
-                       "Book Title", "Author Name"}, GroupType::STATUS_BAR)};
+                      {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %",
+                       "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"},
+                      GroupType::STATUS_BAR)};
 
 constexpr int controlsSettingsCount = 2;
 const SettingInfo controlsSettings[controlsSettingsCount] = {
     SettingInfo::Enum(
         "Front Button Layout", &SystemSetting::frontButtonLayout,
         {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght", "Bck, Cnfrm, Rght, Lft"}),
-    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"})
-};
+    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"})};
 
 constexpr int systemSettingsCount = 7;
 const SettingInfo systemSettings[systemSettingsCount] = {
@@ -125,7 +129,7 @@ const SettingInfo systemSettings[systemSettingsCount] = {
 
 /**
  * @brief Static trampoline function for FreeRTOS task creation.
- * 
+ *
  * @param param Pointer to the SettingsActivity instance
  */
 void SettingsActivity::taskTrampoline(void* param) {
@@ -135,7 +139,7 @@ void SettingsActivity::taskTrampoline(void* param) {
 
 /**
  * @brief Main loop for the display rendering task.
- * 
+ *
  * Periodically checks if a UI update is required and performs rendering
  * when conditions are met (no sub-activity active and not indexing).
  */
@@ -154,7 +158,7 @@ void SettingsActivity::displayTaskLoop() {
 
 /**
  * @brief Initializes the settings activity when it becomes active.
- * 
+ *
  * Creates the rendering mutex, sets initial navigation state, and starts
  * the display rendering task.
  */
@@ -171,13 +175,13 @@ void SettingsActivity::onEnter() {
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
 
   render();
-  
+
   xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 /**
  * @brief Cleans up resources when exiting the settings activity.
- * 
+ *
  * Deletes the display task and rendering mutex to prevent resource leaks.
  */
 void SettingsActivity::onExit() {
@@ -196,7 +200,7 @@ void SettingsActivity::onExit() {
 
 /**
  * @brief Main update loop for handling user input and navigation.
- * 
+ *
  * Processes button presses for category navigation, entering sub-categories,
  * library indexing, and power button refresh functionality.
  */
@@ -274,7 +278,7 @@ void SettingsActivity::loop() {
 
 /**
  * @brief Navigates to a specific settings category.
- * 
+ *
  * @param categoryIndex Index of the category to enter (0-3)
  */
 void SettingsActivity::enterCategory(int categoryIndex) {
@@ -315,7 +319,7 @@ void SettingsActivity::enterCategory(int categoryIndex) {
 
 /**
  * @brief Renders the main settings screen.
- * 
+ *
  * Draws the tab bar, header, subtitle, settings list, and button hints.
  */
 void SettingsActivity::render() const {
@@ -329,7 +333,8 @@ void SettingsActivity::render() const {
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+                    EpdFontFamily::BOLD);
 
   const char* subtitleText = "Manage your preference.";
   int subtitleY = headerY + 40;
@@ -348,7 +353,7 @@ void SettingsActivity::render() const {
 
 /**
  * @brief Renders the scrollable list of settings categories.
- * 
+ *
  * Draws each category item with selection highlighting and the library indexing option.
  */
 void SettingsActivity::renderSettingsList() const {
@@ -373,7 +378,8 @@ void SettingsActivity::renderSettingsList() const {
       int textX = 20;
       int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenWidth() - 30, textY, arrowRight, isSelected ? 0 : 1);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenWidth() - 30, textY, arrowRight,
+                        isSelected ? 0 : 1);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, categoryName, isSelected ? 0 : 1);
 
       renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
@@ -398,7 +404,7 @@ void SettingsActivity::renderSettingsList() const {
 
 /**
  * @brief Initiates the library indexing process in a background task.
- * 
+ *
  * Starts a FreeRTOS task that counts all books and indexes them, updating
  * progress in real-time.
  */
@@ -413,22 +419,22 @@ void SettingsActivity::startLibraryIndexing() {
   xTaskCreate(
       [](void* param) {
         auto* activity = static_cast<SettingsActivity*>(param);
-        
+
         FsFile root = SdMan.open("/");
         if (root) {
           activity->indexingTotal = LibraryIndexer::countBooks(root);
           root.close();
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(10));
-        
+
         LibraryIndexer::indexAll([activity](int current, int total, const char* path) {
           activity->indexingProgress = current;
           activity->indexingTotal = total;
           if (path) strlcpy(activity->currentIndexingPath, path, sizeof(activity->currentIndexingPath));
           if (current % 10 == 0) vTaskDelay(pdMS_TO_TICKS(1));
         });
-        
+
         activity->isIndexing = false;
         activity->updateRequired = true;
         vTaskDelete(nullptr);
@@ -438,7 +444,7 @@ void SettingsActivity::startLibraryIndexing() {
 
 /**
  * @brief Displays the library indexing progress dialog.
- * 
+ *
  * Shows a popup with a progress bar and file count during the indexing process.
  */
 void SettingsActivity::showIndexingProgress() {

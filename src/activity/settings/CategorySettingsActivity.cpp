@@ -11,6 +11,7 @@
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -92,73 +93,150 @@ void CategorySettingsActivity::setupMenu() {
       entry.name = setting.name;
       entry.type = SettingType::SEPARATOR;
       entry.group = setting.group;
-      entry.valuePtr = nullptr;
+      entry.uint8Ptr = nullptr;
+      entry.intPtr = nullptr;
+      entry.stringPtr = nullptr;
       entry.enumValues.clear();
-      entry.valueRange = {0, 0, 0};
+      entry.valueRange = ValueRange(0, 0, 0);
       entry.getValueText = [this, group = setting.group]() -> const char* {
         static char indicator[4];
-        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[group] ? "-" : "+");
+        bool expanded = false;
+        auto it = groupExpanded.find(group);
+        if (it != groupExpanded.end()) {
+          expanded = it->second;
+        }
+        snprintf(indicator, sizeof(indicator), "%s", expanded ? "-" : "+");
         return indicator;
       };
       entry.change = [](int) {};
       menuItems.push_back(entry);
     } else {
-      if (setting.group == GroupType::NONE || groupExpanded[setting.group]) {
+      // Check if this item should be visible based on group expansion
+      bool shouldShow = (setting.group == GroupType::NONE);
+      if (!shouldShow) {
+        auto it = groupExpanded.find(setting.group);
+        shouldShow = (it != groupExpanded.end() && it->second);
+      }
+      
+      if (shouldShow) {
         MenuEntry entry;
         entry.name = setting.name;
         entry.type = setting.type;
-        entry.valuePtr = setting.valuePtr;
+        entry.uint8Ptr = setting.uint8Ptr;
+        entry.intPtr = setting.intPtr;
+        entry.stringPtr = setting.stringPtr;
         entry.enumValues = setting.enumValues;
         entry.valueRange = setting.valueRange;
         entry.group = setting.group;
+        entry.dynamicOptionsGetter = setting.dynamicOptionsGetter;
 
         if (setting.type == SettingType::TOGGLE) {
           entry.getValueText = [this, setting]() -> const char* {
-            return (SETTINGS.*(setting.valuePtr)) ? "ON" : "OFF";
+            return (SETTINGS.*(setting.uint8Ptr)) ? "ON" : "OFF";
           };
           entry.change = [this, setting](int) {
-            SETTINGS.*(setting.valuePtr) = !(SETTINGS.*(setting.valuePtr));
+            SETTINGS.*(setting.uint8Ptr) = !(SETTINGS.*(setting.uint8Ptr));
             SETTINGS.saveToFile();
             updateRequired = true;
           };
         }
-        if (setting.type == SettingType::ENUM) {
+        else if (setting.type == SettingType::ENUM) {
           entry.getValueText = [this, setting]() -> const char* {
-            int index = SETTINGS.*(setting.valuePtr);
+            int index = SETTINGS.*(setting.uint8Ptr);
             if (index >= 0 && index < (int)setting.enumValues.size()) {
               return setting.enumValues[index].c_str();
             }
             return "Unknown";
           };
           entry.change = [this, setting](int delta) {
-            int current = SETTINGS.*(setting.valuePtr);
+            int current = SETTINGS.*(setting.uint8Ptr);
             int newVal = current + delta;
             if (newVal < 0) newVal = setting.enumValues.size() - 1;
             if (newVal >= (int)setting.enumValues.size()) newVal = 0;
-            SETTINGS.*(setting.valuePtr) = newVal;
+            SETTINGS.*(setting.uint8Ptr) = newVal;
             SETTINGS.saveToFile();
             updateRequired = true;
           };
         }
-        if (setting.type == SettingType::VALUE) {
+        else if (setting.type == SettingType::DYNAMIC_ENUM) {
+          entry.getValueText = [this, setting]() -> const char* {
+            static std::string cachedValue;
+            if (setting.stringPtr) {
+              cachedValue = SETTINGS.*(setting.stringPtr);
+              return cachedValue.c_str();
+            }
+            return "Unknown";
+          };
+          entry.change = [this, setting](int delta) {
+            if (!setting.stringPtr || !setting.dynamicOptionsGetter) return;
+            
+            auto options = setting.dynamicOptionsGetter();
+            if (options.empty()) return;
+            
+            // Find current index
+            std::string currentValue = SETTINGS.*(setting.stringPtr);
+            int currentIndex = 0;
+            for (size_t i = 0; i < options.size(); i++) {
+              if (options[i] == currentValue) {
+                currentIndex = i;
+                break;
+              }
+            }
+            
+            // Apply delta
+            int newIndex = currentIndex + delta;
+            if (newIndex < 0) newIndex = options.size() - 1;
+            if (newIndex >= (int)options.size()) newIndex = 0;
+            
+            SETTINGS.*(setting.stringPtr) = options[newIndex];
+            SETTINGS.saveToFile();
+            updateRequired = true;
+            
+            // If font family changed, refresh the menu to update font size options
+            if (strcmp(setting.name, "Font Family") == 0) {
+              setupMenu();
+            }
+          };
+        }
+        else if (setting.type == SettingType::VALUE) {
           entry.getValueText = [this, setting]() -> const char* {
             static char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(setting.valuePtr));
+            if (setting.intPtr) {
+              int value = SETTINGS.*(setting.intPtr);
+              snprintf(buffer, sizeof(buffer), "%d", value);
+            } else if (setting.uint8Ptr) {
+              int value = SETTINGS.*(setting.uint8Ptr);
+              snprintf(buffer, sizeof(buffer), "%d", value);
+            } else {
+              snprintf(buffer, sizeof(buffer), "0");
+            }
             return buffer;
           };
           entry.change = [this, setting](int delta) {
-            int current = SETTINGS.*(setting.valuePtr);
-            int newVal = current + (delta * setting.valueRange.step);
-            if (newVal < setting.valueRange.min) newVal = setting.valueRange.max;
-            if (newVal > setting.valueRange.max) newVal = setting.valueRange.min;
-            SETTINGS.*(setting.valuePtr) = newVal;
+            int newVal = 0;
+            if (setting.intPtr) {
+              int current = SETTINGS.*(setting.intPtr);
+              newVal = current + (delta * setting.valueRange.step);
+              if (newVal < setting.valueRange.min) newVal = setting.valueRange.max;
+              if (newVal > setting.valueRange.max) newVal = setting.valueRange.min;
+              SETTINGS.*(setting.intPtr) = newVal;
+            } else if (setting.uint8Ptr) {
+              int current = SETTINGS.*(setting.uint8Ptr);
+              newVal = current + (delta * setting.valueRange.step);
+              if (newVal < setting.valueRange.min) newVal = setting.valueRange.max;
+              if (newVal > setting.valueRange.max) newVal = setting.valueRange.min;
+              SETTINGS.*(setting.uint8Ptr) = newVal;
+            }
             SETTINGS.saveToFile();
             updateRequired = true;
           };
         }
-        if (setting.type == SettingType::ACTION) {
-          entry.getValueText = []() -> const char* { return "→"; };
+        else if (setting.type == SettingType::ACTION) {
+          entry.getValueText = []() -> const char* { 
+            return "→"; 
+          };
           entry.change = [this, setting](int) {
+            // Handle actions
             if (strcmp(setting.name, "KOReader Sync") == 0) {
               exitActivity();
               enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
@@ -166,21 +244,21 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "OPDS Browser") == 0) {
+            else if (strcmp(setting.name, "OPDS Browser") == 0) {
               exitActivity();
               enterNewActivity(new CalibreSettingsActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Clear Cache") == 0) {
+            else if (strcmp(setting.name, "Clear Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Check for updates") == 0) {
+            else if (strcmp(setting.name, "Check for updates") == 0) {
               exitActivity();
               enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -314,9 +392,6 @@ void CategorySettingsActivity::displayTaskLoop() {
 /**
  * @brief Render the category settings screen
  */
-/**
- * @brief Render the category settings screen
- */
 void CategorySettingsActivity::render() const {
   renderer.clearScreen();
 
@@ -393,7 +468,6 @@ void CategorySettingsActivity::render() const {
     visibleCount++;
   }
 
-  // Draw scroll indicator
   if ((int)menuItems.size() > itemsPerPage) {
     int listHeight = itemsPerPage * itemHeight;
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();

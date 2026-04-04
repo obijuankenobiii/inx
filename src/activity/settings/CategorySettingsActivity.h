@@ -14,7 +14,7 @@
 
 class SystemSetting;
 
-enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, SEPARATOR };
+enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, SEPARATOR, DYNAMIC_ENUM };
 
 enum class GroupType {
     NONE,
@@ -32,32 +32,36 @@ struct ValueRange {
     
     ValueRange() : min(0), max(0), step(0) {}
     ValueRange(uint8_t minVal, uint8_t maxVal, uint8_t stepVal) : min(minVal), max(maxVal), step(stepVal) {}
+    ValueRange(int minVal, int maxVal, int stepVal) : min(minVal), max(maxVal), step(stepVal) {}
 };
 
 struct SettingInfo {
     const char* name;
     SettingType type;
-    uint8_t SystemSetting::* valuePtr;
+    
+    // For uint8_t settings
+    uint8_t SystemSetting::* uint8Ptr;
+    
+    // For int settings (like fontSize)
+    int SystemSetting::* intPtr;
+    
+    // For string settings (like fontFamily)
+    std::string SystemSetting::* stringPtr;
+    
     std::vector<std::string> enumValues;
     ValueRange valueRange;
     GroupType group;
+    
+    // For dynamic enums
+    std::function<std::vector<std::string>()> dynamicOptionsGetter;
 
-    SettingInfo() : name(nullptr), type(SettingType::SEPARATOR), valuePtr(nullptr), valueRange(), group(GroupType::NONE) {}
+    SettingInfo() : name(nullptr), type(SettingType::SEPARATOR), uint8Ptr(nullptr), intPtr(nullptr), stringPtr(nullptr), valueRange(), group(GroupType::NONE) {}
     
-    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, GroupType g)
-        : name(n), type(t), valuePtr(ptr), valueRange(), group(g) {}
-    
-    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values, GroupType g)
-        : name(n), type(t), valuePtr(ptr), enumValues(values), valueRange(), group(g) {}
-    
-    SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const ValueRange& range, GroupType g)
-        : name(n), type(t), valuePtr(ptr), valueRange(range), group(g) {}
-
     static SettingInfo Toggle(const char* name, uint8_t SystemSetting::* ptr, GroupType group = GroupType::NONE) {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::TOGGLE;
-        info.valuePtr = ptr;
+        info.uint8Ptr = ptr;
         info.valueRange = ValueRange();
         info.group = group;
         return info;
@@ -67,8 +71,21 @@ struct SettingInfo {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::ENUM;
-        info.valuePtr = ptr;
+        info.uint8Ptr = ptr;
         info.enumValues = values;
+        info.valueRange = ValueRange();
+        info.group = group;
+        return info;
+    }
+    
+    static SettingInfo DynamicEnum(const char* name, std::string SystemSetting::* ptr, 
+                                   std::function<std::vector<std::string>()> optionsGetter, 
+                                   GroupType group = GroupType::NONE) {
+        SettingInfo info;
+        info.name = name;
+        info.type = SettingType::DYNAMIC_ENUM;
+        info.stringPtr = ptr;
+        info.dynamicOptionsGetter = optionsGetter;
         info.valueRange = ValueRange();
         info.group = group;
         return info;
@@ -78,17 +95,26 @@ struct SettingInfo {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::ACTION;
-        info.valuePtr = nullptr;
         info.valueRange = ValueRange();
         info.group = group;
         return info;
     }
 
+    static SettingInfo Value(const char* name, int SystemSetting::* ptr, const ValueRange& valueRange, GroupType group = GroupType::NONE) {
+        SettingInfo info;
+        info.name = name;
+        info.type = SettingType::VALUE;
+        info.intPtr = ptr;
+        info.valueRange = valueRange;
+        info.group = group;
+        return info;
+    }
+    
     static SettingInfo Value(const char* name, uint8_t SystemSetting::* ptr, const ValueRange& valueRange, GroupType group = GroupType::NONE) {
         SettingInfo info;
         info.name = name;
         info.type = SettingType::VALUE;
-        info.valuePtr = ptr;
+        info.uint8Ptr = ptr;
         info.valueRange = valueRange;
         info.group = group;
         return info;
@@ -122,12 +148,17 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   struct MenuEntry {
       const char* name;
       SettingType type;
-      uint8_t SystemSetting::* valuePtr;
+      uint8_t SystemSetting::* uint8Ptr;
+      int SystemSetting::* intPtr;
+      std::string SystemSetting::* stringPtr;
       std::vector<std::string> enumValues;
       ValueRange valueRange;
       GroupType group;
       std::function<const char*()> getValueText;
       std::function<void(int)> change;
+      
+      // For dynamic enums
+      std::function<std::vector<std::string>()> dynamicOptionsGetter;
   };
   
   std::vector<MenuEntry> menuItems;

@@ -1,6 +1,6 @@
 #include "FontManager.h"
 
-#include <builtinFonts/all.h>
+#include <system/font/all.h>
 
 #include <algorithm>
 #include <cctype>

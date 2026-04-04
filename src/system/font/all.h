@@ -1,0 +1,23 @@
+#pragma once
+
+#include <system/font/atkinson_hyperlegible_8_regular.h>
+#include <system/font/atkinson_hyperlegible_10_regular.h>
+#include <system/font/atkinson_hyperlegible_10_bold.h>
+#include <system/font/atkinson_hyperlegible_10_bolditalic.h>
+#include <system/font/atkinson_hyperlegible_10_italic.h>
+#include <system/font/atkinson_hyperlegible_12_bold.h>
+#include <system/font/atkinson_hyperlegible_12_bolditalic.h>
+#include <system/font/atkinson_hyperlegible_12_italic.h>
+#include <system/font/atkinson_hyperlegible_12_regular.h>
+#include <system/font/atkinson_hyperlegible_14_bold.h>
+#include <system/font/atkinson_hyperlegible_14_bolditalic.h>
+#include <system/font/atkinson_hyperlegible_14_italic.h>
+#include <system/font/atkinson_hyperlegible_14_regular.h>
+#include <system/font/atkinson_hyperlegible_16_bold.h>
+#include <system/font/atkinson_hyperlegible_16_bolditalic.h>
+#include <system/font/atkinson_hyperlegible_16_italic.h>
+#include <system/font/atkinson_hyperlegible_16_regular.h>
+#include <system/font/atkinson_hyperlegible_18_bold.h>
+#include <system/font/atkinson_hyperlegible_18_bolditalic.h>
+#include <system/font/atkinson_hyperlegible_18_italic.h>
+#include <system/font/atkinson_hyperlegible_18_regular.h>
