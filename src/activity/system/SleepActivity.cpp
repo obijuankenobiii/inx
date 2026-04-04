@@ -162,7 +162,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
  */
 void SleepActivity::renderCoverSleepScreen() const {
   if (APP_STATE.lastRead.empty()) {
-    return renderDefaultSleepScreen();
+    return renderCustomSleepScreen();
   }
 
   std::string coverPath;
@@ -188,11 +188,15 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      return renderBitmapSleepScreen(bitmap);
+      renderer.clearScreen();
+      renderer.drawBitmap(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     }
+    file.close();
+    return;
   }
 
-  renderDefaultSleepScreen();
+  renderCustomSleepScreen();
 }
 
 /**
@@ -210,6 +214,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   float cropX = 0, cropY = 0;
 
   if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
+    // image will scale, make sure placement is right
     float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
     const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
 
@@ -229,6 +234,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
       y = 0;
     }
   } else {
+    // center the image
     x = (pageWidth - bitmap.getWidth()) / 2;
     y = (pageHeight - bitmap.getHeight()) / 2;
   }
@@ -266,20 +272,20 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
  * @param cy Vertical crop factor (0-1)
  */
 void SleepActivity::renderGreyscale(const Bitmap& bitmap, int x, int y, int w, int h, float cx, float cy) const {
-  auto pass = [&](GfxRenderer::RenderMode mode) {
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
-    renderer.setRenderMode(mode);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     renderer.drawBitmap(bitmap, x, y, w, h, cx, cy);
-    if (mode == GfxRenderer::GRAYSCALE_LSB)
-      renderer.copyGrayscaleLsbBuffers();
-    else
-      renderer.copyGrayscaleMsbBuffers();
-  };
+    renderer.copyGrayscaleLsbBuffers();
 
-  pass(GfxRenderer::GRAYSCALE_LSB);
-  pass(GfxRenderer::GRAYSCALE_MSB);
-  renderer.setRenderMode(GfxRenderer::BW);
+    bitmap.rewindToData();
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+    renderer.drawBitmap(bitmap, x, y, w, h, cx, cy);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+    renderer.setRenderMode(GfxRenderer::BW);
 }
 
 /**
