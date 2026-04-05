@@ -340,27 +340,7 @@ void EpubActivity::displayCoverOrTitle() {
       renderer.clearScreen();
       updateRequired = true;
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
-      renderer.storeBwBuffer();
-
-      if (coverBmp.hasGreyscale()) {
-        renderer.clearScreen(0x00);
-        renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-        renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
-        renderer.copyGrayscaleLsbBuffers();
-
-        renderer.clearScreen(0x00);
-        renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-        renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
-        renderer.copyGrayscaleMsbBuffers();
-
-        renderer.displayGrayBuffer();
-        renderer.setRenderMode(GfxRenderer::BW);
-        renderer.restoreBwBuffer();
-      } else {
-        renderer.restoreBwBuffer();
-      }
+      renderer.displayBuffer();
     }
     coverFile.close();
   } else {
@@ -502,8 +482,7 @@ void EpubActivity::onEnter() {
     fastPath();
   } else {
     ScreenComponents::drawPopup(renderer, "Preparing book...");
-    renderer.clearScreen();
-    updateRequired = true;
+    renderer.displayBuffer();
     slowPath();
   }
 }
@@ -512,7 +491,6 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
-  // CRITICAL: Destroy UI components FIRST while activity is still valid
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;
@@ -524,7 +502,6 @@ void EpubActivity::onExit() {
     settingsDrawer = nullptr;
   }
 
-  // Now stop the display task
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
@@ -1266,7 +1243,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     lastPageHadImages = false;
   }
-  
+
   pagesUntilFullRefresh--;
   renderer.displayBuffer();
   renderer.storeBwBuffer();

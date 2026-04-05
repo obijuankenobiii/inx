@@ -64,7 +64,7 @@ static const uint8_t LUT_B[256] = {
     26, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28};
 
 /** @brief Brightness offset added to all pixels (0-255 range) */
-constexpr int BRIGHTNESS_BOOST = 0;
+constexpr int BRIGHTNESS_BOOST = 20;
 
 /** @brief Contrast multiplier (1.0 = no change, <1 reduces contrast, >1 increases) */
 constexpr float CONTRAST_FACTOR = .9f;
