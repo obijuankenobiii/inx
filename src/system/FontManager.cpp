@@ -22,7 +22,7 @@ struct SDFontEntry {
   EpdFont* regularFont;
   EpdFont* boldFont;
   EpdFont* italicFont;
-  EpdFont* boldItalicFont;
+  EpdFont* boldItalic;
   EpdFontFamily* fontFamily;
   bool isLoaded;
 };
@@ -97,54 +97,54 @@ static EpdFont* loadBinaryFont(const std::string& binPath) {
 void FontManager::initialize(GfxRenderer& renderer) {
   g_renderer = &renderer;
 
-  static EpdFont atkinson_hyperlegible8RegularFont(&atkinson_hyperlegible_8_regular);
-  static EpdFontFamily atkinson_hyperlegible8FontFamily(&atkinson_hyperlegible8RegularFont, nullptr, nullptr, nullptr);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_8_FONT_ID, atkinson_hyperlegible8FontFamily);
+  static EpdFont SystemFont8Regular(&SystemFont_8_regular);
+  static EpdFontFamily SystemFont8FontFamily(&SystemFont8Regular, nullptr, nullptr, nullptr);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_8_FONT_ID, SystemFont8FontFamily);
 
-  static EpdFont atkinson_hyperlegible10RegularFont(&atkinson_hyperlegible_10_regular);
-  static EpdFont atkinson_hyperlegible10BoldFont(&atkinson_hyperlegible_10_bold);
-  static EpdFont atkinson_hyperlegible10ItalicFont(&atkinson_hyperlegible_10_italic);
-  static EpdFont atkinson_hyperlegible10BoldItalicFont(&atkinson_hyperlegible_10_bolditalic);
-  static EpdFontFamily atkinson_hyperlegible10FontFamily(
-      &atkinson_hyperlegible10RegularFont, &atkinson_hyperlegible10BoldFont, &atkinson_hyperlegible10ItalicFont,
-      &atkinson_hyperlegible10BoldItalicFont);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_10_FONT_ID, atkinson_hyperlegible10FontFamily);
+  static EpdFont SystemFont10Regular(&SystemFont_10_regular);
+  static EpdFont SystemFont10Bold(&SystemFont_10_bold);
+  static EpdFont SystemFont10Italic(&SystemFont_10_italic);
+  static EpdFont SystemFont10BoldItalic(&SystemFont_10_bolditalic);
+  static EpdFontFamily SystemFont10FontFamily(
+      &SystemFont10Regular, &SystemFont10Bold, &SystemFont10Italic,
+      &SystemFont10BoldItalic);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_10_FONT_ID, SystemFont10FontFamily);
 
-  static EpdFont atkinson_hyperlegible12RegularFont(&atkinson_hyperlegible_12_regular);
-  static EpdFont atkinson_hyperlegible12BoldFont(&atkinson_hyperlegible_12_bold);
-  static EpdFont atkinson_hyperlegible12ItalicFont(&atkinson_hyperlegible_12_italic);
-  static EpdFont atkinson_hyperlegible12BoldItalicFont(&atkinson_hyperlegible_12_bolditalic);
-  static EpdFontFamily atkinson_hyperlegible12FontFamily(
-      &atkinson_hyperlegible12RegularFont, &atkinson_hyperlegible12BoldFont, &atkinson_hyperlegible12ItalicFont,
-      &atkinson_hyperlegible12BoldItalicFont);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_12_FONT_ID, atkinson_hyperlegible12FontFamily);
+  static EpdFont SystemFont12Regular(&SystemFont_12_regular);
+  static EpdFont SystemFont12Bold(&SystemFont_12_bold);
+  static EpdFont SystemFont12Italic(&SystemFont_12_italic);
+  static EpdFont SystemFont12BoldItalic(&SystemFont_12_bolditalic);
+  static EpdFontFamily SystemFont12FontFamily(
+      &SystemFont12Regular, &SystemFont12Bold, &SystemFont12Italic,
+      &SystemFont12BoldItalic);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_12_FONT_ID, SystemFont12FontFamily);
 
-  static EpdFont atkinson_hyperlegible14RegularFont(&atkinson_hyperlegible_14_regular);
-  static EpdFont atkinson_hyperlegible14BoldFont(&atkinson_hyperlegible_14_bold);
-  static EpdFont atkinson_hyperlegible14ItalicFont(&atkinson_hyperlegible_14_italic);
-  static EpdFont atkinson_hyperlegible14BoldItalicFont(&atkinson_hyperlegible_14_bolditalic);
-  static EpdFontFamily atkinson_hyperlegible14FontFamily(
-      &atkinson_hyperlegible14RegularFont, &atkinson_hyperlegible14BoldFont, &atkinson_hyperlegible14ItalicFont,
-      &atkinson_hyperlegible14BoldItalicFont);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_14_FONT_ID, atkinson_hyperlegible14FontFamily);
+  static EpdFont SystemFont14Regular(&SystemFont_14_regular);
+  static EpdFont SystemFont14Bold(&SystemFont_14_bold);
+  static EpdFont SystemFont14Italic(&SystemFont_14_italic);
+  static EpdFont SystemFont14BoldItalic(&SystemFont_14_bolditalic);
+  static EpdFontFamily SystemFont14FontFamily(
+      &SystemFont14Regular, &SystemFont14Bold, &SystemFont14Italic,
+      &SystemFont14BoldItalic);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_14_FONT_ID, SystemFont14FontFamily);
 
-  static EpdFont atkinson_hyperlegible16RegularFont(&atkinson_hyperlegible_16_regular);
-  static EpdFont atkinson_hyperlegible16BoldFont(&atkinson_hyperlegible_16_bold);
-  static EpdFont atkinson_hyperlegible16ItalicFont(&atkinson_hyperlegible_16_italic);
-  static EpdFont atkinson_hyperlegible16BoldItalicFont(&atkinson_hyperlegible_16_bolditalic);
-  static EpdFontFamily atkinson_hyperlegible16FontFamily(
-      &atkinson_hyperlegible16RegularFont, &atkinson_hyperlegible16BoldFont, &atkinson_hyperlegible16ItalicFont,
-      &atkinson_hyperlegible16BoldItalicFont);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_16_FONT_ID, atkinson_hyperlegible16FontFamily);
+  static EpdFont SystemFont16Regular(&SystemFont_16_regular);
+  static EpdFont SystemFont16Bold(&SystemFont_16_bold);
+  static EpdFont SystemFont16Italic(&SystemFont_16_italic);
+  static EpdFont SystemFont16BoldItalic(&SystemFont_16_bolditalic);
+  static EpdFontFamily SystemFont16FontFamily(
+      &SystemFont16Regular, &SystemFont16Bold, &SystemFont16Italic,
+      &SystemFont16BoldItalic);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_16_FONT_ID, SystemFont16FontFamily);
 
-  static EpdFont atkinson_hyperlegible18RegularFont(&atkinson_hyperlegible_18_regular);
-  static EpdFont atkinson_hyperlegible18BoldFont(&atkinson_hyperlegible_18_bold);
-  static EpdFont atkinson_hyperlegible18ItalicFont(&atkinson_hyperlegible_18_italic);
-  static EpdFont atkinson_hyperlegible18BoldItalicFont(&atkinson_hyperlegible_18_bolditalic);
-  static EpdFontFamily atkinson_hyperlegible18FontFamily(
-      &atkinson_hyperlegible18RegularFont, &atkinson_hyperlegible18BoldFont, &atkinson_hyperlegible18ItalicFont,
-      &atkinson_hyperlegible18BoldItalicFont);
-  renderer.insertFont(ATKINSON_HYPERLEGIBLE_18_FONT_ID, atkinson_hyperlegible18FontFamily);
+  static EpdFont SystemFont18Regular(&SystemFont_18_regular);
+  static EpdFont SystemFont18Bold(&SystemFont_18_bold);
+  static EpdFont SystemFont18Italic(&SystemFont_18_italic);
+  static EpdFont SystemFont18BoldItalic(&SystemFont_18_bolditalic);
+  static EpdFontFamily SystemFont18FontFamily(
+      &SystemFont18Regular, &SystemFont18Bold, &SystemFont18Italic,
+      &SystemFont18BoldItalic);
+  renderer.insertFont(ATKINSON_HYPERLEGIBLE_18_FONT_ID, SystemFont18FontFamily);
 }
 
 /**
@@ -331,7 +331,7 @@ bool FontManager::scanSDFonts(const char* sdPath) {
     entry.regularFont = nullptr;
     entry.boldFont = nullptr;
     entry.italicFont = nullptr;
-    entry.boldItalicFont = nullptr;
+    entry.boldItalic = nullptr;
     entry.fontFamily = nullptr;
     entry.isLoaded = false;
     g_sdFonts.push_back(entry);
@@ -396,15 +396,15 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   // 2. Try to load Bold, Italic, and BoldItalic
   std::unique_ptr<ExternalFont> boldStream = loadStyleStream(entry->boldPath, &entry->boldFont);
   std::unique_ptr<ExternalFont> italStream = loadStyleStream(entry->italicPath, &entry->italicFont);
-  std::unique_ptr<ExternalFont> bitalStream = loadStyleStream(entry->boldItalicPath, &entry->boldItalicFont);
+  std::unique_ptr<ExternalFont> bitalStream = loadStyleStream(entry->boldItalicPath, &entry->boldItalic);
 
   // 3. Fallback logic: if a style is missing, use Regular
   if (!entry->boldFont)       entry->boldFont = entry->regularFont;
   if (!entry->italicFont)     entry->italicFont = entry->regularFont;
-  if (!entry->boldItalicFont) entry->boldItalicFont = (entry->boldFont != entry->regularFont) ? entry->boldFont : entry->regularFont;
+  if (!entry->boldItalic) entry->boldItalic = (entry->boldFont != entry->regularFont) ? entry->boldFont : entry->regularFont;
 
   // 4. Create the Font Family
-  EpdFontFamily* fontFamily = new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalicFont);
+  EpdFontFamily* fontFamily = new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalic);
   g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(fontFamily));
   entry->fontFamily = fontFamily;
   entry->isLoaded = true;
