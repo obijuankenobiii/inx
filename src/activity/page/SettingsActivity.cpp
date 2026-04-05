@@ -355,7 +355,7 @@ void SettingsActivity::renderSettingsList() const {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
 
-  int startY = TAB_BAR_HEIGHT * 2 + 4;
+  int startY = TAB_BAR_HEIGHT * 2 + 8;
   int drawY = startY;
   int visibleAreaHeight = screenHeight - drawY - 80;
 

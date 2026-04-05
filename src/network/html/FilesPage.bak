@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>CrossPoint Reader — File Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      line-height: 1.5;
+      letter-spacing: -0.015em;
+    }
+
+    .container {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* Header - Matching dashboard */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 48px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #1d1d1f, #86868b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.003em;
+      margin-bottom: 8px;
+    }
+
+    .header .subtitle {
+      font-size: 19px;
+      color: #86868b;
+      font-weight: 400;
+    }
+
+    /* Apple-style navigation */
+    .nav-links {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .nav-btn {
+      padding: 8px 20px;
+      background: transparent;
+      color: #0071e3;
+      text-decoration: none;
+      border-radius: 980px;
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav-btn:hover {
+      background: rgba(0, 113, 227, 0.08);
+    }
+
+    /* Page header with breadcrumb */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .page-header-left {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .breadcrumb {
+      font-size: 14px;
+      color: #86868b;
+    }
+
+    .breadcrumb a {
+      color: #0071e3;
+      text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb .sep {
+      margin: 0 6px;
+      color: #c6c6c8;
+    }
+
+    .breadcrumb .current {
+      color: #1d1d1f;
+      font-weight: 500;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 980px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+    }
+
+    .upload-action-btn {
+      background: #0071e3;
+      color: white;
+    }
+
+    .upload-action-btn:hover {
+      background: #0077ed;
+      transform: scale(1.02);
+    }
+
+    .folder-action-btn {
+      background: #e8e8ed;
+      color: #0071e3;
+    }
+
+    .folder-action-btn:hover {
+      background: #dcdce0;
+    }
+
+    .optimizer-toggle {
+      background: #e8e8ed;
+      color: #0071e3;
+    }
+
+    .optimizer-toggle:hover {
+      background: #dcdce0;
+    }
+
+    .optimizer-toggle.active {
+      background: #34c759;
+      color: white;
+    }
+
+    /* Card */
+    .card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.05);
+      border: 0.5px solid rgba(0, 0, 0, 0.04);
+    }
+
+    .contents-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .contents-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+
+    .summary-inline {
+      font-size: 13px;
+      color: #86868b;
+    }
+
+    /* File table */
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .file-table th {
+      text-align: left;
+      padding: 12px 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #86868b;
+      border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .file-table td {
+      padding: 14px 8px;
+      font-size: 15px;
+      border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+      color: #1d1d1f;
+    }
+
+    .file-table tr {
+      transition: background 0.2s ease;
+    }
+
+    .file-table tr:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .epub-file {
+      cursor: pointer;
+    }
+
+    .epub-file:hover td:first-child {
+      color: #0071e3;
+    }
+
+    .folder-row td:first-child {
+      font-weight: 500;
+    }
+
+    .epub-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      background: #34c759;
+      color: white;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: 10px;
+    }
+
+    .folder-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      background: #e8e8ed;
+      color: #1d1d1f;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: 10px;
+    }
+
+    .file-icon {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+
+    .folder-link {
+      color: #1d1d1f;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .folder-link:hover {
+      color: #0071e3;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 17px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: #86868b;
+      transition: all 0.2s ease;
+    }
+
+    .delete-btn:hover {
+      background: #ff3b30;
+      color: white;
+    }
+
+    .actions-col {
+      width: 50px;
+      text-align: center;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 28px;
+      max-width: 560px;
+      width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      border: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .modal h3 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1d1d1f;
+      margin-bottom: 20px;
+    }
+
+    .modal-close {
+      float: right;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #86868b;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover {
+      color: #1d1d1f;
+    }
+
+    /* Form elements */
+    .upload-form, .folder-form {
+      margin-top: 8px;
+    }
+
+    .file-info {
+      font-size: 13px;
+      color: #86868b;
+      margin-bottom: 16px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      border: 0.5px solid rgba(0, 0, 0, 0.1);
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      margin-bottom: 16px;
+      background: white;
+    }
+
+    .folder-input {
+      width: 100%;
+      padding: 12px;
+      border: 0.5px solid rgba(0, 0, 0, 0.1);
+      border-radius: 12px;
+      font-size: 15px;
+      margin-bottom: 16px;
+      font-family: inherit;
+      background: white;
+    }
+
+    .folder-input:focus, input[type="file"]:focus {
+      outline: none;
+      border-color: #0071e3;
+    }
+
+    .upload-btn, .folder-btn, .delete-btn-confirm, .delete-btn-cancel {
+      width: 100%;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 980px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .upload-btn {
+      background: #0071e3;
+      color: white;
+    }
+
+    .upload-btn:hover:not(:disabled) {
+      background: #0077ed;
+      transform: scale(1.02);
+    }
+
+    .upload-btn:disabled {
+      background: #e8e8ed;
+      color: #86868b;
+      cursor: not-allowed;
+    }
+
+    .folder-btn {
+      background: #0071e3;
+      color: white;
+    }
+
+    .folder-btn:hover {
+      background: #0077ed;
+      transform: scale(1.02);
+    }
+
+    .delete-btn-confirm {
+      background: #ff3b30;
+      color: white;
+      margin-bottom: 8px;
+    }
+
+    .delete-btn-confirm:hover {
+      background: #ff2d1f;
+    }
+
+    .delete-btn-cancel {
+      background: #e8e8ed;
+      color: #0071e3;
+    }
+
+    .delete-btn-cancel:hover {
+      background: #dcdce0;
+    }
+
+    /* Progress */
+    #progress-container {
+      margin-top: 16px;
+    }
+
+    #progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #e8e8ed;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: #0071e3;
+      width: 0%;
+      transition: width 0.3s ease;
+      border-radius: 2px;
+    }
+
+    #progress-text {
+      text-align: center;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #86868b;
+    }
+
+    /* Modal log */
+    .modal-log {
+      background: #1d1d1f;
+      color: #e8e8ed;
+      font-family: "SF Mono", monospace;
+      font-size: 11px;
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 16px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .modal-log .info { color: #64d2ff; }
+    .modal-log .success { color: #34c759; }
+    .modal-log .error { color: #ff3b30; }
+    .modal-log .warning { color: #ff9f0a; }
+
+    /* Optimization stats */
+    .optimization-stats {
+      background: #e8f8ed;
+      padding: 12px;
+      border-radius: 12px;
+      margin: 12px 0;
+      font-size: 12px;
+      color: #1d1d1f;
+    }
+
+    /* Loader */
+    .loader-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+    }
+
+    .loader {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e8e8ed;
+      border-top-color: #0071e3;
+      border-radius: 50%;
+      animation: rotation 0.8s linear infinite;
+    }
+
+    @keyframes rotation {
+      to { transform: rotate(360deg); }
+    }
+
+    .no-files {
+      text-align: center;
+      color: #86868b;
+      padding: 60px 20px;
+    }
+
+    /* Failed uploads banner */
+    .failed-uploads-banner {
+      background: #fff5e6;
+      border: 0.5px solid #ff9f0a;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .failed-uploads-banner.show {
+      display: block;
+    }
+
+    .delete-warning {
+      color: #ff3b30;
+      font-weight: 500;
+      margin: 10px 0;
+    }
+
+    .delete-item-name {
+      font-weight: 600;
+      color: #1d1d1f;
+      margin: 12px 0;
+      word-break: break-all;
+    }
+
+    /* Floating optimizer status */
+    .optimizer-status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(20px);
+      color: #1d1d1f;
+      padding: 8px 16px;
+      border-radius: 980px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 1000;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .optimizer-status.active {
+      background: #34c759;
+      color: white;
+    }
+
+    /* ============================================ */
+    /* RESPONSIVE DESIGN - FIX FOR MOBILE BUTTONS */
+    /* ============================================ */
+    
+    /* Tablets and below */
+    @media (max-width: 768px) {
+      .container {
+        padding: 24px 16px;
+      }
+      
+      .header h1 {
+        font-size: 32px;
+      }
+      
+      .header .subtitle {
+        font-size: 16px;
+      }
+      
+      /* Stack buttons vertically on mobile */
+      .action-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+      }
+      
+      .action-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 12px 20px;
+        white-space: nowrap;
+      }
+      
+      /* Stack page header elements */
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .page-header-left {
+        width: 100%;
+      }
+      
+      /* Make breadcrumb wrap properly */
+      .breadcrumb {
+        font-size: 13px;
+        word-break: break-all;
+        line-height: 1.4;
+      }
+      
+      /* Adjust file table for mobile */
+      .file-table th, 
+      .file-table td {
+        padding: 10px 6px;
+        font-size: 13px;
+      }
+      
+      .epub-badge, 
+      .folder-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+        margin-left: 6px;
+      }
+      
+      .file-icon {
+        font-size: 16px;
+        margin-right: 6px;
+      }
+      
+      .delete-btn {
+        font-size: 15px;
+        padding: 4px 6px;
+      }
+    }
+    
+    /* Small phones (below 480px) */
+    @media (max-width: 480px) {
+      .container {
+        padding: 16px 12px;
+      }
+      
+      .header h1 {
+        font-size: 28px;
+      }
+      
+      .header .subtitle {
+        font-size: 14px;
+      }
+      
+      .nav-links {
+        gap: 4px;
+      }
+      
+      .nav-btn {
+        padding: 6px 16px;
+        font-size: 13px;
+      }
+      
+      .card {
+        padding: 16px;
+      }
+      
+      .contents-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      /* Make table horizontally scrollable if needed */
+      .file-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      
+      .file-table th,
+      .file-table td {
+        padding: 8px 4px;
+        font-size: 12px;
+      }
+      
+      .action-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+      
+      .modal {
+        padding: 20px;
+      }
+      
+      .modal h3 {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Header - Same as dashboard -->
+  <div class="header">
+    <h1>CrossPoint Reader</h1>
+    <div class="subtitle">Manage your EPUB library</div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="nav-links">
+    <a href="/" class="nav-btn">Dashboard</a>
+    <a href="/files" class="nav-btn">File Manager</a>
+  </div>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <div class="breadcrumb" id="directory-breadcrumbs">Loading...</div>
+    </div>
+    <div class="action-buttons">
+      <button class="action-btn upload-action-btn" onclick="openUploadModal()">📤 Upload</button>
+      <button class="action-btn folder-action-btn" onclick="openFolderModal()">📁 New Folder</button>
+      <button class="action-btn optimizer-toggle" id="optimizerToggleBtn" onclick="toggleOptimizer()">🔧 EPUB Optimizer OFF</button>
+    </div>
+  </div>
+
+  <!-- Failed Uploads Banner -->
+  <div class="failed-uploads-banner" id="failedUploadsBanner">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <strong>⚠️ Some files failed to upload</strong>
+      <button onclick="dismissFailedUploads()" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+    </div>
+    <div id="failedFilesList"></div>
+    <button onclick="retryAllFailedUploads()" style="margin-top: 12px; padding: 8px 16px; background: #0071e3; color: white; border: none; border-radius: 20px; cursor: pointer;">Retry All</button>
+  </div>
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="contents-header">
+      <h2 class="contents-title">Contents</h2>
+      <span class="summary-inline" id="folder-summary">Loading...</span>
+    </div>
+    <div id="file-table">
+      <div class="loader-container"><span class="loader"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeUploadModal()">×</button>
+    <h3>Upload Files</h3>
+    <div class="upload-form">
+      <p class="file-info">Upload to <strong id="uploadPathDisplay"></strong></p>
+      <input type="file" id="fileInput" onchange="validateFile()" multiple accept=".epub,.pdf,.txt">
+      <div id="optimizationOptions" style="display: none;">
+        <div class="optimization-stats">
+          <strong>⚡ EPUB Optimization Active</strong><br>
+          ✓ 2-bit grayscale BMP conversion<br>
+          ✓ Resized to 480×800 max<br>
+          ✓ Optimized for e-ink displays
+        </div>
+      </div>
+      <button id="uploadSubmitBtn" class="upload-btn" onclick="processAndUploadFiles()" disabled>Process & Upload</button>
+      <div id="progress-container">
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+        <div id="progress-text"></div>
+      </div>
+      <div class="modal-log" id="modalLog">
+        <div class="info">Ready — Select an EPUB file to optimize</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Folder Modal -->
+<div class="modal-overlay" id="folderModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeFolderModal()">×</button>
+    <h3>New Folder</h3>
+    <div class="folder-form">
+      <p class="file-info">Create in <strong id="folderPathDisplay"></strong></p>
+      <input type="text" id="folderName" class="folder-input" placeholder="Folder name">
+      <button class="folder-btn" onclick="createFolder()">Create Folder</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDeleteModal()">×</button>
+    <h3>Delete Item</h3>
+    <div class="folder-form">
+      <p class="delete-warning">⚠️ This action cannot be undone</p>
+      <p class="file-info">Are you sure you want to delete:</p>
+      <p class="delete-item-name" id="deleteItemName"></p>
+      <input type="hidden" id="deleteItemPath">
+      <input type="hidden" id="deleteItemType">
+      <button class="delete-btn-confirm" onclick="confirmDelete()">Delete</button>
+      <button class="delete-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="optimizer-status" id="optimizerStatus" onclick="toggleOptimizer()">🔧 EPUB Optimizer: OFF</div>
+
+<script src="/js/jszip.min.js"></script>
+<script>
+let failedUploadsGlobal = [];
+let currentPath = '/';
+let optimizerEnabled = false;
+
+try {
+  const saved = localStorage.getItem('epubOptimizerEnabled');
+  if (saved === 'true') optimizerEnabled = true;
+} catch(e) {}
+
+function addModalLog(message, type = 'info') {
+  const logDiv = document.getElementById('modalLog');
+  if (!logDiv) return;
+  const timestamp = new Date().toLocaleTimeString();
+  const entry = document.createElement('div');
+  entry.className = type;
+  entry.innerHTML = `[${timestamp}] ${message}`;
+  logDiv.appendChild(entry);
+  entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function clearModalLog() {
+  const logDiv = document.getElementById('modalLog');
+  if (logDiv) {
+    logDiv.innerHTML = '<div class="info">Ready — Select an EPUB file to optimize</div>';
+  }
+}
+
+function toggleOptimizer() {
+  optimizerEnabled = !optimizerEnabled;
+  localStorage.setItem('epubOptimizerEnabled', optimizerEnabled);
+  
+  const toggleBtn = document.getElementById('optimizerToggleBtn');
+  const statusIndicator = document.getElementById('optimizerStatus');
+  const optOptions = document.getElementById('optimizationOptions');
+  
+  if (optimizerEnabled) {
+    toggleBtn.textContent = '🔧 EPUB Optimizer ON';
+    toggleBtn.classList.add('active');
+    statusIndicator.textContent = '✅ EPUB Optimizer: ON';
+    statusIndicator.classList.add('active');
+    if (optOptions) optOptions.style.display = 'block';
+    addModalLog('Optimizer ENABLED', 'success');
+  } else {
+    toggleBtn.textContent = '🔧 EPUB Optimizer OFF';
+    toggleBtn.classList.remove('active');
+    statusIndicator.textContent = '🔧 EPUB Optimizer: OFF';
+    statusIndicator.classList.remove('active');
+    if (optOptions) optOptions.style.display = 'none';
+    addModalLog('Optimizer DISABLED', 'warning');
+  }
+}
+
+// Floyd-Steinberg dithering and image conversion functions
+function applyFloydSteinberg2Bit(pixels, width, height) {
+  const grayLevels = [0, 85, 170, 255];
+  const errorBuffer = new Float32Array(pixels.length);
+  for (let i = 0; i < pixels.length; i++) errorBuffer[i] = pixels[i];
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const oldPixel = errorBuffer[idx];
+      let bestIdx = 0;
+      let minDiff = Math.abs(oldPixel - grayLevels[0]);
+      for (let i = 1; i < grayLevels.length; i++) {
+        const diff = Math.abs(oldPixel - grayLevels[i]);
+        if (diff < minDiff) { minDiff = diff; bestIdx = i; }
+      }
+      const newPixel = grayLevels[bestIdx];
+      pixels[idx] = newPixel;
+      const error = oldPixel - newPixel;
+      if (x + 1 < width) errorBuffer[idx + 1] += error * 7 / 16;
+      if (y + 1 < height) {
+        if (x - 1 >= 0) errorBuffer[idx + width - 1] += error * 3 / 16;
+        errorBuffer[idx + width] += error * 5 / 16;
+        if (x + 1 < width) errorBuffer[idx + width + 1] += error * 1 / 16;
+      }
+    }
+  }
+}
+
+function canvasTo2BitBMP(canvas) {
+  const width = canvas.width, height = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const rgba = imageData.data;
+  const grayPixels = new Uint8Array(width * height);
+  
+  for (let i = 0; i < width * height; i++) {
+    const r = rgba[i * 4], g = rgba[i * 4 + 1], b = rgba[i * 4 + 2];
+    grayPixels[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+  
+  applyFloydSteinberg2Bit(grayPixels, width, height);
+  
+  const rowSize = Math.floor((width * 2 + 31) / 32) * 4;
+  const pixelDataSize = rowSize * height;
+  const totalSize = 14 + 40 + 16 + pixelDataSize;
+  const buffer = new ArrayBuffer(totalSize);
+  const view = new DataView(buffer);
+  
+  view.setUint16(0, 0x4D42, true);
+  view.setUint32(2, totalSize, true);
+  view.setUint32(6, 0, true);
+  view.setUint32(10, 70, true);
+  view.setUint32(14, 40, true);
+  view.setInt32(18, width, true);
+  view.setInt32(22, -height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, 2, true);
+  view.setUint32(30, 0, true);
+  view.setUint32(34, pixelDataSize, true);
+  view.setInt32(38, 2835, true);
+  view.setInt32(42, 2835, true);
+  view.setUint32(46, 4, true);
+  view.setUint32(50, 4, true);
+  view.setUint32(54, 0, true);
+  view.setUint32(58, 5592405, true);
+  view.setUint32(62, 11184810, true);
+  view.setUint32(66, 16777215, true);
+  
+  const pixelOffset = 70;
+  const pixelsPerByte = 4;
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const gray = grayPixels[y * width + x];
+      let index = gray < 42 ? 0 : gray < 127 ? 1 : gray < 212 ? 2 : 3;
+      const bytePos = pixelOffset + (y * rowSize) + Math.floor(x / pixelsPerByte);
+      const bitShift = (3 - (x % pixelsPerByte)) * 2;
+      if (bytePos < buffer.byteLength) {
+        let currentByte = view.getUint8(bytePos);
+        currentByte |= (index << bitShift);
+        view.setUint8(bytePos, currentByte);
+      }
+    }
+  }
+  
+  return new Blob([buffer], { type: 'image/bmp' });
+}
+
+async function convertTo2BitBMP(blob, originalPath, maxWidth, maxHeight) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let width = img.width, height = img.height;
+      if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+      if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const bmpBlob = canvasTo2BitBMP(canvas);
+      const newPath = originalPath.replace(/\.(jpg|jpeg|png|gif)$/i, '.bmp');
+      addModalLog(`📊 ${originalPath}: ${(blob.size/1024).toFixed(1)}KB → ${(bmpBlob.size/1024).toFixed(1)}KB`, 'info');
+      resolve({ path: newPath, blob: bmpBlob });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Failed to load: ${originalPath}`)); };
+    img.src = url;
+  });
+}
+
+async function optimizeEPUB(file, progressFill, progressText) {
+  addModalLog(`📚 Processing: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+  try {
+    addModalLog(`📦 Loading EPUB...`, 'info');
+    const zip = await JSZip.loadAsync(file);
+    const files = zip.files ? Object.keys(zip.files) : [];
+    addModalLog(`📄 EPUB contains ${files.length} files`, 'info');
+    
+    let imageCount = 0, convertedCount = 0;
+    const imageMap = new Map();
+    const filesToDelete = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const filePath = files[i];
+      const zipEntry = zip.files[filePath];
+      if (!zipEntry) continue;
+      if (zipEntry.dir === true) continue;
+      
+      const percent = Math.round((i / files.length) * 100);
+      if (progressFill) progressFill.style.width = `${percent}%`;
+      if (progressText) progressText.textContent = `Scanning: ${percent}%`;
+      
+      if (filePath.match(/\.(jpg|jpeg|png|gif)$/i)) {
+        imageCount++;
+        addModalLog(`🖼️ Found image: ${filePath.split('/').pop()}`, 'info');
+        if (optimizerEnabled) {
+          try {
+            const imageData = await zipEntry.async('blob');
+            const result = await convertTo2BitBMP(imageData, filePath, 500, 820);
+            zip.file(result.path, result.blob);
+            imageMap.set(filePath, result.path);
+            filesToDelete.push(filePath);
+            convertedCount++;
+            addModalLog(`✅ Converted: ${filePath.split('/').pop()} → BMP`, 'success');
+          } catch (err) {
+            addModalLog(`❌ Failed: ${filePath.split('/').pop()} - ${err.message}`, 'error');
+          }
+        }
+      }
+    }
+    
+    for (const oldPath of filesToDelete) {
+      try { zip.remove(oldPath); } catch(e) {}
+    }
+    
+    if (imageMap.size > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const filePath = files[i];
+        const zipEntry = zip.files[filePath];
+        if (!zipEntry || zipEntry.dir) continue;
+        if (filePath.match(/\.(jpg|jpeg|png|gif)$/i)) continue;
+        if (filePath.match(/\.(html|htm|xhtml|opf|xml|ncx|nav)$/i)) {
+          try {
+            let content = await zipEntry.async('string');
+            let modified = false;
+            for (const [oldPath, newPath] of imageMap) {
+              const oldName = oldPath.split('/').pop();
+              const newName = newPath.split('/').pop();
+              if (content.includes(oldName)) {
+                content = content.replace(new RegExp(oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newName);
+                modified = true;
+              }
+              if (content.includes(oldPath)) {
+                content = content.replace(new RegExp(oldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newPath);
+                modified = true;
+              }
+            }
+            if (filePath.match(/\.opf$/i)) {
+              content = content.replace(/media-type="image\/jpeg"/g, 'media-type="image/bmp"');
+              content = content.replace(/media-type="image\/png"/g, 'media-type="image/bmp"');
+              content = content.replace(/media-type="image\/gif"/g, 'media-type="image/bmp"');
+              modified = true;
+            }
+            if (modified) {
+              zip.file(filePath, content);
+              addModalLog(`📝 Updated: ${filePath.split('/').pop()}`, 'info');
+            }
+          } catch(e) {}
+        }
+      }
+    }
+    
+    addModalLog(`📊 Summary: ${convertedCount}/${imageCount} images converted`, convertedCount > 0 ? 'success' : 'warning');
+    
+    if (convertedCount > 0) {
+      addModalLog(`📦 Rebuilding EPUB...`, 'info');
+      if (progressText) progressText.textContent = `Rebuilding EPUB...`;
+      const optimizedBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+        onUpdate: (meta) => {
+          if (progressFill && meta.percent) {
+            progressFill.style.width = `${meta.percent}%`;
+            if (progressText) progressText.textContent = `Building: ${Math.round(meta.percent)}%`;
+          }
+        }
+      });
+      const saved = ((1 - optimizedBlob.size / file.size) * 100).toFixed(1);
+      addModalLog(`✅ Optimized: ${(optimizedBlob.size/1024/1024).toFixed(2)} MB (${saved > 0 ? 'saved ' + saved + '%' : ''})`, 'success');
+      return optimizedBlob;
+    }
+    return file;
+  } catch (error) {
+    addModalLog(`❌ Failed: ${error.message}`, 'error');
+    return file;
+  }
+}
+
+async function uploadFileWithProgress(file, originalFileName, progressCallback) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file, originalFileName);
+    const xhr = new XMLHttpRequest();
+    const uploadPath = currentPath === '/' ? '' : currentPath;
+    xhr.open('POST', '/upload?path=' + encodeURIComponent(uploadPath), true);
+    xhr.upload.onprogress = function(e) {
+      if (e.lengthComputable && progressCallback) progressCallback(e.loaded, e.total);
+    };
+    xhr.onload = function() {
+      if (xhr.status === 200) resolve(xhr.responseText);
+      else reject(new Error(xhr.responseText || 'Upload failed'));
+    };
+    xhr.onerror = function() { reject(new Error('Network error')); };
+    xhr.send(formData);
+  });
+}
+
+async function processAndUploadFiles() {
+  const fileInput = document.getElementById('fileInput');
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    alert('Please select at least one file');
+    return;
+  }
+  
+  clearModalLog();
+  const files = Array.from(fileInput.files);
+  const progressContainer = document.getElementById('progress-container');
+  const progressFill = document.getElementById('progress-fill');
+  const progressText = document.getElementById('progress-text');
+  const uploadSubmitBtn = document.getElementById('uploadSubmitBtn');
+  
+  if (progressContainer) progressContainer.style.display = 'block';
+  if (uploadSubmitBtn) uploadSubmitBtn.disabled = true;
+  
+  let processedFiles = [];
+  let failedFiles = [];
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const isEpub = file.name.toLowerCase().endsWith('.epub');
+    const percent = ((i + 1) / files.length) * 100;
+    if (progressFill) progressFill.style.width = `${percent}%`;
+    if (progressText) progressText.textContent = `Processing ${i + 1}/${files.length}: ${file.name}`;
+    
+    if (isEpub && optimizerEnabled) {
+      addModalLog(`\n🔧 Optimizing: ${file.name}`, 'info');
+      const optimizedBlob = await optimizeEPUB(file, progressFill, progressText);
+      const optimizedFile = new File([optimizedBlob], file.name, { type: 'application/epub+zip' });
+      processedFiles.push({ file: optimizedFile, originalName: file.name });
+    } else {
+      processedFiles.push({ file: file, originalName: file.name });
+    }
+  }
+  
+  for (let i = 0; i < processedFiles.length; i++) {
+    const { file, originalName } = processedFiles[i];
+    if (progressFill) progressFill.style.width = '0%';
+    if (progressFill) progressFill.style.backgroundColor = '#0071e3';
+    if (progressText) progressText.textContent = `Uploading ${i + 1}/${processedFiles.length}: ${originalName} - 0%`;
+    addModalLog(`📤 Uploading: ${originalName} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+    
+    try {
+      await uploadFileWithProgress(file, originalName, (loaded, total) => {
+        const percent = Math.round((loaded / total) * 100);
+        if (progressFill) progressFill.style.width = `${percent}%`;
+        if (progressText) progressText.textContent = `Uploading ${i + 1}/${processedFiles.length}: ${originalName} - ${percent}%`;
+      });
+      addModalLog(`✅ Uploaded: ${originalName}`, 'success');
+      const overallPercent = Math.round(((i + 1) / processedFiles.length) * 100);
+      if (progressFill) progressFill.style.width = `${overallPercent}%`;
+      if (progressText) progressText.textContent = `Uploaded ${i + 1}/${processedFiles.length} files`;
+    } catch (err) {
+      addModalLog(`❌ Failed: ${originalName} - ${err.message}`, 'error');
+      failedFiles.push({ name: originalName, error: err.message, file: file });
+    }
+  }
+  
+  if (failedFiles.length === 0) {
+    if (progressFill) progressFill.style.backgroundColor = '#34c759';
+    if (progressText) progressText.textContent = 'All uploads complete!';
+    addModalLog(`\n✅ ALL UPLOADS COMPLETE!`, 'success');
+    setTimeout(() => { closeUploadModal(); hydrate(); }, 1500);
+  } else {
+    if (progressFill) progressFill.style.backgroundColor = '#ff3b30';
+    if (progressText) progressText.textContent = `${processedFiles.length - failedFiles.length}/${processedFiles.length} uploaded. ${failedFiles.length} failed.`;
+    failedUploadsGlobal = failedFiles;
+    setTimeout(() => { closeUploadModal(); showFailedUploadsBanner(); hydrate(); }, 2000);
+  }
+}
+
+function getCurrentPath() {
+  try { return decodeURIComponent(new URLSearchParams(window.location.search).get('path') || '/'); } catch(e) { return '/'; }
+}
+
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+
+function formatFileSize(bytes) {
+  if (bytes === 0 || !bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function hydrate() {
+  currentPath = getCurrentPath();
+  
+  const breadcrumbs = document.getElementById('directory-breadcrumbs');
+  if (breadcrumbs) {
+    let bc = '<span class="sep">/</span>';
+    if (currentPath === '/') {
+      bc += '<span class="current">Root</span>';
+    } else {
+      bc += '<a href="/files">Root</a>';
+      const segments = currentPath.split('/');
+      segments.slice(1, segments.length - 1).forEach((segment, idx) => {
+        bc += '<span class="sep">/</span><a href="/files?path=' + encodeURIComponent(segments.slice(0, idx + 2).join('/')) + '">' + escapeHtml(segment) + '</a>';
+      });
+      bc += '<span class="sep">/</span><span class="current">' + escapeHtml(segments[segments.length - 1]) + '</span>';
+    }
+    breadcrumbs.innerHTML = bc;
+  }
+  
+  const fileTable = document.getElementById('file-table');
+  if (!fileTable) return;
+  
+  let files = [];
+  try {
+    const response = await fetch('/api/files?path=' + encodeURIComponent(currentPath));
+    if (!response.ok) throw new Error('Failed to load files');
+    files = await response.json();
+  } catch(e) {
+    fileTable.innerHTML = '<div class="no-files">Error loading files</div>';
+    return;
+  }
+  
+  let folderCount = 0, totalSize = 0;
+  files.forEach(f => { if (f.isDirectory) folderCount++; totalSize += f.size || 0; });
+  document.getElementById('folder-summary').innerHTML = `${folderCount} folders, ${files.length - folderCount} files, ${formatFileSize(totalSize)}`;
+  
+  if (files.length === 0) {
+    fileTable.innerHTML = '<div class="no-files">This folder is empty</div>';
+  } else {
+    let html = '<table class="file-table">';
+    html += '<tr><th>Name</th><th>Size</th><th class="actions-col"></th></tr>';
+    const sorted = files.sort((a,b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    
+    sorted.forEach(file => {
+      if (file.isDirectory) {
+        let folderPath = currentPath + (currentPath.endsWith("/") ? "" : "/") + file.name;
+        html += `<tr class="folder-row">`;
+        html += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">Folder</span></td>`;
+        html += `<td style="color: #86868b;">—</td>`;
+        html += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${escapeHtml(file.name)}', '${escapeHtml(folderPath)}', true)">🗑️</button></td>`;
+        html += `</tr>`;
+      } else {
+        let filePath = currentPath + (currentPath.endsWith("/") ? "" : "/") + file.name;
+        const isEpub = file.name.toLowerCase().endsWith('.epub');
+        html += `<tr class="${isEpub ? 'epub-file' : ''}" ${isEpub ? `onclick="window.location.href='/epub-viewer.html?path=${encodeURIComponent(filePath)}'"` : ''}>`;
+        html += `<td><span class="file-icon">${isEpub ? '📗' : '📄'}</span>${escapeHtml(file.name)}${isEpub ? '<span class="epub-badge">EPUB</span>' : ''}</td>`;
+        html += `<td style="color: #86868b;">${formatFileSize(file.size)}</td>`;
+        html += `<td class="actions-col"><button class="delete-btn" onclick="event.stopPropagation(); openDeleteModal('${escapeHtml(file.name)}', '${escapeHtml(filePath)}', false)">🗑️</button></td>`;
+        html += `</tr>`;
+      }
+    });
+    html += '</table>';
+    fileTable.innerHTML = html;
+  }
+}
+
+function openUploadModal() {
+  document.getElementById('uploadPathDisplay').textContent = currentPath === '/' ? 'Root' : currentPath;
+  document.getElementById('uploadModal').classList.add('open');
+  const optOptions = document.getElementById('optimizationOptions');
+  if (optOptions) optOptions.style.display = optimizerEnabled ? 'block' : 'none';
+  clearModalLog();
+}
+
+function closeUploadModal() {
+  document.getElementById('uploadModal').classList.remove('open');
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadSubmitBtn').disabled = true;
+  document.getElementById('progress-container').style.display = 'none';
+  document.getElementById('progress-fill').style.width = '0%';
+}
+
+function openFolderModal() {
+  document.getElementById('folderPathDisplay').textContent = currentPath === '/' ? 'Root' : currentPath;
+  document.getElementById('folderModal').classList.add('open');
+  document.getElementById('folderName').value = '';
+}
+
+function closeFolderModal() { document.getElementById('folderModal').classList.remove('open'); }
+
+function validateFile() {
+  const btn = document.getElementById('uploadSubmitBtn');
+  const input = document.getElementById('fileInput');
+  if (btn && input) btn.disabled = !(input.files && input.files.length > 0);
+}
+
+function showFailedUploadsBanner() {
+  const banner = document.getElementById('failedUploadsBanner');
+  const list = document.getElementById('failedFilesList');
+  if (!banner || !list) return;
+  list.innerHTML = '';
+  failedUploadsGlobal.forEach((f, idx) => {
+    const item = document.createElement('div');
+    item.style.marginBottom = '8px';
+    item.style.padding = '8px';
+    item.style.background = 'white';
+    item.style.borderRadius = '8px';
+    item.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;"><span>📄 ${escapeHtml(f.name)}</span><button onclick="retrySingleUpload(${idx})" style="padding: 4px 12px; background: #0071e3; color: white; border: none; border-radius: 12px; cursor: pointer;">Retry</button></div><div style="font-size: 11px; color: #ff3b30;">${escapeHtml(f.error)}</div>`;
+    list.appendChild(item);
+  });
+  banner.classList.add('show');
+}
+
+function dismissFailedUploads() {
+  document.getElementById('failedUploadsBanner')?.classList.remove('show');
+  failedUploadsGlobal = [];
+}
+
+function retrySingleUpload(idx) {
+  const f = failedUploadsGlobal[idx];
+  if (!f) return;
+  const dt = new DataTransfer();
+  dt.items.add(f.file);
+  document.getElementById('fileInput').files = dt.files;
+  failedUploadsGlobal.splice(idx, 1);
+  if (failedUploadsGlobal.length === 0) dismissFailedUploads();
+  openUploadModal();
+  validateFile();
+}
+
+function retryAllFailedUploads() {
+  if (failedUploadsGlobal.length === 0) return;
+  const dt = new DataTransfer();
+  failedUploadsGlobal.forEach(f => dt.items.add(f.file));
+  document.getElementById('fileInput').files = dt.files;
+  failedUploadsGlobal = [];
+  dismissFailedUploads();
+  openUploadModal();
+  validateFile();
+}
+
+function createFolder() {
+  const name = document.getElementById('folderName')?.value.trim();
+  if (!name) { alert('Please enter a folder name'); return; }
+  if (!/^(?!\.{1,2}$)[^"*:<>?\/\\|]+$/.test(name)) { alert('Invalid folder name'); return; }
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('path', currentPath);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/mkdir', true);
+  xhr.onload = () => { if (xhr.status === 200) window.location.reload(); else alert('Failed: ' + xhr.responseText); };
+  xhr.send(formData);
+}
+
+function openDeleteModal(name, path, isFolder) {
+  document.getElementById('deleteItemName').textContent = (isFolder ? '📁 ' : '📄 ') + name;
+  document.getElementById('deleteItemPath').value = path;
+  document.getElementById('deleteItemType').value = isFolder ? 'folder' : 'file';
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('open'); }
+
+function confirmDelete() {
+  const path = document.getElementById('deleteItemPath')?.value;
+  const type = document.getElementById('deleteItemType')?.value;
+  if (!path) return;
+  const formData = new FormData();
+  formData.append('path', path);
+  formData.append('type', type);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/delete', true);
+  xhr.onload = () => { if (xhr.status === 200) window.location.reload(); else alert('Failed: ' + xhr.responseText); closeDeleteModal(); };
+  xhr.send(formData);
+}
+
+function init() {
+  if (optimizerEnabled) {
+    const toggleBtn = document.getElementById('optimizerToggleBtn');
+    const statusIndicator = document.getElementById('optimizerStatus');
+    const optOptions = document.getElementById('optimizationOptions');
+    if (toggleBtn) {
+      toggleBtn.textContent = '🔧 EPUB Optimizer ON';
+      toggleBtn.classList.add('active');
+    }
+    if (statusIndicator) {
+      statusIndicator.textContent = '✅ EPUB Optimizer: ON';
+      statusIndicator.classList.add('active');
+    }
+    if (optOptions) optOptions.style.display = 'block';
+  }
+  hydrate();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+</script>
+</body>
+</html>
