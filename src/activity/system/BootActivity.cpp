@@ -64,7 +64,6 @@ void BootActivity::initializeNextStage() {
       bootProgress = 10;
       drawProgressBar();
       SETTINGS.loadFromFile();
-      FontManager::ensureFontReady(SETTINGS.getReaderFontId(), renderer);
       bootStage++;
       break;
       
@@ -116,10 +115,6 @@ void BootActivity::initializeNextStage() {
  */
 void BootActivity::onEnter() {
   Activity::onEnter();
-
-  FontManager::initialize(renderer);
-  FontManager::scanSDFonts("/fonts");
-  FontManager::printFontStats();
   
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
