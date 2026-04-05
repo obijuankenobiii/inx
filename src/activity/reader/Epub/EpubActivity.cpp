@@ -426,7 +426,6 @@ void EpubActivity::fastPath() {
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
   xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
-  updateRequired = true;
 }
 
 /**
@@ -437,7 +436,7 @@ void EpubActivity::slowPath() {
   loadingProgress = 10;
   drawLoadingScreen();
   vTaskDelay(pdMS_TO_TICKS(50));
-
+  
   ensureThumbnailExists();
   currentSpineIndex = epub->getSpineIndexForTextReference();
   nextPageNumber = 30;
@@ -445,7 +444,7 @@ void EpubActivity::slowPath() {
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
 
   preloadChapters();
-  loadingProgress = 60;
+  loadingProgress = 50;
   drawLoadingScreen();
 
   loadCurrentSection();
@@ -457,7 +456,6 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
-  updateRequired = true;
   xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
@@ -467,7 +465,7 @@ void EpubActivity::slowPath() {
 void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
   renderer.clearScreen();
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer();
   epub->setupCacheDir();
 
   setupOrientation();
@@ -485,6 +483,7 @@ void EpubActivity::onEnter() {
     renderer.displayBuffer();
     slowPath();
   }
+  updateRequired = true;
 }
 
 /**
