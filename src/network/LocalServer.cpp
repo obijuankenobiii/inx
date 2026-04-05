@@ -4,6 +4,7 @@
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <SDCardManager.h>
+#include <SPIFFS.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
@@ -114,7 +115,19 @@ void LocalServer::begin() {
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Failed to mount SPIFFS");
+  } else {
+    if (SPIFFS.exists("/js/jszip.min.js")) {
+      Serial.println("✓ jszip.min.js found in SPIFFS!");
+      File f = SPIFFS.open("/js/jszip.min.js", "r");
+      Serial.printf("  Size: %d bytes\n", f.size());
+      f.close();
+          server->serveStatic("/js", SPIFFS, "/js");
+    }
 
+  }
+  
   server->begin();
 
   // Start WebSocket server for fast binary uploads

@@ -566,8 +566,8 @@ void RecentActivity::renderDefault() {
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth();
-        int bh = bitmap.getHeight();
+        int bw = bitmap.getWidth() * 45/100;
+        int bh = bitmap.getHeight()* 45/100;
         int drawX = coverAreaX + (coverWidth - bw) / 2;
         int drawY = coverAreaY + (coverHeight - bh) / 2;
         renderer.drawSmallBitmapClean(bitmap, drawX, drawY, bw, bh);

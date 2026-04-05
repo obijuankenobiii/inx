@@ -129,6 +129,7 @@ void EpubActivity::drawLoadingScreen() {
   } else {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, true);
   }
+
   renderer.displayBuffer();
 }
 
@@ -195,6 +196,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   std::function<void()> progressCallback = nullptr;
   if (showProgress) {
     progressCallback = [this]() { ScreenComponents::drawPopup(renderer, "Loading Chapter..."); };
+    renderer.displayBuffer();
   }
 
   int headerFontId = FontManager::getNextFont(info.fontId);
@@ -204,10 +206,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
                                      bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
                                      info.height, bookSettings.hyphenationEnabled, progressCallback, skipImages);
 
-  if (showProgress && progressCallback) {
-    renderer.clearScreen();
-    renderer.displayBuffer();
-  }
   return success;
 }
 
@@ -343,6 +341,26 @@ void EpubActivity::displayCoverOrTitle() {
       updateRequired = true;
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+
+      renderer.storeBwBuffer();
+
+      if (coverBmp.hasGreyscale()) {
+        renderer.clearScreen(0x00);
+        renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+        renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
+        renderer.copyGrayscaleLsbBuffers();
+
+        renderer.clearScreen(0x00);
+        renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+        renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
+        renderer.copyGrayscaleMsbBuffers();
+
+        renderer.displayGrayBuffer();
+        renderer.setRenderMode(GfxRenderer::BW);
+        renderer.restoreBwBuffer();
+      } else {
+        renderer.restoreBwBuffer();
+      }
     }
     coverFile.close();
   } else {
@@ -435,35 +453,23 @@ void EpubActivity::fastPath() {
  * @brief Slow path for new books
  */
 void EpubActivity::slowPath() {
-  renderer.clearScreen();
   displayCoverOrTitle();
-  vTaskDelay(pdMS_TO_TICKS(50));
-
   loadingProgress = 10;
   drawLoadingScreen();
+  vTaskDelay(pdMS_TO_TICKS(50));
 
   ensureThumbnailExists();
-  loadingProgress = 20;
-  drawLoadingScreen();
-
   currentSpineIndex = epub->getSpineIndexForTextReference();
-  nextPageNumber = 0;
+  nextPageNumber = 30;
 
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
-  loadingProgress = 30;
-  drawLoadingScreen();
 
   preloadChapters();
-  loadingProgress = 40;
-  drawLoadingScreen();
-
-  loadCurrentSection();
   loadingProgress = 60;
   drawLoadingScreen();
 
+  loadCurrentSection();
   updateExternalState();
-  loadingProgress = 80;
-  drawLoadingScreen();
 
   initStats();
   loadingProgress = 100;
@@ -471,8 +477,7 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
-  renderer.clearScreen();
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  updateRequired = true;
   xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
@@ -1235,10 +1240,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
 
-  if (lastPageHadImages || page->hasImages()) {
-    renderer.clearScreen(0xff);
-  }
-
   page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
                orientedMarginLeft, orientedMarginTop, false);
 
@@ -1248,13 +1249,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
-  if (lastPageHadImages && !isBookmarking) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = !lastPageHadImages;
-    return;
-  }
-
   if (pagesUntilFullRefresh <= 1) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
@@ -1262,9 +1256,42 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     return;
   }
 
-  renderer.displayBuffer();
+  if (page->hasImages() && !isBookmarking) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    lastPageHadImages = true;
+  }
+
+  if (!page->hasImages() && lastPageHadImages && !isBookmarking)
+  {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    lastPageHadImages = false;
+  }
+  
   pagesUntilFullRefresh--;
-  lastPageHadImages = false;
+  renderer.displayBuffer();
+  renderer.storeBwBuffer();
+
+  if (page->hasImages()) {
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
+                 orientedMarginLeft, orientedMarginTop, false);
+    renderer.copyGrayscaleLsbBuffers();
+
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
+                 orientedMarginLeft, orientedMarginTop, false);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+    renderer.setRenderMode(GfxRenderer::BW);
+    renderer.restoreBwBuffer();
+  } else {
+    renderer.restoreBwBuffer();
+  }
+
+  
 }
 
 /**
@@ -1354,13 +1381,11 @@ void EpubActivity::saveBookmarks() {
 void EpubActivity::addBookmark() {
   if (!section) return;
   isBookmarking = true;
-  
-  auto it = std::find_if(bookmarks.begin(), bookmarks.end(),
-                         [this](const Bookmark& bookmark) {
-                           return bookmark.spineIndex == currentSpineIndex &&
-                                  bookmark.pageNumber == section->currentPage;
-                         });
-  
+
+  auto it = std::find_if(bookmarks.begin(), bookmarks.end(), [this](const Bookmark& bookmark) {
+    return bookmark.spineIndex == currentSpineIndex && bookmark.pageNumber == section->currentPage;
+  });
+
   if (it != bookmarks.end()) {
     bookmarks.erase(it);
     saveBookmarks();
@@ -1409,11 +1434,9 @@ void EpubActivity::removeBookmark(int index) {
 bool EpubActivity::isCurrentPageBookmarked() const {
   if (!section) return false;
 
-  return std::any_of(bookmarks.begin(), bookmarks.end(),
-                     [this](const Bookmark& bookmark) {
-                       return bookmark.spineIndex == currentSpineIndex &&
-                              bookmark.pageNumber == section->currentPage;
-                     });
+  return std::any_of(bookmarks.begin(), bookmarks.end(), [this](const Bookmark& bookmark) {
+    return bookmark.spineIndex == currentSpineIndex && bookmark.pageNumber == section->currentPage;
+  });
 }
 
 /**

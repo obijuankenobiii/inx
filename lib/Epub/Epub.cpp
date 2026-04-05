@@ -29,6 +29,14 @@ static bool isJpegFile(const std::string& path) {
   return ext == ".jpg" || ext == ".jpeg";
 }
 
+static bool isBmpFile(const std::string& path) {
+  size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos) return false;
+  std::string ext = path.substr(dot);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return ext == ".bmp";
+}
+
 void Epub::setupCacheDir() const {
   // Create main cache directory if it doesn't exist
   if (!SdMan.exists(cachePath.c_str())) {
@@ -67,6 +75,27 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
 
 bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                   int targetH) const {
+  // Check if source is already BMP - just copy it
+  if (isBmpFile(itemHref)) {
+    Serial.printf("[EBP] Source is already BMP, copying directly: %s\n", itemHref.c_str());
+    
+    FsFile destFile;
+    if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+      Serial.printf("[EBP] Failed to create output file: %s\n", outBmpPath.c_str());
+      return false;
+    }
+    
+    bool success = readItemContentsToStream(itemHref, destFile, 2048);
+    destFile.close();
+    
+    if (success) {
+      Serial.printf("[EBP] Successfully copied BMP: %s\n", itemHref.c_str());
+    } else {
+      Serial.printf("[EBP] Failed to copy BMP: %s\n", itemHref.c_str());
+    }
+    return success;
+  }
+  
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -114,6 +143,179 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
 
   sourceFile.close();
   destFile.close();
+  SdMan.remove(tempPath.c_str());
+
+  return success;
+}
+
+bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
+                                            int targetH) const {
+  // Check if source is already BMP - just copy it
+  if (isBmpFile(itemHref)) {
+    Serial.printf("[EBP] Source is already BMP (fullscreen), copying directly: %s\n", itemHref.c_str());
+    
+    FsFile destFile;
+    if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+      Serial.printf("[EBP] Failed to create output file: %s\n", outBmpPath.c_str());
+      return false;
+    }
+    
+    bool success = readItemContentsToStream(itemHref, destFile, 2048);
+    destFile.close();
+    
+    if (success) {
+      Serial.printf("[EBP] Successfully copied BMP: %s\n", itemHref.c_str());
+    } else {
+      Serial.printf("[EBP] Failed to copy BMP: %s\n", itemHref.c_str());
+    }
+    return success;
+  }
+  
+  const std::string tempPath = cachePath + "/.extract.tmp";
+  FsFile tempFile;
+
+  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
+    Serial.printf("[EBP] Failed to create temp file for: %s\n", itemHref.c_str());
+    return false;
+  }
+
+  bool extracted = readItemContentsToStream(itemHref, tempFile, 2048);
+  tempFile.sync();
+  tempFile.close();
+
+  if (!extracted) {
+    Serial.printf("[EBP] Failed to extract: %s\n", itemHref.c_str());
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
+
+  FsFile sourceFile, destFile;
+  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
+    Serial.printf("[EBP] Failed to open temp file for reading: %s\n", tempPath.c_str());
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
+
+  if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+    Serial.printf("[EBP] Failed to create output file: %s\n", outBmpPath.c_str());
+    sourceFile.close();
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
+
+  bool success = false;
+
+  // Check file type and use appropriate converter for full screen
+  if (isPngFile(itemHref)) {
+    Serial.printf("[EBP] Converting PNG full screen: %s\n", itemHref.c_str());
+    success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
+  } else {
+    Serial.printf("[EBP] Converting JPEG full screen: %s\n", itemHref.c_str());
+    success = JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
+  }
+
+  sourceFile.close();
+  destFile.close();
+  SdMan.remove(tempPath.c_str());
+
+  return success;
+}
+
+bool Epub::generateCoverBmp(bool cropped) const {
+  // Use full-screen centered converter for covers
+  return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
+                                          800);
+}
+
+bool Epub::generateThumbBmp() const {
+  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
+  
+  // Check if cover is already BMP - just copy it
+  if (isBmpFile(coverHref)) {
+    Serial.printf("[EBP] Cover is already BMP, copying directly for thumbnails: %s\n", coverHref.c_str());
+    
+    FsFile destFile;
+    if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
+      Serial.println("[EBP] Failed to create regular thumb file");
+      return false;
+    }
+    
+    bool success = readItemContentsToStream(coverHref, destFile, 2048);
+    destFile.close();
+    
+    if (success) {
+      Serial.println("[EBP] Successfully copied BMP for regular thumbnail");
+    } else {
+      Serial.println("[EBP] Failed to copy BMP for regular thumbnail");
+    }
+    return success;
+  }
+  
+  // Generate both regular and small thumbnails
+  const std::string tempPath = cachePath + "/.thumb_extract.tmp";
+  FsFile tempFile;
+
+  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
+    Serial.println("[EBP] Failed to create temp file for thumb");
+    return false;
+  }
+
+  bool extracted = readItemContentsToStream(coverHref, tempFile, 2048);
+  tempFile.sync();
+  tempFile.close();
+
+  if (!extracted) {
+    Serial.println("[EBP] Failed to extract cover for thumb");
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
+
+  FsFile sourceFile;
+  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
+
+  bool success = true;
+  bool isPng = isPngFile(coverHref);
+
+  FsFile destFile;
+  if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
+    Serial.println("[EBP] Failed to create regular thumb file");
+    success = false;
+  } else {
+    bool thumbSuccess = false;
+
+    if (isPng) {
+      thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+    } else {
+      JpegToBmpConverter converter;
+      thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
+    }
+
+    // If fails, fall back to 1-bit
+    if (!thumbSuccess) {
+      Serial.println("[EBP] 2-bit conversion failed for regular thumb, trying 1-bit...");
+      destFile.seek(0);
+      if (isPng) {
+        thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      } else {
+        JpegToBmpConverter converter;
+        thumbSuccess = converter.jpegFileTo1BitThumbnailBmp(sourceFile, destFile, 225, 340);
+      }
+    }
+
+    destFile.close();
+
+    if (thumbSuccess) {
+      Serial.println("[EBP] Regular thumbnail generated successfully");
+    } else {
+      Serial.println("[EBP] Failed to generate regular thumbnail");
+      success = false;
+    }
+  }
+
+  sourceFile.close();
   SdMan.remove(tempPath.c_str());
 
   return success;
@@ -260,84 +462,6 @@ bool Epub::clearCache() {
   return true;
 }
 
-bool Epub::generateCoverBmp(bool cropped) const {
-  // Use full-screen centered converter for covers
-  return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
-                                          800);
-}
-
-bool Epub::generateThumbBmp() const {
-  // Generate both regular and small thumbnails
-  const std::string tempPath = cachePath + "/.thumb_extract.tmp";
-  FsFile tempFile;
-
-  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
-    Serial.println("[EBP] Failed to create temp file for thumb");
-    return false;
-  }
-
-  bool extracted = readItemContentsToStream(bookMetadataCache->coreMetadata.coverItemHref, tempFile, 2048);
-  tempFile.sync();
-  tempFile.close();
-
-  if (!extracted) {
-    Serial.println("[EBP] Failed to extract cover for thumb");
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  FsFile sourceFile;
-  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  bool success = true;
-  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
-  bool isPng = isPngFile(coverHref);
-
-  FsFile destFile;
-  if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
-    Serial.println("[EBP] Failed to create regular thumb file");
-    success = false;
-  } else {
-    bool thumbSuccess = false;
-
-    if (isPng) {
-      thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
-    } else {
-      JpegToBmpConverter converter;
-      thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
-    }
-
-    // If fails, fall back to 1-bit
-    if (!thumbSuccess) {
-      Serial.println("[EBP] 2-bit conversion failed for regular thumb, trying 1-bit...");
-      destFile.seek(0);
-      if (isPng) {
-        thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
-      } else {
-        JpegToBmpConverter converter;
-        thumbSuccess = converter.jpegFileTo1BitThumbnailBmp(sourceFile, destFile, 225, 340);
-      }
-    }
-
-    destFile.close();
-
-    if (thumbSuccess) {
-      Serial.println("[EBP] Regular thumbnail generated successfully");
-    } else {
-      Serial.println("[EBP] Failed to generate regular thumbnail");
-      success = false;
-    }
-  }
-
-  sourceFile.close();
-  SdMan.remove(tempPath.c_str());
-
-  return success;
-}
-
 const std::string& Epub::getCachePath() const { return cachePath; }
 const std::string& Epub::getPath() const { return filepath; }
 
@@ -412,56 +536,4 @@ float Epub::calculateProgress(int currentSpineIndex, float currentSpineRead) con
   size_t current = getCumulativeSpineItemSize(currentSpineIndex) - prev;
   float progressed = static_cast<float>(prev) + (currentSpineRead * current);
   return progressed / static_cast<float>(total);
-}
-
-bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
-                                            int targetH) const {
-  const std::string tempPath = cachePath + "/.extract.tmp";
-  FsFile tempFile;
-
-  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
-    Serial.printf("[EBP] Failed to create temp file for: %s\n", itemHref.c_str());
-    return false;
-  }
-
-  bool extracted = readItemContentsToStream(itemHref, tempFile, 2048);
-  tempFile.sync();
-  tempFile.close();
-
-  if (!extracted) {
-    Serial.printf("[EBP] Failed to extract: %s\n", itemHref.c_str());
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  FsFile sourceFile, destFile;
-  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
-    Serial.printf("[EBP] Failed to open temp file for reading: %s\n", tempPath.c_str());
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
-    Serial.printf("[EBP] Failed to create output file: %s\n", outBmpPath.c_str());
-    sourceFile.close();
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  bool success = false;
-
-  // Check file type and use appropriate converter for full screen
-  if (isPngFile(itemHref)) {
-    Serial.printf("[EBP] Converting PNG full screen: %s\n", itemHref.c_str());
-    success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
-  } else {
-    Serial.printf("[EBP] Converting JPEG full screen: %s\n", itemHref.c_str());
-    success = JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
-  }
-
-  sourceFile.close();
-  destFile.close();
-  SdMan.remove(tempPath.c_str());
-
-  return success;
 }

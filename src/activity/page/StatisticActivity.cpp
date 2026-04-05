@@ -116,8 +116,8 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
       int drawX = x + (width - bw) / 2;
       int drawY = y + (height - bh) / 2;
 
-      int scaledW = bw * 90 / 100;
-      int scaledH = bh * 90 / 100;
+      int scaledW = bw * 45 / 100;
+      int scaledH = bh * 45 / 100;
 
       renderer.drawSmallBitmapClean(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
       coverDrawn = true;
