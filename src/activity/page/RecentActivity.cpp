@@ -225,10 +225,10 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth();
-        int bh = bitmap.getHeight();
+        int bw = bitmap.getWidth() > 225 ? containerWidth : bitmap.getWidth();
+        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
 
         int scaledW = bw * 98 / 100;
         int scaledH = bh * 98 / 100;
@@ -391,7 +391,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", smThumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         int bitmapWidth = bitmap.getWidth();
         int bitmapHeight = bitmap.getHeight();
@@ -564,10 +564,10 @@ void RecentActivity::renderDefault() {
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth();
-        int bh = bitmap.getHeight();
+        int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
+        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
         int drawX = coverAreaX + (coverWidth - bw) / 2;
         int drawY = coverAreaY + (coverHeight - bh) / 2;
         renderer.drawSmallBitmapClean(bitmap, drawX, drawY, bw, bh);

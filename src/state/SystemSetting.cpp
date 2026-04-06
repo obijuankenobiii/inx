@@ -23,8 +23,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 4; // Increment version for status bar sections
-constexpr uint8_t SETTINGS_COUNT = 31; // Added 3 status bar sections
+constexpr uint8_t SETTINGS_FILE_VERSION = 5; // Increment version for status bar sections
+constexpr uint8_t SETTINGS_COUNT = 32; // Added 3 status bar sections
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 }
 
@@ -62,6 +62,7 @@ bool SystemSetting::saveToFile() const {
     serialization::writePod(outputFile, hideBatteryPercentage);
     serialization::writePod(outputFile, longPressChapterSkip);
     serialization::writePod(outputFile, hyphenationEnabled);
+    serialization::writePod(outputFile, readerShortPwrBtn);
     serialization::writeString(outputFile, std::string(opdsUsername));
     serialization::writeString(outputFile, std::string(opdsPassword));
     serialization::writePod(outputFile, sleepScreenCoverFilter);
@@ -183,6 +184,9 @@ bool SystemSetting::loadFromFile() {
         if (++settingsRead >= fileSettingsCount) break;
         
         serialization::readPod(inputFile, hyphenationEnabled);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        readAndValidate(inputFile, readerShortPwrBtn, READER_SHORT_PWRBTN_COUNT);
         if (++settingsRead >= fileSettingsCount) break;
         
         {
