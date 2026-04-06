@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>CrossPoint Reader — File Manager</title>
+  <title>Inx Reader — File Manager</title>
   <style>
     * {
       margin: 0;
@@ -720,7 +720,7 @@
 <div class="container">
   <!-- Header - Same as dashboard -->
   <div class="header">
-    <h1>CrossPoint Reader</h1>
+    <h1>Inx Reader</h1>
     <div class="subtitle">Manage your EPUB library</div>
   </div>
 

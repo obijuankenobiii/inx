@@ -171,7 +171,7 @@ See [Development](#development) below.
 
 ### Checking out the code
 
-CrossPoint uses PlatformIO for building and flashing the firmware. To get started, clone the repository:
+Inx uses PlatformIO for building and flashing the firmware. To get started, clone the repository:
 
 ```
 git clone --recursive https://github.com/obijuankenobiii/inx
