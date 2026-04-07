@@ -71,7 +71,6 @@ private:
     std::unique_ptr<BookProgress> bookProgress = nullptr;
     std::unique_ptr<StatusBar> statusBar = nullptr;
     TaskHandle_t displayTaskHandle = nullptr;
-    SemaphoreHandle_t renderingMutex = nullptr;
     int currentSpineIndex = 0;
     int nextPageNumber = 0;
     int pagesUntilFullRefresh = 0;

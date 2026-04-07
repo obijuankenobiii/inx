@@ -113,7 +113,7 @@ void MenuDrawer::drawBackground() {
 
   std::string displayTitle = bookTitle;
   if (displayTitle.length() > 30) {
-      displayTitle.replace(27, std::string::npos, "...");
+    displayTitle.replace(27, std::string::npos, "...");
   }
 
   currentY += 25;
@@ -212,7 +212,6 @@ void MenuDrawer::renderToc() {
   const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
   renderer.drawLine(0, dividerY, screenWidth, dividerY, true);
 
-  // Calculate which items to show based on scroll position
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
   int drawY = dividerY + 2;
 
@@ -268,7 +267,7 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
 
-  if (input.wasPressed(MappedInputManager::Button::Up)) {
+  if (input.wasReleased(MappedInputManager::Button::Up)) {
     if (skipPage) {
       tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems;
     } else {
@@ -276,7 +275,7 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
     }
     lastInputTime = currentTime;
     renderWithRefresh();
-  } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+  } else if (input.wasReleased(MappedInputManager::Button::Down)) {
     if (skipPage) {
       tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
     } else {
@@ -284,21 +283,20 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
     }
     lastInputTime = currentTime;
     renderWithRefresh();
-  } else if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+  } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
       const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
 
       showingToc = false;
       visible = false;
 
-      // Check if callback exists before calling
       if (tocSelectionCallback) {
         tocSelectionCallback(newSpineIndex);
       }
 
       lastInputTime = currentTime;
     }
-  } else if (input.wasPressed(MappedInputManager::Button::Back)) {
+  } else if (input.wasReleased(MappedInputManager::Button::Back)) {
     exitToc();
     lastInputTime = currentTime;
     renderWithRefresh();
@@ -331,7 +329,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     return;
   }
 
-  if (input.wasPressed(MappedInputManager::Button::Up)) {
+  if (input.wasReleased(MappedInputManager::Button::Up)) {
     if (selectedIndex > 0) {
       selectedIndex--;
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
@@ -339,7 +337,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
       renderWithRefresh();
     }
   }
-  if (input.wasPressed(MappedInputManager::Button::Down)) {
+  if (input.wasReleased(MappedInputManager::Button::Down)) {
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
@@ -350,7 +348,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
       renderWithRefresh();
     }
   }
-  if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
@@ -364,7 +362,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
           onDismiss();
         }
         lastInputTime = currentTime;
-        
+
         if (onAction) {
           onAction(menuItems[selectedIndex].action);
         }
@@ -372,7 +370,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
       }
     }
   }
-  if (input.isPressed(MappedInputManager::Button::Back)) {
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
     hide();
     if (onDismiss) {
       onDismiss();
