@@ -131,13 +131,6 @@ void RecentActivity::onEnter() {
   loadRecentBooks();
 
   currentViewMode = (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) ? ViewMode::Grid : ViewMode::Default;
-  if (currentViewMode == ViewMode::Default) {
-    renderDefault();
-  } else {
-    renderGrid(TAB_BAR_HEIGHT - 20);
-  }
-
-  firstRender = false;
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 4096, this, 1, &displayTaskHandle);
@@ -178,12 +171,22 @@ void RecentActivity::renderGrid(int startY) {
   int visibleRows = getVisibleRows();
   int startRow = scrollOffset;
   int endRow = std::min(startRow + visibleRows, (totalBooks + GRID_COLS - 1) / GRID_COLS);
+  
+  int maxItemsPerRender = 4;
+  int itemsRendered = 0;
+  
   for (int row = startRow; row < endRow; ++row) {
     for (int col = 0; col < GRID_COLS; ++col) {
       int bookIdx = row * GRID_COLS + col;
-      if (bookIdx >= totalBooks) return;
+      if (bookIdx >= totalBooks) break;
+      
+      if (itemsRendered >= maxItemsPerRender) {
+        return;
+      }
+      
       bool isSelected = (selectorIndex == bookIdx);
       renderGridItem(col, row - startRow, startY, recentBooks[bookIdx], isSelected);
+      itemsRendered++;
     }
   }
 }
@@ -348,6 +351,7 @@ void RecentActivity::displayTaskLoop() {
     vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
+
 /**
  * Renders a single list item with thumbnail and details.
  */
