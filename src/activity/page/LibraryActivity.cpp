@@ -1135,16 +1135,17 @@ void LibraryActivity::renderLibraryList(int startY) const {
               : "Library";
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 38, secondLineText.c_str(), !isSelected);
 
-      if (isBookOpened(item.path)) {
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
-                          renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, secondLineText.c_str()) + iconX + 30,
-                          drawY + 38, "(reading)", !isSelected, EpdFontFamily::ITALIC);
-      }
-
-      if (isBookFinished(item.path)) {
+      bool isDone = isBookFinished(item.path);
+      if (isDone) {
         renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                           renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, secondLineText.c_str()) + iconX + 30,
                           drawY + 38, "(completed)", !isSelected, EpdFontFamily::ITALIC);
+      }
+
+      if (isBookOpened(item.path) && !isDone) {
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                          renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, secondLineText.c_str()) + iconX + 30,
+                          drawY + 38, "(reading)", !isSelected, EpdFontFamily::ITALIC);
       }
 
     } else {

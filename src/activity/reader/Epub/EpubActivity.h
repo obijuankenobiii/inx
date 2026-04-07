@@ -65,9 +65,10 @@ private:
     bool isToggleClosed = false;
     bool settingsChanged = false;
     bool isBookmarking = false;
+    bool isDoingSomethingHeavy = false;
     std::unique_ptr<Epub> epub;
     std::unique_ptr<Section> section = nullptr;
-    std::unique_ptr<BookProgress> bookProgress = nullptr;  // Progress handler for this book
+    std::unique_ptr<BookProgress> bookProgress = nullptr;
     std::unique_ptr<StatusBar> statusBar = nullptr;
     TaskHandle_t displayTaskHandle = nullptr;
     SemaphoreHandle_t renderingMutex = nullptr;
@@ -79,7 +80,6 @@ private:
     bool updateRequired = false;
     bool bookmarkLongPressProcessed = false;
     bool leftLongPressProcessed = false;
-    
     int loadingProgress = 0;
     
     const std::function<void()> onGoBack;
@@ -104,9 +104,6 @@ private:
     uint32_t pageStartTime;
     uint32_t lastSaveTime;
     
-    // TOC navigation pending index (deferred to prevent crashes)
-    int pendingTocSpineIndex = -1;
-
     static void taskTrampoline(void* param);
     [[noreturn]] void displayTaskLoop();
     void renderScreen();
@@ -185,6 +182,11 @@ private:
      * Deletes the book cache.
      */
     void deleteCache();
+    
+    /**
+     * Go home.
+     */
+    void goHome();
     
     /**
      * Deletes the reading progress.
