@@ -78,4 +78,15 @@ class LocalServer {
   void handleUploadPost() const;
   void handleCreateFolder() const;
   void handleDelete() const;
+
+  // Settings page handlers
+  void handleSettingsPage() const;
+  void handleSettingsGet() const;
+  void handleSettingsUpdate() const;
+
+  void handleWifiGet() const;
+  void handleWifiPost() const;
+  void handleWifiDelete() const;
+  void handleKOReaderGet() const;
+  void handleKOReaderPost() const;
 };
