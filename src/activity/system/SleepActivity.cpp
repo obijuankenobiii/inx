@@ -188,9 +188,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderer.clearScreen();
-      renderer.drawBitmap(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      renderBitmapSleepScreen(bitmap);
     }
     file.close();
     return;

@@ -62,7 +62,7 @@ void MenuDrawer::show() {
   scrollOffset = 0;
   tocSelectedIndex = 0;
   tocScrollOffset = 0;
-  renderWithRefresh(HalDisplay::FAST_REFRESH);
+  renderWithRefresh();
 }
 
 /**
@@ -79,15 +79,14 @@ void MenuDrawer::hide() {
  */
 void MenuDrawer::render() {
   if (!visible) return;
-  renderWithRefresh(HalDisplay::FAST_REFRESH);
+  renderWithRefresh();
 }
 
 /**
  * @brief Renders the menu drawer with specified refresh mode
  * @param mode Display refresh mode
  */
-void MenuDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
-  // Only render if visible
+void MenuDrawer::renderWithRefresh() {
   if (!visible) return;
 
   if (showingToc) {
@@ -114,7 +113,7 @@ void MenuDrawer::drawBackground() {
 
   std::string displayTitle = bookTitle;
   if (displayTitle.length() > 30) {
-      displayTitle.replace(27, std::string::npos, "...");
+    displayTitle.replace(27, std::string::npos, "...");
   }
 
   currentY += 25;
@@ -213,7 +212,6 @@ void MenuDrawer::renderToc() {
   const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
   renderer.drawLine(0, dividerY, screenWidth, dividerY, true);
 
-  // Calculate which items to show based on scroll position
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
   int drawY = dividerY + 2;
 
@@ -269,40 +267,39 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
 
-  if (input.wasPressed(MappedInputManager::Button::Up)) {
+  if (input.wasReleased(MappedInputManager::Button::Up)) {
     if (skipPage) {
       tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems;
     } else {
       tocSelectedIndex = (tocSelectedIndex + totalItems - 1) % totalItems;
     }
     lastInputTime = currentTime;
-    renderWithRefresh(HalDisplay::FAST_REFRESH);
-  } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+    renderWithRefresh();
+  } else if (input.wasReleased(MappedInputManager::Button::Down)) {
     if (skipPage) {
       tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
     } else {
       tocSelectedIndex = (tocSelectedIndex + 1) % totalItems;
     }
     lastInputTime = currentTime;
-    renderWithRefresh(HalDisplay::FAST_REFRESH);
-  } else if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+    renderWithRefresh();
+  } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
       const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
 
       showingToc = false;
       visible = false;
 
-      // Check if callback exists before calling
       if (tocSelectionCallback) {
         tocSelectionCallback(newSpineIndex);
       }
 
       lastInputTime = currentTime;
     }
-  } else if (input.wasPressed(MappedInputManager::Button::Back)) {
+  } else if (input.wasReleased(MappedInputManager::Button::Back)) {
     exitToc();
     lastInputTime = currentTime;
-    renderWithRefresh(HalDisplay::FAST_REFRESH);
+    renderWithRefresh();
   }
 }
 
@@ -332,15 +329,15 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     return;
   }
 
-  if (input.wasPressed(MappedInputManager::Button::Up)) {
+  if (input.wasReleased(MappedInputManager::Button::Up)) {
     if (selectedIndex > 0) {
       selectedIndex--;
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
       lastInputTime = currentTime;
-      renderWithRefresh(HalDisplay::FAST_REFRESH);
+      renderWithRefresh();
     }
   }
-  if (input.wasPressed(MappedInputManager::Button::Down)) {
+  if (input.wasReleased(MappedInputManager::Button::Down)) {
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
@@ -348,34 +345,37 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
       }
       lastInputTime = currentTime;
-      renderWithRefresh(HalDisplay::FAST_REFRESH);
+      renderWithRefresh();
     }
   }
-  if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
         tocSelectedIndex = 0;
         tocScrollOffset = 0;
         lastInputTime = currentTime;
-        renderWithRefresh(HalDisplay::FAST_REFRESH);
+        renderWithRefresh();
       } else {
-        // Check if callback exists before calling
+        hide();
+        if (onDismiss) {
+          onDismiss();
+        }
+        lastInputTime = currentTime;
+
         if (onAction) {
           onAction(menuItems[selectedIndex].action);
         }
-        hide();
-        lastInputTime = currentTime;
-        renderWithRefresh(HalDisplay::FAST_REFRESH);
+        renderWithRefresh();
       }
     }
   }
-  if (input.isPressed(MappedInputManager::Button::Back)) {
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
     hide();
     if (onDismiss) {
       onDismiss();
     }
     lastInputTime = currentTime;
-    renderWithRefresh(HalDisplay::FAST_REFRESH);
+    renderWithRefresh();
   }
 }

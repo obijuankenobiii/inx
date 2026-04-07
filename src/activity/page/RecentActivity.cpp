@@ -131,13 +131,6 @@ void RecentActivity::onEnter() {
   loadRecentBooks();
 
   currentViewMode = (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) ? ViewMode::Grid : ViewMode::Default;
-  if (currentViewMode == ViewMode::Default) {
-    renderDefault();
-  } else {
-    renderGrid(TAB_BAR_HEIGHT - 20);
-  }
-
-  firstRender = false;
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 4096, this, 1, &displayTaskHandle);
@@ -178,12 +171,22 @@ void RecentActivity::renderGrid(int startY) {
   int visibleRows = getVisibleRows();
   int startRow = scrollOffset;
   int endRow = std::min(startRow + visibleRows, (totalBooks + GRID_COLS - 1) / GRID_COLS);
+  
+  int maxItemsPerRender = 4;
+  int itemsRendered = 0;
+  
   for (int row = startRow; row < endRow; ++row) {
     for (int col = 0; col < GRID_COLS; ++col) {
       int bookIdx = row * GRID_COLS + col;
-      if (bookIdx >= totalBooks) return;
+      if (bookIdx >= totalBooks) break;
+      
+      if (itemsRendered >= maxItemsPerRender) {
+        return;
+      }
+      
       bool isSelected = (selectorIndex == bookIdx);
       renderGridItem(col, row - startRow, startY, recentBooks[bookIdx], isSelected);
+      itemsRendered++;
     }
   }
 }
@@ -225,10 +228,10 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth();
-        int bh = bitmap.getHeight();
+        int bw = bitmap.getWidth() > 225 ? containerWidth : bitmap.getWidth();
+        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
 
         int scaledW = bw * 98 / 100;
         int scaledH = bh * 98 / 100;
@@ -348,6 +351,7 @@ void RecentActivity::displayTaskLoop() {
     vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
+
 /**
  * Renders a single list item with thumbnail and details.
  */
@@ -391,7 +395,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", smThumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         int bitmapWidth = bitmap.getWidth();
         int bitmapHeight = bitmap.getHeight();
@@ -564,10 +568,10 @@ void RecentActivity::renderDefault() {
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file);
+      Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth();
-        int bh = bitmap.getHeight();
+        int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
+        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
         int drawX = coverAreaX + (coverWidth - bw) / 2;
         int drawY = coverAreaY + (coverHeight - bh) / 2;
         renderer.drawSmallBitmapClean(bitmap, drawX, drawY, bw, bh);

@@ -27,7 +27,7 @@ constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
-}  // namespace
+}
 
 /**
  * @brief Structure containing viewport calculation results.
@@ -74,9 +74,7 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       menuDrawerVisible(false),
       pageStartTime(0),
       lastSaveTime(0),
-      bookProgress(nullptr),
-      pendingTocSpineIndex(-1),
-      renderingMutex(nullptr) {
+      bookProgress(nullptr) {
   bookmarks.reserve(MAX_BOOKMARKS);
   loadBookSettings();
 
@@ -148,12 +146,10 @@ ViewportInfo EpubActivity::calculateViewport() {
   info.totalMarginLeft = oL + bookSettings.screenMargin;
   info.totalMarginRight = oR + bookSettings.screenMargin;
 
-  // Check if any status bar section has content
   bool hasStatusBar = (bookSettings.statusBarLeft.item != StatusBarItem::NONE ||
                        bookSettings.statusBarMiddle.item != StatusBarItem::NONE ||
                        bookSettings.statusBarRight.item != StatusBarItem::NONE);
 
-  // Check if progress bar should be shown (middle section is progress bar or progress bar with percent)
   bool showProgressBar = (bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR ||
                           bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR_WITH_PERCENT);
 
@@ -183,6 +179,7 @@ ViewportInfo EpubActivity::calculateViewport() {
 bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool showProgress, bool skipImages) {
   if (!epub) return false;
 
+  isDoingSomethingHeavy = true;
   std::string cachePath = epub->getCachePath();
   std::string sectionPath = cachePath + "/" + std::to_string(spineIndex) + ".sec";
 
@@ -205,6 +202,13 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       tempSection->createSectionFile(info.fontId, headerFontId, info.lineCompression,
                                      bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
                                      info.height, bookSettings.hyphenationEnabled, progressCallback, skipImages);
+
+  if (isDoingSomethingHeavy && showProgress) {
+    renderer.clearScreen();
+    renderer.displayBuffer();
+  }
+
+  isDoingSomethingHeavy = false;
 
   return success;
 }
@@ -338,7 +342,6 @@ void EpubActivity::displayCoverOrTitle() {
     Bitmap coverBmp(coverFile);
     if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
       renderer.clearScreen();
-      updateRequired = true;
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
       renderer.displayBuffer();
     }
@@ -396,7 +399,7 @@ void EpubActivity::preloadChapters() {
  * @brief Updates recent books and app state
  */
 void EpubActivity::updateExternalState() {
-  APP_STATE.lastRead = epub->getPath();
+  APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
   float spineProgress = section ? static_cast<float>(section->currentPage) / section->pageCount : 0;
@@ -419,10 +422,6 @@ void EpubActivity::fastPath() {
   }
 
   loadCurrentSection();
-  updateExternalState();
-  loadBookmarks();
-  initStats();
-
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
   xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
@@ -436,10 +435,10 @@ void EpubActivity::slowPath() {
   loadingProgress = 10;
   drawLoadingScreen();
   vTaskDelay(pdMS_TO_TICKS(50));
-  
+
   ensureThumbnailExists();
   currentSpineIndex = epub->getSpineIndexForTextReference();
-  nextPageNumber = 30;
+  nextPageNumber = 0;
 
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
 
@@ -448,9 +447,7 @@ void EpubActivity::slowPath() {
   drawLoadingScreen();
 
   loadCurrentSection();
-  updateExternalState();
 
-  initStats();
   loadingProgress = 100;
   drawLoadingScreen();
 
@@ -464,17 +461,18 @@ void EpubActivity::slowPath() {
  */
 void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
-  renderer.clearScreen();
-  renderer.displayBuffer();
   epub->setupCacheDir();
+  renderer.clearScreen(0xff);
+  renderer.displayBuffer();
 
   setupOrientation();
-  renderingMutex = xSemaphoreCreateMutex();
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
-
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
+  updateExternalState();
+  loadBookmarks();
+  initStats();
 
   if (book && hasProgress) {
     fastPath();
@@ -526,11 +524,8 @@ void EpubActivity::onExit() {
 
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
 
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
-
+  APP_STATE.lastRead = epub->getPath();
+  APP_STATE.saveToFile();
   section.reset();
   bookProgress.reset();
   statusBar.reset();
@@ -543,18 +538,17 @@ void EpubActivity::onExit() {
  * @brief Main loop function called repeatedly while activity is active
  */
 void EpubActivity::loop() {
-  if (pendingTocSpineIndex >= 0) {
-    onTocChapterSelected(pendingTocSpineIndex);
-    return;
-  }
-
-  if (subActivity) {
-    subActivity->loop();
+  if (isDoingSomethingHeavy) {
     return;
   }
 
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
+    return;
+  }
+
+  if (subActivity) {
+    subActivity->loop();
     return;
   }
 
@@ -596,7 +590,6 @@ void EpubActivity::loop() {
     return;
   }
 
-  // Only process input if we're not in a refresh state
   if (mappedInput.isPressed(menuBtn) && mappedInput.getHeldTime() >= 500) {
     endPageTimer();
     toggleSettingsDrawer();
@@ -644,22 +637,17 @@ void EpubActivity::loop() {
   if (skipChapter && (prev || next)) {
     endPageTimer();
 
-    if (renderingMutex != nullptr) {
-      if (xSemaphoreTake(renderingMutex, portMAX_DELAY) == pdTRUE) {
-        if (next) {
-          if (currentSpineIndex < epub->getSpineItemsCount() - 1) {
-            currentSpineIndex++;
-            nextPageNumber = 0;
-            section.reset();
-          }
-        } else if (prev) {
-          if (currentSpineIndex > 0) {
-            currentSpineIndex--;
-            nextPageNumber = 0;
-            section.reset();
-          }
-        }
-        xSemaphoreGive(renderingMutex);
+    if (next) {
+      if (currentSpineIndex < epub->getSpineItemsCount() - 1) {
+        currentSpineIndex++;
+        nextPageNumber = 0;
+        section.reset();
+      }
+    } else if (prev) {
+      if (currentSpineIndex > 0) {
+        currentSpineIndex--;
+        nextPageNumber = 0;
+        section.reset();
       }
     }
 
@@ -694,15 +682,14 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (mappedInput.getHeldTime() >= bookmarkHoldMs) {
-      addBookmark();
-      return;
-    } else {
-      endPageTimer();
-      toggleMenuDrawer();
-      return;
-    }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
+    endPageTimer();
+    toggleMenuDrawer();
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= bookmarkHoldMs) {
+    addBookmark();
+    return;
   }
 
   if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
@@ -719,28 +706,11 @@ void EpubActivity::loop() {
  * @param spineIndex The spine index to navigate to
  */
 void EpubActivity::onTocChapterSelected(int spineIndex) {
-  menuDrawer->hide();
-  menuDrawerVisible = false;
-  if (spineIndex < 0 || !epub || spineIndex >= epub->getSpineItemsCount()) {
-    pendingTocSpineIndex = -1;
-    return;
-  }
-
-  if (renderingMutex) {
-    if (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-      currentSpineIndex = spineIndex;
-      nextPageNumber = 0;
-      section.reset();
-      updateRequired = true;
-      xSemaphoreGive(renderingMutex);
-      if (spineIndex == 0) {
-        pendingTocSpineIndex = -1;
-      }
-    } else {
-      pendingTocSpineIndex = -1;
-      return;
-    }
-  }
+  toggleMenuDrawer();
+  currentSpineIndex = spineIndex;
+  nextPageNumber = 0;
+  section.reset();
+  updateRequired = true;
 
   startPageTimer();
 }
@@ -749,8 +719,6 @@ void EpubActivity::onTocChapterSelected(int spineIndex) {
  * @brief Toggles the menu drawer visibility
  */
 void EpubActivity::toggleMenuDrawer() {
-  if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
   if (!menuDrawer) {
     menuDrawer = new MenuDrawer(
         renderer,
@@ -762,7 +730,7 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
             case MenuDrawer::MenuAction::GO_HOME:
-              onGoBack();
+              goHome();
               break;
             case MenuDrawer::MenuAction::DELETE_CACHE:
               deleteCache();
@@ -779,29 +747,22 @@ void EpubActivity::toggleMenuDrawer() {
           }
         },
         [this]() {
-          menuDrawerVisible = false;
-          pendingTocSpineIndex = -1;
           updateRequired = true;
           startPageTimer();
         });
-
     if (epub) {
       menuDrawer->setEpub(epub.get());
-      menuDrawer->setTocSelectionCallback([this](int spineIndex) { pendingTocSpineIndex = spineIndex; });
+      menuDrawer->setTocSelectionCallback([this](int spineIndex) { onTocChapterSelected(spineIndex); });
     }
   }
 
   menuDrawerVisible = !menuDrawerVisible;
 
   if (menuDrawerVisible) {
-    if (renderingMutex) xSemaphoreGive(renderingMutex);
     menuDrawer->setBookTitle(epub->getTitle());
     menuDrawer->show();
   } else {
     menuDrawer->hide();
-    menuDrawer = nullptr;
-    menuDrawerVisible = false;
-    delete menuDrawer;
   }
 }
 
@@ -809,8 +770,6 @@ void EpubActivity::toggleMenuDrawer() {
  * @brief Toggles the settings drawer visibility
  */
 void EpubActivity::toggleSettingsDrawer() {
-  if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
   if (!settingsDrawer) {
     settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() {});
   }
@@ -818,7 +777,6 @@ void EpubActivity::toggleSettingsDrawer() {
   settingsDrawerVisible = !settingsDrawerVisible;
 
   if (settingsDrawerVisible) {
-    if (renderingMutex) xSemaphoreGive(renderingMutex);
     settingsDrawer->show();
     return;
   }
@@ -828,15 +786,13 @@ void EpubActivity::toggleSettingsDrawer() {
  * @brief Shows the bookmark menu
  */
 void EpubActivity::showBookmarkMenu() {
-  menuDrawerVisible = false;
   if (!bookmarks.empty()) {
     exitActivity();
     enterNewActivity(new BookmarkActivity(
         renderer, mappedInput, bookmarks, epub->getTitle(), currentSpineIndex, section ? section->currentPage : 0,
         [this](int index) {
-          goToBookmark(index);
           exitActivity();
-          updateRequired = true;
+          goToBookmark(index);
         },
         [this](int index) {
           removeBookmark(index);
@@ -855,18 +811,21 @@ void EpubActivity::showBookmarkMenu() {
 }
 
 /**
+ * @brief Go home
+ */
+void EpubActivity::goHome() {
+  ScreenComponents::drawPopup(renderer, "Closing book");
+  vTaskDelay(pdMS_TO_TICKS(100));
+  onGoBack();
+}
+
+/**
  * @brief Deletes the book cache
  */
 void EpubActivity::deleteCache() {
   ScreenComponents::drawPopup(renderer, "Deleting all book data...");
   vTaskDelay(pdMS_TO_TICKS(100));
 
-  if (!epub) {
-    updateRequired = true;
-    return;
-  }
-
-  menuDrawer->hide();
   std::string bookPath = epub->getPath();
 
   epub->clearCache();
@@ -886,15 +845,13 @@ void EpubActivity::deleteCache() {
   BOOK_STATE.setReading(bookPath, false);
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
+  RECENT_BOOKS.removeBook(bookPath);
 
   currentSpineIndex = 0;
   nextPageNumber = 0;
   cachedSpineIndex = 0;
   cachedChapterTotalPageCount = 0;
 
-  menuDrawerVisible = false;
-  menuDrawer = nullptr;
-  delete menuDrawer;
   onGoBack();
 }
 
@@ -902,10 +859,12 @@ void EpubActivity::deleteCache() {
  * @brief Deletes the reading progress
  */
 void EpubActivity::deleteProgress() {
+  ScreenComponents::drawPopup(renderer, "Removing progress");
+  vTaskDelay(pdMS_TO_TICKS(100));
   if (!epub) {
     return;
   }
-  menuDrawer->hide();
+
   int currentSpine = currentSpineIndex;
   int currentPage = section ? section->currentPage : 0;
 
@@ -924,12 +883,6 @@ void EpubActivity::deleteProgress() {
     section.reset();
   }
 
-  ScreenComponents::drawPopup(renderer, "Progress deleted");
-  vTaskDelay(pdMS_TO_TICKS(500));
-
-  menuDrawerVisible = false;
-  menuDrawer = nullptr;
-  delete menuDrawer;
   updateRequired = true;
 }
 
@@ -945,7 +898,6 @@ void EpubActivity::deleteBook() {
     return;
   }
 
-  menuDrawer->hide();
   std::string bookPath = epub->getPath();
   std::string cacheDir = epub->getCachePath();
 
@@ -1005,9 +957,6 @@ void EpubActivity::deleteBook() {
   ScreenComponents::drawPopup(renderer, resultMsg);
   vTaskDelay(pdMS_TO_TICKS(1500));
 
-  menuDrawerVisible = false;
-  menuDrawer = nullptr;
-  delete menuDrawer;
   onGoBack();
 }
 
@@ -1027,10 +976,6 @@ void EpubActivity::generateFullData() {
 
   loadingProgress = 100;
   drawLoadingScreen();
-
-  menuDrawerVisible = false;
-  menuDrawer = nullptr;
-  delete menuDrawer;
 }
 
 /**
@@ -1038,25 +983,17 @@ void EpubActivity::generateFullData() {
  * @param forward True for forward page turn, false for backward
  */
 void EpubActivity::pageTurn(bool forward) {
-  if (!renderingMutex || !epub) {
-    updateRequired = true;
-    return;
-  }
-
-  bool mutexAcquired = (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(200)) == pdTRUE);
-  if (!mutexAcquired) {
+  if (!epub) {
     updateRequired = true;
     return;
   }
 
   if (!section) {
-    xSemaphoreGive(renderingMutex);
     updateRequired = true;
     return;
   }
 
   if (section->pageCount == 0) {
-    xSemaphoreGive(renderingMutex);
     section.reset();
     updateRequired = true;
     return;
@@ -1099,9 +1036,6 @@ void EpubActivity::pageTurn(bool forward) {
     currentSpineIndex = newSpineIndex;
     nextPageNumber = newNextPageNumber;
     section.reset();
-    xSemaphoreGive(renderingMutex);
-  } else {
-    xSemaphoreGive(renderingMutex);
   }
 
   startPageTimer();
@@ -1115,15 +1049,9 @@ void EpubActivity::pageTurn(bool forward) {
   while (true) {
     if (updateRequired) {
       updateRequired = false;
-
-      if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        renderScreen();
-        xSemaphoreGive(renderingMutex);
-      } else {
-        updateRequired = true;
-      }
+      renderScreen();
     }
-    vTaskDelay(20 / portTICK_PERIOD_MS);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
 
@@ -1216,6 +1144,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
 
+  if (page->hasImages() && !isBookmarking) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+
+  if (!page->hasImages() && lastPageHadImages && !isBookmarking) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+
   page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
                orientedMarginLeft, orientedMarginTop, false);
 
@@ -1232,22 +1168,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     return;
   }
 
-  if (page->hasImages() && !isBookmarking) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    lastPageHadImages = true;
-  }
-
-  if (!page->hasImages() && lastPageHadImages && !isBookmarking)
-  {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    lastPageHadImages = false;
-  }
-
   pagesUntilFullRefresh--;
   renderer.displayBuffer();
-  renderer.storeBwBuffer();
 
   if (page->hasImages()) {
+    isDoingSomethingHeavy = true;
+    renderer.storeBwBuffer();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
@@ -1263,11 +1189,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.restoreBwBuffer();
-  } else {
-    renderer.restoreBwBuffer();
+    isDoingSomethingHeavy = false;
   }
 
-  
+  lastPageHadImages = page->hasImages();
 }
 
 /**
@@ -1351,9 +1276,6 @@ void EpubActivity::saveBookmarks() {
 /**
  * @brief Adds a bookmark at the current position
  */
-/**
- * @brief Adds a bookmark at the current position
- */
 void EpubActivity::addBookmark() {
   if (!section) return;
   isBookmarking = true;
@@ -1423,19 +1345,14 @@ void EpubActivity::goToBookmark(int index) {
   if (index >= 0 && index < static_cast<int>(bookmarks.size())) {
     const auto& bookmark = bookmarks[index];
 
-    if (renderingMutex) {
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
-      if (currentSpineIndex != bookmark.spineIndex) {
-        currentSpineIndex = bookmark.spineIndex;
-        nextPageNumber = bookmark.pageNumber;
-        section.reset();
-      } else if (section) {
-        section->currentPage = bookmark.pageNumber;
-      }
-
-      xSemaphoreGive(renderingMutex);
+    if (currentSpineIndex != bookmark.spineIndex) {
+      currentSpineIndex = bookmark.spineIndex;
+      nextPageNumber = bookmark.pageNumber;
+      section.reset();
+    } else if (section) {
+      section->currentPage = bookmark.pageNumber;
     }
+
     updateRequired = true;
   }
 }
@@ -1499,8 +1416,6 @@ void EpubActivity::saveBookSettings() {
  * @brief Applies current book settings and rebuilds affected sections
  */
 void EpubActivity::applyBookSettings() {
-  if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
-
   int currentPage = 0;
   int currentSpine = currentSpineIndex;
 
@@ -1515,7 +1430,6 @@ void EpubActivity::applyBookSettings() {
   }
 
   if (!epub) {
-    if (renderingMutex) xSemaphoreGive(renderingMutex);
     return;
   }
 
@@ -1523,7 +1437,6 @@ void EpubActivity::applyBookSettings() {
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {
-    if (renderingMutex) xSemaphoreGive(renderingMutex);
     return;
   }
 
@@ -1551,8 +1464,6 @@ void EpubActivity::applyBookSettings() {
 
   currentSpineIndex = currentSpine;
   nextPageNumber = currentPage;
-
-  if (renderingMutex) xSemaphoreGive(renderingMutex);
 
   updateRequired = true;
 }
@@ -1653,7 +1564,6 @@ void EpubActivity::displayBookStats() {
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
-  // Center the stats on screen
   int statsX = (screenW - 250) / 2;
   int statsY = (screenH - 300) / 2;
   int currentY = statsY;
@@ -1661,28 +1571,24 @@ void EpubActivity::displayBookStats() {
 
   renderer.drawText(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
-  // Reading Time
   uint32_t readingTime = stats.totalReadingTimeMs;
   std::string timeStr = formatTime(readingTime);
   renderer.drawText(VALUE_FONT, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Reading Time", true);
   currentY += 87;
 
-  // Pages Read
   uint32_t pagesRead = stats.totalPagesRead;
   snprintf(buffer, sizeof(buffer), "%u", pagesRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Pages", true);
   currentY += 87;
 
-  // Chapters Read
   uint32_t chaptersRead = stats.totalChaptersRead;
   snprintf(buffer, sizeof(buffer), "%u", chaptersRead);
   renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
   currentY += 87;
 
-  // Average Time Per Page
   uint32_t avgPageTime = stats.avgPageTimeMs;
   if (avgPageTime > 0) {
     snprintf(buffer, sizeof(buffer), "%us", avgPageTime / 1000);

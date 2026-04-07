@@ -12,7 +12,11 @@
 
 #include "html/FilesPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
+#include "html/SettingsPageHtml.generated.h"
 #include "util/StringUtils.h"
+#include "state/SystemSetting.h"
+#include "KOReaderCredentialStore.h"
+#include "state/NetworkCredential.h"
 
 namespace {
 // Folders/files to hide from the web interface file browser
@@ -112,6 +116,17 @@ void LocalServer::begin() {
 
   // Delete file/folder endpoint
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+
+
+  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
+  server->on("/api/settings", HTTP_GET, [this] { handleSettingsGet(); });
+  server->on("/api/settings", HTTP_POST, [this] { handleSettingsUpdate(); });
+
+  server->on("/api/wifi", HTTP_GET, [this] { handleWifiGet(); });
+  server->on("/api/wifi", HTTP_POST, [this] { handleWifiPost(); });
+  server->on("/api/wifi/*", HTTP_DELETE, [this] { handleWifiDelete(); });
+  server->on("/api/koreader", HTTP_GET, [this] { handleKOReaderGet(); });
+  server->on("/api/koreader", HTTP_POST, [this] { handleKOReaderPost(); });
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -948,4 +963,281 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
     default:
       break;
   }
+}
+
+void LocalServer::handleSettingsPage() const {
+  server->send(200, "text/html", SettingsPageHtml);
+  Serial.printf("[%lu] [WEB] Served settings page\n", millis());
+}
+
+void LocalServer::handleSettingsGet() const {
+  JsonDocument doc;
+  
+  // Display settings
+  doc["sleepScreen"] = SETTINGS.sleepScreen;
+  doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
+  doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
+  doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
+  doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
+  
+  // Reader settings - Font
+  doc["fontFamily"] = SETTINGS.fontFamily;
+  doc["fontSize"] = SETTINGS.fontSize;
+  
+  // Reader settings - Layout
+  doc["lineSpacing"] = SETTINGS.lineSpacing;
+  doc["screenMargin"] = SETTINGS.screenMargin;
+  doc["paragraphAlignment"] = SETTINGS.paragraphAlignment;
+  doc["extraParagraphSpacing"] = SETTINGS.extraParagraphSpacing;
+  doc["orientation"] = SETTINGS.orientation;
+  doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
+  
+  // Reader settings - Navigation
+  doc["readerDirectionMapping"] = SETTINGS.readerDirectionMapping;
+  doc["readerMenuButton"] = SETTINGS.readerMenuButton;
+  doc["longPressChapterSkip"] = SETTINGS.longPressChapterSkip;
+  doc["readerShortPwrBtn"] = SETTINGS.readerShortPwrBtn;
+  
+  // Reader settings - Status Bar
+  doc["textAntiAliasing"] = SETTINGS.textAntiAliasing;
+  doc["refreshFrequency"] = SETTINGS.refreshFrequency;
+  doc["statusBar"] = SETTINGS.statusBar;
+  doc["statusBarLeft"] = SETTINGS.statusBarLeft;
+  doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
+  doc["statusBarRight"] = SETTINGS.statusBarRight;
+  
+  // Controls settings
+  doc["frontButtonLayout"] = SETTINGS.frontButtonLayout;
+  doc["shortPwrBtn"] = SETTINGS.shortPwrBtn;
+  
+  // System settings
+  doc["sleepTimeout"] = SETTINGS.sleepTimeout;
+  doc["useLibraryIndex"] = SETTINGS.useLibraryIndex;
+  doc["bootSetting"] = SETTINGS.bootSetting;
+  
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
+}
+
+void LocalServer::handleSettingsUpdate() const {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+  
+  String body = server->arg("plain");
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, body);
+  
+  if (error) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+  
+  bool changed = false;
+  
+  // Update each setting if present
+  for (JsonPair kv : doc.as<JsonObject>()) {
+    const char* key = kv.key().c_str();
+    int value = kv.value().as<int>();
+    
+    if (strcmp(key, "sleepScreen") == 0) {
+      SETTINGS.sleepScreen = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepScreenCoverMode") == 0) {
+      SETTINGS.sleepScreenCoverMode = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepScreenCoverFilter") == 0) {
+      SETTINGS.sleepScreenCoverFilter = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "hideBatteryPercentage") == 0) {
+      SETTINGS.hideBatteryPercentage = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "recentLibraryMode") == 0) {
+      SETTINGS.recentLibraryMode = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "fontFamily") == 0) {
+      SETTINGS.fontFamily = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "fontSize") == 0) {
+      SETTINGS.fontSize = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "lineSpacing") == 0) {
+      SETTINGS.lineSpacing = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "screenMargin") == 0) {
+      SETTINGS.screenMargin = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "paragraphAlignment") == 0) {
+      SETTINGS.paragraphAlignment = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "extraParagraphSpacing") == 0) {
+      SETTINGS.extraParagraphSpacing = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "orientation") == 0) {
+      SETTINGS.orientation = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "hyphenationEnabled") == 0) {
+      SETTINGS.hyphenationEnabled = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "readerDirectionMapping") == 0) {
+      SETTINGS.readerDirectionMapping = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "readerMenuButton") == 0) {
+      SETTINGS.readerMenuButton = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "longPressChapterSkip") == 0) {
+      SETTINGS.longPressChapterSkip = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "readerShortPwrBtn") == 0) {
+      SETTINGS.readerShortPwrBtn = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "textAntiAliasing") == 0) {
+      SETTINGS.textAntiAliasing = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshFrequency") == 0) {
+      SETTINGS.refreshFrequency = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "statusBar") == 0) {
+      SETTINGS.statusBar = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "statusBarLeft") == 0) {
+      SETTINGS.statusBarLeft = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "statusBarMiddle") == 0) {
+      SETTINGS.statusBarMiddle = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "statusBarRight") == 0) {
+      SETTINGS.statusBarRight = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "frontButtonLayout") == 0) {
+      SETTINGS.frontButtonLayout = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "shortPwrBtn") == 0) {
+      SETTINGS.shortPwrBtn = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepTimeout") == 0) {
+      SETTINGS.sleepTimeout = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "useLibraryIndex") == 0) {
+      SETTINGS.useLibraryIndex = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "bootSetting") == 0) {
+      SETTINGS.bootSetting = (uint8_t)value;
+      changed = true;
+    }
+  }
+  
+  if (changed) {
+    SETTINGS.saveToFile();
+    Serial.printf("[%lu] [WEB] Settings updated and saved\n", millis());
+  }
+  
+  server->send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void LocalServer::handleWifiGet() const {
+    JsonDocument doc;
+    const auto& creds = WIFI_STORE.getCredentials();
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto& cred : creds) {
+        JsonObject obj = arr.add<JsonObject>();
+        obj["ssid"] = cred.ssid;
+    }
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json);
+}
+
+void LocalServer::handleWifiPost() const {
+    if (!server->hasArg("plain")) {
+        server->send(400, "text/plain", "Missing JSON");
+        return;
+    }
+    
+    JsonDocument doc;
+    deserializeJson(doc, server->arg("plain"));
+    String ssid = doc["ssid"];
+    String password = doc["password"] | "";
+    
+    if (WIFI_STORE.addCredential(ssid.c_str(), password.c_str())) {
+        WIFI_STORE.saveToFile();
+        server->send(200, "application/json", "{\"status\":\"ok\"}");
+    } else {
+        server->send(500, "text/plain", "Failed to save");
+    }
+}
+
+void LocalServer::handleWifiDelete() const {
+    String uri = server->uri();
+    int lastSlash = uri.lastIndexOf('/');
+    String ssid = uri.substring(lastSlash + 1);
+    ssid.replace("%20", " ");
+    
+    if (WIFI_STORE.removeCredential(ssid.c_str())) {
+        WIFI_STORE.saveToFile();
+        server->send(200, "application/json", "{\"status\":\"ok\"}");
+    } else {
+        server->send(404, "text/plain", "Not found");
+    }
+}
+
+void LocalServer::handleKOReaderGet() const {
+    JsonDocument doc;
+    doc["username"] = KOREADER_STORE.getUsername();
+    doc["serverUrl"] = KOREADER_STORE.getServerUrl();
+    doc["matchMethod"] = (int)KOREADER_STORE.getMatchMethod();
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json);
+}
+
+void LocalServer::handleKOReaderPost() const {
+    if (!server->hasArg("plain")) {
+        server->send(400, "text/plain", "Missing JSON");
+        return;
+    }
+    
+    JsonDocument doc;
+    deserializeJson(doc, server->arg("plain"));
+    
+    String username = doc["username"] | "";
+    String password = doc["password"] | "";
+    String serverUrl = doc["serverUrl"] | "";
+    int matchMethod = doc["matchMethod"] | 0;
+    
+    KOREADER_STORE.setCredentials(username.c_str(), password.c_str());
+    KOREADER_STORE.setServerUrl(serverUrl.c_str());
+    KOREADER_STORE.setMatchMethod((DocumentMatchMethod)matchMethod);
+    KOREADER_STORE.saveToFile();
+    
+    server->send(200, "application/json", "{\"status\":\"ok\"}");
 }

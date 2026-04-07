@@ -1,6 +1,6 @@
 # Webserver Endpoints
 
-This document describes all HTTP and WebSocket endpoints available on the CrossPoint Reader webserver.
+This document describes all HTTP and WebSocket endpoints available on the Inx Reader webserver.
 
 - [Webserver Endpoints](#webserver-endpoints)
   - [Overview](#overview)
@@ -22,7 +22,7 @@ This document describes all HTTP and WebSocket endpoints available on the CrossP
 
 ## Overview
 
-The CrossPoint Reader exposes a webserver for file management and device monitoring:
+The Inx Reader exposes a webserver for file management and device monitoring:
 
 - **HTTP Server**: Port 80
 - **WebSocket Server**: Port 81 (for fast binary uploads)
@@ -80,7 +80,7 @@ curl http://crosspoint.local/api/status
 
 | Field      | Type   | Description                                               |
 | ---------- | ------ | --------------------------------------------------------- |
-| `version`  | string | CrossPoint firmware version                               |
+| `version`  | string | Inx firmware version                               |
 | `ip`       | string | Device IP address                                         |
 | `mode`     | string | `"STA"` (connected to WiFi) or `"AP"` (access point mode) |
 | `rssi`     | number | WiFi signal strength in dBm (0 in AP mode)                |
