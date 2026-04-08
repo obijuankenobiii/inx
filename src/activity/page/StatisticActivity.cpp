@@ -360,6 +360,13 @@ void StatisticActivity::render() const {
  * Processes button presses for tab navigation and page scrolling.
  */
 void StatisticActivity::loop() {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    updateRequired = true;
+    return;
+  }
+  
   if (Activity::mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (Activity::mappedInput.getHeldTime() >= GO_HOME_MS) return;
     onGoToRecent();

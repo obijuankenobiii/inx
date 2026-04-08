@@ -11,36 +11,6 @@
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
-namespace {
-/**
- * @brief RAII wrapper for thread-safe mutex operations.
- *
- * Automatically acquires a mutex on construction and releases it on destruction,
- * ensuring proper resource management even in exception scenarios.
- */
-class MutexGuard {
- private:
-  SemaphoreHandle_t& mutex;
-  bool acquired;
-
- public:
-  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-    if (mutex) {
-      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
-    }
-  }
-
-  ~MutexGuard() {
-    if (acquired && mutex) {
-      xSemaphoreGive(mutex);
-    }
-  }
-
-  bool isAcquired() const { return acquired; }
-};
-
-}  // namespace
-
 const char* SettingsActivity::categoryNames[categoryCount] = {"Display", "Reader", "Controls", "System"};
 constexpr int LIST_ITEM_HEIGHT = 60;
 
@@ -52,9 +22,7 @@ const SettingInfo displaySettings[displaySettingsCount] = {
     SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fit", "Crop"}),
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None", "Contrast", "Inverted"}),
-
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"}),
-
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Default"})};
 
 constexpr int readerSettingsCount = 30;
@@ -115,15 +83,15 @@ const SettingInfo controlsSettings[controlsSettingsCount] = {
         {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght", "Bck, Cnfrm, Rght, Lft"}),
     SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"})};
 
-constexpr int systemSettingsCount = 7;
+constexpr int systemSettingsCount = 6;
 const SettingInfo systemSettings[systemSettingsCount] = {
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"}),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"}),
     SettingInfo::Action("KOReader Sync"),
     SettingInfo::Action("OPDS Browser"),
-    SettingInfo::Action("Clear Cache"),
-    SettingInfo::Action("Check for updates")};
+    SettingInfo::Action("Clear Cache")};
+
 }  // namespace
 
 /**
@@ -144,12 +112,9 @@ void SettingsActivity::taskTrampoline(void* param) {
  */
 void SettingsActivity::displayTaskLoop() {
   while (true) {
-    if (updateRequired && !subActivity && !isIndexing) {
-      MutexGuard guard(renderingMutex);
-      if (guard.isAcquired()) {
-        updateRequired = false;
-        render();
-      }
+    if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
+      updateRequired = false;
+      render();
     }
     vTaskDelay(pdMS_TO_TICKS(50));
   }
@@ -163,12 +128,12 @@ void SettingsActivity::displayTaskLoop() {
  */
 void SettingsActivity::onEnter() {
   Activity::onEnter();
-  renderingMutex = xSemaphoreCreateMutex();
 
   tabSelectorIndex = 2;
   selectedCategoryIndex = 0;
 
   isIndexing = false;
+  showingAbout = false;
   indexingProgress = 0;
   indexingTotal = 0;
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
@@ -190,11 +155,6 @@ void SettingsActivity::onExit() {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
-
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
 }
 
 /**
@@ -210,6 +170,11 @@ void SettingsActivity::loop() {
     updateRequired = true;
     return;
   }
+  
+  if (showingAbout) {
+    showAboutPage();
+    return;
+  }
 
   if (subActivity) {
     subActivity->loop();
@@ -223,12 +188,10 @@ void SettingsActivity::loop() {
   }
 
   if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
-    if (renderingMutex != nullptr && mappedInput.getHeldTime() >= 300) {
-      if (xSemaphoreTake(renderingMutex, portMAX_DELAY) == pdTRUE) {
-        vTaskDelay(pdMS_TO_TICKS(300));
-        SETTINGS.saveToFile();
-        onRecentOpen();
-      }
+    if (mappedInput.getHeldTime() >= 300) {
+      vTaskDelay(pdMS_TO_TICKS(300));
+      SETTINGS.saveToFile();
+      onRecentOpen();
     }
     return;
   }
@@ -249,7 +212,7 @@ void SettingsActivity::loop() {
     return;
   }
 
-  const int totalItems = categoryCount + 1;
+  const int totalItems = categoryCount + 2;
   bool needUpdate = false;
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
@@ -271,7 +234,21 @@ void SettingsActivity::loop() {
       enterCategory(selectedCategoryIndex);
       return;
     }
-    startLibraryIndexing();
+    if (selectedCategoryIndex == categoryCount) {
+      startLibraryIndexing();
+      return;
+    }
+
+    if (selectedCategoryIndex == categoryCount + 1) {
+      showingAbout = true;
+      showAboutPage();
+      return;
+    }
+  }
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back) && selectedCategoryIndex == 5) {
+    updateRequired = true;
+    showingAbout = false;
   }
 }
 
@@ -350,11 +327,6 @@ void SettingsActivity::render() const {
   renderer.displayBuffer();
 }
 
-/**
- * @brief Renders the scrollable list of settings categories.
- *
- * Draws each category item with selection highlighting and the library indexing option.
- */
 void SettingsActivity::renderSettingsList() const {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
@@ -397,8 +369,18 @@ void SettingsActivity::renderSettingsList() const {
 
   int textY = indexButtonY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 50, textY, "Index Your Library", isIndexSelected ? 0 : 1);
-
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenWidth - 30, textY, "›", isIndexSelected ? 0 : 1);
+
+  int aboutButtonY = indexButtonY + LIST_ITEM_HEIGHT;
+  bool isAboutSelected = (selectedCategoryIndex == categoryCount + 1);
+
+  if (isAboutSelected) {
+    renderer.fillRect(0, aboutButtonY, screenWidth, LIST_ITEM_HEIGHT);
+  }
+
+  int aboutTextY = aboutButtonY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 50, aboutTextY, "About", isAboutSelected ? 0 : 1);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenWidth - 30, aboutTextY, "›", isAboutSelected ? 0 : 1);
 }
 
 /**
@@ -447,10 +429,6 @@ void SettingsActivity::startLibraryIndexing() {
  * Shows a popup with a progress bar and file count during the indexing process.
  */
 void SettingsActivity::showIndexingProgress() {
-  if (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
-    return;
-  }
-
   renderer.clearScreen();
   renderTabBar(renderer);
 
@@ -486,5 +464,31 @@ void SettingsActivity::showIndexingProgress() {
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
 
   renderer.displayBuffer();
-  xSemaphoreGive(renderingMutex);
+}
+
+void SettingsActivity::showAboutPage() {
+  bool exitAbout = false;
+  int selected = 0;
+
+  int screenWidth = renderer.getScreenWidth();
+  int screenHeight = renderer.getScreenHeight();
+
+  int popupWidth = 300;
+  int popupHeight = 200;
+  int popupX = (screenWidth - popupWidth) / 2;
+  int popupY = (screenHeight - popupHeight) / 2;
+
+  if (showingAbout) {
+    renderer.fillRect(popupX, popupY, popupWidth, popupHeight, false);
+    renderer.drawRect(popupX, popupY, popupWidth, popupHeight, true);
+
+    int yPos = popupY + 20;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 20, yPos, "Inx", true, EpdFontFamily::BOLD);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, popupX + 90, yPos + 20, INX_VERSION, true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, yPos + 40, "Check for updates.", true);
+
+    yPos += 35;
+  }
+
+  renderer.displayBuffer();
 }

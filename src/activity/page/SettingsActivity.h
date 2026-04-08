@@ -27,6 +27,8 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   int indexingProgress = 0;
   int indexingTotal = 0;
   char currentIndexingPath[256] = {0};
+  bool showingAbout = false;
+  int selectedAboutIndex = 0;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -69,4 +71,5 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  void showAboutPage();
 };

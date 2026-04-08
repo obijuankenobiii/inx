@@ -149,6 +149,9 @@ void onGoToLibrary(const std::string& path) {
   switchTo<LibraryActivity>(render, input, onGoToRecent, openReaderFromCallback, onGoToRecent, onGoToSettings, path);
 }
 
+/**
+ * @brief Set up application.
+ */
 void verifyPowerButtonDuration() {
   if (SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) return;
   const auto start = millis();
@@ -158,6 +161,7 @@ void verifyPowerButtonDuration() {
     delay(10);
     gpio.update();
   }
+
   if (gpio.isPressed(HalGPIO::BTN_POWER)) {
     while (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() < SETTINGS.getPowerButtonDuration()) {
       delay(10);
@@ -167,6 +171,7 @@ void verifyPowerButtonDuration() {
   } else {
     abort = true;
   }
+
   if (abort) gpio.startDeepSleep();
 }
 
@@ -189,6 +194,9 @@ void setupDisplayAndFonts() {
   FontManager::initialize(render);
 }
 
+/**
+ * @brief Set up application.
+ */
 void setup() {
   t1 = millis();
   gpio.begin();
@@ -220,6 +228,9 @@ void setup() {
   waitForPowerRelease();
 }
 
+/**
+ * @brief All activity loop.
+ */
 void loop() {
   gpio.update();
   static unsigned long lastActivityTime = millis();
@@ -245,6 +256,6 @@ void loop() {
   if (currentActivity && currentActivity->skipLoopDelay()) {
     yield();
   } else {
-    delay(10);
+    delay(30);
   }
 }
