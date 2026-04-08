@@ -94,7 +94,7 @@ private:
      * @brief Renders the drawer with specified refresh mode
      * @param mode Display refresh mode
      */
-    void renderWithRefresh(HalDisplay::RefreshMode mode);
+    void renderWithRefresh();
     
     /**
      * @brief Draws the background panel

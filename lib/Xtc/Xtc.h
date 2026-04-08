@@ -1,7 +1,7 @@
 /**
  * Xtc.h
  *
- * Main XTC ebook class for CrossPoint Reader
+ * Main XTC ebook class for Inx Reader
  * Provides EPUB-like interface for XTC file handling
  */
 

@@ -117,8 +117,173 @@ bool SystemSetting::loadFromFile() {
     return false;
   }
 
-  uint8_t version;
-  serialization::readPod(inputFile, version);
+    uint8_t fileSettingsCount = 0;
+    serialization::readPod(inputFile, fileSettingsCount);
+    uint8_t settingsRead = 0;
+    
+    do {
+        readAndValidate(inputFile, sleepScreen, SLEEP_SCREEN_MODE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        serialization::readPod(inputFile, extraParagraphSpacing);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, shortPwrBtn, SHORT_PWRBTN_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, statusBar, STATUS_BAR_MODE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, orientation, ORIENTATION_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, frontButtonLayout, FRONT_BUTTON_LAYOUT_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, sideButtonLayout, SIDE_BUTTON_LAYOUT_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, fontSize, FONT_SIZE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, lineSpacing, LINE_COMPRESSION_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, paragraphAlignment, PARAGRAPH_ALIGNMENT_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, sleepTimeout, SLEEP_TIMEOUT_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, refreshFrequency, REFRESH_FREQUENCY_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        serialization::readPod(inputFile, screenMargin);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, sleepScreenCoverMode, SLEEP_SCREEN_COVER_MODE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        {
+            std::string urlStr;
+            serialization::readString(inputFile, urlStr);
+            strncpy(opdsServerUrl, urlStr.c_str(), sizeof(opdsServerUrl) - 1);
+            opdsServerUrl[sizeof(opdsServerUrl) - 1] = '\0';
+        }
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        serialization::readPod(inputFile, textAntiAliasing);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, hideBatteryPercentage, HIDE_BATTERY_PERCENTAGE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        serialization::readPod(inputFile, longPressChapterSkip);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        serialization::readPod(inputFile, hyphenationEnabled);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        readAndValidate(inputFile, readerShortPwrBtn, READER_SHORT_PWRBTN_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        {
+            std::string usernameStr;
+            serialization::readString(inputFile, usernameStr);
+            strncpy(opdsUsername, usernameStr.c_str(), sizeof(opdsUsername) - 1);
+            opdsUsername[sizeof(opdsUsername) - 1] = '\0';
+        }
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        {
+            std::string passwordStr;
+            serialization::readString(inputFile, passwordStr);
+            strncpy(opdsPassword, passwordStr.c_str(), sizeof(opdsPassword) - 1);
+            opdsPassword[sizeof(opdsPassword) - 1] = '\0';
+        }
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        readAndValidate(inputFile, sleepScreenCoverFilter, SLEEP_SCREEN_COVER_FILTER_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        serialization::readPod(inputFile, useLibraryIndex);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        readAndValidate(inputFile, recentLibraryMode, RECENT_LIBRARY_MODE_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        // --- LOAD NEW MAPPINGS ---
+        readAndValidate(inputFile, readerDirectionMapping, READER_DIRECTION_MAPPING_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+
+        readAndValidate(inputFile, readerMenuButton, READER_MENU_BUTTON_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        // --- LOAD BOOT SETTING ---
+        readAndValidate(inputFile, bootSetting, BOOT_SETTING_COUNT);
+        if (++settingsRead >= fileSettingsCount) break;
+        
+        // --- LOAD NEW STATUS BAR SECTIONS (if version 4) ---
+        if (version >= 4) {
+            readAndValidate(inputFile, statusBarLeft, STATUS_BAR_ITEM_COUNT);
+            if (++settingsRead >= fileSettingsCount) break;
+            
+            readAndValidate(inputFile, statusBarMiddle, STATUS_BAR_ITEM_COUNT);
+            if (++settingsRead >= fileSettingsCount) break;
+            
+            readAndValidate(inputFile, statusBarRight, STATUS_BAR_ITEM_COUNT);
+            if (++settingsRead >= fileSettingsCount) break;
+        } else {
+            // Migrate from legacy statusBar to new sections
+            switch (statusBar) {
+                case NONE:
+                    statusBarLeft = STATUS_ITEM_NONE;
+                    statusBarMiddle = STATUS_ITEM_NONE;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+                case NO_PROGRESS:
+                    statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
+                    statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+                case FULL:
+                default:
+                    statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
+                    statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
+                    statusBarRight = STATUS_ITEM_PAGE_NUMBERS;
+                    break;
+                case FULL_WITH_PROGRESS_BAR:
+                    statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
+                    statusBarMiddle = STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT;
+                    statusBarRight = STATUS_ITEM_CHAPTER_TITLE;
+                    break;
+                case ONLY_PROGRESS_BAR:
+                    statusBarLeft = STATUS_ITEM_NONE;
+                    statusBarMiddle = STATUS_ITEM_PROGRESS_BAR;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+                case BATTERY_PERCENTAGE:
+                    statusBarLeft = STATUS_ITEM_BATTERY_PERCENTAGE;
+                    statusBarMiddle = STATUS_ITEM_NONE;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+                case PERCENTAGE:
+                    statusBarLeft = STATUS_ITEM_NONE;
+                    statusBarMiddle = STATUS_ITEM_PERCENTAGE;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+                case PAGE_BARS:
+                    statusBarLeft = STATUS_ITEM_NONE;
+                    statusBarMiddle = STATUS_ITEM_PAGE_BARS;
+                    statusBarRight = STATUS_ITEM_NONE;
+                    break;
+            }
+        }
+
+    } while (false);
 
   if (version != SETTINGS_FILE_VERSION) {
     Serial.printf("[%lu] [CPS] Wrong version %u, expected %u. Using defaults.\n", 

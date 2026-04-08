@@ -4,6 +4,8 @@
 #include <HalGPIO.h>
 
 #include <system/font/all.h>
+#include <SDCardManager.h>
+#include <SPI.h>
 
 #include <cstring>
 #include <new>

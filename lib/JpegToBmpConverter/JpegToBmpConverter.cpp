@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "BitmapHelpers.h"
+#include "Bitmap.h"
 
 struct JpegReadContext {
   FsFile& file;
@@ -1361,6 +1362,82 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(
   delete[] scaleMap;
   delete[] fadeFactors;
   delete[] srcYThresholds;
+  
+  return true;
+}
+
+bool JpegToBmpConverter::resizeBitmap(FsFile& bmpFile, Print& bmpOut, int targetWidth, int targetHeight) {
+  Bitmap bitmap(bmpFile, false);
+  
+  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+    return false;
+  }
+  
+  int originalWidth = bitmap.getWidth();
+  int originalHeight = bitmap.getHeight();
+  
+  float scale = std::min((float)targetWidth / originalWidth, (float)targetHeight / originalHeight);
+  
+  int finalWidth = originalWidth * scale;
+  int finalHeight = originalHeight * scale;
+  
+  // Write 2-bit BMP header
+  uint8_t header[70] = {0};
+  header[0] = 'B';
+  header[1] = 'M';
+  int rowSize = ((finalWidth * 2 + 31) / 32) * 4;
+  int fileSize = 70 + (rowSize * finalHeight);
+  *(int*)&header[2] = fileSize;
+  header[10] = 70;
+  *(int*)&header[14] = 40;
+  *(int*)&header[18] = finalWidth;
+  *(int*)&header[22] = -finalHeight;  // NEGATIVE = top-down, fixes upside down
+  *(short*)&header[26] = 1;
+  *(short*)&header[28] = 2;
+  *(int*)&header[34] = rowSize * finalHeight;
+  *(int*)&header[46] = 4;
+  
+  uint32_t palette[4] = {0x00000000, 0x55555500, 0xAAAAAA00, 0xFFFFFF00};
+  memcpy(&header[54], palette, 16);
+  
+  bmpOut.write(header, 70);
+  
+  int outputRowSize = (originalWidth + 3) / 4;
+  uint8_t* outputRow = new uint8_t[outputRowSize];
+  uint8_t* rowBytes = new uint8_t[bitmap.getRowBytes()];
+  uint8_t* finalRow = new uint8_t[rowSize];
+  
+  bitmap.rewindToData();
+  
+  for (int bmpY = 0; bmpY < originalHeight; bmpY++) {
+    bitmap.readNextRow(outputRow, rowBytes);
+    
+    int destY = bmpY * scale;
+    if (destY >= finalHeight) continue;
+    
+    if (destY == 0 || destY != (int)((bmpY-1) * scale)) {
+      memset(finalRow, 0, rowSize);
+    }
+    
+    for (int bmpX = 0; bmpX < originalWidth; bmpX++) {
+      int destX = bmpX * scale;
+      if (destX >= finalWidth) continue;
+      
+      uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
+      
+      int bytePos = destX / 4;
+      int shift = 6 - ((destX % 4) * 2);
+      finalRow[bytePos] |= (val << shift);
+    }
+    
+    if (destY == finalHeight - 1 || (int)((bmpY+1) * scale) > destY) {
+      bmpOut.write(finalRow, rowSize);
+    }
+  }
+  
+  delete[] outputRow;
+  delete[] rowBytes;
+  delete[] finalRow;
   
   return true;
 }

@@ -34,7 +34,7 @@ class Menu {
    */
   void renderTabBar(const GfxRenderer& renderer) const {
     const int screenWidth = renderer.getScreenWidth();
-    const int tabButtonWidth = screenWidth / TAB_COUNT;
+    const int tabButtonWidth = (screenWidth / TAB_COUNT) - 1;
 
     for (int i = 0; i < TAB_COUNT; ++i) {
       int buttonX = i * tabButtonWidth;

@@ -110,8 +110,8 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      int bw = bitmap.getWidth();
-      int bh = bitmap.getHeight();
+      int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
+      int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
 
       int drawX = x + (width - bw) / 2;
       int drawY = y + (height - bh) / 2;
@@ -130,12 +130,12 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   }
 
   renderer.drawRect(x, y, width, height);
-  
+
   if (!title.empty()) {
     int lineY = y + 20;
     int maxWidth = width - 40;
     int lineHeight = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
-    
+
     std::string remaining = title;
     int lineCount = 0;
 
@@ -254,7 +254,7 @@ void StatisticActivity::render() const {
   int containerHeight = (availableHeight / 2) - GRID_SPACING;
 
   int startIndex = bookSelectorIndex * 2;
-  
+
   for (int row = 0; row < 2; row++) {
     int bookIndex = startIndex + row;
     if (bookIndex >= static_cast<int>(allBooksStats.size())) break;
@@ -335,20 +335,20 @@ void StatisticActivity::render() const {
   int totalItems = allBooksStats.size();
   int itemsPerPage = 2;
   int totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
-  
+
   if (totalPages > 1) {
     int scrollbarWidth = 4;
     int scrollbarHeight = 60;
     int scrollbarX = screenWidth - scrollbarWidth - 10;
     int scrollbarY = (screenHeight - scrollbarHeight) / 2;
-    
+
     renderer.fillRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, false);
     renderer.drawRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, true);
-    
+
     float scrollRatio = static_cast<float>(bookSelectorIndex) / (totalPages - 1);
     int thumbHeight = std::max(20, static_cast<int>(scrollbarHeight / totalPages));
     int thumbY = scrollbarY + static_cast<int>(scrollRatio * (scrollbarHeight - thumbHeight));
-    
+
     renderer.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
   }
 
