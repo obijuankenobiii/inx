@@ -86,8 +86,6 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
   bookStats.lastSpineIndex = 0;
   bookStats.lastPageNumber = 0;
   bookStats.avgPageTimeMs = 0;
-
-   lastAutoPageTurnTime = millis();
 }
 
 /**
@@ -484,6 +482,7 @@ void EpubActivity::onEnter() {
     slowPath();
   }
   updateRequired = true;
+  lastAutoPageTurnTime = millis();
 }
 
 /**
@@ -689,7 +688,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && section) {
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
