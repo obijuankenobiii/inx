@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../Menu.h"
+#include "../settings/AboutPage.h"
 #include "activity/ActivityWithSubactivity.h"
 
 class SystemSetting;
@@ -55,6 +56,9 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
     }
   }
 
+ private:
+  AboutPage* aboutPage = nullptr;
+
  public:
   SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                    const std::function<void()>& onRecentOpen = nullptr,
@@ -71,5 +75,4 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void showAboutPage();
 };

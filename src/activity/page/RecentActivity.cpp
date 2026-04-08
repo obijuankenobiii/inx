@@ -639,7 +639,7 @@ void RecentActivity::renderDefault() {
 
   int textX = coverItemX;
   int textY = coverAreaY + coverHeight + 25;
-  int textWidth = containerWidth - 30;
+  int textWidth = containerWidth - 10;
 
   std::string trunc =
       renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleBuf, textWidth, EpdFontFamily::BOLD);
@@ -678,7 +678,7 @@ void RecentActivity::renderDefault() {
     }
   }
 
-  int statsX = detailsItemX + 15;
+  int statsX = detailsItemX + 8;
   int statsY = detailsItemY;
   int currentY = statsY + renderer.getLineHeight(VALUE_FONT) - 40;
   char buffer[32];

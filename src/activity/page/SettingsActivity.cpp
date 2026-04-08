@@ -151,6 +151,11 @@ void SettingsActivity::onEnter() {
 void SettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
+  if (aboutPage) {
+    delete aboutPage;
+    aboutPage = nullptr;
+  }
+
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
@@ -170,9 +175,14 @@ void SettingsActivity::loop() {
     updateRequired = true;
     return;
   }
-  
-  if (showingAbout) {
-    showAboutPage();
+
+  if (showingAbout && aboutPage) {
+    aboutPage->handleInput();
+    if (aboutPage->isDismissed()) {
+      showingAbout = false;
+      updateRequired = true;
+      render();
+    }
     return;
   }
 
@@ -238,17 +248,17 @@ void SettingsActivity::loop() {
       startLibraryIndexing();
       return;
     }
-
     if (selectedCategoryIndex == categoryCount + 1) {
       showingAbout = true;
-      showAboutPage();
+      if (!aboutPage) {
+        aboutPage = new AboutPage(renderer, mappedInput, [this]() {
+          showingAbout = false;
+          updateRequired = true;
+        });
+      }
+      aboutPage->show();
       return;
     }
-  }
-
-  if (mappedInput.wasPressed(MappedInputManager::Button::Back) && selectedCategoryIndex == 5) {
-    updateRequired = true;
-    showingAbout = false;
   }
 }
 
@@ -462,33 +472,6 @@ void SettingsActivity::showIndexingProgress() {
     snprintf(countMsg, sizeof(countMsg), "Found %d files...", indexingProgress);
   }
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
-
-  renderer.displayBuffer();
-}
-
-void SettingsActivity::showAboutPage() {
-  bool exitAbout = false;
-  int selected = 0;
-
-  int screenWidth = renderer.getScreenWidth();
-  int screenHeight = renderer.getScreenHeight();
-
-  int popupWidth = 300;
-  int popupHeight = 200;
-  int popupX = (screenWidth - popupWidth) / 2;
-  int popupY = (screenHeight - popupHeight) / 2;
-
-  if (showingAbout) {
-    renderer.fillRect(popupX, popupY, popupWidth, popupHeight, false);
-    renderer.drawRect(popupX, popupY, popupWidth, popupHeight, true);
-
-    int yPos = popupY + 20;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 20, yPos, "Inx", true, EpdFontFamily::BOLD);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, popupX + 90, yPos + 20, INX_VERSION, true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, yPos + 40, "Check for updates.", true);
-
-    yPos += 35;
-  }
 
   renderer.displayBuffer();
 }
