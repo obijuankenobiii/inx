@@ -27,7 +27,7 @@ constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
-}
+}  // namespace
 
 /**
  * @brief Structure containing viewport calculation results.
@@ -86,6 +86,8 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
   bookStats.lastSpineIndex = 0;
   bookStats.lastPageNumber = 0;
   bookStats.avgPageTimeMs = 0;
+
+   lastAutoPageTurnTime = millis();
 }
 
 /**
@@ -576,6 +578,7 @@ void EpubActivity::loop() {
       vTaskDelay(pdMS_TO_TICKS(100));
       isToggleClosed = true;
       updateRequired = true;
+      lastAutoPageTurnTime = millis();
     }
     return;
   }
@@ -652,6 +655,7 @@ void EpubActivity::loop() {
     }
 
     startPageTimer();
+    lastAutoPageTurnTime = millis();
     updateRequired = true;
     return;
   }
@@ -660,6 +664,7 @@ void EpubActivity::loop() {
       SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_TURN) {
     endPageTimer();
     pageTurn(true);
+    lastAutoPageTurnTime = millis();
     return;
   }
 
@@ -673,13 +678,30 @@ void EpubActivity::loop() {
   if (prev) {
     endPageTimer();
     pageTurn(false);
+    lastAutoPageTurnTime = millis();
     return;
   }
 
   if (next) {
     endPageTimer();
     pageTurn(true);
+    lastAutoPageTurnTime = millis();
     return;
+  }
+
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && section) {
+    if (lastAutoPageTurnTime == 0) {
+      lastAutoPageTurnTime = millis();
+    }
+
+    unsigned long elapsed = millis() - lastAutoPageTurnTime;
+    if (elapsed >= (bookSettings.pageAutoTurnSeconds * 1000UL)) {
+      lastAutoPageTurnTime = millis();
+      endPageTimer();
+      pageTurn(true);
+      updateRequired = true;
+      return;
+    }
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
