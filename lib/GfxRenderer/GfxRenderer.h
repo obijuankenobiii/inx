@@ -34,6 +34,9 @@ class GfxRenderer {
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
 
+  // NEW: Helper to calculate width without touching library RAM pointers
+  int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
+
   // Helper to fetch glyph data from SD card streaming handles
   bool getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer,
                       EpdFontFamily::Style style) const;
@@ -51,22 +54,9 @@ class GfxRenderer {
   static constexpr int VIEWABLE_MARGIN_LEFT = 3;
 
   // Font Registration
-  // For built-in fonts (Atkinson)
   void insertFont(int fontId, const EpdFontFamily& font);
-
-  // For SD card fonts (Streaming)
   void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, const EpdFontFamily& font);
-
-  /**
-   * @brief Unloads a specific font and closes its SD file handles
-   * @param fontId The ID used during registration
-   */
   void removeFont(int fontId);
-
-  /**
-   * @brief Closes ALL active SD card font streams and clears the handle map
-   * Useful when exiting a book to free up system file descriptors.
-   */
   void removeAllStreamingFonts();
 
   // Orientation control

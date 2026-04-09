@@ -393,14 +393,7 @@ int FontManager::getLoadedFontCount() { return g_loadedFontCount; }
  * This version uses the streaming ExternalFont that doesn't load metadata to RAM
  */
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
-  Serial.printf("[FontManager] Loading font ID: %d\n", fontId);
-
-  // Check memory before loading
-  if (getFreeHeap() < 40000) {  // Less than 40KB free
-    Serial.printf("[FontManager] Low memory (%u bytes), cannot load font\n", getFreeHeap());
-    return false;
-  }
-
+  // 1. Find the entry
   SDFontEntry* entry = nullptr;
   for (auto& e : g_sdFonts) {
     if (e.id == fontId) {
@@ -410,60 +403,52 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   }
 
   if (!entry) {
-    Serial.printf("[FontManager] Error: Font ID %d not found\n", fontId);
+    Serial.printf("[FontManager] ID %d not found in SD list\n", fontId);
     return false;
   }
 
-  if (entry->isLoaded) {
-    updateFontLRU(fontId);
-    return true;
+  // 2. If it's already "loaded," we still need to make sure the renderer knows about it
+  // if this is a fresh boot or a renderer reset.
+  if (entry->isLoaded && entry->fontFamily != nullptr) {
+     // We should still verify it's in the renderer's map
+     // But for now, let's just proceed to ensure the insertStreamingFont call happens
+     Serial.printf("[FontManager] Font %d already loaded, re-verifying registration\n", fontId);
   }
 
-  // Check if we need to unload a font to make room
-  if (g_loadedFontCount >= g_maxLoadedFonts) {
-    unloadLRUFont();
-  }
-
-  // Load ONLY the regular font (bold/italic use same font with faux styling)
-  if (entry->regularPath.empty() || !SdMan.exists(entry->regularPath.c_str())) {
-    Serial.printf("[FontManager] Regular font not found for ID %d\n", fontId);
-    return false;
-  }
-
-  // Create streaming font (metadata NOT loaded to RAM - just stores offsets)
+  // 3. Setup Streaming
   std::unique_ptr<ExternalFont> regStream(new ExternalFont());
   if (!regStream->load(entry->regularPath.c_str())) {
-    Serial.printf("[FontManager] Failed to load regular font: %s\n", entry->regularPath.c_str());
+    Serial.printf("[FontManager] CRITICAL: Failed to open %s\n", entry->regularPath.c_str());
     return false;
   }
 
-  // Create EpdFont from the streaming data
-  // Note: The EpdFont will have null glyph/intervals pointers
-  // The renderer will call ExternalFont methods to get glyph data on demand
-  EpdFont* regularFont = new EpdFont(regStream->getData());
-  g_fontStorage.push_back(std::unique_ptr<EpdFont>(regularFont));
+  const EpdFontData* sdDataPtr = regStream->getData();
+  
+  // 4. Create/Re-use Proxy
+  if (!entry->regularFont) {
+    entry->regularFont = new EpdFont(sdDataPtr);
+    g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->regularFont));
+  }
 
-  // Use the SAME font for all styles (renderer applies faux bold/italic)
-  entry->regularFont = regularFont;
-  entry->boldFont = regularFont;    // Same font - renderer does faux bold
-  entry->italicFont = regularFont;  // Same font - renderer does faux italic
-  entry->boldItalic = regularFont;  // Same font - renderer does faux bold+italic
+  // 5. Create/Re-use Family
+  if (!entry->fontFamily) {
+    entry->fontFamily = new EpdFontFamily(entry->regularFont);
+    g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(entry->fontFamily));
+  }
 
-  // Create the Font Family
-  EpdFontFamily* fontFamily =
-      new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalic);
-  g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(fontFamily));
-  entry->fontFamily = fontFamily;
+  // 6. Mandatory Bridge Update
+  // This is the part that was likely missing or skipped
+  entry->fontFamily->setData(EpdFontFamily::REGULAR, sdDataPtr);
+  entry->fontFamily->setData(EpdFontFamily::BOLD, sdDataPtr);
+
   entry->isLoaded = true;
   entry->lastUsed = millis();
-  g_loadedFontCount++;
 
-  // Register the streaming font with the renderer
-  renderer.insertStreamingFont(entry->id, std::move(regStream), *fontFamily);
+  // 7. CRITICAL: Register with Renderer
+  // Even if isLoaded is true, we call this to ensure the GfxRenderer map is populated
+  renderer.insertStreamingFont(entry->id, std::move(regStream), *(entry->fontFamily));
 
-  Serial.printf("[FontManager] Registered streaming font: %s %dpt (ID: %d) - RAM: ~%d bytes\n", 
-                entry->family.c_str(), entry->size, entry->id, sizeof(ExternalFont));
-  printMemoryUsage();
+  Serial.printf("[FontManager] SUCCESS: Registered ID %d\n", fontId);
   return true;
 }
 

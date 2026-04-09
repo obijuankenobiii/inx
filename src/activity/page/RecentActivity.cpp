@@ -133,7 +133,7 @@ void RecentActivity::onEnter() {
   currentViewMode = (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) ? ViewMode::Grid : ViewMode::Default;
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 4096, this, 1, &displayTaskHandle);
+    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 8192, this, 1, &displayTaskHandle);
   }
 
   updateRequired = true;

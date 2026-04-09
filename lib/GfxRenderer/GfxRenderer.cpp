@@ -72,13 +72,17 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
 }
 
 int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontFamily::Style style) const {
-  if (fontMap.count(fontId) == 0) {
-    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
-    return 0;
+  if (fontMap.count(fontId) == 0) return 0;
+  const auto& family = fontMap.at(fontId);
+
+  // If this is a streaming font, use our SD-safe width calculator
+  if (streamingFonts.count(family.getData(style))) {
+    return getStreamingTextWidth(family, text, style);
   }
 
+  // Otherwise use the standard library version
   int w = 0, h = 0;
-  fontMap.at(fontId).getTextDimensions(text, &w, &h, style);
+  family.getTextDimensions(text, &w, &h, style);
   return w;
 }
 
@@ -507,12 +511,24 @@ int GfxRenderer::getScreenHeight() const {
 }
 
 int GfxRenderer::getSpaceWidth(const int fontId) const {
-  if (fontMap.count(fontId) == 0) {
-    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
-    return 0;
+  if (fontMap.count(fontId) == 0) return 0;
+
+  const auto& family = fontMap.at(fontId);
+  const EpdFontData* data = family.getData(EpdFontFamily::REGULAR);
+
+  // Check if it's a streaming font
+  auto it = streamingFonts.find(data);
+  if (it != streamingFonts.end()) {
+    EpdGlyph glyph;
+    if (it->second->getGlyphMetadata(' ', glyph)) {
+      return glyph.advanceX;
+    }
+    return 0; 
   }
 
-  return fontMap.at(fontId).getGlyph(' ', EpdFontFamily::REGULAR)->advanceX;
+  // Fallback for RAM fonts
+  const EpdGlyph* ramGlyph = family.getGlyph(' ', EpdFontFamily::REGULAR);
+  return ramGlyph ? ramGlyph->advanceX : 0;
 }
 
 int GfxRenderer::getFontAscenderSize(const int fontId) const {
@@ -622,59 +638,50 @@ int GfxRenderer::getTextHeight(const int fontId) const {
 
 void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y, const char* text, const bool black,
                                       const EpdFontFamily::Style style) const {
-  // Cannot draw a NULL / empty string
-  if (text == nullptr || *text == '\0') {
-    return;
-  }
-
-  if (fontMap.count(fontId) == 0) {
-    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
-    return;
-  }
+  if (text == nullptr || *text == '\0' || fontMap.count(fontId) == 0) return;
   const auto font = fontMap.at(fontId);
+  if (!font.hasPrintableChars(text, style)) return;
 
-  // No printable characters
-  if (!font.hasPrintableChars(text, style)) {
-    return;
-  }
-
-  // For 90° clockwise rotation:
-  // Original (glyphX, glyphY) -> Rotated (glyphY, -glyphX)
-  // Text reads from bottom to top
-
-  int yPos = y;  // Current Y position (decreases as we draw characters)
+  const EpdFontData* fontData = font.getData(style);
+  auto it = streamingFonts.find(fontData);
+  int yPos = y;
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
-    const EpdGlyph* glyph = font.getGlyph(cp, style);
-    if (!glyph) {
-      glyph = font.getGlyph(REPLACEMENT_GLYPH, style);
-    }
-    if (!glyph) {
-      continue;
+    EpdGlyph glyphStorage;
+    const EpdGlyph* glyph = nullptr;
+
+    if (it != streamingFonts.end()) {
+      if (!it->second->getGlyphMetadata(cp, glyphStorage)) {
+        it->second->getGlyphMetadata(REPLACEMENT_GLYPH, glyphStorage);
+      }
+      glyph = &glyphStorage;
+    } else {
+      glyph = font.getGlyph(cp, style);
+      if (!glyph) glyph = font.getGlyph(REPLACEMENT_GLYPH, style);
     }
 
-    const int is2Bit = font.getData(style)->is2Bit;
-    const uint32_t offset = glyph->dataOffset;
-    const uint8_t width = glyph->width;
-    const uint8_t height = glyph->height;
-    const int left = glyph->left;
-    const int top = glyph->top;
+    if (!glyph) continue;
 
-    const uint8_t* bitmap = &font.getData(style)->bitmap[offset];
+    uint8_t localStackBuffer[1024];
+    const uint8_t* bitmap = nullptr;
+
+    if (fontData->bitmap != nullptr) {
+      bitmap = &fontData->bitmap[glyph->dataOffset];
+    } else if (it != streamingFonts.end()) {
+      if (it->second->getGlyphBitmap(glyph->dataOffset, glyph->dataLength, localStackBuffer)) {
+        bitmap = localStackBuffer;
+      }
+    }
 
     if (bitmap != nullptr) {
-      for (int glyphY = 0; glyphY < height; glyphY++) {
-        for (int glyphX = 0; glyphX < width; glyphX++) {
-          const int pixelPosition = glyphY * width + glyphX;
+      for (int glyphY = 0; glyphY < glyph->height; glyphY++) {
+        for (int glyphX = 0; glyphX < glyph->width; glyphX++) {
+          const int pixelPosition = glyphY * glyph->width + glyphX;
+          const int screenX = x + (fontData->ascender - glyph->top + glyphY);
+          const int screenY = yPos - glyph->left - glyphX;
 
-          // 90° clockwise rotation transformation:
-          // screenX = x + (ascender - top + glyphY)
-          // screenY = yPos - (left + glyphX)
-          const int screenX = x + (font.getData(style)->ascender - top + glyphY);
-          const int screenY = yPos - left - glyphX;
-
-          if (is2Bit) {
+          if (fontData->is2Bit) {
             const uint8_t byte = bitmap[pixelPosition / 4];
             const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
             const uint8_t bmpVal = 3 - (byte >> bit_index) & 0x3;
@@ -689,7 +696,6 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
           } else {
             const uint8_t byte = bitmap[pixelPosition / 8];
             const uint8_t bit_index = 7 - (pixelPosition % 8);
-
             if ((byte >> bit_index) & 1) {
               drawPixel(screenX, screenY, black);
             }
@@ -697,8 +703,6 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
         }
       }
     }
-
-    // Move to next character position (going up, so decrease Y)
     yPos -= glyph->advanceX;
   }
 }
@@ -834,32 +838,35 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
  */
 void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, int* x, const int* y,
                              const bool pixelState, const EpdFontFamily::Style style) const {
-  const EpdGlyph* glyph = fontFamily.getGlyph(cp, style);
-  if (!glyph) {
-    glyph = fontFamily.getGlyph(REPLACEMENT_GLYPH, style);
-  }
-
-  if (!glyph) {
-    Serial.printf("[%lu] [GFX] No glyph for codepoint %d\n", millis(), cp);
-    return;
-  }
-
+  EpdGlyph glyphStorage;
+  const EpdGlyph* glyph = nullptr;
   const EpdFontData* fontData = fontFamily.getData(style);
+
+  // 1. Metadata Lookup
+  auto it = streamingFonts.find(fontData);
+  if (it != streamingFonts.end()) {
+    if (it->second->getGlyphMetadata(cp, glyphStorage)) {
+      glyph = &glyphStorage;
+    }
+  } else {
+    glyph = fontFamily.getGlyph(cp, style);
+  }
+
+  if (!glyph) return;
+
   const int is2Bit = fontData->is2Bit;
   const uint8_t width = glyph->width;
   const uint8_t height = glyph->height;
   const int left = glyph->left;
 
-  // --- HYBRID BITMAP SELECTION ---
+  // 2. Bitmap Selection/Streaming
   const uint8_t* bitmap = nullptr;
-  uint8_t localStackBuffer[1024];
+  uint8_t localStackBuffer[2048]; // Enough for large glyphs
   uint8_t* heapBuffer = nullptr;
 
   if (fontData->bitmap != nullptr) {
-    // RAM Font: Use direct pointer logic
     bitmap = &fontData->bitmap[glyph->dataOffset];
-  } else {
-    // Streaming Font: Load from SD card
+  } else if (it != streamingFonts.end()) {
     size_t dataLen = glyph->dataLength;
     uint8_t* targetBuf = localStackBuffer;
 
@@ -868,8 +875,7 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
       targetBuf = heapBuffer;
     }
 
-    // UPDATED: Pass 'style' so the helper knows which file handle (Bold/Italic) to use
-    if (getGlyphBitmap(fontFamily, glyph->dataOffset, dataLen, targetBuf, style)) {
+    if (it->second->getGlyphBitmap(glyph->dataOffset, dataLen, targetBuf)) {
       bitmap = targetBuf;
     } else {
       if (heapBuffer) delete[] heapBuffer;
@@ -877,10 +883,9 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
     }
   }
 
-  // --- RENDERING LOOP (Your original working logic) ---
+  // 3. Rendering Loop (Original Logic)
   if (bitmap != nullptr) {
     for (int glyphY = 0; glyphY < height; glyphY++) {
-      // This line is why yours works and mine was "all over the place"
       const int screenY = *y - glyph->top + glyphY;
       for (int glyphX = 0; glyphX < width; glyphX++) {
         const int pixelPosition = glyphY * width + glyphX;
@@ -901,7 +906,6 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
         } else {
           const uint8_t byte = bitmap[pixelPosition / 8];
           const uint8_t bit_index = 7 - (pixelPosition % 8);
-
           if ((byte >> bit_index) & 1) {
             drawPixel(screenX, screenY, pixelState);
           }
@@ -911,7 +915,6 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
   }
 
   if (heapBuffer) delete[] heapBuffer;
-
   *x += glyph->advanceX;
 }
 
@@ -1557,29 +1560,38 @@ void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y,
   }
 }
 
-// lib/GfxRenderer/GfxRenderer.cpp
-
 void GfxRenderer::insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont,
                                       const EpdFontFamily& font) {
+  // Use getData() as defined in your ExternalFont class
   const EpdFontData* dataPtr = streamingFont->getData();
 
-  // Use emplace to avoid calling a default constructor for EpdFontFamily
+  // Create a copy of the family to modify
+  EpdFontFamily streamingFamily = font;
+  
+  // Now this will compile with the updated EpdFontFamily::setData
+  streamingFamily.setData(EpdFontFamily::REGULAR, dataPtr);
+
+  // Store the unique_ptr in our map using the pointer as the key
   streamingFonts.emplace(dataPtr, std::move(streamingFont));
 
-  // For the fontMap, use insert or replace
-  fontMap.erase(fontId);  // Clear old if exists
-  fontMap.emplace(fontId, font);
+  // Update the font map so GfxRenderer knows about this fontId
+  fontMap.erase(fontId);
+  fontMap.emplace(fontId, streamingFamily);
 }
 
 bool GfxRenderer::getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length,
                                  uint8_t* outputBuffer, EpdFontFamily::Style style) const {
-  const EpdFontData* targetData = fontFamily.getData(style);
+    const EpdFontData* targetData = fontFamily.getData(style);
+    auto it = streamingFonts.find(targetData);
 
-  auto it = streamingFonts.find(targetData);
-  if (it != streamingFonts.end()) {
-    return it->second->getGlyphBitmap(offset, length, outputBuffer);
-  }
-  return false;
+    if (it != streamingFonts.end()) {
+        Serial.println("DEBUG: Streaming match found!"); 
+        return it->second->getGlyphBitmap(offset, length, outputBuffer);
+    }
+
+    // IF YOU SEE THIS IN SERIAL, YOUR SCREEN WILL BE BLANK
+    Serial.printf("DEBUG: Registry Miss! No streaming handler for pointer %p\n", targetData);
+    return false;
 }
 
 void GfxRenderer::removeFont(int fontId) {
@@ -1595,4 +1607,22 @@ void GfxRenderer::removeFont(int fontId) {
 
 void GfxRenderer::removeAllStreamingFonts() {
     streamingFonts.clear();
+}
+
+int GfxRenderer::getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const {
+  const EpdFontData* data = family.getData(style);
+  auto it = streamingFonts.find(data);
+  if (it == streamingFonts.end()) return 0;
+
+  int totalWidth = 0;
+  uint32_t cp;
+  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(text);
+
+  while ((cp = utf8NextCodepoint(&ptr))) {
+    EpdGlyph glyph;
+    if (it->second->getGlyphMetadata(cp, glyph)) {
+      totalWidth += glyph.advanceX;
+    }
+  }
+  return totalWidth;
 }

@@ -1178,13 +1178,13 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.storeBwBuffer();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
+    page->render(renderer, bookSettings.getReaderFontId(), bookSettings.getReaderFontId(),
                  orientedMarginLeft, orientedMarginTop, false);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
+    page->render(renderer, bookSettings.getReaderFontId(), bookSettings.getReaderFontId(),
                  orientedMarginLeft, orientedMarginTop, false);
     renderer.copyGrayscaleMsbBuffers();
 
