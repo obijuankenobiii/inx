@@ -116,6 +116,9 @@ void BootActivity::initializeNextStage() {
 void BootActivity::onEnter() {
   Activity::onEnter();
   
+  FontManager::scanSDFonts("/fonts");
+  FontManager::printFontStats();
+  
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 

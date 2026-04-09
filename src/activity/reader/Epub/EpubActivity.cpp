@@ -461,6 +461,8 @@ void EpubActivity::onEnter() {
 
   setupOrientation();
 
+  FontManager::ensureFontReady(bookSettings.getReaderFontId(),renderer);
+
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
@@ -482,6 +484,8 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
+  FontManager::unloadLRUFont();
+  FontManager::unloadFont(bookSettings.getReaderFontId());
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;

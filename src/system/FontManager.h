@@ -1,9 +1,16 @@
 #pragma once
+
 #include <GfxRenderer.h>
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <functional>
+#include <memory>
+
+// Forward declarations
+class EpdFont;
+class EpdFontFamily;
+class ExternalFont;
 
 class FontManager {
 public:
@@ -15,6 +22,7 @@ public:
         bool isBuiltin;
     };
     
+    static constexpr int SD_FONT_START_ID = 2000;
     static void initialize(GfxRenderer& renderer);
     
     /**
@@ -38,13 +46,15 @@ public:
     /**
      * Scan SD card for .bin font files in /fonts/{family}/ directory
      * @param sdPath Path to fonts directory (default: "/fonts")
+     * @param forceRescan Force rescan even if already scanned
      * @return true if scan completed successfully
      */
-    static bool scanSDFonts(const char* sdPath = "/fonts");
+    static bool scanSDFonts(const char* sdPath = "/fonts", bool forceRescan = false);
     
     /**
      * Lazy load a font from SD card when needed
      * @param fontId The font ID to load
+     * @param renderer Graphics renderer to register with
      * @return true if font loaded successfully
      */
     static bool loadFontFromSD(int fontId, GfxRenderer& renderer);
@@ -52,6 +62,7 @@ public:
     /**
      * Ensure font is ready to use (loads from SD if needed)
      * @param fontId The font ID to check/load
+     * @param renderer Graphics renderer to use for loading
      * @return true if font is ready
      */
     static bool ensureFontReady(int fontId, GfxRenderer& renderer);
@@ -102,18 +113,95 @@ public:
      */
     static bool isFontLoaded(int fontId);
     
+    /**
+     * Get font ID for a specific family and size
+     * @param family Font family name
+     * @param size Font size in points
+     * @return Font ID, or default font ID if not found
+     */
+    static int getFontId(const std::string& family, int size);
+    
     // Progress callback for batch operations
     using ProgressCallback = std::function<void(const std::string& family, int current, int total)>;
     static void setProgressCallback(ProgressCallback callback);
     
-    // Debug
+    // Memory management
+    /**
+     * Print memory usage statistics
+     */
+    static void printMemoryUsage();
+    
+    /**
+     * Print font manager statistics
+     */
     static void printFontStats();
     
-    // Public constants
-    static constexpr int SD_FONT_START_ID = 1000;
-
-    static int getFontId(const std::string& family, int size);
+    /**
+     * Get free heap memory
+     * @return Free heap size in bytes
+     */
+    static size_t getFreeHeap();
+    
+    /**
+     * Set maximum number of fonts to keep loaded simultaneously
+     * @param maxFonts Maximum fonts (default: 3)
+     */
+    static void setMaxLoadedFonts(int maxFonts);
+    
+    /**
+     * Get maximum number of fonts that can be loaded
+     * @return Maximum font count
+     */
+    static int getMaxLoadedFonts();
+    
+    /**
+     * Get current number of loaded fonts
+     * @return Loaded font count
+     */
+    static int getLoadedFontCount();
+    
+    /**
+     * Unload least recently used font (for cache management)
+     */
+    static void unloadLRUFont();
     
 private:
     FontManager() = delete;
+    
+    // Internal structure for SD font entries
+    struct SDFontEntry {
+        int id;
+        std::string family;
+        int size;
+        std::string regularPath;
+        std::string boldPath;
+        std::string italicPath;
+        std::string boldItalicPath;
+        EpdFont* regularFont;
+        EpdFont* boldFont;
+        EpdFont* italicFont;
+        EpdFont* boldItalic;
+        EpdFontFamily* fontFamily;
+        bool isLoaded;
+        uint32_t lastUsed;  // For LRU tracking
+    };
+    
+    // Static members
+    static std::vector<SDFontEntry> g_sdFonts;
+    static int g_nextSDFontId;
+    static GfxRenderer* g_renderer;
+    static ProgressCallback g_progressCallback;
+    
+    // Storage for loaded fonts
+    static std::vector<std::unique_ptr<EpdFontFamily>> g_fontFamilyStorage;
+    static std::vector<std::unique_ptr<EpdFont>> g_fontStorage;
+    
+    // LRU cache management
+    static int g_maxLoadedFonts;
+    static int g_loadedFontCount;
+    static bool g_scannedForFonts;
+    
+    // Helper functions
+    static void updateFontLRU(int fontId);
+    static void cleanupFontData(SDFontEntry* entry);
 };

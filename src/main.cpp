@@ -2,10 +2,9 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
-
-#include <system/font/all.h>
 #include <SDCardManager.h>
 #include <SPI.h>
+#include <system/font/all.h>
 
 #include <cstring>
 #include <new>
@@ -34,7 +33,6 @@ HalGPIO gpio;
 MappedInputManager input(gpio);
 GfxRenderer render(display);
 
-static uint8_t activityArena[65536];
 Activity* currentActivity = nullptr;
 
 unsigned long t1 = 0;
@@ -55,33 +53,24 @@ void onNetworkModeSelected(NetworkMode mode);
 void openReaderFromCallback(const std::string& path);
 
 /**
- * @brief Switches the current activity to a new activity type using placement new.
- *
- * Destroys the existing activity, clears the memory arena, and constructs
- * the new activity in the same memory location.
- *
- * @tparam T The activity type to switch to
- * @tparam Args The argument types for the activity constructor
- * @param args The arguments to forward to the activity constructor
+ * @brief Switches the current activity using standard heap allocation.
+ * * This uses 'new' and 'delete' which allows the ReaderActivity to utilize 
+ * the full 360KB of available heap rather than being stuck in a small static buffer.
  */
 template <typename T, typename... Args>
 void switchTo(Args&&... args) {
-  if (sizeof(T) > sizeof(activityArena)) {
-    Serial.printf("FATAL: %d byte Activity exceeds %d byte Arena!\n", sizeof(T), sizeof(activityArena));
-    return;
-  }
-
   if (currentActivity) {
     currentActivity->onExit();
-    currentActivity->~Activity();
+    delete currentActivity;
     currentActivity = nullptr;
   }
 
-  memset(activityArena, 0, sizeof(activityArena));
-  currentActivity = new (activityArena) T(std::forward<Args>(args)...);
+  currentActivity = new T(std::forward<Args>(args)...);
 
   if (currentActivity) {
     currentActivity->onEnter();
+  } else {
+    Serial.println("FATAL: Memory allocation failed for Activity switch!");
   }
 }
 
@@ -117,7 +106,9 @@ void onSelectBook(const std::string& path) { onGoToReader(path); }
 /**
  * @brief Navigates to the statistics activity.
  */
-void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecent, onGoToFileTransfer); }
+void onGoToStatistics() { 
+  switchTo<StatisticActivity>(render, input, onGoToRecent, onGoToFileTransfer); 
+}
 
 /**
  * @brief Navigates to the recent books activity.
@@ -167,7 +158,6 @@ void onGoToSettings() {
 void onGoToLibrary(const std::string& path) {
   switchTo<LibraryActivity>(render, input, onGoToRecent, openReaderFromCallback, onGoToRecent, onGoToSettings, path);
 }
-
 /**
  * @brief Verifies power button press duration to determine if device should wake or sleep.
  *
@@ -194,7 +184,6 @@ void verifyPowerButtonDuration() {
   }
   if (abort) gpio.startDeepSleep();
 }
-
 /**
  * @brief Waits for the power button to be released.
  *
@@ -207,7 +196,6 @@ void waitForPowerRelease() {
     gpio.update();
   }
 }
-
 /**
  * @brief Puts the device into deep sleep mode.
  *
@@ -218,15 +206,12 @@ void enterDeepSleep() {
   display.deepSleep();
   gpio.startDeepSleep();
 }
-
 /**
  * @brief Initializes the display and font system.
  */
 void setupDisplayAndFonts() {
   display.begin();
   FontManager::initialize(render);
-  FontManager::scanSDFonts("/fonts");
-  FontManager::printFontStats();
 }
 
 /**
@@ -265,7 +250,6 @@ void setup() {
   switchTo<BootActivity>(render, input);
   waitForPowerRelease();
 }
-
 /**
  * @brief Arduino main loop - processes activity updates and handles sleep timers.
  *
@@ -273,10 +257,8 @@ void setup() {
  * for sleep, and executes the current activity's loop.
  */
 void loop() {
-  const unsigned long loopStartTime = millis();
-  static unsigned long lastActivityTime = millis();
-
   gpio.update();
+  static unsigned long lastActivityTime = millis();
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || (currentActivity && currentActivity->preventAutoSleep())) {
     lastActivityTime = millis();
