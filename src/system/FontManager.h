@@ -34,14 +34,6 @@ public:
      */
     static int getNextFont(int currentFontId);
     
-    /**
-     * Gets the previous smaller font size in the same family.
-     * 
-     * @param currentFontId The current font ID
-     * @return Font ID for the previous smaller size, or current if already smallest
-     */
-    static int getPreviousFont(int currentFontId);
-    
     // SD Card font management
     /**
      * Scan SD card for .bin font files in /fonts/{family}/ directory

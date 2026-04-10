@@ -1626,3 +1626,29 @@ int GfxRenderer::getStreamingTextWidth(const EpdFontFamily& family, const char* 
   }
   return totalWidth;
 }
+
+// In GfxRenderer.h:
+
+
+// In GfxRenderer.cpp:
+void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style, 
+                                        std::unique_ptr<ExternalFont> streamingFont) {
+    auto it = fontMap.find(fontId);
+    if (it == fontMap.end()) {
+        Serial.printf("[GFX] Can't add style to unknown font ID %d\n", fontId);
+        return;
+    }
+    
+    const EpdFontData* dataPtr = streamingFont->getData();
+    
+    // Store the streaming font
+    streamingFonts.emplace(dataPtr, std::move(streamingFont));
+    
+    // Update the family in the map with the new style data
+    EpdFontFamily updatedFamily = it->second;
+    updatedFamily.setData(style, dataPtr);
+    
+    // Replace the entry
+    fontMap.erase(fontId);
+    fontMap.emplace(fontId, updatedFamily);
+}

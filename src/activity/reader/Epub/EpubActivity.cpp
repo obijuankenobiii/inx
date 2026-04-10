@@ -1173,7 +1173,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   pagesUntilFullRefresh--;
   renderer.displayBuffer();
 
-  if (page->hasImages()) {
+  if (SETTINGS.textAntiAliasing) {
     isDoingSomethingHeavy = true;
     renderer.storeBwBuffer();
     renderer.clearScreen(0x00);

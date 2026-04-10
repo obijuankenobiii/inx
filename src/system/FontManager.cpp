@@ -153,40 +153,6 @@ int FontManager::getNextFont(int currentFontId) {
 }
 
 /**
- * @brief Gets the previous font ID in sequence
- */
-int FontManager::getPreviousFont(int currentFontId) {
-  static const std::unordered_map<int, int> PREV_FONT = {
-      {ATKINSON_HYPERLEGIBLE_8_FONT_ID, ATKINSON_HYPERLEGIBLE_8_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_10_FONT_ID, ATKINSON_HYPERLEGIBLE_8_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_12_FONT_ID, ATKINSON_HYPERLEGIBLE_10_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_14_FONT_ID, ATKINSON_HYPERLEGIBLE_12_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_16_FONT_ID, ATKINSON_HYPERLEGIBLE_14_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_18_FONT_ID, ATKINSON_HYPERLEGIBLE_16_FONT_ID}};
-
-  auto it = PREV_FONT.find(currentFontId);
-  if (it != PREV_FONT.end()) {
-    return it->second;
-  }
-
-  for (const auto& entry : g_sdFonts) {
-    if (entry.id == currentFontId) {
-      int prevId = currentFontId;
-      for (const auto& e : g_sdFonts) {
-        if (e.family == entry.family && e.size < entry.size) {
-          if (prevId == currentFontId || e.size > prevId) {
-            prevId = e.id;
-          }
-        }
-      }
-      return prevId;
-    }
-  }
-
-  return currentFontId;
-}
-
-/**
  * @brief Scans SD card for font files
  */
 bool FontManager::scanSDFonts(const char* sdPath, bool forceRescan) {
@@ -393,63 +359,96 @@ int FontManager::getLoadedFontCount() { return g_loadedFontCount; }
  * This version uses the streaming ExternalFont that doesn't load metadata to RAM
  */
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
-  // 1. Find the entry
-  SDFontEntry* entry = nullptr;
-  for (auto& e : g_sdFonts) {
-    if (e.id == fontId) {
-      entry = &e;
-      break;
+    SDFontEntry* entry = nullptr;
+    for (auto& e : g_sdFonts) {
+        if (e.id == fontId) {
+            entry = &e;
+            break;
+        }
     }
-  }
 
-  if (!entry) {
-    Serial.printf("[FontManager] ID %d not found in SD list\n", fontId);
-    return false;
-  }
+    if (!entry) {
+        Serial.printf("[FontManager] ID %d not found\n", fontId);
+        return false;
+    }
 
-  // 2. If it's already "loaded," we still need to make sure the renderer knows about it
-  // if this is a fresh boot or a renderer reset.
-  if (entry->isLoaded && entry->fontFamily != nullptr) {
-     // We should still verify it's in the renderer's map
-     // But for now, let's just proceed to ensure the insertStreamingFont call happens
-     Serial.printf("[FontManager] Font %d already loaded, re-verifying registration\n", fontId);
-  }
+    if (entry->isLoaded && entry->fontFamily != nullptr) {
+        return true;
+    }
 
-  // 3. Setup Streaming
-  std::unique_ptr<ExternalFont> regStream(new ExternalFont());
-  if (!regStream->load(entry->regularPath.c_str())) {
-    Serial.printf("[FontManager] CRITICAL: Failed to open %s\n", entry->regularPath.c_str());
-    return false;
-  }
+    // Create streaming objects for all styles
+    std::unique_ptr<ExternalFont> regStream(new ExternalFont());
+    std::unique_ptr<ExternalFont> boldStream(new ExternalFont());
+    std::unique_ptr<ExternalFont> italicStream(new ExternalFont());
+    std::unique_ptr<ExternalFont> boldItalicStream(new ExternalFont());
 
-  const EpdFontData* sdDataPtr = regStream->getData();
-  
-  // 4. Create/Re-use Proxy
-  if (!entry->regularFont) {
-    entry->regularFont = new EpdFont(sdDataPtr);
+    // Load regular (required)
+    if (!regStream->load(entry->regularPath.c_str())) {
+        Serial.printf("[FontManager] Failed to load regular: %s\n", entry->regularPath.c_str());
+        return false;
+    }
+
+    // Load optional styles
+    bool hasBold = !entry->boldPath.empty() && boldStream->load(entry->boldPath.c_str());
+    bool hasItalic = !entry->italicPath.empty() && italicStream->load(entry->italicPath.c_str());
+    bool hasBoldItalic = !entry->boldItalicPath.empty() && boldItalicStream->load(entry->boldItalicPath.c_str());
+
+    // Create EpdFont objects (these just hold the data pointers)
+    entry->regularFont = new EpdFont(regStream->getData());
     g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->regularFont));
-  }
 
-  // 5. Create/Re-use Family
-  if (!entry->fontFamily) {
-    entry->fontFamily = new EpdFontFamily(entry->regularFont);
+    if (hasBold) {
+        entry->boldFont = new EpdFont(boldStream->getData());
+        g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->boldFont));
+    }
+
+    if (hasItalic) {
+        entry->italicFont = new EpdFont(italicStream->getData());
+        g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->italicFont));
+    }
+
+    if (hasBoldItalic) {
+        entry->boldItalic = new EpdFont(boldItalicStream->getData());
+        g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->boldItalic));
+    }
+
+    // Create font family with all styles
+    entry->fontFamily = new EpdFontFamily(
+        entry->regularFont,
+        hasBold ? entry->boldFont : nullptr,
+        hasItalic ? entry->italicFont : nullptr,
+        hasBoldItalic ? entry->boldItalic : nullptr
+    );
     g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(entry->fontFamily));
-  }
 
-  // 6. Mandatory Bridge Update
-  // This is the part that was likely missing or skipped
-  entry->fontFamily->setData(EpdFontFamily::REGULAR, sdDataPtr);
-  entry->fontFamily->setData(EpdFontFamily::BOLD, sdDataPtr);
+    entry->isLoaded = true;
+    entry->lastUsed = millis();
+    g_loadedFontCount++;
 
-  entry->isLoaded = true;
-  entry->lastUsed = millis();
+    // CRITICAL FIX: Register EACH style's streaming font separately
+    // First, register the regular style
+    renderer.insertStreamingFont(entry->id, std::move(regStream), *(entry->fontFamily));
+    
+    // Then register bold, italic, bolditalic if they exist
+    // You need a method to register additional streaming fonts for the same font ID
+    if (hasBold) {
+        renderer.addStreamingFontStyle(entry->id, EpdFontFamily::BOLD, std::move(boldStream));
+    }
+    if (hasItalic) {
+        renderer.addStreamingFontStyle(entry->id, EpdFontFamily::ITALIC, std::move(italicStream));
+    }
+    if (hasBoldItalic) {
+        renderer.addStreamingFontStyle(entry->id, EpdFontFamily::BOLD_ITALIC, std::move(boldItalicStream));
+    }
 
-  // 7. CRITICAL: Register with Renderer
-  // Even if isLoaded is true, we call this to ensure the GfxRenderer map is populated
-  renderer.insertStreamingFont(entry->id, std::move(regStream), *(entry->fontFamily));
+    Serial.printf("[FontManager] Loaded font ID %d: %s %dpt (styles: R:%d B:%d I:%d BI:%d)\n",
+                  fontId, entry->family.c_str(), entry->size, 1, hasBold, hasItalic, hasBoldItalic);
 
-  Serial.printf("[FontManager] SUCCESS: Registered ID %d\n", fontId);
-  return true;
+    if (g_loadedFontCount > g_maxLoadedFonts) {
+        unloadLRUFont();
+    }
+
+    return true;
 }
 
 /**

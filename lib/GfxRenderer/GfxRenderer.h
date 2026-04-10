@@ -58,6 +58,7 @@ class GfxRenderer {
   void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, const EpdFontFamily& font);
   void removeFont(int fontId);
   void removeAllStreamingFonts();
+  void addStreamingFontStyle(int fontId, EpdFontFamily::Style style, std::unique_ptr<ExternalFont> streamingFont);
 
   // Orientation control
   void setOrientation(const Orientation o) { orientation = o; }
