@@ -1,5 +1,4 @@
 #include "FontManager.h"
-#include <builtinFonts/all.h>
 #include "system/Fonts.h"
 
 void FontManager::initialize(GfxRenderer& renderer) {
