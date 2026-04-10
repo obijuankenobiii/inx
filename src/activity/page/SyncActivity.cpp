@@ -64,7 +64,7 @@ void SyncActivity::onEnter() {
   render();
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 2048, this, 1, &displayTaskHandle);
+    xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 8192, this, 1, &displayTaskHandle);
   }
 }
 
