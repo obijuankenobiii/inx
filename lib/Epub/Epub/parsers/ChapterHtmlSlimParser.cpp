@@ -14,7 +14,7 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "table", "tr", "td", "th"};
+const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 const char* BOLD_TAGS[] = {"b", "strong"};
@@ -175,10 +175,6 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inHeader = true;
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
-    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
-      self->currentTextBlock->addWord("\xe2\x80\x83\xe2\x80\x83", EpdFontFamily::REGULAR);
-    }
-
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
