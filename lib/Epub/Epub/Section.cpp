@@ -146,7 +146,7 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
  * @param skipImages If true, skip processing new images and only use existing cached images
  * @return true if section file was successfully created, false otherwise
  */
-bool Section::createSectionFile(const int fontId, const int headerFontId, const float lineCompression, 
+bool Section::createSectionFile(const int fontId, const int headerFontId, const int maxFontId, const float lineCompression, 
                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment, 
                                 const uint16_t viewportWidth, const uint16_t viewportHeight, 
                                 const bool hyphenationEnabled, const std::function<void()>& popupFn,
@@ -186,7 +186,8 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       contentBasePath,
       renderer,
       fontId,
-      headerFontId,  // Pass header font ID to parser
+      headerFontId,
+      maxFontId,
       lineCompression,
       extraParagraphSpacing,
       paragraphAlignment,

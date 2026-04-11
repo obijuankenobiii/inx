@@ -87,6 +87,7 @@ class Section {
    * 
    * @param fontId Font identifier for text rendering
    * @param headerFontId Font identifier for header rendering
+   * @param maxFontId Font identifier for header rendering
    * @param lineCompression Line spacing factor
    * @param extraParagraphSpacing Whether to add extra spacing between paragraphs
    * @param paragraphAlignment Default paragraph alignment
@@ -97,7 +98,7 @@ class Section {
    * @param skipImages If true, skip processing new images and only use existing cached images
    * @return true if section file was successfully created
    */
-  bool createSectionFile(int fontId, int headerFontId, float lineCompression, bool extraParagraphSpacing, 
+  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, bool extraParagraphSpacing, 
                          uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight, 
                          bool hyphenationEnabled, const std::function<void()>& popupFn = nullptr,
                          bool skipImages = false);

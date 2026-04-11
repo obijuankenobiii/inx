@@ -196,12 +196,20 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     renderer.displayBuffer();
   }
 
-  int headerFontId = FontManager::getNextFont(info.fontId);
-
   bool success =
-      tempSection->createSectionFile(info.fontId, headerFontId, info.lineCompression,
-                                     bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
-                                     info.height, bookSettings.hyphenationEnabled, progressCallback, skipImages);
+      tempSection->createSectionFile(
+        info.fontId, 
+        FontManager::getNextFont(info.fontId),
+        FontManager::getMaxFontId(info.fontId),
+        info.lineCompression,
+        bookSettings.extraParagraphSpacing, 
+        bookSettings.paragraphAlignment, 
+        info.width,
+        info.height, 
+        bookSettings.hyphenationEnabled, 
+        progressCallback, 
+        skipImages
+      );
 
   if (isDoingSomethingHeavy && showProgress) {
     renderer.clearScreen();
@@ -1173,8 +1181,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-               orientedMarginLeft, orientedMarginTop, false);
+  page->render(
+    renderer, 
+    bookSettings.getReaderFontId(), 
+    FontManager::getNextFont(bookSettings.getReaderFontId()),
+    orientedMarginLeft, 
+    orientedMarginTop,
+    false
+  );
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
 
@@ -1197,14 +1211,26 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.storeBwBuffer();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-                 orientedMarginLeft, orientedMarginTop, false);
+    page->render(
+      renderer, 
+      bookSettings.getReaderFontId(), 
+      FontManager::getNextFont(bookSettings.getReaderFontId()),
+      orientedMarginLeft, 
+      orientedMarginTop,
+      false
+    );
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-                 orientedMarginLeft, orientedMarginTop, false);
+    page->render(
+      renderer, 
+      bookSettings.getReaderFontId(), 
+      FontManager::getNextFont(bookSettings.getReaderFontId()),
+      orientedMarginLeft, 
+      orientedMarginTop,
+      false
+    );
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();

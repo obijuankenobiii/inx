@@ -19,6 +19,10 @@ class ParsedText {
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
 
+  // Indent state for drop caps
+  uint16_t leftIndentWidth = 0;
+  uint16_t leftIndentLineCount = 0;
+
   void applyParagraphIndent();
   std::vector<size_t> computeLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth, int spaceWidth,
                                         std::vector<uint16_t>& wordWidths);
@@ -39,6 +43,13 @@ class ParsedText {
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle);
   void setStyle(const TextBlock::Style style) { this->style = style; }
+  
+  // Setter for drop cap indentation
+  void setLeftIndent(uint16_t width, uint16_t lineCount) {
+    leftIndentWidth = width;
+    leftIndentLineCount = lineCount;
+  }
+
   TextBlock::Style getStyle() const { return style; }
   size_t size() const { return words.size(); }
   bool isEmpty() const { return words.empty(); }

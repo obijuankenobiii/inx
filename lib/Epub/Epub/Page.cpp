@@ -17,7 +17,6 @@
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
-
 /**
  * Serializes a PageLine to a file.
  *
@@ -44,6 +43,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
   return std::unique_ptr<PageLine>(new PageLine(std::move(tb), x, y));
 }
 
+/**
 /**
  * Renders a header on the screen.
  * Uses the stored headerFontId for rendering.
@@ -80,16 +80,52 @@ bool PageHeader::serialize(FsFile& file) {
 std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
   int16_t x, y;
   int headerId = 0;
-
   serialization::readPod(file, x);
   serialization::readPod(file, y);
-
   if (file.available()) {
     serialization::readPod(file, headerId);
   }
-
   auto textBlock = TextBlock::deserialize(file);
   return std::unique_ptr<PageHeader>(new PageHeader(std::move(textBlock), x, y, headerId));
+}
+
+/**
+ * Renders a drop cap on the screen.
+ * Uses a specific large font and renders the single character at the start of a paragraph.
+ */
+void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+  renderer.drawText(dropCapFontId, xPos + xOffset - 5, yPos + yOffset, text.c_str(), EpdFontFamily::BOLD);
+}
+
+/**
+ * Serializes a PageDropCap to a file.
+ *
+ * @param file The file to write to
+ * @return true if serialization was successful
+ */
+bool PageDropCap::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, dropCapFontId);
+  serialization::writeString(file, text);
+  return true;
+}
+
+/**
+ * Serializes a PageDropCap to a file.
+ *
+ * @param file The file to write to
+ * @return true if serialization was successful
+ */
+std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
+  int16_t x, y;
+  int dcFontId;
+  std::string text;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, dcFontId);
+  serialization::readString(file, text);
+  return std::unique_ptr<PageDropCap>(new PageDropCap(text, x, y, dcFontId));
 }
 
 /**
@@ -125,7 +161,6 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
 
   file.close();
 }
-
 /**
  * Serializes a PageImage to a file.
  *
@@ -170,16 +205,18 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
                   bool skipImages) const {
-  bool isHeader = elements[0]->getTag() == TAG_PageImage;
+  bool isHeader = elements.empty() ? false : (elements[0]->getTag() == TAG_PageImage);
+  
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
     }
 
-    if (element->getTag() == TAG_PageHeader) {      
+    uint8_t tag = element->getTag();
+    if (tag == TAG_PageHeader) {      
       element->render(renderer, headerFontId, xOffset, yOffset);
     } else {
-      element->render(renderer, fontId, xOffset, isHeader ? 10 : yOffset );
+      element->render(renderer, fontId, xOffset, isHeader ? 10 : yOffset);
     }
 
     isHeader = false;
@@ -221,6 +258,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageHeader::deserialize(file));
     } else if (tag == TAG_PageImage) {
       page->elements.push_back(PageImage::deserialize(file));
+    } else if (tag == TAG_PageDropCap) {
+      page->elements.push_back(PageDropCap::deserialize(file));
     }
   }
   return page;
