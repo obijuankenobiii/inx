@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <algorithm>
 
 class BluetoothManager {
 public:
@@ -15,24 +16,26 @@ public:
     };
 
     static BluetoothManager& getInstance();
+    static BluetoothManager* getInstancePtr();
     
     bool enable();
     bool disable();
-    bool isEnabled() { return m_enabled; }
+    bool isEnabled() const;
     
     void startScan(uint32_t durationMs);
     void stopScan();
-    bool isScanning() { return m_scanning; }
-    std::vector<Device> getDiscoveredDevices() { return m_devices; }
+    bool isScanning() const { return m_scanning; }
+    std::vector<Device> getDiscoveredDevices() const { return m_devices; }
     
     bool connectToDevice(const std::string& address);
     void disconnectAll();
+    bool isConnected(const std::string& address) const;
+    std::vector<std::string> getConnectedDevices() const { return m_connected; }
     
-    void setKeyCallback(std::function<void(uint8_t, bool)> cb) { m_callback = cb; }
+    using KeyCallback = std::function<void(uint8_t keycode, bool pressed)>;
+    void setKeyCallback(KeyCallback cb) { m_keyCallback = cb; }
     
-    // Public for callbacks
     void onScanResult(void* device);
-    static BluetoothManager* getInstancePtr() { return s_instance; }
 
 private:
     BluetoothManager();
@@ -42,7 +45,7 @@ private:
     bool m_scanning;
     std::vector<Device> m_devices;
     std::vector<std::string> m_connected;
-    std::function<void(uint8_t, bool)> m_callback;
+    KeyCallback m_keyCallback;
     
     static BluetoothManager* s_instance;
 };

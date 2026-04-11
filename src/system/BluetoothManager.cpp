@@ -1,7 +1,6 @@
 #include "BluetoothManager.h"
 #include <NimBLEDevice.h>
 #include <cstdio>
-#include <algorithm>
 
 #define LOG(fmt, ...) printf("[BT] " fmt "\n", ##__VA_ARGS__)
 
@@ -12,7 +11,7 @@ static const uint16_t BLE_CONN_LATENCY = 0;
 static const uint16_t BLE_CONN_TIMEOUT = 600;
 static const uint16_t BLE_CONN_SCAN_INTERVAL = 60;
 static const uint16_t BLE_CONN_SCAN_WINDOW = 30;
-static const uint32_t BLE_CONNECT_TIMEOUT_MS = 10000;
+static const uint32_t BLE_CONNECT_TIMEOUT_MS = 15000;
 
 BluetoothManager* BluetoothManager::s_instance = nullptr;
 
@@ -32,7 +31,7 @@ class ClientCallbacks : public NimBLEClientCallbacks {
         LOG("Connected to %s", pClient->getPeerAddress().toString().c_str());
     }
     void onDisconnect(NimBLEClient* pClient, int reason) override {
-        LOG("Disconnected from %s", pClient->getPeerAddress().toString().c_str());
+        LOG("Disconnected from %s (reason: %d)", pClient->getPeerAddress().toString().c_str(), reason);
     }
 };
 
@@ -45,12 +44,24 @@ BluetoothManager& BluetoothManager::getInstance() {
     return *s_instance;
 }
 
+BluetoothManager* BluetoothManager::getInstancePtr() {
+    return s_instance;
+}
+
 BluetoothManager::BluetoothManager() : m_enabled(false), m_scanning(false) {
     LOG("Manager created");
 }
 
 BluetoothManager::~BluetoothManager() {
     s_instance = nullptr;
+}
+
+bool BluetoothManager::isEnabled() const {
+    return m_enabled;
+}
+
+bool BluetoothManager::isConnected(const std::string& address) const {
+    return std::find(m_connected.begin(), m_connected.end(), address) != m_connected.end();
 }
 
 bool BluetoothManager::enable() {
@@ -92,10 +103,12 @@ void BluetoothManager::startScan(uint32_t durationMs) {
     pScan->start(durationMs, false);
     
     m_scanning = false;
+    LOG("Scan completed, found %d devices", (int)m_devices.size());
 }
 
 void BluetoothManager::stopScan() {
     if (!m_scanning) return;
+    LOG("Stopping scan");
     NimBLEDevice::getScan()->stop();
     m_scanning = false;
 }
@@ -125,18 +138,26 @@ void BluetoothManager::onScanResult(void* device) {
 }
 
 bool BluetoothManager::connectToDevice(const std::string& address) {
+    LOG("=== connectToDevice called for %s ===", address.c_str());
+    
     if (!m_enabled) {
         LOG("Cannot connect - Bluetooth not enabled");
         return false;
     }
     
-    LOG("Connecting to %s", address.c_str());
+    if (isConnected(address)) {
+        LOG("Already connected to %s", address.c_str());
+        return true;
+    }
     
+    LOG("Creating NimBLEAddress...");
     NimBLEAddress bleAddress(address, BLE_ADDR_PUBLIC);
+    
+    LOG("Creating BLE client...");
     NimBLEClient* pClient = NimBLEDevice::createClient(bleAddress);
     
     if (!pClient) {
-        LOG("Failed to create client");
+        LOG("Failed to create BLE client");
         return false;
     }
     
@@ -146,17 +167,22 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
                                   BLE_CONN_LATENCY, BLE_CONN_TIMEOUT,
                                   BLE_CONN_SCAN_INTERVAL, BLE_CONN_SCAN_WINDOW);
     
+    LOG("Attempting to connect to %s...", address.c_str());
+    
     if (!pClient->connect(bleAddress)) {
-        LOG("Failed to connect");
+        LOG("Failed to connect to %s", address.c_str());
         return false;
     }
     
+    LOG("Connected successfully!");
+    
     m_connected.push_back(address);
-    LOG("Connected to %s", address.c_str());
+    LOG("=== Successfully connected to %s ===", address.c_str());
     return true;
 }
 
 void BluetoothManager::disconnectAll() {
+    LOG("Disconnecting all devices...");
     for (const auto& addr : m_connected) {
         LOG("Disconnected from %s", addr.c_str());
     }
