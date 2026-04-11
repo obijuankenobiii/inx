@@ -110,7 +110,9 @@ private:
         // Status Bar Group
         StatusBarLeft,       ///< Left status bar section content
         StatusBarMiddle,     ///< Middle status bar section content
-        StatusBarRight       ///< Right status bar section content
+        StatusBarRight,    ///< Right status bar section content
+
+        PageAutoTurn
     };
     
     /**

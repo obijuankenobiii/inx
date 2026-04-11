@@ -14,7 +14,7 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
+const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "table", "tr", "td", "th"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 const char* BOLD_TAGS[] = {"b", "strong"};
@@ -58,6 +58,24 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
  */
 void ChapterHtmlSlimParser::flushPartWordBuffer() {
   if (partWordBufferIndex == 0) return;
+  partWordBuffer[partWordBufferIndex] = '\0';
+
+  if (inDropCap) {
+    if (!currentPage) currentPage.reset(new Page());
+
+    auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
+    currentPage->elements.push_back(dropCapElem);
+
+    int dropCapWidth = renderer.getTextWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + 10;
+
+    if (currentTextBlock) {
+      currentTextBlock->setLeftIndent(dropCapWidth, 3);
+    }
+
+    partWordBufferIndex = 0;
+    inDropCap = false;
+    return;
+  }
 
   EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
   if (boldUntilDepth < depth && italicUntilDepth < depth) {
@@ -68,7 +86,6 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     fontStyle = EpdFontFamily::ITALIC;
   }
 
-  partWordBuffer[partWordBufferIndex] = '\0';
   currentTextBlock->addWord(partWordBuffer, fontStyle);
   partWordBufferIndex = 0;
 }
@@ -79,7 +96,7 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
  *
  * @param style The alignment style for the new text block
  */
-void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
+void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
       currentTextBlock->setStyle(style);
@@ -92,14 +109,23 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
 
 /**
  * XML parser callback for opening element tags.
- * Handles images, headers, block elements, and skip tags.
- *
- * @param userData Pointer to the ChapterHtmlSlimParser instance
- * @param name The element name
- * @param atts The element attributes
+ * * @param userData Pointer to the parser instance
+ * @param name Element name
+ * @param atts Element attributes
  */
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+
+  if (strcmp(name, "span") == 0 && atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
+        self->flushPartWordBuffer();
+        self->inDropCap = true;
+        self->dropCapDepth = self->depth;
+        break;
+      }
+    }
+  }
 
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
     std::string src = "";
@@ -149,6 +175,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inHeader = true;
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      self->currentTextBlock->addWord("\xe2\x80\x83\xe2\x80\x83", EpdFontFamily::REGULAR);
+    }
+
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
@@ -165,12 +195,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 }
 
 /**
- * XML parser callback for character data within elements.
- * Builds words from character data and triggers layout when text block grows large.
- *
- * @param userData Pointer to the ChapterHtmlSlimParser instance
- * @param s The character data
- * @param len Length of the character data
+ * XML parser callback for character data.
+ * * @param userData Pointer to the parser instance
+ * @param s Character data
+ * @param len Length of character data
  */
 void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
@@ -189,6 +217,8 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
     if (self->partWordBufferIndex >= MAX_WORD_SIZE) self->flushPartWordBuffer();
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
+
+    if (self->inDropCap) self->flushPartWordBuffer();
   }
 
   if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
@@ -200,10 +230,8 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
 /**
  * XML parser callback for closing element tags.
- * Flushes word buffer and updates depth tracking for bold, italic, and skip states.
- *
- * @param userData Pointer to the ChapterHtmlSlimParser instance
- * @param name The element name
+ * * @param userData Pointer to the parser instance
+ * @param name Element name
  */
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
@@ -227,15 +255,19 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
+
+  if (self->inDropCap && self->dropCapDepth == self->depth) {
+    self->inDropCap = false;
+    self->dropCapDepth = INT_MAX;
+  }
 }
 
 /**
  * Reads BMP dimensions from a cached image file.
- *
- * @param path Path to the BMP file
+ * * @param path Path to the BMP file
  * @param w Output parameter for width
  * @param h Output parameter for height
- * @return true if dimensions were successfully read, false otherwise
+ * @return true if dimensions were successfully read
  */
 bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, int* h) {
   FsFile file;
@@ -252,34 +284,24 @@ bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, in
 }
 
 /**
- * Adds a text line or header to the current page.
- * Handles page breaking if the line doesn't fit on the current page.
- * Uses PageHeader for header text and PageLine for normal text.
- *
- * @param line The text block line to add
+ * Adds a single text line to the current page.
+ * Handles page breaking when the line exceeds available space.
+ * * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
 
-  if (!line || line->isEmpty()) {
-    return;
-  }
+  if (!line || line->isEmpty()) return;
 
   if (currentPageNextY + lineHeight > viewportHeight) {
-    if (currentPage && !currentPage->elements.empty()) {
-      completePageFn(std::move(currentPage));
-    }
+    if (currentPage && !currentPage->elements.empty()) completePageFn(std::move(currentPage));
     currentPage.reset(new Page());
     currentPageNextY = 0;
   }
 
-  if (!currentPage) {
-    currentPage.reset(new Page());
-  }
+  if (!currentPage) currentPage.reset(new Page());
 
-  // Use PageHeader for header text, PageLine for normal text
   if (inHeader) {
-    // Use the header font ID passed from the activity
     currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, headerFontId));
   } else {
     currentPage->elements.push_back(std::make_shared<PageLine>(line, 0, currentPageNextY));
@@ -289,8 +311,8 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
 }
 
 /**
- * Converts the current text block into pages by extracting lines
- * and adding them to the page layout.
+ * Converts the current text block into page lines.
+ * Extracts lines based on viewport width and adds them to the current page.
  */
 void ChapterHtmlSlimParser::makePages() {
   if (!currentTextBlock) return;
@@ -312,14 +334,13 @@ void ChapterHtmlSlimParser::makePages() {
 }
 
 /**
- * Ensures an image is cached as BMP format and returns its dimensions.
- * If skipImages is true and image is not already cached, returns false without converting.
- *
- * @param internalPath Path to the original image in the EPUB
- * @param cacheImgPath Path where the cached BMP should be stored
+ * Ensures an image is cached as BMP format.
+ * If skipImages is true, only returns true for already-cached images.
+ * * @param internalPath Original image path within EPUB
+ * @param cacheImgPath Target path for cached BMP
  * @param w Output parameter for image width
  * @param h Output parameter for image height
- * @return true if image is available in cache and dimensions were read, false otherwise
+ * @return true if image is available in cache
  */
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
@@ -327,24 +348,19 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
     return getBmpDimensions(cacheImgPath, w, h);
   }
 
-  if (skipImages) {
-    return false;
-  }
+  if (skipImages) return false;
 
   bool result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
 
-  if (result) {
-    return getBmpDimensions(cacheImgPath, w, h);
-  }
+  if (result) return getBmpDimensions(cacheImgPath, w, h);
 
   return false;
 }
 
 /**
  * Adds an image to the current page layout.
- * Handles scaling, centering, and special page breaking for extra-large images.
- *
- * @param bmpPath Path to the cached BMP image
+ * Handles scaling, centering, and special handling for extra-large images.
+ * * @param bmpPath Path to the cached BMP image
  * @param imgW Original image width
  * @param imgH Original image height
  */
@@ -393,7 +409,6 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
   currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
 
-  int oldY = currentPageNextY;
   currentPageNextY += imgH + (renderer.getLineHeight(fontId) / 2);
 }
 
@@ -401,14 +416,15 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
  * Parses the HTML file and builds pages.
  * When skipImageProcessing is true, only processes text and uses existing cached images
  * without converting new ones. Images that aren't already cached will be skipped.
- *
- * @param skipImageProcessing If true, skip converting new images and only process text
+ * * @param skipImageProcessing If true, skip converting new images and only process text
  * @return true if parsing was successful, false otherwise
  */
 bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
+  inDropCap = false;
+  dropCapDepth = INT_MAX;
 
-  startNewTextBlock((TextBlock::Style)this->paragraphAlignment);
+  startNewTextBlock(static_cast<TextBlock::Style>(this->paragraphAlignment));
   const XML_Parser parser = XML_ParserCreate(nullptr);
   if (!parser) return false;
 

@@ -4,13 +4,13 @@
 #include <HalGPIO.h>
 #include <SDCardManager.h>
 #include <SPI.h>
-#include <builtinFonts/all.h>
 
 #include <cstring>
 #include <new>
 #include <string>
 
 #include "activity/network/CalibreConnectActivity.h"
+#include "activity/network/BluetoothActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -125,6 +125,9 @@ void onNetworkModeSelected(NetworkMode mode) {
     case NetworkMode::CREATE_HOTSPOT:
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
       break;
+    case NetworkMode::ADD_BLUETOOTH:
+      switchTo<BluetoothActivity>(render, input, onGoToFileTransfer);
+      break;
   }
 }
 
@@ -149,6 +152,9 @@ void onGoToLibrary(const std::string& path) {
   switchTo<LibraryActivity>(render, input, onGoToRecent, openReaderFromCallback, onGoToRecent, onGoToSettings, path);
 }
 
+/**
+ * @brief Set up application.
+ */
 void verifyPowerButtonDuration() {
   if (SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) return;
   const auto start = millis();
@@ -158,6 +164,7 @@ void verifyPowerButtonDuration() {
     delay(10);
     gpio.update();
   }
+
   if (gpio.isPressed(HalGPIO::BTN_POWER)) {
     while (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() < SETTINGS.getPowerButtonDuration()) {
       delay(10);
@@ -167,6 +174,7 @@ void verifyPowerButtonDuration() {
   } else {
     abort = true;
   }
+
   if (abort) gpio.startDeepSleep();
 }
 
@@ -189,6 +197,9 @@ void setupDisplayAndFonts() {
   FontManager::initialize(render);
 }
 
+/**
+ * @brief Set up application.
+ */
 void setup() {
   t1 = millis();
   gpio.begin();
@@ -220,6 +231,9 @@ void setup() {
   waitForPowerRelease();
 }
 
+/**
+ * @brief All activity loop.
+ */
 void loop() {
   gpio.update();
   static unsigned long lastActivityTime = millis();
@@ -245,6 +259,6 @@ void loop() {
   if (currentActivity && currentActivity->skipLoopDelay()) {
     yield();
   } else {
-    delay(10);
+    delay(30);
   }
 }

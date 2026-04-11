@@ -2,8 +2,14 @@
 
 #include <GfxRenderer.h>
 
+#include "../network/BluetoothActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+
+#include "images/Wifi.h"
+#include "images/Qr.h"
+#include "images/Calibre.h"
+#include "images/Bluetooth.h"
 
 namespace {
 /**
@@ -30,12 +36,13 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-constexpr int MENU_ITEM_COUNT = 3;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
+constexpr int MENU_ITEM_COUNT = 4;  // Changed from 3 to 4
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "Bluetooth"};
 const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
     "Connect to an existing WiFi network",
     "Use Calibre wireless device transfers",
     "Create a WiFi network others can join",
+    "Connect Bluetooth devices",
 };
 constexpr int LIST_ITEM_HEIGHT = 80;
 }  // namespace
@@ -59,12 +66,12 @@ void SyncActivity::onEnter() {
   if (!renderingMutex) return;
 
   selectedIndex = 0;
-  
+
   // Initial render immediately
   render();
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 2048, this, 1, &displayTaskHandle);
+    xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 8192, this, 1, &displayTaskHandle);
   }
 }
 
@@ -74,7 +81,8 @@ void SyncActivity::onEnter() {
  */
 void SyncActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     updateRequired = true;
     return;
   }
@@ -109,11 +117,18 @@ void SyncActivity::loop() {
   }
 
   if (confirmPressed) {
-    NetworkMode mode = NetworkMode::JOIN_NETWORK;
+     NetworkMode mode = NetworkMode::JOIN_NETWORK;
+
     if (selectedIndex == 1) {
       mode = NetworkMode::CONNECT_CALIBRE;
-    } else if (selectedIndex == 2) {
+    }  
+    
+    if (selectedIndex == 2) {
       mode = NetworkMode::CREATE_HOTSPOT;
+    }
+
+    if (selectedIndex == 3) {
+      mode = NetworkMode::ADD_BLUETOOTH;
     }
 
     if (onModeSelected) {
@@ -159,6 +174,9 @@ void SyncActivity::displayTaskLoop() {
 /**
  * Renders the complete sync activity view including menu items and tab bar.
  */
+/**
+ * Renders the complete sync activity view including menu items and tab bar.
+ */
 void SyncActivity::render() const {
   renderer.clearScreen();
   const int screenWidth = renderer.getScreenWidth();
@@ -172,7 +190,7 @@ void SyncActivity::render() const {
 
   const char* headerText = "File Transfer";
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "How would you like to connect?";
   int subtitleY = headerY + 40;
@@ -194,10 +212,25 @@ void SyncActivity::render() const {
         renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
       }
 
-      const int textX = 20;
+      const int textX = 70;
       const int titleY = itemY + 10;
       const int descriptionY = itemY + 45;
 
+      switch (i) {
+        case 0:  // Join a Network
+          renderer.drawIcon(Wifi, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 1:  // Connect to Calibre
+          renderer.drawIcon(Calibre, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 2:  // Create Hotspot
+          renderer.drawIcon(Qr, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 3:  // Bluetooth
+          renderer.drawIcon(Bluetooth, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+      }
+      
       renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, descriptionY, MENU_DESCRIPTIONS[i], !isSelected);
 

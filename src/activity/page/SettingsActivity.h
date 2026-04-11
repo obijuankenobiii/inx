@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../Menu.h"
+#include "../settings/AboutPage.h"
 #include "activity/ActivityWithSubactivity.h"
 
 class SystemSetting;
@@ -27,6 +28,8 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   int indexingProgress = 0;
   int indexingTotal = 0;
   char currentIndexingPath[256] = {0};
+  bool showingAbout = false;
+  int selectedAboutIndex = 0;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -52,6 +55,9 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
       onSyncOpen();
     }
   }
+
+ private:
+  AboutPage* aboutPage = nullptr;
 
  public:
   SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,

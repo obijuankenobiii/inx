@@ -80,6 +80,7 @@ private:
     bool bookmarkLongPressProcessed = false;
     bool leftLongPressProcessed = false;
     int loadingProgress = 0;
+    unsigned long lastAutoPageTurnTime = 0;
     
     const std::function<void()> onGoBack;
     const std::function<void()> onGoToRecent;

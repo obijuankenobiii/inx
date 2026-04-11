@@ -288,6 +288,27 @@ void SettingsDrawer::setupMenu() {
       s.useCustomSettings = true;
     };
     menuItems.push_back(chapterEntry);
+
+    MenuEntry pageAutoTurnEntry;
+    pageAutoTurnEntry.item = MenuItem::PageAutoTurn;
+    pageAutoTurnEntry.group = GroupType::CONTROLS;
+    pageAutoTurnEntry.name = "Page Auto Turn";
+    pageAutoTurnEntry.getValueText = [](const BookSettings& s) -> const char* {
+      static char buf[20];
+      if (s.pageAutoTurnSeconds == 0) {
+        return "Off";
+      }
+      snprintf(buf, sizeof(buf), "%d sec", s.pageAutoTurnSeconds);
+      return buf;
+    };
+    pageAutoTurnEntry.change = [](BookSettings& s, int delta) {
+      int newVal = s.pageAutoTurnSeconds + (delta * 10);
+      if (newVal >= 0 && newVal <= 180) {
+        s.pageAutoTurnSeconds = newVal;
+        s.useCustomSettings = true;
+      }
+    };
+    menuItems.push_back(pageAutoTurnEntry);
   }
 
   MenuEntry statusBarSeparator;
@@ -601,6 +622,7 @@ void SettingsDrawer::applyChange(int delta) {
       settingsUpdated = true;
       break;
 
+    case MenuItem::PageAutoTurn:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

@@ -133,7 +133,7 @@ void RecentActivity::onEnter() {
   currentViewMode = (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) ? ViewMode::Grid : ViewMode::Default;
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 4096, this, 1, &displayTaskHandle);
+    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 8192, this, 1, &displayTaskHandle);
   }
 
   updateRequired = true;
@@ -531,7 +531,7 @@ void RecentActivity::renderDefault() {
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int startY = TAB_BAR_HEIGHT - 6;
+  const int startY = TAB_BAR_HEIGHT;
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
@@ -541,7 +541,7 @@ void RecentActivity::renderDefault() {
 
   int coverItemX = GRID_SPACING;
   int coverItemY = startY + GRID_SPACING;
-  int detailsItemX = GRID_SPACING + containerWidth + 10;
+  int detailsItemX = GRID_SPACING + containerWidth + 5;
   int detailsItemY = coverItemY;
 
   int coverAreaX = coverItemX;
@@ -639,7 +639,7 @@ void RecentActivity::renderDefault() {
 
   int textX = coverItemX;
   int textY = coverAreaY + coverHeight + 25;
-  int textWidth = containerWidth - 30;
+  int textWidth = containerWidth - 10;
 
   std::string trunc =
       renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleBuf, textWidth, EpdFontFamily::BOLD);
@@ -678,7 +678,7 @@ void RecentActivity::renderDefault() {
     }
   }
 
-  int statsX = detailsItemX + 15;
+  int statsX = detailsItemX + 8;
   int statsY = detailsItemY;
   int currentY = statsY + renderer.getLineHeight(VALUE_FONT) - 40;
   char buffer[32];

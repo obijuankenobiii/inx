@@ -340,8 +340,16 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     lineWordWidthSum += wordWidths[i];
   }
 
-  // Calculate spacing
-  const int spareSpace = pageWidth - lineWordWidthSum;
+  // --- MINIMAL INDENT LOGIC ---
+  uint16_t currentIndent = 0;
+  if (this->leftIndentLineCount > 0) {
+    currentIndent = this->leftIndentWidth;
+    this->leftIndentLineCount--; // Mark one indented line as processed
+  }
+
+  // Adjusted available page width
+  const int effectivePageWidth = pageWidth - currentIndent;
+  const int spareSpace = effectivePageWidth - lineWordWidthSum;
 
   int spacing = spaceWidth;
   const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
@@ -350,12 +358,12 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     spacing = spareSpace / (lineWordCount - 1);
   }
 
-  // Calculate initial x position
-  uint16_t xpos = 0;
+  // Calculate initial x position starting from the indent
+  uint16_t xpos = currentIndent;
   if (style == TextBlock::RIGHT_ALIGN) {
-    xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
+    xpos += spareSpace - (lineWordCount - 1) * spaceWidth;
   } else if (style == TextBlock::CENTER_ALIGN) {
-    xpos = (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
+    xpos += (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
   // Pre-calculate X positions for words

@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <iosfwd>
 
+/**
+ * @brief System settings management class
+ */
 class SystemSetting {
 private:
     SystemSetting() = default;
@@ -12,269 +15,374 @@ public:
     SystemSetting(const SystemSetting&) = delete;
     SystemSetting& operator=(const SystemSetting&) = delete;
 
+    /**
+     * @brief Sleep screen display modes
+     */
     enum SLEEP_SCREEN_MODE { 
-        DARK = 0, 
-        LIGHT = 1, 
-        CUSTOM = 2, 
-        COVER = 3, 
-        TRANSPARENT = 4, 
-        BLANK = 5, 
+        DARK = 0,           ///< Dark screen
+        LIGHT = 1,          ///< Light screen
+        CUSTOM = 2,         ///< Custom image
+        COVER = 3,          ///< Book cover
+        TRANSPARENT = 4,    ///< Transparent
+        BLANK = 5,          ///< Blank screen
         SLEEP_SCREEN_MODE_COUNT 
     };
     
+    /**
+     * @brief Sleep screen cover scaling modes
+     */
     enum SLEEP_SCREEN_COVER_MODE { 
-        FIT = 0, 
-        CROP = 1, 
+        FIT = 0,            ///< Fit to screen
+        CROP = 1,           ///< Crop to fill
         SLEEP_SCREEN_COVER_MODE_COUNT 
     };
     
+    /**
+     * @brief Sleep screen cover filter options
+     */
     enum SLEEP_SCREEN_COVER_FILTER {
-        NO_FILTER = 0,
-        BLACK_AND_WHITE = 1,
-        INVERTED_BLACK_AND_WHITE = 2,
+        NO_FILTER = 0,                      ///< No filter
+        BLACK_AND_WHITE = 1,                ///< Black and white
+        INVERTED_BLACK_AND_WHITE = 2,       ///< Inverted black and white
         SLEEP_SCREEN_COVER_FILTER_COUNT
     };
 
+    /**
+     * @brief Navigation disable modes
+     */
     enum DISABLE_NAVIGATION_MODE {
-        NAV_NONE = 0,
-        LEFT_RIGHT = 1,
-        UP_DOWN = 2,
+        NAV_NONE = 0,       ///< Navigation enabled
+        LEFT_RIGHT = 1,     ///< Disable left/right
+        UP_DOWN = 2,        ///< Disable up/down
         DISABLE_NAVIGATION_MODE_COUNT
     };
 
-    // Status bar item types for new configurable sections
+    /**
+     * @brief Status bar item types for configurable sections
+     */
     enum STATUS_BAR_ITEM {
-        STATUS_ITEM_NONE = 0,
-        STATUS_ITEM_PAGE_NUMBERS = 1,
-        STATUS_ITEM_PERCENTAGE = 2,
-        STATUS_ITEM_CHAPTER_TITLE = 3,
-        STATUS_ITEM_BATTERY_ICON = 4,
-        STATUS_ITEM_BATTERY_PERCENTAGE = 5,
-        STATUS_ITEM_BATTERY_ICON_WITH_PERCENT = 6,
-        STATUS_ITEM_PROGRESS_BAR = 7,
-        STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT = 8,
-        STATUS_ITEM_PAGE_BARS = 9,
-        STATUS_ITEM_BOOK_TITLE = 10,
-        STATUS_ITEM_AUTHOR_NAME = 11,
+        STATUS_ITEM_NONE = 0,                       ///< No item
+        STATUS_ITEM_PAGE_NUMBERS = 1,               ///< Page numbers
+        STATUS_ITEM_PERCENTAGE = 2,                 ///< Reading percentage
+        STATUS_ITEM_CHAPTER_TITLE = 3,              ///< Chapter title
+        STATUS_ITEM_BATTERY_ICON = 4,               ///< Battery icon only
+        STATUS_ITEM_BATTERY_PERCENTAGE = 5,         ///< Battery percentage text
+        STATUS_ITEM_BATTERY_ICON_WITH_PERCENT = 6,  ///< Battery icon with percentage
+        STATUS_ITEM_PROGRESS_BAR = 7,               ///< Progress bar only
+        STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT = 8,  ///< Progress bar with percentage
+        STATUS_ITEM_PAGE_BARS = 9,                  ///< Page bars
+        STATUS_ITEM_BOOK_TITLE = 10,                ///< Book title
+        STATUS_ITEM_AUTHOR_NAME = 11,               ///< Author name
         STATUS_BAR_ITEM_COUNT
     };
 
-    // Legacy status bar mode (kept for backward compatibility)
+    /**
+     * @brief Legacy status bar mode (kept for backward compatibility)
+     */
     enum STATUS_BAR_MODE {
-        NONE = 0,
-        NO_PROGRESS = 1,
-        FULL = 2,                    // Full w/%
-        FULL_WITH_PROGRESS_BAR = 3,  // Full w/Bar
-        ONLY_PROGRESS_BAR = 4,       // Bar Only
-        BATTERY_PERCENTAGE = 5,      // Battery with percentage
-        PERCENTAGE = 6,              // Just percentage
-        PAGE_BARS = 7,               // Dynamic page bars
+        NONE = 0,                       ///< No status bar
+        NO_PROGRESS = 1,                ///< Status bar without progress
+        FULL = 2,                       ///< Full status bar with percentage
+        FULL_WITH_PROGRESS_BAR = 3,     ///< Full status bar with progress bar
+        ONLY_PROGRESS_BAR = 4,          ///< Progress bar only
+        BATTERY_PERCENTAGE = 5,         ///< Battery with percentage
+        PERCENTAGE = 6,                 ///< Just percentage
+        PAGE_BARS = 7,                  ///< Dynamic page bars
         STATUS_BAR_MODE_COUNT
     };
 
+    /**
+     * @brief Screen orientation modes
+     */
     enum ORIENTATION {
-        PORTRAIT = 0,
-        LANDSCAPE_CW = 1,
-        INVERTED = 2,
-        LANDSCAPE_CCW = 3,
+        PORTRAIT = 0,       ///< Portrait orientation
+        LANDSCAPE_CW = 1,   ///< Landscape clockwise
+        INVERTED = 2,       ///< Inverted portrait
+        LANDSCAPE_CCW = 3,  ///< Landscape counter-clockwise
         ORIENTATION_COUNT
     };
 
+    /**
+     * @brief Front button layout configurations
+     */
     enum FRONT_BUTTON_LAYOUT {
-        BACK_CONFIRM_LEFT_RIGHT = 0,
-        LEFT_RIGHT_BACK_CONFIRM = 1,
-        LEFT_BACK_CONFIRM_RIGHT = 2,
-        BACK_CONFIRM_RIGHT_LEFT = 3,
+        BACK_CONFIRM_LEFT_RIGHT = 0,    ///< Back/Confirm on left, Prev/Next on right
+        LEFT_RIGHT_BACK_CONFIRM = 1,    ///< Prev/Next on left, Back/Confirm on right
+        LEFT_BACK_CONFIRM_RIGHT = 2,    ///< Prev on left, Back/Confirm in middle, Next on right
+        BACK_CONFIRM_RIGHT_LEFT = 3,    ///< Back/Confirm on right, Prev/Next on left
         FRONT_BUTTON_LAYOUT_COUNT
     };
 
+    /**
+     * @brief Side button layout configurations
+     */
     enum SIDE_BUTTON_LAYOUT { 
-        PREV_NEXT = 0, 
-        NEXT_PREV = 1, 
+        PREV_NEXT = 0,      ///< Previous on top, Next on bottom
+        NEXT_PREV = 1,      ///< Next on top, Previous on bottom
         SIDE_BUTTON_LAYOUT_COUNT 
     };
 
+    /**
+     * @brief Reader direction mapping for navigation
+     */
     enum READER_DIRECTION_MAPPING {
-        MAP_LEFT_RIGHT = 0,
-        MAP_RIGHT_LEFT = 1,
-        MAP_UP_DOWN = 2,
-        MAP_DOWN_UP = 3,
-        MAP_NONE = 4,
+        MAP_LEFT_RIGHT = 0,     ///< Map left/right to prev/next
+        MAP_RIGHT_LEFT = 1,     ///< Map right/left to prev/next
+        MAP_UP_DOWN = 2,        ///< Map up/down to prev/next
+        MAP_DOWN_UP = 3,        ///< Map down/up to prev/next
+        MAP_NONE = 4,           ///< No mapping
         READER_DIRECTION_MAPPING_COUNT
     };
 
+    /**
+     * @brief Reader menu button assignment
+     */
     enum READER_MENU_BUTTON {
-        MENU_UP = 0,
-        MENU_DOWN = 1,
-        MENU_LEFT = 2,
-        MENU_RIGHT = 3,
+        MENU_UP = 0,        ///< Menu on up button
+        MENU_DOWN = 1,      ///< Menu on down button
+        MENU_LEFT = 2,      ///< Menu on left button
+        MENU_RIGHT = 3,     ///< Menu on right button
         READER_MENU_BUTTON_COUNT
     };
     
+    /**
+     * @brief Font family options
+     */
     enum FONT_FAMILY { 
-        BOOKERLY = 0, 
-        ATKINSON_HYPERLEGIBLE = 1, 
-        LITERATA = 2, 
+        BOOKERLY = 0,               ///< Bookerly font
+        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible font
+        LITERATA = 2,               ///< Literata font
         FONT_FAMILY_COUNT 
     };
     
+    /**
+     * @brief Font size options
+     */
     enum FONT_SIZE { 
-        EXTRA_SMALL = 0,
-        SMALL = 1, 
-        MEDIUM = 2, 
-        LARGE = 3, 
-        EXTRA_LARGE = 4, 
+        EXTRA_SMALL = 0,    ///< Extra small font
+        SMALL = 1,          ///< Small font
+        MEDIUM = 2,         ///< Medium font
+        LARGE = 3,          ///< Large font
+        EXTRA_LARGE = 4,    ///< Extra large font
         FONT_SIZE_COUNT 
     };
     
+    /**
+     * @brief Line spacing compression options
+     */
     enum LINE_COMPRESSION { 
-        TIGHT = 0, 
-        NORMAL = 1, 
-        WIDE = 2, 
+        TIGHT = 0,      ///< Tight line spacing
+        NORMAL = 1,     ///< Normal line spacing
+        WIDE = 2,       ///< Wide line spacing
         LINE_COMPRESSION_COUNT 
     };
     
+    /**
+     * @brief Paragraph alignment options
+     */
     enum PARAGRAPH_ALIGNMENT {
-        JUSTIFIED = 0,
-        LEFT_ALIGN = 1,
-        CENTER_ALIGN = 2,
-        RIGHT_ALIGN = 3,
+        JUSTIFIED = 0,      ///< Justified alignment
+        LEFT_ALIGN = 1,     ///< Left alignment
+        CENTER_ALIGN = 2,   ///< Center alignment
+        RIGHT_ALIGN = 3,    ///< Right alignment
         PARAGRAPH_ALIGNMENT_COUNT
     };
 
+    /**
+     * @brief Sleep timeout duration options
+     */
     enum SLEEP_TIMEOUT {
-        SLEEP_1_MIN = 0,
-        SLEEP_5_MIN = 1,
-        SLEEP_10_MIN = 2,
-        SLEEP_15_MIN = 3,
-        SLEEP_30_MIN = 4,
+        SLEEP_1_MIN = 0,    ///< 1 minute timeout
+        SLEEP_5_MIN = 1,    ///< 5 minute timeout
+        SLEEP_10_MIN = 2,   ///< 10 minute timeout
+        SLEEP_15_MIN = 3,   ///< 15 minute timeout
+        SLEEP_30_MIN = 4,   ///< 30 minute timeout
         SLEEP_TIMEOUT_COUNT
     };
 
+    /**
+     * @brief Screen refresh frequency options
+     */
     enum REFRESH_FREQUENCY {
-        REFRESH_1 = 0,
-        REFRESH_5 = 1,
-        REFRESH_10 = 2,
-        REFRESH_15 = 3,
-        REFRESH_30 = 4,
+        REFRESH_1 = 0,      ///< Refresh every page
+        REFRESH_5 = 1,      ///< Refresh every 5 pages
+        REFRESH_10 = 2,     ///< Refresh every 10 pages
+        REFRESH_15 = 3,     ///< Refresh every 15 pages
+        REFRESH_30 = 4,     ///< Refresh every 30 pages
         REFRESH_FREQUENCY_COUNT
     };
 
-    // Global short power button behavior (for library, home, etc.)
+    /**
+     * @brief Global short power button behavior (for library, home, etc.)
+     */
     enum SHORT_PWRBTN { 
-        IGNORE = 0, 
-        SLEEP = 1, 
-        PAGE_REFRESH = 2,
+        IGNORE = 0,         ///< Ignore short press
+        SLEEP = 1,          ///< Put to sleep
+        PAGE_REFRESH = 2,   ///< Refresh page
         SHORT_PWRBTN_COUNT 
     };
     
-    // Reader-specific short power button behavior
+    /**
+     * @brief Reader-specific short power button behavior
+     */
     enum READER_SHORT_PWRBTN {
-        READER_PAGE_TURN = 0,
-        READER_PAGE_REFRESH = 1,
+        READER_PAGE_TURN = 0,       ///< Turn page
+        READER_PAGE_REFRESH = 1,    ///< Refresh screen
         READER_SHORT_PWRBTN_COUNT
     };
     
+    /**
+     * @brief Battery percentage display options
+     */
     enum HIDE_BATTERY_PERCENTAGE { 
-        HIDE_NEVER = 0, 
-        HIDE_READER = 1, 
-        HIDE_ALWAYS = 2, 
+        HIDE_NEVER = 0,     ///< Always show
+        HIDE_READER = 1,    ///< Hide in reader
+        HIDE_ALWAYS = 2,    ///< Always hide
         HIDE_BATTERY_PERCENTAGE_COUNT 
     };
 
+    /**
+     * @brief Recent library display modes
+     */
     enum RECENT_LIBRARY_MODE {
-        RECENT_GRID = 0,
-        RECENT_LIST = 1,
+        RECENT_GRID = 0,    ///< Grid view
+        RECENT_LIST = 1,    ///< List view
         RECENT_LIBRARY_MODE_COUNT
     };
 
+    /**
+     * @brief Boot destination settings
+     */
     enum BOOT_SETTING {
-        RECENT_PAGE = 0,
-        HOME_PAGE = 1,
+        RECENT_PAGE = 0,    ///< Boot to recent page
+        HOME_PAGE = 1,      ///< Boot to home page
         BOOT_SETTING_COUNT
     };
 
     // Sleep screen settings
-    uint8_t sleepScreen = LIGHT;
-    uint8_t sleepScreenCoverMode = FIT;
-    uint8_t sleepScreenCoverFilter = NO_FILTER;
+    uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
+    uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
+    uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
     
     // Legacy status bar mode (kept for backward compatibility)
-    uint8_t statusBar = FULL;
+    uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
     
     // New configurable status bar sections
-    uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-    uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
-    uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;
+    uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;   ///< Left status bar section
+    uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;             ///< Middle status bar section
+    uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;               ///< Right status bar section
     
     // Text rendering settings
-    uint8_t extraParagraphSpacing = 1;
-    uint8_t textAntiAliasing = 1;
+    uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
+    uint8_t textAntiAliasing = 1;                               ///< Text anti-aliasing enabled
     
     // Global short power button click behaviour (outside reader)
-    uint8_t shortPwrBtn = IGNORE;
+    uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
     
     // Reader-specific short power button click behaviour
-    uint8_t readerShortPwrBtn = READER_PAGE_TURN;
+    uint8_t readerShortPwrBtn = READER_PAGE_TURN;               ///< Reader short power button behavior
     
     // EPUB reading orientation settings
-    uint8_t orientation = PORTRAIT;
+    uint8_t orientation = PORTRAIT;                             ///< Screen orientation
     
     // Button layouts
-    uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
-    uint8_t sideButtonLayout = PREV_NEXT;
+    uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;        ///< Front button layout
+    uint8_t sideButtonLayout = PREV_NEXT;                       ///< Side button layout
     
-    // --- NEW MEMBER VARIABLES ---
-    uint8_t readerDirectionMapping = MAP_NONE;
-    uint8_t readerMenuButton = MENU_UP;
+    // Reader navigation settings
+    uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
+    uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
     
     // Reader font settings
-    uint8_t fontFamily = LITERATA;
-    uint8_t fontSize = SMALL;
-    uint8_t lineSpacing = TIGHT;
-    uint8_t paragraphAlignment = JUSTIFIED;
+    uint8_t fontFamily = LITERATA;                              ///< Font family
+    uint8_t fontSize = SMALL;                                   ///< Font size
+    uint8_t lineSpacing = TIGHT;                                ///< Line spacing
+    uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
     
     // Auto-sleep timeout setting (default 10 minutes)
-    uint8_t sleepTimeout = SLEEP_10_MIN;
+    uint8_t sleepTimeout = SLEEP_10_MIN;                        ///< Sleep timeout
     
     // E-ink refresh frequency (default 15 pages)
-    uint8_t refreshFrequency = REFRESH_15;
-    uint8_t hyphenationEnabled = 1;
+    uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
+    uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
 
     // Reader screen margin settings
-    uint8_t screenMargin = 20;
+    uint8_t screenMargin = 20;                                  ///< Screen margin in pixels
     
     // OPDS browser settings
-    char opdsServerUrl[128] = "";
-    char opdsUsername[64] = "";
-    char opdsPassword[64] = "";
+    char opdsServerUrl[128] = "";                               ///< OPDS server URL
+    char opdsUsername[64] = "";                                 ///< OPDS username
+    char opdsPassword[64] = "";                                 ///< OPDS password
     
-    uint8_t hideBatteryPercentage = HIDE_NEVER;
-    uint8_t longPressChapterSkip = 1;
-    uint8_t useLibraryIndex = 0;
-    uint8_t disableNavigation = NAV_NONE;
+    uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
+    uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
+    uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
+    uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
     // Library display settings
-    uint8_t recentLibraryMode = RECENT_LIST;
+    uint8_t recentLibraryMode = RECENT_LIST;                    ///< Recent library display mode
     
     // Boot settings
-    uint8_t bootSetting = RECENT_PAGE; 
+    uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
+
+    /**
+     * @brief Page auto-turn interval in seconds
+     * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
+     */
+    uint8_t pageAutoTurnSeconds = 0;
 
     ~SystemSetting() = default;
 
+    /**
+     * @brief Gets the singleton instance
+     * @return Reference to the SystemSetting instance
+     */
     static SystemSetting& getInstance() { 
         return instance; 
     }
 
+    /**
+     * @brief Gets power button duration in milliseconds
+     * @return Duration in ms (10ms for sleep, 400ms for ignore)
+     */
     uint16_t getPowerButtonDuration() const {
         return (shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) ? 10 : 400;
     }
     
+    /**
+     * @brief Gets reader font ID based on font family and size
+     * @return Font identifier for rendering
+     */
     int getReaderFontId() const;
+    
+    /**
+     * @brief Saves all settings to file
+     * @return true if save successful, false otherwise
+     */
     bool saveToFile() const;
+    
+    /**
+     * @brief Loads all settings from file
+     * @return true if load successful, false otherwise
+     */
     bool loadFromFile();
+    
+    /**
+     * @brief Gets reader line compression factor based on font and spacing
+     * @return Line compression multiplier
+     */
     float getReaderLineCompression() const;
+    
+    /**
+     * @brief Gets sleep timeout in milliseconds
+     * @return Sleep timeout in milliseconds
+     */
     unsigned long getSleepTimeoutMs() const;
+    
+    /**
+     * @brief Gets screen refresh frequency in pages
+     * @return Number of pages between refreshes
+     */
     int getRefreshFrequency() const;
 };
 

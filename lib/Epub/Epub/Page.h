@@ -10,6 +10,7 @@ enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
   TAG_PageHeader = 2,
   TAG_PageImage = 3,
+  TAG_PageDropCap = 4, // Added for drop cap support
 };
 
 /**
@@ -23,8 +24,7 @@ class PageElement {
   
   /**
    * Constructs a page element at the specified position.
-   * 
-   * @param xPos X coordinate on the page
+   * * @param xPos X coordinate on the page
    * @param yPos Y coordinate on the page
    */
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
@@ -32,15 +32,13 @@ class PageElement {
   
   /**
    * Returns the element type tag for identification.
-   * 
-   * @return The element type tag
+   * * @return The element type tag
    */
   virtual PageElementTag getTag() const = 0;
   
   /**
    * Renders the element on the screen.
-   * 
-   * @param renderer The graphics renderer
+   * * @param renderer The graphics renderer
    * @param fontId Font ID for text rendering
    * @param xOffset Horizontal offset for page margins
    * @param yOffset Vertical offset for page margins
@@ -49,8 +47,7 @@ class PageElement {
   
   /**
    * Serializes the element to a file.
-   * 
-   * @param file The file to write to
+   * * @param file The file to write to
    * @return true if serialization was successful
    */
   virtual bool serialize(FsFile& file) = 0;
@@ -64,13 +61,6 @@ class PageLine final : public PageElement {
   std::shared_ptr<TextBlock> block;
 
  public:
-  /**
-   * Constructs a new page line.
-   * 
-   * @param block The text block containing the line's content
-   * @param xPos X coordinate on the page
-   * @param yPos Y coordinate on the page
-   */
   PageLine(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), block(std::move(block)) {}
 
@@ -82,21 +72,13 @@ class PageLine final : public PageElement {
 
 /**
  * Represents a header line on a page.
- * Uses the next larger font size from FontManager.
+ * Uses the specified headerFontId for rendering.
  */
 class PageHeader final : public PageElement {
   std::shared_ptr<TextBlock> block;
-  int headerFontId;  // Add this line
+  int headerFontId;
 
  public:
-  /**
-   * Constructs a new page header.
-   * 
-   * @param block The text block containing the header's content
-   * @param xPos X coordinate on the page
-   * @param yPos Y coordinate on the page
-   * @param fontId The font ID to use for this header
-   */
   PageHeader(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos, int fontId)
       : PageElement(xPos, yPos), block(std::move(block)), headerFontId(fontId) {}
 
@@ -104,6 +86,29 @@ class PageHeader final : public PageElement {
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageHeader> deserialize(FsFile& file);
+};
+
+/**
+ * Represents a large first letter (drop cap) at the start of a chapter or paragraph.
+ */
+class PageDropCap final : public PageElement {
+  std::string text;
+  int dropCapFontId;
+
+ public:
+  /**
+   * @param text The character(s) to render as a drop cap
+   * @param xPos X coordinate
+   * @param yPos Y coordinate
+   * @param fontId The specific large font ID to use
+   */
+  PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId)
+      : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId) {}
+
+  PageElementTag getTag() const override { return TAG_PageDropCap; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageDropCap> deserialize(FsFile& file);
 };
 
 /**
@@ -116,15 +121,6 @@ class PageImage final : public PageElement {
   int16_t height;
 
  public:
-  /**
-   * Constructs a new page image.
-   * 
-   * @param path Path to the cached BMP file
-   * @param w Width of the image
-   * @param h Height of the image
-   * @param xPos X coordinate on the page
-   * @param yPos Y coordinate on the page
-   */
   PageImage(std::string path, const int16_t w, const int16_t h, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), cachePath(std::move(path)), width(w), height(h) {}
 
@@ -133,41 +129,18 @@ class PageImage final : public PageElement {
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   
-  /**
-   * Gets the path to the cached BMP file.
-   * 
-   * @return The cache path
-   */
   const std::string& getPath() const { return cachePath; }
-  
-  /**
-   * Gets the image width.
-   * 
-   * @return The width in pixels
-   */
   int16_t getWidth() const { return width; }
-  
-  /**
-   * Gets the image height.
-   * 
-   * @return The height in pixels
-   */
   int16_t getHeight() const { return height; }
 };
 
 /**
  * Represents a complete page containing multiple elements.
- * Manages a collection of page elements and handles rendering and serialization.
  */
 class Page {
  public:
   std::vector<std::shared_ptr<PageElement>> elements;
   
-  /**
-   * Checks if the page contains any images.
-   * 
-   * @return true if at least one image element exists
-   */
   bool hasImages() const {
     return std::any_of(elements.begin(), elements.end(),
                        [](const std::shared_ptr<PageElement>& element) {
@@ -175,31 +148,7 @@ class Page {
                        });
   }
   
-  /**
-   * Renders all elements on the page.
-   * 
-   * @param renderer The graphics renderer
-   * @param fontId Font ID for text rendering
-   * @param headerFontId Font ID for header rendering
-   * @param xOffset Horizontal offset for page margins
-   * @param yOffset Vertical offset for page margins
-   * @param skipImages If true, images are not rendered
-   */
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false) const;
-  
-  /**
-   * Serializes the page to a file.
-   * 
-   * @param file The file to write to
-   * @return true if serialization was successful
-   */
   bool serialize(FsFile& file) const;
-  
-  /**
-   * Deserializes a page from a file.
-   * 
-   * @param file The file to read from
-   * @return Unique pointer to the deserialized page
-   */
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

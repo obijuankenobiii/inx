@@ -1,5 +1,4 @@
 #include "FontManager.h"
-#include <builtinFonts/all.h>
 #include "system/Fonts.h"
 
 void FontManager::initialize(GfxRenderer& renderer) {
@@ -191,4 +190,18 @@ int FontManager::getNextFont(int currentFontId) {
     
     auto it = NEXT_FONT.find(currentFontId);
     return (it != NEXT_FONT.end()) ? it->second : currentFontId;
+}
+
+int FontManager::getMaxFontId(int currentFontId) {
+    if (currentFontId >= 1000 && currentFontId <= 1004) {
+        return BOOKERLY_18_FONT_ID;
+    } 
+    if (currentFontId >= 2001 && currentFontId <= 2006) {
+        return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
+    }
+    if (currentFontId >= 3001 && currentFontId <= 3004) {
+        return LITERATA_18_FONT_ID;
+    }
+    
+    return currentFontId;
 }

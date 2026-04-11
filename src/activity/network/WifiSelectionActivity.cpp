@@ -13,8 +13,6 @@
 
 namespace {
 constexpr int LIST_ITEM_HEIGHT = 60;
-constexpr int TAB_BAR_HEIGHT = 40;
-constexpr int TAB_COUNT = 4;
 }  // namespace
 
 /**

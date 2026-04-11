@@ -21,6 +21,13 @@
  */
 void SleepActivity::onEnter() {
   Activity::onEnter();
+
+  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT)
+  {
+    renderer.clearScreen();
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+
   switch (SETTINGS.sleepScreen) {
     case SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT:
       renderTransparentSleepScreen();

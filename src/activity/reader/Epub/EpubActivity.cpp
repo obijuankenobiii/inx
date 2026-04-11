@@ -27,7 +27,7 @@ constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
-}
+}  // namespace
 
 /**
  * @brief Structure containing viewport calculation results.
@@ -196,12 +196,20 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     renderer.displayBuffer();
   }
 
-  int headerFontId = FontManager::getNextFont(info.fontId);
-
   bool success =
-      tempSection->createSectionFile(info.fontId, headerFontId, info.lineCompression,
-                                     bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
-                                     info.height, bookSettings.hyphenationEnabled, progressCallback, skipImages);
+      tempSection->createSectionFile(
+        info.fontId, 
+        FontManager::getNextFont(info.fontId),
+        FontManager::getMaxFontId(info.fontId),
+        info.lineCompression,
+        bookSettings.extraParagraphSpacing, 
+        bookSettings.paragraphAlignment, 
+        info.width,
+        info.height, 
+        bookSettings.hyphenationEnabled, 
+        progressCallback, 
+        skipImages
+      );
 
   if (isDoingSomethingHeavy && showProgress) {
     renderer.clearScreen();
@@ -482,6 +490,7 @@ void EpubActivity::onEnter() {
     slowPath();
   }
   updateRequired = true;
+  lastAutoPageTurnTime = millis();
 }
 
 /**
@@ -576,6 +585,7 @@ void EpubActivity::loop() {
       vTaskDelay(pdMS_TO_TICKS(100));
       isToggleClosed = true;
       updateRequired = true;
+      lastAutoPageTurnTime = millis();
     }
     return;
   }
@@ -652,6 +662,7 @@ void EpubActivity::loop() {
     }
 
     startPageTimer();
+    lastAutoPageTurnTime = millis();
     updateRequired = true;
     return;
   }
@@ -660,6 +671,7 @@ void EpubActivity::loop() {
       SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_TURN) {
     endPageTimer();
     pageTurn(true);
+    lastAutoPageTurnTime = millis();
     return;
   }
 
@@ -673,13 +685,30 @@ void EpubActivity::loop() {
   if (prev) {
     endPageTimer();
     pageTurn(false);
+    lastAutoPageTurnTime = millis();
     return;
   }
 
   if (next) {
     endPageTimer();
     pageTurn(true);
+    lastAutoPageTurnTime = millis();
     return;
+  }
+
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy) {
+    if (lastAutoPageTurnTime == 0) {
+      lastAutoPageTurnTime = millis();
+    }
+
+    unsigned long elapsed = millis() - lastAutoPageTurnTime;
+    if (elapsed >= (bookSettings.pageAutoTurnSeconds * 1000UL)) {
+      lastAutoPageTurnTime = millis();
+      endPageTimer();
+      pageTurn(true);
+      updateRequired = true;
+      return;
+    }
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
@@ -1152,8 +1181,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-               orientedMarginLeft, orientedMarginTop, false);
+  page->render(
+    renderer, 
+    bookSettings.getReaderFontId(), 
+    FontManager::getNextFont(bookSettings.getReaderFontId()),
+    orientedMarginLeft, 
+    orientedMarginTop,
+    false
+  );
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
 
@@ -1176,14 +1211,26 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.storeBwBuffer();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-                 orientedMarginLeft, orientedMarginTop, false);
+    page->render(
+      renderer, 
+      bookSettings.getReaderFontId(), 
+      FontManager::getNextFont(bookSettings.getReaderFontId()),
+      orientedMarginLeft, 
+      orientedMarginTop,
+      false
+    );
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, bookSettings.getReaderFontId(), FontManager::getNextFont(bookSettings.getReaderFontId()),
-                 orientedMarginLeft, orientedMarginTop, false);
+    page->render(
+      renderer, 
+      bookSettings.getReaderFontId(), 
+      FontManager::getNextFont(bookSettings.getReaderFontId()),
+      orientedMarginLeft, 
+      orientedMarginTop,
+      false
+    );
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();

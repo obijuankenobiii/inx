@@ -5,19 +5,19 @@
 
 #include <functional>
 
-#include "../Activity.h"
+#include "../ActivityWithSubactivity.h"
 #include "../Menu.h"
 
-enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT };
+enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT, ADD_BLUETOOTH };
 
-class SyncActivity final : public Activity, public Menu {
+class SyncActivity final : public ActivityWithSubactivity, public Menu {
  public:
   SyncActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                const std::function<void(NetworkMode)>& onModeSelected,
                const std::function<void()>& onRecentOpen = nullptr,
                const std::function<void()>& onStatisticsOpen = nullptr,
                const std::function<void()>& onSettingsOpen = nullptr)
-      : Activity("Network Settings", renderer, mappedInput),
+      : ActivityWithSubactivity("Network Settings", renderer, mappedInput),
         Menu(),
         onModeSelected(onModeSelected),
         onRecentOpen(onRecentOpen),
