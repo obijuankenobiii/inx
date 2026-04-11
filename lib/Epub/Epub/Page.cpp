@@ -94,7 +94,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
-  renderer.drawText(dropCapFontId, xPos + xOffset - 5, yPos + yOffset, text.c_str(), EpdFontFamily::BOLD);
+  renderer.drawText(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
 /**

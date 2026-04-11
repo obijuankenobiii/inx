@@ -14,7 +14,7 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
+const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "table", "tr", "td", "th"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 const char* BOLD_TAGS[] = {"b", "strong"};
@@ -28,6 +28,7 @@ constexpr int NUM_IMAGE_TAGS = sizeof(IMAGE_TAGS) / sizeof(IMAGE_TAGS[0]);
 
 const char* SKIP_TAGS[] = {"head"};
 constexpr int NUM_SKIP_TAGS = sizeof(SKIP_TAGS) / sizeof(SKIP_TAGS[0]);
+
 /**
  * Determines if a character is whitespace.
  *
@@ -35,6 +36,7 @@ constexpr int NUM_SKIP_TAGS = sizeof(SKIP_TAGS) / sizeof(SKIP_TAGS[0]);
  * @return true if the character is space, carriage return, newline, or tab
  */
 bool isWhitespace(const char c) { return c == ' ' || c == '\r' || c == '\n' || c == '\t'; }
+
 /**
  * Checks if a tag name matches any tag in a list of possible tags.
  *
@@ -60,18 +62,18 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
 
   if (inDropCap) {
     if (!currentPage) currentPage.reset(new Page());
-    
+
     auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
     int dropCapWidth = renderer.getTextWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + 10;
-    
+
     if (currentTextBlock) {
       currentTextBlock->setLeftIndent(dropCapWidth, 3);
     }
 
     partWordBufferIndex = 0;
-    inDropCap = false; 
+    inDropCap = false;
     return;
   }
 
@@ -114,7 +116,6 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  // --- Drop Cap Detection ---
   if (strcmp(name, "span") == 0 && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
@@ -174,6 +175,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inHeader = true;
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      self->currentTextBlock->addWord("\xe2\x80\x83\xe2\x80\x83", EpdFontFamily::REGULAR);
+    }
+
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
@@ -212,7 +217,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
     if (self->partWordBufferIndex >= MAX_WORD_SIZE) self->flushPartWordBuffer();
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
-    
+
     if (self->inDropCap) self->flushPartWordBuffer();
   }
 
@@ -250,7 +255,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
-  
+
   if (self->inDropCap && self->dropCapDepth == self->depth) {
     self->inDropCap = false;
     self->dropCapDepth = INT_MAX;
@@ -337,7 +342,8 @@ void ChapterHtmlSlimParser::makePages() {
  * @param h Output parameter for image height
  * @return true if image is available in cache
  */
-bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w, int* h) {
+bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
+                                              int* h) {
   if (SdMan.exists(cacheImgPath.c_str())) {
     return getBmpDimensions(cacheImgPath, w, h);
   }
