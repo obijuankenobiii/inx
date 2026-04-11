@@ -1470,7 +1470,6 @@ void EpubActivity::applyBookSettings() {
     currentPage = section->currentPage;
     cachedChapterTotalPageCount = section->pageCount;
     cachedSpineIndex = currentSpine;
-    section.reset();
   } else {
     currentPage = nextPageNumber;
     cachedChapterTotalPageCount = 0;
@@ -1500,12 +1499,16 @@ void EpubActivity::applyBookSettings() {
       char progressStr[32];
       snprintf(progressStr, sizeof(progressStr), "Updating %d/%d", rebuilt, total);
       ScreenComponents::drawPopup(renderer, progressStr);
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
 
+    vTaskDelay(pdMS_TO_TICKS(100));
     buildSection(spineIdx, info, false, true);
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 
   if (currentSpine < startSpine || currentSpine > endSpine) {
+    vTaskDelay(pdMS_TO_TICKS(100));
     buildSection(currentSpine, info, false, true);
   }
 
