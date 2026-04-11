@@ -6,6 +6,11 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+#include "images/Wifi.h"
+#include "images/Qr.h"
+#include "images/Calibre.h"
+#include "images/Bluetooth.h"
+
 namespace {
 /**
  * Thread-safe mutex operations wrapper
@@ -169,6 +174,9 @@ void SyncActivity::displayTaskLoop() {
 /**
  * Renders the complete sync activity view including menu items and tab bar.
  */
+/**
+ * Renders the complete sync activity view including menu items and tab bar.
+ */
 void SyncActivity::render() const {
   renderer.clearScreen();
   const int screenWidth = renderer.getScreenWidth();
@@ -182,7 +190,7 @@ void SyncActivity::render() const {
 
   const char* headerText = "File Transfer";
   int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "How would you like to connect?";
   int subtitleY = headerY + 40;
@@ -204,10 +212,25 @@ void SyncActivity::render() const {
         renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
       }
 
-      const int textX = 20;
+      const int textX = 70;
       const int titleY = itemY + 10;
       const int descriptionY = itemY + 45;
 
+      switch (i) {
+        case 0:  // Join a Network
+          renderer.drawIcon(Wifi, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 1:  // Connect to Calibre
+          renderer.drawIcon(Calibre, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 2:  // Create Hotspot
+          renderer.drawIcon(Qr, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+        case 3:  // Bluetooth
+          renderer.drawIcon(Bluetooth, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          break;
+      }
+      
       renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, descriptionY, MENU_DESCRIPTIONS[i], !isSelected);
 

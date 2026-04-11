@@ -217,7 +217,7 @@ void BluetoothActivity::renderScanning() const {
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Scanning for devices...";
   int subtitleY = startY + 40;
@@ -239,7 +239,7 @@ void BluetoothActivity::renderDeviceList() const {
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a device to connect";
   int subtitleY = startY + 40;
@@ -304,7 +304,7 @@ void BluetoothActivity::renderConnecting() const {
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connecting...";
   int subtitleY = startY + 40;
@@ -327,7 +327,7 @@ void BluetoothActivity::renderConnected() const {
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connected!";
   int subtitleY = startY + 40;
@@ -349,7 +349,7 @@ void BluetoothActivity::renderConnectionFailed() const {
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY, headerText, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
   int subtitleY = startY + 40;

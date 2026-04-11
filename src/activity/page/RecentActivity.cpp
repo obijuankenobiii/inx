@@ -541,7 +541,7 @@ void RecentActivity::renderDefault() {
 
   int coverItemX = GRID_SPACING;
   int coverItemY = startY + GRID_SPACING;
-  int detailsItemX = GRID_SPACING + containerWidth + 10;
+  int detailsItemX = GRID_SPACING + containerWidth + 5;
   int detailsItemY = coverItemY;
 
   int coverAreaX = coverItemX;
