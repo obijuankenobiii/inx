@@ -14,7 +14,7 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "table", "tr", "td", "th"};
+const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 const char* BOLD_TAGS[] = {"b", "strong"};
