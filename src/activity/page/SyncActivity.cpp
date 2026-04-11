@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 
+#include "../network/BluetoothActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -30,12 +31,13 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-constexpr int MENU_ITEM_COUNT = 3;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
+constexpr int MENU_ITEM_COUNT = 4;  // Changed from 3 to 4
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "Bluetooth"};
 const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
     "Connect to an existing WiFi network",
     "Use Calibre wireless device transfers",
     "Create a WiFi network others can join",
+    "Connect Bluetooth devices",
 };
 constexpr int LIST_ITEM_HEIGHT = 80;
 }  // namespace
@@ -59,7 +61,7 @@ void SyncActivity::onEnter() {
   if (!renderingMutex) return;
 
   selectedIndex = 0;
-  
+
   // Initial render immediately
   render();
 
@@ -74,7 +76,8 @@ void SyncActivity::onEnter() {
  */
 void SyncActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     updateRequired = true;
     return;
   }
@@ -109,11 +112,18 @@ void SyncActivity::loop() {
   }
 
   if (confirmPressed) {
-    NetworkMode mode = NetworkMode::JOIN_NETWORK;
+     NetworkMode mode = NetworkMode::JOIN_NETWORK;
+
     if (selectedIndex == 1) {
       mode = NetworkMode::CONNECT_CALIBRE;
-    } else if (selectedIndex == 2) {
+    }  
+    
+    if (selectedIndex == 2) {
       mode = NetworkMode::CREATE_HOTSPOT;
+    }
+
+    if (selectedIndex == 3) {
+      mode = NetworkMode::ADD_BLUETOOTH;
     }
 
     if (onModeSelected) {

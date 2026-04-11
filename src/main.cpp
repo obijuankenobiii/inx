@@ -10,6 +10,7 @@
 #include <string>
 
 #include "activity/network/CalibreConnectActivity.h"
+#include "activity/network/BluetoothActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -123,6 +124,9 @@ void onNetworkModeSelected(NetworkMode mode) {
       break;
     case NetworkMode::CREATE_HOTSPOT:
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
+      break;
+    case NetworkMode::ADD_BLUETOOTH:
+      switchTo<BluetoothActivity>(render, input, onGoToFileTransfer);
       break;
   }
 }
