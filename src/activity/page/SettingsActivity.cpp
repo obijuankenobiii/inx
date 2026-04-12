@@ -140,7 +140,7 @@ void SettingsActivity::onEnter() {
 
   render();
 
-  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 8192, this, 1, &displayTaskHandle);
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
 /**

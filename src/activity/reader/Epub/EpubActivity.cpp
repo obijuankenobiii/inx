@@ -1499,16 +1499,15 @@ void EpubActivity::applyBookSettings() {
       char progressStr[32];
       snprintf(progressStr, sizeof(progressStr), "Updating %d/%d", rebuilt, total);
       ScreenComponents::drawPopup(renderer, progressStr);
-      vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
     buildSection(spineIdx, info, false, true);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 
   if (currentSpine < startSpine || currentSpine > endSpine) {
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
     buildSection(currentSpine, info, false, true);
   }
 
