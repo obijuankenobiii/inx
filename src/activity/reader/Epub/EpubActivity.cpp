@@ -1501,7 +1501,7 @@ void EpubActivity::applyBookSettings() {
       ScreenComponents::drawPopup(renderer, progressStr);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
     buildSection(spineIdx, info, false, true);
     vTaskDelay(pdMS_TO_TICKS(10));
   }
