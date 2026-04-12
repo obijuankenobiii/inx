@@ -140,7 +140,7 @@ void SettingsActivity::onEnter() {
 
   render();
 
-  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 8192, this, 1, &displayTaskHandle);
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -430,7 +430,7 @@ void SettingsActivity::startLibraryIndexing() {
         activity->updateRequired = true;
         vTaskDelete(nullptr);
       },
-      "LibraryIndexTask", 8192, this, 1, nullptr);
+      "LibraryIndexTask", 16384, this, 1, nullptr);
 }
 
 /**
