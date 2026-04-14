@@ -27,13 +27,13 @@ const SettingInfo displaySettings[displaySettingsCount] = {
 
 constexpr int readerSettingsCount = 30;
 const SettingInfo readerSettings[readerSettingsCount] = {
-    SettingInfo::Separator("═══ Font ═══", GroupType::FONT),
+    SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly", "Atkinson Hyperlegible", "Literata"},
                       GroupType::FONT),
     SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small", "Small", "Medium", "Large", "X Large"},
                       GroupType::FONT),
 
-    SettingInfo::Separator("═══ Layout ═══", GroupType::LAYOUT),
+    SettingInfo::Separator(" Layout ", GroupType::LAYOUT),
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
     SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment, {"Justify", "Left", "Center", "Right"},
@@ -43,7 +43,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
 
-    SettingInfo::Separator("═══ Navigation ═══", GroupType::READER_CONTROLS),
+    SettingInfo::Separator(" Navigation ", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
                       {"Left/Right", "Right/Left", "Up/Down", "Down/Up", "None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
@@ -53,12 +53,12 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       GroupType::READER_CONTROLS),
     SettingInfo::Value("Page Auto Turn", &SystemSetting::pageAutoTurnSeconds, {0, 180, 10}, GroupType::READER_CONTROLS),
 
-    SettingInfo::Separator("═══ System ═══", GroupType::SYSTEM),
+    SettingInfo::Separator(" System ", GroupType::SYSTEM),
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}, GroupType::SYSTEM),
 
-    SettingInfo::Separator("═══ Status Bar ═══", GroupType::STATUS_BAR),
+    SettingInfo::Separator(" Status Bar ", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
                       {"None", "No Progress", "Full w/ Percentage", "Full w/ Progress Bar", "Progress Bar", "Battery %",
                        "Percentage", "Page Bars"},
@@ -140,7 +140,7 @@ void SettingsActivity::onEnter() {
 
   render();
 
-  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 2048, this, 1, &displayTaskHandle);
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -430,7 +430,7 @@ void SettingsActivity::startLibraryIndexing() {
         activity->updateRequired = true;
         vTaskDelete(nullptr);
       },
-      "LibraryIndexTask", 2048, this, 1, nullptr);
+      "LibraryIndexTask", 4096, this, 1, nullptr);
 }
 
 /**

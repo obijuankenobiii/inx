@@ -202,7 +202,7 @@ void StatisticActivity::onEnter() {
   render();
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 2048, this, 1, &displayTaskHandle);
+    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
   }
 }
 

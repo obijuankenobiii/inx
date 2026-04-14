@@ -60,7 +60,7 @@ void OtaUpdateActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   xTaskCreate(&OtaUpdateActivity::taskTrampoline, "OtaUpdateActivityTask",
-              2048,               // Stack size
+              4096,               // Stack size
               this,               // Parameters
               1,                  // Priority
               &displayTaskHandle  // Task handle

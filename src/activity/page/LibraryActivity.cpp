@@ -21,12 +21,6 @@
 
 namespace {
 
-/**
- * @brief RAII guard for FreeRTOS mutex semaphore
- *
- * Automatically acquires mutex on construction and releases on destruction.
- * Provides exception-safe mutex management.
- */
 class MutexGuard {
  private:
   SemaphoreHandle_t& mutex;
@@ -50,18 +44,9 @@ class MutexGuard {
 
 constexpr unsigned long GO_HOME_MS = 1000;
 constexpr unsigned long FAVORITE_HOLD_MS = 500;
+constexpr unsigned long PAGE_NAV_HOLD_MS = 500;
 }  // namespace
 
-/**
- * @brief Constructs the LibraryActivity
- * @param renderer Graphics renderer for UI drawing
- * @param mappedInput Input manager for handling button events
- * @param onGoToRecent Callback for navigating to recent books
- * @param onSelectBook Callback when a book is selected for reading
- * @param onRecentOpen Callback for opening recent books view
- * @param onSettingsOpen Callback for opening settings
- * @param initialPath Initial file system path to display
- */
 LibraryActivity::LibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                  const std::function<void()>& onGoToRecent,
                                  const std::function<void(const std::string& path)>& onSelectBook,
@@ -82,15 +67,13 @@ LibraryActivity::LibraryActivity(GfxRenderer& renderer, MappedInputManager& mapp
       isSortButtonSelected(false),
       favoriteLongPressProcessed(false),
       currentViewMode(ViewMode::FOLDER_VIEW),
-      currentSortMode(SortMode::TITLE_AZ) {
+      currentSortMode(SortMode::TITLE_AZ),
+      currentPage(0),
+      totalPages(0),
+      itemsPerPage(FOLDER_ITEMS_PER_PAGE) {
   tabSelectorIndex = 1;
 }
 
-/**
- * @brief Formats a folder name for display by replacing underscores with spaces and capitalizing words
- * @param name Raw folder name or path
- * @return Formatted display string
- */
 std::string LibraryActivity::formatFolderName(const std::string& name) const {
   std::string formatted = name;
 
@@ -116,18 +99,13 @@ std::string LibraryActivity::formatFolderName(const std::string& name) const {
   return formatted;
 }
 
-/**
- * @brief Extracts base filename without extension and removes numeric prefixes
- * @param filename Full filename including extension
- * @return Cleaned base name for display
- */
 std::string LibraryActivity::getBaseFilename(const std::string& filename) const {
   size_t lastSlash = filename.find_last_of('/');
   std::string basename = (lastSlash != std::string::npos) ? filename.substr(lastSlash + 1) : filename;
 
   size_t lastDot = basename.find_last_of('.');
   if (lastDot != std::string::npos) {
-    basename.resize(lastDot);  // Fixed: use resize() instead of substr assignment
+    basename.resize(lastDot);
   }
 
   if (!basename.empty()) {
@@ -151,10 +129,6 @@ std::string LibraryActivity::getBaseFilename(const std::string& filename) const 
   return basename;
 }
 
-/**
- * @brief Gets header text based on current view mode and path
- * @return Formatted header string
- */
 std::string LibraryActivity::getHeaderText() const {
   if (basepath == "/") {
     return currentViewMode == ViewMode::BOOK_LIST_VIEW ? "All Books" : "Collection";
@@ -165,11 +139,6 @@ std::string LibraryActivity::getHeaderText() const {
   return truncateTextIfNeeded(header, 25);
 }
 
-/**
- * @brief Extracts the last folder name from a path
- * @param path File system path
- * @return Last component of the path
- */
 std::string LibraryActivity::extractFolderName(const std::string& path) const {
   std::string folderName = path;
 
@@ -185,12 +154,6 @@ std::string LibraryActivity::extractFolderName(const std::string& path) const {
   return folderName;
 }
 
-/**
- * @brief Truncates text with ellipsis if it exceeds maximum length
- * @param text Input text
- * @param maxLength Maximum allowed length
- * @return Truncated string if needed, original otherwise
- */
 std::string LibraryActivity::truncateTextIfNeeded(const std::string& text, size_t maxLength) const {
   if (text.length() > maxLength) {
     return text.substr(0, maxLength - 3) + "...";
@@ -198,15 +161,6 @@ std::string LibraryActivity::truncateTextIfNeeded(const std::string& text, size_
   return text;
 }
 
-/**
- * @brief Draws a header button with optional selection highlighting
- * @param text Button label
- * @param headerY Y-coordinate of header
- * @param headerHeight Height of header area
- * @param rightX Rightmost X coordinate for button placement
- * @param isSelected Whether button is currently selected
- * @return X-coordinate for next button
- */
 int LibraryActivity::drawHeaderButton(const std::string& text, int headerY, int headerHeight, int rightX,
                                       bool isSelected) const {
   const int BUTTON_WIDTH = 110;
@@ -230,22 +184,12 @@ int LibraryActivity::drawHeaderButton(const std::string& text, int headerY, int 
   return buttonX - BUTTON_PADDING;
 }
 
-/**
- * @brief Draws the sort button with current sort mode
- * @param headerY Y-coordinate of header
- * @param headerHeight Height of header area
- * @param rightX Rightmost X coordinate
- * @return X-coordinate for next element
- */
 int LibraryActivity::drawSortButton(int headerY, int headerHeight, int rightX) const {
   std::string buttonText = getSortButtonText();
   bool isSelected = isSortButtonSelected && tabSelectorIndex == 1;
   return drawHeaderButton(buttonText, headerY, headerHeight, rightX, isSelected);
 }
 
-/**
- * @brief Draws context-sensitive button hints at bottom of screen
- */
 void LibraryActivity::drawButtonHints() const {
   std::string back = currentViewMode == ViewMode::FOLDER_VIEW ? basepath != "/" ? "« Back" : "Books »" : "« Groups";
   std::string select = "Select";
@@ -255,15 +199,140 @@ void LibraryActivity::drawButtonHints() const {
 }
 
 /**
- * @brief Recursively finds all books in a directory tree
- * @param path Starting directory path
- * @param books Vector to populate with found books
+ * @brief Paginated book finder - only scans until we have enough books for current page
  */
-void LibraryActivity::findBooksRecursively(const std::string& path, std::vector<LibraryItem>& books) {
+void LibraryActivity::findBooksPaginated(const std::string& path, std::vector<LibraryItem>& books, 
+                                          int startIndex, int count, int& foundCount, bool& stop) {
+  if (stop) return;
+  
   auto dir = SdMan.open(path.c_str());
   if (!dir || !dir.isDirectory()) {
     if (dir) dir.close();
     return;
+  }
+
+  dir.rewindDirectory();
+  char name[500];
+
+  for (auto file = dir.openNextFile(); file && !stop; file = dir.openNextFile()) {
+    file.getName(name, sizeof(name));
+
+    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0 || strcmp(name, ".metadata") == 0 ||
+        strcmp(name, "sleep") == 0) {
+      file.close();
+      continue;
+    }
+
+    std::string fullPath = path;
+    if (fullPath.empty()) fullPath = "/";
+    if (fullPath.back() != '/') fullPath += "/";
+    fullPath += name;
+
+    if (file.isDirectory()) {
+      findBooksPaginated(fullPath, books, startIndex, count, foundCount, stop);
+      file.close();
+      continue;
+    }
+
+    std::string filename = name;
+    if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
+        StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
+        StringUtils::checkFileExtension(filename, ".md")) {
+      
+      // Only add if we've passed the start index
+      if (foundCount >= startIndex) {
+        LibraryItem bookItem;
+        bookItem.type = LibraryItem::Type::BOOK;
+        bookItem.name = filename;
+        bookItem.path = fullPath;
+        bookItem.displayName = formatFolderName(getBaseFilename(filename));
+
+        bookItem.folderPath = extractFolderName(path);
+        if (bookItem.folderPath.empty() || path == "/") {
+          bookItem.folderPath = "Library";
+        }
+
+        books.push_back(bookItem);
+      }
+      
+      foundCount++;
+      
+      // Stop if we have enough books
+      if (books.size() >= (size_t)count) {
+        stop = true;
+      }
+    }
+    file.close();
+  }
+  dir.close();
+}
+
+/**
+ * @brief Paginated folder finder - only scans until we have enough folders for current page
+ */
+void LibraryActivity::findFoldersPaginated(const std::string& path, std::vector<LibraryItem>& folders,
+                                            int startIndex, int count, int& foundCount, bool& stop) {
+  if (stop) return;
+  
+  auto dir = SdMan.open(path.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return;
+  }
+
+  dir.rewindDirectory();
+  char name[500];
+
+  for (auto file = dir.openNextFile(); file && !stop; file = dir.openNextFile()) {
+    file.getName(name, sizeof(name));
+
+    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0 || strcmp(name, ".metadata") == 0 ||
+        strcmp(name, "sleep") == 0) {
+      file.close();
+      continue;
+    }
+
+    std::string fullPath = path;
+    if (fullPath.empty()) fullPath = "/";
+    if (fullPath.back() != '/') fullPath += "/";
+    fullPath += name;
+
+    if (file.isDirectory()) {
+      if (directoryHasBooks(fullPath + "/")) {
+        // Only add if we've passed the start index
+        if (foundCount >= startIndex) {
+          LibraryItem folderItem;
+          folderItem.type = LibraryItem::Type::FOLDER;
+          folderItem.name = name;
+          folderItem.displayName = formatFolderName(name);
+          folderItem.path = fullPath + "/";
+          folders.push_back(folderItem);
+        }
+        
+        foundCount++;
+        
+        // Stop if we have enough folders
+        if (folders.size() >= (size_t)count) {
+          stop = true;
+        }
+      }
+      file.close();
+      continue;
+    }
+    file.close();
+  }
+  dir.close();
+}
+
+/**
+ * @brief Count total books without storing them (fast scan)
+ */
+int LibraryActivity::countTotalBooks(const std::string& path) {
+  int count = 0;
+  auto dir = SdMan.open(path.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return 0;
   }
 
   dir.rewindDirectory();
@@ -284,7 +353,7 @@ void LibraryActivity::findBooksRecursively(const std::string& path, std::vector<
     fullPath += name;
 
     if (file.isDirectory()) {
-      findBooksRecursively(fullPath, books);
+      count += countTotalBooks(fullPath);
       file.close();
       continue;
     }
@@ -293,29 +362,55 @@ void LibraryActivity::findBooksRecursively(const std::string& path, std::vector<
     if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
         StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
         StringUtils::checkFileExtension(filename, ".md")) {
-      LibraryItem bookItem;
-      bookItem.type = LibraryItem::Type::BOOK;
-      bookItem.name = filename;
-      bookItem.path = fullPath;
-      bookItem.displayName = formatFolderName(getBaseFilename(filename));
-
-      bookItem.folderPath = extractFolderName(path);
-      if (bookItem.folderPath.empty() || path == "/") {
-        bookItem.folderPath = "Library";
-      }
-
-      books.push_back(bookItem);
+      count++;
     }
     file.close();
   }
   dir.close();
+  return count;
 }
 
 /**
- * @brief Checks if a directory contains any book files (recursively)
- * @param path Directory path to check
- * @return true if directory contains books, false otherwise
+ * @brief Count total folders with books without storing them (fast scan)
  */
+int LibraryActivity::countTotalFolders(const std::string& path) {
+  int count = 0;
+  auto dir = SdMan.open(path.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return 0;
+  }
+
+  dir.rewindDirectory();
+  char name[500];
+
+  for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
+    file.getName(name, sizeof(name));
+
+    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0 || strcmp(name, ".metadata") == 0 ||
+        strcmp(name, "sleep") == 0) {
+      file.close();
+      continue;
+    }
+
+    std::string fullPath = path;
+    if (fullPath.empty()) fullPath = "/";
+    if (fullPath.back() != '/') fullPath += "/";
+    fullPath += name;
+
+    if (file.isDirectory()) {
+      if (directoryHasBooks(fullPath + "/")) {
+        count++;
+      }
+      file.close();
+      continue;
+    }
+    file.close();
+  }
+  dir.close();
+  return count;
+}
+
 bool LibraryActivity::directoryHasBooks(const std::string& path) {
   auto dir = SdMan.open(path.c_str());
   if (!dir || !dir.isDirectory()) {
@@ -367,32 +462,136 @@ bool LibraryActivity::directoryHasBooks(const std::string& path) {
 }
 
 /**
- * @brief Loads all books based on current settings (indexed or recursive scan)
+ * @brief Loads all books with pagination - only scans what's needed for current page
  */
 void LibraryActivity::loadAllBooksRecursive() {
   if (SETTINGS.useLibraryIndex) {
     loadLibraryFromIndex();
   } else {
     if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-      allBooksList.clear();
-      findBooksRecursively(basepath, allBooksList);
-      sortByTitle(true);
+      // For book view: paginated scan
+      currentPageItems.clear();
+      
+      // First count total books to calculate pages
+      int totalBooks = countTotalBooks(basepath);
+      totalPages = (totalBooks + itemsPerPage - 1) / itemsPerPage;
+      if (totalPages == 0) totalPages = 1;
+      
+      if (currentPage >= totalPages) currentPage = totalPages - 1;
+      if (currentPage < 0) currentPage = 0;
+      
+      // Now scan only the books needed for current page
+      int startIndex = currentPage * itemsPerPage;
+      int count = itemsPerPage;
+      int foundCount = 0;
+      bool stop = false;
+      
+      findBooksPaginated(basepath, currentPageItems, startIndex, count, foundCount, stop);
+      
+      sortByTitle(true); // Sort the current page
     } else {
-      loadLibraryItems();
+      // For folder view: paginated scan of current directory only
+      currentPageItems.clear();
+      
+      // First collect folders and books in current directory
+      std::vector<LibraryItem> folders;
+      std::vector<LibraryItem> books;
+      
+      auto root = SdMan.open(basepath.c_str());
+      if (root && root.isDirectory()) {
+        root.rewindDirectory();
+        char name[500];
+        
+        // Scan folders first
+        for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+          file.getName(name, sizeof(name));
+          
+          if (name[0] == '.' || strcmp(name, "System Volume Information") == 0 || strcmp(name, ".metadata") == 0 ||
+              strcmp(name, "sleep") == 0) {
+            file.close();
+            continue;
+          }
+          
+          std::string fullPath = basepath;
+          if (fullPath.back() != '/') fullPath += "/";
+          fullPath += name;
+          
+          if (file.isDirectory()) {
+            if (directoryHasBooks(fullPath + "/")) {
+              LibraryItem folderItem;
+              folderItem.type = LibraryItem::Type::FOLDER;
+              folderItem.name = name;
+              folderItem.displayName = formatFolderName(name);
+              folderItem.path = fullPath + "/";
+              folders.push_back(folderItem);
+            }
+            file.close();
+            continue;
+          }
+          file.close();
+        }
+        
+        // Scan books
+        root.rewindDirectory();
+        for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+          file.getName(name, sizeof(name));
+          
+          if (name[0] == '.') {
+            file.close();
+            continue;
+          }
+          
+          if (!file.isDirectory()) {
+            std::string filename = name;
+            if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
+                StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
+                StringUtils::checkFileExtension(filename, ".md")) {
+              LibraryItem bookItem;
+              bookItem.type = LibraryItem::Type::BOOK;
+              bookItem.name = filename;
+              bookItem.displayName = formatFolderName(getBaseFilename(filename));
+              
+              std::string fullPath = basepath;
+              if (fullPath.back() != '/') fullPath += "/";
+              bookItem.path = fullPath + filename;
+              bookItem.folderPath = formatFolderName(extractFolderName(basepath));
+              books.push_back(bookItem);
+            }
+          }
+          file.close();
+        }
+        root.close();
+      }
+      
+      // Combine folders and books
+      auto sortFn = [](const LibraryItem& a, const LibraryItem& b) { return a.displayName < b.displayName; };
+      std::sort(folders.begin(), folders.end(), sortFn);
+      std::sort(books.begin(), books.end(), sortFn);
+      
+      std::vector<LibraryItem> allItems;
+      allItems.insert(allItems.end(), folders.begin(), folders.end());
+      allItems.insert(allItems.end(), books.begin(), books.end());
+      
+      // Calculate pages
+      totalPages = (allItems.size() + itemsPerPage - 1) / itemsPerPage;
+      if (totalPages == 0) totalPages = 1;
+      
+      if (currentPage >= totalPages) currentPage = totalPages - 1;
+      if (currentPage < 0) currentPage = 0;
+      
+      // Load current page
+      int startIdx = currentPage * itemsPerPage;
+      int endIdx = std::min(startIdx + itemsPerPage, (int)allItems.size());
+      
+      for (int i = startIdx; i < endIdx; i++) {
+        currentPageItems.push_back(allItems[i]);
+      }
     }
   }
 }
 
-/**
- * @brief Static trampoline function for FreeRTOS task
- * @param param Pointer to LibraryActivity instance
- */
 void LibraryActivity::taskTrampoline(void* param) { static_cast<LibraryActivity*>(param)->displayTaskLoop(); }
 
-/**
- * @brief Main loop for display update task
- * Periodically checks if UI needs refreshing and renders when necessary
- */
 void LibraryActivity::displayTaskLoop() {
   while (true) {
     {
@@ -406,39 +605,21 @@ void LibraryActivity::displayTaskLoop() {
   }
 }
 
-/**
- * @brief Checks if a book is marked as favorite
- * @param path Book file path
- * @return true if book is favorited
- */
 bool LibraryActivity::isBookMarked(const std::string& path) const {
   auto* book = BOOK_STATE.findBookByPath(path);
   return book ? book->isFavorite : false;
 }
 
-/**
- * @brief Checks if a book has been opened before
- * @param path Book file path
- * @return true if book has been opened
- */
 bool LibraryActivity::isBookOpened(const std::string& path) const {
   auto* book = BOOK_STATE.findBookByPath(path);
   return book ? book->isReading : false;
 }
 
-/**
- * @brief Checks if a book has been completed
- * @param path Book file path
- * @return true if book has been opened
- */
 bool LibraryActivity::isBookFinished(const std::string& path) const {
   auto* book = BOOK_STATE.findBookByPath(path);
   return book ? book->isFinished : false;
 }
 
-/**
- * @brief Renders the complete library UI
- */
 void LibraryActivity::render() const {
   renderer.clearScreen();
 
@@ -465,9 +646,6 @@ void LibraryActivity::render() const {
   renderer.displayBuffer();
 }
 
-/**
- * @brief Toggles between folder view and book list view
- */
 void LibraryActivity::toggleViewMode() {
   if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
     currentViewMode = ViewMode::FOLDER_VIEW;
@@ -480,23 +658,16 @@ void LibraryActivity::toggleViewMode() {
     savedFolderPath = basepath;
   }
 
-  loadAllBooksRecursive();
-  applySorting();
-
-  const std::vector<LibraryItem>& currentList =
-      (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
-
-  bool hasItems = !currentList.empty();
-  selectorIndex = hasItems ? 0 : -1;
-  isHeaderButtonSelected = !hasItems;
+  currentPage = 0;
+  selectorIndex = 0;
+  isHeaderButtonSelected = false;
   isSortButtonSelected = false;
   listScrollOffset = 0;
+  
+  loadAllBooksRecursive();
   updateRequired = true;
 }
 
-/**
- * @brief Switches to folder view mode and reloads current directory
- */
 void LibraryActivity::switchToFolderView() {
   currentViewMode = ViewMode::FOLDER_VIEW;
 
@@ -505,21 +676,16 @@ void LibraryActivity::switchToFolderView() {
     savedFolderPath.clear();
   }
 
-  libraryItems.clear();
-  loadAllBooksRecursive();
-  applySorting();
-
-  bool hasItems = !libraryItems.empty();
-  selectorIndex = hasItems ? 0 : -1;
-  isHeaderButtonSelected = !hasItems;
+  currentPage = 0;
+  selectorIndex = 0;
+  isHeaderButtonSelected = false;
   isSortButtonSelected = false;
   listScrollOffset = 0;
+  
+  loadAllBooksRecursive();
   updateRequired = true;
 }
 
-/**
- * @brief Called when activity becomes active
- */
 void LibraryActivity::onEnter() {
   Activity::onEnter();
   renderer.clearScreen();
@@ -527,28 +693,22 @@ void LibraryActivity::onEnter() {
   if (!renderingMutex) return;
   renderer.clearScreen(0xff);
 
-  loadAllBooksRecursive();
   currentViewMode = ViewMode::FOLDER_VIEW;
-  applySorting();
-
-  const std::vector<LibraryItem>& currentList =
-      (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
-  bool hasItems = !currentList.empty();
-  selectorIndex = hasItems ? 0 : -1;
-  isHeaderButtonSelected = !hasItems;
+  currentPage = 0;
+  selectorIndex = 0;
+  isHeaderButtonSelected = false;
   isSortButtonSelected = false;
   listScrollOffset = 0;
   tabSelectorIndex = 1;
 
+  loadAllBooksRecursive();
+
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", 2048, this, 1, &displayTaskHandle);
+    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", 4096, this, 1, &displayTaskHandle);
   }
   updateRequired = true;
 }
 
-/**
- * @brief Called when activity is being exited
- */
 void LibraryActivity::onExit() {
   Activity::onExit();
 
@@ -565,9 +725,43 @@ void LibraryActivity::onExit() {
   resetLibraryView();
 }
 
-/**
- * @brief Main input handling loop for library navigation
- */
+void LibraryActivity::updateItemsPerPage() {
+  if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+    itemsPerPage = BOOK_ITEMS_PER_PAGE;
+  } else {
+    itemsPerPage = FOLDER_ITEMS_PER_PAGE;
+  }
+}
+
+void LibraryActivity::updatePagination() {
+  updateItemsPerPage();
+  loadAllBooksRecursive();
+}
+
+void LibraryActivity::loadPage() {
+  loadAllBooksRecursive();
+}
+
+void LibraryActivity::goToNextPage() {
+  if (currentPage < totalPages - 1) {
+    currentPage++;
+    loadAllBooksRecursive();
+    selectorIndex = 0;
+    listScrollOffset = 0;
+    updateRequired = true;
+  }
+}
+
+void LibraryActivity::goToPreviousPage() {
+  if (currentPage > 0) {
+    currentPage--;
+    loadAllBooksRecursive();
+    selectorIndex = 0;
+    listScrollOffset = 0;
+    updateRequired = true;
+  }
+}
+
 void LibraryActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
@@ -575,35 +769,49 @@ void LibraryActivity::loop() {
     updateRequired = true;
     return;
   }
-  std::vector<LibraryItem>& currentList = (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
+  
+  std::vector<LibraryItem>& currentList = currentPageItems;
   const int itemCount = static_cast<int>(currentList.size());
 
   const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
   const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
+  const bool upReleased = Activity::mappedInput.wasReleased(MappedInputManager::Button::Up);
+  const bool downReleased = Activity::mappedInput.wasReleased(MappedInputManager::Button::Down);
   const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
   const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
   const bool confirmPressed = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const bool confirmHeld = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const unsigned long holdTime = Activity::mappedInput.getHeldTime();
-
-  if (tabSelectorIndex != 1) return;
-
-  if (leftPressed) {
-    tabSelectorIndex = 0;
-    navigateToSelectedMenu();
-    return;
+  
+  // Handle long press for page navigation when no item is selected
+  if (tabSelectorIndex == 1 && !isHeaderButtonSelected && !isSortButtonSelected && selectorIndex == -1) {
+    if (upPressed && holdTime >= PAGE_NAV_HOLD_MS) {
+      goToPreviousPage();
+      return;
+    }
+    if (downPressed && holdTime >= PAGE_NAV_HOLD_MS) {
+      goToNextPage();
+      return;
+    }
   }
-
-  if (rightPressed) {
-    tabSelectorIndex = 2;
-    navigateToSelectedMenu();
-    return;
+  
+  // Auto page down when reaching bottom of list
+  if (tabSelectorIndex == 1 && !isHeaderButtonSelected && !isSortButtonSelected && selectorIndex == itemCount - 1) {
+    if (downPressed && currentPage < totalPages - 1) {
+      goToNextPage();
+      return;
+    }
   }
-
-  if (tabSelectorIndex != 1) {
-    return;
+  
+  // Auto page up when reaching top of list
+  if (tabSelectorIndex == 1 && !isHeaderButtonSelected && !isSortButtonSelected && selectorIndex == 0) {
+    if (upPressed && currentPage > 0) {
+      goToPreviousPage();
+      return;
+    }
   }
-
+  
+  // Handle long press for favorite marking
   if (confirmHeld && holdTime >= FAVORITE_HOLD_MS) {
     if (!isHeaderButtonSelected && !isSortButtonSelected && selectorIndex >= 0 && selectorIndex < itemCount) {
       const LibraryItem& item = currentList[selectorIndex];
@@ -625,6 +833,24 @@ void LibraryActivity::loop() {
         updateRequired = true;
       }
     }
+    return;
+  }
+
+  if (tabSelectorIndex != 1) return;
+
+  if (leftPressed) {
+    tabSelectorIndex = 0;
+    navigateToSelectedMenu();
+    return;
+  }
+
+  if (rightPressed) {
+    tabSelectorIndex = 2;
+    navigateToSelectedMenu();
+    return;
+  }
+
+  if (tabSelectorIndex != 1) {
     return;
   }
 
@@ -764,26 +990,19 @@ void LibraryActivity::loop() {
       savedFolderPath.clear();
     }
 
-    loadAllBooksRecursive();
-    applySorting();
-
-    const std::vector<LibraryItem>& newList =
-        (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
-
-    bool hasItems = !newList.empty();
-    selectorIndex = hasItems ? 0 : -1;
-    isHeaderButtonSelected = !hasItems;
+    currentPage = 0;
+    selectorIndex = 0;
+    isHeaderButtonSelected = false;
     isSortButtonSelected = false;
     listScrollOffset = 0;
+    
+    loadAllBooksRecursive();
     updateRequired = true;
 
     return;
   }
 }
 
-/**
- * @brief Applies current sort mode to the active list
- */
 void LibraryActivity::applySorting() {
   if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
     switch (currentSortMode) {
@@ -800,15 +1019,15 @@ void LibraryActivity::applySorting() {
         sortByGroup(false);
         break;
     }
+    updateRequired = true;
     return;
   }
 
-  loadAllBooksRecursive();
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
       break;
     case SortMode::TITLE_ZA:
-      std::reverse(libraryItems.begin(), libraryItems.end());
+      std::reverse(currentPageItems.begin(), currentPageItems.end());
       break;
     case SortMode::GROUP_AZ:
       sortFolderViewByType(true);
@@ -817,19 +1036,14 @@ void LibraryActivity::applySorting() {
       sortFolderViewByType(false);
       break;
   }
+  updateRequired = true;
 }
 
-/**
- * @brief Sorts books by title with favorites prioritized
- * @param ascending true for A-Z, false for Z-A
- */
 void LibraryActivity::sortByTitle(bool ascending) {
-  std::vector<LibraryItem>& items = (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
-
   std::vector<LibraryItem> favorites;
   std::vector<LibraryItem> others;
 
-  for (const auto& item : items) {
+  for (const auto& item : currentPageItems) {
     if (item.type == LibraryItem::Type::BOOK && isBookMarked(item.path)) {
       favorites.push_back(item);
     } else {
@@ -853,19 +1067,15 @@ void LibraryActivity::sortByTitle(bool ascending) {
     return ascending ? (aName < bName) : (aName > bName);
   });
 
-  items.clear();
-  items.insert(items.end(), favorites.begin(), favorites.end());
-  items.insert(items.end(), others.begin(), others.end());
+  currentPageItems.clear();
+  currentPageItems.insert(currentPageItems.end(), favorites.begin(), favorites.end());
+  currentPageItems.insert(currentPageItems.end(), others.begin(), others.end());
 }
 
-/**
- * @brief Sorts books by folder group with favorites prioritized
- * @param ascending true for A-Z, false for Z-A
- */
 void LibraryActivity::sortByGroup(bool ascending) {
   if (currentViewMode != ViewMode::BOOK_LIST_VIEW) return;
 
-  std::sort(allBooksList.begin(), allBooksList.end(), [ascending](const LibraryItem& a, const LibraryItem& b) {
+  std::sort(currentPageItems.begin(), currentPageItems.end(), [ascending](const LibraryItem& a, const LibraryItem& b) {
     std::string aGroup = a.folderPath.empty() ? "" : a.folderPath;
     std::string bGroup = b.folderPath.empty() ? "" : b.folderPath;
 
@@ -886,7 +1096,7 @@ void LibraryActivity::sortByGroup(bool ascending) {
   std::vector<LibraryItem> favorites;
   std::vector<LibraryItem> others;
 
-  for (const auto& item : allBooksList) {
+  for (const auto& item : currentPageItems) {
     if (isBookMarked(item.path)) {
       favorites.push_back(item);
     } else {
@@ -894,14 +1104,11 @@ void LibraryActivity::sortByGroup(bool ascending) {
     }
   }
 
-  allBooksList.clear();
-  allBooksList.insert(allBooksList.end(), favorites.begin(), favorites.end());
-  allBooksList.insert(allBooksList.end(), others.begin(), others.end());
+  currentPageItems.clear();
+  currentPageItems.insert(currentPageItems.end(), favorites.begin(), favorites.end());
+  currentPageItems.insert(currentPageItems.end(), others.begin(), others.end());
 }
 
-/**
- * @brief Cycles through available sort modes
- */
 void LibraryActivity::cycleSortMode() {
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
@@ -919,7 +1126,6 @@ void LibraryActivity::cycleSortMode() {
   }
 
   applySorting();
-
   selectorIndex = -1;
   isHeaderButtonSelected = false;
   isSortButtonSelected = true;
@@ -927,10 +1133,6 @@ void LibraryActivity::cycleSortMode() {
   updateRequired = true;
 }
 
-/**
- * @brief Gets display text for current sort mode
- * @return Sort mode display string
- */
 std::string LibraryActivity::getSortButtonText() const {
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
@@ -945,27 +1147,21 @@ std::string LibraryActivity::getSortButtonText() const {
   return "Sort";
 }
 
-/**
- * @brief Resets library view to empty state
- */
 void LibraryActivity::resetLibraryView() {
-  libraryItems.clear();
-  allBooksList.clear();
+  currentPageItems.clear();
   selectorIndex = -1;
   listScrollOffset = 0;
+  currentPage = 0;
+  totalPages = 0;
   updateRequired = true;
 }
 
-/**
- * @brief Sorts folder view with folders optionally first
- * @param foldersFirst true to show folders before books
- */
 void LibraryActivity::sortFolderViewByType(bool foldersFirst) {
   std::vector<LibraryItem> folders;
   std::vector<LibraryItem> books;
   std::vector<LibraryItem> favorites;
 
-  for (const auto& item : libraryItems) {
+  for (const auto& item : currentPageItems) {
     if (item.type == LibraryItem::Type::FOLDER) {
       folders.push_back(item);
     } else {
@@ -989,25 +1185,21 @@ void LibraryActivity::sortFolderViewByType(bool foldersFirst) {
   std::sort(favorites.begin(), favorites.end(), sortFunc);
   std::sort(books.begin(), books.end(), sortFunc);
 
-  libraryItems.clear();
+  currentPageItems.clear();
 
   if (foldersFirst) {
-    libraryItems.insert(libraryItems.end(), folders.begin(), folders.end());
-    libraryItems.insert(libraryItems.end(), favorites.begin(), favorites.end());
-    libraryItems.insert(libraryItems.end(), books.begin(), books.end());
+    currentPageItems.insert(currentPageItems.end(), folders.begin(), folders.end());
+    currentPageItems.insert(currentPageItems.end(), favorites.begin(), favorites.end());
+    currentPageItems.insert(currentPageItems.end(), books.begin(), books.end());
   } else {
-    libraryItems.insert(libraryItems.end(), favorites.begin(), favorites.end());
-    libraryItems.insert(libraryItems.end(), books.begin(), books.end());
-    libraryItems.insert(libraryItems.end(), folders.begin(), folders.end());
+    currentPageItems.insert(currentPageItems.end(), favorites.begin(), favorites.end());
+    currentPageItems.insert(currentPageItems.end(), books.begin(), books.end());
+    currentPageItems.insert(currentPageItems.end(), folders.begin(), folders.end());
   }
 }
 
-/**
- * @brief Updates scroll position to keep selected item visible
- */
 void LibraryActivity::updateScrollPosition() {
-  const std::vector<LibraryItem>& currentList =
-      (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
+  const std::vector<LibraryItem>& currentList = currentPageItems;
 
   if (currentList.empty()) {
     listScrollOffset = 0;
@@ -1057,12 +1249,8 @@ void LibraryActivity::updateScrollPosition() {
   }
 }
 
-/**
- * @brief Renders the scrollable library list with items
- * @param startY Starting Y coordinate for list rendering
- */
 void LibraryActivity::renderLibraryList(int startY) const {
-  const std::vector<LibraryItem>& items = (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
+  const std::vector<LibraryItem>& items = currentPageItems;
 
   if (items.empty()) {
     int messageY = startY + 150;
@@ -1119,7 +1307,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
       }
     }
 
-    int textX = iconX + FOLDER_ICON_WIDTH + FOLDER_ICON_SPACING;
+    int textX = iconX + 24 + 10;
     int textWidth = screenWidth - textX - (isBookMarked(item.path) ? 50 : 15);
 
     bool useTwoLineFormat = (currentViewMode == ViewMode::BOOK_LIST_VIEW) || (item.type == LibraryItem::Type::BOOK);
@@ -1174,11 +1362,10 @@ void LibraryActivity::renderLibraryList(int startY) const {
   }
 }
 
-/**
- * @brief Loads library contents from pre-built index file
- * Faster than recursive scanning for large libraries
- */
 void LibraryActivity::loadLibraryFromIndex() {
+  MutexGuard guard(renderingMutex);
+  if (!guard.isAcquired()) return;
+  
   allBooksList.clear();
   libraryItems.clear();
 
@@ -1258,7 +1445,7 @@ void LibraryActivity::loadLibraryFromIndex() {
 
         std::string checkDir = dirPath;
         if (checkDir.length() > 1 && checkDir.back() == '/') {
-          checkDir.pop_back();  // Fixed: use pop_back() instead of substr assignment
+          checkDir.pop_back();
         }
 
         size_t lastSlash = checkDir.find_last_of('/');
@@ -1277,70 +1464,36 @@ void LibraryActivity::loadLibraryFromIndex() {
     }
   }
   idxFile.close();
+  
+  // Apply sorting
+  if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+    sortByTitle(true);
+  } else {
+    sortFolderViewByType(true);
+  }
+  
+  // PAGINATION: Calculate total pages based on items per page
+  std::vector<LibraryItem>& currentFullList = (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? allBooksList : libraryItems;
+  int totalItems = currentFullList.size();
+  
+  itemsPerPage = (currentViewMode == ViewMode::BOOK_LIST_VIEW) ? BOOK_ITEMS_PER_PAGE : FOLDER_ITEMS_PER_PAGE;
+  totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
+  if (totalPages == 0) totalPages = 1;
+  
+  // Clamp current page
+  if (currentPage >= totalPages) currentPage = totalPages - 1;
+  if (currentPage < 0) currentPage = 0;
+  
+  // Extract only the current page into currentPageItems for rendering
+  currentPageItems.clear();
+  int startIdx = currentPage * itemsPerPage;
+  int endIdx = std::min(startIdx + itemsPerPage, totalItems);
+  
+  for (int i = startIdx; i < endIdx; i++) {
+    currentPageItems.push_back(currentFullList[i]);
+  }
 }
 
-/**
- * @brief Loads library items by scanning current directory (non-indexed mode)
- */
 void LibraryActivity::loadLibraryItems() {
-  libraryItems.clear();
-
-  auto root = SdMan.open(basepath.c_str());
-  if (!root || !root.isDirectory()) {
-    if (root) root.close();
-    return;
-  }
-
-  root.rewindDirectory();
-  std::vector<LibraryItem> folders;
-  std::vector<LibraryItem> books;
-
-  char name[500];
-  for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
-    file.getName(name, sizeof(name));
-
-    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0 || strcmp(name, ".metadata") == 0 ||
-        strcmp(name, "sleep") == 0) {
-      file.close();
-      continue;
-    }
-
-    std::string fullPath = basepath;
-    if (fullPath.back() != '/') fullPath += "/";
-    fullPath += name;
-
-    if (file.isDirectory()) {
-      if (directoryHasBooks(fullPath + "/")) {
-        LibraryItem item;
-        item.type = LibraryItem::Type::FOLDER;
-        item.name = name;
-        item.displayName = formatFolderName(name);
-        item.path = fullPath + "/";
-        folders.push_back(item);
-      }
-    } else {
-      std::string filename = name;
-      if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
-          StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
-          StringUtils::checkFileExtension(filename, ".md")) {
-        LibraryItem item;
-        item.type = LibraryItem::Type::BOOK;
-        item.name = filename;
-        item.displayName = formatFolderName(getBaseFilename(filename));
-        item.path = fullPath;
-        item.folderPath = formatFolderName(extractFolderName(basepath));
-        books.push_back(item);
-      }
-    }
-    file.close();
-  }
-  root.close();
-
-  auto sortFn = [](const LibraryItem& a, const LibraryItem& b) { return a.displayName < b.displayName; };
-
-  std::sort(folders.begin(), folders.end(), sortFn);
-  std::sort(books.begin(), books.end(), sortFn);
-
-  libraryItems.insert(libraryItems.end(), folders.begin(), folders.end());
-  libraryItems.insert(libraryItems.end(), books.begin(), books.end());
+  loadAllBooksRecursive();
 }

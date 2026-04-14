@@ -18,6 +18,19 @@
 class LibraryActivity final : public Activity, public Menu {
  public:
   /**
+   * Represents an item in the library (folder or book).
+   */
+  struct LibraryItem {
+    enum class Type { FOLDER, BOOK };
+
+    Type type;
+    std::string name;
+    std::string displayName;
+    std::string path;
+    std::string folderPath;
+  };
+
+  /**
    * Tab identifiers for navigation.
    */
   enum class Tab { Library };
@@ -25,31 +38,30 @@ class LibraryActivity final : public Activity, public Menu {
   /**
    * Display mode for the library.
    */
-  enum class ViewMode { 
-    FOLDER_VIEW,     /**< Hierarchical folder navigation */
-    BOOK_LIST_VIEW,  /**< Flat list of all books */
-    FAVORITES_VIEW   /**< List of favorite books */
+  enum class ViewMode {
+    FOLDER_VIEW,    /**< Hierarchical folder navigation */
+    BOOK_LIST_VIEW, /**< Flat list of all books */
+    FAVORITES_VIEW  /**< List of favorite books */
   };
 
   /**
    * Sorting modes for library items.
    */
-  enum class SortMode { 
-    TITLE_AZ,   /**< Title ascending A-Z */
-    TITLE_ZA,   /**< Title descending Z-A */
-    GROUP_AZ,   /**< Group ascending A-Z */
-    GROUP_ZA    /**< Group descending Z-A */
+  enum class SortMode {
+    TITLE_AZ, /**< Title ascending A-Z */
+    TITLE_ZA, /**< Title descending Z-A */
+    GROUP_AZ, /**< Group ascending A-Z */
+    GROUP_ZA  /**< Group descending Z-A */
   };
 
   static constexpr int LIST_ITEM_HEIGHT = 60;
   static constexpr int FOLDER_ICON_WIDTH = 16;
   static constexpr int FOLDER_ICON_SPACING = 20;
 
-
  private:
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
-  
+
   std::string savedFolderPath;
   std::string basepath;
   int selectorIndex = 0;
@@ -63,21 +75,80 @@ class LibraryActivity final : public Activity, public Menu {
   bool isBookOpened(const std::string& path) const;
   bool isBookFinished(const std::string& path) const;
 
+  // Pagination constants
+  static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view (taller items)
+  static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
+  int itemsPerPage;                                 ///< Dynamic items per page based on view mode
+  int currentPage;                                  ///< Current page index (0-based)
+  int totalPages;                                   ///< Total number of pages
+  std::vector<LibraryItem> currentPageItems;        ///< Items for current page
+
   /**
-   * Represents an item in the library (folder or book).
+   * @brief Updates items per page based on current view mode
    */
-  struct LibraryItem {
-    enum class Type { FOLDER, BOOK };
+  void updateItemsPerPage();
 
-    Type type;
-    std::string name;
-    std::string displayName;
-    std::string path;
-    std::string folderPath;
-  };
+  /**
+   * @brief Updates pagination based on current item list
+   */
+  void updatePagination();
 
-  std::vector<LibraryItem> libraryItems;
-  std::vector<LibraryItem> allBooksList;
+  /**
+   * @brief Loads the current page of items
+   */
+  void loadPage();
+
+  /**
+   * @brief Navigates to the next page
+   */
+  void goToNextPage();
+
+  /**
+   * @brief Navigates to the previous page
+   */
+  void goToPreviousPage();
+
+  // Paginated recursive scanning functions
+  /**
+   * @brief Finds books with pagination - stops when enough books are found
+   * @param path Starting directory path
+   * @param books Vector to populate with found books
+   * @param startIndex Skip this many books before adding
+   * @param count Maximum number of books to add
+   * @param foundCount Running count of books found (updated during scan)
+   * @param stop Flag to stop scanning when enough books are found
+   */
+  void findBooksPaginated(const std::string& path, std::vector<LibraryItem>& books, int startIndex, int count,
+                          int& foundCount, bool& stop);
+
+  /**
+   * @brief Finds folders with pagination - stops when enough folders are found
+   * @param path Starting directory path
+   * @param folders Vector to populate with found folders
+   * @param startIndex Skip this many folders before adding
+   * @param count Maximum number of folders to add
+   * @param foundCount Running count of folders found (updated during scan)
+   * @param stop Flag to stop scanning when enough folders are found
+   */
+  void findFoldersPaginated(const std::string& path, std::vector<LibraryItem>& folders, int startIndex, int count,
+                            int& foundCount, bool& stop);
+
+  /**
+   * @brief Counts total books without storing them (fast scan)
+   * @param path Starting directory path
+   * @return Total number of books found
+   */
+  int countTotalBooks(const std::string& path);
+
+  /**
+   * @brief Counts total folders with books without storing them (fast scan)
+   * @param path Starting directory path
+   * @return Total number of folders with books found
+   */
+  int countTotalFolders(const std::string& path);
+
+  std::vector<LibraryItem> libraryItems;  // Only used for index mode
+  std::vector<LibraryItem> allBooksList;  // Only used for index mode
 
   const std::function<void()> onGoToRecent;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -90,7 +161,7 @@ class LibraryActivity final : public Activity, public Menu {
   void loadAllBooksRecursive();
   void findBooksRecursively(const std::string& path, std::vector<LibraryItem>& books);
   void updateScrollPosition();
-  
+
   std::string formatFolderName(const std::string& name) const;
   std::string getBaseFilename(const std::string& filename) const;
   std::string extractFolderName(const std::string& path) const;
@@ -105,7 +176,7 @@ class LibraryActivity final : public Activity, public Menu {
   void displayTaskLoop();
   void render() const;
   void renderLibraryList(int startY) const;
-  
+
   std::string getHeaderText() const;
   std::string getSortButtonText() const;
   int drawHeaderButton(const std::string& text, int headerY, int headerHeight, int rightX, bool isSelected) const;
@@ -131,7 +202,7 @@ class LibraryActivity final : public Activity, public Menu {
  public:
   /**
    * Constructs a new LibraryActivity.
-   * 
+   *
    * @param renderer Graphics renderer for display output
    * @param mappedInput Input manager for handling button presses
    * @param onGoToRecent Callback for returning to home screen
@@ -140,15 +211,11 @@ class LibraryActivity final : public Activity, public Menu {
    * @param onSettingsOpen Callback for opening settings tab
    * @param initialPath Starting directory path
    */
-  explicit LibraryActivity(
-    GfxRenderer& renderer, 
-    MappedInputManager& mappedInput,
-    const std::function<void()>& onGoToRecent,
-    const std::function<void(const std::string& path)>& onSelectBook,
-    const std::function<void()>& onRecentOpen,
-    const std::function<void()>& onSettingsOpen,
-    const std::string& initialPath = "/"  // Changed to const reference
-  );
+  explicit LibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                           const std::function<void()>& onGoToRecent,
+                           const std::function<void(const std::string& path)>& onSelectBook,
+                           const std::function<void()>& onRecentOpen, const std::function<void()>& onSettingsOpen,
+                           const std::string& initialPath = "/");
 
   void loadLibraryFromIndex();
   void onEnter() override;

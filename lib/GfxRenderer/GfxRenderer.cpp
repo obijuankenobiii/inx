@@ -1290,7 +1290,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
         case LandscapeCounterClockwise: break;
       }
       
-      display.drawImage(rotatedBitmap, rotatedX, rotatedY, targetW, targetH);
+      display.drawImage(rotatedBitmap, rotatedX, rotatedY, targetW, targetH, true);
       free(rotatedBitmap);
       return;
     }
@@ -1320,7 +1320,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
       for (int i = 0; i < totalBytes; i++) {
         invertedBitmap[i] = ~bitmap[i];
       }
-      display.drawImage(invertedBitmap, rotatedX, rotatedY, targetW, targetH);
+      display.drawImage(invertedBitmap, rotatedX, rotatedY, targetW, targetH, true);
       free(invertedBitmap);
       return;
     }
@@ -1333,7 +1333,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
         for (int b = 0; b < bytesPerRow; b++) {
           invertedRow[b] = ~srcRow[b];
         }
-        display.drawImage(invertedRow, rotatedX, rotatedY + row, width, 1);
+        display.drawImage(invertedRow, rotatedX, rotatedY + row, width, true);
       }
       free(invertedRow);
       return;
@@ -1341,7 +1341,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
   }
 
   // No inversion, draw as-is
-  display.drawImage(bitmap, rotatedX, rotatedY, targetW, targetH);
+  display.drawImage(bitmap, rotatedX, rotatedY, targetW, targetH, true);
 }
 
 void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,

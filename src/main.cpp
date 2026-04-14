@@ -4,13 +4,14 @@
 #include <HalGPIO.h>
 #include <SDCardManager.h>
 #include <SPI.h>
+#include <esp_heap_caps.h>
 
 #include <cstring>
 #include <new>
 #include <string>
 
-#include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/BluetoothActivity.h"
+#include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -27,8 +28,6 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-
-#include <esp_heap_caps.h>
 
 HalDisplay display;
 HalGPIO gpio;
@@ -57,53 +56,41 @@ void openReaderFromCallback(const std::string& path);
 #include <esp_heap_caps.h>
 
 void printMemoryInfo() {
-    Serial.println("=== MEMORY INFO ===");
-    
-    // Free heap memory
-    Serial.printf("Free heap: %d bytes (%d KB)\n", 
-                  ESP.getFreeHeap(), 
-                  ESP.getFreeHeap() / 1024);
-    
-    // Total heap (what's available total)
-    Serial.printf("Total heap: %d bytes (%d KB)\n", 
-                  ESP.getHeapSize(), 
-                  ESP.getHeapSize() / 1024);
-    
-    // Minimum free heap ever (shows worst-case)
-    Serial.printf("Min free heap: %d bytes (%d KB)\n", 
-                  ESP.getMinFreeHeap(), 
-                  ESP.getMinFreeHeap() / 1024);
-    
-    // Largest contiguous block (critical for large allocations)
-    Serial.printf("Largest free block: %d bytes (%d KB)\n", 
-                  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
-                  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024);
-    
-    // Free PSRAM if available
-    if (ESP.getPsramSize() > 0) {
-        Serial.printf("Free PSRAM: %d bytes (%d KB)\n", 
-                      ESP.getFreePsram(), 
-                      ESP.getFreePsram() / 1024);
-        Serial.printf("Total PSRAM: %d bytes (%d KB)\n", 
-                      ESP.getPsramSize(), 
-                      ESP.getPsramSize() / 1024);
-    }
-    
-    // Heap fragmentation percentage
-    int largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    int totalFree = ESP.getFreeHeap();
-    int fragmentation = 100 - (largestBlock * 100 / totalFree);
-    Serial.printf("Fragmentation: %d%%\n", fragmentation);
-    
-    // Stack water mark for current task (shows stack usage)
-    Serial.printf("Stack free: %d bytes\n", 
-                  uxTaskGetStackHighWaterMark(NULL) * 4);
-    
-    Serial.println("==================");
+  Serial.println("=== MEMORY INFO ===");
+
+  // Free heap memory
+  Serial.printf("Free heap: %d bytes (%d KB)\n", ESP.getFreeHeap(), ESP.getFreeHeap() / 1024);
+
+  // Total heap (what's available total)
+  Serial.printf("Total heap: %d bytes (%d KB)\n", ESP.getHeapSize(), ESP.getHeapSize() / 1024);
+
+  // Minimum free heap ever (shows worst-case)
+  Serial.printf("Min free heap: %d bytes (%d KB)\n", ESP.getMinFreeHeap(), ESP.getMinFreeHeap() / 1024);
+
+  // Largest contiguous block (critical for large allocations)
+  Serial.printf("Largest free block: %d bytes (%d KB)\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+                heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024);
+
+  // Free PSRAM if available
+  if (ESP.getPsramSize() > 0) {
+    Serial.printf("Free PSRAM: %d bytes (%d KB)\n", ESP.getFreePsram(), ESP.getFreePsram() / 1024);
+    Serial.printf("Total PSRAM: %d bytes (%d KB)\n", ESP.getPsramSize(), ESP.getPsramSize() / 1024);
+  }
+
+  // Heap fragmentation percentage
+  int largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  int totalFree = ESP.getFreeHeap();
+  int fragmentation = 100 - (largestBlock * 100 / totalFree);
+  Serial.printf("Fragmentation: %d%%\n", fragmentation);
+
+  // Stack water mark for current task (shows stack usage)
+  Serial.printf("Stack free: %d bytes\n", uxTaskGetStackHighWaterMark(NULL) * 4);
+
+  Serial.println("==================");
 }
 /**
  * @brief Switches the current activity using standard heap allocation.
- * * This uses 'new' and 'delete' which allows the ReaderActivity to utilize 
+ * * This uses 'new' and 'delete' which allows the ReaderActivity to utilize
  * the full 360KB of available heap rather than being stuck in a small static buffer.
  */
 template <typename T, typename... Args>
@@ -113,14 +100,12 @@ void switchTo(Args&&... args) {
     delete currentActivity;
     currentActivity = nullptr;
   }
-  printMemoryInfo();
+  
+  delay(10);
   currentActivity = new T(std::forward<Args>(args)...);
   printMemoryInfo();
-  if (currentActivity) {
-    currentActivity->onEnter();
-  } else {
-    Serial.println("FATAL: Memory allocation failed for Activity switch!");
-  }
+
+  currentActivity->onEnter();
 }
 
 /**
@@ -149,9 +134,7 @@ void onSelectBook(const std::string& path) { onGoToReader(path); }
 /**
  * @brief Navigates to the statistics activity.
  */
-void onGoToStatistics() { 
-  switchTo<StatisticActivity>(render, input, onGoToRecent, onGoToFileTransfer); 
-}
+void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecent, onGoToFileTransfer); }
 
 /**
  * @brief Navigates to the recent books activity.
@@ -311,4 +294,3 @@ void loop() {
     delay(20);
   }
 }
-
