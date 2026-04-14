@@ -247,6 +247,7 @@ public:
     enum RECENT_LIBRARY_MODE {
         RECENT_GRID = 0,    ///< Grid view
         RECENT_LIST = 1,    ///< List view
+        RECENT_FLOW = 2,    ///< List view
         RECENT_LIBRARY_MODE_COUNT
     };
 

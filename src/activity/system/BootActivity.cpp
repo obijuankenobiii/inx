@@ -67,36 +67,23 @@ void BootActivity::initializeNextStage() {
       break;
       
     case 1:
-      bootProgress = 30;
-      drawProgressBar();
-      KOREADER_STORE.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 2:
       bootProgress = 50;
       drawProgressBar();
       APP_STATE.loadFromFile();
       bootStage++;
       break;
       
-    case 3:
+    case 2:
       bootProgress = 70;
       drawProgressBar();
       RECENT_BOOKS.loadFromFile();
       bootStage++;
       break;
       
-    case 4:
-      bootProgress = 90;
-      drawProgressBar();
-      BOOK_STATE.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 5:
+    case 3:
       bootProgress = 100;
       drawProgressBar();
+      BOOK_STATE.loadFromFile();
       bootComplete = true;
       break;
       

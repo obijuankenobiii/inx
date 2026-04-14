@@ -100,18 +100,18 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
  * @param epub Unique pointer to loaded Epub object
  */
 void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
-  // Capture the path in the lambda directly
   std::string bookPath = epub->getPath();
   
+  auto callback = onGoBack;  // Copy the std::function
+  
   exitActivity();
-  enterNewActivity(
-    new EpubActivity(
+  enterNewActivity(new EpubActivity(
       renderer, 
       mappedInput, 
       std::move(epub), 
-      [this, bookPath] {  // Capture bookPath by value
-        if (onGoBack) {
-          onGoBack(bookPath);  // Use captured path
+      [callback, bookPath] {
+        if (callback) {
+          callback(bookPath);
         }
       },
       []{}));

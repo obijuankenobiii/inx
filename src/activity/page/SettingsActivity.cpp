@@ -23,7 +23,7 @@ const SettingInfo displaySettings[displaySettingsCount] = {
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None", "Contrast", "Inverted"}),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"}),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Default"})};
+    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "List Stats", "Flow"})};
 
 constexpr int readerSettingsCount = 30;
 const SettingInfo readerSettings[readerSettingsCount] = {
@@ -140,7 +140,7 @@ void SettingsActivity::onEnter() {
 
   render();
 
-  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 16384, this, 1, &displayTaskHandle);
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 2048, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -430,7 +430,7 @@ void SettingsActivity::startLibraryIndexing() {
         activity->updateRequired = true;
         vTaskDelete(nullptr);
       },
-      "LibraryIndexTask", 16384, this, 1, nullptr);
+      "LibraryIndexTask", 2048, this, 1, nullptr);
 }
 
 /**

@@ -541,7 +541,7 @@ void LibraryActivity::onEnter() {
   tabSelectorIndex = 1;
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", 16384, this, 1, &displayTaskHandle);
+    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", 2048, this, 1, &displayTaskHandle);
   }
   updateRequired = true;
 }
