@@ -454,6 +454,14 @@ bool Epub::load(const bool buildIfMissing) {
   if (!opfParser.tocNavPath.empty()) tocNavItem = opfParser.tocNavPath;
 
   bookMetadataCache->endContentOpfPass();
+  
+  // Extract and cache CSS files
+  bookMetadataCache->beginCssPass();
+  if (!bookMetadataCache->extractAndCacheCssFiles(filepath)) {
+    Serial.printf("[EBP] Warning: Failed to extract CSS files\n");
+  }
+  bookMetadataCache->endCssPass();
+  
   bookMetadataCache->beginTocPass();
   bool tocParsed = (!tocNavItem.empty()) ? parseTocNavFile() : false;
   if (!tocParsed && !tocNcxItem.empty()) tocParsed = parseTocNcxFile();
@@ -599,6 +607,71 @@ int Epub::getTocItemsCount() const {
 BookMetadataCache::TocEntry Epub::getTocItem(int tocIndex) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return {};
   return bookMetadataCache->getTocEntry(tocIndex);
+}
+
+/**
+ * @brief Gets the number of CSS files in the book.
+ *
+ * @return Number of CSS files, or 0 if no book is loaded
+ */
+int Epub::getCssItemsCount() const {
+  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->getCssCount() : 0;
+}
+
+/**
+ * @brief Retrieves a CSS entry by index.
+ *
+ * @param cssIndex Index of the CSS entry to retrieve
+ * @return CSS entry containing the file details and content
+ */
+BookMetadataCache::CssEntry Epub::getCssItem(int cssIndex) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return {};
+  return bookMetadataCache->getCssEntry(cssIndex);
+}
+
+/**
+ * @brief Gets CSS content by file path.
+ *
+ * @param cssPath Internal path to the CSS file
+ * @return CSS content as string, empty if not found
+ */
+std::string Epub::getCssContent(const std::string& cssPath) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return "";
+  return bookMetadataCache->getCssContent(cssPath);
+}
+
+/**
+ * @brief Gets all CSS file paths in the book.
+ *
+ * @return Vector of CSS file paths
+ */
+std::vector<std::string> Epub::getAllCssPaths() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return {};
+  return bookMetadataCache->getAllCssPaths();
+}
+
+/**
+ * @brief Gets combined CSS content from all CSS files.
+ *
+ * @return Combined CSS content as a single string
+ */
+std::string Epub::getCombinedCss() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return "";
+  
+  std::string combined;
+  auto paths = getAllCssPaths();
+  
+  for (const auto& path : paths) {
+    std::string cssContent = getCssContent(path);
+    if (!cssContent.empty()) {
+      if (!combined.empty()) {
+        combined += "\n\n/* === " + path + " === */\n\n";
+      }
+      combined += cssContent;
+    }
+  }
+  
+  return combined;
 }
 
 /**

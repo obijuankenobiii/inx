@@ -139,28 +139,44 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+  Serial.printf("[PAGEIMG] Rendering image: %s\n", cachePath.c_str());
+  Serial.printf("[PAGEIMG] Stored dimensions: width=%d, height=%d\n", width, height);
+  
   FsFile file;
-  if (!SdMan.openFileForRead("EHP", cachePath, file)) return;
+  if (!SdMan.openFileForRead("EHP", cachePath, file)) {
+    Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
+    return;
+  }
 
   Bitmap bitmap(file);
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
     int screenW = renderer.getScreenWidth();
     int screenH = renderer.getScreenHeight();
+    
+    Serial.printf("[PAGEIMG] Bitmap actual dimensions: %dx%d\n", bitmap.getWidth(), bitmap.getHeight());
+    Serial.printf("[PAGEIMG] Screen dimensions: %dx%d\n", screenW, screenH);
+    Serial.printf("[PAGEIMG] yPos=%d, yOffset=%d\n", yPos, yOffset);
 
-    int renderX = (screenW - bitmap.getWidth()) / 2;
+    int renderX = (screenW - width) / 2;  // Use stored width, not bitmap width
     int renderY = yPos + yOffset;
 
-    bool isFullScreen = (bitmap.getWidth() >= screenW * 0.95 && bitmap.getHeight() >= screenH * 0.65);
     
-    if (isFullScreen) {
-      renderY = 3;
-    }
+    Serial.printf("[PAGEIMG] Calculated render position: x=%d, y=%d\n", renderX, renderY);    
 
-    renderer.drawBitmap(bitmap, renderX, renderY, 0, 0);
+    // Make sure we're within screen bounds
+    if (renderX < 0) renderX = 0;
+    if (renderY < 0) renderY = 0;
+    
+    Serial.printf("[PAGEIMG] Final render position: x=%d, y=%d, size: %dx%d\n", renderX, renderY, width, height);
+    
+    renderer.drawBitmap(bitmap, renderX, renderY, width, height);
+  } else {
+    Serial.printf("[PAGEIMG] Failed to parse bitmap headers for: %s\n", cachePath.c_str());
   }
 
   file.close();
 }
+
 /**
  * Serializes a PageImage to a file.
  *

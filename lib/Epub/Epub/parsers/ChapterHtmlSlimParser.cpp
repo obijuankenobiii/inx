@@ -53,6 +53,213 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
 }
 
 /**
+ * Loads all CSS rules from the EPUB cache using CssParser
+ */
+void ChapterHtmlSlimParser::loadCssRules() {
+  if (cssLoaded) return;
+
+  cssParser.clear();
+
+  // Get all CSS files from the EPUB
+  int cssCount = epub.getCssItemsCount();
+  if (cssCount > 0) {
+    Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
+
+    // Limit total CSS size to prevent memory issues
+    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  // 50KB max total CSS
+    size_t totalCssSize = 0;
+
+    for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
+      auto cssEntry = epub.getCssItem(i);
+
+      // Skip empty CSS files
+      if (cssEntry.content.empty()) {
+        continue;
+      }
+
+      // Check individual file size
+      if (cssEntry.content.size() > 20 * 1024) {  // 20KB per file max
+        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
+                      (int)cssEntry.content.size());
+        continue;
+      }
+
+      totalCssSize += cssEntry.content.size();
+      cssParser.parse(cssEntry.content);
+
+      Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(), (int)cssEntry.content.size(),
+                    (int)totalCssSize);
+    }
+
+    Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);
+  }
+
+  cssLoaded = true;
+}
+
+/**
+ * Processes an img element with CSS class support
+ */
+void ChapterHtmlSlimParser::processImageElement(const char** atts) {
+  std::string src = "";
+  std::string classAttr = "";
+  std::string styleAttr = "";
+  std::string idAttr = "";
+  int explicitWidth = 0;
+  int explicitHeight = 0;
+
+  // Parse attributes
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      std::string attrName = atts[i];
+      std::string attrValue = atts[i + 1];
+
+      if (attrName == "src" || attrName == "href" || attrName == "xlink:href") {
+        src = attrValue;
+      } else if (attrName == "class") {
+        classAttr = attrValue;
+      } else if (attrName == "style") {
+        styleAttr = attrValue;
+      } else if (attrName == "id") {
+        idAttr = attrValue;
+      } else if (attrName == "width") {
+        explicitWidth = std::stoi(attrValue);
+      } else if (attrName == "height") {
+        explicitHeight = std::stoi(attrValue);
+      }
+    }
+  }
+
+  if (src.empty()) return;
+
+  // Load CSS rules if not already loaded
+  loadCssRules();
+
+  // Determine dimensions (priority: explicit > inline style > CSS class)
+  int imgWidth = explicitWidth;
+  int imgHeight = explicitHeight;
+
+  bool widthIsPercentage = false;
+  bool heightIsPercentage = false;
+
+  // Check inline style and CSS if explicit dimensions not provided
+  if (imgWidth == 0 || imgHeight == 0) {
+    // Check for percentage values in inline style
+    if (!styleAttr.empty()) {
+      // Check if width is percentage
+      size_t widthPos = styleAttr.find("width:");
+      if (widthPos != std::string::npos) {
+        size_t percentPos = styleAttr.find("%", widthPos);
+        if (percentPos != std::string::npos) {
+          widthIsPercentage = true;
+        }
+      }
+
+      // Check if height is percentage
+      size_t heightPos = styleAttr.find("height:");
+      if (heightPos != std::string::npos) {
+        size_t percentPos = styleAttr.find("%", heightPos);
+        if (percentPos != std::string::npos) {
+          heightIsPercentage = true;
+        }
+      }
+    }
+
+    // Use CssParser to get dimensions from inline style and CSS rules
+    if (imgWidth == 0) {
+      int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth);
+      // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
+      if (cssWidth == 0 && !widthIsPercentage) {
+        imgWidth = cssWidth;
+      } else if (cssWidth > 0) {
+        imgWidth = cssWidth;
+      }
+    }
+
+    if (imgHeight == 0) {
+      int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportHeight);
+      if (cssHeight == 0 && !heightIsPercentage) {
+        imgHeight = cssHeight;
+      } else if (cssHeight > 0) {
+        imgHeight = cssHeight;
+      }
+    }
+  }
+
+  // Resolve full path and cache image
+  std::string base = internalPath.empty() ? filepath : internalPath;
+  std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
+  std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
+
+  int actualW = 0, actualH = 0;
+  if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
+    // Apply dimension constraints and maintain aspect ratio
+    if (widthIsPercentage || heightIsPercentage) {
+      // Handle percentage-based dimensions
+      if (widthIsPercentage && heightIsPercentage) {
+        // Both are percentages - use actual image size as fallback
+        if (imgWidth == 0 && imgHeight == 0) {
+          imgWidth = actualW;
+          imgHeight = actualH;
+        } else if (imgWidth == 0 && imgHeight > 0) {
+          imgWidth = (actualW * imgHeight) / actualH;
+        } else if (imgHeight == 0 && imgWidth > 0) {
+          imgHeight = (actualH * imgWidth) / actualW;
+        }
+      } else if (widthIsPercentage && imgWidth == 0) {
+        // Width is percentage, use height to determine width
+        if (imgHeight > 0) {
+          imgWidth = (actualW * imgHeight) / actualH;
+        } else {
+          imgWidth = actualW;
+          imgHeight = actualH;
+        }
+      } else if (heightIsPercentage && imgHeight == 0) {
+        // Height is percentage, use width to determine height
+        if (imgWidth > 0) {
+          imgHeight = (actualH * imgWidth) / actualW;
+        } else {
+          imgWidth = actualW;
+          imgHeight = actualH;
+        }
+      }
+    } else {
+      // Handle fixed dimensions
+      if (imgWidth > 0 && imgHeight == 0) {
+        // Height not specified, maintain aspect ratio based on width
+        imgHeight = (actualH * imgWidth) / actualW;
+      } else if (imgHeight > 0 && imgWidth == 0) {
+        // Width not specified, maintain aspect ratio based on height
+        imgWidth = (actualW * imgHeight) / actualH;
+      } else if (imgWidth == 0 && imgHeight == 0) {
+        // No dimensions specified, use actual image size
+        imgWidth = actualW;
+        imgHeight = actualH;
+      }
+    }
+
+    // Cap at viewport size to prevent overflow
+    if (imgWidth > viewportWidth) {
+      imgHeight = (imgHeight * viewportWidth) / imgWidth;
+      imgWidth = viewportWidth;
+    }
+
+    if (imgHeight > viewportHeight) {
+      imgWidth = (imgWidth * viewportHeight) / imgHeight;
+      imgHeight = viewportHeight;
+    }
+
+    if (imgWidth < 1) imgWidth = 1;
+    if (imgHeight < 1) imgHeight = 1;
+
+    Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
+                  styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
+
+    addImageToPage(cacheImgPath, imgWidth, imgHeight);
+  }
+}
+
+/**
  * Flushes the current word buffer to the active text block.
  * Determines the appropriate font style based on current bold/italic state.
  */
@@ -109,14 +316,15 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 
 /**
  * XML parser callback for opening element tags.
- * * @param userData Pointer to the parser instance
+ * @param userData Pointer to the parser instance
  * @param name Element name
  * @param atts Element attributes
  */
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  if (strcmp(name, "span") == 0 && atts != nullptr) {
+  // Check for dropcap class
+  if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
         self->flushPartWordBuffer();
@@ -127,33 +335,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
+  // Handle image tags with CSS dimension extraction
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-    std::string src = "";
-    if (atts != nullptr) {
-      for (int i = 0; atts[i]; i += 2) {
-        if (strcmp(atts[i], "src") == 0 || strcmp(atts[i], "href") == 0 || strcmp(atts[i], "xlink:href") == 0) {
-          src = atts[i + 1];
-          break;
-        }
-      }
-    }
-
-    if (!src.empty()) {
-      self->flushPartWordBuffer();
-
-      if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
-        self->makePages();
-      }
-
-      std::string base = self->internalPath.empty() ? self->filepath : self->internalPath;
-      std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
-      std::string cacheImgPath = self->epub.getCacheImgPath(fullInternalPath);
-
-      int w = 0, h = 0;
-      if (self->ensureImageCached(fullInternalPath, cacheImgPath, &w, &h)) {
-        self->addImageToPage(cacheImgPath, w, h);
-      }
-    }
+    self->processImageElement(atts);
     self->depth += 1;
     return;
   }
@@ -196,7 +380,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
 /**
  * XML parser callback for character data.
- * * @param userData Pointer to the parser instance
+ * @param userData Pointer to the parser instance
  * @param s Character data
  * @param len Length of character data
  */
@@ -230,7 +414,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
 /**
  * XML parser callback for closing element tags.
- * * @param userData Pointer to the parser instance
+ * @param userData Pointer to the parser instance
  * @param name Element name
  */
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
@@ -264,7 +448,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
 /**
  * Reads BMP dimensions from a cached image file.
- * * @param path Path to the BMP file
+ * @param path Path to the BMP file
  * @param w Output parameter for width
  * @param h Output parameter for height
  * @return true if dimensions were successfully read
@@ -286,7 +470,7 @@ bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, in
 /**
  * Adds a single text line to the current page.
  * Handles page breaking when the line exceeds available space.
- * * @param line The text block line to add
+ * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
@@ -336,7 +520,7 @@ void ChapterHtmlSlimParser::makePages() {
 /**
  * Ensures an image is cached as BMP format.
  * If skipImages is true, only returns true for already-cached images.
- * * @param internalPath Original image path within EPUB
+ * @param internalPath Original image path within EPUB
  * @param cacheImgPath Target path for cached BMP
  * @param w Output parameter for image width
  * @param h Output parameter for image height
@@ -360,7 +544,7 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
 /**
  * Adds an image to the current page layout.
  * Handles scaling, centering, and special handling for extra-large images.
- * * @param bmpPath Path to the cached BMP image
+ * @param bmpPath Path to the cached BMP image
  * @param imgW Original image width
  * @param imgH Original image height
  */
@@ -416,13 +600,17 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
  * Parses the HTML file and builds pages.
  * When skipImageProcessing is true, only processes text and uses existing cached images
  * without converting new ones. Images that aren't already cached will be skipped.
- * * @param skipImageProcessing If true, skip converting new images and only process text
+ * @param skipImageProcessing If true, skip converting new images and only process text
  * @return true if parsing was successful, false otherwise
  */
 bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
+  cssLoaded = false;  // Reset CSS loaded flag for new chapter
+
+  // Clear CSS parser for new chapter
+  cssParser.clear();
 
   startNewTextBlock(static_cast<TextBlock::Style>(this->paragraphAlignment));
   const XML_Parser parser = XML_ParserCreate(nullptr);

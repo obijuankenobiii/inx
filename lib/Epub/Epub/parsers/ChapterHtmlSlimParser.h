@@ -10,6 +10,7 @@
 #include "../../Epub.h"
 #include "../ParsedText.h"
 #include "../blocks/TextBlock.h"
+#include "CssParser.h"
 
 class Page;
 class GfxRenderer;
@@ -63,6 +64,10 @@ class ChapterHtmlSlimParser {
 
   bool skipImages = false;
 
+  // CSS Parser for dimension extraction
+  CssParser cssParser;
+  bool cssLoaded;
+
   /**
    * Creates a new text block with the specified style.
    */
@@ -99,6 +104,16 @@ class ChapterHtmlSlimParser {
    */
   bool getBmpDimensions(const std::string& path, int* w, int* h);
 
+  /**
+   * Loads all CSS rules from the EPUB cache using CssParser.
+   */
+  void loadCssRules();
+
+  /**
+   * Processes an img element with CSS class support.
+   */
+  void processImageElement(const char** atts);
+
   // XML parser callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
@@ -113,9 +128,10 @@ class ChapterHtmlSlimParser {
    */
   explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
                                  const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId,const int maxFontId, const float lineCompression, const bool extraParagraphSpacing,
-                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
-                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
+                                 const int headerFontId, const int maxFontId, const float lineCompression, 
+                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment, 
+                                 const uint16_t viewportWidth, const uint16_t viewportHeight, 
+                                 const bool hyphenationEnabled,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
                                  const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
@@ -133,7 +149,8 @@ class ChapterHtmlSlimParser {
         viewportHeight(viewportHeight),
         hyphenationEnabled(hyphenationEnabled),
         completePageFn(completePageFn),
-        popupFn(popupFn) {}
+        popupFn(popupFn),
+        cssLoaded(false) {}
 
   ~ChapterHtmlSlimParser() = default;
 

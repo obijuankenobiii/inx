@@ -42,11 +42,23 @@ class BookMetadataCache {
           spineIndex(spineIndex) {}
   };
 
+  // CSS entry structure for caching CSS files
+  struct CssEntry {
+    std::string path;
+    std::string content;
+    uint32_t size;
+
+    CssEntry() : size(0) {}
+    CssEntry(std::string path, std::string content, const uint32_t size)
+        : path(std::move(path)), content(std::move(content)), size(size) {}
+  };
+
  private:
   std::string cachePath;
   size_t lutOffset;
   uint16_t spineCount;
   uint16_t tocCount;
+  uint16_t cssCount;  // New: CSS file count
   bool loaded;
   bool buildMode;
 
@@ -54,6 +66,7 @@ class BookMetadataCache {
   // Temp file handles during build
   FsFile spineFile;
   FsFile tocFile;
+  FsFile cssFile;  // New: CSS temp file handle
 
   // Index for fast href→spineIndex lookup (used only for large EPUBs)
   struct SpineHrefIndexEntry {
@@ -65,6 +78,7 @@ class BookMetadataCache {
   bool useSpineHrefIndex = false;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
+  static constexpr uint32_t MAX_CSS_SIZE = 1024 * 1024;  // 1MB max per CSS file
 
   // FNV-1a 64-bit hash function
   static uint64_t fnvHash64(const std::string& s) {
@@ -78,14 +92,22 @@ class BookMetadataCache {
 
   uint32_t writeSpineEntry(FsFile& file, const SpineEntry& entry) const;
   uint32_t writeTocEntry(FsFile& file, const TocEntry& entry) const;
+  uint32_t writeCssEntry(FsFile& file, const CssEntry& entry) const;  // New
   SpineEntry readSpineEntry(FsFile& file) const;
   TocEntry readTocEntry(FsFile& file) const;
+  CssEntry readCssEntry(FsFile& file) const;  // New
 
  public:
   BookMetadata coreMetadata;
 
   explicit BookMetadataCache(std::string cachePath)
-      : cachePath(std::move(cachePath)), lutOffset(0), spineCount(0), tocCount(0), loaded(false), buildMode(false) {}
+      : cachePath(std::move(cachePath)), 
+        lutOffset(0), 
+        spineCount(0), 
+        tocCount(0), 
+        cssCount(0),  // Initialize CSS count
+        loaded(false), 
+        buildMode(false) {}
   ~BookMetadataCache() = default;
 
   // Building phase (stream to disk immediately)
@@ -96,6 +118,15 @@ class BookMetadataCache {
   bool beginTocPass();
   void createTocEntry(const std::string& title, const std::string& href, const std::string& anchor, uint8_t level);
   bool endTocPass();
+  
+  // New: CSS building phase methods
+  bool beginCssPass();
+  void createCssEntry(const std::string& path, const std::string& content);
+  bool endCssPass();
+  
+  // New: Extract and cache all CSS files from EPUB
+  bool extractAndCacheCssFiles(const std::string& epubPath);
+  
   bool endWrite();
   bool cleanupTmpFiles() const;
 
@@ -106,7 +137,15 @@ class BookMetadataCache {
   bool load();
   SpineEntry getSpineEntry(int index);
   TocEntry getTocEntry(int index);
+  
+  // New: CSS reading methods
+  CssEntry getCssEntry(int index);
+  std::string getCssContent(const std::string& cssPath);
+  std::vector<std::string> getAllCssPaths();
+  
+  // Getters
   int getSpineCount() const { return spineCount; }
   int getTocCount() const { return tocCount; }
+  int getCssCount() const { return cssCount; }  // New
   bool isLoaded() const { return loaded; }
 };

@@ -5,14 +5,17 @@
 #include <ZipFile.h>
 
 #include <vector>
+#include <algorithm>
+#include <cstring>
 
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = 5;
+constexpr uint8_t BOOK_CACHE_VERSION = 6;  // Incremented version for CSS support
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
+constexpr char tmpCssBinFile[] = "/css.bin.tmp";  // New temporary file for CSS
 }  // namespace
 
 /* ============= WRITING / BUILDING FUNCTIONS ================ */
@@ -21,6 +24,7 @@ bool BookMetadataCache::beginWrite() {
   buildMode = true;
   spineCount = 0;
   tocCount = 0;
+  cssCount = 0;
   Serial.printf("[%lu] [BMC] Entering write mode\n", millis());
   return true;
 }
@@ -85,6 +89,30 @@ bool BookMetadataCache::endTocPass() {
   return true;
 }
 
+// New method: Begin CSS pass
+bool BookMetadataCache::beginCssPass() {
+  if (!buildMode) {
+    Serial.printf("[%lu] [BMC] beginCssPass called but not in build mode\n", millis());
+    return false;
+  }
+  
+  Serial.printf("[%lu] [BMC] Beginning CSS extraction pass\n", millis());
+  
+  cssCount = 0;
+  
+  // Open CSS file for writing
+  return SdMan.openFileForWrite("BMC", cachePath + tmpCssBinFile, cssFile);
+}
+
+// New method: End CSS pass
+bool BookMetadataCache::endCssPass() {
+  if (cssFile) {
+    cssFile.close();
+  }
+  Serial.printf("[%lu] [BMC] Extracted %d CSS files\n", millis(), cssCount);
+  return true;
+}
+
 bool BookMetadataCache::endWrite() {
   if (!buildMode) {
     Serial.printf("[%lu] [BMC] endWrite called but not in build mode\n", millis());
@@ -92,12 +120,12 @@ bool BookMetadataCache::endWrite() {
   }
 
   buildMode = false;
-  Serial.printf("[%lu] [BMC] Wrote %d spine, %d TOC entries\n", millis(), spineCount, tocCount);
+  Serial.printf("[%lu] [BMC] Wrote %d spine, %d TOC, %d CSS entries\n", millis(), spineCount, tocCount, cssCount);
   return true;
 }
 
 bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMetadata& metadata) {
-  // Open all three files, writing to meta, reading from spine and toc
+  // Open all files, writing to meta, reading from spine, toc, and css
   if (!SdMan.openFileForWrite("BMC", cachePath + bookBinFile, bookFile)) {
     return false;
   }
@@ -113,12 +141,30 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     return false;
   }
 
+  // Open CSS temp file if it exists
+  bool hasCss = false;
+  if (SdMan.exists((cachePath + tmpCssBinFile).c_str())) {
+    if (!SdMan.openFileForRead("BMC", cachePath + tmpCssBinFile, cssFile)) {
+      Serial.printf("[%lu] [BMC] Warning: Could not open CSS temp file\n", millis());
+    } else {
+      hasCss = true;
+      // Read CSS entries into memory for counting
+      cssFile.seek(0);
+      cssCount = 0;
+      while (cssFile.available()) {
+        auto cssEntry = readCssEntry(cssFile);
+        cssCount++;
+      }
+      cssFile.seek(0);
+    }
+  }
+
   constexpr uint32_t headerASize =
-      sizeof(BOOK_CACHE_VERSION) + /* LUT Offset */ sizeof(uint32_t) + sizeof(spineCount) + sizeof(tocCount);
+      sizeof(BOOK_CACHE_VERSION) + /* LUT Offset */ sizeof(uint32_t) + sizeof(spineCount) + sizeof(tocCount) + sizeof(cssCount);
   const uint32_t metadataSize = metadata.title.size() + metadata.author.size() + metadata.language.size() +
                                 metadata.coverItemHref.size() + metadata.textReferenceHref.size() +
                                 sizeof(uint32_t) * 5;
-  const uint32_t lutSize = sizeof(uint32_t) * spineCount + sizeof(uint32_t) * tocCount;
+  const uint32_t lutSize = sizeof(uint32_t) * spineCount + sizeof(uint32_t) * tocCount + sizeof(uint32_t) * cssCount;
   const uint32_t lutOffset = headerASize + metadataSize;
 
   // Header A
@@ -126,6 +172,7 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   serialization::writePod(bookFile, lutOffset);
   serialization::writePod(bookFile, spineCount);
   serialization::writePod(bookFile, tocCount);
+  serialization::writePod(bookFile, cssCount);
   // Metadata
   serialization::writeString(bookFile, metadata.title);
   serialization::writeString(bookFile, metadata.author);
@@ -147,6 +194,22 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     uint32_t pos = tocFile.position();
     auto tocEntry = readTocEntry(tocFile);
     serialization::writePod(bookFile, pos + lutOffset + lutSize + static_cast<uint32_t>(spineFile.position()));
+  }
+
+  // Loop through CSS entries, writing LUT positions
+  if (hasCss) {
+    cssFile.seek(0);
+    uint32_t cssOffset = lutOffset + lutSize + static_cast<uint32_t>(spineFile.position()) + static_cast<uint32_t>(tocFile.position());
+    for (int i = 0; i < cssCount; i++) {
+      uint32_t pos = cssFile.position();
+      auto cssEntry = readCssEntry(cssFile);
+      serialization::writePod(bookFile, pos + cssOffset);
+    }
+  } else {
+    // Write placeholder LUT entries for CSS
+    for (int i = 0; i < cssCount; i++) {
+      serialization::writePod(bookFile, static_cast<uint32_t>(0));
+    }
   }
 
   // LUTs complete
@@ -171,15 +234,9 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     bookFile.close();
     spineFile.close();
     tocFile.close();
+    if (hasCss) cssFile.close();
     return false;
   }
-  // NOTE: We intentionally skip calling loadAllFileStatSlims() here.
-  // For large EPUBs (2000+ chapters), pre-loading all ZIP central directory entries
-  // into memory causes OOM crashes on ESP32-C3's limited ~380KB RAM.
-  // Instead, for large books we use a one-pass batch lookup that scans the ZIP
-  // central directory once and matches against spine targets using hash comparison.
-  // This is O(n*log(m)) instead of O(n*m) while avoiding memory exhaustion.
-  // See: https://github.com/crosspoint-reader/crosspoint-reader/issues/134
 
   std::vector<uint32_t> spineSizes;
   bool useBatchSizes = false;
@@ -224,8 +281,6 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
 
     spineEntry.tocIndex = spineToTocIndex[i];
 
-    // Not a huge deal if we don't fine a TOC entry for the spine entry, this is expected behaviour for EPUBs
-    // Logging here is for debugging
     if (spineEntry.tocIndex == -1) {
       Serial.printf(
           "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
@@ -256,8 +311,6 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     // Write out spine data to book.bin
     writeSpineEntry(bookFile, spineEntry);
   }
-  // Close opened zip file
-  zip.close();
 
   // Loop through toc entries from toc file writing to book.bin
   tocFile.seek(0);
@@ -265,6 +318,19 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     auto tocEntry = readTocEntry(tocFile);
     writeTocEntry(bookFile, tocEntry);
   }
+
+  // Loop through CSS entries writing to book.bin
+  if (hasCss) {
+    cssFile.seek(0);
+    for (int i = 0; i < cssCount; i++) {
+      auto cssEntry = readCssEntry(cssFile);
+      writeCssEntry(bookFile, cssEntry);
+    }
+    cssFile.close();
+  }
+
+  // Close opened zip file
+  zip.close();
 
   bookFile.close();
   spineFile.close();
@@ -280,6 +346,9 @@ bool BookMetadataCache::cleanupTmpFiles() const {
   }
   if (SdMan.exists((cachePath + tmpTocBinFile).c_str())) {
     SdMan.remove((cachePath + tmpTocBinFile).c_str());
+  }
+  if (SdMan.exists((cachePath + tmpCssBinFile).c_str())) {
+    SdMan.remove((cachePath + tmpCssBinFile).c_str());
   }
   return true;
 }
@@ -302,8 +371,15 @@ uint32_t BookMetadataCache::writeTocEntry(FsFile& file, const TocEntry& entry) c
   return pos;
 }
 
-// Note: for the LUT to be accurate, this **MUST** be called for all spine items before `addTocEntry` is ever called
-// this is because in this function we're marking positions of the items
+// New method: Write CSS entry
+uint32_t BookMetadataCache::writeCssEntry(FsFile& file, const CssEntry& entry) const {
+  const uint32_t pos = file.position();
+  serialization::writeString(file, entry.path);
+  serialization::writeString(file, entry.content);
+  serialization::writePod(file, entry.size);
+  return pos;
+}
+
 void BookMetadataCache::createSpineEntry(const std::string& href) {
   if (!buildMode || !spineFile) {
     Serial.printf("[%lu] [BMC] createSpineEntry called but not in build mode\n", millis());
@@ -361,6 +437,258 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
   tocCount++;
 }
 
+// New method: Create CSS entry
+void BookMetadataCache::createCssEntry(const std::string& path, const std::string& content) {
+  if (!buildMode || !cssFile) {
+    Serial.printf("[%lu] [BMC] createCssEntry called but not in build mode\n", millis());
+    return;
+  }
+  
+  // Check size limit
+  if (content.size() > MAX_CSS_SIZE) {
+    Serial.printf("[%lu] [BMC] CSS file too large: %s (%d bytes, max %d)\n", 
+                  millis(), path.c_str(), (int)content.size(), MAX_CSS_SIZE);
+    return;
+  }
+  
+  const CssEntry entry{path, content, static_cast<uint32_t>(content.size())};
+  writeCssEntry(cssFile, entry);
+  cssCount++;
+}
+
+// New method: Extract CSS files from EPUB by reading the OPF manifest
+bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
+  if (!buildMode) {
+    Serial.printf("[%lu] [BMC] extractAndCacheCssFiles called but not in build mode\n", millis());
+    return false;
+  }
+  
+  ZipFile zip(epubPath);
+  if (!zip.open()) {
+    Serial.printf("[%lu] [BMC] Could not open EPUB zip for CSS extraction\n", millis());
+    return false;
+  }
+  
+  // First, find the OPF file by reading container.xml
+  std::string containerPath = "META-INF/container.xml";
+  size_t containerSize;
+  if (!zip.getInflatedFileSize(containerPath.c_str(), &containerSize)) {
+    Serial.printf("[%lu] [BMC] Could not find container.xml\n", millis());
+    zip.close();
+    return false;
+  }
+  
+  // Read container.xml into a string using a temporary file
+  std::string tempContainerPath = cachePath + "/.container.tmp";
+  FsFile tempFile;
+  if (!SdMan.openFileForWrite("BMC", tempContainerPath, tempFile)) {
+    zip.close();
+    return false;
+  }
+  
+  if (!zip.readFileToStream(containerPath.c_str(), tempFile, 512)) {
+    tempFile.close();
+    SdMan.remove(tempContainerPath.c_str());
+    zip.close();
+    return false;
+  }
+  
+  tempFile.close();
+  
+  // Read the temp file into a string
+  if (!SdMan.openFileForRead("BMC", tempContainerPath, tempFile)) {
+    SdMan.remove(tempContainerPath.c_str());
+    zip.close();
+    return false;
+  }
+  
+  std::string containerContent;
+  containerContent.reserve(tempFile.size());
+  uint8_t buf[256];
+  while (tempFile.available()) {
+    size_t len = tempFile.read(buf, sizeof(buf));
+    containerContent.append(reinterpret_cast<char*>(buf), len);
+  }
+  tempFile.close();
+  SdMan.remove(tempContainerPath.c_str());
+  
+  // Parse container.xml to find OPF path
+  std::string opfPath;
+  size_t hrefPos = containerContent.find("full-path=\"");
+  if (hrefPos == std::string::npos) {
+    hrefPos = containerContent.find("full-path='");
+  }
+  if (hrefPos != std::string::npos) {
+    hrefPos += 11; // length of 'full-path="'
+    size_t hrefEnd = containerContent.find('"', hrefPos);
+    if (hrefEnd == std::string::npos) {
+      hrefEnd = containerContent.find('\'', hrefPos);
+    }
+    if (hrefEnd != std::string::npos) {
+      opfPath = containerContent.substr(hrefPos, hrefEnd - hrefPos);
+    }
+  }
+  
+  if (opfPath.empty()) {
+    Serial.printf("[%lu] [BMC] Could not find OPF path in container.xml\n", millis());
+    zip.close();
+    return false;
+  }
+  
+  Serial.printf("[%lu] [BMC] Found OPF: %s\n", millis(), opfPath.c_str());
+  
+  // Read OPF file
+  size_t opfSize;
+  if (!zip.getInflatedFileSize(opfPath.c_str(), &opfSize)) {
+    Serial.printf("[%lu] [BMC] Could not get OPF size\n", millis());
+    zip.close();
+    return false;
+  }
+  
+  std::string tempOpfPath = cachePath + "/.opf.tmp";
+  if (!SdMan.openFileForWrite("BMC", tempOpfPath, tempFile)) {
+    zip.close();
+    return false;
+  }
+  
+  if (!zip.readFileToStream(opfPath.c_str(), tempFile, 1024)) {
+    tempFile.close();
+    SdMan.remove(tempOpfPath.c_str());
+    zip.close();
+    return false;
+  }
+  
+  tempFile.close();
+  
+  // Read the temp file into a string
+  if (!SdMan.openFileForRead("BMC", tempOpfPath, tempFile)) {
+    SdMan.remove(tempOpfPath.c_str());
+    zip.close();
+    return false;
+  }
+  
+  std::string opfContent;
+  opfContent.reserve(tempFile.size());
+  while (tempFile.available()) {
+    size_t len = tempFile.read(buf, sizeof(buf));
+    opfContent.append(reinterpret_cast<char*>(buf), len);
+  }
+  tempFile.close();
+  SdMan.remove(tempOpfPath.c_str());
+  
+  // Parse OPF to find all CSS files
+  size_t searchPos = 0;
+  int cssFound = 0;
+  
+  while (true) {
+    // Find item tag
+    size_t itemPos = opfContent.find("<item", searchPos);
+    if (itemPos == std::string::npos) break;
+    
+    // Find the end of this item tag
+    size_t tagEnd = opfContent.find("/>", itemPos);
+    if (tagEnd == std::string::npos) {
+      tagEnd = opfContent.find(">", itemPos);
+    }
+    if (tagEnd == std::string::npos) {
+      searchPos = itemPos + 5;
+      continue;
+    }
+    
+    // Look for media-type attribute within this tag
+    size_t mediaPos = opfContent.find("media-type", itemPos);
+    if (mediaPos == std::string::npos || mediaPos > tagEnd) {
+      searchPos = itemPos + 5;
+      continue;
+    }
+    
+    // Check if it's a CSS file
+    bool isCss = false;
+    size_t cssTypePos = opfContent.find("text/css", mediaPos);
+    if (cssTypePos != std::string::npos && cssTypePos < tagEnd) {
+      isCss = true;
+    }
+    if (!isCss) {
+      cssTypePos = opfContent.find("application/x-css", mediaPos);
+      if (cssTypePos != std::string::npos && cssTypePos < tagEnd) {
+        isCss = true;
+      }
+    }
+    
+    if (isCss) {
+      // Extract href attribute
+      size_t hrefPos = opfContent.find("href=\"", itemPos);
+      if (hrefPos == std::string::npos) {
+        hrefPos = opfContent.find("href='", itemPos);
+      }
+      
+      if (hrefPos != std::string::npos && hrefPos < tagEnd) {
+        hrefPos += 6; // length of 'href="'
+        size_t hrefEnd = opfContent.find('"', hrefPos);
+        if (hrefEnd == std::string::npos) {
+          hrefEnd = opfContent.find('\'', hrefPos);
+        }
+        
+        if (hrefEnd != std::string::npos && hrefEnd < tagEnd) {
+          std::string cssHref = opfContent.substr(hrefPos, hrefEnd - hrefPos);
+          
+          // Get base path for OPF
+          std::string basePath = opfPath;
+          size_t lastSlash = basePath.find_last_of('/');
+          if (lastSlash != std::string::npos) {
+            basePath = basePath.substr(0, lastSlash + 1);
+          } else {
+            basePath = "";
+          }
+          
+          // Resolve full path
+          std::string fullCssPath = basePath + cssHref;
+          
+          Serial.printf("[%lu] [BMC] Found CSS file in manifest: %s\n", millis(), fullCssPath.c_str());
+          
+          // Extract CSS content using the same method as other files
+          size_t cssSize;
+          if (zip.getInflatedFileSize(fullCssPath.c_str(), &cssSize)) {
+            std::string tempCssPath = cachePath + "/.css.tmp";
+            FsFile cssTempFile;
+            if (SdMan.openFileForWrite("BMC", tempCssPath, cssTempFile)) {
+              if (zip.readFileToStream(fullCssPath.c_str(), cssTempFile, 1024)) {
+                cssTempFile.close();
+                
+                // Read the CSS content
+                if (SdMan.openFileForRead("BMC", tempCssPath, cssTempFile)) {
+                  std::string cssContent;
+                  cssContent.reserve(cssTempFile.size());
+                  uint8_t cssBuf[1024];
+                  while (cssTempFile.available()) {
+                    size_t len = cssTempFile.read(cssBuf, sizeof(cssBuf));
+                    cssContent.append(reinterpret_cast<char*>(cssBuf), len);
+                  }
+                  cssTempFile.close();
+                  
+                  createCssEntry(fullCssPath, cssContent);
+                  cssFound++;
+                }
+              } else {
+                cssTempFile.close();
+              }
+              SdMan.remove(tempCssPath.c_str());
+            }
+          } else {
+            Serial.printf("[%lu] [BMC] Could not get CSS file size: %s\n", millis(), fullCssPath.c_str());
+          }
+        }
+      }
+    }
+    
+    searchPos = itemPos + 5;
+  }
+  
+  zip.close();
+  Serial.printf("[%lu] [BMC] Extracted %d CSS files from EPUB manifest\n", millis(), cssFound);
+  return true;
+}
+
 /* ============= READING / LOADING FUNCTIONS ================ */
 
 bool BookMetadataCache::load() {
@@ -379,6 +707,7 @@ bool BookMetadataCache::load() {
   serialization::readPod(bookFile, lutOffset);
   serialization::readPod(bookFile, spineCount);
   serialization::readPod(bookFile, tocCount);
+  serialization::readPod(bookFile, cssCount);
 
   serialization::readString(bookFile, coreMetadata.title);
   serialization::readString(bookFile, coreMetadata.author);
@@ -387,7 +716,7 @@ bool BookMetadataCache::load() {
   serialization::readString(bookFile, coreMetadata.textReferenceHref);
 
   loaded = true;
-  Serial.printf("[%lu] [BMC] Loaded cache data: %d spine, %d TOC entries\n", millis(), spineCount, tocCount);
+  Serial.printf("[%lu] [BMC] Loaded cache data: %d spine, %d TOC, %d CSS entries\n", millis(), spineCount, tocCount, cssCount);
   return true;
 }
 
@@ -429,6 +758,62 @@ BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
   return readTocEntry(bookFile);
 }
 
+// New method: Get CSS entry by index
+BookMetadataCache::CssEntry BookMetadataCache::getCssEntry(const int index) {
+  if (!loaded) {
+    Serial.printf("[%lu] [BMC] getCssEntry called but cache not loaded\n", millis());
+    return {};
+  }
+
+  if (index < 0 || index >= static_cast<int>(cssCount)) {
+    Serial.printf("[%lu] [BMC] getCssEntry index %d out of range\n", millis(), index);
+    return {};
+  }
+
+  // Seek to CSS LUT item, read from LUT and get out data
+  bookFile.seek(lutOffset + sizeof(uint32_t) * spineCount + sizeof(uint32_t) * tocCount + sizeof(uint32_t) * index);
+  uint32_t cssEntryPos;
+  serialization::readPod(bookFile, cssEntryPos);
+  bookFile.seek(cssEntryPos);
+  return readCssEntry(bookFile);
+}
+
+// New method: Get CSS content by path
+std::string BookMetadataCache::getCssContent(const std::string& cssPath) {
+  if (!loaded) {
+    Serial.printf("[%lu] [BMC] getCssContent called but cache not loaded\n", millis());
+    return "";
+  }
+  
+  // Linear search through CSS entries
+  for (int i = 0; i < static_cast<int>(cssCount); i++) {
+    auto cssEntry = getCssEntry(i);
+    if (cssEntry.path == cssPath) {
+      return cssEntry.content;
+    }
+  }
+  
+  Serial.printf("[%lu] [BMC] CSS file not found: %s\n", millis(), cssPath.c_str());
+  return "";
+}
+
+// New method: Get all CSS paths
+std::vector<std::string> BookMetadataCache::getAllCssPaths() {
+  std::vector<std::string> paths;
+  if (!loaded) {
+    Serial.printf("[%lu] [BMC] getAllCssPaths called but cache not loaded\n", millis());
+    return paths;
+  }
+  
+  paths.reserve(cssCount);
+  for (int i = 0; i < static_cast<int>(cssCount); i++) {
+    auto cssEntry = getCssEntry(i);
+    paths.push_back(cssEntry.path);
+  }
+  
+  return paths;
+}
+
 BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(FsFile& file) const {
   SpineEntry entry;
   serialization::readString(file, entry.href);
@@ -444,5 +829,14 @@ BookMetadataCache::TocEntry BookMetadataCache::readTocEntry(FsFile& file) const 
   serialization::readString(file, entry.anchor);
   serialization::readPod(file, entry.level);
   serialization::readPod(file, entry.spineIndex);
+  return entry;
+}
+
+// New method: Read CSS entry
+BookMetadataCache::CssEntry BookMetadataCache::readCssEntry(FsFile& file) const {
+  CssEntry entry;
+  serialization::readString(file, entry.path);
+  serialization::readString(file, entry.content);
+  serialization::readPod(file, entry.size);
   return entry;
 }
