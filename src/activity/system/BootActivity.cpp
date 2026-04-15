@@ -34,7 +34,7 @@ void BootActivity::drawProgressBar() {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   
-  const int barWidth = 200;
+  const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;
@@ -108,7 +108,7 @@ void BootActivity::onEnter() {
   renderer.clearScreen(0xFF);
   renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256, GfxRenderer::Rotate270CW);
   
-  const int barWidth = 200;
+  const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;
