@@ -71,11 +71,13 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   const int spaceWidth = renderer.getSpaceWidth(fontId);
   auto wordWidths = calculateWordWidths(renderer, fontId);
   std::vector<size_t> lineBreakIndices;
+  const int dropW = static_cast<int>(leftIndentWidth);
+  const int dropL = static_cast<int>(leftIndentLineCount);
   if (hyphenationEnabled) {
     // Use greedy layout that can split words mid-loop when a hyphenated prefix fits.
-    lineBreakIndices = computeHyphenatedLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths);
+    lineBreakIndices = computeHyphenatedLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
   } else {
-    lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths);
+    lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
   }
   const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
 
@@ -104,7 +106,8 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
 }
 
 std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, const int fontId, const int pageWidth,
-                                                  const int spaceWidth, std::vector<uint16_t>& wordWidths) {
+                                                  const int spaceWidth, std::vector<uint16_t>& wordWidths,
+                                                  int dropIndentW, int dropIndentLines) {
   if (words.empty()) {
     return {};
   }
@@ -118,78 +121,126 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
     }
   }
 
-  const size_t totalWordCount = words.size();
+  const int n = static_cast<int>(words.size());
 
-  // DP table to store the minimum badness (cost) of lines starting at index i
-  std::vector<int> dp(totalWordCount);
-  // 'ans[i]' stores the index 'j' of the *last word* in the optimal line starting at 'i'
-  std::vector<size_t> ans(totalWordCount);
+  // No drop cap: keep original single-layer DP (faster for long paragraphs).
+  if (dropIndentW <= 0 || dropIndentLines <= 0) {
+    const size_t totalWordCount = words.size();
+    std::vector<int> dp(totalWordCount);
+    std::vector<size_t> ans(totalWordCount);
+    dp[totalWordCount - 1] = 0;
+    ans[totalWordCount - 1] = totalWordCount - 1;
 
-  // Base Case
-  dp[totalWordCount - 1] = 0;
-  ans[totalWordCount - 1] = totalWordCount - 1;
+    for (int i = static_cast<int>(totalWordCount) - 2; i >= 0; --i) {
+      int currlen = -spaceWidth;
+      dp[static_cast<size_t>(i)] = MAX_COST;
 
-  for (int i = totalWordCount - 2; i >= 0; --i) {
-    int currlen = -spaceWidth;
-    dp[i] = MAX_COST;
-
-    for (size_t j = i; j < totalWordCount; ++j) {
-      // Current line length: previous width + space + current word width
-      currlen += wordWidths[j] + spaceWidth;
-
-      if (currlen > pageWidth) {
-        break;
-      }
-
-      int cost;
-      if (j == totalWordCount - 1) {
-        cost = 0;  // Last line
-      } else {
-        const int remainingSpace = pageWidth - currlen;
-        // Use long long for the square to prevent overflow
-        const long long cost_ll = static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
-
-        if (cost_ll > MAX_COST) {
-          cost = MAX_COST;
+      for (size_t j = static_cast<size_t>(i); j < totalWordCount; ++j) {
+        currlen += wordWidths[j] + spaceWidth;
+        if (currlen > pageWidth) {
+          break;
+        }
+        int cost;
+        if (j == totalWordCount - 1) {
+          cost = 0;
         } else {
-          cost = static_cast<int>(cost_ll);
+          const int remainingSpace = pageWidth - currlen;
+          const long long cost_ll =
+              static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
+          cost = (cost_ll > MAX_COST) ? MAX_COST : static_cast<int>(cost_ll);
+        }
+        if (cost < dp[static_cast<size_t>(i)]) {
+          dp[static_cast<size_t>(i)] = cost;
+          ans[static_cast<size_t>(i)] = j;
         }
       }
-
-      if (cost < dp[i]) {
-        dp[i] = cost;
-        ans[i] = j;  // j is the index of the last word in this optimal line
+      if (dp[static_cast<size_t>(i)] == MAX_COST) {
+        ans[static_cast<size_t>(i)] = static_cast<size_t>(i);
+        if (i + 1 < static_cast<int>(totalWordCount)) {
+          dp[static_cast<size_t>(i)] = dp[static_cast<size_t>(i + 1)];
+        } else {
+          dp[static_cast<size_t>(i)] = 0;
+        }
       }
     }
 
-    // Handle oversized word: if no valid configuration found, force single-word line
-    // This prevents cascade failure where one oversized word breaks all preceding words
-    if (dp[i] == MAX_COST) {
-      ans[i] = i;  // Just this word on its own line
-      // Inherit cost from next word to allow subsequent words to find valid configurations
-      if (i + 1 < static_cast<int>(totalWordCount)) {
-        dp[i] = dp[i + 1];
-      } else {
-        dp[i] = 0;
+    std::vector<size_t> lineBreakIndices;
+    size_t currentWordIndex = 0;
+    while (currentWordIndex < totalWordCount) {
+      size_t nextBreakIndex = ans[currentWordIndex] + 1;
+      if (nextBreakIndex <= currentWordIndex) {
+        nextBreakIndex = currentWordIndex + 1;
+      }
+      lineBreakIndices.push_back(nextBreakIndex);
+      currentWordIndex = nextBreakIndex;
+    }
+    return lineBreakIndices;
+  }
+
+  const int maxEll = n + 1;
+
+  // dp[i][ell] = min badness for suffix words [i, n) when ell lines have already been placed above this suffix.
+  std::vector<std::vector<int>> dp(static_cast<size_t>(n + 1), std::vector<int>(static_cast<size_t>(maxEll + 1), MAX_COST));
+  std::vector<std::vector<size_t>> ans(static_cast<size_t>(n + 1), std::vector<size_t>(static_cast<size_t>(maxEll + 1), 0));
+
+  for (int ell = 0; ell <= maxEll; ++ell) {
+    dp[static_cast<size_t>(n)][static_cast<size_t>(ell)] = 0;
+  }
+
+  for (int i = n - 1; i >= 0; --i) {
+    for (int ell = 0; ell <= n; ++ell) {
+      const int W =
+          (dropIndentW > 0 && ell < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
+
+      int currlen = -spaceWidth;
+      dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = MAX_COST;
+
+      for (int j = i; j < n; ++j) {
+        currlen += wordWidths[static_cast<size_t>(j)] + spaceWidth;
+        if (currlen > W) {
+          break;
+        }
+
+        int cost;
+        if (j == n - 1) {
+          cost = 0;
+        } else {
+          const int remainingSpace = W - currlen;
+          const long long cost_ll =
+              static_cast<long long>(remainingSpace) * remainingSpace +
+              static_cast<long long>(dp[static_cast<size_t>(j + 1)][static_cast<size_t>(ell + 1)]);
+          if (cost_ll > MAX_COST) {
+            cost = MAX_COST;
+          } else {
+            cost = static_cast<int>(cost_ll);
+          }
+        }
+
+        if (cost < dp[static_cast<size_t>(i)][static_cast<size_t>(ell)]) {
+          dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = cost;
+          ans[static_cast<size_t>(i)][static_cast<size_t>(ell)] = static_cast<size_t>(j);
+        }
+      }
+
+      if (dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] == MAX_COST) {
+        ans[static_cast<size_t>(i)][static_cast<size_t>(ell)] = static_cast<size_t>(i);
+        if (i + 1 < n) {
+          dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = dp[static_cast<size_t>(i + 1)][static_cast<size_t>(ell + 1)];
+        } else {
+          dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = 0;
+        }
       }
     }
   }
 
-  // Stores the index of the word that starts the next line (last_word_index + 1)
   std::vector<size_t> lineBreakIndices;
-  size_t currentWordIndex = 0;
-
-  while (currentWordIndex < totalWordCount) {
-    size_t nextBreakIndex = ans[currentWordIndex] + 1;
-
-    // Safety check: prevent infinite loop if nextBreakIndex doesn't advance
-    if (nextBreakIndex <= currentWordIndex) {
-      // Force advance by at least one word to avoid infinite loop
-      nextBreakIndex = currentWordIndex + 1;
-    }
-
-    lineBreakIndices.push_back(nextBreakIndex);
-    currentWordIndex = nextBreakIndex;
+  size_t idx = 0;
+  int ell = 0;
+  while (idx < static_cast<size_t>(n)) {
+    const size_t last = ans[idx][static_cast<size_t>(ell)];
+    lineBreakIndices.push_back(last + 1);
+    idx = last + 1;
+    ++ell;
   }
 
   return lineBreakIndices;
@@ -225,13 +276,17 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
 // Builds break indices while opportunistically splitting the word that would overflow the current line.
 std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& renderer, const int fontId,
                                                             const int pageWidth, const int spaceWidth,
-                                                            std::vector<uint16_t>& wordWidths) {
+                                                            std::vector<uint16_t>& wordWidths, int dropIndentW,
+                                                            int dropIndentLines) {
   std::vector<size_t> lineBreakIndices;
   size_t currentIndex = 0;
+  int lineNum = 0;
 
   while (currentIndex < wordWidths.size()) {
     const size_t lineStart = currentIndex;
     int lineWidth = 0;
+    const int lineW =
+        (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
 
     // Consume as many words as possible for current line, splitting when prefixes fit
     while (currentIndex < wordWidths.size()) {
@@ -240,14 +295,14 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
       const int candidateWidth = spacing + wordWidths[currentIndex];
 
       // Word fits on current line
-      if (lineWidth + candidateWidth <= pageWidth) {
+      if (lineWidth + candidateWidth <= lineW) {
         lineWidth += candidateWidth;
         ++currentIndex;
         continue;
       }
 
       // Word would overflow — try to split based on hyphenation points
-      const int availableWidth = pageWidth - lineWidth - spacing;
+      const int availableWidth = lineW - lineWidth - spacing;
       const bool allowFallbackBreaks = isFirstWord;  // Only for first word on line
 
       if (availableWidth > 0 &&
@@ -267,6 +322,7 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
     }
 
     lineBreakIndices.push_back(currentIndex);
+    ++lineNum;
   }
 
   return lineBreakIndices;
