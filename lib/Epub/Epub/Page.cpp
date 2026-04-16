@@ -138,29 +138,30 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {  
   FsFile file;
-  if (!SdMan.openFileForRead("EHP", cachePath, file)) return;
+  if (!SdMan.openFileForRead("EHP", cachePath, file)) {
+    Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
+    return;
+  }
 
   Bitmap bitmap(file);
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
     int screenW = renderer.getScreenWidth();
     int screenH = renderer.getScreenHeight();
-
-    int renderX = (screenW - bitmap.getWidth()) / 2;
+    
+    int renderX = (screenW - width) / 2;
     int renderY = yPos + yOffset;
 
-    bool isFullScreen = (bitmap.getWidth() >= screenW * 0.95 && bitmap.getHeight() >= screenH * 0.65);
+    if (renderX < 0) renderX = 0;
+    if (renderY < 0) renderY = 0;
     
-    if (isFullScreen) {
-      renderY = 3;
-    }
-
-    renderer.drawBitmap(bitmap, renderX, renderY, 0, 0);
+    renderer.drawBitmap(bitmap, renderX, renderY, width, height);
   }
 
   file.close();
 }
+
 /**
  * Serializes a PageImage to a file.
  *
@@ -204,9 +205,7 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  * @param skipImages If true, images are not rendered
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages) const {
-  bool isHeader = elements.empty() ? false : (elements[0]->getTag() == TAG_PageImage);
-  
+                  bool skipImages) const {  
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
@@ -216,10 +215,18 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     if (tag == TAG_PageHeader) {      
       element->render(renderer, headerFontId, xOffset, yOffset);
     } else {
-      element->render(renderer, fontId, xOffset, isHeader ? 10 : yOffset);
+      element->render(renderer, fontId, xOffset,yOffset);
     }
 
-    isHeader = false;
+  }
+}
+
+void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) const {
+  for (auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    element->render(renderer, fontId, xOffset, yOffset);
   }
 }
 

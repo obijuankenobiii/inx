@@ -270,7 +270,7 @@ void BluetoothActivity::renderDeviceList() const {
       const bool isSelected = (static_cast<int>(i) == selectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
+        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
       }
 
       std::string displayName = device.name;

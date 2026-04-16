@@ -119,7 +119,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
       int scaledW = bw * 90 / 100;
       int scaledH = bh * 90 / 100;
 
-      renderer.drawSmallBitmapClean(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
+      renderer.drawBitmap(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
       coverDrawn = true;
     }
     file.close();
@@ -202,7 +202,7 @@ void StatisticActivity::onEnter() {
   render();
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 16384, this, 1, &displayTaskHandle);
+    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
   }
 }
 

@@ -27,9 +27,38 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 6;
-constexpr uint8_t SETTINGS_COUNT = 33;
+constexpr uint8_t SETTINGS_COUNT = 37;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
+
+void sanitizeSleepCustomBmp(char* buf) {
+  if (buf == nullptr || buf[0] == '\0') {
+    return;
+  }
+  if (strcmp(buf, "/sleep.bmp") == 0) {
+    return;
+  }
+  if (strstr(buf, "..") != nullptr) {
+    buf[0] = '\0';
+    return;
+  }
+  for (const char* p = buf; *p != '\0'; ++p) {
+    if (*p == '/' || *p == '\\' || *p == ':') {
+      buf[0] = '\0';
+      return;
+    }
+  }
+}
 }  // namespace
+
+void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
+  if (s == nullptr || s[0] == '\0') {
+    sleepCustomBmp[0] = '\0';
+    return;
+  }
+  strncpy(sleepCustomBmp, s, sizeof(sleepCustomBmp) - 1);
+  sleepCustomBmp[sizeof(sleepCustomBmp) - 1] = '\0';
+  sanitizeSleepCustomBmp(sleepCustomBmp);
+}
 
 /**
  * @brief Saves all settings to file
@@ -79,6 +108,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, statusBarMiddle);
   serialization::writePod(outputFile, statusBarRight);
   serialization::writePod(outputFile, pageAutoTurnSeconds);
+  serialization::writePod(outputFile, readerImageGrayscale);
+  serialization::writePod(outputFile, readerSmartRefreshOnImages);
+  serialization::writePod(outputFile, sleepScreenCoverGrayscale);
+  serialization::writeString(outputFile, std::string(sleepCustomBmp));
 
   outputFile.close();
 
@@ -284,6 +317,34 @@ bool SystemSetting::loadFromFile() {
       if (++settingsRead >= fileSettingsCount) break;
     } else {
       pageAutoTurnSeconds = 0;
+    }
+
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, readerImageGrayscale);
+      if (readerImageGrayscale > 1) {
+        readerImageGrayscale = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, readerSmartRefreshOnImages);
+      if (readerSmartRefreshOnImages > 1) {
+        readerSmartRefreshOnImages = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, sleepScreenCoverGrayscale);
+      if (sleepScreenCoverGrayscale > 1) {
+        sleepScreenCoverGrayscale = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      std::string sleepBmpStr;
+      serialization::readString(inputFile, sleepBmpStr);
+      setSleepCustomBmpFromInput(sleepBmpStr.c_str());
+      ++settingsRead;
     }
 
   } while (false);

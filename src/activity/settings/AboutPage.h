@@ -8,10 +8,12 @@
 #include "system/MappedInputManager.h"
 
 class AboutPage {
-public:
+ public:
   using DismissCallback = std::function<void()>;
+  using CheckForUpdatesCallback = std::function<void()>;
 
-  AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput, DismissCallback onDismiss);
+  AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput, DismissCallback onDismiss,
+            CheckForUpdatesCallback onCheckForUpdates = nullptr);
   ~AboutPage();
 
   void show();
@@ -21,16 +23,17 @@ public:
   bool isVisible() const { return visible; }
   bool isDismissed() const { return dismissed; }
 
-private:
+ private:
   void renderWithRefresh();
 
   GfxRenderer& renderer;
   MappedInputManager& mappedInput;
   DismissCallback onDismiss;
+  CheckForUpdatesCallback onCheckForUpdates;
 
   bool visible;
   bool dismissed;
   uint32_t lastInputTime;
 };
 
-#endif // ABOUT_PAGE_H
+#endif  // ABOUT_PAGE_H

@@ -10,6 +10,45 @@
 
 constexpr int LIST_ITEM_HEIGHT = 60;
 
+namespace {
+
+bool isLandscapeReader(const GfxRenderer& gfx) {
+  const auto o = gfx.getOrientation();
+  return o == GfxRenderer::LandscapeClockwise || o == GfxRenderer::LandscapeCounterClockwise;
+}
+
+/** List selection: portrait uses Up/Down only so Left/Right stay for value edits (matches pre-drawer UX). */
+bool readSettingsListPrev(const MappedInputManager& in, const GfxRenderer& r) {
+  if (isLandscapeReader(r)) {
+    return in.wasPressed(MappedInputManager::Button::Right);
+  }
+  return in.wasPressed(MappedInputManager::Button::Up);
+}
+
+bool readSettingsListNext(const MappedInputManager& in, const GfxRenderer& r) {
+  if (isLandscapeReader(r)) {
+    return in.wasPressed(MappedInputManager::Button::Left);
+  }
+  return in.wasPressed(MappedInputManager::Button::Down);
+}
+
+/** Portrait: Left/Right adjust values. Landscape: Down/Up (swap with list so value edits match device). */
+bool readValueDecrease(const MappedInputManager& in, const GfxRenderer& r) {
+  if (isLandscapeReader(r)) {
+    return in.wasPressed(MappedInputManager::Button::Down);
+  }
+  return in.wasPressed(MappedInputManager::Button::Left);
+}
+
+bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
+  if (isLandscapeReader(r)) {
+    return in.wasPressed(MappedInputManager::Button::Up);
+  }
+  return in.wasPressed(MappedInputManager::Button::Right);
+}
+
+}  // namespace
+
 /**
  * @brief Constructs a new SettingsDrawer
  * @param renderer Reference to the graphics renderer
@@ -22,11 +61,8 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
       onSettingsChanged(onSettingsChanged),
       lastInputTime(0),
       settingsUpdated(false) {
-  drawerHeight = renderer.getScreenHeight() * 60 / 100;
-  drawerY = renderer.getScreenHeight() - drawerHeight;
-
   itemHeight = LIST_ITEM_HEIGHT;
-  itemsPerPage = (drawerHeight - 100) / itemHeight;
+  syncLayoutFromRenderer();
 
   selectedIndex = 0;
   scrollOffset = 0;
@@ -45,6 +81,23 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
  * @brief Destructor
  */
 SettingsDrawer::~SettingsDrawer() {}
+
+void SettingsDrawer::syncLayoutFromRenderer() {
+  const int sw = renderer.getScreenWidth();
+  const int sh = renderer.getScreenHeight();
+  if (isLandscapeReader(renderer)) {
+    drawerWidth = sw / 2;
+    drawerX = sw - drawerWidth;
+    drawerY = 0;
+    drawerHeight = sh;
+  } else {
+    drawerX = 0;
+    drawerWidth = sw;
+    drawerHeight = sh * 60 / 100;
+    drawerY = sh - drawerHeight;
+  }
+  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+}
 
 /**
  * @brief Sets up the menu structure based on current expansion states
@@ -141,14 +194,14 @@ void SettingsDrawer::setupMenu() {
     alignEntry.group = GroupType::LAYOUT;
     alignEntry.name = "Paragraph Alignment";
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* align[] = {"Justify", "Left", "Center", "Right"};
+      static const char* align[] = {"Justify", "Left", "Center", "Right", "Default (CSS)"};
       int index = s.paragraphAlignment;
-      if (index > 3) index = 0;
+      if (index > 4) index = 0;
       return align[index];
     };
     alignEntry.change = [](BookSettings& s, int delta) {
       int newVal = s.paragraphAlignment + delta;
-      if (newVal >= 0 && newVal <= 3) {
+      if (newVal >= 0 && newVal <= 4) {
         s.paragraphAlignment = newVal;
         s.useCustomSettings = true;
       }
@@ -276,6 +329,32 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(refreshEntry);
 
+    MenuEntry imgGrayEntry;
+    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
+    imgGrayEntry.group = GroupType::CONTROLS;
+    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+    };
+    imgGrayEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(imgGrayEntry);
+
+    MenuEntry smartRefreshEntry;
+    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
+    smartRefreshEntry.group = GroupType::CONTROLS;
+    smartRefreshEntry.name = "Smart Refresh (Images)";
+    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    };
+    smartRefreshEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(smartRefreshEntry);
+
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
     chapterEntry.group = GroupType::CONTROLS;
@@ -395,6 +474,7 @@ const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
  */
 void SettingsDrawer::show() {
   if (visible) return;
+  syncLayoutFromRenderer();
   visible = true;
   dismissed = false;
   selectedIndex = 0;
@@ -410,6 +490,11 @@ void SettingsDrawer::hide() {
   dismissed = true;
 }
 
+void SettingsDrawer::relayoutForRendererChange() {
+  syncLayoutFromRenderer();
+  setupMenu();
+}
+
 /**
  * @brief Renders the settings drawer
  */
@@ -423,10 +508,13 @@ void SettingsDrawer::render() {
  * @param mode Display refresh mode to use
  */
 void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
+  syncLayoutFromRenderer();
   drawBackground();
   drawMenuItems();
   drawScrollIndicator();
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "« Back", "Open", "«", "»");
+  if (!isLandscapeReader(renderer)) {
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+  }
   renderer.displayBuffer();
 }
 
@@ -434,19 +522,18 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
  * @brief Draws the background panel of the settings drawer
  */
 void SettingsDrawer::drawBackground() {
-  int screenW = renderer.getScreenWidth();
-  renderer.fillRect(0, drawerY, screenW, drawerHeight, false);
-  renderer.drawRect(0, drawerY, screenW, drawerHeight, true);
+  renderer.fillRect(drawerX, drawerY, drawerWidth, drawerHeight, false);
+  renderer.drawRect(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
   currentY += 25;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, currentY, tag, true);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
 
   int dividerY = currentY + 30;
-  renderer.drawLine(0, dividerY, screenW, dividerY, true);
+  renderer.drawLine(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
 /**
@@ -454,7 +541,6 @@ void SettingsDrawer::drawBackground() {
  */
 void SettingsDrawer::drawMenuItems() {
   int startY = drawerY + 65;
-  int screenW = renderer.getScreenWidth();
 
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(menuItems.size()); i++) {
     int index = i + scrollOffset;
@@ -464,29 +550,29 @@ void SettingsDrawer::drawMenuItems() {
 
     if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenW, itemHeight, true);
+        renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
       }
 
-      int textX = 15;
+      int textX = drawerX + 15;
       int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
       const char* indicator = entry.getValueText(settings);
       if (indicator && indicator[0] != '\0') {
         int indicatorW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - indicatorW - 30, textY, indicator,
-                          isSelected ? 0 : 1, EpdFontFamily::BOLD);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
+                          indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
       }
 
-      renderer.drawLine(0, itemY + itemHeight - 1, screenW, itemY + itemHeight - 1, true);
+      renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
       continue;
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, screenW, itemHeight, true);
+      renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
-    int textX = 23;
+    int textX = drawerX + 23;
     int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
@@ -494,10 +580,11 @@ void SettingsDrawer::drawMenuItems() {
     const char* val = entry.getValueText(settings);
     if (val && val[0] != '\0') {
       int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - valW - 30, textY, val, isSelected ? 0 : 1);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - valW - 30, textY, val,
+                        isSelected ? 0 : 1);
     }
 
-    renderer.drawLine(0, itemY + itemHeight - 1, screenW, itemY + itemHeight - 1, true);
+    renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
 }
 
@@ -513,7 +600,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
-  renderer.fillRect(renderer.getScreenWidth() - 4, thumbY, 2, thumbH, true);
+  renderer.fillRect(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
 }
 
 /**
@@ -552,7 +639,7 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
 
   bool needRedraw = false;
 
-  if (input.wasPressed(MappedInputManager::Button::Up)) {
+  if (readSettingsListPrev(input, renderer)) {
     if (selectedIndex > 0) {
       selectedIndex--;
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
@@ -560,7 +647,7 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
     }
   }
 
-  if (input.wasPressed(MappedInputManager::Button::Down)) {
+  if (readSettingsListNext(input, renderer)) {
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
@@ -571,12 +658,12 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
     }
   }
 
-  if (input.wasPressed(MappedInputManager::Button::Left)) {
+  if (readValueDecrease(input, renderer)) {
     applyChange(-1);
     needRedraw = true;
   }
 
-  if (input.wasPressed(MappedInputManager::Button::Right)) {
+  if (readValueIncrease(input, renderer)) {
     applyChange(1);
     needRedraw = true;
   }
@@ -623,6 +710,8 @@ void SettingsDrawer::applyChange(int delta) {
       break;
 
     case MenuItem::PageAutoTurn:
+    case MenuItem::ReaderImageGrayscale:
+    case MenuItem::ReaderSmartImageRefresh:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

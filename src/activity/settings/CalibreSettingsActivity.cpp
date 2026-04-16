@@ -159,7 +159,7 @@ void CalibreSettingsActivity::render() {
   renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
 
   // Draw selection highlight
-  renderer.fillRect(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30);
+  renderer.fillRect(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30, GfxRenderer::FillTone::Ink);
 
   // Draw menu items
   for (int i = 0; i < MENU_ITEMS; i++) {

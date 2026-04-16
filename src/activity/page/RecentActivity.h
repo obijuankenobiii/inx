@@ -37,7 +37,7 @@ class RecentActivity final : public Activity, public Menu {
   enum class ViewMode {
     Default,
     Grid,  /**< Display books in a grid with covers */
-    List   /**< Display books in a list with thumbnails */
+    Flow   /**< Display books in a list with thumbnails */
   };
 
  private:
@@ -69,7 +69,7 @@ class RecentActivity final : public Activity, public Menu {
    * Loads recent books from persistent storage.
    * Filters out books that no longer exist on the SD card.
    */
-  void loadRecentBooks();
+  void loadRecentBooks(bool resetScroll = true);
 
   /**
    * Static trampoline function for FreeRTOS task creation.
@@ -107,6 +107,13 @@ class RecentActivity final : public Activity, public Menu {
    * @param startY Starting Y coordinate for the grid
    */
   void renderGrid(int startY);
+
+  /**
+   * Renders the complete grid view including all visible books.
+   * 
+   * @param startY Starting Y coordinate for the grid
+   */
+  void renderFlow();
   
   /**
    * Renders a single list item with thumbnail on left, title, author, and progress bar.
@@ -137,7 +144,7 @@ class RecentActivity final : public Activity, public Menu {
     if (tabSelectorIndex == 4) onGoToStatistics(); 
   }
 
-  ViewMode currentViewMode = ViewMode::Grid;
+  ViewMode currentViewMode = ViewMode::Flow;
 
  public:
   /**

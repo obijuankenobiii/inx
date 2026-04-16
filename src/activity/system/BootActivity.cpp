@@ -34,7 +34,7 @@ void BootActivity::drawProgressBar() {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   
-  const int barWidth = 200;
+  const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;
@@ -67,36 +67,23 @@ void BootActivity::initializeNextStage() {
       break;
       
     case 1:
-      bootProgress = 30;
-      drawProgressBar();
-      KOREADER_STORE.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 2:
       bootProgress = 50;
       drawProgressBar();
       APP_STATE.loadFromFile();
       bootStage++;
       break;
       
-    case 3:
+    case 2:
       bootProgress = 70;
       drawProgressBar();
       RECENT_BOOKS.loadFromFile();
       bootStage++;
       break;
       
-    case 4:
-      bootProgress = 90;
-      drawProgressBar();
-      BOOK_STATE.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 5:
+    case 3:
       bootProgress = 100;
       drawProgressBar();
+      BOOK_STATE.loadFromFile();
       bootComplete = true;
       break;
       
@@ -119,9 +106,9 @@ void BootActivity::onEnter() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen(0xFF);
-  renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256, GfxRenderer::Rotate270CW);
+  renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
   
-  const int barWidth = 200;
+  const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;

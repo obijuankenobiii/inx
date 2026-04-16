@@ -22,7 +22,11 @@ enum class GroupType {
     LAYOUT,
     READER_CONTROLS,
     SYSTEM,
-    STATUS_BAR
+    STATUS_BAR,
+    DEVICE_DISPLAY,
+    DEVICE_BUTTONS,
+    DEVICE_ADVANCED,
+    DEVICE_ACTIONS,
 };
 
 struct ValueRange {
@@ -117,6 +121,13 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   const SettingInfo* settingsList;
   int settingsCount;
   const std::function<void()> onGoBack;
+  const std::function<void()> onIndexLibrary;
+  const std::function<void()> onAboutPanel;
+  const char* backButtonLabel;
+  const std::function<void()> onTabRecent;
+  const std::function<void()> onTabLibrary;
+  const std::function<void()> onTabSync;
+  const std::function<void()> onTabStatistics;
   
   // Dynamic menu items
   struct MenuEntry {
@@ -135,31 +146,48 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   
   static void taskTrampoline(void* param);
   void displayTaskLoop();
-  void render() const;
+  void render();
   void setupMenu();
   void applyChange(int delta);
   void toggleGroup(GroupType group);
   
-  void navigateToSelectedMenu() override { }
+  void navigateToSelectedMenu() override;
 
  public:
   CategorySettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const char* categoryName,
-                           const SettingInfo* settingsList, int settingsCount, const std::function<void()>& onGoBack)
+                           const SettingInfo* settingsList, int settingsCount, const std::function<void()>& onGoBack,
+                           std::function<void()> indexLibraryHandler = nullptr,
+                           std::function<void()> aboutPanelHandler = nullptr, const char* backLabel = nullptr,
+                           std::function<void()> tabNavigateRecent = nullptr,
+                           std::function<void()> tabNavigateLibrary = nullptr,
+                           std::function<void()> tabNavigateSync = nullptr,
+                           std::function<void()> tabNavigateStatistics = nullptr)
       : ActivityWithSubactivity("CategorySettings", renderer, mappedInput),
         Menu(),
         categoryName(categoryName),
         settingsList(settingsList),
         settingsCount(settingsCount),
-        onGoBack(onGoBack) {
+        onGoBack(onGoBack),
+        onIndexLibrary(std::move(indexLibraryHandler)),
+        onAboutPanel(std::move(aboutPanelHandler)),
+        backButtonLabel(backLabel),
+        onTabRecent(std::move(tabNavigateRecent)),
+        onTabLibrary(std::move(tabNavigateLibrary)),
+        onTabSync(std::move(tabNavigateSync)),
+        onTabStatistics(std::move(tabNavigateStatistics)) {
     tabSelectorIndex = 2;
     itemsPerPage = (renderer.getScreenHeight() - TAB_BAR_HEIGHT * 2 - 100) / LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
-    
+
     groupExpanded[GroupType::FONT] = false;
     groupExpanded[GroupType::LAYOUT] = false;
     groupExpanded[GroupType::SYSTEM] = false;
     groupExpanded[GroupType::STATUS_BAR] = false;
     groupExpanded[GroupType::READER_CONTROLS] = false;
+    groupExpanded[GroupType::DEVICE_DISPLAY] = false;
+    groupExpanded[GroupType::DEVICE_BUTTONS] = false;
+    groupExpanded[GroupType::DEVICE_ADVANCED] = false;
+    groupExpanded[GroupType::DEVICE_ACTIONS] = false;
   }
   void onEnter() override;
   void onExit() override;

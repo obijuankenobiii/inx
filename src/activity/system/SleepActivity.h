@@ -42,7 +42,7 @@ class SleepActivity final : public Activity {
   /**
    * @brief Renders a custom sleep screen from user-provided images.
    * 
-   * Loads random BMP images from the /sleep directory or root sleep.bmp.
+   * Loads BMP from /sleep/ or root sleep.bmp (fixed choice in settings, or random).
    * Falls back to default sleep screen if no images are found.
    */
   void renderCustomSleepScreen() const;
@@ -57,10 +57,10 @@ class SleepActivity final : public Activity {
   
   /**
    * @brief Renders a bitmap image as the sleep screen with proper positioning.
-   * 
-   * Handles image scaling, centering, cropping, and grayscale rendering based
+   *
+   * Handles image scaling, centering, cropping, and optional grayscale rendering
    * on screen dimensions and user settings.
-   * 
+   *
    * @param bitmap The bitmap image to render
    */
   void renderBitmapSleepScreen(const Bitmap& bitmap) const;

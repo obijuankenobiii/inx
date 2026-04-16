@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstring>
 
+struct BmpHeader;
+
 // Helper functions
 uint8_t quantize(int gray, int x, int y);
 uint8_t quantizeSimple(int gray);
@@ -19,6 +21,11 @@ uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b);
 // Uses 2x2 pixel averaging for clean downscaling with Atkinson dithering.
 // Returns true on success, false on failure.
 bool bmpTo1BitBmpScaled(const char* srcPath, const char* dstPath, int targetMaxWidth, int targetMaxHeight);
+
+enum class BmpRowOrder { BottomUp, TopDown };
+
+// Populates a 1-bit BMP header in the provided memory.
+void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder rowOrder);
 
 // 1-bit Atkinson dithering - better quality than noise dithering for thumbnails
 // Error distribution pattern (same as 2-bit but quantizes to 2 levels):

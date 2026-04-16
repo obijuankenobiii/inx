@@ -185,6 +185,8 @@ public:
         LEFT_ALIGN = 1,     ///< Left alignment
         CENTER_ALIGN = 2,   ///< Center alignment
         RIGHT_ALIGN = 3,    ///< Right alignment
+        /** Use text-align from EPUB CSS (and inline styles) for each paragraph; layout viewport matches reader. */
+        FOLLOW_CSS = 4,  // keep equal to EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/.../ChapterHtmlSlimParser.h
         PARAGRAPH_ALIGNMENT_COUNT
     };
 
@@ -247,6 +249,7 @@ public:
     enum RECENT_LIBRARY_MODE {
         RECENT_GRID = 0,    ///< Grid view
         RECENT_LIST = 1,    ///< List view
+        RECENT_FLOW = 2,    ///< List view
         RECENT_LIBRARY_MODE_COUNT
     };
 
@@ -263,7 +266,16 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    
+    /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
+    uint8_t sleepScreenCoverGrayscale = 1;
+    /**
+     * Fixed custom/transparent sleep BMP when multiple images exist.
+     * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
+     * Basename only = use /sleep/<basename> (e.g. night.bmp).
+     * Exactly "/sleep.bmp" = use the BMP at the SD card root only.
+     */
+    char sleepCustomBmp[64] = "";
+
     // Legacy status bar mode (kept for backward compatibility)
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
     
@@ -331,6 +343,11 @@ public:
      */
     uint8_t pageAutoTurnSeconds = 0;
 
+    /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
+    uint8_t readerImageGrayscale = 1;
+    /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
+    uint8_t readerSmartRefreshOnImages = 1;
+
     ~SystemSetting() = default;
 
     /**
@@ -355,6 +372,12 @@ public:
      */
     int getReaderFontId() const;
     
+    /**
+     * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").
+     * @param s nullptr or empty string clears (random selection each sleep).
+     */
+    void setSleepCustomBmpFromInput(const char* s);
+
     /**
      * @brief Saves all settings to file
      * @return true if save successful, false otherwise

@@ -9,9 +9,10 @@ class JpegToBmpConverter {
                                         unsigned char* pBytes_actually_read, void* pCallback_data);
   static bool jpegFileToBmpStreamInternal(class FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool oneBit, bool quickMode = false);
-  // NEW: Internal function for centered full-screen fill
+  // Internal: cropToFill true = cover (fill target, center crop); false = contain (fit in target, no upscale).
   static bool jpegFileToBmpStreamInternalCentered(class FsFile& jpegFile, Print& bmpOut, int targetWidth,
-                                                  int targetHeight, bool oneBit, bool quickMode = false);
+                                                  int targetHeight, bool oneBit, bool quickMode = false,
+                                                  bool cropToFill = true);
 
  public:
   static bool jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut);
@@ -25,8 +26,10 @@ class JpegToBmpConverter {
   static bool jpegFileToBmpStreamQuick(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
 
   // NEW: Centered full-screen fill functions (crops and centers to fit exactly)
-  static bool jpegFileTo1BitBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight);
-  static bool jpegFileToBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight);
+  static bool jpegFileTo1BitBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
+                                            bool cropToFill = true);
+  static bool jpegFileToBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
+                                          bool cropToFill = true);
 
   /**
    * Resize a 1-bit BMP file to new dimensions

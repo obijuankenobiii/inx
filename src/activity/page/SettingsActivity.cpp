@@ -6,44 +6,76 @@
 
 #include "../settings/CategorySettingsActivity.h"
 #include "../settings/LibraryIndexer.h"
+#include "../settings/OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
-const char* SettingsActivity::categoryNames[categoryCount] = {"Display", "Reader", "Controls", "System"};
-constexpr int LIST_ITEM_HEIGHT = 60;
+const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int displaySettingsCount = 5;
-const SettingInfo displaySettings[displaySettingsCount] = {
+constexpr int systemPageSettingsCount = 22;
+const SettingInfo systemPageSettings[systemPageSettingsCount] = {
+    SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
-                      {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"}),
-    SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fit", "Crop"}),
+                      {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
+    SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fit", "Crop"},
+                      GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
-                      {"None", "Contrast", "Inverted"}),
-    SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"}),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Default"})};
+                      {"None", "Contrast", "Inverted"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
+                      GroupType::DEVICE_DISPLAY),
+    SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"},
+                      GroupType::DEVICE_DISPLAY),
+    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "List Stats", "Flow"},
+                      GroupType::DEVICE_DISPLAY),
 
-constexpr int readerSettingsCount = 30;
+    SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
+    SettingInfo::Enum(
+        "Front Button Layout", &SystemSetting::frontButtonLayout,
+        {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght", "Bck, Cnfrm, Rght, Lft"},
+        GroupType::DEVICE_BUTTONS),
+    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"},
+                      GroupType::DEVICE_BUTTONS),
+
+    SettingInfo::Separator("Device & library", GroupType::DEVICE_ADVANCED),
+    SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"},
+                      GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"}, GroupType::DEVICE_ADVANCED),
+
+    SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
+
+    /* Standalone row (not inside a collapsible group); always visible. */
+    SettingInfo::Action("About", GroupType::NONE)};
+
+constexpr int readerSettingsCount = 26;
 const SettingInfo readerSettings[readerSettingsCount] = {
-    SettingInfo::Separator("═══ Font ═══", GroupType::FONT),
+    SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly", "Atkinson Hyperlegible", "Literata"},
                       GroupType::FONT),
     SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small", "Small", "Medium", "Large", "X Large"},
                       GroupType::FONT),
 
-    SettingInfo::Separator("═══ Layout ═══", GroupType::LAYOUT),
+    SettingInfo::Separator(" Layout ", GroupType::LAYOUT),
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
-    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment, {"Justify", "Left", "Center", "Right"},
+    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
+                      {"Justify", "Left", "Center", "Right", "Default (CSS)"},
                       GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
                       {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
 
-    SettingInfo::Separator("═══ Navigation ═══", GroupType::READER_CONTROLS),
+    SettingInfo::Separator(" Navigation ", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
                       {"Left/Right", "Right/Left", "Up/Down", "Down/Up", "None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
@@ -53,12 +85,14 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       GroupType::READER_CONTROLS),
     SettingInfo::Value("Page Auto Turn", &SystemSetting::pageAutoTurnSeconds, {0, 180, 10}, GroupType::READER_CONTROLS),
 
-    SettingInfo::Separator("═══ System ═══", GroupType::SYSTEM),
+    SettingInfo::Separator(" System ", GroupType::SYSTEM),
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}, GroupType::SYSTEM),
+    SettingInfo::Toggle("EPUB Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::SYSTEM),
+    SettingInfo::Toggle("EPUB Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::SYSTEM),
 
-    SettingInfo::Separator("═══ Status Bar ═══", GroupType::STATUS_BAR),
+    SettingInfo::Separator(" Status Bar ", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
                       {"None", "No Progress", "Full w/ Percentage", "Full w/ Progress Bar", "Progress Bar", "Battery %",
                        "Percentage", "Page Bars"},
@@ -75,22 +109,6 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %",
                        "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"},
                       GroupType::STATUS_BAR)};
-
-constexpr int controlsSettingsCount = 2;
-const SettingInfo controlsSettings[controlsSettingsCount] = {
-    SettingInfo::Enum(
-        "Front Button Layout", &SystemSetting::frontButtonLayout,
-        {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght", "Bck, Cnfrm, Rght, Lft"}),
-    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"})};
-
-constexpr int systemSettingsCount = 6;
-const SettingInfo systemSettings[systemSettingsCount] = {
-    SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"}),
-    SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex),
-    SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"}),
-    SettingInfo::Action("KOReader Sync"),
-    SettingInfo::Action("OPDS Browser"),
-    SettingInfo::Action("Clear Cache")};
 
 }  // namespace
 
@@ -114,7 +132,7 @@ void SettingsActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
       updateRequired = false;
-      render();
+      openCurrentPanel();
     }
     vTaskDelay(pdMS_TO_TICKS(50));
   }
@@ -130,7 +148,7 @@ void SettingsActivity::onEnter() {
   Activity::onEnter();
 
   tabSelectorIndex = 2;
-  selectedCategoryIndex = 0;
+  currentPanel = SettingsPanel::System;
 
   isIndexing = false;
   showingAbout = false;
@@ -138,9 +156,9 @@ void SettingsActivity::onEnter() {
   indexingTotal = 0;
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
 
-  render();
+  openCurrentPanel();
 
-  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 16384, this, 1, &displayTaskHandle);
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -169,19 +187,11 @@ void SettingsActivity::onExit() {
  * library indexing, and power button refresh functionality.
  */
 void SettingsActivity::loop() {
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
   if (showingAbout && aboutPage) {
     aboutPage->handleInput();
     if (aboutPage->isDismissed()) {
       showingAbout = false;
-      updateRequired = true;
-      render();
+      openCurrentPanel();
     }
     return;
   }
@@ -197,200 +207,81 @@ void SettingsActivity::loop() {
     return;
   }
 
-  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
-    if (mappedInput.getHeldTime() >= 300) {
-      vTaskDelay(pdMS_TO_TICKS(300));
-      SETTINGS.saveToFile();
-      onRecentOpen();
-    }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    swapPanelAndReopen();
     return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-    tabSelectorIndex = 1;
-    navigateToSelectedMenu();
+    handleTabNavigation(true, false);
     return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-    tabSelectorIndex = 3;
-    navigateToSelectedMenu();
+    handleTabNavigation(false, true);
     return;
   }
 
   if (tabSelectorIndex != 2) {
     return;
   }
-
-  const int totalItems = categoryCount + 2;
-  bool needUpdate = false;
-
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
-    selectedCategoryIndex = (selectedCategoryIndex - 1 + totalItems) % totalItems;
-    needUpdate = true;
-  }
-
-  if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
-    selectedCategoryIndex = (selectedCategoryIndex + 1) % totalItems;
-    needUpdate = true;
-  }
-
-  if (needUpdate) {
-    updateRequired = true;
-  }
-
-  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-    if (selectedCategoryIndex < categoryCount) {
-      enterCategory(selectedCategoryIndex);
-      return;
-    }
-    if (selectedCategoryIndex == categoryCount) {
-      startLibraryIndexing();
-      return;
-    }
-    if (selectedCategoryIndex == categoryCount + 1) {
-      showingAbout = true;
-      if (!aboutPage) {
-        aboutPage = new AboutPage(renderer, mappedInput, [this]() {
-          showingAbout = false;
-          updateRequired = true;
-        });
-      }
-      aboutPage->show();
-      return;
-    }
-  }
 }
 
-/**
- * @brief Navigates to a specific settings category.
- *
- * @param categoryIndex Index of the category to enter (0-3)
- */
-void SettingsActivity::enterCategory(int categoryIndex) {
-  if ((categoryIndex < 0) || (categoryIndex >= categoryCount)) {
-    return;
-  }
+const char* SettingsActivity::panelBackLabel(const SettingsPanel panel) {
+  return panel == SettingsPanel::System ? "\xC2\xAB Reader" : "\xC2\xAB System";
+}
 
+void SettingsActivity::swapPanelAndReopen() {
+  SETTINGS.saveToFile();
+  currentPanel = (currentPanel == SettingsPanel::System) ? SettingsPanel::Reader : SettingsPanel::System;
   exitActivity();
-
-  const SettingInfo* settingsList = nullptr;
-  int settingsCount = 0;
-
-  switch (categoryIndex) {
-    case 0:
-      settingsList = displaySettings;
-      settingsCount = displaySettingsCount;
-      break;
-    case 1:
-      settingsList = readerSettings;
-      settingsCount = readerSettingsCount;
-      break;
-    case 2:
-      settingsList = controlsSettings;
-      settingsCount = controlsSettingsCount;
-      break;
-    case 3:
-      settingsList = systemSettings;
-      settingsCount = systemSettingsCount;
-      break;
-  }
-
-  enterNewActivity(new CategorySettingsActivity(renderer, mappedInput, categoryNames[categoryIndex], settingsList,
-                                                settingsCount, [this] {
-                                                  exitActivity();
-                                                  updateRequired = true;
-                                                }));
+  openCurrentPanel();
 }
 
-/**
- * @brief Renders the main settings screen.
- *
- * Draws the tab bar, header, subtitle, settings list, and button hints.
- */
-void SettingsActivity::render() const {
-  renderer.clearScreen();
-  renderTabBar(renderer);
+void SettingsActivity::openCurrentPanel() {
+  const char* title = (currentPanel == SettingsPanel::System) ? "System" : "Reader";
+  const SettingInfo* list = (currentPanel == SettingsPanel::System) ? systemPageSettings : readerSettings;
+  const int count = (currentPanel == SettingsPanel::System) ? systemPageSettingsCount : readerSettingsCount;
 
-  const int startY = TAB_BAR_HEIGHT;
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-  const char* headerText = "Settings";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
-                    EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Manage your preference.";
-  int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText);
-
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
-
-  renderSettingsList();
-
-  const auto labels = mappedInput.mapLabels("« Recent", "Select", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-
-  renderer.displayBuffer();
-}
-
-void SettingsActivity::renderSettingsList() const {
-  const int screenWidth = renderer.getScreenWidth();
-  const int screenHeight = renderer.getScreenHeight();
-
-  int startY = TAB_BAR_HEIGHT * 2 + 8;
-  int drawY = startY;
-  int visibleAreaHeight = screenHeight - drawY - 80;
-
-  for (int i = 0; i < categoryCount; i++) {
-    if (i * LIST_ITEM_HEIGHT < visibleAreaHeight) {
-      int itemY = drawY + (i * LIST_ITEM_HEIGHT);
-      bool isSelected = (i == selectedCategoryIndex);
-
-      if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
-      }
-
-      const char* arrowRight = "›";
-      const char* categoryName = categoryNames[i];
-      int textX = 20;
-      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenWidth() - 30, textY, arrowRight,
-                        isSelected ? 0 : 1);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, categoryName, isSelected ? 0 : 1);
-
-      renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
-    }
-  }
-
-  int indexButtonY = drawY + (categoryCount * LIST_ITEM_HEIGHT);
-  bool isIndexSelected = (selectedCategoryIndex == categoryCount);
-
-  if (isIndexSelected) {
-    renderer.fillRect(0, indexButtonY, screenWidth, LIST_ITEM_HEIGHT);
-  }
-
-  renderer.drawRect(20, indexButtonY + 20, 16, 16, !isIndexSelected);
-  renderer.fillRect(24, indexButtonY + 24, 8, 8, !isIndexSelected);
-
-  int textY = indexButtonY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 50, textY, "Index Your Library", isIndexSelected ? 0 : 1);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenWidth - 30, textY, "›", isIndexSelected ? 0 : 1);
-
-  int aboutButtonY = indexButtonY + LIST_ITEM_HEIGHT;
-  bool isAboutSelected = (selectedCategoryIndex == categoryCount + 1);
-
-  if (isAboutSelected) {
-    renderer.fillRect(0, aboutButtonY, screenWidth, LIST_ITEM_HEIGHT);
-  }
-
-  int aboutTextY = aboutButtonY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 50, aboutTextY, "About", isAboutSelected ? 0 : 1);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, screenWidth - 30, aboutTextY, "›", isAboutSelected ? 0 : 1);
+  enterNewActivity(new CategorySettingsActivity(
+      renderer, mappedInput, title, list, count, [this] { swapPanelAndReopen(); },
+      [this] {
+        exitActivity();
+        startLibraryIndexing();
+      },
+      [this] {
+        exitActivity();
+        showingAbout = true;
+        if (!aboutPage) {
+          aboutPage = new AboutPage(
+              renderer, mappedInput,
+              [this]() {
+                showingAbout = false;
+                openCurrentPanel();
+              },
+              [this]() {
+                showingAbout = false;
+                enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this]() {
+                  exitActivity();
+                  openCurrentPanel();
+                }));
+              });
+        }
+        aboutPage->show();
+      },
+      panelBackLabel(currentPanel),
+      [this] {
+        if (onRecentOpen) onRecentOpen();
+      },
+      [this] {
+        if (onLibraryOpen) onLibraryOpen();
+      },
+      [this] {
+        if (onSyncOpen) onSyncOpen();
+      },
+      [this] {
+        if (onStatisticsOpen) onStatisticsOpen();
+      }));
 }
 
 /**
@@ -430,7 +321,7 @@ void SettingsActivity::startLibraryIndexing() {
         activity->updateRequired = true;
         vTaskDelete(nullptr);
       },
-      "LibraryIndexTask", 16384, this, 1, nullptr);
+      "LibraryIndexTask", 4096, this, 1, nullptr);
 }
 
 /**

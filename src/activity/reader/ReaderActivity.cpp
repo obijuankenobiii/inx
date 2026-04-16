@@ -37,8 +37,7 @@ bool ReaderActivity::isXtcFile(const std::string& path) {
  * @return true if file has .txt or .md extension
  */
 bool ReaderActivity::isTxtFile(const std::string& path) {
-  return StringUtils::checkFileExtension(path, ".txt") ||
-         StringUtils::checkFileExtension(path, ".md");
+  return StringUtils::checkFileExtension(path, ".txt") || StringUtils::checkFileExtension(path, ".md");
 }
 
 /**
@@ -100,21 +99,19 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
  * @param epub Unique pointer to loaded Epub object
  */
 void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
-  // Capture the path in the lambda directly
   std::string bookPath = epub->getPath();
-  
+
+  auto callback = onGoBack;  // Copy the std::function
+
   exitActivity();
-  enterNewActivity(
-    new EpubActivity(
-      renderer, 
-      mappedInput, 
-      std::move(epub), 
-      [this, bookPath] {  // Capture bookPath by value
-        if (onGoBack) {
-          onGoBack(bookPath);  // Use captured path
+  enterNewActivity(new EpubActivity(
+      renderer, mappedInput, std::move(epub),
+      [callback, bookPath] {
+        if (callback) {
+          callback(bookPath);
         }
       },
-      []{}));
+      [] {}));
 }
 
 /**
@@ -126,11 +123,7 @@ void ReaderActivity::onGoToXtcReader(std::unique_ptr<Xtc> xtc) {
   currentBookPath = xtcPath;
   exitActivity();
   enterNewActivity(new XtcReaderActivity(
-      renderer, 
-      mappedInput, 
-      std::move(xtc), 
-      [this, xtcPath] { onGoBack(xtcPath); }, 
-      [this] { onGoBack(""); }));
+      renderer, mappedInput, std::move(xtc), [this, xtcPath] { onGoBack(xtcPath); }, [this] { onGoBack(""); }));
 }
 
 /**
@@ -142,15 +135,13 @@ void ReaderActivity::onGoToTxtReader(std::unique_ptr<Txt> txt) {
   currentBookPath = txtPath;
   exitActivity();
   enterNewActivity(new TxtReaderActivity(
-      renderer, 
-      mappedInput, 
-      std::move(txt), 
-      [this] { 
+      renderer, mappedInput, std::move(txt),
+      [this] {
         if (onGoBack) {
           onGoBack(currentBookPath);
         }
       },
-      []{}));
+      [] {}));
 }
 
 /**

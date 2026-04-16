@@ -23,6 +23,11 @@ class OtaUpdater {
     OOM_ERROR,
   };
 
+ private:
+  friend void otaGithubCheckTask(void* param);
+  OtaUpdaterError checkForUpdateWorker();
+
+ public:
   size_t getOtaSize() const { return otaSize; }
 
   size_t getProcessedSize() const { return processedSize; }

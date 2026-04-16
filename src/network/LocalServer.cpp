@@ -977,6 +977,8 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreen"] = SETTINGS.sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
+  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
+  doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   
@@ -1001,6 +1003,8 @@ void LocalServer::handleSettingsGet() const {
   // Reader settings - Status Bar
   doc["textAntiAliasing"] = SETTINGS.textAntiAliasing;
   doc["refreshFrequency"] = SETTINGS.refreshFrequency;
+  doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
+  doc["readerSmartRefreshOnImages"] = SETTINGS.readerSmartRefreshOnImages;
   doc["statusBar"] = SETTINGS.statusBar;
   doc["statusBarLeft"] = SETTINGS.statusBarLeft;
   doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
@@ -1054,6 +1058,18 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.sleepScreenCoverFilter = (uint8_t)value;
       changed = true;
     }
+    else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
+      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepCustomBmp") == 0) {
+      if (kv.value().isNull()) {
+        SETTINGS.setSleepCustomBmpFromInput(nullptr);
+      } else {
+        SETTINGS.setSleepCustomBmpFromInput(kv.value().as<const char*>());
+      }
+      changed = true;
+    }
     else if (strcmp(key, "hideBatteryPercentage") == 0) {
       SETTINGS.hideBatteryPercentage = (uint8_t)value;
       changed = true;
@@ -1080,6 +1096,9 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "paragraphAlignment") == 0) {
       SETTINGS.paragraphAlignment = (uint8_t)value;
+      if (SETTINGS.paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
+        SETTINGS.paragraphAlignment = SystemSetting::JUSTIFIED;
+      }
       changed = true;
     }
     else if (strcmp(key, "extraParagraphSpacing") == 0) {
@@ -1116,6 +1135,14 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "refreshFrequency") == 0) {
       SETTINGS.refreshFrequency = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "readerImageGrayscale") == 0) {
+      SETTINGS.readerImageGrayscale = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
+      SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "statusBar") == 0) {

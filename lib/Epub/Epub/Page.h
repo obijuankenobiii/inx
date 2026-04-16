@@ -149,6 +149,7 @@ class Page {
   }
   
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false) const;
+  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

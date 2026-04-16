@@ -15,14 +15,14 @@
 class SystemSetting;
 struct SettingInfo;
 
+enum class SettingsPanel : uint8_t { System, Reader };
+
 class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
 
   bool updateRequired = false;
-  static constexpr int categoryCount = 4;
-  static const char* categoryNames[categoryCount];
-  int selectedCategoryIndex = 0;
+  SettingsPanel currentPanel = SettingsPanel::System;
 
   bool isIndexing = false;
   int indexingProgress = 0;
@@ -34,9 +34,8 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
 
-  void render() const;
-  void renderSettingsList() const;
-  void enterCategory(int categoryIndex);
+  void openCurrentPanel();
+  void swapPanelAndReopen();
 
   void startLibraryIndexing();
   void showIndexingProgress();
@@ -45,30 +44,38 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   const std::function<void()> onRecentOpen;
   const std::function<void()> onLibraryOpen;
   const std::function<void()> onSyncOpen;
+  const std::function<void()> onStatisticsOpen;
 
   void navigateToSelectedMenu() override {
-    if (tabSelectorIndex == 1 && onLibraryOpen) {
+    SETTINGS.saveToFile();
+    if (tabSelectorIndex == 0 && onRecentOpen) {
+      onRecentOpen();
+    } else if (tabSelectorIndex == 1 && onLibraryOpen) {
       onLibraryOpen();
-    }
-
-    if (tabSelectorIndex == 3 && onSyncOpen) {
+    } else if (tabSelectorIndex == 3 && onSyncOpen) {
       onSyncOpen();
+    } else if (tabSelectorIndex == 4 && onStatisticsOpen) {
+      onStatisticsOpen();
     }
   }
 
  private:
   AboutPage* aboutPage = nullptr;
 
+  static const char* panelBackLabel(SettingsPanel panel);
+
  public:
   SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                    const std::function<void()>& onRecentOpen = nullptr,
                    const std::function<void()>& onLibraryOpen = nullptr,
-                   const std::function<void()>& onSyncOpen = nullptr)
+                   const std::function<void()>& onSyncOpen = nullptr,
+                   const std::function<void()>& onStatisticsOpen = nullptr)
       : ActivityWithSubactivity("Settings", renderer, mappedInput),
         Menu(),
         onRecentOpen(onRecentOpen),
         onLibraryOpen(onLibraryOpen),
-        onSyncOpen(onSyncOpen) {
+        onSyncOpen(onSyncOpen),
+        onStatisticsOpen(onStatisticsOpen) {
     tabSelectorIndex = 2;
   }
 

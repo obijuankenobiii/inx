@@ -32,6 +32,8 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
+  /** Set true if any drawBitmap in this page pass had enough mid-gray pixels to warrant the e-ink grayscale pass. */
+  mutable bool anyBitmapImageWantsGrayscale = false;
   std::map<int, EpdFontFamily> fontMap;
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
@@ -61,11 +63,15 @@ class GfxRenderer {
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;
 
+  /** Solid ink/paper, or Gray (50% checkerboard dither in BW, similar to light fills in list UIs). */
+  enum class FillTone : uint8_t { Paper, Ink, Gray };
+
   // Drawing
   void drawPixel(int x, int y, bool state = true) const;
   void drawLine(int x1, int y1, int x2, int y2, bool state = true) const;
   void drawRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
+  void fillRect(const int x, const int y, const int width, const int height, FillTone tone, bool rounded = false) const;
   void fillRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
 
@@ -73,7 +79,7 @@ class GfxRenderer {
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height,
                  ImageOrientation imgOrientation = None) const;
 
-  // NEW: Draw icon with optional inversion
+  /** 1bpp MSB-first (MSB 1 = paper, 0 = ink); drawPixel in logical coords. invert XORs ink vs paper. */
   void drawIcon(const uint8_t bitmap[], int x, int y, int width, int height, ImageOrientation imgOrientation = None,
                 bool invert = false) const;
 
@@ -113,6 +119,8 @@ class GfxRenderer {
   bool storeBwBuffer();    // Returns true if buffer was stored successfully
   void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
+  void resetBitmapGrayscaleDetection() const { anyBitmapImageWantsGrayscale = false; }
+  bool needsBitmapGrayscale() const;
 
   // Low level functions
   uint8_t* getFrameBuffer() const;

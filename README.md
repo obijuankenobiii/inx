@@ -8,141 +8,120 @@ Reimagined. Improved. Simplified.
 
 ![](./docs/images/cover.jpg)
 
-## Pages
+## Features & functions
 
-- **Home** – Grid and statistics view modes for quick access
-- **Library** – All your books, organized with file explorer support
-- **Settings** – Individual and book-specific configuration options
-- **Sync** – WiFi book upload and OTA updates
-- **Statistics** – Reading insights and system usage data
+This section lists what the firmware actually implements (navigation, screens, settings, readers, and utilities).
 
----
+### Navigation
 
-### eBook Support
+- **Tab bar** (left/right on supported layouts): **Recent** → **Library** → **Settings** → **Sync** → **Statistics**, then wraps.
+- **Settings** opens directly into grouped **System** or **Reader** lists (expand/collapse sections with **Confirm** on a section header). **Back** swaps between **System** and **Reader** panels (hint shows the other panel name).
+- **Power**: configurable short press (sleep / page refresh / ignore) and **long hold** to sleep; idle **time to sleep** returns to the sleep screen.
 
-- [x] EPUB parsing and rendering (EPUB 2 and EPUB 3)
-  - [x] Image support within EPUB (JPG, PNG)
-  - [x] Saved reading position
-  - [x] Bookmarks
-- [x] XTC format support
-- [x] TXT format support
+### Recent (home)
 
----
+- **Recent Library Mode** (system setting): **Grid**, **List Stats**, or **Flow**.
+- **Tabs from Recent**: **Library** (opens library at `/`), **Statistics**, **Settings**; select a book to open the **Reader** for that file.
 
-### File Management
+### Library
 
-- [x] File explorer with file picker
-- [x] Sorting [A-Z]
-- [x] Support nested folders
-- [x] Folder and list mode
-- [x] Favorites
+- **File explorer** with path navigation, **nested folders**, **A–Z sort**.
+- **Favorites** and book selection to open the reader.
+- Optional **library index** (see Settings → **Index your library** and **Use Index for Library**).
 
----
+### Statistics
 
-### Display
+- Reading / book statistics view (from the Statistics tab).
 
-- [x] Screen rotation
-- [x] Custom sleep screen
-  - [x] Cover sleep screen
-  - [x] Recent book sleep screen
-  - [x] Transparent sleep screen
+### Sync (network hub)
 
----
+From the **Sync** tab:
 
-### Wireless
+- **Join a Network** – Wi‑Fi station setup (`LocalNetworkActivity`); after connect, a small **`LocalServer`** HTTP/Web UI can run for file upload from the browser (see that activity’s flow).
+- **Connect to Calibre** – wireless Calibre device flow (`CalibreConnectActivity`).
+- **Create Hotspot** – device as AP (`HotspotActivity`).
+- **Bluetooth** – Bluetooth setup (`BluetoothActivity`).
 
-- [x] WiFi book upload
-- [x] WiFi OTA updates
-
----
-
-### Menu Navigation
-
-Simplified menu navigation with left and right swipes to move between pages. Clean, intuitive, and designed for one-handed use.
-
----
+File transfer / device workflows return to Sync or related callbacks as implemented.
 
 ### Settings
 
-#### Global Settings (System)
+Settings are two panels (**System** and **Reader**), each a grouped list. Sections start **collapsed**; open a section to change items.
 
-**Display**
-- Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None)
-- Sleep Screen Cover Mode (Fit, Crop)
-- Sleep Screen Cover Filter (None, Contrast, Inverted)
+#### System panel
 
-**Battery**
-- Hide Battery % (Never, In Reader, Always)
+| Group | Items |
+|--------|--------|
+| **Display & sleep** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
+| **Buttons** | Front Button Layout (four layouts mapping Back / Confirm / Left / Right); Short Power Button Click (Ignore, Sleep, Page Refresh) |
+| **Device & library** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
+| **Actions** | **Index your library**; **KOReader Sync**; **OPDS Browser**; **Clear Cache**; **Check for updates** (opens OTA flow with Wi‑Fi selection) |
+| **About** | **About** is a **standalone row** at the bottom of System settings (not inside a collapsible group). Opens the modal with **Current version** and an **Update** button; **Update** (Confirm) starts the same OTA path as **Check for updates** (Wi‑Fi, then GitHub / HTTPS OTA). |
 
-**Library**
-- Recent Library Mode (Grid, Default)
-- Use Index for Library (On/Off)
+#### Reader panel (global reading defaults)
 
-**Buttons**
-- Front Button Layout (Bck Cnfrm Lft Rght / Lft Rght Bck Cnfrm / Lft Bck Cnfrm Rght / Bck Cnfrm Rght Lft)
-- Short Power Button Click (Ignore, Sleep, Page Refresh)
+| Group | Items |
+|--------|--------|
+| **Font** | Font Family (Bookerly, Atkinson Hyperlegible, Literata); Font Size (Extra Small → X Large) |
+| **Layout** | Line Spacing (Tight, Normal, Wide); Screen Margin (5–80); Paragraph Alignment (Justify, Left, Center, Right); Extra Paragraph Spacing; Reading Orientation (Portrait, Landscape CW, Inverted, Landscape CCW); Hyphenation |
+| **Navigation** | Next & Previous Mapping (Left/Right, Right/Left, Up/Down, Down/Up, None); Book Settings Toggle (which physical button opens the in-book menu); Long-press Chapter Skip; Short Power Button in reader (Page Turn, Page Refresh); Page Auto Turn (0–180 s, step 10) |
+| **System** (reader rendering) | Text Anti-Aliasing; Refresh Frequency (1 / 5 / 10 / 15 / 30 pages) |
+| **Status bar** | Status Bar Mode (None, No Progress, Full w/ Percentage, Full w/ Progress Bar, Progress Bar, Battery %, Percentage, Page Bars); **Left / Middle / Right** sections each: None, Page Numbers, Percentage, Chapter Title, Battery Icon, Battery %, Battery Icon+%, Progress Bar, Progress Bar+%, Page Bars, Book Title, Author Name |
 
-**System**
-- Time to Sleep (1 min, 5 min, 10 min, 15 min, 30 min)
-- Boot Mode (Recent Books, Home Page)
+#### Custom sleep images
 
-**Actions**
-- KOReader Sync
-- OPDS Browser
-- Clear Cache
-- Check for updates
+For **Custom** and **Transparent Cover** sleep modes, BMPs can live in a **`/sleep/`** folder on the SD card (any number of `.bmp` files). Optionally, a single **`sleep.bmp`** at the **card root** is used when the folder has no matches or as an extra choice.
 
----
+- **Random (each sleep)** (default): each sleep picks a random image from `/sleep/` and root `sleep.bmp`, as before.
+- **Choose sleep image** (System → Display & sleep): opens **`SleepImagePickerActivity`**—select one file to always use, or **Random** to clear that choice. The selection is stored in settings (`sleepCustomBmp` in `/.system/settings.bin`; also exposed as **`sleepCustomBmp`** in the device **LocalServer** settings JSON: empty string = random, a basename = `/sleep/<basename>`, or the exact value **`/sleep.bmp`** for the root file only).
 
-#### Global Settings (Book)
+#### Related settings flows (activities)
 
-**Font**
-- Font Family (Bookerly, Atkinson Hyperlegible, Literata)
-- Font Size (Extra Small, Small, Medium, Large, X Large)
+- **Choose sleep image** – list and confirm a fixed sleep BMP or random (`SleepImagePickerActivity`).
+- **KOReader Sync** – settings and credential entry (`KOReaderSettingsActivity`); **Wi‑Fi** and **KOReaderAuthActivity** when needed; uses **`KeyboardEntryActivity`** for text fields.
+- **OPDS Browser** – browse and download from OPDS catalogs (`OpdsBookBrowserActivity`); may use **Wi‑Fi** (`WifiSelectionActivity`) and keyboard entry for URLs/credentials.
+- **Clear Cache** – clear cached data (`ClearCacheActivity`).
+- **Check for updates** / **About → Update** – **`OtaUpdateActivity`**: turns on Wi‑Fi, runs **`WifiSelectionActivity`**, then **`OtaUpdater`** (GitHub releases API, optional HTTPS install). Same OTA stack as the **Check for updates** row under Actions.
 
-**Layout**
-- Line Spacing (Tight, Normal, Wide)
-- Screen Margin (5-80)
-- Paragraph Alignment (Justify, Left, Center, Right)
-- Extra Paragraph Spacing (On/Off)
-- Reading Orientation (Portrait, Landscape CW, Inverted, Landscape CCW)
-- Hyphenation (On/Off)
+### Reading
 
-**Navigation**
-- Next & Previous Mapping (Left/Right, Right/Left, Up/Down, Down/Up, None)
-- Book Settings Toggle (Up, Down, Left, Right, Confirm)
-- Long-press Chapter Skip (On/Off)
-- Short Power Button (Page Turn, Page Refresh)
+- **Formats**: **EPUB** (2/3), **XTC** / **XTCH**, **TXT** / **MD** – routed by extension in **`ReaderActivity`** into **`EpubActivity`**, **`XtcReaderActivity`**, or **`TxtReaderActivity`**.
+- **EPUB**
+  - **Paging**, **saved position**, **status bar**, **chapter** navigation, configurable **page auto-turn**.
+  - **Bookmarks**: long-press **Confirm** to add; **`BookmarkActivity`** to list, open, or remove entries.
+  - **Menu drawer** (short **Confirm**): book title, **TOC / chapter list** (drawer UI), **bookmarks**, **go home** (close book), **delete cache** / **delete progress** / **delete book**, **regenerate full book layout** (rebuild cached layout data).
+  - **Settings drawer** (mapped **Book Settings Toggle** button): per-book overrides aligned with global reader settings (font, layout, controls, status bar).
+  - **KOReader sync** (when launched from the EPUB flow): **`KOReaderSyncActivity`** (Wi‑Fi via **`WifiSelectionActivity`** as needed).
+  - **Short Power** in reader: page turn or screen refresh (per reader settings).
+  - **Back**: long hold exits the book (short hold behavior depends on context / drawers).
+- **XTC**: **`XtcReaderActivity`**; chapter flow may open **`XtcReaderChapterSelectionActivity`**.
+- **TXT**: **`TxtReaderActivity`** with scrolling / paging behavior as implemented there.
 
-**Display**
-- Text Anti-Aliasing (On/Off)
-- Refresh Frequency (1 page, 5 pages, 10 pages, 15 pages, 30 pages)
+### System & lifecycle
 
-**Status Bar**
+- **Boot** – startup / splash path (`BootActivity`).
+- **Sleep** – **`SleepActivity`** and **`HalDisplay` deep sleep**; sleep **image** driven by **Sleep Screen** (dark, light, custom, recent book, transparent cover, none). For **custom / transparent** BMPs, a **fixed file** from settings (see [Custom sleep images](#custom-sleep-images)) is used when set; otherwise images under **`/sleep/`** (and root **`sleep.bmp`**) are chosen **at random** each sleep. Cover **fit/crop** and **filter** apply to book-cover sleep; **auto sleep** after **Time to Sleep**; **USB-only wake** can return to deep sleep from `setup()`.
+- **SD card missing / error** – **`FullScreenMessageActivity`** with a fixed message until SD is fixed.
+- **Keyboard entry** – **`KeyboardEntryActivity`** for Wi‑Fi passwords, OPDS/Calibre/KOReader fields, and similar prompts.
+- **Activity switch logging** – `switchTo` in `main.cpp` prints **heap / fragmentation** over serial for debugging.
 
-**Status Bar Mode**
-- None
-- No Progress
-- Full w/ Percentage
-- Full w/ Progress Bar
-- Progress Bar
-- Battery %
-- Percentage
-- Page Bars
+### Complete screen & activity reference
 
-**Left / Middle / Right Section**
-- None
-- Page Numbers
-- Percentage
-- Chapter Title
-- Battery Icon
-- Battery %
-- Battery Icon+%
-- Progress Bar
-- Progress Bar+%
-- Page Bars
-- Book Title
-- Author Name
+Rough inventory of major UI entry points (see `src/activity/` and `src/main.cpp` for wiring):
+
+| Area | Components |
+|------|------------|
+| **Shell** | `BootActivity`, `SleepActivity`, `FullScreenMessageActivity` |
+| **Tabs** | `RecentActivity`, `LibraryActivity`, `SettingsActivity`, `SyncActivity`, `StatisticActivity` |
+| **Reader** | `ReaderActivity` → `EpubActivity` \| `XtcReaderActivity` \| `TxtReaderActivity` |
+| **EPUB UI** | `MenuDrawer` (TOC + actions), `SettingsDrawer`, `BookmarkActivity` |
+| **XTC** | `XtcReaderChapterSelectionActivity` |
+| **Settings detail** | `CategorySettingsActivity`; `AboutPage` (modal); `SleepImagePickerActivity`, `KOReaderSettingsActivity`, `KOReaderAuthActivity`, `CalibreSettingsActivity`, `ClearCacheActivity`, `OtaUpdateActivity` |
+| **Network** | `LocalNetworkActivity`, `CalibreConnectActivity`, `HotspotActivity`, `BluetoothActivity`, `WifiSelectionActivity` |
+| **Browser** | `OpdsBookBrowserActivity` |
+| **KOReader (book)** | `KOReaderSyncActivity` |
+| **Utilities** | `KeyboardEntryActivity` |
+
 ---
 
 ## Installing

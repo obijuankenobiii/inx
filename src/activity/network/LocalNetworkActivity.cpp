@@ -84,7 +84,7 @@ void LocalNetworkActivity::onEnter() {
     state = LocalNetworkState::WIFI_SELECTION;
 
     xTaskCreate(&LocalNetworkActivity::taskTrampoline, "LocalNetTask",
-                2048, this, 1, &displayTaskHandle);
+                4096, this, 1, &displayTaskHandle);
 
     WiFi.mode(WIFI_STA);
     enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,

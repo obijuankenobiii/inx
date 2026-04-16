@@ -67,7 +67,10 @@ public:
      * @brief Clears the settings updated flag
      */
     void clearUpdateFlag() { settingsUpdated = false; }
-    
+
+    /** Recompute drawer geometry and menu rows after renderer orientation or screen size changes. */
+    void relayoutForRendererChange();
+
 private:
     /**
      * @enum GroupType
@@ -112,6 +115,8 @@ private:
         StatusBarMiddle,     ///< Middle status bar section content
         StatusBarRight,    ///< Right status bar section content
 
+        ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
+        ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
         PageAutoTurn
     };
     
@@ -136,6 +141,8 @@ private:
     int selectedIndex = 0;                      ///< Currently selected menu index
     int drawerHeight;                           ///< Height of the drawer
     int drawerY;                                ///< Y-coordinate of drawer top
+    int drawerX = 0;                            ///< Left edge (right half in landscape)
+    int drawerWidth = 0;                        ///< Panel width
     int itemHeight = 60;                         ///< Height of each menu item
     int itemsPerPage;                            ///< Number of items visible per page
     int scrollOffset = 0;                         ///< Current scroll position
@@ -171,6 +178,8 @@ private:
      * @brief Draws the scroll indicator
      */
     void drawScrollIndicator();
+
+    void syncLayoutFromRenderer();
     
     /**
      * @brief Applies a delta change to the selected menu item

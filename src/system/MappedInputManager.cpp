@@ -30,6 +30,25 @@ constexpr SideLayoutMap kSideLayouts[] = {
     {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
     {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},
 };
+
+MappedInputManager::Button remapDirectional180(const MappedInputManager::Button button) {
+  switch (button) {
+    case MappedInputManager::Button::Up:
+      return MappedInputManager::Button::Down;
+    case MappedInputManager::Button::Down:
+      return MappedInputManager::Button::Up;
+    case MappedInputManager::Button::Left:
+      return MappedInputManager::Button::Right;
+    case MappedInputManager::Button::Right:
+      return MappedInputManager::Button::Left;
+    case MappedInputManager::Button::PageBack:
+      return MappedInputManager::Button::PageForward;
+    case MappedInputManager::Button::PageForward:
+      return MappedInputManager::Button::PageBack;
+    default:
+      return button;
+  }
+}
 }  // namespace
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
@@ -38,7 +57,9 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
   const auto& front = kFrontLayouts[frontLayout];
   const auto& side = kSideLayouts[sideLayout];
 
-  switch (button) {
+  const Button effective = invertDirectionalAxes180_ ? remapDirectional180(button) : button;
+
+  switch (effective) {
     case Button::Back:
       return (gpio.*fn)(front.back);
     case Button::Confirm:
@@ -73,6 +94,17 @@ bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
 bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); }
 
 unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
+
+MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
+  const auto sideLayout = static_cast<SystemSetting::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  // UTF-8 « (U+00AB) and » (U+00BB); short labels for the vertical side strip.
+  static constexpr const char* kPrev = "\xC2\xAB";
+  static constexpr const char* kNext = "\xC2\xBB";
+  if (sideLayout == SystemSetting::NEXT_PREV) {
+    return {kNext, kPrev};
+  }
+  return {kPrev, kNext};
+}
 
 MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const char* confirm, const char* previous,
                                                          const char* next) const {

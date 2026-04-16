@@ -4,9 +4,10 @@
 #include <freertos/task.h>
 
 #include "activity/ActivityWithSubactivity.h"
+#include "../Menu.h"
 #include "network/OtaUpdater.h"
 
-class OtaUpdateActivity : public ActivityWithSubactivity {
+class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   enum State {
     WIFI_SELECTION,
     CHECKING_FOR_UPDATE,
@@ -18,26 +19,28 @@ class OtaUpdateActivity : public ActivityWithSubactivity {
     SHUTTING_DOWN
   };
 
-  // Can't initialize this to 0 or the first render doesn't happen
-  static constexpr unsigned int UNINITIALIZED_PERCENTAGE = 111;
-
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
   const std::function<void()> goBack;
   State state = WIFI_SELECTION;
-  unsigned int lastUpdaterPercentage = UNINITIALIZED_PERCENTAGE;
   OtaUpdater updater;
 
   void onWifiSelectionComplete(bool success);
+  /** Tries each saved credential until one connects, or returns false. */
+  bool tryConnectUsingStoredCredentials();
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render();
 
+  void navigateToSelectedMenu() override {}
+
  public:
   explicit OtaUpdateActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                              const std::function<void()>& goBack)
-      : ActivityWithSubactivity("OtaUpdate", renderer, mappedInput), goBack(goBack), updater() {}
+      : ActivityWithSubactivity("OtaUpdate", renderer, mappedInput), Menu(), goBack(goBack), updater() {
+    tabSelectorIndex = 3;
+  }
   void onEnter() override;
   void onExit() override;
   void loop() override;

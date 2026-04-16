@@ -8,6 +8,7 @@
 
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
+#include "SleepImagePickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
@@ -56,6 +57,25 @@ void CategorySettingsActivity::onExit() {
   }
 }
 
+void CategorySettingsActivity::navigateToSelectedMenu() {
+  if (tabSelectorIndex == 0 && onTabRecent) {
+    onTabRecent();
+    return;
+  }
+  if (tabSelectorIndex == 1 && onTabLibrary) {
+    onTabLibrary();
+    return;
+  }
+  if (tabSelectorIndex == 3 && onTabSync) {
+    onTabSync();
+    return;
+  }
+  if (tabSelectorIndex == 4 && onTabStatistics) {
+    onTabStatistics();
+    return;
+  }
+}
+
 /**
  * @brief Toggles expansion state of a group
  */
@@ -95,9 +115,10 @@ void CategorySettingsActivity::setupMenu() {
       entry.valuePtr = nullptr;
       entry.enumValues.clear();
       entry.valueRange = {0, 0, 0};
-      entry.getValueText = [this, group = setting.group]() -> const char* {
+      const GroupType sepGroup = setting.group;
+      entry.getValueText = [this, sepGroup]() -> const char* {
         static char indicator[4];
-        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[group] ? "-" : "+");
+        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[sepGroup] ? "-" : "+");
         return indicator;
       };
       entry.change = [](int) {};
@@ -159,6 +180,18 @@ void CategorySettingsActivity::setupMenu() {
         if (setting.type == SettingType::ACTION) {
           entry.getValueText = []() -> const char* { return "→"; };
           entry.change = [this, setting](int) {
+            if (strcmp(setting.name, "Index your library") == 0) {
+              if (onIndexLibrary) {
+                onIndexLibrary();
+              }
+              return;
+            }
+            if (strcmp(setting.name, "About") == 0) {
+              if (onAboutPanel) {
+                onAboutPanel();
+              }
+              return;
+            }
             if (strcmp(setting.name, "KOReader Sync") == 0) {
               exitActivity();
               enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
@@ -176,6 +209,13 @@ void CategorySettingsActivity::setupMenu() {
             if (strcmp(setting.name, "Clear Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
+            if (strcmp(setting.name, "Choose sleep image") == 0) {
+              exitActivity();
+              enterNewActivity(new SleepImagePickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
@@ -203,9 +243,10 @@ void CategorySettingsActivity::setupMenu() {
 void CategorySettingsActivity::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= (int)menuItems.size()) return;
   const auto& selected = menuItems[selectedIndex];
-  if (selected.type != SettingType::SEPARATOR) {
-    selected.change(delta);
-  }
+  if (selected.type == SettingType::SEPARATOR) return;
+  /* Left/Right must not fire ACTION rows (would open About/OTA/etc. accidentally). */
+  if (selected.type == SettingType::ACTION) return;
+  selected.change(delta);
 }
 
 /**
@@ -214,6 +255,13 @@ void CategorySettingsActivity::applyChange(int delta) {
 void CategorySettingsActivity::loop() {
   if (subActivity) {
     subActivity->loop();
+    return;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    updateRequired = true;
     return;
   }
 
@@ -234,6 +282,9 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
+    /* Landed on Settings tab: consume this press so list left/right does not run too. */
+    updateRequired = true;
+    return;
   }
 
   if (rightPressed) {
@@ -245,6 +296,8 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
+    updateRequired = true;
+    return;
   }
 
   if (backPressed) {
@@ -282,6 +335,9 @@ void CategorySettingsActivity::loop() {
       if (selected.type == SettingType::SEPARATOR) {
         toggleGroup(selected.group);
         needRedraw = true;
+      } else if (selected.type == SettingType::ACTION) {
+        selected.change(0);
+        needRedraw = true;
       } else {
         applyChange(1);
         needRedraw = true;
@@ -317,7 +373,7 @@ void CategorySettingsActivity::displayTaskLoop() {
 /**
  * @brief Render the category settings screen
  */
-void CategorySettingsActivity::render() const {
+void CategorySettingsActivity::render() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -356,7 +412,7 @@ void CategorySettingsActivity::render() const {
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, pageWidth, itemHeight);
+        renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
       }
 
       int textX = 15;
@@ -375,7 +431,7 @@ void CategorySettingsActivity::render() const {
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight);
+      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
     int textX = 23;
@@ -401,7 +457,8 @@ void CategorySettingsActivity::render() const {
     renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
-  const auto labels = mappedInput.mapLabels("« Back", "Toggle", "", "");
+  const char* backLbl = backButtonLabel ? backButtonLabel : "\xC2\xAB Back";
+  const auto labels = mappedInput.mapLabels(backLbl, "Toggle", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

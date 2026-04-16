@@ -77,6 +77,11 @@ private:
     int cachedSpineIndex = 0;
     int cachedChapterTotalPageCount = 0;
     bool updateRequired = false;
+    /** When true, displayTaskLoop only yields until cleared (exclusive SPI/framebuffer for main-task rebuild). */
+    volatile bool pauseDisplayTaskForRebuild = false;
+    volatile bool displayRebuildPausedAck = false;
+    /** True while displayTaskLoop is inside renderScreen (incl. grayscale); main loop must not touch section / page. */
+    volatile bool epubScreenRenderBusy = false;
     bool bookmarkLongPressProcessed = false;
     bool leftLongPressProcessed = false;
     int loadingProgress = 0;
@@ -98,6 +103,8 @@ private:
     MenuDrawer* menuDrawer = nullptr;
     bool menuDrawerVisible = false;
     BookSettings bookSettings;
+    /** Last orientation value used for a full layout/section rebuild; used to detect drift after global sync. */
+    uint8_t bookLayoutAppliedOrientation_ = 0xFF;
     bool leftButtonLongPressProcessed = false;
 
     BookReadingStats bookStats;
@@ -107,6 +114,9 @@ private:
     static void taskTrampoline(void* param);
     [[noreturn]] void displayTaskLoop();
     void renderScreen();
+
+    void beginExclusiveRebuildWithDisplayTask();
+    void endExclusiveRebuildWithDisplayTask();
     
     /**
      * Handles page turning logic for forward/backward navigation.
@@ -167,16 +177,14 @@ private:
     void toggleSettingsDrawer();
     
     /**
-     * Shows the bookmark menu.
-     */
-    void showBookmarkMenu();
-    
-    /**
      * Callback when a chapter is selected from TOC.
-     * 
+     *
      * @param spineIndex The spine index to navigate to
      */
     void onTocChapterSelected(int spineIndex);
+
+    /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
+    void onBookmarkDrawerSelected(int storageIndex);
     
     /**
      * Deletes the book cache.
@@ -213,7 +221,6 @@ private:
     void removeBookmark(int index);
     bool isCurrentPageBookmarked() const;
     void goToBookmark(int index);
-    void showBookmarkMenuActivity();
     std::string getCurrentChapterTitle() const;
     void drawBookmarkIndicator();
     
@@ -258,6 +265,10 @@ private:
     std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info);
     
     void setupOrientation();
+    /** Copies device reading orientation into book settings when the book follows global defaults. */
+    void syncOrientationFromGlobalIfNeeded();
+    /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
+    void onBookSettingsLiveLayoutSync();
     void ensureThumbnailExists();
     void displayCoverOrTitle();
     void loadCurrentSection();
