@@ -9,8 +9,10 @@ public:
     // Convert PNG to 1-bit BMP
     static bool pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut);
     static bool pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut,
-                                               int targetMaxWidth, int targetMaxHeight);
-static bool pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight);
+                                               int targetMaxWidth, int targetMaxHeight,
+                                               bool cropToFill = true);
+    static bool pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
+                                               bool cropToFill = true);
     
     // Thumbnail functions
     static bool pngFileToThumbnailBmp(FsFile& pngFile, Print& bmpOut,

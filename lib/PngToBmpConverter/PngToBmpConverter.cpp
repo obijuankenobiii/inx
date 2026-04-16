@@ -1,6 +1,7 @@
 #include "PngToBmpConverter.h"
 #include <PNGdec.h>
 #include <algorithm>
+#include <cmath>
 
 static PNG png;
 static bool debugEnabled = false; 
@@ -79,7 +80,8 @@ int PNGDrawCallback(PNGDRAW *pDraw) {
 
 // --- Class Implementation ---
 
-bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetW, int targetH) {
+bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetW, int targetH,
+                                                       bool cropToFill) {
     uint32_t originalPos = pngFile.position();
     pngFile.seek(0);
     
@@ -91,8 +93,26 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
     
     int sw = png.getWidth();
     int sh = png.getHeight();
-    int dw = (targetW > 0) ? targetW : sw;
-    int dh = (targetH > 0) ? targetH : sh;
+    int dw;
+    int dh;
+    if (targetW > 0 && targetH > 0) {
+        if (cropToFill) {
+            dw = targetW;
+            dh = targetH;
+        } else {
+            float sx = static_cast<float>(targetW) / static_cast<float>(sw);
+            float sy = static_cast<float>(targetH) / static_cast<float>(sh);
+            float s = std::min(sx, sy);
+            if (s > 1.0f) {
+                s = 1.0f;
+            }
+            dw = std::max(1, static_cast<int>(std::lround(static_cast<float>(sw) * s)));
+            dh = std::max(1, static_cast<int>(std::lround(static_cast<float>(sh) * s)));
+        }
+    } else {
+        dw = sw;
+        dh = sh;
+    }
     
     // BMP scanlines must be padded to 4-byte boundaries
     int bpr = (dw + 31) / 32 * 4;
@@ -156,6 +176,7 @@ bool PngToBmpConverter::pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut) {
     return pngFileTo1BitBmpStreamWithSize(pngFile, bmpOut, 0, 0);
 }
 
-bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight) {
-    return pngFileTo1BitBmpStreamWithSize(pngFile, bmpOut, targetWidth, targetHeight);
+bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
+                                                       bool cropToFill) {
+    return pngFileTo1BitBmpStreamWithSize(pngFile, bmpOut, targetWidth, targetHeight, cropToFill);
 }

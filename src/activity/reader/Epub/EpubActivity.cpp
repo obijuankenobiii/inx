@@ -1232,10 +1232,13 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   pagesUntilFullRefresh--;
-  renderer.displayBuffer();
 
   const bool needsImageGrayscale =
       SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
+
+  // First push of the composed frame; grayscale pass (if any) expects FAST here, not HALF.
+  renderer.displayBuffer();
+
   if (needsImageGrayscale) {
     const bool storedBwBuffer = renderer.storeBwBuffer();
 

@@ -5,6 +5,7 @@
 #include <picojpeg.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -450,7 +451,8 @@ bool JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(
   FsFile& jpegFile, 
   Print& bmpOut, 
   int targetWidth, 
-  int targetHeight) 
+  int targetHeight,
+  bool cropToFill) 
 {
   return jpegFileToBmpStreamInternalCentered(
     jpegFile, 
@@ -458,14 +460,16 @@ bool JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(
     targetWidth, 
     targetHeight, 
     true, 
-    false);
+    false,
+    cropToFill);
 }
 
 bool JpegToBmpConverter::jpegFileToBmpStreamCentered(
   FsFile& jpegFile, 
   Print& bmpOut, 
   int targetWidth, 
-  int targetHeight) 
+  int targetHeight,
+  bool cropToFill) 
 {
   return jpegFileToBmpStreamInternalCentered(
     jpegFile, 
@@ -473,7 +477,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamCentered(
     targetWidth, 
     targetHeight, 
     false, 
-    false);
+    false,
+    cropToFill);
 }
 
 bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
@@ -482,7 +487,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
   int targetWidth, 
   int targetHeight,
   bool oneBit, 
-  bool quickMode) 
+  bool quickMode,
+  bool cropToFill) 
 {
   if (isUnsupportedJpeg(jpegFile)) return false;
 
@@ -504,17 +510,28 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
   {
     float scaleX = (float)targetWidth / imageInfo.m_width;
     float scaleY = (float)targetHeight / imageInfo.m_height;
-    float scale = std::max(scaleX, scaleY);
-    
-    cropSrcWidth = (int)(targetWidth / scale);
-    cropSrcHeight = (int)(targetHeight / scale);
-    
-    srcOffsetX = (imageInfo.m_width - cropSrcWidth) / 2;
-    srcOffsetY = (imageInfo.m_height - cropSrcHeight) / 2;
-    
-    outWidth = targetWidth;
-    outHeight = targetHeight;
-    
+    if (cropToFill) {
+      // Cover: scale up to fill target, center-crop source (sleep "crop" cover file).
+      float scale = std::max(scaleX, scaleY);
+      cropSrcWidth = (int)(targetWidth / scale);
+      cropSrcHeight = (int)(targetHeight / scale);
+      srcOffsetX = (imageInfo.m_width - cropSrcWidth) / 2;
+      srcOffsetY = (imageInfo.m_height - cropSrcHeight) / 2;
+      outWidth = targetWidth;
+      outHeight = targetHeight;
+    } else {
+      // Contain: full image, uniform scale to fit inside target (no upscale); variable output size.
+      float scale = std::min(scaleX, scaleY);
+      if (scale > 1.0f) {
+        scale = 1.0f;
+      }
+      cropSrcWidth = imageInfo.m_width;
+      cropSrcHeight = imageInfo.m_height;
+      srcOffsetX = 0;
+      srcOffsetY = 0;
+      outWidth = std::max(1, static_cast<int>(std::lround(imageInfo.m_width * scale)));
+      outHeight = std::max(1, static_cast<int>(std::lround(imageInfo.m_height * scale)));
+    }
     scaleX_fp = (uint32_t)(cropSrcWidth << 16) / outWidth;
     scaleY_fp = (uint32_t)(cropSrcHeight << 16) / outHeight;
   }

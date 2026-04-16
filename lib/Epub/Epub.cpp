@@ -172,12 +172,13 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
  *
  * @param itemHref Internal path to the image file
  * @param outBmpPath Output path for the converted BMP file
- * @param targetW Target canvas width
- * @param targetH Target canvas height
+ * @param targetW Target canvas width (max width for contain mode)
+ * @param targetH Target canvas height (max height for contain mode)
+ * @param cropToFill true = cover (fill target size, center crop); false = contain (whole image, fit in target)
  * @return true if extraction and conversion succeeded, false otherwise
  */
 bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
-                                            int targetH) const {
+                                            int targetH, bool cropToFill) const {
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -217,9 +218,9 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
     }
     success = true;
   } else if (isPngFile(itemHref)) {
-    success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
+    success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH, cropToFill);
   } else {
-    success = JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH);
+    success = JpegToBmpConverter::jpegFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH, cropToFill);
   }
 
   sourceFile.close();
@@ -237,7 +238,7 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
  */
 bool Epub::generateCoverBmp(bool cropped) const {
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
-                                          800);
+                                          800, cropped);
 }
 
 /**

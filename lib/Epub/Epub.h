@@ -34,8 +34,8 @@ class Epub {
   void setupCacheDir() const;
   
   std::string getCacheImgPath(const std::string& internalHref) const;
-  bool extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, 
-                                        int targetW, int targetH) const;
+  bool extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
+                                        int targetH, bool cropToFill) const;
   bool extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, 
                               int targetW = 0, int targetH = 0) const;
 

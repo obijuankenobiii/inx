@@ -1258,9 +1258,9 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
                     // 1-bit: exactly 0 = black, 3 = white
                     pixelSet = (val == 0);
                 } else {
-                    // Dithered: use threshold to eliminate light gray artifacts in white areas
-                    // Only values 0 and 1 are definitely black/dark gray
-                    pixelSet = (val <= 1); // Stricter threshold: only black and dark gray
+                    // Match drawBitmap BW: ink for all non-white 2bpp (0–2); val 3 is white.
+                    // val<=1 was too harsh and made covers look flat vs thumb.bmp / reader.
+                    pixelSet = (val < 3);
                 }
                 
                 if (pixelSet) {
