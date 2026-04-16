@@ -260,35 +260,53 @@ void GfxRenderer::drawRect(const int x, const int y, const int width, const int 
   }
 }
 
-void GfxRenderer::fillRect(const int x, const int y, const int width, const int height, const bool state, const bool rounded) const {
+void GfxRenderer::fillRect(const int x, const int y, const int width, const int height, const FillTone tone,
+                           const bool rounded) const {
+  if (tone == FillTone::Gray) {
+    if (rounded) {
+      // Checkerboard not implemented for rounded fills; use solid ink so corners stay correct.
+      fillRect(x, y, width, height, FillTone::Ink, true);
+      return;
+    }
+    const int x1 = std::max(0, x);
+    const int y1 = std::max(0, y);
+    const int x2 = std::min(getScreenWidth(), x + width);
+    const int y2 = std::min(getScreenHeight(), y + height);
+    for (int fy = y1; fy < y2; fy++) {
+      for (int fx = x1; fx < x2; fx++) {
+        drawPixel(fx, fy, ((fx + fy) & 1) == 0);
+      }
+    }
+    return;
+  }
+
+  const bool state = (tone == FillTone::Ink);
   if (!rounded) {
-    // Original rectangle filling
     for (int fillY = y; fillY < y + height; fillY++) {
       drawLine(x, fillY, x + width - 1, fillY, state);
     }
   } else {
-    // Rounded rectangle filling
     const int radius = roundedRectCornerRadius(width, height);
-    
-    // Fill the main body (rectangle without corners)
+
     for (int fillY = y + radius; fillY < y + height - radius; fillY++) {
       drawLine(x, fillY, x + width - 1, fillY, state);
     }
-    
-    // Fill the top and bottom sections with rounded corners
+
     for (int cornerY = 0; cornerY < radius; cornerY++) {
-      // Calculate the horizontal span at this corner height
-      int cornerSpan = static_cast<int>(sqrt(radius*radius - (radius - cornerY)*(radius - cornerY)));
-      
-      // Top section
+      int cornerSpan = static_cast<int>(sqrt(radius * radius - (radius - cornerY) * (radius - cornerY)));
+
       int topY = y + cornerY;
       drawLine(x + radius - cornerSpan, topY, x + width - radius + cornerSpan - 1, topY, state);
-      
-      // Bottom section
+
       int bottomY = y + height - 1 - cornerY;
       drawLine(x + radius - cornerSpan, bottomY, x + width - radius + cornerSpan - 1, bottomY, state);
     }
   }
+}
+
+void GfxRenderer::fillRect(const int x, const int y, const int width, const int height, const bool state,
+                           const bool rounded) const {
+  fillRect(x, y, width, height, state ? FillTone::Ink : FillTone::Paper, rounded);
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,

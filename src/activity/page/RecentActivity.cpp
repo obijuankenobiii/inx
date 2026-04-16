@@ -383,14 +383,8 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
   }
 
   if (selected) {
-    for (int y = itemY - ITEM_SPACING; y < itemY + LIST_ITEM_HEIGHT; y += 2) {
-      if (y < 0 || y >= renderer.getScreenHeight()) continue;
-      for (int x = LIST_START_X; x < LIST_ITEM_WIDTH; x += 2) {
-        if (x >= 0 && x < renderer.getScreenWidth()) {
-          renderer.drawPixel(x, y, true);
-        }
-      }
-    }
+    renderer.fillRect(0, itemY - ITEM_SPACING, LIST_ITEM_WIDTH, LIST_ITEM_HEIGHT + ITEM_SPACING,
+                      GfxRenderer::FillTone::Gray);
   }
 
   int thumbX = LIST_START_X + 10;

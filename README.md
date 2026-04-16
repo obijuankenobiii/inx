@@ -52,7 +52,7 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 
 | Group | Items |
 |--------|--------|
-| **Display & sleep** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
+| **Display & sleep** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
 | **Buttons** | Front Button Layout (four layouts mapping Back / Confirm / Left / Right); Short Power Button Click (Ignore, Sleep, Page Refresh) |
 | **Device & library** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
 | **Actions** | **Index your library**; **KOReader Sync**; **OPDS Browser**; **Clear Cache**; **Check for updates** (opens OTA flow with Wi‑Fi selection) |
@@ -68,8 +68,16 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 | **System** (reader rendering) | Text Anti-Aliasing; Refresh Frequency (1 / 5 / 10 / 15 / 30 pages) |
 | **Status bar** | Status Bar Mode (None, No Progress, Full w/ Percentage, Full w/ Progress Bar, Progress Bar, Battery %, Percentage, Page Bars); **Left / Middle / Right** sections each: None, Page Numbers, Percentage, Chapter Title, Battery Icon, Battery %, Battery Icon+%, Progress Bar, Progress Bar+%, Page Bars, Book Title, Author Name |
 
+#### Custom sleep images
+
+For **Custom** and **Transparent Cover** sleep modes, BMPs can live in a **`/sleep/`** folder on the SD card (any number of `.bmp` files). Optionally, a single **`sleep.bmp`** at the **card root** is used when the folder has no matches or as an extra choice.
+
+- **Random (each sleep)** (default): each sleep picks a random image from `/sleep/` and root `sleep.bmp`, as before.
+- **Choose sleep image** (System → Display & sleep): opens **`SleepImagePickerActivity`**—select one file to always use, or **Random** to clear that choice. The selection is stored in settings (`sleepCustomBmp` in `/.system/settings.bin`; also exposed as **`sleepCustomBmp`** in the device **LocalServer** settings JSON: empty string = random, a basename = `/sleep/<basename>`, or the exact value **`/sleep.bmp`** for the root file only).
+
 #### Related settings flows (activities)
 
+- **Choose sleep image** – list and confirm a fixed sleep BMP or random (`SleepImagePickerActivity`).
 - **KOReader Sync** – settings and credential entry (`KOReaderSettingsActivity`); **Wi‑Fi** and **KOReaderAuthActivity** when needed; uses **`KeyboardEntryActivity`** for text fields.
 - **OPDS Browser** – browse and download from OPDS catalogs (`OpdsBookBrowserActivity`); may use **Wi‑Fi** (`WifiSelectionActivity`) and keyboard entry for URLs/credentials.
 - **Clear Cache** – clear cached data (`ClearCacheActivity`).
@@ -92,7 +100,7 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 ### System & lifecycle
 
 - **Boot** – startup / splash path (`BootActivity`).
-- **Sleep** – **`SleepActivity`** and **`HalDisplay` deep sleep**; sleep **image** driven by **Sleep Screen** (dark, light, custom, recent book, transparent cover, none); cover **fit/crop** and **filter**; **auto sleep** after **Time to Sleep**; **USB-only wake** can return to deep sleep from `setup()`.
+- **Sleep** – **`SleepActivity`** and **`HalDisplay` deep sleep**; sleep **image** driven by **Sleep Screen** (dark, light, custom, recent book, transparent cover, none). For **custom / transparent** BMPs, a **fixed file** from settings (see [Custom sleep images](#custom-sleep-images)) is used when set; otherwise images under **`/sleep/`** (and root **`sleep.bmp`**) are chosen **at random** each sleep. Cover **fit/crop** and **filter** apply to book-cover sleep; **auto sleep** after **Time to Sleep**; **USB-only wake** can return to deep sleep from `setup()`.
 - **SD card missing / error** – **`FullScreenMessageActivity`** with a fixed message until SD is fixed.
 - **Keyboard entry** – **`KeyboardEntryActivity`** for Wi‑Fi passwords, OPDS/Calibre/KOReader fields, and similar prompts.
 - **Activity switch logging** – `switchTo` in `main.cpp` prints **heap / fragmentation** over serial for debugging.
@@ -108,7 +116,7 @@ Rough inventory of major UI entry points (see `src/activity/` and `src/main.cpp`
 | **Reader** | `ReaderActivity` → `EpubActivity` \| `XtcReaderActivity` \| `TxtReaderActivity` |
 | **EPUB UI** | `MenuDrawer` (TOC + actions), `SettingsDrawer`, `BookmarkActivity` |
 | **XTC** | `XtcReaderChapterSelectionActivity` |
-| **Settings detail** | `CategorySettingsActivity`; `AboutPage` (modal); `KOReaderSettingsActivity`, `KOReaderAuthActivity`, `CalibreSettingsActivity`, `ClearCacheActivity`, `OtaUpdateActivity` |
+| **Settings detail** | `CategorySettingsActivity`; `AboutPage` (modal); `SleepImagePickerActivity`, `KOReaderSettingsActivity`, `KOReaderAuthActivity`, `CalibreSettingsActivity`, `ClearCacheActivity`, `OtaUpdateActivity` |
 | **Network** | `LocalNetworkActivity`, `CalibreConnectActivity`, `HotspotActivity`, `BluetoothActivity`, `WifiSelectionActivity` |
 | **Browser** | `OpdsBookBrowserActivity` |
 | **KOReader (book)** | `KOReaderSyncActivity` |

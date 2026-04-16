@@ -490,7 +490,7 @@ void SettingsDrawer::drawMenuItems() {
 
     if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenW, itemHeight, true);
+        renderer.fillRect(0, itemY, screenW, itemHeight, GfxRenderer::FillTone::Gray);
       }
 
       int textX = 15;
@@ -509,7 +509,7 @@ void SettingsDrawer::drawMenuItems() {
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, screenW, itemHeight, true);
+      renderer.fillRect(0, itemY, screenW, itemHeight, GfxRenderer::FillTone::Gray);
     }
 
     int textX = 23;

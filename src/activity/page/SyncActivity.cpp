@@ -209,7 +209,7 @@ void SyncActivity::render() const {
       const bool isSelected = (i == selectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
+        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
       }
 
       constexpr int kIconSize = 40;

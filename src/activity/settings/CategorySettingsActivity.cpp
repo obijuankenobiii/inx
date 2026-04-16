@@ -405,7 +405,7 @@ void CategorySettingsActivity::render() {
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, pageWidth, itemHeight);
+        renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Gray);
       }
 
       int textX = 15;
@@ -424,7 +424,7 @@ void CategorySettingsActivity::render() {
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight);
+      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Gray);
     }
 
     int textX = 23;

@@ -525,7 +525,7 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
       const bool isSelected = (static_cast<int>(i) == selectedNetworkIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
+        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
       }
 
       std::string displayName = network.ssid;

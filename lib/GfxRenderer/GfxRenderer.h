@@ -63,11 +63,15 @@ class GfxRenderer {
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;
 
+  /** Solid ink/paper, or Gray (50% checkerboard dither in BW, similar to light fills in list UIs). */
+  enum class FillTone : uint8_t { Paper, Ink, Gray };
+
   // Drawing
   void drawPixel(int x, int y, bool state = true) const;
   void drawLine(int x1, int y1, int x2, int y2, bool state = true) const;
   void drawRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
+  void fillRect(const int x, const int y, const int width, const int height, FillTone tone, bool rounded = false) const;
   void fillRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
 

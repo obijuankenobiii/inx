@@ -150,7 +150,7 @@ void MenuDrawer::drawMenuItems() {
     bool isSelected = (index == selectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, screenW, itemHeight, true);
+      renderer.fillRect(0, itemY, screenW, itemHeight, GfxRenderer::FillTone::Gray);
     }
 
     int textX = 23;
@@ -236,7 +236,7 @@ void MenuDrawer::renderToc() {
     bool isSelected = (itemIndex == tocSelectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, true);
+      renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
     }
 
     int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
@@ -307,7 +307,7 @@ void MenuDrawer::renderBookmarks() {
     const auto& row = bookmarkEntries[static_cast<size_t>(itemIndex)];
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, true);
+      renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
     }
 
     const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;

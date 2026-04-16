@@ -152,7 +152,7 @@ void SleepImagePickerActivity::render() {
     const bool isSelected = (index == selectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight);
+      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Gray);
     }
 
     char line[128];
