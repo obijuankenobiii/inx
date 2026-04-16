@@ -340,29 +340,32 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     lineWordWidthSum += wordWidths[i];
   }
 
-  // --- MINIMAL INDENT LOGIC ---
+  // --- INDENT LOGIC ---
   uint16_t currentIndent = 0;
   if (this->leftIndentLineCount > 0) {
     currentIndent = this->leftIndentWidth;
-    this->leftIndentLineCount--; // Mark one indented line as processed
+    this->leftIndentLineCount--;
   }
 
   // Adjusted available page width
   const int effectivePageWidth = pageWidth - currentIndent;
   const int spareSpace = effectivePageWidth - lineWordWidthSum;
 
+  // Use normal spacing, don't compress!
   int spacing = spaceWidth;
   const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
 
-  if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2) {
+  // Only justify if we have extra space (spareSpace >= 0)
+  if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2 && spareSpace >= 0) {
     spacing = spareSpace / (lineWordCount - 1);
   }
+  // If spareSpace is negative, keep normal spacing and let it overflow or be handled by the renderer
 
   // Calculate initial x position starting from the indent
   uint16_t xpos = currentIndent;
-  if (style == TextBlock::RIGHT_ALIGN) {
+  if (style == TextBlock::RIGHT_ALIGN && spareSpace >= 0) {
     xpos += spareSpace - (lineWordCount - 1) * spaceWidth;
-  } else if (style == TextBlock::CENTER_ALIGN) {
+  } else if (style == TextBlock::CENTER_ALIGN && spareSpace >= 0) {
     xpos += (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
@@ -374,13 +377,12 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos += currentWordWidth + spacing;
   }
 
-  // Iterators always start at the beginning as we are moving content with splice below
+  // Extract words (same as before)
   auto wordEndIt = words.begin();
   auto wordStyleEndIt = wordStyles.begin();
   std::advance(wordEndIt, lineWordCount);
   std::advance(wordStyleEndIt, lineWordCount);
 
-  // *** CRITICAL STEP: CONSUME DATA USING SPLICE ***
   std::list<std::string> lineWords;
   lineWords.splice(lineWords.begin(), words, words.begin(), wordEndIt);
   std::list<EpdFontFamily::Style> lineWordStyles;

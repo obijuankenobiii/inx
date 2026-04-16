@@ -138,10 +138,7 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
-  Serial.printf("[PAGEIMG] Rendering image: %s\n", cachePath.c_str());
-  Serial.printf("[PAGEIMG] Stored dimensions: width=%d, height=%d\n", width, height);
-  
+void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {  
   FsFile file;
   if (!SdMan.openFileForRead("EHP", cachePath, file)) {
     Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
@@ -153,25 +150,13 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
     int screenW = renderer.getScreenWidth();
     int screenH = renderer.getScreenHeight();
     
-    Serial.printf("[PAGEIMG] Bitmap actual dimensions: %dx%d\n", bitmap.getWidth(), bitmap.getHeight());
-    Serial.printf("[PAGEIMG] Screen dimensions: %dx%d\n", screenW, screenH);
-    Serial.printf("[PAGEIMG] yPos=%d, yOffset=%d\n", yPos, yOffset);
-
-    int renderX = (screenW - width) / 2;  // Use stored width, not bitmap width
+    int renderX = (screenW - width) / 2;
     int renderY = yPos + yOffset;
 
-    
-    Serial.printf("[PAGEIMG] Calculated render position: x=%d, y=%d\n", renderX, renderY);    
-
-    // Make sure we're within screen bounds
     if (renderX < 0) renderX = 0;
     if (renderY < 0) renderY = 0;
     
-    Serial.printf("[PAGEIMG] Final render position: x=%d, y=%d, size: %dx%d\n", renderX, renderY, width, height);
-    
     renderer.drawBitmap(bitmap, renderX, renderY, width, height);
-  } else {
-    Serial.printf("[PAGEIMG] Failed to parse bitmap headers for: %s\n", cachePath.c_str());
   }
 
   file.close();
@@ -220,9 +205,7 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  * @param skipImages If true, images are not rendered
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages) const {
-  bool isHeader = elements.empty() ? false : (elements[0]->getTag() == TAG_PageImage);
-  
+                  bool skipImages) const {  
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
@@ -232,10 +215,9 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     if (tag == TAG_PageHeader) {      
       element->render(renderer, headerFontId, xOffset, yOffset);
     } else {
-      element->render(renderer, fontId, xOffset, isHeader ? 10 : yOffset);
+      element->render(renderer, fontId, xOffset,yOffset);
     }
 
-    isHeader = false;
   }
 }
 

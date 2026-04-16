@@ -1,19 +1,9 @@
-/**
- * @file BitmapHelpers.cpp
- * @brief BMP image processing utilities for e-ink displays
- *
- * Provides grayscale conversion, image scaling, and dithering functionality
- * optimized for e-ink display characteristics.
- */
-
 #include "BitmapHelpers.h"
 
-#include <HardwareSerial.h>
-#include <SdFat.h>
-
 #include <cstdint>
+#include <cstring>  // Added for memset
 
-#include "SDCardManager.h"
+#include "Bitmap.h"
 
 /**
  * @brief Precomputed red channel contribution to grayscale (BT.601 coefficients)
@@ -63,18 +53,6 @@ static const uint8_t LUT_B[256] = {
     23, 23, 23, 23, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 25, 26, 26, 26, 26,
     26, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28};
 
-/** @brief Brightness offset added to all pixels (0-255 range) */
-constexpr int BRIGHTNESS_BOOST = 20;
-
-/** @brief Contrast multiplier (1.0 = no change, <1 reduces contrast, >1 increases) */
-constexpr float CONTRAST_FACTOR = .9f;
-
-/** @brief Enable gamma correction for midtone brightness */
-constexpr bool USE_GAMMA_CORRECTION = false;
-
-/** @brief Enable noise dithering for 4-level output */
-constexpr bool USE_NOISE_DITHERING = true;
-
 /**
  * @brief Convert RGB to grayscale using precomputed BT.601 coefficients
  *
@@ -85,68 +63,55 @@ constexpr bool USE_NOISE_DITHERING = true;
  */
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) { return LUT_R[r] + LUT_G[g] + LUT_B[b]; }
 
-/**
- * @brief Apply gamma correction to improve midtone visibility on e-ink
- *
- * Uses shadows-only gamma that preserves light grays (above 180) unchanged.
- * This prevents highlight blowout while brightening dark areas.
- *
- * @param gray Input grayscale value (0-255)
- * @return Gamma-corrected grayscale value (0-255)
- */
-[[maybe_unused]] static inline int applyGamma(int gray) {
-  if (gray > 180) {
-    return gray;
-  }
+// Brightness/Contrast adjustments:
+constexpr bool USE_BRIGHTNESS = false;       // true: apply brightness/gamma adjustments
+constexpr int BRIGHTNESS_BOOST = 10;         // Brightness offset (0-50)
+constexpr bool GAMMA_CORRECTION = false;     // Gamma curve (brightens midtones)
+constexpr float CONTRAST_FACTOR = 1.15f;     // Contrast multiplier (1.0 = no change, >1 = more contrast)
+constexpr bool USE_NOISE_DITHERING = false;  // Hash-based noise dithering
 
+// Integer approximation of gamma correction (brightens midtones)
+// Uses a simple curve: out = 255 * sqrt(in/255) ≈ sqrt(in * 255)
+static inline int applyGamma(int gray) {
+  if (!GAMMA_CORRECTION) return gray;
+  // Fast integer square root approximation for gamma ~0.5 (brightening)
+  // This brightens dark/mid tones while preserving highlights
   const int product = gray * 255;
+  // Newton-Raphson integer sqrt (2 iterations for good accuracy)
   int x = gray;
   if (x > 0) {
     x = (x + product / x) >> 1;
     x = (x + product / x) >> 1;
   }
-  return x > 180 ? 180 : x;
+  return x > 255 ? 255 : x;
 }
 
-/**
- * @brief Apply contrast adjustment around the midpoint (128)
- *
- * @param gray Input grayscale value (0-255)
- * @return Contrast-adjusted grayscale value (0-255)
- */
+// Apply contrast adjustment around midpoint (128)
+// factor > 1.0 increases contrast, < 1.0 decreases
 static inline int applyContrast(int gray) {
+  // Integer-based contrast: (gray - 128) * factor + 128
+  // Using fixed-point: factor 1.15 ≈ 115/100
   constexpr int factorNum = static_cast<int>(CONTRAST_FACTOR * 100);
   int adjusted = ((gray - 128) * factorNum) / 100 + 128;
   if (adjusted < 0) adjusted = 0;
   if (adjusted > 255) adjusted = 255;
   return adjusted;
 }
-
-/**
- * @brief Apply full image adjustment pipeline (contrast, brightness, gamma)
- *
- * @param gray Input grayscale value (0-255)
- * @return Adjusted grayscale value optimized for e-ink display
- */
+// Combined brightness/contrast/gamma adjustment
 int adjustPixel(int gray) {
+  if (!USE_BRIGHTNESS) return gray;
+
+  // Order: contrast first, then brightness, then gamma
   gray = applyContrast(gray);
   gray += BRIGHTNESS_BOOST;
   if (gray > 255) gray = 255;
   if (gray < 0) gray = 0;
-  if (USE_GAMMA_CORRECTION) {
-    gray = applyGamma(gray);
-  }
+  gray = applyGamma(gray);
+
   return gray;
 }
-
-/**
- * @brief Simple 4-level quantization without dithering
- *
- * Thresholds are tuned for e-ink displays to maximize visible detail.
- *
- * @param gray Grayscale value (0-255)
- * @return Quantized level (0-3)
- */
+// Simple quantization without dithering - divide into 4 levels
+// The thresholds are fine-tuned to the X4 display
 uint8_t quantizeSimple(int gray) {
   if (gray < 45) {
     return 0;
@@ -159,17 +124,8 @@ uint8_t quantizeSimple(int gray) {
   }
 }
 
-/**
- * @brief Noise dithering for 4-level output using hash-based thresholds
- *
- * Uses integer hash to generate pseudo-random thresholds per pixel,
- * avoiding moiré patterns when downsampling.
- *
- * @param gray Grayscale value (0-255)
- * @param x X coordinate for hash generation
- * @param y Y coordinate for hash generation
- * @return Dithered quantized level (0-3)
- */
+// Hash-based noise dithering - survives downsampling without moiré artifacts
+// Uses integer hash to generate pseudo-random threshold per pixel
 static inline uint8_t quantizeNoise(int gray, int x, int y) {
   uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
   hash = (hash ^ (hash >> 13)) * 1274126177u;
@@ -185,14 +141,7 @@ static inline uint8_t quantizeNoise(int gray, int x, int y) {
   }
 }
 
-/**
- * @brief Main quantization function with configurable dithering
- *
- * @param gray Grayscale value (0-255)
- * @param x X coordinate (used for dithering)
- * @param y Y coordinate (used for dithering)
- * @return Quantized level (0-3)
- */
+// Main quantization function - selects between methods based on config
 uint8_t quantize(int gray, int x, int y) {
   if (USE_NOISE_DITHERING) {
     return quantizeNoise(gray, x, y);
@@ -201,372 +150,59 @@ uint8_t quantize(int gray, int x, int y) {
   }
 }
 
-/**
- * @brief Simple 1-bit quantization (black or white)
- *
- * @param gray Grayscale value (0-255)
- * @param x X coordinate (unused, kept for API consistency)
- * @param y Y coordinate (unused, kept for API consistency)
- * @return 0 for black, 1 for white
- */
-uint8_t quantize1bit(int gray, int x, int y) { return gray < 128 ? 0 : 1; }
+// 1-bit noise dithering for fast home screen rendering
+// Uses hash-based noise for consistent dithering that works well at small sizes
+uint8_t quantize1bit(int gray, int x, int y) {
+  gray = adjustPixel(gray);
 
-/** @brief Read 16-bit little-endian value from file */
-static uint16_t readLE16(FsFile& f) {
-  const int c0 = f.read();
-  const int c1 = f.read();
-  return static_cast<uint16_t>(c0 & 0xFF) | (static_cast<uint16_t>(c1 & 0xFF) << 8);
+  // Generate noise threshold using integer hash (no regular pattern to alias)
+  uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
+  hash = (hash ^ (hash >> 13)) * 1274126177u;
+  const int threshold = static_cast<int>(hash >> 24);  // 0-255
+
+  // Simple threshold with noise: gray >= (128 + noise offset) -> white
+  // The noise adds variation around the 128 midpoint
+  const int adjustedThreshold = 128 + ((threshold - 128) / 2);  // Range: 64-192
+  return (gray >= adjustedThreshold) ? 1 : 0;
 }
 
-/** @brief Read 32-bit little-endian value from file */
-static uint32_t readLE32(FsFile& f) {
-  const int c0 = f.read();
-  const int c1 = f.read();
-  const int c2 = f.read();
-  const int c3 = f.read();
-  return static_cast<uint32_t>(c0 & 0xFF) | (static_cast<uint32_t>(c1 & 0xFF) << 8) |
-         (static_cast<uint32_t>(c2 & 0xFF) << 16) | (static_cast<uint32_t>(c3 & 0xFF) << 24);
-}
+void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder rowOrder) {
+  if (!bmpHeader) return;
 
-/** @brief Write 16-bit little-endian value to output */
-static void writeLE16(Print& out, uint16_t value) {
-  out.write(value & 0xFF);
-  out.write((value >> 8) & 0xFF);
-}
+  // Zero out the memory to ensure no garbage data if called on uninitialized stack memory
+  std::memset(bmpHeader, 0, sizeof(BmpHeader));
 
-/** @brief Write 32-bit little-endian value to output */
-static void writeLE32(Print& out, uint32_t value) {
-  out.write(value & 0xFF);
-  out.write((value >> 8) & 0xFF);
-  out.write((value >> 16) & 0xFF);
-  out.write((value >> 24) & 0xFF);
-}
+  uint32_t rowSize = (width + 31) / 32 * 4;
+  uint32_t imageSize = rowSize * height;
+  uint32_t fileSize = sizeof(BmpHeader) + imageSize;
 
-/** @brief Write signed 32-bit little-endian value to output */
-static void writeLE32Signed(Print& out, int32_t value) {
-  out.write(value & 0xFF);
-  out.write((value >> 8) & 0xFF);
-  out.write((value >> 16) & 0xFF);
-  out.write((value >> 24) & 0xFF);
-}
+  bmpHeader->fileHeader.bfType = 0x4D42;
+  bmpHeader->fileHeader.bfSize = fileSize;
+  bmpHeader->fileHeader.bfReserved1 = 0;
+  bmpHeader->fileHeader.bfReserved2 = 0;
+  bmpHeader->fileHeader.bfOffBits = sizeof(BmpHeader);
 
-/**
- * @brief Write 1-bit BMP file header
- *
- * @param out Output stream
- * @param width Image width in pixels
- * @param height Image height in pixels
- */
-static void writeBmpHeader1bit(Print& out, int width, int height) {
-  const int bytesPerRow = (width + 31) / 32 * 4;
-  const int imageSize = bytesPerRow * height;
-  const uint32_t fileSize = 62 + imageSize;
+  bmpHeader->infoHeader.biSize = sizeof(bmpHeader->infoHeader);
+  bmpHeader->infoHeader.biWidth = width;
+  bmpHeader->infoHeader.biHeight = (rowOrder == BmpRowOrder::TopDown) ? -height : height;
+  bmpHeader->infoHeader.biPlanes = 1;
+  bmpHeader->infoHeader.biBitCount = 1;
+  bmpHeader->infoHeader.biCompression = 0;
+  bmpHeader->infoHeader.biSizeImage = imageSize;
+  bmpHeader->infoHeader.biXPelsPerMeter = 2835;  // 72 DPI
+  bmpHeader->infoHeader.biYPelsPerMeter = 2835;  // 72 DPI
+  bmpHeader->infoHeader.biClrUsed = 2;
+  bmpHeader->infoHeader.biClrImportant = 2;
 
-  out.write('B');
-  out.write('M');
-  writeLE32(out, fileSize);
-  writeLE32(out, 0);
-  writeLE32(out, 62);
+  // Color 0 (black)
+  bmpHeader->colors[0].rgbBlue = 0;
+  bmpHeader->colors[0].rgbGreen = 0;
+  bmpHeader->colors[0].rgbRed = 0;
+  bmpHeader->colors[0].rgbReserved = 0;
 
-  writeLE32(out, 40);
-  writeLE32Signed(out, width);
-  writeLE32Signed(out, -height);
-  writeLE16(out, 1);
-  writeLE16(out, 1);
-  writeLE32(out, 0);
-  writeLE32(out, imageSize);
-  writeLE32(out, 2835);
-  writeLE32(out, 2835);
-  writeLE32(out, 2);
-  writeLE32(out, 2);
-
-  const uint8_t palette[8] = {0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00};
-  out.write(palette, 8);
-}
-
-/**
- * @brief Convert 2-bit palette index to grayscale
- *
- * @param index Palette index (0-3)
- * @return Grayscale value
- */
-static inline uint8_t palette2bitToGray(uint8_t index) {
-  static const uint8_t lut[4] = {0, 85, 170, 255};
-  return lut[index & 0x03];
-}
-
-/**
- * @brief Convert 1-bit palette index to grayscale
- *
- * @param index Palette index (0-1)
- * @return Grayscale value (0 or 255)
- */
-static inline uint8_t palette1bitToGray(uint8_t index) { return (index & 0x01) ? 255 : 0; }
-
-/**
- * @brief Atkinson dithering for 1-bit output without additional contrast adjustment
- *
- * This ditherer is designed for sources that are already contrast-enhanced
- * (like cover.bmp) and should not have adjustPixel() applied.
- */
-class RawAtkinson1BitDitherer {
- public:
-  /**
-   * @brief Construct ditherer for given width
-   *
-   * @param width Image width in pixels
-   */
-  explicit RawAtkinson1BitDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();
-    errorRow1 = new int16_t[width + 4]();
-    errorRow2 = new int16_t[width + 4]();
-  }
-
-  /** @brief Destructor - cleanup error buffers */
-  ~RawAtkinson1BitDitherer() {
-    delete[] errorRow0;
-    delete[] errorRow1;
-    delete[] errorRow2;
-  }
-
-  RawAtkinson1BitDitherer(const RawAtkinson1BitDitherer&) = delete;
-  RawAtkinson1BitDitherer& operator=(const RawAtkinson1BitDitherer&) = delete;
-
-  /**
-   * @brief Process a single pixel with Atkinson dithering
-   *
-   * @param gray Grayscale value (0-255)
-   * @param x X coordinate in the output image
-   * @return 1-bit value (0 or 1)
-   */
-  uint8_t processPixel(int gray, int x) {
-    int adjusted = gray + errorRow0[x + 2];
-    if (adjusted < 0) adjusted = 0;
-    if (adjusted > 255) adjusted = 255;
-
-    uint8_t quantized;
-    int quantizedValue;
-    if (adjusted < 128) {
-      quantized = 0;
-      quantizedValue = 0;
-    } else {
-      quantized = 1;
-      quantizedValue = 255;
-    }
-
-    int error = (adjusted - quantizedValue) >> 3;
-    errorRow0[x + 3] += error;
-    errorRow0[x + 4] += error;
-    errorRow1[x + 1] += error;
-    errorRow1[x + 2] += error;
-    errorRow1[x + 3] += error;
-    errorRow2[x + 2] += error;
-
-    return quantized;
-  }
-
-  /** @brief Advance to next row, shifting error buffers */
-  void nextRow() {
-    int16_t* temp = errorRow0;
-    errorRow0 = errorRow1;
-    errorRow1 = errorRow2;
-    errorRow2 = temp;
-    memset(errorRow2, 0, (width + 4) * sizeof(int16_t));
-  }
-
- private:
-  int width;
-  int16_t* errorRow0;
-  int16_t* errorRow1;
-  int16_t* errorRow2;
-};
-
-/**
- * @brief Scale a 1-bit or 2-bit BMP to a 1-bit thumbnail
- *
- * Reads a BMP file, scales it to fit within target dimensions while maintaining
- * aspect ratio, applies Atkinson dithering, and writes a 1-bit BMP output.
- *
- * @param srcPath Source BMP file path
- * @param dstPath Destination BMP file path
- * @param targetMaxWidth Maximum output width in pixels
- * @param targetMaxHeight Maximum output height in pixels
- * @return true on success, false on failure
- */
-bool bmpTo1BitBmpScaled(const char* srcPath, const char* dstPath, int targetMaxWidth, int targetMaxHeight) {
-  FsFile srcFile;
-  if (!SdMan.openFileForRead("BMP", srcPath, srcFile)) {
-    Serial.printf("[%lu] [BMP] Failed to open source: %s\n", millis(), srcPath);
-    return false;
-  }
-
-  if (readLE16(srcFile) != 0x4D42) {
-    Serial.printf("[%lu] [BMP] Not a BMP file\n", millis());
-    srcFile.close();
-    return false;
-  }
-
-  srcFile.seekCur(8);
-  const uint32_t pixelOffset = readLE32(srcFile);
-  const uint32_t dibSize = readLE32(srcFile);
-
-  if (dibSize < 40) {
-    Serial.printf("[%lu] [BMP] Unsupported DIB header\n", millis());
-    srcFile.close();
-    return false;
-  }
-
-  const int srcWidth = static_cast<int32_t>(readLE32(srcFile));
-  const int32_t rawHeight = static_cast<int32_t>(readLE32(srcFile));
-
-  if (rawHeight >= 0) {
-    Serial.printf("[%lu] [BMP] Bottom-up BMP not supported, expected top-down\n", millis());
-    srcFile.close();
-    return false;
-  }
-  const int srcHeight = -rawHeight;
-
-  srcFile.seekCur(2);
-  const uint16_t bpp = readLE16(srcFile);
-
-  if (bpp != 1 && bpp != 2) {
-    Serial.printf("[%lu] [BMP] Expected 1 or 2-bit BMP, got %d-bit\n", millis(), bpp);
-    srcFile.close();
-    return false;
-  }
-
-  Serial.printf("[%lu] [BMP] Scaling %dx%d %d-bit BMP to 1-bit thumbnail\n", millis(), srcWidth, srcHeight, bpp);
-
-  int outWidth = srcWidth;
-  int outHeight = srcHeight;
-
-  if (srcWidth > targetMaxWidth || srcHeight > targetMaxHeight) {
-    const float scaleW = static_cast<float>(targetMaxWidth) / srcWidth;
-    const float scaleH = static_cast<float>(targetMaxHeight) / srcHeight;
-    const float scale = (scaleW < scaleH) ? scaleW : scaleH;
-    outWidth = static_cast<int>(srcWidth * scale);
-    outHeight = static_cast<int>(srcHeight * scale);
-    if (outWidth < 1) outWidth = 1;
-    if (outHeight < 1) outHeight = 1;
-  }
-
-  const uint32_t scaleX_fp = (static_cast<uint32_t>(srcWidth) << 16) / outWidth;
-  const uint32_t scaleY_fp = (static_cast<uint32_t>(srcHeight) << 16) / outHeight;
-  const int maxSrcRowsPerOut = ((scaleY_fp + 0xFFFF) >> 16) + 1;
-
-  Serial.printf("[%lu] [BMP] Output: %dx%d, scale_fp: %lu x %lu\n", millis(), outWidth, outHeight,
-                static_cast<unsigned long>(scaleX_fp), static_cast<unsigned long>(scaleY_fp));
-
-  const int srcRowBytes = (srcWidth * bpp + 31) / 32 * 4;
-  const int outRowBytes = (outWidth + 31) / 32 * 4;
-
-  auto* srcRows = static_cast<uint8_t*>(malloc(srcRowBytes * maxSrcRowsPerOut));
-  auto* outRow = static_cast<uint8_t*>(malloc(outRowBytes));
-
-  if (!srcRows || !outRow) {
-    Serial.printf("[%lu] [BMP] Failed to allocate buffers\n", millis());
-    free(srcRows);
-    free(outRow);
-    srcFile.close();
-    return false;
-  }
-
-  FsFile dstFile;
-  if (!SdMan.openFileForWrite("BMP", dstPath, dstFile)) {
-    Serial.printf("[%lu] [BMP] Failed to open destination: %s\n", millis(), dstPath);
-    free(srcRows);
-    free(outRow);
-    srcFile.close();
-    return false;
-  }
-
-  writeBmpHeader1bit(dstFile, outWidth, outHeight);
-  RawAtkinson1BitDitherer ditherer(outWidth);
-
-  if (!srcFile.seek(pixelOffset)) {
-    Serial.printf("[%lu] [BMP] Failed to seek to pixel data\n", millis());
-    free(srcRows);
-    free(outRow);
-    srcFile.close();
-    dstFile.close();
-    return false;
-  }
-
-  int lastSrcRowRead = -1;
-
-  for (int outY = 0; outY < outHeight; outY++) {
-    const int srcYStart = (static_cast<uint32_t>(outY) * scaleY_fp) >> 16;
-    int srcYEnd = (static_cast<uint32_t>(outY + 1) * scaleY_fp) >> 16;
-    if (srcYEnd <= srcYStart) srcYEnd = srcYStart + 1;
-    const int srcRowsNeeded = srcYEnd - srcYStart;
-
-    for (int srcY = srcYStart; srcY < srcYEnd && srcY < srcHeight; srcY++) {
-      if (srcY <= lastSrcRowRead) continue;
-
-      while (lastSrcRowRead < srcY - 1) {
-        srcFile.seekCur(srcRowBytes);
-        lastSrcRowRead++;
-      }
-
-      const int bufferSlot = srcY - srcYStart;
-      if (srcFile.read(srcRows + bufferSlot * srcRowBytes, srcRowBytes) != srcRowBytes) {
-        Serial.printf("[%lu] [BMP] Failed to read row %d\n", millis(), srcY);
-        free(srcRows);
-        free(outRow);
-        srcFile.close();
-        dstFile.close();
-        return false;
-      }
-      lastSrcRowRead = srcY;
-    }
-
-    memset(outRow, 0, outRowBytes);
-
-    for (int outX = 0; outX < outWidth; outX++) {
-      const int srcXStart = (static_cast<uint32_t>(outX) * scaleX_fp) >> 16;
-      int srcXEnd = (static_cast<uint32_t>(outX + 1) * scaleX_fp) >> 16;
-      if (srcXEnd <= srcXStart) srcXEnd = srcXStart + 1;
-
-      int sum = 0;
-      int count = 0;
-
-      for (int dy = 0; dy < srcRowsNeeded && (srcYStart + dy) < srcHeight; dy++) {
-        const uint8_t* row = srcRows + dy * srcRowBytes;
-        for (int srcX = srcXStart; srcX < srcXEnd && srcX < srcWidth; srcX++) {
-          uint8_t gray;
-          if (bpp == 2) {
-            const int byteIdx = srcX / 4;
-            const int bitShift = 6 - (srcX % 4) * 2;
-            const uint8_t pixel = (row[byteIdx] >> bitShift) & 0x03;
-            gray = palette2bitToGray(pixel);
-          } else {
-            const int byteIdx = srcX / 8;
-            const int bitOffset = 7 - (srcX % 8);
-            const uint8_t pixel = (row[byteIdx] >> bitOffset) & 0x01;
-            gray = palette1bitToGray(pixel);
-          }
-          sum += gray;
-          count++;
-        }
-      }
-
-      const uint8_t gray = (count > 0) ? (sum / count) : 0;
-      const uint8_t bit = ditherer.processPixel(gray, outX);
-
-      const int byteIdx = outX / 8;
-      const int bitOffset = 7 - (outX % 8);
-      outRow[byteIdx] |= (bit << bitOffset);
-    }
-
-    ditherer.nextRow();
-    dstFile.write(outRow, outRowBytes);
-  }
-
-  free(srcRows);
-  free(outRow);
-  srcFile.close();
-  dstFile.close();
-
-  Serial.printf("[%lu] [BMP] Successfully created thumbnail: %s\n", millis(), dstPath);
-  return true;
+  // Color 1 (white)
+  bmpHeader->colors[1].rgbBlue = 255;
+  bmpHeader->colors[1].rgbGreen = 255;
+  bmpHeader->colors[1].rgbRed = 255;
+  bmpHeader->colors[1].rgbReserved = 0;
 }
