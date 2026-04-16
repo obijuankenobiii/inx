@@ -44,19 +44,19 @@ class Menu {
 
       switch (i) {
         case 0:
-          renderer.drawIcon(Recent, iconX, iconY, ICON_SIZE, ICON_SIZE, GfxRenderer::Rotate270CW);
+          renderer.drawIcon(Recent, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 1:
-          renderer.drawIcon(Library, iconX, iconY, ICON_SIZE, ICON_SIZE, GfxRenderer::Rotate270CW);
+          renderer.drawIcon(Library, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 2:
-          renderer.drawIcon(Setting, iconX, iconY, ICON_SIZE, ICON_SIZE, GfxRenderer::Rotate270CW);
+          renderer.drawIcon(Setting, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 3:
-          renderer.drawIcon(Sync, iconX, iconY, ICON_SIZE, ICON_SIZE, GfxRenderer::Rotate270CW);
+          renderer.drawIcon(Sync, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 4:
-          renderer.drawIcon(Stats, iconX, iconY, ICON_SIZE, ICON_SIZE, GfxRenderer::Rotate270CW);
+          renderer.drawIcon(Stats, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
       }
 

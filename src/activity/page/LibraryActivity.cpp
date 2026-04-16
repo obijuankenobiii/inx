@@ -1794,13 +1794,13 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
   int iconY = drawY + (itemHeight / 2) - 12;
 
   if (item.type == LibraryItem::Type::FOLDER) {
-    renderer.drawIcon(Folder, iconX, iconY, 24, 24, GfxRenderer::Rotate270CW, isSelected);
+    renderer.drawIcon(Folder, iconX, iconY, 24, 24, GfxRenderer::None, isSelected);
   } else {
-    renderer.drawIcon(Book, iconX, iconY + 2, 24, 24, GfxRenderer::Rotate270CW, isSelected);
+    renderer.drawIcon(Book, iconX, iconY + 2, 24, 24, GfxRenderer::None, isSelected);
 
     if (isBookMarked(item.path)) {
       int starX = renderer.getScreenWidth() - 1 - 45;
-      renderer.drawIcon(Star, starX, iconY + 2, 24, 24, GfxRenderer::Rotate270CW, isSelected);
+      renderer.drawIcon(Star, starX, iconY + 2, 24, 24, GfxRenderer::None, isSelected);
     }
   }
 }

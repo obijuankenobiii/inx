@@ -3,6 +3,70 @@
 #include <Utf8.h>
 #include <vector>
 #include <algorithm>
+#include <cmath>
+
+namespace {
+/** Corner radius for rounded fillRect/drawRect: subtle, not pill-shaped (was min/4). */
+int roundedRectCornerRadius(const int width, const int height) {
+  const int m = std::min(width, height);
+  if (m < 5) {
+    return 1;
+  }
+  int r = m / 10;
+  if (r < 2) {
+    r = 2;
+  }
+  if (2 * r > m) {
+    r = m / 2;
+  }
+  return std::max(1, r);
+}
+
+int cornerSpanFromRy(const int r, const int ry) {
+  const int inner = r * r - ry * ry;
+  if (inner <= 0) {
+    return 0;
+  }
+  return static_cast<int>(std::sqrt(static_cast<double>(inner)));
+}
+
+/** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
+bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int height, const int sx, const int sy) {
+  if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
+    return false;
+  }
+  const int stride = (width + 7) / 8;
+  const uint8_t byte = bitmap[sy * stride + sx / 8];
+  return (byte & (0x80 >> (sx % 8))) != 0;
+}
+
+/** Quarter-circle outline (same centers as rounded fillRect), not a filled wedge. */
+void drawRoundedRectCornerOutlines(const GfxRenderer& gfx, int x, int y, int width, int height, int r, bool state) {
+  // Top-left center (x+r, y+r)
+  for (int h = 0; h <= r; ++h) {
+    const int span = cornerSpanFromRy(r, r - h);
+    gfx.drawPixel(x + r - span, y + h, state);
+  }
+
+  // Top-right center (x+width-r-1, y+r)
+  for (int h = 0; h <= r; ++h) {
+    const int span = cornerSpanFromRy(r, r - h);
+    gfx.drawPixel(x + width - r - 1 + span, y + h, state);
+  }
+
+  // Bottom-left center (x+r, y+height-r-1)
+  for (int h = 0; h <= r; ++h) {
+    const int span = cornerSpanFromRy(r, r - h);
+    gfx.drawPixel(x + r - span, y + height - 1 - h, state);
+  }
+
+  // Bottom-right center (x+width-r-1, y+height-r-1)
+  for (int h = 0; h <= r; ++h) {
+    const int span = cornerSpanFromRy(r, r - h);
+    gfx.drawPixel(x + width - r - 1 + span, y + height - 1 - h, state);
+  }
+}
+}  // namespace
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) { fontMap.insert({fontId, font}); }
 
@@ -152,7 +216,7 @@ void GfxRenderer::drawRect(const int x, const int y, const int width, const int 
     drawLine(x, y, x, y + height - 1, state);
   } else {
     // Rounded rectangle drawing
-    const int radius = std::min(width, height) / 4; // Corner radius proportional to smallest dimension
+    const int radius = roundedRectCornerRadius(width, height);
     
     // Draw top edge (excluding corners)
     drawLine(x + radius, y, x + width - radius - 1, y, state);
@@ -165,43 +229,9 @@ void GfxRenderer::drawRect(const int x, const int y, const int width, const int 
     
     // Draw right edge (excluding corners)
     drawLine(x + width - 1, y + radius, x + width - 1, y + height - radius - 1, state);
-    
-    // Draw the four rounded corners using quarter-circle arcs
-    // Top-left corner
-    for (int i = 0; i < radius; i++) {
-      for (int j = 0; j < radius; j++) {
-        if (i*i + j*j <= radius*radius) {
-          drawPixel(x + radius - 1 - j, y + radius - 1 - i, state);
-        }
-      }
-    }
-    
-    // Top-right corner
-    for (int i = 0; i < radius; i++) {
-      for (int j = 0; j < radius; j++) {
-        if (i*i + j*j <= radius*radius) {
-          drawPixel(x + width - radius + j, y + radius - 1 - i, state);
-        }
-      }
-    }
-    
-    // Bottom-left corner
-    for (int i = 0; i < radius; i++) {
-      for (int j = 0; j < radius; j++) {
-        if (i*i + j*j <= radius*radius) {
-          drawPixel(x + radius - 1 - j, y + height - radius + i, state);
-        }
-      }
-    }
-    
-    // Bottom-right corner
-    for (int i = 0; i < radius; i++) {
-      for (int j = 0; j < radius; j++) {
-        if (i*i + j*j <= radius*radius) {
-          drawPixel(x + width - radius + j, y + height - radius + i, state);
-        }
-      }
-    }
+
+    // Thin quarter arcs (filled wedges used to spill black inside white rounded fills)
+    drawRoundedRectCornerOutlines(*this, x, y, width, height, radius, state);
   }
 }
 
@@ -213,7 +243,7 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
     }
   } else {
     // Rounded rectangle filling
-    const int radius = std::min(width, height) / 4; // Corner radius proportional to smallest dimension
+    const int radius = roundedRectCornerRadius(width, height);
     
     // Fill the main body (rectangle without corners)
     for (int fillY = y + radius; fillY < y + height - radius; fillY++) {
@@ -668,8 +698,8 @@ void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char
     // Only draw if the label is non-empty
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       const int x = buttonPositions[i];
-      fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
-      drawRect(x, pageHeight - buttonY, buttonWidth, buttonHeight);
+      fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false, true);
+      drawRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, true, true);
       const int textWidth = getTextWidth(fontId, labels[i]);
       const int textX = x + (buttonWidth - 1 - textWidth) / 2;
       drawText(fontId, textX, pageHeight - buttonY + textYOffset, labels[i]);
@@ -1361,111 +1391,51 @@ void GfxRenderer::drawSmallBitmap(const Bitmap& bitmap, const int x, const int y
     free(rowBytes_buf);
 }
 
-void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int height, 
-                          ImageOrientation imgOrientation, bool invert) const {
-  int targetX = x;
-  int targetY = y;
-  int targetW = width;
-  int targetH = height;
-
-  // Handle rotation if needed
-  if (imgOrientation == Rotate90CW || imgOrientation == Rotate270CW) {
-    targetW = height;
-    targetH = width;
-    
-    size_t bufferSize = (targetW * targetH + 7) / 8;
-    uint8_t* rotatedBitmap = (uint8_t*)calloc(bufferSize, 1);
-    
-    if (rotatedBitmap) {
-      const int srcStride = (width + 7) / 8;
-      const int dstStride = (targetW + 7) / 8;
-      
-      // Process byte by byte for better performance
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < srcStride; j++) {
-          uint8_t byte = bitmap[i * srcStride + j];
-          if (byte == 0 && !invert) continue; // Skip empty bytes
-          
-          int baseBit = j * 8;
-          for (int bit = 0; bit < 8; bit++) {
-            int srcX = baseBit + bit;
-            if (srcX >= width) break;
-            
-            bool pixelSet = byte & (0x80 >> bit);
-            if (invert) pixelSet = !pixelSet;
-            
-            if (pixelSet) {
-              int newX = (imgOrientation == Rotate90CW) ? (height - 1 - i) : i;
-              int newY = (imgOrientation == Rotate90CW) ? srcX : (width - 1 - srcX);
-              
-              rotatedBitmap[newY * dstStride + newX / 8] |= (0x80 >> (newX % 8));
-            }
-          }
-        }
-      }
-      
-      int rotatedX = 0, rotatedY = 0;
-      rotateCoordinates(targetX, targetY, &rotatedX, &rotatedY);
-      
-      switch (orientation) {
-        case Portrait:           rotatedY -= targetH; break;
-        case PortraitInverted:   rotatedX -= targetW; break;
-        case LandscapeClockwise: rotatedY -= targetH; rotatedX -= targetW; break;
-        case LandscapeCounterClockwise: break;
-      }
-      
-      display.drawImage(rotatedBitmap, rotatedX, rotatedY, targetW, targetH, true);
-      free(rotatedBitmap);
-      return;
-    }
+void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int height,
+                           ImageOrientation imgOrientation, bool invert) const {
+  int outW = width;
+  int outH = height;
+  switch (imgOrientation) {
+    case None:
+    case Rotate180:
+      outW = width;
+      outH = height;
+      break;
+    case Rotate90CW:
+    case Rotate270CW:
+      outW = height;
+      outH = width;
+      break;
   }
 
-  // No rotation needed
-  int rotatedX = 0, rotatedY = 0;
-  rotateCoordinates(targetX, targetY, &rotatedX, &rotatedY);
-
-  switch (orientation) {
-    case Portrait:           rotatedY -= targetH; break;
-    case PortraitInverted:   rotatedX -= targetW; break;
-    case LandscapeClockwise: rotatedY -= targetH; rotatedX -= targetW; break;
-    case LandscapeCounterClockwise: break;
-  }
-
-  if (invert) {
-    // Process byte by byte for inversion
-    const int bytesPerRow = (width + 7) / 8;
-    const int totalBytes = height * bytesPerRow;
-    
-    // Allocate once for the entire inverted bitmap
-    uint8_t* invertedBitmap = (uint8_t*)malloc(totalBytes);
-    
-    if (invertedBitmap) {
-      // Invert all bytes at once
-      for (int i = 0; i < totalBytes; i++) {
-        invertedBitmap[i] = ~bitmap[i];
+  for (int dy = 0; dy < outH; ++dy) {
+    for (int dx = 0; dx < outW; ++dx) {
+      int sx = 0;
+      int sy = 0;
+      switch (imgOrientation) {
+        case None:
+          sx = dx;
+          sy = dy;
+          break;
+        case Rotate180:
+          sx = width - 1 - dx;
+          sy = height - 1 - dy;
+          break;
+        case Rotate90CW:
+          sx = height - 1 - dx;
+          sy = dy;
+          break;
+        case Rotate270CW:
+          sx = dx;
+          sy = width - 1 - dy;
+          break;
       }
-      display.drawImage(invertedBitmap, rotatedX, rotatedY, targetW, targetH, true);
-      free(invertedBitmap);
-      return;
-    }
-    
-    // Fallback to row-by-row if allocation fails
-    uint8_t* invertedRow = (uint8_t*)malloc(bytesPerRow);
-    if (invertedRow) {
-      for (int row = 0; row < height; row++) {
-        const uint8_t* srcRow = &bitmap[row * bytesPerRow];
-        for (int b = 0; b < bytesPerRow; b++) {
-          invertedRow[b] = ~srcRow[b];
-        }
-        display.drawImage(invertedRow, rotatedX, rotatedY + row, width, true);
-      }
-      free(invertedRow);
-      return;
+      // Match packed 1bpp + drawImage: MSB 1 = light, 0 = ink (drawImage copied bytes verbatim).
+      const bool ink = !readIconBitMsbFirst(bitmap, width, height, sx, sy);
+      const bool black = ink ^ invert;
+      drawPixel(x + dx, y + dy, black);
     }
   }
-
-  // No inversion, draw as-is
-  display.drawImage(bitmap, rotatedX, rotatedY, targetW, targetH, true);
 }
 
 void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,

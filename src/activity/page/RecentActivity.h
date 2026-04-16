@@ -69,7 +69,7 @@ class RecentActivity final : public Activity, public Menu {
    * Loads recent books from persistent storage.
    * Filters out books that no longer exist on the SD card.
    */
-  void loadRecentBooks();
+  void loadRecentBooks(bool resetScroll = true);
 
   /**
    * Static trampoline function for FreeRTOS task creation.

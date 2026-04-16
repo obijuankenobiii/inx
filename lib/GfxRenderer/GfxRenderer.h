@@ -75,7 +75,7 @@ class GfxRenderer {
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height,
                  ImageOrientation imgOrientation = None) const;
 
-  // NEW: Draw icon with optional inversion
+  /** 1bpp MSB-first (MSB 1 = paper, 0 = ink); drawPixel in logical coords. invert XORs ink vs paper. */
   void drawIcon(const uint8_t bitmap[], int x, int y, int width, int height, ImageOrientation imgOrientation = None,
                 bool invert = false) const;
 

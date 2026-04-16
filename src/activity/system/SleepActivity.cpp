@@ -277,7 +277,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
 
   renderer.fillRect(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
   renderer.clearScreen();
-  renderer.drawIcon(CorgiSleep, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256, GfxRenderer::Rotate270CW);
+  renderer.drawIcon(CorgiSleep, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
 
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::LIGHT) {
     renderer.invertScreen();

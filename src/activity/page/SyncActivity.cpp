@@ -212,22 +212,24 @@ void SyncActivity::render() const {
         renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT);
       }
 
+      constexpr int kIconSize = 40;
       const int textX = 70;
+      const int iconX = (textX - kIconSize) / 2;
       const int titleY = itemY + 10;
       const int descriptionY = itemY + 45;
 
       switch (i) {
         case 0:  // Join a Network
-          renderer.drawIcon(Wifi, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          renderer.drawIcon(Wifi, iconX, itemY + 25, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 1:  // Connect to Calibre
-          renderer.drawIcon(Calibre, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          renderer.drawIcon(Calibre, iconX, itemY + 25, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 2:  // Create Hotspot
-          renderer.drawIcon(Qr, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          renderer.drawIcon(Qr, iconX, itemY + 25, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 3:  // Bluetooth
-          renderer.drawIcon(Bluetooth, 20, itemY + 25, 40, 40, GfxRenderer::Rotate270CW, isSelected);
+          renderer.drawIcon(Bluetooth, iconX, itemY + 25, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       

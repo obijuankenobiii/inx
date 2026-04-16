@@ -106,7 +106,7 @@ void BootActivity::onEnter() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen(0xFF);
-  renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256, GfxRenderer::Rotate270CW);
+  renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
   
   const int barWidth = 150;
   const int barHeight = 10;
