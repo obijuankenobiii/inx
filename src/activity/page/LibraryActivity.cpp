@@ -989,7 +989,7 @@ void LibraryActivity::render() const {
   int containerWidth = screenWidth - 110;
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
-  if (headerSelected) renderer.fillRect(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT, GfxRenderer::FillTone::Gray);
+  if (headerSelected) renderer.fillRect(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT, GfxRenderer::FillTone::Ink);
 
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                     EpdFontFamily::BOLD);
@@ -1767,7 +1767,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
     int itemHeight = getItemHeight(item);
 
     if (isSelected) {
-      renderer.fillRect(0, drawY, screenWidth, itemHeight, GfxRenderer::FillTone::Gray);
+      renderer.fillRect(0, drawY, screenWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
     renderItemIcon(item, drawY, itemHeight, isSelected);

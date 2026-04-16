@@ -194,7 +194,7 @@ void KOReaderSettingsActivity::render() {
       bool isSelected = (i == selectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
+        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
       }
 
       // Calculate text Y position for perfect vertical centering

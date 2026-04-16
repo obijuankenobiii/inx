@@ -322,19 +322,19 @@ void KOReaderSyncActivity::render() {
 
     // Apply option
     if (selectedOption == 0) {
-      renderer.fillRect(0, optionY - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Gray);
+      renderer.fillRect(0, optionY - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
     }
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY, "Apply remote progress", selectedOption != 0);
 
     // Upload option
     if (selectedOption == 1) {
-      renderer.fillRect(0, optionY + optionHeight - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Gray);
+      renderer.fillRect(0, optionY + optionHeight - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
     }
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY + optionHeight, "Upload local progress", selectedOption != 1);
 
     // Cancel option
     if (selectedOption == 2) {
-      renderer.fillRect(0, optionY + optionHeight * 2 - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Gray);
+      renderer.fillRect(0, optionY + optionHeight * 2 - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
     }
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY + optionHeight * 2, "Cancel", selectedOption != 2);
 

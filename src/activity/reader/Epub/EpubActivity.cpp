@@ -274,6 +274,24 @@ void EpubActivity::setupOrientation() {
     default:
       break;
   }
+  // Landscape CW maps logical coordinates with a 180° flip vs the panel; swap directional inputs
+  // so physical up/down/left/right (and page keys) stay aligned with what is drawn.
+  mappedInput.setInvertDirectionalAxes180(renderer.getOrientation() == GfxRenderer::Orientation::LandscapeClockwise);
+}
+
+void EpubActivity::syncOrientationFromGlobalIfNeeded() {
+  if (!bookSettings.useCustomSettings) {
+    bookSettings.orientation = SystemSetting::getInstance().orientation;
+  }
+}
+
+void EpubActivity::onBookSettingsLiveLayoutSync() {
+  // Do not call setupOrientation() or relayout the menu while the book settings drawer is open;
+  // orientation and section rebuild run when the drawer closes (see isToggleClosed).
+  if (settingsDrawer) {
+    settingsDrawer->relayoutForRendererChange();
+  }
+  updateRequired = true;
 }
 
 /**
@@ -480,6 +498,7 @@ void EpubActivity::onEnter() {
   renderer.clearScreen(0xff);
   renderer.displayBuffer();
 
+  syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
@@ -498,6 +517,7 @@ void EpubActivity::onEnter() {
   }
   updateRequired = true;
   lastAutoPageTurnTime = millis();
+  bookLayoutAppliedOrientation_ = bookSettings.orientation;
 }
 
 /**
@@ -542,6 +562,7 @@ void EpubActivity::onExit() {
   }
 
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  mappedInput.setInvertDirectionalAxes180(false);
 
   APP_STATE.lastRead = epub->getPath();
   APP_STATE.saveToFile();
@@ -602,9 +623,18 @@ void EpubActivity::loop() {
 
   if (isToggleClosed) {
     isToggleClosed = false;
-    if (settingsDrawer && settingsDrawer->shouldUpdate()) {
+    syncOrientationFromGlobalIfNeeded();
+    const bool layoutNeedsRebuild =
+        (settingsDrawer && settingsDrawer->shouldUpdate()) ||
+        (bookSettings.orientation != bookLayoutAppliedOrientation_);
+    if (layoutNeedsRebuild) {
       applyBookSettings();
-      settingsDrawer->clearUpdateFlag();
+      if (settingsDrawer) {
+        settingsDrawer->clearUpdateFlag();
+      }
+    } else {
+      setupOrientation();
+      bookLayoutAppliedOrientation_ = bookSettings.orientation;
     }
     startPageTimer();
     return;
@@ -837,12 +867,14 @@ void EpubActivity::toggleMenuDrawer() {
  */
 void EpubActivity::toggleSettingsDrawer() {
   if (!settingsDrawer) {
-    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() {});
+    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
   }
 
   settingsDrawerVisible = !settingsDrawerVisible;
 
   if (settingsDrawerVisible) {
+    syncOrientationFromGlobalIfNeeded();
+    // Keep current renderer orientation until the drawer is dismissed; apply on close.
     settingsDrawer->show();
     return;
   }
@@ -1518,6 +1550,9 @@ void EpubActivity::applyBookSettings() {
     return;
   }
 
+  syncOrientationFromGlobalIfNeeded();
+  setupOrientation();
+
   ViewportInfo info = calculateViewport();
 
   int totalSpineItems = epub->getSpineItemsCount();
@@ -1561,6 +1596,7 @@ void EpubActivity::applyBookSettings() {
   currentSpineIndex = currentSpine;
   nextPageNumber = currentPage;
 
+  bookLayoutAppliedOrientation_ = bookSettings.orientation;
   updateRequired = true;
 }
 

@@ -147,7 +147,7 @@ void TableOfContentsActivity::renderScreen() {
         bool isSelected = (itemIndex == selectorIndex);
 
         if (isSelected) {
-            renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Gray);
+            renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
             Serial.printf("[DEBUG] rendering selected TOC item at index %d\n", itemIndex);
         }
 

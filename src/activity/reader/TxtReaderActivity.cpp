@@ -53,6 +53,8 @@ void TxtReaderActivity::onEnter() {
       break;
   }
 
+  mappedInput.setInvertDirectionalAxes180(renderer.getOrientation() == GfxRenderer::Orientation::LandscapeClockwise);
+
   renderingMutex = xSemaphoreCreateMutex();
 
   txt->setupCacheDir();
@@ -78,6 +80,7 @@ void TxtReaderActivity::onExit() {
 
   // Reset orientation back to portrait for the rest of the UI
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  mappedInput.setInvertDirectionalAxes180(false);
 
   // Wait until not rendering to delete task
   xSemaphoreTake(renderingMutex, portMAX_DELAY);

@@ -258,6 +258,13 @@ void CategorySettingsActivity::loop() {
     return;
   }
 
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    updateRequired = true;
+    return;
+  }
+
   const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
   const bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
@@ -405,7 +412,7 @@ void CategorySettingsActivity::render() {
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Gray);
+        renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
       }
 
       int textX = 15;
@@ -424,7 +431,7 @@ void CategorySettingsActivity::render() {
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Gray);
+      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
     int textX = 23;

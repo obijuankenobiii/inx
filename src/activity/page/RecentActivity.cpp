@@ -384,7 +384,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
 
   if (selected) {
     renderer.fillRect(0, itemY - ITEM_SPACING, LIST_ITEM_WIDTH, LIST_ITEM_HEIGHT + ITEM_SPACING,
-                      GfxRenderer::FillTone::Gray);
+                      GfxRenderer::FillTone::Ink);
   }
 
   int thumbX = LIST_START_X + 10;

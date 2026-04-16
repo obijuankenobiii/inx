@@ -61,7 +61,7 @@ class Menu {
       }
 
       if (isSelected) {
-        renderer.fillRect(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, GfxRenderer::FillTone::Gray);
+        renderer.fillRect(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, GfxRenderer::FillTone::Ink);
       }
 
       renderer.drawLine(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);

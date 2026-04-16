@@ -103,6 +103,8 @@ private:
     MenuDrawer* menuDrawer = nullptr;
     bool menuDrawerVisible = false;
     BookSettings bookSettings;
+    /** Last orientation value used for a full layout/section rebuild; used to detect drift after global sync. */
+    uint8_t bookLayoutAppliedOrientation_ = 0xFF;
     bool leftButtonLongPressProcessed = false;
 
     BookReadingStats bookStats;
@@ -263,6 +265,10 @@ private:
     std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info);
     
     void setupOrientation();
+    /** Copies device reading orientation into book settings when the book follows global defaults. */
+    void syncOrientationFromGlobalIfNeeded();
+    /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
+    void onBookSettingsLiveLayoutSync();
     void ensureThumbnailExists();
     void displayCoverOrTitle();
     void loadCurrentSection();

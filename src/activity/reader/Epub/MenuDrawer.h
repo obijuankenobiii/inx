@@ -109,13 +109,16 @@ public:
     /** Used for layout-aware bookmark drawer button labels (Up / Del). */
     void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
 
+    /** Recompute drawer geometry after renderer orientation or screen size changes. */
+    void relayoutForRendererChange();
+
 private:
     /**
      * @brief Renders the drawer with specified refresh mode
      * @param mode Display refresh mode
      */
     void renderWithRefresh();
-    
+
     /**
      * @brief Draws the background panel
      */
@@ -187,6 +190,11 @@ private:
     
     int drawerHeight;
     int drawerY;
+    /** Left edge and width of drawer panel (full width in portrait, right half in landscape). */
+    int drawerX = 0;
+    int drawerWidth = 0;
+    int tocDrawerX = 0;
+    int tocDrawerWidth = 0;
     int itemHeight;
     int itemsPerPage;
     int selectedIndex;
@@ -201,8 +209,12 @@ private:
     bool isFromToc = false;
     int tocSelectedIndex = 0;
     int tocScrollOffset = 0;
-    int tocDrawerHeight = 0;      // Height of TOC drawer (80% of screen)
+    int tocDrawerHeight = 0;      // Height of TOC drawer (80% of screen in portrait, full in landscape)
     int tocDrawerY = 0;           // Y position of TOC drawer
+
+    void syncLayoutFromRenderer();
+    void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
+    static bool isLandscapeDrawer(const GfxRenderer& gfx);
 
     std::vector<BookmarkNavItem> bookmarkEntries;
     int bookmarkSelectedIndex = 0;

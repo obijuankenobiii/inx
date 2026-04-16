@@ -187,13 +187,6 @@ void SettingsActivity::onExit() {
  * library indexing, and power button refresh functionality.
  */
 void SettingsActivity::loop() {
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer();
-    updateRequired = true;
-    return;
-  }
-
   if (showingAbout && aboutPage) {
     aboutPage->handleInput();
     if (aboutPage->isDismissed()) {
