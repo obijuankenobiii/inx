@@ -1,6 +1,7 @@
 #include "StatisticActivity.h"
 
 #include <Bitmap.h>
+#include <GfxRenderer.h>
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -41,6 +42,34 @@ constexpr int GRID_COLS = 2;
 constexpr int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
 constexpr int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int PROGRESS_BAR_HEIGHT = 10;
+
+/**
+ * Scales a thumb BMP to fit inside [boxX, boxY, boxW, boxH], centered, using drawSmallBitmapClean.
+ */
+static void drawThumbnailClean(GfxRenderer& gfx, const Bitmap& bitmap, int boxX, int boxY, int boxW, int boxH) {
+  const int bw = bitmap.getWidth();
+  const int bh = bitmap.getHeight();
+  if (bw <= 0 || bh <= 0) {
+    return;
+  }
+  float scaleX = 1.0f;
+  float scaleY = 1.0f;
+  bool needsScaling = false;
+  if (boxW > 0 && bw > boxW) {
+    scaleX = static_cast<float>(boxW) / static_cast<float>(bw);
+    needsScaling = true;
+  }
+  if (boxH > 0 && bh > boxH) {
+    scaleY = static_cast<float>(boxH) / static_cast<float>(bh);
+    needsScaling = true;
+  }
+  const float scale = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+  const int outW = std::max(1, static_cast<int>(static_cast<float>(bw) * scale + 0.5f));
+  const int outH = std::max(1, static_cast<int>(static_cast<float>(bh) * scale + 0.5f));
+  const int drawX = boxX + (boxW - outW) / 2;
+  const int drawY = boxY + (boxH - outH) / 2;
+  gfx.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+}
 
 }  // namespace
 
@@ -110,16 +139,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
-      int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
-
-      int drawX = x + (width - bw) / 2;
-      int drawY = y + (height - bh) / 2;
-
-      int scaledW = bw * 90 / 100;
-      int scaledH = bh * 90 / 100;
-
-      renderer.drawBitmap(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
+      drawThumbnailClean(renderer, bitmap, x, y, width, height);
       coverDrawn = true;
     }
     file.close();

@@ -77,6 +77,34 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
+/**
+ * Scales a thumb BMP to fit inside [boxX, boxY, boxW, boxH], centered, using drawSmallBitmapClean.
+ */
+static void drawThumbnailClean(GfxRenderer& gfx, const Bitmap& bitmap, int boxX, int boxY, int boxW, int boxH) {
+  const int bw = bitmap.getWidth();
+  const int bh = bitmap.getHeight();
+  if (bw <= 0 || bh <= 0) {
+    return;
+  }
+  float scaleX = 1.0f;
+  float scaleY = 1.0f;
+  bool needsScaling = false;
+  if (boxW > 0 && bw > boxW) {
+    scaleX = static_cast<float>(boxW) / static_cast<float>(bw);
+    needsScaling = true;
+  }
+  if (boxH > 0 && bh > boxH) {
+    scaleY = static_cast<float>(boxH) / static_cast<float>(bh);
+    needsScaling = true;
+  }
+  const float scale = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+  const int outW = std::max(1, static_cast<int>(static_cast<float>(bw) * scale + 0.5f));
+  const int outH = std::max(1, static_cast<int>(static_cast<float>(bh) * scale + 0.5f));
+  const int drawX = boxX + (boxW - outW) / 2;
+  const int drawY = boxY + (boxH - outH) / 2;
+  gfx.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+}
+
 constexpr unsigned long GO_HOME_MS = 1000;
 
 }  // namespace
@@ -239,15 +267,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth() > 225 ? containerWidth : bitmap.getWidth();
-        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
-
-        int scaledW = bw * 98 / 100;
-        int scaledH = bh * 98 / 100;
-
-        int drawX = coverAreaX + (containerWidth - scaledW) / 2;
-        int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
-        renderer.drawBitmap(bitmap, drawX, drawY, scaledW, scaledH);
+        drawThumbnailClean(renderer, bitmap, coverAreaX, coverAreaY + GRID_SPACING, containerWidth, coverHeight);
         coverDrawn = true;
       }
       file.close();
@@ -406,24 +426,12 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
     if (SdMan.openFileForRead("RECENT", smThumbPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bitmapWidth = bitmap.getWidth();
-        int bitmapHeight = bitmap.getHeight();
-        float bitmapRatio = static_cast<float>(bitmapWidth) / bitmapHeight;
-
-        int drawWidth = thumbWidth;
-        int drawHeight = static_cast<int>(drawWidth / bitmapRatio);
-
-        if (drawHeight > thumbHeight) {
-          drawHeight = thumbHeight;
-          drawWidth = static_cast<int>(drawHeight * bitmapRatio);
-        }
-
-        int drawX = thumbX + (thumbWidth - drawWidth) / 2;
-        int drawY = thumbY + (thumbHeight - drawHeight) / 2;
-
-        if (drawX >= 0 && drawX < renderer.getScreenWidth() && drawY >= 0 && drawY < renderer.getScreenHeight()) {
-          renderer.drawRect(drawX, drawY - 12, drawWidth, drawHeight);
-          renderer.drawBitmap(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
+        const int boxX = thumbX;
+        const int boxY = thumbY - 12;
+        if (boxX >= 0 && boxX + thumbWidth <= renderer.getScreenWidth() && boxY >= 0 &&
+            boxY + thumbHeight <= renderer.getScreenHeight()) {
+          renderer.drawRect(boxX, boxY, thumbWidth, thumbHeight);
+          drawThumbnailClean(renderer, bitmap, boxX, boxY, thumbWidth, thumbHeight);
           coverDrawn = true;
         }
       }
@@ -579,11 +587,7 @@ void RecentActivity::renderDefault() {
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
-        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
-        int drawX = coverAreaX + (coverWidth - bw) / 2;
-        int drawY = coverAreaY + (coverHeight - bh) / 2;
-        renderer.drawBitmap(bitmap, drawX, drawY, bw, bh);
+        drawThumbnailClean(renderer, bitmap, coverAreaX, coverAreaY, coverWidth, coverHeight);
         coverDrawn = true;
       }
       file.close();
@@ -1044,7 +1048,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          renderer.drawBitmap(bitmap, leftX, sideY, sideW, sideH);
+          drawThumbnailClean(renderer, bitmap, leftX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -1067,7 +1071,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          renderer.drawBitmap(bitmap, rightX, sideY, sideW, sideH);
+          drawThumbnailClean(renderer, bitmap, rightX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -1090,7 +1094,7 @@ void RecentActivity::renderFlow() {
     if (SdMan.openFileForRead("RECENT", path, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawBitmap(bitmap, centerX, centerY, centerW, centerH);
+        drawThumbnailClean(renderer, bitmap, centerX, centerY, centerW, centerH);
         centerDrawn = true;
       }
       file.close();
