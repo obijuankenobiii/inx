@@ -29,6 +29,23 @@ constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
+
+/**
+ * MAP_NONE adds L/R to Up/Down for paging. In landscape CCW, physical left = next page and right = previous;
+ * in landscape CW (and portrait), left = previous and right = next.
+ */
+void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orientation,
+                                            const MappedInputManager& mappedInput, bool& prev, bool& next) {
+  const bool leftReleased = mappedInput.wasReleased(MappedInputManager::Button::Left);
+  const bool rightReleased = mappedInput.wasReleased(MappedInputManager::Button::Right);
+  if (orientation == GfxRenderer::Orientation::LandscapeCounterClockwise) {
+    if (!prev) prev = rightReleased;
+    if (!next) next = leftReleased;
+  } else {
+    if (!prev) prev = leftReleased;
+    if (!next) next = rightReleased;
+  }
+}
 }  // namespace
 
 /**
@@ -288,10 +305,12 @@ void EpubActivity::syncOrientationFromGlobalIfNeeded() {
 void EpubActivity::onBookSettingsLiveLayoutSync() {
   // Do not call setupOrientation() or relayout the menu while the book settings drawer is open;
   // orientation and section rebuild run when the drawer closes (see isToggleClosed).
+  // Do not set updateRequired here: the display task's renderScreen() clears the framebuffer and
+  // redraws the page before the drawer, which makes the drawer flash on/off in landscape (CCW/CW)
+  // while changing values. The drawer already redraws via handleInput -> renderWithRefresh.
   if (settingsDrawer) {
     settingsDrawer->relayoutForRendererChange();
   }
-  updateRequired = true;
 }
 
 /**
@@ -654,8 +673,7 @@ void EpubActivity::loop() {
       prev = mappedInput.wasReleased(MappedInputManager::Button::Up);
       next = mappedInput.wasReleased(MappedInputManager::Button::Down);
 
-      if (!prev) prev = mappedInput.wasReleased(MappedInputManager::Button::Left);
-      if (!next) next = mappedInput.wasReleased(MappedInputManager::Button::Right);
+      addMapNoneLandscapeLeftRightForPageTurn(renderer.getOrientation(), mappedInput, prev, next);
 
     } else {
       switch (SETTINGS.readerDirectionMapping) {
