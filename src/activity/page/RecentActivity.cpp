@@ -77,34 +77,6 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-/**
- * Scales a thumb BMP to fit inside [boxX, boxY, boxW, boxH], centered, using drawSmallBitmapClean.
- */
-static void drawThumbnailClean(GfxRenderer& gfx, const Bitmap& bitmap, int boxX, int boxY, int boxW, int boxH) {
-  const int bw = bitmap.getWidth();
-  const int bh = bitmap.getHeight();
-  if (bw <= 0 || bh <= 0) {
-    return;
-  }
-  float scaleX = 1.0f;
-  float scaleY = 1.0f;
-  bool needsScaling = false;
-  if (boxW > 0 && bw > boxW) {
-    scaleX = static_cast<float>(boxW) / static_cast<float>(bw);
-    needsScaling = true;
-  }
-  if (boxH > 0 && bh > boxH) {
-    scaleY = static_cast<float>(boxH) / static_cast<float>(bh);
-    needsScaling = true;
-  }
-  const float scale = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
-  const int outW = std::max(1, static_cast<int>(static_cast<float>(bw) * scale + 0.5f));
-  const int outH = std::max(1, static_cast<int>(static_cast<float>(bh) * scale + 0.5f));
-  const int drawX = boxX + (boxW - outW) / 2;
-  const int drawY = boxY + (boxH - outH) / 2;
-  gfx.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
-}
-
 constexpr unsigned long GO_HOME_MS = 1000;
 
 }  // namespace
@@ -267,7 +239,31 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        drawThumbnailClean(renderer, bitmap, coverAreaX, coverAreaY + GRID_SPACING, containerWidth, coverHeight);
+        const int boxX = coverAreaX;
+        const int boxY = coverAreaY + GRID_SPACING;
+        const int boxW = containerWidth;
+        const int boxH = coverHeight;
+        const int iw = bitmap.getWidth();
+        const int ih = bitmap.getHeight();
+        if (iw > 0 && ih > 0) {
+          float scaleX = 1.0f;
+          float scaleY = 1.0f;
+          bool needsScaling = false;
+          if (boxW > 0 && iw > boxW) {
+            scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+            needsScaling = true;
+          }
+          if (boxH > 0 && ih > boxH) {
+            scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+            needsScaling = true;
+          }
+          const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+          const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+          const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+          const int drawX = boxX + (boxW - outW) / 2;
+          const int drawY = boxY + (boxH - outH) / 2;
+          renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+        }
         coverDrawn = true;
       }
       file.close();
@@ -431,7 +427,27 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
         if (boxX >= 0 && boxX + thumbWidth <= renderer.getScreenWidth() && boxY >= 0 &&
             boxY + thumbHeight <= renderer.getScreenHeight()) {
           renderer.drawRect(boxX, boxY, thumbWidth, thumbHeight);
-          drawThumbnailClean(renderer, bitmap, boxX, boxY, thumbWidth, thumbHeight);
+          const int iw = bitmap.getWidth();
+          const int ih = bitmap.getHeight();
+          if (iw > 0 && ih > 0) {
+            float scaleX = 1.0f;
+            float scaleY = 1.0f;
+            bool needsScaling = false;
+            if (thumbWidth > 0 && iw > thumbWidth) {
+              scaleX = static_cast<float>(thumbWidth) / static_cast<float>(iw);
+              needsScaling = true;
+            }
+            if (thumbHeight > 0 && ih > thumbHeight) {
+              scaleY = static_cast<float>(thumbHeight) / static_cast<float>(ih);
+              needsScaling = true;
+            }
+            const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+            const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+            const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+            const int drawX = boxX + (thumbWidth - outW) / 2;
+            const int drawY = boxY + (thumbHeight - outH) / 2;
+            renderer.drawSmallBitmapClean(bitmap, drawX, drawY, thumbWidth, thumbHeight);
+          }
           coverDrawn = true;
         }
       }
@@ -587,7 +603,29 @@ void RecentActivity::renderDefault() {
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        drawThumbnailClean(renderer, bitmap, coverAreaX, coverAreaY, coverWidth, coverHeight);
+        const int boxW = coverWidth;
+        const int boxH = coverHeight;
+        const int iw = bitmap.getWidth();
+        const int ih = bitmap.getHeight();
+        if (iw > 0 && ih > 0) {
+          float scaleX = 1.0f;
+          float scaleY = 1.0f;
+          bool needsScaling = false;
+          if (boxW > 0 && iw > boxW) {
+            scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+            needsScaling = true;
+          }
+          if (boxH > 0 && ih > boxH) {
+            scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+            needsScaling = true;
+          }
+          const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+          const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+          const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+          const int drawX = coverAreaX + (boxW - outW) / 2;
+          const int drawY = coverAreaY + (boxH - outH) / 2;
+          renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+        }
         coverDrawn = true;
       }
       file.close();
@@ -1048,7 +1086,31 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          drawThumbnailClean(renderer, bitmap, leftX, sideY, sideW, sideH);
+          const int boxX = leftX;
+          const int boxY = sideY;
+          const int boxW = sideW;
+          const int boxH = sideH;
+          const int iw = bitmap.getWidth();
+          const int ih = bitmap.getHeight();
+          if (iw > 0 && ih > 0) {
+            float scaleX = 1.0f;
+            float scaleY = 1.0f;
+            bool needsScaling = false;
+            if (boxW > 0 && iw > boxW) {
+              scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+              needsScaling = true;
+            }
+            if (boxH > 0 && ih > boxH) {
+              scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+              needsScaling = true;
+            }
+            const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+            const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+            const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+            const int drawX = boxX + (boxW - outW) / 2;
+            const int drawY = boxY + (boxH - outH) / 2;
+            renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+          }
           drawn = true;
         }
         file.close();
@@ -1071,7 +1133,31 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          drawThumbnailClean(renderer, bitmap, rightX, sideY, sideW, sideH);
+          const int boxX = rightX;
+          const int boxY = sideY;
+          const int boxW = sideW;
+          const int boxH = sideH;
+          const int iw = bitmap.getWidth();
+          const int ih = bitmap.getHeight();
+          if (iw > 0 && ih > 0) {
+            float scaleX = 1.0f;
+            float scaleY = 1.0f;
+            bool needsScaling = false;
+            if (boxW > 0 && iw > boxW) {
+              scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+              needsScaling = true;
+            }
+            if (boxH > 0 && ih > boxH) {
+              scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+              needsScaling = true;
+            }
+            const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+            const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+            const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+            const int drawX = boxX + (boxW - outW) / 2;
+            const int drawY = boxY + (boxH - outH) / 2;
+            renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+          }
           drawn = true;
         }
         file.close();
@@ -1094,7 +1180,31 @@ void RecentActivity::renderFlow() {
     if (SdMan.openFileForRead("RECENT", path, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        drawThumbnailClean(renderer, bitmap, centerX, centerY, centerW, centerH);
+        const int boxX = centerX;
+        const int boxY = centerY;
+        const int boxW = centerW;
+        const int boxH = centerH;
+        const int iw = bitmap.getWidth();
+        const int ih = bitmap.getHeight();
+        if (iw > 0 && ih > 0) {
+          float scaleX = 1.0f;
+          float scaleY = 1.0f;
+          bool needsScaling = false;
+          if (boxW > 0 && iw > boxW) {
+            scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+            needsScaling = true;
+          }
+          if (boxH > 0 && ih > boxH) {
+            scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+            needsScaling = true;
+          }
+          const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+          const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+          const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+          const int drawX = boxX + (boxW - outW) / 2;
+          const int drawY = boxY + (boxH - outH) / 2;
+          renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+        }
         centerDrawn = true;
       }
       file.close();

@@ -43,34 +43,6 @@ constexpr int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
 constexpr int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int PROGRESS_BAR_HEIGHT = 10;
 
-/**
- * Scales a thumb BMP to fit inside [boxX, boxY, boxW, boxH], centered, using drawSmallBitmapClean.
- */
-static void drawThumbnailClean(GfxRenderer& gfx, const Bitmap& bitmap, int boxX, int boxY, int boxW, int boxH) {
-  const int bw = bitmap.getWidth();
-  const int bh = bitmap.getHeight();
-  if (bw <= 0 || bh <= 0) {
-    return;
-  }
-  float scaleX = 1.0f;
-  float scaleY = 1.0f;
-  bool needsScaling = false;
-  if (boxW > 0 && bw > boxW) {
-    scaleX = static_cast<float>(boxW) / static_cast<float>(bw);
-    needsScaling = true;
-  }
-  if (boxH > 0 && bh > boxH) {
-    scaleY = static_cast<float>(boxH) / static_cast<float>(bh);
-    needsScaling = true;
-  }
-  const float scale = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
-  const int outW = std::max(1, static_cast<int>(static_cast<float>(bw) * scale + 0.5f));
-  const int outH = std::max(1, static_cast<int>(static_cast<float>(bh) * scale + 0.5f));
-  const int drawX = boxX + (boxW - outW) / 2;
-  const int drawY = boxY + (boxH - outH) / 2;
-  gfx.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
-}
-
 }  // namespace
 
 /**
@@ -139,7 +111,31 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      drawThumbnailClean(renderer, bitmap, x, y, width, height);
+      const int boxX = x;
+      const int boxY = y;
+      const int boxW = width;
+      const int boxH = height;
+      const int iw = bitmap.getWidth();
+      const int ih = bitmap.getHeight();
+      if (iw > 0 && ih > 0) {
+        float scaleX = 1.0f;
+        float scaleY = 1.0f;
+        bool needsScaling = false;
+        if (boxW > 0 && iw > boxW) {
+          scaleX = static_cast<float>(boxW) / static_cast<float>(iw);
+          needsScaling = true;
+        }
+        if (boxH > 0 && ih > boxH) {
+          scaleY = static_cast<float>(boxH) / static_cast<float>(ih);
+          needsScaling = true;
+        }
+        const float sc = needsScaling ? std::min(scaleX, scaleY) : 1.0f;
+        const int outW = std::max(1, static_cast<int>(static_cast<float>(iw) * sc + 0.5f));
+        const int outH = std::max(1, static_cast<int>(static_cast<float>(ih) * sc + 0.5f));
+        const int drawX = boxX + (boxW - outW) / 2;
+        const int drawY = boxY + (boxH - outH) / 2;
+        renderer.drawSmallBitmapClean(bitmap, drawX, drawY, boxW, boxH);
+      }
       coverDrawn = true;
     }
     file.close();
