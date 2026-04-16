@@ -64,7 +64,10 @@ class MutexGuard {
 // Timing constants
 constexpr unsigned long GO_HOME_MS = 1000;
 constexpr unsigned long FAVORITE_HOLD_MS = 500;
-constexpr unsigned long PAGE_NAV_HOLD_MS = 500;
+/** First repeat delay after Down/Up press while browsing the list */
+constexpr unsigned long LIB_LIST_REPEAT_INITIAL_MS = 420;
+/** Repeat interval while Down/Up held */
+constexpr unsigned long LIB_LIST_REPEAT_RATE_MS = 95;
 
 }  // namespace
 
@@ -1044,6 +1047,8 @@ void LibraryActivity::resetNavigation() {
   isHeaderButtonSelected = false;
   isSortButtonSelected = false;
   listScrollOffset = 0;
+  libraryListDownNextMs = 0;
+  libraryListUpNextMs = 0;
 }
 
 /**
@@ -1151,10 +1156,37 @@ void LibraryActivity::loop() {
   std::vector<LibraryItem>& currentList = currentPageItems;
   const int itemCount = static_cast<int>(currentList.size());
 
-  const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
-  const bool upReleased = Activity::mappedInput.wasReleased(MappedInputManager::Button::Up);
-  const bool downReleased = Activity::mappedInput.wasReleased(MappedInputManager::Button::Down);
+  bool wantDownStep = false;
+  bool wantUpStep = false;
+  if (tabSelectorIndex == 1) {
+    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+      wantDownStep = true;
+      libraryListDownNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
+    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Down)) {
+      if (libraryListDownNextMs != 0 && millis() >= libraryListDownNextMs) {
+        wantDownStep = true;
+        libraryListDownNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
+      }
+    } else {
+      libraryListDownNextMs = 0;
+    }
+
+    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+      wantUpStep = true;
+      libraryListUpNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
+    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Up)) {
+      if (libraryListUpNextMs != 0 && millis() >= libraryListUpNextMs) {
+        wantUpStep = true;
+        libraryListUpNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
+      }
+    } else {
+      libraryListUpNextMs = 0;
+    }
+  } else {
+    libraryListDownNextMs = 0;
+    libraryListUpNextMs = 0;
+  }
+
   const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
   const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
   const bool confirmPressed = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
@@ -1165,22 +1197,10 @@ void LibraryActivity::loop() {
 
   // Handle page navigation
   if (tabSelectorIndex == 1 && !isHeaderButtonSelected && !isSortButtonSelected) {
-    pageChanged = handlePageNavigation(upReleased, downReleased, itemCount);
+    pageChanged = handlePageNavigation(wantUpStep, wantDownStep, itemCount);
     if (pageChanged) {
       return;
     }
-  }
-
-  // Handle long press up for previous page
-  if (upReleased && holdTime >= PAGE_NAV_HOLD_MS && currentPage > 0) {
-    goToPreviousPage();
-    return;
-  }
-  
-  // Handle long press down for next page
-  if (downReleased && holdTime >= PAGE_NAV_HOLD_MS && currentPage < totalPages - 1) {
-    goToNextPage();
-    return;
   }
 
   // Handle long press for favorite marking
@@ -1207,7 +1227,7 @@ void LibraryActivity::loop() {
   if (tabSelectorIndex != 1) return;
 
   // Handle selection navigation
-  handleSelectionNavigation(upReleased, downReleased, itemCount);
+  handleSelectionNavigation(wantUpStep, wantDownStep, itemCount);
   handleButtonSelectionNavigation(leftPressed, rightPressed);
 
   // Handle confirm action
@@ -1224,16 +1244,20 @@ void LibraryActivity::loop() {
 
 /**
  * @brief Handle page up/down navigation
- * @param upPressed Whether up button was pressed
- * @param downPressed Whether down button was pressed
+ * @param wantUpStep One list-level up step (press or hold repeat)
+ * @param wantDownStep One list-level down step (press or hold repeat)
  * @param itemCount Number of items in current list
  * @return true if page was changed
  */
-bool LibraryActivity::handlePageNavigation(bool upPressed, bool downPressed, int itemCount) {
+bool LibraryActivity::handlePageNavigation(bool wantUpStep, bool wantDownStep, int itemCount) {
+  if (itemCount <= 0) {
+    return false;
+  }
+
   // Auto page down when reaching bottom of list
   if (currentPage < totalPages - 1) {
     int pageChangeThreshold = itemCount - 1;
-    if (selectorIndex >= pageChangeThreshold && downPressed) {
+    if (selectorIndex >= pageChangeThreshold && wantDownStep) {
       goToNextPage();
       return true;
     }
@@ -1242,17 +1266,17 @@ bool LibraryActivity::handlePageNavigation(bool upPressed, bool downPressed, int
   // Auto page up when reaching top of list
   if (currentPage > 0) {
     int pageChangeThreshold = 1;
-    if (selectorIndex <= pageChangeThreshold && upPressed) {
+    if (selectorIndex <= pageChangeThreshold && wantUpStep) {
       goToPreviousPage();
       return true;
     }
   }
 
-  if (selectorIndex == 0 && upPressed && currentPage > 0) {
+  if (selectorIndex == 0 && wantUpStep && currentPage > 0) {
     goToPreviousPage();
     return true;
   }
-  
+
   return false;
 }
 
@@ -1285,12 +1309,12 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
 
 /**
  * @brief Handle selection navigation (up/down) in the list
- * @param upPressed Whether up button was pressed
- * @param downPressed Whether down button was pressed
+ * @param wantUpStep One list-level up step (press or hold repeat)
+ * @param wantDownStep One list-level down step (press or hold repeat)
  * @param itemCount Number of items in current list
  */
-void LibraryActivity::handleSelectionNavigation(bool upPressed, bool downPressed, int itemCount) {
-  if (downPressed) {
+void LibraryActivity::handleSelectionNavigation(bool wantUpStep, bool wantDownStep, int itemCount) {
+  if (wantDownStep) {
     if (isHeaderButtonSelected) {
       isHeaderButtonSelected = false;
       isSortButtonSelected = true;
@@ -1315,7 +1339,7 @@ void LibraryActivity::handleSelectionNavigation(bool upPressed, bool downPressed
     return;
   }
 
-  if (upPressed) {
+  if (wantUpStep) {
     if (selectorIndex == 0) {
       selectorIndex = -1;
       isSortButtonSelected = true;

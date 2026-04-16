@@ -112,10 +112,17 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
 }
 
 void GfxRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) const {
+  const int maxX = getScreenWidth() - 1;
+  const int maxY = getScreenHeight() - 1;
+
   if (x1 == x2) {
     if (y2 < y1) {
       std::swap(y1, y2);
     }
+    if (x1 < 0 || x1 > maxX) return;
+    y1 = std::max(0, y1);
+    y2 = std::min(y2, maxY);
+    if (y1 > y2) return;
     for (int y = y1; y <= y2; y++) {
       drawPixel(x1, y, state);
     }
@@ -123,6 +130,10 @@ void GfxRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) con
     if (x2 < x1) {
       std::swap(x1, x2);
     }
+    if (y1 < 0 || y1 > maxY) return;
+    x1 = std::max(0, x1);
+    x2 = std::min(x2, maxX);
+    if (x1 > x2) return;
     for (int x = x1; x <= x2; x++) {
       drawPixel(x, y1, state);
     }

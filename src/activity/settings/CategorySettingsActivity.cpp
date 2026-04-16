@@ -56,6 +56,25 @@ void CategorySettingsActivity::onExit() {
   }
 }
 
+void CategorySettingsActivity::navigateToSelectedMenu() {
+  if (tabSelectorIndex == 0 && onTabRecent) {
+    onTabRecent();
+    return;
+  }
+  if (tabSelectorIndex == 1 && onTabLibrary) {
+    onTabLibrary();
+    return;
+  }
+  if (tabSelectorIndex == 3 && onTabSync) {
+    onTabSync();
+    return;
+  }
+  if (tabSelectorIndex == 4 && onTabStatistics) {
+    onTabStatistics();
+    return;
+  }
+}
+
 /**
  * @brief Toggles expansion state of a group
  */
@@ -216,9 +235,10 @@ void CategorySettingsActivity::setupMenu() {
 void CategorySettingsActivity::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= (int)menuItems.size()) return;
   const auto& selected = menuItems[selectedIndex];
-  if (selected.type != SettingType::SEPARATOR) {
-    selected.change(delta);
-  }
+  if (selected.type == SettingType::SEPARATOR) return;
+  /* Left/Right must not fire ACTION rows (would open About/OTA/etc. accidentally). */
+  if (selected.type == SettingType::ACTION) return;
+  selected.change(delta);
 }
 
 /**
@@ -247,6 +267,9 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
+    /* Landed on Settings tab: consume this press so list left/right does not run too. */
+    updateRequired = true;
+    return;
   }
 
   if (rightPressed) {
@@ -258,6 +281,8 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
+    updateRequired = true;
+    return;
   }
 
   if (backPressed) {
@@ -294,6 +319,9 @@ void CategorySettingsActivity::loop() {
       const auto& selected = menuItems[selectedIndex];
       if (selected.type == SettingType::SEPARATOR) {
         toggleGroup(selected.group);
+        needRedraw = true;
+      } else if (selected.type == SettingType::ACTION) {
+        selected.change(0);
         needRedraw = true;
       } else {
         applyChange(1);

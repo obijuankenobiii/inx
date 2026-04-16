@@ -64,8 +64,8 @@ void printMemoryInfo() {
   // Total heap (what's available total)
   Serial.printf("Total heap: %d bytes (%d KB)\n", ESP.getHeapSize(), ESP.getHeapSize() / 1024);
 
-  // Minimum free heap ever (shows worst-case)
-  Serial.printf("Min free heap: %d bytes (%d KB)\n", ESP.getMinFreeHeap(), ESP.getMinFreeHeap() / 1024);
+  // Lifetime low watermark since boot (does not go back up when memory is freed)
+  Serial.printf("Min free heap (since boot): %d bytes (%d KB)\n", ESP.getMinFreeHeap(), ESP.getMinFreeHeap() / 1024);
 
   // Largest contiguous block (critical for large allocations)
   Serial.printf("Largest free block: %d bytes (%d KB)\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
@@ -174,7 +174,8 @@ void onGoToFileTransfer() {
  * @brief Navigates to the settings activity.
  */
 void onGoToSettings() {
-  switchTo<SettingsActivity>(render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer);
+  switchTo<SettingsActivity>(render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer,
+                             onGoToStatistics);
 }
 
 /**

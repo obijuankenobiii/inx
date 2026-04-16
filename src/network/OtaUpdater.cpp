@@ -1,17 +1,25 @@
 #include "OtaUpdater.h"
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
+#include "esp_task_wdt.h"
 #include "esp_wifi.h"
 
 namespace {
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
 
-/* This is buffer and size holder to keep upcoming data from latestReleaseUrl */
-char* local_buf;
-int output_len;
+/* One contiguous slab for the release JSON, grabbed before TLS — after esp_http_client_perform the
+ * heap is often fragmented (largest free block < 4KB) so growing the body with realloc fails. */
+constexpr size_t kReleaseJsonPreallocSizes[] = {20 * 1024, 16 * 1024, 12 * 1024, 10 * 1024, 8192, 6144};
+
+/* Response body buffer for latestReleaseUrl (GitHub uses chunked encoding). */
+char* local_buf = nullptr;
+int output_len = 0;
+size_t local_buf_cap = 0;
 
 /*
  * When esp_crt_bundle.h included, it is pointing wrong header file
@@ -27,32 +35,54 @@ esp_err_t http_client_set_header_cb(esp_http_client_handle_t http_client) {
 }
 
 esp_err_t event_handler(esp_http_client_event_t* event) {
-  /* We do interested in only HTTP_EVENT_ON_DATA event only */
   if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;
+  if (event->data == nullptr || event->data_len <= 0) return ESP_OK;
 
-  if (!esp_http_client_is_chunked_response(event->client)) {
-    int content_len = esp_http_client_get_content_length(event->client);
-    int copy_len = 0;
+  const int chunk = event->data_len;
+  const size_t need = static_cast<size_t>(output_len) + static_cast<size_t>(chunk) + 1;
 
-    if (local_buf == NULL) {
-      /* local_buf life span is tracked by caller checkForUpdate */
-      local_buf = static_cast<char*>(calloc(content_len + 1, sizeof(char)));
-      output_len = 0;
-      if (local_buf == NULL) {
-        Serial.printf("[%lu] [OTA] HTTP Client Out of Memory Failed, Allocation %d\n", millis(), content_len);
-        return ESP_ERR_NO_MEM;
-      }
+  if (local_buf == nullptr) {
+    const int content_len = esp_http_client_get_content_length(event->client);
+    const bool chunked = esp_http_client_is_chunked_response(event->client);
+    if (!chunked && content_len > 0) {
+      local_buf_cap = static_cast<size_t>(content_len) + 1;
+      local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
+    } else {
+      /* Chunked or unknown length: do not preallocate 8K — right after Wi‑Fi/TLS, heap is
+       * often fragmented; a large first calloc fails while smaller blocks succeed. */
+      local_buf_cap = need;
+      local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     }
-    copy_len = min(event->data_len, (content_len - output_len));
-    if (copy_len) {
-      memcpy(local_buf + output_len, event->data, copy_len);
+    if (local_buf == nullptr) {
+      Serial.printf("[%lu] [OTA] HTTP body buffer alloc failed (cap %u for need %u)\n", millis(),
+                    static_cast<unsigned>(local_buf_cap), static_cast<unsigned>(need));
+      return ESP_ERR_NO_MEM;
     }
-    output_len += copy_len;
-  } else {
-    /* Code might be hits here, It happened once (for version checking) but I need more logs to handle that */
-    int chunked_len;
-    esp_http_client_get_chunk_length(event->client, &chunked_len);
-    Serial.printf("[%lu] [OTA] esp_http_client_is_chunked_response failed, chunked_len: %d\n", millis(), chunked_len);
+    output_len = 0;
+  }
+
+  if (need > local_buf_cap) {
+    /* Grow to exact `need` only. Doubling (e.g. max(need, cap*2)) asks for more RAM than the JSON
+     * needs; under Wi‑Fi/TLS that extra contiguous block often fails while `need` still fits. */
+    const size_t ncap = need;
+    char* nb = static_cast<char*>(realloc(local_buf, ncap));
+    if (nb == nullptr) {
+      Serial.printf("[%lu] [OTA] HTTP body buffer realloc failed (cap %u need %u free %u largest %u)\n", millis(),
+                    static_cast<unsigned>(ncap), static_cast<unsigned>(need),
+                    static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      return ESP_ERR_NO_MEM;
+    }
+    local_buf = nb;
+    local_buf_cap = ncap;
+  }
+
+  memcpy(local_buf + output_len, event->data, static_cast<size_t>(chunk));
+  output_len += chunk;
+  local_buf[output_len] = '\0';
+
+  if (output_len % 4096 < chunk) {
+    esp_task_wdt_reset();
   }
 
   return ESP_OK;
@@ -64,16 +94,40 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   esp_err_t esp_err;
   JsonDocument doc;
 
-  esp_http_client_config_t client_config = {
-      .url = latestReleaseUrl,
-      .event_handler = event_handler,
-      /* Default HTTP client buffer size 512 byte only */
-      .buffer_size = 8192,
-      .buffer_size_tx = 8192,
-      .skip_cert_common_name_check = true,
-      .crt_bundle_attach = esp_crt_bundle_attach,
-      .keep_alive_enable = true,
-  };
+  /* Smaller TLS/HTTP buffers than install path: GitHub JSON check runs when heap is
+   * tight (e.g. right after WiFi + display); large buffers make mbedtls_ssl_setup fail
+   * with MBEDTLS_ERR_SSL_ALLOC_FAILED (-0x7F00). */
+  esp_http_client_config_t client_config = {};
+  client_config.url = latestReleaseUrl;
+  client_config.event_handler = event_handler;
+  client_config.buffer_size = 4096;
+  client_config.buffer_size_tx = 2048;
+  client_config.timeout_ms = 25000;
+  client_config.skip_cert_common_name_check = true;
+  client_config.crt_bundle_attach = esp_crt_bundle_attach;
+  client_config.keep_alive_enable = false;
+
+  /* Reset body buffer state (in case a prior check aborted). */
+  if (local_buf != nullptr) {
+    free(local_buf);
+    local_buf = nullptr;
+  }
+  output_len = 0;
+  local_buf_cap = 0;
+
+  /* Reserve the JSON body before esp_http_client_init / TLS — avoids realloc during ON_DATA when
+   * largest free block is too small (e.g. need 4227, largest 2548). */
+  for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
+    void* p = calloc(tryBytes, 1);
+    if (p != nullptr) {
+      local_buf = static_cast<char*>(p);
+      local_buf_cap = tryBytes;
+      Serial.printf("[%lu] [OTA] HTTP body prealloc %u bytes (free %u largest %u)\n", millis(),
+                    static_cast<unsigned>(tryBytes), static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      break;
+    }
+  }
 
   /* To track life time of local_buf, dtor will be called on exit from that function */
   struct localBufCleaner {
@@ -81,8 +135,10 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     ~localBufCleaner() {
       if (*bufPtr) {
         free(*bufPtr);
-        *bufPtr = NULL;
+        *bufPtr = nullptr;
       }
+      output_len = 0;
+      local_buf_cap = 0;
     }
   } localBufCleaner = {&local_buf};
 
@@ -99,7 +155,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     return INTERNAL_UPDATE_ERROR;
   }
 
+  /* HTTP can block for a long time; reset task WDT so the main loop task is not reset mid-request. */
+  esp_task_wdt_reset();
+
   esp_err = esp_http_client_perform(client_handle);
+
+  esp_task_wdt_reset();
   if (esp_err != ESP_OK) {
     Serial.printf("[%lu] [OTA] esp_http_client_perform Failed : %s\n", millis(), esp_err_to_name(esp_err));
     esp_http_client_cleanup(client_handle);
@@ -117,6 +178,11 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   filter["assets"][0]["name"] = true;
   filter["assets"][0]["browser_download_url"] = true;
   filter["assets"][0]["size"] = true;
+  if (local_buf == nullptr || output_len <= 0) {
+    Serial.printf("[%lu] [OTA] Empty HTTP body (len=%d)\n", millis(), output_len);
+    return HTTP_ERROR;
+  }
+
   const DeserializationError error = deserializeJson(doc, local_buf, DeserializationOption::Filter(filter));
   if (error) {
     Serial.printf("[%lu] [OTA] JSON parse failed: %s\n", millis(), error.c_str());
@@ -200,24 +266,18 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   /* Signal for OtaUpdateActivity */
   render = false;
 
-  esp_http_client_config_t client_config = {
-      .url = otaUrl.c_str(),
-      .timeout_ms = 15000,
-      /* Default HTTP client buffer size 512 byte only
-       * not sufficent to handle URL redirection cases or
-       * parsing of large HTTP headers.
-       */
-      .buffer_size = 8192,
-      .buffer_size_tx = 8192,
-      .skip_cert_common_name_check = true,
-      .crt_bundle_attach = esp_crt_bundle_attach,
-      .keep_alive_enable = true,
-  };
+  esp_http_client_config_t client_config = {};
+  client_config.url = otaUrl.c_str();
+  client_config.timeout_ms = 15000;
+  client_config.buffer_size = 8192;
+  client_config.buffer_size_tx = 8192;
+  client_config.skip_cert_common_name_check = true;
+  client_config.crt_bundle_attach = esp_crt_bundle_attach;
+  client_config.keep_alive_enable = true;
 
-  esp_https_ota_config_t ota_config = {
-      .http_config = &client_config,
-      .http_client_init_cb = http_client_set_header_cb,
-  };
+  esp_https_ota_config_t ota_config = {};
+  ota_config.http_config = &client_config;
+  ota_config.http_client_init_cb = http_client_set_header_cb;
 
   /* For better timing and connectivity, we disable power saving for WiFi */
   esp_wifi_set_ps(WIFI_PS_NONE);

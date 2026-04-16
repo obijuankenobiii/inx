@@ -3,6 +3,8 @@
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
+#include <string>
+
 #include "system/MappedInputManager.h"
 #include "activity/network/WifiSelectionActivity.h"
 #include "system/Fonts.h"
@@ -28,7 +30,10 @@ void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
   state = CHECKING_FOR_UPDATE;
   xSemaphoreGive(renderingMutex);
   updateRequired = true;
-  vTaskDelay(10 / portTICK_PERIOD_MS);
+  vTaskDelay(pdMS_TO_TICKS(450));
+  Serial.printf("[%lu] [OTA] free heap before update check: %u bytes\n", millis(),
+                static_cast<unsigned>(ESP.getFreeHeap()));
+
   const auto res = updater.checkForUpdate();
   if (res != OtaUpdater::OK) {
     Serial.printf("[%lu] [OTA] Update check failed: %d\n", millis(), res);
@@ -109,81 +114,127 @@ void OtaUpdateActivity::displayTaskLoop() {
 
 void OtaUpdateActivity::render() {
   if (subActivity) {
-    // Subactivity handles its own rendering
     return;
   }
 
   float updaterProgress = 0;
-  if (state == UPDATE_IN_PROGRESS) {
-    Serial.printf("[%lu] [OTA] Update progress: %d / %d\n", millis(), updater.getProcessedSize(),
-                  updater.getTotalSize());
+  if (state == UPDATE_IN_PROGRESS && updater.getTotalSize() > 0) {
     updaterProgress = static_cast<float>(updater.getProcessedSize()) / static_cast<float>(updater.getTotalSize());
-    // Only update every 2% at the most
-    if (static_cast<int>(updaterProgress * 50) == lastUpdaterPercentage / 2) {
-      return;
-    }
-    lastUpdaterPercentage = static_cast<int>(updaterProgress * 100);
   }
-
-  const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
+  renderTabBar(renderer);
 
-  if (state == CHECKING_FOR_UPDATE) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, "Checking for update...", true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
-    return;
+  const int pageWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  const int startY = TAB_BAR_HEIGHT;
+  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerY = startY;
+
+  const char* headerText = "Update";
+  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+
+  const char* subtitleText = "";
+  switch (state) {
+    case WIFI_SELECTION:
+      subtitleText = "Select Wi-Fi to continue";
+      break;
+    case CHECKING_FOR_UPDATE:
+      subtitleText = "Checking for update...";
+      break;
+    case WAITING_CONFIRMATION:
+      subtitleText = "New update available!";
+      break;
+    case UPDATE_IN_PROGRESS:
+      subtitleText = "Downloading firmware...";
+      break;
+    case NO_UPDATE:
+      subtitleText = "No update available";
+      break;
+    case FAILED:
+      subtitleText = "Update failed";
+      break;
+    case FINISHED:
+    case SHUTTING_DOWN:
+      subtitleText = "Update complete";
+      break;
   }
 
-  if (state == WAITING_CONFIRMATION) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 200, "New update available!", true, EpdFontFamily::BOLD);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 250, "Current Version: " INX_VERSION);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 270, ("New Version: " + updater.getLatestVersion()).c_str());
+  int subtitleY = headerY + 40;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true, EpdFontFamily::REGULAR);
 
+  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.drawLine(0, dividerY, pageWidth, dividerY);
+
+  const int bodyTop = dividerY + 16;
+
+  if (state == WIFI_SELECTION) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Choose a network above.", true,
+                              EpdFontFamily::REGULAR);
+    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == CHECKING_FOR_UPDATE) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "This may take a moment.", true,
+                              EpdFontFamily::REGULAR);
+  } else if (state == WAITING_CONFIRMATION) {
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop, "Current Version: " INX_VERSION, true,
+                      EpdFontFamily::REGULAR);
+    const std::string newVer = "New Version: " + updater.getLatestVersion();
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28, newVer.c_str(), true, EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
     renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-    renderer.displayBuffer();
-    return;
-  }
-
-  if (state == UPDATE_IN_PROGRESS) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 310, "Updating...", true, EpdFontFamily::BOLD);
-    renderer.drawRect(20, 350, pageWidth - 40, 50);
-    renderer.fillRect(24, 354, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 420,
+  } else if (state == UPDATE_IN_PROGRESS) {
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 8, "Updating...", true, EpdFontFamily::BOLD);
+    renderer.drawRect(20, bodyTop + 36, pageWidth - 40, 50);
+    renderer.fillRect(24, bodyTop + 40, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 106,
                               (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
-    renderer.drawCenteredText(
-        ATKINSON_HYPERLEGIBLE_10_FONT_ID, 440,
-        (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize())).c_str());
-    renderer.displayBuffer();
-    return;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 130,
+                              (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize()))
+                                  .c_str());
+  } else if (state == NO_UPDATE) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true,
+                              EpdFontFamily::BOLD);
+    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == FAILED) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update failed", true, EpdFontFamily::BOLD);
+    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == FINISHED) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
+                              "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
+  } else if (state == SHUTTING_DOWN) {
+    const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
+                              "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
   }
 
-  if (state == NO_UPDATE) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, "No update available", true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
-    return;
-  }
-
-  if (state == FAILED) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, "Update failed", true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
-    return;
-  }
+  renderer.displayBuffer();
 
   if (state == FINISHED) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, "Update complete", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 350, "Press and hold power button to turn back on");
-    renderer.displayBuffer();
     state = SHUTTING_DOWN;
-    return;
   }
 }
 
 void OtaUpdateActivity::loop() {
   if (subActivity) {
     subActivity->loop();
+    return;
+  }
+
+  if (state == WIFI_SELECTION) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      goBack();
+    }
     return;
   }
 

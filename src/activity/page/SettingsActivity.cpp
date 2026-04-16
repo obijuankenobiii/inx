@@ -6,6 +6,7 @@
 
 #include "../settings/CategorySettingsActivity.h"
 #include "../settings/LibraryIndexer.h"
+#include "../settings/OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -44,11 +45,13 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("About", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS)};
+    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
+
+    /* Standalone row (not inside a collapsible group); always visible. */
+    SettingInfo::Action("About", GroupType::NONE)};
 
 constexpr int readerSettingsCount = 24;
 const SettingInfo readerSettings[readerSettingsCount] = {
@@ -211,14 +214,12 @@ void SettingsActivity::loop() {
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-    tabSelectorIndex = 1;
-    navigateToSelectedMenu();
+    handleTabNavigation(true, false);
     return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-    tabSelectorIndex = 3;
-    navigateToSelectedMenu();
+    handleTabNavigation(false, true);
     return;
   }
 
@@ -253,14 +254,35 @@ void SettingsActivity::openCurrentPanel() {
         exitActivity();
         showingAbout = true;
         if (!aboutPage) {
-          aboutPage = new AboutPage(renderer, mappedInput, [this]() {
-            showingAbout = false;
-            openCurrentPanel();
-          });
+          aboutPage = new AboutPage(
+              renderer, mappedInput,
+              [this]() {
+                showingAbout = false;
+                openCurrentPanel();
+              },
+              [this]() {
+                showingAbout = false;
+                enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this]() {
+                  exitActivity();
+                  openCurrentPanel();
+                }));
+              });
         }
         aboutPage->show();
       },
-      panelBackLabel(currentPanel)));
+      panelBackLabel(currentPanel),
+      [this] {
+        if (onRecentOpen) onRecentOpen();
+      },
+      [this] {
+        if (onLibraryOpen) onLibraryOpen();
+      },
+      [this] {
+        if (onSyncOpen) onSyncOpen();
+      },
+      [this] {
+        if (onStatisticsOpen) onStatisticsOpen();
+      }));
 }
 
 /**

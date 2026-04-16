@@ -124,6 +124,10 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   const std::function<void()> onIndexLibrary;
   const std::function<void()> onAboutPanel;
   const char* backButtonLabel;
+  const std::function<void()> onTabRecent;
+  const std::function<void()> onTabLibrary;
+  const std::function<void()> onTabSync;
+  const std::function<void()> onTabStatistics;
   
   // Dynamic menu items
   struct MenuEntry {
@@ -147,13 +151,17 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   void applyChange(int delta);
   void toggleGroup(GroupType group);
   
-  void navigateToSelectedMenu() override { }
+  void navigateToSelectedMenu() override;
 
  public:
   CategorySettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const char* categoryName,
                            const SettingInfo* settingsList, int settingsCount, const std::function<void()>& onGoBack,
                            std::function<void()> indexLibraryHandler = nullptr,
-                           std::function<void()> aboutPanelHandler = nullptr, const char* backLabel = nullptr)
+                           std::function<void()> aboutPanelHandler = nullptr, const char* backLabel = nullptr,
+                           std::function<void()> tabNavigateRecent = nullptr,
+                           std::function<void()> tabNavigateLibrary = nullptr,
+                           std::function<void()> tabNavigateSync = nullptr,
+                           std::function<void()> tabNavigateStatistics = nullptr)
       : ActivityWithSubactivity("CategorySettings", renderer, mappedInput),
         Menu(),
         categoryName(categoryName),
@@ -162,7 +170,11 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
         onGoBack(onGoBack),
         onIndexLibrary(std::move(indexLibraryHandler)),
         onAboutPanel(std::move(aboutPanelHandler)),
-        backButtonLabel(backLabel) {
+        backButtonLabel(backLabel),
+        onTabRecent(std::move(tabNavigateRecent)),
+        onTabLibrary(std::move(tabNavigateLibrary)),
+        onTabSync(std::move(tabNavigateSync)),
+        onTabStatistics(std::move(tabNavigateStatistics)) {
     tabSelectorIndex = 2;
     itemsPerPage = (renderer.getScreenHeight() - TAB_BAR_HEIGHT * 2 - 100) / LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;

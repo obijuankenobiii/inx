@@ -44,14 +44,18 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   const std::function<void()> onRecentOpen;
   const std::function<void()> onLibraryOpen;
   const std::function<void()> onSyncOpen;
+  const std::function<void()> onStatisticsOpen;
 
   void navigateToSelectedMenu() override {
-    if (tabSelectorIndex == 1 && onLibraryOpen) {
+    SETTINGS.saveToFile();
+    if (tabSelectorIndex == 0 && onRecentOpen) {
+      onRecentOpen();
+    } else if (tabSelectorIndex == 1 && onLibraryOpen) {
       onLibraryOpen();
-    }
-
-    if (tabSelectorIndex == 3 && onSyncOpen) {
+    } else if (tabSelectorIndex == 3 && onSyncOpen) {
       onSyncOpen();
+    } else if (tabSelectorIndex == 4 && onStatisticsOpen) {
+      onStatisticsOpen();
     }
   }
 
@@ -64,12 +68,14 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                    const std::function<void()>& onRecentOpen = nullptr,
                    const std::function<void()>& onLibraryOpen = nullptr,
-                   const std::function<void()>& onSyncOpen = nullptr)
+                   const std::function<void()>& onSyncOpen = nullptr,
+                   const std::function<void()>& onStatisticsOpen = nullptr)
       : ActivityWithSubactivity("Settings", renderer, mappedInput),
         Menu(),
         onRecentOpen(onRecentOpen),
         onLibraryOpen(onLibraryOpen),
-        onSyncOpen(onSyncOpen) {
+        onSyncOpen(onSyncOpen),
+        onStatisticsOpen(onStatisticsOpen) {
     tabSelectorIndex = 2;
   }
 

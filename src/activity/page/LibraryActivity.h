@@ -123,6 +123,11 @@ class LibraryActivity final : public Activity, public Menu {
   bool isSortButtonSelected = false;        ///< Whether sort button is selected
   bool favoriteLongPressProcessed = false;  ///< Flag to prevent duplicate favorite toggles
 
+  /** Millis deadline for next Down repeat while held (0 = not repeating). */
+  unsigned long libraryListDownNextMs = 0;
+  /** Millis deadline for next Up repeat while held (0 = not repeating). */
+  unsigned long libraryListUpNextMs = 0;
+
   // Pagination
   int itemsPerPage;                           ///< Dynamic items per page based on view mode
   int currentPage;                            ///< Current page index (0-based)
@@ -198,7 +203,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @param itemCount Number of items in current list
    * @return true if page was changed
    */
-  bool handlePageNavigation(bool upPressed, bool downPressed, int itemCount);
+  bool handlePageNavigation(bool wantUpStep, bool wantDownStep, int itemCount);
 
   /**
    * @brief Handle favorite marking on long press
@@ -212,7 +217,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @param downPressed Whether down button was pressed
    * @param itemCount Number of items in current list
    */
-  void handleSelectionNavigation(bool upPressed, bool downPressed, int itemCount);
+  void handleSelectionNavigation(bool wantUpStep, bool wantDownStep, int itemCount);
 
   /**
    * @brief Handle button selection navigation (left/right)
