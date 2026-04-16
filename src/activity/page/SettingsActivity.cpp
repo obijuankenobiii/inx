@@ -15,7 +15,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 20;
+constexpr int systemPageSettingsCount = 21;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -24,6 +24,8 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None", "Contrast", "Inverted"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
+                      GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "List Stats", "Flow"},

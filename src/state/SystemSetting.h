@@ -266,7 +266,9 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    
+    /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
+    uint8_t sleepScreenCoverGrayscale = 1;
+
     // Legacy status bar mode (kept for backward compatibility)
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
     

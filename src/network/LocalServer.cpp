@@ -977,6 +977,7 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreen"] = SETTINGS.sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
+  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   
@@ -1054,6 +1055,10 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "sleepScreenCoverFilter") == 0) {
       SETTINGS.sleepScreenCoverFilter = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
+      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "hideBatteryPercentage") == 0) {

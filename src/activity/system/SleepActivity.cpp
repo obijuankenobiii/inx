@@ -95,7 +95,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap, true);
+        renderBitmapSleepScreen(bitmap);
         return;
       }
     }
@@ -168,7 +168,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap, false);
+      renderBitmapSleepScreen(bitmap);
     }
     file.close();
     return;
@@ -183,9 +183,9 @@ void SleepActivity::renderCoverSleepScreen() const {
  * Handles image scaling, centering, cropping, and grayscale rendering based
  * on screen dimensions and user settings.
  * 
- * @param bitmap The bitmap image to render
+ * @param bitmap The bitmap image to render (custom /sleep image or book cover)
  */
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool allowGrayscale) const {
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;
@@ -223,7 +223,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool all
 
   renderer.clearScreen();
 
-  const bool hasGreyscale = allowGrayscale && bitmap.hasGreyscale() &&
+  const bool hasGreyscale = SETTINGS.sleepScreenCoverGrayscale && bitmap.hasGreyscale() &&
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
   renderer.resetBitmapGrayscaleDetection();

@@ -62,9 +62,8 @@ class SleepActivity final : public Activity {
    * on screen dimensions and user settings.
    *
    * @param bitmap The bitmap image to render
-   * @param allowGrayscale When false, skips the e-ink grayscale pass (used for last-read book cover).
    */
-  void renderBitmapSleepScreen(const Bitmap& bitmap, bool allowGrayscale = true) const;
+  void renderBitmapSleepScreen(const Bitmap& bitmap) const;
   
   /**
    * @brief Renders a completely blank sleep screen.
