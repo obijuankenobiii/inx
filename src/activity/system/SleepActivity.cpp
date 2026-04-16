@@ -14,7 +14,29 @@
 #include "util/StringUtils.h"
 
 namespace {
-std::string pickRandomSleepBmpPath() {
+std::string pathForFixedSleepBmp() {
+  if (SETTINGS.sleepCustomBmp[0] == '\0') {
+    return "";
+  }
+  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.bmp") == 0) {
+    if (SdMan.exists("/sleep.bmp")) {
+      return "/sleep.bmp";
+    }
+    return "";
+  }
+  const std::string path = std::string("/sleep/") + SETTINGS.sleepCustomBmp;
+  if (SdMan.exists(path.c_str())) {
+    return path;
+  }
+  return "";
+}
+
+std::string pickSleepBmpPath() {
+  std::string fixed = pathForFixedSleepBmp();
+  if (!fixed.empty()) {
+    return fixed;
+  }
+
   std::string selectedPath;
   size_t matchCount = 0;
   auto dir = SdMan.open("/sleep");
@@ -83,11 +105,11 @@ void SleepActivity::onEnter() {
 /**
  * @brief Renders a custom sleep screen from user-provided images.
  * 
- * Loads random BMP images from the /sleep directory or root sleep.bmp.
- * Falls back to default sleep screen if no images are found.
+ * Uses a fixed BMP from settings when set; otherwise picks randomly from /sleep/
+ * and /sleep.bmp. Falls back to default sleep screen if no images are found.
  */
 void SleepActivity::renderCustomSleepScreen() const {
-  const std::string imagePath = pickRandomSleepBmpPath();
+  const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
@@ -110,7 +132,7 @@ void SleepActivity::renderCustomSleepScreen() const {
  * Displays a semi-transparent image overlay on top of the current screen content.
  */
 void SleepActivity::renderTransparentSleepScreen() const {
-  const std::string imagePath = pickRandomSleepBmpPath();
+  const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {

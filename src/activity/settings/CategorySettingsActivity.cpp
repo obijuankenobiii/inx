@@ -8,6 +8,7 @@
 
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
+#include "SleepImagePickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
@@ -208,6 +209,13 @@ void CategorySettingsActivity::setupMenu() {
             if (strcmp(setting.name, "Clear Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
+            if (strcmp(setting.name, "Choose sleep image") == 0) {
+              exitActivity();
+              enterNewActivity(new SleepImagePickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));

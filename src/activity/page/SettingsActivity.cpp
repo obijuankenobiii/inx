@@ -15,11 +15,12 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 21;
+constexpr int systemPageSettingsCount = 22;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
                       {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fit", "Crop"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,

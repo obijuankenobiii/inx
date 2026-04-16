@@ -268,6 +268,13 @@ public:
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
     /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
     uint8_t sleepScreenCoverGrayscale = 1;
+    /**
+     * Fixed custom/transparent sleep BMP when multiple images exist.
+     * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
+     * Basename only = use /sleep/<basename> (e.g. night.bmp).
+     * Exactly "/sleep.bmp" = use the BMP at the SD card root only.
+     */
+    char sleepCustomBmp[64] = "";
 
     // Legacy status bar mode (kept for backward compatibility)
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
@@ -365,6 +372,12 @@ public:
      */
     int getReaderFontId() const;
     
+    /**
+     * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").
+     * @param s nullptr or empty string clears (random selection each sleep).
+     */
+    void setSleepCustomBmpFromInput(const char* s);
+
     /**
      * @brief Saves all settings to file
      * @return true if save successful, false otherwise
