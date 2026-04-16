@@ -1,12 +1,13 @@
 #include "EpubActivity.h"
 
+#include <cstdio>
+
 #include <Epub/Page.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 #include <time.h>
 
-#include "BookmarkActivity.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
 #include "state/BookProgress.h"
@@ -744,6 +745,12 @@ void EpubActivity::onTocChapterSelected(int spineIndex) {
   startPageTimer();
 }
 
+void EpubActivity::onBookmarkDrawerSelected(int storageIndex) {
+  toggleMenuDrawer();
+  goToBookmark(storageIndex);
+  startPageTimer();
+}
+
 /**
  * @brief Toggles the menu drawer visibility
  */
@@ -754,7 +761,6 @@ void EpubActivity::toggleMenuDrawer() {
         [this](MenuDrawer::MenuAction action) {
           switch (action) {
             case MenuDrawer::MenuAction::SHOW_BOOKMARKS:
-              showBookmarkMenu();
               break;
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
@@ -779,9 +785,30 @@ void EpubActivity::toggleMenuDrawer() {
           updateRequired = true;
           startPageTimer();
         });
+    menuDrawer->setMappedInputForHints(&mappedInput);
     if (epub) {
       menuDrawer->setEpub(epub.get());
       menuDrawer->setTocSelectionCallback([this](int spineIndex) { onTocChapterSelected(spineIndex); });
+      menuDrawer->setBookmarkListProvider([this]() {
+        std::vector<MenuDrawer::BookmarkNavItem> rows;
+        rows.reserve(bookmarks.size());
+        for (size_t i = 0; i < bookmarks.size(); ++i) {
+          const auto& b = bookmarks[i];
+          char line[160];
+          snprintf(line, sizeof(line), "%s (%d/%d)", b.chapterTitle, static_cast<int>(b.pageNumber) + 1,
+                   static_cast<int>(b.pageCount));
+          MenuDrawer::BookmarkNavItem row;
+          row.label = line;
+          row.storageIndex = static_cast<int>(i);
+          const int curPage = section ? section->currentPage : nextPageNumber;
+          row.isCurrentPosition = (b.spineIndex == static_cast<uint16_t>(currentSpineIndex)) &&
+                                   (b.pageNumber == static_cast<uint16_t>(curPage));
+          rows.push_back(std::move(row));
+        }
+        return rows;
+      });
+      menuDrawer->setBookmarkSelectCallback([this](const int storageIndex) { onBookmarkDrawerSelected(storageIndex); });
+      menuDrawer->setBookmarkDeleteCallback([this](const int storageIndex) { removeBookmark(storageIndex); });
     }
   }
 
@@ -808,34 +835,6 @@ void EpubActivity::toggleSettingsDrawer() {
   if (settingsDrawerVisible) {
     settingsDrawer->show();
     return;
-  }
-}
-
-/**
- * @brief Shows the bookmark menu
- */
-void EpubActivity::showBookmarkMenu() {
-  if (!bookmarks.empty()) {
-    exitActivity();
-    enterNewActivity(new BookmarkActivity(
-        renderer, mappedInput, bookmarks, epub->getTitle(), currentSpineIndex, section ? section->currentPage : 0,
-        [this](int index) {
-          exitActivity();
-          goToBookmark(index);
-        },
-        [this](int index) {
-          removeBookmark(index);
-          exitActivity();
-          updateRequired = true;
-        },
-        [this]() {
-          exitActivity();
-          updateRequired = true;
-        }));
-  } else {
-    ScreenComponents::drawPopup(renderer, "No bookmarks yet");
-    vTaskDelay(pdMS_TO_TICKS(200));
-    updateRequired = true;
   }
 }
 

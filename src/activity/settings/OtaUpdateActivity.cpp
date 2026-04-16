@@ -3,16 +3,65 @@
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <string>
 
-#include "system/MappedInputManager.h"
 #include "activity/network/WifiSelectionActivity.h"
-#include "system/Fonts.h"
 #include "network/OtaUpdater.h"
+#include "state/NetworkCredential.h"
+#include "system/Fonts.h"
+#include "system/MappedInputManager.h"
+
+#include "esp_task_wdt.h"
 
 void OtaUpdateActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OtaUpdateActivity*>(param);
   self->displayTaskLoop();
+}
+
+bool OtaUpdateActivity::tryConnectUsingStoredCredentials() {
+  WIFI_STORE.loadFromFile();
+  const auto& creds = WIFI_STORE.getCredentials();
+  if (creds.empty()) {
+    Serial.printf("[%lu] [OTA] No saved Wi-Fi credentials\n", millis());
+    return false;
+  }
+
+  WiFi.mode(WIFI_STA);
+
+  for (const auto& cred : creds) {
+    if (cred.ssid.empty()) {
+      continue;
+    }
+
+    WiFi.disconnect(false);
+    vTaskDelay(pdMS_TO_TICKS(150));
+
+    if (!cred.password.empty()) {
+      WiFi.begin(cred.ssid.c_str(), cred.password.c_str());
+    } else {
+      WiFi.begin(cred.ssid.c_str());
+    }
+
+    const unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+      esp_task_wdt_reset();
+      vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("[%lu] [OTA] Connected with saved Wi-Fi: %s\n", millis(), cred.ssid.c_str());
+      return true;
+    }
+
+    Serial.printf("[%lu] [OTA] Saved Wi-Fi connect failed: %s\n", millis(), cred.ssid.c_str());
+    WiFi.disconnect(false);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+
+  return false;
 }
 
 void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
@@ -71,14 +120,17 @@ void OtaUpdateActivity::onEnter() {
               &displayTaskHandle  // Task handle
   );
 
-  // Turn on WiFi immediately
   Serial.printf("[%lu] [OTA] Turning on WiFi...\n", millis());
   WiFi.mode(WIFI_STA);
 
-  // Launch WiFi selection subactivity
-  Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
-  enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
-                                             [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  if (tryConnectUsingStoredCredentials()) {
+    Serial.printf("[%lu] [OTA] Using saved Wi-Fi (skipped picker)\n", millis());
+    onWifiSelectionComplete(true);
+  } else {
+    Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
+    enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
+                                                 [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  }
 }
 
 void OtaUpdateActivity::onExit() {

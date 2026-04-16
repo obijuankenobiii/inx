@@ -167,16 +167,14 @@ private:
     void toggleSettingsDrawer();
     
     /**
-     * Shows the bookmark menu.
-     */
-    void showBookmarkMenu();
-    
-    /**
      * Callback when a chapter is selected from TOC.
-     * 
+     *
      * @param spineIndex The spine index to navigate to
      */
     void onTocChapterSelected(int spineIndex);
+
+    /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
+    void onBookmarkDrawerSelected(int storageIndex);
     
     /**
      * Deletes the book cache.
@@ -213,7 +211,6 @@ private:
     void removeBookmark(int index);
     bool isCurrentPageBookmarked() const;
     void goToBookmark(int index);
-    void showBookmarkMenuActivity();
     std::string getCurrentChapterTitle() const;
     void drawBookmarkIndicator();
     

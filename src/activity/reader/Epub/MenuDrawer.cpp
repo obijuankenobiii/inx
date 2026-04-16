@@ -1,5 +1,8 @@
 #include "MenuDrawer.h"
 
+#include <algorithm>
+#include <cstdio>
+
 #include "Epub.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
@@ -47,6 +50,10 @@ MenuDrawer::~MenuDrawer() {
   onAction = nullptr;
   onDismiss = nullptr;
   tocSelectionCallback = nullptr;
+  bookmarkListProvider = nullptr;
+  bookmarkSelectCallback = nullptr;
+  bookmarkDeleteCallback = nullptr;
+  mappedInputForHints = nullptr;
   epub = nullptr;
 }
 
@@ -58,10 +65,13 @@ void MenuDrawer::show() {
   visible = true;
   dismissed = false;
   showingToc = false;
+  showingBookmarks = false;
   selectedIndex = 0;
   scrollOffset = 0;
   tocSelectedIndex = 0;
   tocScrollOffset = 0;
+  bookmarkSelectedIndex = 0;
+  bookmarkEntries.clear();
   renderWithRefresh();
 }
 
@@ -72,6 +82,7 @@ void MenuDrawer::hide() {
   visible = false;
   dismissed = true;
   showingToc = false;
+  showingBookmarks = false;
 }
 
 /**
@@ -89,7 +100,9 @@ void MenuDrawer::render() {
 void MenuDrawer::renderWithRefresh() {
   if (!visible) return;
 
-  if (showingToc) {
+  if (showingBookmarks) {
+    renderBookmarks();
+  } else if (showingToc) {
     renderToc();
   } else {
     drawBackground();
@@ -252,6 +265,78 @@ void MenuDrawer::renderToc() {
 }
 
 /**
+ * @brief Renders bookmarks in the same drawer layout as the TOC
+ */
+void MenuDrawer::renderBookmarks() {
+  const int screenWidth = renderer.getScreenWidth();
+  const int totalItems = static_cast<int>(bookmarkEntries.size());
+  const int pageItems = getTocPageItems();
+
+  drawTocBackground();
+
+  const int headerY = tocDrawerY + 10;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
+
+  const char* subtitleText = "Select a bookmark to open it";
+  int subtitleY = headerY + 30;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+
+  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.drawLine(0, dividerY, screenWidth, dividerY, true);
+
+  if (totalItems == 0) {
+    const int msgY = dividerY + 50;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, "No bookmarks yet", true);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY + 28, "Long press Confirm while reading", true);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY + 56, "to add a bookmark", true);
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "« Back", "", "", "");
+    return;
+  }
+
+  const int pageStartIndex = (bookmarkSelectedIndex / pageItems) * pageItems;
+  int drawY = dividerY + 2;
+
+  for (int i = 0; i < pageItems; i++) {
+    const int itemIndex = pageStartIndex + i;
+    if (itemIndex >= totalItems) {
+      break;
+    }
+
+    const int itemY = drawY + (i * LIST_ITEM_HEIGHT);
+    const bool isSelected = (itemIndex == bookmarkSelectedIndex);
+    const auto& row = bookmarkEntries[static_cast<size_t>(itemIndex)];
+
+    if (isSelected) {
+      renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, true);
+    }
+
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    constexpr int kIndent = 20;
+    const std::string truncated =
+        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), screenWidth - 60 - kIndent);
+
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true);
+  }
+
+  const int totalPages = (totalItems + pageItems - 1) / pageItems;
+  const int currentPageNum = (bookmarkSelectedIndex / pageItems) + 1;
+  char pageStr[24];
+  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
+  const int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
+  const int footerY = tocDrawerY + tocDrawerHeight - 35;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, (screenWidth - pageStrWidth) / 2, footerY, pageStr, true);
+
+  if (mappedInputForHints != nullptr) {
+    const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else {
+    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "« Back", "Select", "Up", "Del");
+  }
+}
+
+/**
  * @brief Handles input when TOC is shown
  * @param input Reference to the input manager
  */
@@ -312,12 +397,94 @@ void MenuDrawer::exitToc() {
   scrollOffset = 0;
 }
 
+void MenuDrawer::exitBookmarks() {
+  showingBookmarks = false;
+  bookmarkSelectedIndex = 0;
+  selectedIndex = 0;
+  scrollOffset = 0;
+}
+
+void MenuDrawer::refreshBookmarkEntriesFromProvider() {
+  if (bookmarkListProvider) {
+    bookmarkEntries = bookmarkListProvider();
+  } else {
+    bookmarkEntries.clear();
+  }
+  if (bookmarkSelectedIndex >= static_cast<int>(bookmarkEntries.size())) {
+    bookmarkSelectedIndex = std::max(0, static_cast<int>(bookmarkEntries.size()) - 1);
+  }
+}
+
+void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
+  uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  const int totalItems = static_cast<int>(bookmarkEntries.size());
+  const int pageItems = getTocPageItems();
+  const bool skipPage = input.getHeldTime() > 700;
+
+  if (totalItems == 0) {
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      exitBookmarks();
+      lastInputTime = currentTime;
+      renderWithRefresh();
+    }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Up)) {
+    if (skipPage) {
+      bookmarkSelectedIndex = (bookmarkSelectedIndex < pageItems) ? 0 : bookmarkSelectedIndex - pageItems;
+    } else {
+      bookmarkSelectedIndex = (bookmarkSelectedIndex + totalItems - 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  } else if (input.wasReleased(MappedInputManager::Button::Down)) {
+    if (skipPage) {
+      bookmarkSelectedIndex =
+          (bookmarkSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : bookmarkSelectedIndex + pageItems;
+    } else {
+      bookmarkSelectedIndex = (bookmarkSelectedIndex + 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  } else if (input.wasReleased(MappedInputManager::Button::Right)) {
+    if (bookmarkDeleteCallback && bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems) {
+      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
+      bookmarkDeleteCallback(storageIndex);
+      refreshBookmarkEntriesFromProvider();
+      lastInputTime = currentTime;
+      renderWithRefresh();
+    }
+  } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems && bookmarkSelectCallback) {
+      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
+      showingBookmarks = false;
+      visible = false;
+      bookmarkSelectCallback(storageIndex);
+    }
+    lastInputTime = currentTime;
+  } else if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitBookmarks();
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  }
+}
+
 /**
  * @brief Handles input for the menu drawer
  * @param input Reference to the input manager
  */
 void MenuDrawer::handleInput(MappedInputManager& input) {
   if (!visible) return;
+
+  if (showingBookmarks) {
+    handleBookmarksInput(input);
+    return;
+  }
 
   if (showingToc) {
     handleTocInput(input);
@@ -354,6 +521,22 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         showingToc = true;
         tocSelectedIndex = 0;
         tocScrollOffset = 0;
+        lastInputTime = currentTime;
+        renderWithRefresh();
+      } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {
+        if (bookmarkListProvider) {
+          bookmarkEntries = bookmarkListProvider();
+        } else {
+          bookmarkEntries.clear();
+        }
+        bookmarkSelectedIndex = 0;
+        for (int i = 0; i < static_cast<int>(bookmarkEntries.size()); ++i) {
+          if (bookmarkEntries[static_cast<size_t>(i)].isCurrentPosition) {
+            bookmarkSelectedIndex = i;
+            break;
+          }
+        }
+        showingBookmarks = true;
         lastInputTime = currentTime;
         renderWithRefresh();
       } else {

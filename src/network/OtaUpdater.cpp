@@ -2,6 +2,11 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <new>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
@@ -12,9 +17,11 @@
 namespace {
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
 
-/* One contiguous slab for the release JSON, grabbed before TLS — after esp_http_client_perform the
- * heap is often fragmented (largest free block < 4KB) so growing the body with realloc fails. */
-constexpr size_t kReleaseJsonPreallocSizes[] = {20 * 1024, 16 * 1024, 12 * 1024, 10 * 1024, 8192, 6144};
+/* Pre-TLS body slab; smaller first so esp_http_client_init + TLS have headroom in internal heap. */
+constexpr size_t kReleaseJsonPreallocSizes[] = {4096, 6144, 8192, 10240, 12288};
+
+constexpr int kGithubCheckTaskStack = 16384;
+constexpr int kGithubCheckTaskPrio = 3;
 
 /* Response body buffer for latestReleaseUrl (GitHub uses chunked encoding). */
 char* local_buf = nullptr;
@@ -89,7 +96,50 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
 } /* event_handler */
 } /* namespace */
 
+struct OtaGithubCheckCtx {
+  OtaUpdater* updater;
+  OtaUpdater::OtaUpdaterError result;
+  SemaphoreHandle_t done;
+};
+
+void otaGithubCheckTask(void* param) {
+  auto* ctx = static_cast<OtaGithubCheckCtx*>(param);
+  ctx->result = ctx->updater->checkForUpdateWorker();
+  xSemaphoreGive(ctx->done);
+  vTaskDelete(nullptr);
+}
+
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
+  SemaphoreHandle_t done = xSemaphoreCreateBinary();
+  if (done == nullptr) {
+    return OOM_ERROR;
+  }
+
+  auto* ctx = new (std::nothrow) OtaGithubCheckCtx{this, INTERNAL_UPDATE_ERROR, done};
+  if (ctx == nullptr) {
+    vSemaphoreDelete(done);
+    return OOM_ERROR;
+  }
+
+  if (xTaskCreate(otaGithubCheckTask, "otaGhChk", kGithubCheckTaskStack, ctx, kGithubCheckTaskPrio, nullptr) !=
+      pdPASS) {
+    delete ctx;
+    vSemaphoreDelete(done);
+    Serial.printf("[%lu] [OTA] Failed to spawn GitHub check task (stack %d)\n", millis(), kGithubCheckTaskStack);
+    return OOM_ERROR;
+  }
+
+  while (xSemaphoreTake(done, pdMS_TO_TICKS(500)) != pdTRUE) {
+    esp_task_wdt_reset();
+  }
+
+  const OtaUpdaterError out = ctx->result;
+  delete ctx;
+  vSemaphoreDelete(done);
+  return out;
+}
+
+OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   JsonDocument filter;
   esp_err_t esp_err;
   JsonDocument doc;
@@ -100,8 +150,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   esp_http_client_config_t client_config = {};
   client_config.url = latestReleaseUrl;
   client_config.event_handler = event_handler;
-  client_config.buffer_size = 4096;
-  client_config.buffer_size_tx = 2048;
+  client_config.buffer_size = 3072;
+  client_config.buffer_size_tx = 1536;
   client_config.timeout_ms = 25000;
   client_config.skip_cert_common_name_check = true;
   client_config.crt_bundle_attach = esp_crt_bundle_attach;
@@ -114,20 +164,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
   output_len = 0;
   local_buf_cap = 0;
-
-  /* Reserve the JSON body before esp_http_client_init / TLS — avoids realloc during ON_DATA when
-   * largest free block is too small (e.g. need 4227, largest 2548). */
-  for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
-    void* p = calloc(tryBytes, 1);
-    if (p != nullptr) {
-      local_buf = static_cast<char*>(p);
-      local_buf_cap = tryBytes;
-      Serial.printf("[%lu] [OTA] HTTP body prealloc %u bytes (free %u largest %u)\n", millis(),
-                    static_cast<unsigned>(tryBytes), static_cast<unsigned>(ESP.getFreeHeap()),
-                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-      break;
-    }
-  }
 
   /* To track life time of local_buf, dtor will be called on exit from that function */
   struct localBufCleaner {
@@ -155,7 +191,22 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     return INTERNAL_UPDATE_ERROR;
   }
 
-  /* HTTP can block for a long time; reset task WDT so the main loop task is not reset mid-request. */
+  /* Reserve body after client init; lets init use heap first, then slab before TLS in perform(). */
+  for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
+    void* p = calloc(tryBytes, 1);
+    if (p != nullptr) {
+      local_buf = static_cast<char*>(p);
+      local_buf_cap = tryBytes;
+      Serial.printf("[%lu] [OTA] HTTP body prealloc %u bytes (free %u largest %u)\n", millis(),
+                    static_cast<unsigned>(tryBytes), static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      break;
+    }
+  }
+
+  /* Let EPD / Wi-Fi driver finish in-flight work; mbedtls_ssl_setup was failing when perform() ran
+   * immediately after display flush on the same CPU. */
+  vTaskDelay(pdMS_TO_TICKS(200));
   esp_task_wdt_reset();
 
   esp_err = esp_http_client_perform(client_handle);

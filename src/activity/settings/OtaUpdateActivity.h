@@ -27,6 +27,8 @@ class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   OtaUpdater updater;
 
   void onWifiSelectionComplete(bool success);
+  /** Tries each saved credential until one connects, or returns false. */
+  bool tryConnectUsingStoredCredentials();
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render();
