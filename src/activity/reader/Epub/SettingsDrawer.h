@@ -112,6 +112,8 @@ private:
         StatusBarMiddle,     ///< Middle status bar section content
         StatusBarRight,    ///< Right status bar section content
 
+        ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
+        ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
         PageAutoTurn
     };
     

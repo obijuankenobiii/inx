@@ -65,7 +65,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   }
 
   // Apply fixed transforms before any per-line layout work.
-  applyParagraphIndent();
+  applyParagraphIndent(renderer, fontId);
 
   const int pageWidth = viewportWidth;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
@@ -195,8 +195,25 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   return lineBreakIndices;
 }
 
-void ParsedText::applyParagraphIndent() {
+void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fontId) {
   if (extraParagraphSpacing || words.empty()) {
+    return;
+  }
+
+  if (cssTextIndentPx >= 0) {
+    if (cssTextIndentPx > 0) {
+      static const char em[] = "\xe2\x80\x83";
+      const int emw = renderer.getTextWidth(fontId, em, EpdFontFamily::REGULAR);
+      if (emw > 0) {
+        const int n = std::min(80, (cssTextIndentPx + emw - 1) / emw);
+        std::string pad;
+        pad.reserve(static_cast<size_t>(n) * 3);
+        for (int i = 0; i < n; ++i) {
+          pad += em;
+        }
+        words.front().insert(0, pad);
+      }
+    }
     return;
   }
 

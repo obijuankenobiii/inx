@@ -95,7 +95,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap);
+        renderBitmapSleepScreen(bitmap, true);
         return;
       }
     }
@@ -140,12 +140,18 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   std::string coverPath;
-  bool cropped = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
+  const bool cropped = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
   const std::string& path = APP_STATE.lastRead;
 
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
-    if (book.load()) coverPath = book.getCoverBmpPath(cropped);
+    if (book.load()) {
+      if (book.generateCoverBmp(cropped)) {
+        coverPath = book.getCoverBmpPath(cropped);
+      } else if (book.generateCoverBmp(false)) {
+        coverPath = book.getCoverBmpPath(false);
+      }
+    }
   }
 
   if (StringUtils::checkFileExtension(path, ".xtc") || StringUtils::checkFileExtension(path, ".xtch")) {
@@ -162,7 +168,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap);
+      renderBitmapSleepScreen(bitmap, false);
     }
     file.close();
     return;
@@ -179,7 +185,7 @@ void SleepActivity::renderCoverSleepScreen() const {
  * 
  * @param bitmap The bitmap image to render
  */
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool allowGrayscale) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;
@@ -217,7 +223,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
 
   renderer.clearScreen();
 
-  const bool hasGreyscale = bitmap.hasGreyscale() &&
+  const bool hasGreyscale = allowGrayscale && bitmap.hasGreyscale() &&
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
   renderer.resetBitmapGrayscaleDetection();

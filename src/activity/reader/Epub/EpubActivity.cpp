@@ -12,6 +12,7 @@
 #include "SettingsDrawer.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
+#include "state/SystemSetting.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
@@ -160,8 +161,13 @@ ViewportInfo EpubActivity::calculateViewport() {
         (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
   }
 
-  info.width = renderer.getScreenWidth() - info.totalMarginLeft - info.totalMarginRight;
-  info.height = renderer.getScreenHeight() - info.totalMarginTop - info.totalMarginBottom;
+  int w = renderer.getScreenWidth() - info.totalMarginLeft - info.totalMarginRight;
+  int h = renderer.getScreenHeight() - info.totalMarginTop - info.totalMarginBottom;
+  constexpr int kMinViewport = 8;
+  if (w < kMinViewport) w = kMinViewport;
+  if (h < kMinViewport) h = kMinViewport;
+  info.width = static_cast<uint16_t>(w);
+  info.height = static_cast<uint16_t>(h);
 
   info.fontId = bookSettings.getReaderFontId();
   info.lineCompression = bookSettings.getReaderLineCompression();
@@ -510,6 +516,9 @@ void EpubActivity::onExit() {
   }
 
   if (displayTaskHandle) {
+    pauseDisplayTaskForRebuild = false;
+    displayRebuildPausedAck = false;
+    epubScreenRenderBusy = false;
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -548,7 +557,7 @@ void EpubActivity::onExit() {
  * @brief Main loop function called repeatedly while activity is active
  */
 void EpubActivity::loop() {
-  if (isDoingSomethingHeavy) {
+  if (isDoingSomethingHeavy || epubScreenRenderBusy) {
     return;
   }
 
@@ -593,7 +602,7 @@ void EpubActivity::loop() {
 
   if (isToggleClosed) {
     isToggleClosed = false;
-    if (settingsDrawer->shouldUpdate()) {
+    if (settingsDrawer && settingsDrawer->shouldUpdate()) {
       applyBookSettings();
       settingsDrawer->clearUpdateFlag();
     }
@@ -697,7 +706,8 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy) {
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy &&
+      !epubScreenRenderBusy) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
@@ -1075,6 +1085,14 @@ void EpubActivity::pageTurn(bool forward) {
  */
 [[noreturn]] void EpubActivity::displayTaskLoop() {
   while (true) {
+    if (pauseDisplayTaskForRebuild) {
+      displayRebuildPausedAck = true;
+      while (pauseDisplayTaskForRebuild) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
+      displayRebuildPausedAck = false;
+      continue;
+    }
     if (updateRequired) {
       updateRequired = false;
       renderScreen();
@@ -1087,6 +1105,14 @@ void EpubActivity::pageTurn(bool forward) {
  * @brief Renders the current screen content
  */
 void EpubActivity::renderScreen() {
+  struct EpubScreenRenderGuard {
+    volatile bool* flag;
+    explicit EpubScreenRenderGuard(volatile bool* f) : flag(f) { *f = true; }
+    ~EpubScreenRenderGuard() { *flag = false; }
+    EpubScreenRenderGuard(const EpubScreenRenderGuard&) = delete;
+    EpubScreenRenderGuard& operator=(const EpubScreenRenderGuard&) = delete;
+  } renderBusyGuard(&epubScreenRenderBusy);
+
   if (!epub) return;
 
   renderer.clearScreen(0xFF);
@@ -1175,11 +1201,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
-  if (page->hasImages() && !isBookmarking) {
+  if (SETTINGS.readerSmartRefreshOnImages && page->hasImages() && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  if (!page->hasImages() && lastPageHadImages && !isBookmarking) {
+  if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
@@ -1208,9 +1234,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   pagesUntilFullRefresh--;
   renderer.displayBuffer();
 
-  const bool needsImageGrayscale = page->hasImages() && renderer.needsBitmapGrayscale();
+  const bool needsImageGrayscale =
+      SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
   if (needsImageGrayscale) {
-    isDoingSomethingHeavy = true;
     const bool storedBwBuffer = renderer.storeBwBuffer();
 
     renderer.clearScreen(0x00);
@@ -1230,7 +1256,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     } else {
       renderer.cleanupGrayscaleWithFrameBuffer();
     }
-    isDoingSomethingHeavy = false;
   }
 
   lastPageHadImages = page->hasImages();
@@ -1453,6 +1478,23 @@ void EpubActivity::saveBookSettings() {
   bookSettings.saveToFile(cachePath);
 }
 
+void EpubActivity::beginExclusiveRebuildWithDisplayTask() {
+  if (!displayTaskHandle) {
+    return;
+  }
+  displayRebuildPausedAck = false;
+  pauseDisplayTaskForRebuild = true;
+  const uint32_t start = millis();
+  while (!displayRebuildPausedAck) {
+    vTaskDelay(pdMS_TO_TICKS(1));
+    if (millis() - start > 3000U) {
+      break;
+    }
+  }
+}
+
+void EpubActivity::endExclusiveRebuildWithDisplayTask() { pauseDisplayTaskForRebuild = false; }
+
 /**
  * @brief Applies current book settings and rebuilds affected sections
  */
@@ -1479,6 +1521,14 @@ void EpubActivity::applyBookSettings() {
   if (totalSpineItems <= 0) {
     return;
   }
+
+  struct ExclusiveRebuildScope {
+    EpubActivity* self;
+    explicit ExclusiveRebuildScope(EpubActivity* s) : self(s) { self->beginExclusiveRebuildWithDisplayTask(); }
+    ~ExclusiveRebuildScope() { self->endExclusiveRebuildWithDisplayTask(); }
+    ExclusiveRebuildScope(const ExclusiveRebuildScope&) = delete;
+    ExclusiveRebuildScope& operator=(const ExclusiveRebuildScope&) = delete;
+  } exclusiveRebuild(this);
 
   int startSpine = std::max(0, currentSpine - 5);
   int endSpine = std::min(totalSpineItems - 1, currentSpine + 5);

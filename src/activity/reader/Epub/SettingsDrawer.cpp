@@ -141,14 +141,14 @@ void SettingsDrawer::setupMenu() {
     alignEntry.group = GroupType::LAYOUT;
     alignEntry.name = "Paragraph Alignment";
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* align[] = {"Justify", "Left", "Center", "Right"};
+      static const char* align[] = {"Justify", "Left", "Center", "Right", "Default (CSS)"};
       int index = s.paragraphAlignment;
-      if (index > 3) index = 0;
+      if (index > 4) index = 0;
       return align[index];
     };
     alignEntry.change = [](BookSettings& s, int delta) {
       int newVal = s.paragraphAlignment + delta;
-      if (newVal >= 0 && newVal <= 3) {
+      if (newVal >= 0 && newVal <= 4) {
         s.paragraphAlignment = newVal;
         s.useCustomSettings = true;
       }
@@ -275,6 +275,32 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(refreshEntry);
+
+    MenuEntry imgGrayEntry;
+    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
+    imgGrayEntry.group = GroupType::CONTROLS;
+    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+    };
+    imgGrayEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(imgGrayEntry);
+
+    MenuEntry smartRefreshEntry;
+    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
+    smartRefreshEntry.group = GroupType::CONTROLS;
+    smartRefreshEntry.name = "Smart Refresh (Images)";
+    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    };
+    smartRefreshEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(smartRefreshEntry);
 
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
@@ -623,6 +649,8 @@ void SettingsDrawer::applyChange(int delta) {
       break;
 
     case MenuItem::PageAutoTurn:
+    case MenuItem::ReaderImageGrayscale:
+    case MenuItem::ReaderSmartImageRefresh:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

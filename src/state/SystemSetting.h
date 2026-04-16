@@ -185,6 +185,8 @@ public:
         LEFT_ALIGN = 1,     ///< Left alignment
         CENTER_ALIGN = 2,   ///< Center alignment
         RIGHT_ALIGN = 3,    ///< Right alignment
+        /** Use text-align from EPUB CSS (and inline styles) for each paragraph; layout viewport matches reader. */
+        FOLLOW_CSS = 4,  // keep equal to EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/.../ChapterHtmlSlimParser.h
         PARAGRAPH_ALIGNMENT_COUNT
     };
 
@@ -331,6 +333,11 @@ public:
      * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
      */
     uint8_t pageAutoTurnSeconds = 0;
+
+    /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
+    uint8_t readerImageGrayscale = 1;
+    /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
+    uint8_t readerSmartRefreshOnImages = 1;
 
     ~SystemSetting() = default;
 

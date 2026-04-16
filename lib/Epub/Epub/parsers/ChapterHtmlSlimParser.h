@@ -18,6 +18,12 @@ class GfxRenderer;
 #define MAX_WORD_SIZE 200
 
 /**
+ * Reader paragraph alignment: 0–3 match TextBlock::Style; 4 = follow EPUB/CSS text-align.
+ * Must stay in sync with SystemSetting::PARAGRAPH_ALIGNMENT (see src/state/SystemSetting.h).
+ */
+constexpr uint8_t EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS = 4;
+
+/**
  * Parser for HTML chapter files that builds pages with text and images.
  * Handles XML parsing, text layout, and image processing for EPUB chapters.
  */
@@ -108,6 +114,9 @@ class ChapterHtmlSlimParser {
    * Loads all CSS rules from the EPUB cache using CssParser.
    */
   void loadCssRules();
+
+  /** Resolves text-align for the current block element when paragraph alignment is FOLLOW_CSS. */
+  TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts) const;
 
   /**
    * Processes an img element with CSS class support.

@@ -77,6 +77,11 @@ private:
     int cachedSpineIndex = 0;
     int cachedChapterTotalPageCount = 0;
     bool updateRequired = false;
+    /** When true, displayTaskLoop only yields until cleared (exclusive SPI/framebuffer for main-task rebuild). */
+    volatile bool pauseDisplayTaskForRebuild = false;
+    volatile bool displayRebuildPausedAck = false;
+    /** True while displayTaskLoop is inside renderScreen (incl. grayscale); main loop must not touch section / page. */
+    volatile bool epubScreenRenderBusy = false;
     bool bookmarkLongPressProcessed = false;
     bool leftLongPressProcessed = false;
     int loadingProgress = 0;
@@ -107,6 +112,9 @@ private:
     static void taskTrampoline(void* param);
     [[noreturn]] void displayTaskLoop();
     void renderScreen();
+
+    void beginExclusiveRebuildWithDisplayTask();
+    void endExclusiveRebuildWithDisplayTask();
     
     /**
      * Handles page turning logic for forward/backward navigation.

@@ -421,6 +421,7 @@ void TxtReaderActivity::renderPage() {
 
         // Apply text alignment
         switch (cachedParagraphAlignment) {
+          case SystemSetting::FOLLOW_CSS:
           case SystemSetting::LEFT_ALIGN:
           default:
             // x already set to left margin

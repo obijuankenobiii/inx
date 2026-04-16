@@ -53,7 +53,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     /* Standalone row (not inside a collapsible group); always visible. */
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 24;
+constexpr int readerSettingsCount = 26;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly", "Atkinson Hyperlegible", "Literata"},
@@ -64,7 +64,8 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator(" Layout ", GroupType::LAYOUT),
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
-    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment, {"Justify", "Left", "Center", "Right"},
+    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
+                      {"Justify", "Left", "Center", "Right", "Default (CSS)"},
                       GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
@@ -85,6 +86,8 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}, GroupType::SYSTEM),
+    SettingInfo::Toggle("EPUB Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::SYSTEM),
+    SettingInfo::Toggle("EPUB Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::SYSTEM),
 
     SettingInfo::Separator(" Status Bar ", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,

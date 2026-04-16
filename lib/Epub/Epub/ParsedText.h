@@ -19,11 +19,14 @@ class ParsedText {
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
 
+  // First-line indent from CSS text-indent (FOLLOW_CSS). -1 = not specified (legacy em-space may apply).
+  int cssTextIndentPx = -1;
+
   // Indent state for drop caps
   uint16_t leftIndentWidth = 0;
   uint16_t leftIndentLineCount = 0;
 
-  void applyParagraphIndent();
+  void applyParagraphIndent(const GfxRenderer& renderer, int fontId);
   std::vector<size_t> computeLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth, int spaceWidth,
                                         std::vector<uint16_t>& wordWidths);
   std::vector<size_t> computeHyphenatedLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth,
@@ -49,6 +52,9 @@ class ParsedText {
     leftIndentWidth = width;
     leftIndentLineCount = lineCount;
   }
+
+  /** Called when CSS declares text-indent (including 0); disables legacy first-line em otherwise used for left/justify. */
+  void setCssTextIndentFromCascade(int resolvedPx) { cssTextIndentPx = (resolvedPx > 0) ? resolvedPx : 0; }
 
   TextBlock::Style getStyle() const { return style; }
   size_t size() const { return words.size(); }

@@ -27,7 +27,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 6;
-constexpr uint8_t SETTINGS_COUNT = 33;
+constexpr uint8_t SETTINGS_COUNT = 35;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 }  // namespace
 
@@ -79,6 +79,8 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, statusBarMiddle);
   serialization::writePod(outputFile, statusBarRight);
   serialization::writePod(outputFile, pageAutoTurnSeconds);
+  serialization::writePod(outputFile, readerImageGrayscale);
+  serialization::writePod(outputFile, readerSmartRefreshOnImages);
 
   outputFile.close();
 
@@ -284,6 +286,21 @@ bool SystemSetting::loadFromFile() {
       if (++settingsRead >= fileSettingsCount) break;
     } else {
       pageAutoTurnSeconds = 0;
+    }
+
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, readerImageGrayscale);
+      if (readerImageGrayscale > 1) {
+        readerImageGrayscale = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, readerSmartRefreshOnImages);
+      if (readerSmartRefreshOnImages > 1) {
+        readerSmartRefreshOnImages = 1;
+      }
+      ++settingsRead;
     }
 
   } while (false);

@@ -57,13 +57,14 @@ class SleepActivity final : public Activity {
   
   /**
    * @brief Renders a bitmap image as the sleep screen with proper positioning.
-   * 
-   * Handles image scaling, centering, cropping, and grayscale rendering based
+   *
+   * Handles image scaling, centering, cropping, and optional grayscale rendering
    * on screen dimensions and user settings.
-   * 
+   *
    * @param bitmap The bitmap image to render
+   * @param allowGrayscale When false, skips the e-ink grayscale pass (used for last-read book cover).
    */
-  void renderBitmapSleepScreen(const Bitmap& bitmap) const;
+  void renderBitmapSleepScreen(const Bitmap& bitmap, bool allowGrayscale = true) const;
   
   /**
    * @brief Renders a completely blank sleep screen.

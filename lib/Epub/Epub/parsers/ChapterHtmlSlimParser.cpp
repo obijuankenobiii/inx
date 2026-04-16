@@ -1,5 +1,9 @@
 #include "ChapterHtmlSlimParser.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
@@ -123,9 +127,9 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       } else if (attrName == "id") {
         idAttr = attrValue;
       } else if (attrName == "width") {
-        explicitWidth = std::stoi(attrValue);
+        explicitWidth = cssParser.parseCssLength(attrValue, viewportWidth, viewportHeight, true);
       } else if (attrName == "height") {
-        explicitHeight = std::stoi(attrValue);
+        explicitHeight = cssParser.parseCssLength(attrValue, viewportWidth, viewportHeight, false);
       }
     }
   }
@@ -167,7 +171,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
     // Use CssParser to get dimensions from inline style and CSS rules
     if (imgWidth == 0) {
-      int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth);
+      int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
       // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
@@ -177,7 +181,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
 
     if (imgHeight == 0) {
-      int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportHeight);
+      int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
       if (cssHeight == 0 && !heightIsPercentage) {
         imgHeight = cssHeight;
       } else if (cssHeight > 0) {
@@ -193,6 +197,20 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
   int actualW = 0, actualH = 0;
   if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
+    const int cssMaxW = cssParser.getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int cssMinW = cssParser.getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int cssMaxH = cssParser.getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int cssMinH = cssParser.getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+
+    if (imgWidth == 0 && cssMaxW > 0) {
+      imgWidth = std::min(actualW, cssMaxW);
+      imgHeight = (actualH * imgWidth) / std::max(1, actualW);
+    }
+    if (imgHeight == 0 && cssMaxH > 0) {
+      imgHeight = std::min(actualH, cssMaxH);
+      imgWidth = (actualW * imgHeight) / std::max(1, actualH);
+    }
+
     // Apply dimension constraints and maintain aspect ratio
     if (widthIsPercentage || heightIsPercentage) {
       // Handle percentage-based dimensions
@@ -227,15 +245,32 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       // Handle fixed dimensions
       if (imgWidth > 0 && imgHeight == 0) {
         // Height not specified, maintain aspect ratio based on width
-        imgHeight = (actualH * imgWidth) / actualW;
+        imgHeight = (actualH * imgWidth) / std::max(1, actualW);
       } else if (imgHeight > 0 && imgWidth == 0) {
         // Width not specified, maintain aspect ratio based on height
-        imgWidth = (actualW * imgHeight) / actualH;
+        imgWidth = (actualW * imgHeight) / std::max(1, actualH);
       } else if (imgWidth == 0 && imgHeight == 0) {
         // No dimensions specified, use actual image size
         imgWidth = actualW;
         imgHeight = actualH;
       }
+    }
+
+    if (cssMaxW > 0 && imgWidth > cssMaxW) {
+      imgHeight = (imgHeight * cssMaxW) / std::max(1, imgWidth);
+      imgWidth = cssMaxW;
+    }
+    if (cssMaxH > 0 && imgHeight > cssMaxH) {
+      imgWidth = (imgWidth * cssMaxH) / std::max(1, imgHeight);
+      imgHeight = cssMaxH;
+    }
+    if (cssMinW > 0 && imgWidth < cssMinW) {
+      imgHeight = (imgHeight * cssMinW) / std::max(1, imgWidth);
+      imgWidth = cssMinW;
+    }
+    if (cssMinH > 0 && imgHeight < cssMinH) {
+      imgWidth = (imgWidth * cssMinH) / std::max(1, imgHeight);
+      imgHeight = cssMinH;
     }
 
     // Cap at viewport size to prevent overflow
@@ -303,6 +338,31 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
  *
  * @param style The alignment style for the new text block
  */
+TextBlock::Style ChapterHtmlSlimParser::resolveTextAlignFromAttributes(const XML_Char* elementName,
+                                                                       const XML_Char** atts) const {
+  std::string classAttr;
+  std::string idAttr;
+  std::string styleAttr;
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "class") == 0) {
+        classAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "id") == 0) {
+        idAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "style") == 0) {
+        styleAttr = atts[i + 1];
+      }
+    }
+  }
+  std::string tagLower;
+  if (elementName != nullptr) {
+    for (const XML_Char* p = elementName; *p; ++p) {
+      tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
+    }
+  }
+  return static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment(classAttr, idAttr, styleAttr, tagLower));
+}
+
 void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
@@ -367,7 +427,40 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
-      self->startNewTextBlock(static_cast<TextBlock::Style>(self->paragraphAlignment));
+      TextBlock::Style blockStyle;
+      std::string tagLower;
+      if (name != nullptr) {
+        for (const XML_Char* p = name; *p; ++p) {
+          tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
+        }
+      }
+      if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+        blockStyle = self->resolveTextAlignFromAttributes(name, atts);
+      } else {
+        blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
+      }
+      self->startNewTextBlock(blockStyle);
+      if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && self->currentTextBlock) {
+        std::string classAttr;
+        std::string idAttr;
+        std::string styleAttr;
+        if (atts != nullptr) {
+          for (int i = 0; atts[i]; i += 2) {
+            if (strcmp(atts[i], "class") == 0) {
+              classAttr = atts[i + 1];
+            } else if (strcmp(atts[i], "id") == 0) {
+              idAttr = atts[i + 1];
+            } else if (strcmp(atts[i], "style") == 0) {
+              styleAttr = atts[i + 1];
+            }
+          }
+        }
+        if (self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+          const int tip = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                                          self->viewportHeight);
+          self->currentTextBlock->setCssTextIndentFromCascade(tip);
+        }
+      }
     }
   }
 
@@ -609,10 +702,15 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   dropCapDepth = INT_MAX;
   cssLoaded = false;  // Reset CSS loaded flag for new chapter
 
-  // Clear CSS parser for new chapter
-  cssParser.clear();
+  loadCssRules();
 
-  startNewTextBlock(static_cast<TextBlock::Style>(this->paragraphAlignment));
+  TextBlock::Style initialBlockStyle = TextBlock::LEFT_ALIGN;
+  if (paragraphAlignment <= 3) {
+    initialBlockStyle = static_cast<TextBlock::Style>(paragraphAlignment);
+  } else if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    initialBlockStyle = static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment("", "", "", "body"));
+  }
+  startNewTextBlock(initialBlockStyle);
   const XML_Parser parser = XML_ParserCreate(nullptr);
   if (!parser) return false;
 
