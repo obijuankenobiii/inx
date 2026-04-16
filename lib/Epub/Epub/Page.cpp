@@ -221,6 +221,15 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
   }
 }
 
+void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) const {
+  for (auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    element->render(renderer, fontId, xOffset, yOffset);
+  }
+}
+
 /**
  * Serializes a Page to a file.
  *

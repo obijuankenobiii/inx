@@ -1172,6 +1172,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginRight, const int orientedMarginBottom,
                                   const int orientedMarginLeft) {
   if (!page) return;
+  renderer.resetBitmapGrayscaleDetection();
+  const int fontId = bookSettings.getReaderFontId();
+  const int headerFontId = FontManager::getNextFont(fontId);
 
   if (page->hasImages() && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1183,8 +1186,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   page->render(
     renderer, 
-    bookSettings.getReaderFontId(), 
-    FontManager::getNextFont(bookSettings.getReaderFontId()),
+    fontId,
+    headerFontId,
     orientedMarginLeft, 
     orientedMarginTop,
     false
@@ -1206,36 +1209,28 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   pagesUntilFullRefresh--;
   renderer.displayBuffer();
 
-  if (page->hasImages()) {
+  const bool needsImageGrayscale = page->hasImages() && renderer.needsBitmapGrayscale();
+  if (needsImageGrayscale) {
     isDoingSomethingHeavy = true;
-    renderer.storeBwBuffer();
+    const bool storedBwBuffer = renderer.storeBwBuffer();
+
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(
-      renderer, 
-      bookSettings.getReaderFontId(), 
-      FontManager::getNextFont(bookSettings.getReaderFontId()),
-      orientedMarginLeft, 
-      orientedMarginTop,
-      false
-    );
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(
-      renderer, 
-      bookSettings.getReaderFontId(), 
-      FontManager::getNextFont(bookSettings.getReaderFontId()),
-      orientedMarginLeft, 
-      orientedMarginTop,
-      false
-    );
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
-    renderer.restoreBwBuffer();
+    if (storedBwBuffer) {
+      renderer.restoreBwBuffer();
+    } else {
+      renderer.cleanupGrayscaleWithFrameBuffer();
+    }
     isDoingSomethingHeavy = false;
   }
 

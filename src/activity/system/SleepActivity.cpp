@@ -13,6 +13,39 @@
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
 
+namespace {
+std::string pickRandomSleepBmpPath() {
+  std::string selectedPath;
+  size_t matchCount = 0;
+  auto dir = SdMan.open("/sleep");
+
+  if (dir && dir.isDirectory()) {
+    char name[256];
+    while (auto file = dir.openNextFile()) {
+      file.getName(name, sizeof(name));
+      std::string filename = name;
+      if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
+        matchCount++;
+        // Reservoir sampling keeps memory usage constant.
+        if (random(matchCount) == 0) {
+          selectedPath = "/sleep/" + filename;
+        }
+      }
+      file.close();
+    }
+    dir.close();
+  }
+
+  if (!selectedPath.empty()) {
+    return selectedPath;
+  }
+  if (SdMan.exists("/sleep.bmp")) {
+    return "/sleep.bmp";
+  }
+  return "";
+}
+}  // namespace
+
 /**
  * @brief Initializes and renders the sleep screen when activity becomes active.
  * 
@@ -54,48 +87,17 @@ void SleepActivity::onEnter() {
  * Falls back to default sleep screen if no images are found.
  */
 void SleepActivity::renderCustomSleepScreen() const {
-  std::vector<std::string> files;
-  auto dir = SdMan.open("/sleep");
-
-  if (dir && dir.isDirectory()) {
-    char name[256];
-    while (auto file = dir.openNextFile()) {
-      file.getName(name, sizeof(name));
-      std::string filename = name;
-
-      if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
-        files.push_back(filename);
-      }
-      file.close();
-    }
-    dir.close();
-  }
-
-  if (!files.empty()) {
-    size_t idx = random(files.size());
-    if (files.size() > 1 && idx == APP_STATE.lastSleepImage) {
-      idx = (idx + 1) % files.size();
-    }
-
-    APP_STATE.lastSleepImage = idx;
-    APP_STATE.saveToFile();
-
+  const std::string imagePath = pickRandomSleepBmpPath();
+  if (!imagePath.empty()) {
     FsFile file;
-    if (SdMan.openFileForRead("SLP", "/sleep/" + files[idx], file)) {
+    if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file, true);
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         renderBitmapSleepScreen(bitmap);
         return;
       }
-    }
-  }
-
-  FsFile rootFile;
-  if (SdMan.openFileForRead("SLP", "/sleep.bmp", rootFile)) {
-    Bitmap bitmap(rootFile, true);
-    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap);
-      return;
     }
   }
 
@@ -108,53 +110,18 @@ void SleepActivity::renderCustomSleepScreen() const {
  * Displays a semi-transparent image overlay on top of the current screen content.
  */
 void SleepActivity::renderTransparentSleepScreen() const {
-  std::vector<std::string> files;
-  auto dir = SdMan.open("/sleep");
-
-  if (dir && dir.isDirectory()) {
-    char name[256];
-    while (auto file = dir.openNextFile()) {
-      file.getName(name, sizeof(name));
-      std::string filename = name;
-
-      if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
-        files.push_back(filename);
-      }
-      file.close();
-    }
-    dir.close();
-  }
-
-  if (!files.empty()) {
-    size_t idx = random(files.size());
-    if (files.size() > 1 && idx == APP_STATE.lastSleepImage) {
-      idx = (idx + 1) % files.size();
-    }
-
-    APP_STATE.lastSleepImage = idx;
-    APP_STATE.saveToFile();
-
+  const std::string imagePath = pickRandomSleepBmpPath();
+  if (!imagePath.empty()) {
     FsFile file;
-    if (SdMan.openFileForRead("SLP", "/sleep/" + files[idx], file)) {
+    if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file, true);
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(),
-                                      1);
+        renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         return;
       }
-    }
-  }
-
-  FsFile rootFile;
-  if (SdMan.openFileForRead("SLP", "/sleep.bmp", rootFile)) {
-    Bitmap bitmap(rootFile, true);
-    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderer.clearScreen();
-      renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(),
-                                    1);
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      return;
     }
   }
 
@@ -213,35 +180,39 @@ void SleepActivity::renderCoverSleepScreen() const {
  * @param bitmap The bitmap image to render
  */
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
-  int x, y;
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;
+  int x = 0;
+  int y = 0;
+  int targetWidth = pageWidth;
+  int targetHeight = pageHeight;
+  const float imageWidth = static_cast<float>(bitmap.getWidth());
+  const float imageHeight = static_cast<float>(bitmap.getHeight());
+  const float imageRatio = imageWidth / imageHeight;
+  const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
+  const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
 
-  if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
-    // image will scale, make sure placement is right
-    float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
-    const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
-
-    if (ratio > screenRatio) {
-      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
-        cropX = 1.0f - (screenRatio / ratio);
-        ratio = (1.0f - cropX) * static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
-      }
-      x = 0;
-      y = std::round((static_cast<float>(pageHeight) - static_cast<float>(pageWidth) / ratio) / 2);
-    } else {
-      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
-        cropY = 1.0f - (ratio / screenRatio);
-        ratio = static_cast<float>(bitmap.getWidth()) / ((1.0f - cropY) * static_cast<float>(bitmap.getHeight()));
-      }
-      x = std::round((static_cast<float>(pageWidth) - static_cast<float>(pageHeight) * ratio) / 2);
-      y = 0;
+  if (cropMode) {
+    // Fill screen: crop excess from the dominant axis.
+    if (imageRatio > screenRatio) {
+      cropX = 1.0f - (screenRatio / imageRatio);
+    } else if (imageRatio < screenRatio) {
+      cropY = 1.0f - (imageRatio / screenRatio);
     }
   } else {
-    // center the image
-    x = (pageWidth - bitmap.getWidth()) / 2;
-    y = (pageHeight - bitmap.getHeight()) / 2;
+    // Fit inside screen while preserving aspect ratio (no upscale).
+    const float scaleW = static_cast<float>(pageWidth) / imageWidth;
+    const float scaleH = static_cast<float>(pageHeight) / imageHeight;
+    float fitScale = std::min(scaleW, scaleH);
+    if (fitScale > 1.0f) {
+      fitScale = 1.0f;
+    }
+
+    targetWidth = std::max(1, static_cast<int>(std::round(imageWidth * fitScale)));
+    targetHeight = std::max(1, static_cast<int>(std::round(imageHeight * fitScale)));
+    x = (pageWidth - targetWidth) / 2;
+    y = (pageHeight - targetHeight) / 2;
   }
 
   renderer.clearScreen();
@@ -249,7 +220,8 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const bool hasGreyscale = bitmap.hasGreyscale() &&
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
-  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+  renderer.resetBitmapGrayscaleDetection();
+  renderer.drawBitmap(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
@@ -257,8 +229,8 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 
-  if (hasGreyscale) {
-    renderGreyscale(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+  if (hasGreyscale && renderer.needsBitmapGrayscale()) {
+    renderGreyscale(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
   }
 }
 

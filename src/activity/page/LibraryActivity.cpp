@@ -1051,7 +1051,6 @@ void LibraryActivity::resetNavigation() {
  */
 void LibraryActivity::onEnter() {
   Activity::onEnter();
-  renderer.clearScreen();
   renderingMutex = xSemaphoreCreateMutex();
   if (!renderingMutex) return;
   renderer.clearScreen(0xff);

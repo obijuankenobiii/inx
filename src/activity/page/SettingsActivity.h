@@ -15,14 +15,14 @@
 class SystemSetting;
 struct SettingInfo;
 
+enum class SettingsPanel : uint8_t { System, Reader };
+
 class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
 
   bool updateRequired = false;
-  static constexpr int categoryCount = 4;
-  static const char* categoryNames[categoryCount];
-  int selectedCategoryIndex = 0;
+  SettingsPanel currentPanel = SettingsPanel::System;
 
   bool isIndexing = false;
   int indexingProgress = 0;
@@ -34,9 +34,8 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
 
-  void render() const;
-  void renderSettingsList() const;
-  void enterCategory(int categoryIndex);
+  void openCurrentPanel();
+  void swapPanelAndReopen();
 
   void startLibraryIndexing();
   void showIndexingProgress();
@@ -58,6 +57,8 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
 
  private:
   AboutPage* aboutPage = nullptr;
+
+  static const char* panelBackLabel(SettingsPanel panel);
 
  public:
   SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,

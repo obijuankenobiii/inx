@@ -273,6 +273,54 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     return;
   }
 
+  auto get2BitPixel = [](const uint8_t* row, const int px) -> uint8_t {
+    return (row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3;
+  };
+
+  // Use area accumulation for downscaled 2-bit bitmaps to avoid block/square artifacts.
+  const bool useAreaDownscale = isScaled && scale < 1.0f && !bitmap.is1Bit();
+  const int screenWidth = getScreenWidth();
+  std::vector<uint16_t> graySums;
+  std::vector<uint16_t> grayCounts;
+  std::vector<uint8_t> previousResolvedRow;
+  int activeDestY = -1;
+
+  auto flushAccumulatedRow = [&](const int destY) {
+    if (destY < 0 || destY >= getScreenHeight()) {
+      return;
+    }
+    uint8_t lastResolvedVal = 3;
+    for (int sx = 0; sx < screenWidth; sx++) {
+      uint8_t resolvedVal = 3;
+      if (grayCounts[sx] > 0) {
+        resolvedVal = static_cast<uint8_t>((graySums[sx] + (grayCounts[sx] / 2)) / grayCounts[sx]);
+      } else {
+        // Avoid vertical white striping when some destination columns receive no samples.
+        // Prefer the previous row's value at this column, then fall back to left neighbor.
+        resolvedVal = previousResolvedRow.empty() ? lastResolvedVal : previousResolvedRow[sx];
+      }
+      if (renderMode == BW && resolvedVal < 3) {
+        drawPixel(sx, destY);
+      } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
+        drawPixel(sx, destY, false);
+      } else if (renderMode == GRAYSCALE_LSB && resolvedVal == 1) {
+        drawPixel(sx, destY, false);
+      }
+      lastResolvedVal = resolvedVal;
+      if (!previousResolvedRow.empty()) {
+        previousResolvedRow[sx] = resolvedVal;
+      }
+      graySums[sx] = 0;
+      grayCounts[sx] = 0;
+    }
+  };
+
+  if (useAreaDownscale) {
+    graySums.assign(screenWidth, 0);
+    grayCounts.assign(screenWidth, 0);
+    previousResolvedRow.assign(screenWidth, 3);
+  }
+
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
     // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
     // Screen's (0, 0) is the top-left corner.
@@ -313,20 +361,58 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
         continue;
       }
 
-      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+      const uint8_t sourceVal = get2BitPixel(outputRow, bmpX);
+      uint8_t val = sourceVal;
 
-      if (renderMode == BW && val < 3) {
-        drawPixel(screenX, screenY);
-      } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-        drawPixel(screenX, screenY, false);
-      } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-        drawPixel(screenX, screenY, false);
+      // Only collect grayscale need stats from the source bitmap values in BW mode.
+      // This avoids false positives introduced by smoothing during scaling.
+      if (renderMode == BW) {
+        bitmapCheckedPixelCount++;
+        if (sourceVal == 1 || sourceVal == 2) {
+          bitmapGrayPixelCount++;
+        }
+      }
+
+      if (useAreaDownscale) {
+        if (activeDestY == -1) {
+          activeDestY = screenY;
+        } else if (screenY != activeDestY) {
+          flushAccumulatedRow(activeDestY);
+          activeDestY = screenY;
+        }
+        graySums[screenX] = static_cast<uint16_t>(graySums[screenX] + val);
+        grayCounts[screenX]++;
+      } else {
+        if (renderMode == BW && val < 3) {
+          drawPixel(screenX, screenY);
+        } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+          drawPixel(screenX, screenY, false);
+        } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+          drawPixel(screenX, screenY, false);
+        }
       }
     }
+
+  }
+
+  if (useAreaDownscale && activeDestY >= 0) {
+    flushAccumulatedRow(activeDestY);
   }
 
   free(outputRow);
   free(rowBytes);
+}
+
+bool GfxRenderer::needsBitmapGrayscale() const {
+  if (bitmapCheckedPixelCount == 0) {
+    return false;
+  }
+
+  // Require a clearly meaningful amount of grayscale (not tiny anti-aliased noise).
+  // This intentionally biases toward BW unless gray coverage is substantial.
+  const uint32_t thresholdByRatio = (bitmapCheckedPixelCount * 80U) / 1000U;  // 8%
+  const uint32_t threshold = std::max<uint32_t>(256U, thresholdByRatio);
+  return bitmapGrayPixelCount >= threshold;
 }
 
 void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,

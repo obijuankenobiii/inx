@@ -95,9 +95,10 @@ void CategorySettingsActivity::setupMenu() {
       entry.valuePtr = nullptr;
       entry.enumValues.clear();
       entry.valueRange = {0, 0, 0};
-      entry.getValueText = [this, group = setting.group]() -> const char* {
+      const GroupType sepGroup = setting.group;
+      entry.getValueText = [this, sepGroup]() -> const char* {
         static char indicator[4];
-        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[group] ? "-" : "+");
+        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[sepGroup] ? "-" : "+");
         return indicator;
       };
       entry.change = [](int) {};
@@ -159,6 +160,18 @@ void CategorySettingsActivity::setupMenu() {
         if (setting.type == SettingType::ACTION) {
           entry.getValueText = []() -> const char* { return "→"; };
           entry.change = [this, setting](int) {
+            if (strcmp(setting.name, "Index your library") == 0) {
+              if (onIndexLibrary) {
+                onIndexLibrary();
+              }
+              return;
+            }
+            if (strcmp(setting.name, "About") == 0) {
+              if (onAboutPanel) {
+                onAboutPanel();
+              }
+              return;
+            }
             if (strcmp(setting.name, "KOReader Sync") == 0) {
               exitActivity();
               enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
@@ -317,7 +330,7 @@ void CategorySettingsActivity::displayTaskLoop() {
 /**
  * @brief Render the category settings screen
  */
-void CategorySettingsActivity::render() const {
+void CategorySettingsActivity::render() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -401,7 +414,8 @@ void CategorySettingsActivity::render() const {
     renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
-  const auto labels = mappedInput.mapLabels("« Back", "Toggle", "", "");
+  const char* backLbl = backButtonLabel ? backButtonLabel : "\xC2\xAB Back";
+  const auto labels = mappedInput.mapLabels(backLbl, "Toggle", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
