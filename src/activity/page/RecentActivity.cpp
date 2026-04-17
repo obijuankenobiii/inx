@@ -247,7 +247,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
         int drawX = coverAreaX + (containerWidth - scaledW) / 2;
         int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
-        renderer.drawBitmap(bitmap, drawX, drawY, scaledW, scaledH);
+        renderer.drawSmallBitmapClean(bitmap, drawX, drawY, scaledW, scaledH);
         coverDrawn = true;
       }
       file.close();
@@ -423,7 +423,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
 
         if (drawX >= 0 && drawX < renderer.getScreenWidth() && drawY >= 0 && drawY < renderer.getScreenHeight()) {
           renderer.drawRect(drawX, drawY - 12, drawWidth, drawHeight);
-          renderer.drawBitmap(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
+          renderer.drawSmallBitmapClean(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
           coverDrawn = true;
         }
       }
@@ -583,7 +583,7 @@ void RecentActivity::renderDefault() {
         int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
         int drawX = coverAreaX + (coverWidth - bw) / 2;
         int drawY = coverAreaY + (coverHeight - bh) / 2;
-        renderer.drawBitmap(bitmap, drawX, drawY, bw, bh);
+        renderer.drawSmallBitmapClean(bitmap, drawX, drawY, bw, bh);
         coverDrawn = true;
       }
       file.close();
@@ -1044,7 +1044,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          renderer.drawBitmap(bitmap, leftX, sideY, sideW, sideH);
+          renderer.drawSmallBitmapClean(bitmap, leftX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -1067,7 +1067,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          renderer.drawBitmap(bitmap, rightX, sideY, sideW, sideH);
+          renderer.drawSmallBitmapClean(bitmap, rightX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -1090,7 +1090,7 @@ void RecentActivity::renderFlow() {
     if (SdMan.openFileForRead("RECENT", path, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawBitmap(bitmap, centerX, centerY, centerW, centerH);
+        renderer.drawSmallBitmapClean(bitmap, centerX, centerY, centerW, centerH);
         centerDrawn = true;
       }
       file.close();

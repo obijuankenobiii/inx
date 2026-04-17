@@ -138,34 +138,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
 
 void MenuDrawer::drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4) {
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  const int sh = renderer.getScreenHeight();
-  constexpr int margin = 3;
-  constexpr int btnH = 28;
-  const int y = sh - btnH - margin * 2;
-  const char* labels[] = {btn1, btn2, btn3, btn4};
-  int count = 0;
-  for (const char* lb : labels) {
-    if (lb != nullptr && lb[0] != '\0') {
-      count++;
-    }
-  }
-  if (count == 0) {
-    return;
-  }
-  const int btnW = std::max(24, (drawerWidth - margin * (count + 1)) / count);
-  int x = drawerX + margin;
-  for (int i = 0; i < 4; i++) {
-    if (labels[i] == nullptr || labels[i][0] == '\0') {
-      continue;
-    }
-    renderer.fillRect(x, y, btnW, btnH, GfxRenderer::FillTone::Paper);
-    renderer.drawRect(x, y, btnW, btnH, true);
-    const int tw = renderer.getTextWidth(fontId, labels[i]);
-    const int tx = x + std::max(0, (btnW - tw) / 2);
-    renderer.drawText(fontId, tx, y + 7, labels[i], true);
-    x += btnW + margin;
-  }
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
 }
 
 MenuDrawer::~MenuDrawer() {
@@ -383,6 +356,7 @@ void MenuDrawer::renderToc() {
   // Button hints for TOC view
   drawDrawerHintRow("« Back", "Select", "«", "»");
 }
+
 
 /**
  * @brief Renders bookmarks in the same drawer layout as the TOC
