@@ -440,7 +440,7 @@ void MenuDrawer::renderBookmarks() {
     const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
     drawDrawerHintRow(labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
-    drawDrawerHintRow("« Back", "Select", "Up", "Del");
+    drawDrawerHintRow("« Back", "Select", "", "Del");
   }
 }
 

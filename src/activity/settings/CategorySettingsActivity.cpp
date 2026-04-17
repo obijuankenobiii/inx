@@ -178,7 +178,7 @@ void CategorySettingsActivity::setupMenu() {
           };
         }
         if (setting.type == SettingType::ACTION) {
-          entry.getValueText = []() -> const char* { return "→"; };
+          entry.getValueText = []() -> const char* { return ""; };
           entry.change = [this, setting](int) {
             if (strcmp(setting.name, "Index your library") == 0) {
               if (onIndexLibrary) {
