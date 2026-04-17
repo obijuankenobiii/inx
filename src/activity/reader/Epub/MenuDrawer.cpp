@@ -138,34 +138,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
 
 void MenuDrawer::drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4) {
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  const int sh = renderer.getScreenHeight();
-  constexpr int margin = 3;
-  constexpr int btnH = 28;
-  const int y = sh - btnH - margin * 2;
-  const char* labels[] = {btn1, btn2, btn3, btn4};
-  int count = 0;
-  for (const char* lb : labels) {
-    if (lb != nullptr && lb[0] != '\0') {
-      count++;
-    }
-  }
-  if (count == 0) {
-    return;
-  }
-  const int btnW = std::max(24, (drawerWidth - margin * (count + 1)) / count);
-  int x = drawerX + margin;
-  for (int i = 0; i < 4; i++) {
-    if (labels[i] == nullptr || labels[i][0] == '\0') {
-      continue;
-    }
-    renderer.fillRect(x, y, btnW, btnH, GfxRenderer::FillTone::Paper);
-    renderer.drawRect(x, y, btnW, btnH, true);
-    const int tw = renderer.getTextWidth(fontId, labels[i]);
-    const int tx = x + std::max(0, (btnW - tw) / 2);
-    renderer.drawText(fontId, tx, y + 7, labels[i], true);
-    x += btnW + margin;
-  }
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
 }
 
 MenuDrawer::~MenuDrawer() {
@@ -348,31 +321,45 @@ void MenuDrawer::renderToc() {
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
   int drawY = dividerY + 2;
 
-  for (int i = 0; i < pageItems; i++) {
-    int itemIndex = pageStartIndex + i;
-    if (itemIndex >= totalItems) break;
+  if (totalItems == 0) {
+    const int msgY = drawY + 24;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY,
+                      "No table of contents in this book.", true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY + 22,
+                      "Try Delete Cache and reopen to rebuild.", true);
+  } else {
+    for (int i = 0; i < pageItems; i++) {
+      int itemIndex = pageStartIndex + i;
+      if (itemIndex >= totalItems) break;
 
-    int itemY = drawY + (i * LIST_ITEM_HEIGHT);
-    bool isSelected = (itemIndex == tocSelectedIndex);
+      int itemY = drawY + (i * LIST_ITEM_HEIGHT);
+      bool isSelected = (itemIndex == tocSelectedIndex);
 
-    if (isSelected) {
-      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      if (isSelected) {
+        renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      }
+
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+
+      auto item = epub->getTocItem(itemIndex);
+      const int level = std::max(1, static_cast<int>(item.level));
+      const int depthPx = (level - 1) * 20;
+      const int maxDepthPx = std::max(0, panelW - 120);
+      const int relIndent = 20 + std::min(depthPx, maxDepthPx);
+      const int indentSize = tocDrawerX + relIndent;
+      const int maxTitleW = std::max(40, panelW - 70 - relIndent);
+      const std::string truncatedName =
+          renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
+
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+      renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
+                        true);
     }
-
-    int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
-    auto item = epub->getTocItem(itemIndex);
-    int indentSize = tocDrawerX + 20 + (item.level - 1) * 20;
-    const std::string truncatedName =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), panelW - 60 - (indentSize - tocDrawerX));
-
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
   }
 
   // Footer with page indicator
-  const int totalPages = (totalItems + pageItems - 1) / pageItems;
+  const int totalPages = std::max(1, (totalItems + pageItems - 1) / pageItems);
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
@@ -383,6 +370,7 @@ void MenuDrawer::renderToc() {
   // Button hints for TOC view
   drawDrawerHintRow("« Back", "Select", "«", "»");
 }
+
 
 /**
  * @brief Renders bookmarks in the same drawer layout as the TOC
@@ -452,7 +440,7 @@ void MenuDrawer::renderBookmarks() {
     const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
     drawDrawerHintRow(labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
-    drawDrawerHintRow("« Back", "Select", "Up", "Del");
+    drawDrawerHintRow("« Back", "Select", "", "Del");
   }
 }
 
@@ -471,6 +459,15 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   const int totalItems = epub->getTocItemsCount();
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
+
+  if (totalItems == 0) {
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      exitToc();
+      lastInputTime = currentTime;
+      renderWithRefresh();
+    }
+    return;
+  }
 
   if (readDrawerListPrev(input, renderer)) {
     if (skipPage) {

@@ -1,5 +1,8 @@
 #include "TableOfContentsActivity.h"
 #include <GfxRenderer.h>
+
+#include <algorithm>
+
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h" 
 
@@ -154,11 +157,17 @@ void TableOfContentsActivity::renderScreen() {
         int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
         auto item = epub->getTocItem(itemIndex);
-        int indentSize = 20 + (item.level - 1) * 20;
+        const int level = std::max(1, static_cast<int>(item.level));
+        const int depthPx = (level - 1) * 20;
+        const int maxDepthPx = std::max(0, screenWidth - 120);
+        const int relIndent = 20 + std::min(depthPx, maxDepthPx);
+        const int indentSize = relIndent;
+        const int maxTitleW = std::max(40, screenWidth - 70 - relIndent);
         const std::string truncatedName =
-            renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), screenWidth - 60 - indentSize);
+            renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
 
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(),
+                          isSelected ? 0 : 1);
         renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 30, textY, "›", isSelected ? 0 : 1);
         renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
     }

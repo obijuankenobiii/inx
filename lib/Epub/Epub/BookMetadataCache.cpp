@@ -78,6 +78,21 @@ bool BookMetadataCache::beginTocPass() {
   return true;
 }
 
+void BookMetadataCache::appendSyntheticTocFromSpineIfEmpty() {
+  if (!buildMode || !tocFile || spineCount == 0 || tocCount > 0) {
+    return;
+  }
+  spineFile.seek(0);
+  for (int i = 0; i < spineCount; ++i) {
+    const SpineEntry se = readSpineEntry(spineFile);
+    const std::string title = "Chapter " + std::to_string(i + 1);
+    const TocEntry entry(title, se.href, "", 1, static_cast<int16_t>(i));
+    writeTocEntry(tocFile, entry);
+    ++tocCount;
+  }
+  Serial.printf("[%lu] [BMC] Synthetic TOC: %d spine entries (no nav/ncx rows)\n", millis(), spineCount);
+}
+
 bool BookMetadataCache::endTocPass() {
   tocFile.close();
   spineFile.close();
