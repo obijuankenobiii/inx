@@ -356,53 +356,6 @@ void SettingsDrawer::setupMenu() {
       SETTINGS.saveToFile();
     };
     menuItems.push_back(ditherEntry);
-
-    MenuEntry displayDitherEntry;
-    displayDitherEntry.item = MenuItem::DisplayImageDither;
-    displayDitherEntry.group = GroupType::IMAGE;
-    displayDitherEntry.name = "Sleep & library dither";
-    displayDitherEntry.getValueText = [](const BookSettings&) -> const char* {
-      switch (SETTINGS.displayImageDither) {
-        case SystemSetting::IMAGE_DITHER_FLOYD_STEINBERG:
-          return "Floyd-Steinberg";
-        case SystemSetting::IMAGE_DITHER_ATKINSON:
-          return "Atkinson";
-        default:
-          return "None";
-      }
-    };
-    displayDitherEntry.change = [](BookSettings&, int delta) {
-      int v = static_cast<int>(SETTINGS.displayImageDither) + delta;
-      if (v < 0) {
-        v = SystemSetting::READER_IMAGE_DITHER_COUNT - 1;
-      }
-      if (v >= SystemSetting::READER_IMAGE_DITHER_COUNT) {
-        v = 0;
-      }
-      SETTINGS.displayImageDither = static_cast<uint8_t>(v);
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(displayDitherEntry);
-
-    MenuEntry displayPresEntry;
-    displayPresEntry.item = MenuItem::DisplayImagePresentation;
-    displayPresEntry.group = GroupType::IMAGE;
-    displayPresEntry.name = "Sleep & library image grays";
-    displayPresEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY ? "Full gray" : "Balanced";
-    };
-    displayPresEntry.change = [](BookSettings&, int delta) {
-      int v = static_cast<int>(SETTINGS.displayImagePresentation) + delta;
-      if (v < 0) {
-        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
-      }
-      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        v = 0;
-      }
-      SETTINGS.displayImagePresentation = static_cast<uint8_t>(v);
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(displayPresEntry);
   }
 
   MenuEntry controlsSeparator;
@@ -823,8 +776,6 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::ReaderSmartImageRefresh:
     case MenuItem::ReaderImagePresentation:
     case MenuItem::ReaderImageDither:
-    case MenuItem::DisplayImageDither:
-    case MenuItem::DisplayImagePresentation:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:
