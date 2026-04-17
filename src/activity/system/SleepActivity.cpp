@@ -220,27 +220,15 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const float imageRatio = imageWidth / imageHeight;
   const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
   const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
+  const bool fitMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
 
-  if (cropMode) {
-    // Fill screen: crop excess from the dominant axis.
+  // Crop and Fit both fill the screen; aspect is preserved by cropping overscan (no letterboxing on Fit).
+  if (cropMode || fitMode) {
     if (imageRatio > screenRatio) {
       cropX = 1.0f - (screenRatio / imageRatio);
     } else if (imageRatio < screenRatio) {
       cropY = 1.0f - (imageRatio / screenRatio);
     }
-  } else {
-    // Fit inside screen while preserving aspect ratio (no upscale).
-    const float scaleW = static_cast<float>(pageWidth) / imageWidth;
-    const float scaleH = static_cast<float>(pageHeight) / imageHeight;
-    float fitScale = std::min(scaleW, scaleH);
-    if (fitScale > 1.0f) {
-      fitScale = 1.0f;
-    }
-
-    targetWidth = std::max(1, static_cast<int>(std::round(imageWidth * fitScale)));
-    targetHeight = std::max(1, static_cast<int>(std::round(imageHeight * fitScale)));
-    x = (pageWidth - targetWidth) / 2;
-    y = (pageHeight - targetHeight) / 2;
   }
 
   renderer.clearScreen();

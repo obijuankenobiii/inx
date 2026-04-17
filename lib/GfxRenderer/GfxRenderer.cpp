@@ -339,11 +339,15 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     hasTargetBounds = true;
   }
 
-  if (hasTargetBounds && fitScale < 1.0f) {
+  constexpr float kScaleEps = 1e-5f;
+  const bool upscaleBlock = hasTargetBounds && fitScale > 1.0f + kScaleEps;
+  if (hasTargetBounds && fitScale < 1.0f - kScaleEps) {
+    scale = fitScale;
+    isScaled = true;
+  } else if (upscaleBlock) {
     scale = fitScale;
     isScaled = true;
   }
-
 
   // Calculate output row size (2 bits per pixel, packed into bytes)
   // IMPORTANT: Use int, not uint8_t, to avoid overflow for images > 1020 pixels wide
@@ -410,12 +414,14 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
     // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
     // Screen's (0, 0) is the top-left corner.
-    int screenY = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
-    if (isScaled) {
-      screenY = std::floor(screenY * scale);
+    const int logicalYUnscaled = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
+
+    int screenY = logicalYUnscaled;
+    if (isScaled && !upscaleBlock) {
+      screenY = static_cast<int>(std::floor(logicalYUnscaled * scale));
     }
-    screenY += y;  // the offset should not be scaled
-    if (screenY >= getScreenHeight()) {
+    screenY += y;
+    if (!upscaleBlock && screenY >= getScreenHeight()) {
       break;
     }
 
@@ -425,7 +431,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
       return;
     }
 
-    if (screenY < 0) {
+    if (!upscaleBlock && screenY < 0) {
       continue;
     }
 
@@ -434,19 +440,20 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
       continue;
     }
 
-    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
-      int screenX = bmpX - cropPixX;
-      if (isScaled) {
-        screenX = std::floor(screenX * scale);
-      }
-      screenX += x;  // the offset should not be scaled
-      if (screenX >= getScreenWidth()) {
+    int destY0 = screenY;
+    int destY1 = screenY;
+    if (upscaleBlock) {
+      destY0 = y + static_cast<int>(std::floor(logicalYUnscaled * scale));
+      destY1 = y + static_cast<int>(std::floor((logicalYUnscaled + 1) * scale)) - 1;
+      if (destY0 >= getScreenHeight()) {
         break;
       }
-      if (screenX < 0) {
+      if (destY1 < 0) {
         continue;
       }
+    }
 
+    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
       const uint8_t sourceVal = get2BitPixel(outputRow, bmpX);
       uint8_t val = sourceVal;
 
@@ -467,9 +474,53 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
           flushAccumulatedRow(activeDestY);
           activeDestY = screenY;
         }
+        int screenX = bmpX - cropPixX;
+        if (isScaled) {
+          screenX = static_cast<int>(std::floor(screenX * scale));
+        }
+        screenX += x;
+        if (screenX >= getScreenWidth()) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
         graySums[screenX] = static_cast<uint16_t>(graySums[screenX] + val);
         grayCounts[screenX]++;
+      } else if (upscaleBlock) {
+        const int logicalX = bmpX - cropPixX;
+        const int destX0 = x + static_cast<int>(std::floor(logicalX * scale));
+        const int destX1 = x + static_cast<int>(std::floor((logicalX + 1) * scale)) - 1;
+        for (int yy = destY0; yy <= destY1; ++yy) {
+          if (yy < 0 || yy >= getScreenHeight()) {
+            continue;
+          }
+          for (int xx = destX0; xx <= destX1; ++xx) {
+            if (xx < 0 || xx >= getScreenWidth()) {
+              continue;
+            }
+            if (renderMode == BW && val < 3) {
+              drawPixel(xx, yy);
+            } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+              drawPixel(xx, yy, false);
+            } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+              drawPixel(xx, yy, false);
+            }
+          }
+        }
       } else {
+        int screenX = bmpX - cropPixX;
+        if (isScaled) {
+          screenX = static_cast<int>(std::floor(screenX * scale));
+        }
+        screenX += x;
+        if (screenX >= getScreenWidth()) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
+
         if (renderMode == BW && val < 3) {
           drawPixel(screenX, screenY);
         } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
@@ -496,14 +547,29 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
 void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
                                  const int maxHeight) const {
+  float fitScale = 1.0f;
+  bool hasTargetBounds = false;
+  const float iw = static_cast<float>(bitmap.getWidth());
+  const float ih = static_cast<float>(bitmap.getHeight());
+  if (maxWidth > 0 && iw > 0.0f) {
+    fitScale = static_cast<float>(maxWidth) / iw;
+    hasTargetBounds = true;
+  }
+  if (maxHeight > 0 && ih > 0.0f) {
+    const float heightScale = static_cast<float>(maxHeight) / ih;
+    fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
+    hasTargetBounds = true;
+  }
+
+  constexpr float kEps = 1e-5f;
   float scale = 1.0f;
   bool isScaled = false;
-  if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
-    scale = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
+  const bool upscaleBlock = hasTargetBounds && fitScale > 1.0f + kEps;
+  if (hasTargetBounds && fitScale < 1.0f - kEps) {
+    scale = fitScale;
     isScaled = true;
-  }
-  if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
-    scale = std::min(scale, static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()));
+  } else if (upscaleBlock) {
+    scale = fitScale;
     isScaled = true;
   }
 
@@ -574,23 +640,31 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     }
 
     const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-    int screenY = y + (isScaled ? static_cast<int>(std::floor(bmpYOffset * scale)) : bmpYOffset);
-    if (screenY >= getScreenHeight()) {
+    int screenY = y + bmpYOffset;
+    if (isScaled && !upscaleBlock) {
+      screenY = y + static_cast<int>(std::floor(bmpYOffset * scale));
+    }
+    if (!upscaleBlock && screenY >= getScreenHeight()) {
       continue;
     }
-    if (screenY < 0) {
+    if (!upscaleBlock && screenY < 0) {
       continue;
+    }
+
+    int destY0 = screenY;
+    int destY1 = screenY;
+    if (upscaleBlock) {
+      destY0 = y + static_cast<int>(std::floor(bmpYOffset * scale));
+      destY1 = y + static_cast<int>(std::floor((bmpYOffset + 1) * scale)) - 1;
+      if (destY0 >= getScreenHeight()) {
+        continue;
+      }
+      if (destY1 < 0) {
+        continue;
+      }
     }
 
     for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-      int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
-      if (screenX >= getScreenWidth()) {
-        break;
-      }
-      if (screenX < 0) {
-        continue;
-      }
-
       const uint8_t sourceVal = get2BitPixel(outputRow, bmpX);
       const uint8_t val = sourceVal;
 
@@ -604,6 +678,13 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
       }
 
       if (useAreaDownscale) {
+        int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
+        if (screenX >= getScreenWidth()) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
         if (activeDestY == -1) {
           activeDestY = screenY;
         } else if (screenY != activeDestY) {
@@ -612,7 +693,35 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
         }
         graySums[screenX] += val;
         grayCounts[screenX]++;
+      } else if (upscaleBlock) {
+        const int destX0 = x + static_cast<int>(std::floor(bmpX * scale));
+        const int destX1 = x + static_cast<int>(std::floor((bmpX + 1) * scale)) - 1;
+        for (int yy = destY0; yy <= destY1; ++yy) {
+          if (yy < 0 || yy >= getScreenHeight()) {
+            continue;
+          }
+          for (int xx = destX0; xx <= destX1; ++xx) {
+            if (xx < 0 || xx >= getScreenWidth()) {
+              continue;
+            }
+            if (renderMode == BW && val < 3) {
+              drawPixel(xx, yy, true);
+            } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+              drawPixel(xx, yy, false);
+            } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+              drawPixel(xx, yy, false);
+            }
+          }
+        }
       } else {
+        int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
+        if (screenX >= getScreenWidth()) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
+
         if (renderMode == BW && val < 3) {
           drawPixel(screenX, screenY, true);
         } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
