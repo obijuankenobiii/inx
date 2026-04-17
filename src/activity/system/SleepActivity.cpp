@@ -162,14 +162,15 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   std::string coverPath;
-  const bool cropped = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
+  // Match asset to display: FIT fills the screen (cover at encode time); CROP shows whole image (contain).
+  const bool coverFillScreen = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
   const std::string& path = APP_STATE.lastRead;
 
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      if (book.generateCoverBmp(cropped)) {
-        coverPath = book.getCoverBmpPath(cropped);
+      if (book.generateCoverBmp(coverFillScreen)) {
+        coverPath = book.getCoverBmpPath(coverFillScreen);
       } else if (book.generateCoverBmp(false)) {
         coverPath = book.getCoverBmpPath(false);
       }
@@ -219,16 +220,28 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const float imageHeight = static_cast<float>(bitmap.getHeight());
   const float imageRatio = imageWidth / imageHeight;
   const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
-  const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
   const bool fitMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+  const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
 
-  // Crop and Fit both fill the screen; aspect is preserved by cropping overscan (no letterboxing on Fit).
-  if (cropMode || fitMode) {
+  if (fitMode) {
+    // Fit: fill the screen; preserve aspect by cropping overscan (no letterboxing).
     if (imageRatio > screenRatio) {
       cropX = 1.0f - (screenRatio / imageRatio);
     } else if (imageRatio < screenRatio) {
       cropY = 1.0f - (imageRatio / screenRatio);
     }
+  } else if (cropMode) {
+    // Crop: show the whole image inside the screen (letterbox), no upscale past native resolution.
+    const float scaleW = static_cast<float>(pageWidth) / imageWidth;
+    const float scaleH = static_cast<float>(pageHeight) / imageHeight;
+    float containScale = std::min(scaleW, scaleH);
+    if (containScale > 1.0f) {
+      containScale = 1.0f;
+    }
+    targetWidth = std::max(1, static_cast<int>(std::round(imageWidth * containScale)));
+    targetHeight = std::max(1, static_cast<int>(std::round(imageHeight * containScale)));
+    x = (pageWidth - targetWidth) / 2;
+    y = (pageHeight - targetHeight) / 2;
   }
 
   renderer.clearScreen();

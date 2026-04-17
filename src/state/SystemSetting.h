@@ -32,8 +32,8 @@ public:
      * @brief Sleep screen cover scaling modes
      */
     enum SLEEP_SCREEN_COVER_MODE { 
-        FIT = 0,            ///< Fill screen; preserve aspect (center crop, no letterboxing)
-        CROP = 1,           ///< Fill screen; preserve aspect (center crop)
+        FIT = 0,            ///< Fill screen; preserve aspect (center crop / cover)
+        CROP = 1,           ///< Show full image in screen (letterbox / contain, no upscale)
         SLEEP_SCREEN_COVER_MODE_COUNT 
     };
     
