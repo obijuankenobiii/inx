@@ -1,4 +1,5 @@
 #pragma once
+#include <Bitmap.h>
 #include <SdFat.h>
 #include <utility>
 #include <vector>
@@ -42,8 +43,10 @@ class PageElement {
    * @param fontId Font ID for text rendering
    * @param xOffset Horizontal offset for page margins
    * @param yOffset Vertical offset for page margins
+   * @param imageDitherMode High-color BMP decode dithering (images only; callers pass from app settings).
    */
-  virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) = 0;
+  virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+                      BitmapDitherMode imageDitherMode = BitmapDitherMode::None) = 0;
   
   /**
    * Serializes the element to a file.
@@ -65,7 +68,8 @@ class PageLine final : public PageElement {
       : PageElement(xPos, yPos), block(std::move(block)) {}
 
   PageElementTag getTag() const override { return TAG_PageLine; }
-  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageLine> deserialize(FsFile& file);
 };
@@ -83,7 +87,8 @@ class PageHeader final : public PageElement {
       : PageElement(xPos, yPos), block(std::move(block)), headerFontId(fontId) {}
 
   PageElementTag getTag() const override { return TAG_PageHeader; }
-  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageHeader> deserialize(FsFile& file);
 };
@@ -106,7 +111,8 @@ class PageDropCap final : public PageElement {
       : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId) {}
 
   PageElementTag getTag() const override { return TAG_PageDropCap; }
-  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageDropCap> deserialize(FsFile& file);
 };
@@ -125,7 +131,8 @@ class PageImage final : public PageElement {
       : PageElement(xPos, yPos), cachePath(std::move(path)), width(w), height(h) {}
 
   PageElementTag getTag() const override { return TAG_PageImage; }
-  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   
@@ -148,8 +155,10 @@ class Page {
                        });
   }
   
-  void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false) const;
-  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
+  void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
+              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
+  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+                    BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

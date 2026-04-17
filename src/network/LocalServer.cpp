@@ -1006,6 +1006,9 @@ void LocalServer::handleSettingsGet() const {
   doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
   doc["readerSmartRefreshOnImages"] = SETTINGS.readerSmartRefreshOnImages;
   doc["readerImagePresentation"] = SETTINGS.readerImagePresentation;
+  doc["readerImageDither"] = SETTINGS.readerImageDither;
+  doc["displayImageDither"] = SETTINGS.displayImageDither;
+  doc["displayImagePresentation"] = SETTINGS.displayImagePresentation;
   doc["statusBar"] = SETTINGS.statusBar;
   doc["statusBarLeft"] = SETTINGS.statusBarLeft;
   doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
@@ -1149,6 +1152,24 @@ void LocalServer::handleSettingsUpdate() const {
     else if (strcmp(key, "readerImagePresentation") == 0) {
       if (value >= 0 && value < SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
         SETTINGS.readerImagePresentation = (uint8_t)value;
+        changed = true;
+      }
+    }
+    else if (strcmp(key, "readerImageDither") == 0) {
+      if (value >= 0 && value < SystemSetting::READER_IMAGE_DITHER_COUNT) {
+        SETTINGS.readerImageDither = (uint8_t)value;
+        changed = true;
+      }
+    }
+    else if (strcmp(key, "displayImageDither") == 0) {
+      if (value >= 0 && value < SystemSetting::READER_IMAGE_DITHER_COUNT) {
+        SETTINGS.displayImageDither = (uint8_t)value;
+        changed = true;
+      }
+    }
+    else if (strcmp(key, "displayImagePresentation") == 0) {
+      if (value >= 0 && value < SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        SETTINGS.displayImagePresentation = (uint8_t)value;
         changed = true;
       }
     }

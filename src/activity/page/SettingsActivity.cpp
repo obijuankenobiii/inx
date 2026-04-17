@@ -15,7 +15,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 23;
+constexpr int systemPageSettingsCount = 25;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -34,6 +34,13 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
     SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
                       GroupType::IMAGE),
+    SettingInfo::Enum("Sleep & library dither", &SystemSetting::displayImageDither,
+                      {"None","Floyd-Steinberg","Atkinson"},
+                      GroupType::IMAGE),
+    SettingInfo::Enum(
+        "Sleep & library image grays", &SystemSetting::displayImagePresentation,
+        {"Balanced (clean whites)","Full gray (smooth fills)"},
+        GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum(
@@ -59,7 +66,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     /* Standalone row (not inside a collapsible group); always visible. */
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 28;
+constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
@@ -100,6 +107,9 @@ const SettingInfo readerSettings[readerSettingsCount] = {
         "Book image grays", &SystemSetting::readerImagePresentation,
         {"Balanced (clean whites)","Full gray (smooth fills)"},
         GroupType::IMAGE),
+    SettingInfo::Enum("Book image dithering", &SystemSetting::readerImageDither,
+                      {"None","Floyd-Steinberg","Atkinson"},
+                      GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,

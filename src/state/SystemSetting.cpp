@@ -26,8 +26,10 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 7;
-constexpr uint8_t SETTINGS_COUNT = 38;
+constexpr uint8_t SETTINGS_FILE_VERSION = 10;
+constexpr uint8_t SETTINGS_COUNT = 41;
+/** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
+constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 
 void sanitizeSleepCustomBmp(char* buf) {
@@ -113,6 +115,9 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, sleepScreenCoverGrayscale);
   serialization::writeString(outputFile, std::string(sleepCustomBmp));
   serialization::writePod(outputFile, readerImagePresentation);
+  serialization::writePod(outputFile, readerImageDither);
+  serialization::writePod(outputFile, displayImageDither);
+  serialization::writePod(outputFile, displayImagePresentation);
 
   outputFile.close();
 
@@ -138,9 +143,10 @@ bool SystemSetting::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 6, 3);
+  if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
+      version != 9) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -351,10 +357,29 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, readerImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, readerImageDither, READER_IMAGE_DITHER_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, displayImageDither, READER_IMAGE_DITHER_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, displayImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      ++settingsRead;
+    }
 
   } while (false);
 
   inputFile.close();
+
+  if (settingsRead < SETTINGS_COUNT) {
+    if (settingsRead < SETTINGS_COUNT_V9) {
+      displayImageDither = readerImageDither;
+    }
+    displayImagePresentation = readerImagePresentation;
+  }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
 

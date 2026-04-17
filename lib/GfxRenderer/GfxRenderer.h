@@ -150,3 +150,18 @@ void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, i
                              uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
 
 };
+
+/**
+ * RAII: temporarily sets scaled-bitmap gray style for drawBitmap; restores on destruction.
+ */
+struct BitmapGrayStyleScope {
+  GfxRenderer& r;
+  GfxRenderer::BitmapGrayRenderStyle prev;
+  BitmapGrayStyleScope(GfxRenderer& renderer, GfxRenderer::BitmapGrayRenderStyle style)
+      : r(renderer), prev(renderer.getBitmapGrayRenderStyle()) {
+    r.setBitmapGrayRenderStyle(style);
+  }
+  ~BitmapGrayStyleScope() { r.setBitmapGrayRenderStyle(prev); }
+  BitmapGrayStyleScope(const BitmapGrayStyleScope&) = delete;
+  BitmapGrayStyleScope& operator=(const BitmapGrayStyleScope&) = delete;
+};

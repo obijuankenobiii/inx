@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 
@@ -108,7 +109,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
 
   FsFile file;
   if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
-    Bitmap bitmap(file);
+    Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
       int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
@@ -119,6 +120,10 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
       int scaledW = bw * 90 / 100;
       int scaledH = bh * 90 / 100;
 
+      BitmapGrayStyleScope displayGrayStyle(
+          renderer, SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
+                        ? GfxRenderer::BitmapGrayRenderStyle::FullGray
+                        : GfxRenderer::BitmapGrayRenderStyle::Balanced);
       renderer.drawBitmap(bitmap, drawX + 10, drawY + 5, scaledW, scaledH);
       coverDrawn = true;
     }

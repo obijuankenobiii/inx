@@ -271,6 +271,16 @@ public:
         READER_IMAGE_PRESENTATION_COUNT
     };
 
+    /**
+     * @brief Error diffusion when decoding high-color BMP to 2bpp (matches `BitmapDitherMode`).
+     */
+    enum READER_IMAGE_DITHER {
+        IMAGE_DITHER_NONE = 0,
+        IMAGE_DITHER_FLOYD_STEINBERG = 1,
+        IMAGE_DITHER_ATKINSON = 2,
+        READER_IMAGE_DITHER_COUNT
+    };
+
     // Sleep screen settings
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
@@ -358,6 +368,12 @@ public:
     uint8_t readerSmartRefreshOnImages = 1;
     /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
     uint8_t readerImagePresentation = IMAGE_PRESENTATION_BALANCED;
+    /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
+    uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
+    /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
+    uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
+    /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
+    uint8_t displayImagePresentation = IMAGE_PRESENTATION_BALANCED;
 
     ~SystemSetting() = default;
 

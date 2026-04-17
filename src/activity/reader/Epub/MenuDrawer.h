@@ -18,6 +18,7 @@ public:
     enum class MenuAction {
         SHOW_BOOKMARKS,
         SELECT_CHAPTER,
+        KOREADER_SYNC,
         GO_HOME,
         DELETE_CACHE,
         DELETE_PROGRESS,

@@ -1,5 +1,6 @@
 #include "SleepActivity.h"
 
+#include <Bitmap.h>
 #include <Epub.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
@@ -113,7 +114,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, true);
+      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -136,7 +137,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, true);
+      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -189,7 +190,7 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   FsFile file;
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
-    Bitmap bitmap(file);
+    Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       renderBitmapSleepScreen(bitmap);
     }
@@ -209,6 +210,10 @@ void SleepActivity::renderCoverSleepScreen() const {
  * @param bitmap The bitmap image to render (custom /sleep image or book cover)
  */
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
+  BitmapGrayStyleScope displayGrayStyle(
+      renderer, SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
+                    ? GfxRenderer::BitmapGrayRenderStyle::FullGray
+                    : GfxRenderer::BitmapGrayRenderStyle::Balanced);
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;

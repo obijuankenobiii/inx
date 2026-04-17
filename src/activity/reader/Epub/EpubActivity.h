@@ -210,6 +210,9 @@ private:
      * Generates full book data.
      */
     void generateFullData();
+
+    /** Opens KOReader sync as a sub-activity (from menu). */
+    void openKOReaderSyncFromMenu();
         
     void displayBookTitle();
     void drawLoadingScreen();
