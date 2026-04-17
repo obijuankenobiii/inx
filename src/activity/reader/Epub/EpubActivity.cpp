@@ -34,6 +34,19 @@ constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
  * MAP_NONE adds L/R to Up/Down for paging. In landscape CCW, physical left = next page and right = previous;
  * in landscape CW (and portrait), left = previous and right = next.
  */
+struct ReaderBitmapStyleGuard {
+  GfxRenderer& r;
+  GfxRenderer::BitmapGrayRenderStyle prev;
+  explicit ReaderBitmapStyleGuard(GfxRenderer& ren)
+      : r(ren), prev(ren.getBitmapGrayRenderStyle()) {
+    SystemSetting& s = SystemSetting::getInstance();
+    r.setBitmapGrayRenderStyle(s.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
+                                   ? GfxRenderer::BitmapGrayRenderStyle::FullGray
+                                   : GfxRenderer::BitmapGrayRenderStyle::Balanced);
+  }
+  ~ReaderBitmapStyleGuard() { r.setBitmapGrayRenderStyle(prev); }
+};
+
 void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orientation,
                                             const MappedInputManager& mappedInput, bool& prev, bool& next) {
   const bool leftReleased = mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -393,6 +406,7 @@ void EpubActivity::displayCoverOrTitle() {
   if (SdMan.openFileForRead("EBP", coverPath, coverFile)) {
     Bitmap coverBmp(coverFile);
     if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
+      ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
       renderer.clearScreen();
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
       renderer.displayBuffer();
@@ -1247,6 +1261,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginRight, const int orientedMarginBottom,
                                   const int orientedMarginLeft) {
   if (!page) return;
+  ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
   renderer.resetBitmapGrayscaleDetection();
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);

@@ -79,6 +79,7 @@ private:
     enum class GroupType {
         FONT,        ///< Font-related settings
         LAYOUT,      ///< Layout and spacing settings
+        IMAGE,       ///< Book bitmap appearance (global reader image options)
         CONTROLS,    ///< System and control settings
         STATUS_BAR   ///< Status bar configuration
     };
@@ -117,6 +118,7 @@ private:
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
+        ReaderImagePresentation,  ///< Global: balanced vs full-gray bitmap mapping
         PageAutoTurn
     };
     

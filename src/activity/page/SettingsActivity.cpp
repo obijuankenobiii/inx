@@ -15,23 +15,25 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 22;
+constexpr int systemPageSettingsCount = 23;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
                       {"Dark","Light","Custom","Recent Book","Transparent Cover","None"}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode,
-                      {"Fill","Crop"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
-                      {"None","Contrast","Inverted"}, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
-                      GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","List Stats","Flow"},
                       GroupType::DEVICE_DISPLAY),
+
+    SettingInfo::Separator("Image", GroupType::IMAGE),
+    SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode,
+                      {"Fill","Crop"},
+                      GroupType::IMAGE),
+    SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
+                      {"None","Contrast","Inverted"}, GroupType::IMAGE),
+    SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
+                      GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum(
@@ -57,7 +59,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     /* Standalone row (not inside a collapsible group); always visible. */
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 26;
+constexpr int readerSettingsCount = 28;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
@@ -90,8 +92,14 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page","5 pages","10 pages","15 pages","30 pages"}, GroupType::SYSTEM),
-    SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::SYSTEM),
-    SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::SYSTEM),
+
+    SettingInfo::Separator("Image", GroupType::IMAGE),
+    SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
+    SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
+    SettingInfo::Enum(
+        "Book image grays", &SystemSetting::readerImagePresentation,
+        {"Balanced (clean whites)","Full gray (smooth fills)"},
+        GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,

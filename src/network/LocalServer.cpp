@@ -1005,6 +1005,7 @@ void LocalServer::handleSettingsGet() const {
   doc["refreshFrequency"] = SETTINGS.refreshFrequency;
   doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
   doc["readerSmartRefreshOnImages"] = SETTINGS.readerSmartRefreshOnImages;
+  doc["readerImagePresentation"] = SETTINGS.readerImagePresentation;
   doc["statusBar"] = SETTINGS.statusBar;
   doc["statusBarLeft"] = SETTINGS.statusBarLeft;
   doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
@@ -1144,6 +1145,12 @@ void LocalServer::handleSettingsUpdate() const {
     else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
       SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
       changed = true;
+    }
+    else if (strcmp(key, "readerImagePresentation") == 0) {
+      if (value >= 0 && value < SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        SETTINGS.readerImagePresentation = (uint8_t)value;
+        changed = true;
+      }
     }
     else if (strcmp(key, "statusBar") == 0) {
       SETTINGS.statusBar = (uint8_t)value;

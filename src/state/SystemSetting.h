@@ -262,6 +262,15 @@ public:
         BOOT_SETTING_COUNT
     };
 
+    /**
+     * @brief How EPUB (and reader) bitmaps map 2bpp grays to ink when scaled in BW.
+     */
+    enum READER_IMAGE_PRESENTATION {
+        IMAGE_PRESENTATION_BALANCED = 0,  ///< Cleaner near-whites when downscaled; light gray may speckle
+        IMAGE_PRESENTATION_FULL_GRAY = 1, ///< Inks all 2bpp grays when scaled for smoother solid fills
+        READER_IMAGE_PRESENTATION_COUNT
+    };
+
     // Sleep screen settings
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
@@ -347,6 +356,8 @@ public:
     uint8_t readerImageGrayscale = 1;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
+    /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
+    uint8_t readerImagePresentation = IMAGE_PRESENTATION_BALANCED;
 
     ~SystemSetting() = default;
 

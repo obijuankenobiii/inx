@@ -27,6 +27,7 @@ enum class GroupType {
     DEVICE_BUTTONS,
     DEVICE_ADVANCED,
     DEVICE_ACTIONS,
+    IMAGE,
 };
 
 struct ValueRange {
@@ -188,6 +189,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     groupExpanded[GroupType::DEVICE_BUTTONS] = false;
     groupExpanded[GroupType::DEVICE_ADVANCED] = false;
     groupExpanded[GroupType::DEVICE_ACTIONS] = false;
+    groupExpanded[GroupType::IMAGE] = false;
   }
   void onEnter() override;
   void onExit() override;

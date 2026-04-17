@@ -71,6 +71,7 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
 
   groupExpanded[GroupType::FONT] = false;
   groupExpanded[GroupType::LAYOUT] = false;
+  groupExpanded[GroupType::IMAGE] = false;
   groupExpanded[GroupType::CONTROLS] = false;
   groupExpanded[GroupType::STATUS_BAR] = false;
 
@@ -270,6 +271,66 @@ void SettingsDrawer::setupMenu() {
     menuItems.push_back(hypenEntry);
   }
 
+  MenuEntry imageSeparator;
+  imageSeparator.item = MenuItem::Separator;
+  imageSeparator.group = GroupType::IMAGE;
+  imageSeparator.name = "═══ Image ═══";
+  imageSeparator.getValueText = [this](const BookSettings&) -> const char* {
+    static char indicator[4];
+    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::IMAGE] ? "-" : "+");
+    return indicator;
+  };
+  imageSeparator.change = [](BookSettings&, int) {};
+  menuItems.push_back(imageSeparator);
+
+  if (groupExpanded[GroupType::IMAGE]) {
+    MenuEntry imgGrayEntry;
+    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
+    imgGrayEntry.group = GroupType::IMAGE;
+    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+    };
+    imgGrayEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(imgGrayEntry);
+
+    MenuEntry smartRefreshEntry;
+    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
+    smartRefreshEntry.group = GroupType::IMAGE;
+    smartRefreshEntry.name = "Smart Refresh (Images)";
+    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    };
+    smartRefreshEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(smartRefreshEntry);
+
+    MenuEntry presEntry;
+    presEntry.item = MenuItem::ReaderImagePresentation;
+    presEntry.group = GroupType::IMAGE;
+    presEntry.name = "Book image grays";
+    presEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY ? "Full gray" : "Balanced";
+    };
+    presEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerImagePresentation = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(presEntry);
+  }
+
   MenuEntry controlsSeparator;
   controlsSeparator.item = MenuItem::Separator;
   controlsSeparator.group = GroupType::CONTROLS;
@@ -328,32 +389,6 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(refreshEntry);
-
-    MenuEntry imgGrayEntry;
-    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
-    imgGrayEntry.group = GroupType::CONTROLS;
-    imgGrayEntry.name = "Image Grayscale";
-    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImageGrayscale ? "On" : "Off";
-    };
-    imgGrayEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(imgGrayEntry);
-
-    MenuEntry smartRefreshEntry;
-    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
-    smartRefreshEntry.group = GroupType::CONTROLS;
-    smartRefreshEntry.name = "Smart Refresh (Images)";
-    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
-    };
-    smartRefreshEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(smartRefreshEntry);
 
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
@@ -712,6 +747,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
+    case MenuItem::ReaderImagePresentation:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

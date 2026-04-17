@@ -367,6 +367,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
   // Use area accumulation for downscaled 2-bit bitmaps to avoid block/square artifacts.
   const bool useAreaDownscale = isScaled && scale < 1.0f && !bitmap.is1Bit();
+  const bool grayFull = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::FullGray);
   const int screenWidth = getScreenWidth();
   std::vector<uint32_t> graySums;
   std::vector<uint32_t> grayCounts;
@@ -394,8 +395,9 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
         }
       }
       // No mapped source samples: leave white. Neighbor carry caused dark rectangular smears.
-      // Downscaled BW: only average black/dark-gray (<=1) inks; treat light gray (2) as paper to reduce speckle.
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
+      // Downscaled BW: Balanced inks only dark averages (<=1); FullGray inks all non-white averages (<3).
+      if (renderMode == BW && grayCounts[sx] > 0 &&
+          (grayFull ? (resolvedVal < 3) : (resolvedVal <= 1))) {
         drawPixel(sx, destY);
       } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
         drawPixel(sx, destY, false);
@@ -500,7 +502,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
             if (xx < 0 || xx >= getScreenWidth()) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
+            if (renderMode == BW && (grayFull ? (val < 3) : (val <= 1))) {
               drawPixel(xx, yy);
             } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
               drawPixel(xx, yy, false);
@@ -576,6 +578,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
 
   // Downscaling by iterating source pixels leaves destination holes; box-filter like drawBitmap.
   const bool useAreaDownscale = isScaled && scale < 1.0f;
+  const bool grayFull = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::FullGray);
   const int screenWidth = getScreenWidth();
   std::vector<uint32_t> graySums;
   std::vector<uint32_t> grayCounts;
@@ -606,7 +609,8 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
           localWhite++;
         }
       }
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
+      if (renderMode == BW && grayCounts[sx] > 0 &&
+          (grayFull ? (resolvedVal < 3) : (resolvedVal <= 1))) {
         drawPixel(sx, destY, true);
       } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
         drawPixel(sx, destY, false);
@@ -705,7 +709,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
             if (xx < 0 || xx >= getScreenWidth()) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
+            if (renderMode == BW && (grayFull ? (val < 3) : (val <= 1))) {
               drawPixel(xx, yy, true);
             } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
               drawPixel(xx, yy, false);

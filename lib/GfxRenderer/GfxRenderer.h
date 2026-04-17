@@ -11,6 +11,9 @@ class GfxRenderer {
  public:
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
+  /** How 2bpp grays map to ink when drawing scaled bitmaps in BW (reader can override per session). */
+  enum class BitmapGrayRenderStyle : uint8_t { Balanced, FullGray };
+
   // Logical screen orientation from the perspective of callers
   enum Orientation {
     Portrait,                  // 480x800 logical coordinates (current default)
@@ -34,6 +37,7 @@ class GfxRenderer {
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
   /** Set true if any drawBitmap in this page pass had enough mid-gray pixels to warrant the e-ink grayscale pass. */
   mutable bool anyBitmapImageWantsGrayscale = false;
+  mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
@@ -86,6 +90,9 @@ class GfxRenderer {
   void drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0,
                   float cropY = 0) const;
   void drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight) const;
+
+  void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
+  BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
 
   // Text
