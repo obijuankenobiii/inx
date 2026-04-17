@@ -117,6 +117,8 @@ class BookMetadataCache {
   bool endContentOpfPass();
   bool beginTocPass();
   void createTocEntry(const std::string& title, const std::string& href, const std::string& anchor, uint8_t level);
+  /** If no TOC rows were produced from nav/ncx, add one entry per spine item so readers can still navigate. */
+  void appendSyntheticTocFromSpineIfEmpty();
   bool endTocPass();
   
   // New: CSS building phase methods

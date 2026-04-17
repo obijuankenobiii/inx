@@ -466,6 +466,7 @@ bool Epub::load(const bool buildIfMissing) {
   bookMetadataCache->beginTocPass();
   bool tocParsed = (!tocNavItem.empty()) ? parseTocNavFile() : false;
   if (!tocParsed && !tocNcxItem.empty()) tocParsed = parseTocNcxFile();
+  bookMetadataCache->appendSyntheticTocFromSpineIfEmpty();
   bookMetadataCache->endTocPass();
 
   bookMetadataCache->endWrite();

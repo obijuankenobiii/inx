@@ -321,31 +321,45 @@ void MenuDrawer::renderToc() {
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
   int drawY = dividerY + 2;
 
-  for (int i = 0; i < pageItems; i++) {
-    int itemIndex = pageStartIndex + i;
-    if (itemIndex >= totalItems) break;
+  if (totalItems == 0) {
+    const int msgY = drawY + 24;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY,
+                      "No table of contents in this book.", true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY + 22,
+                      "Try Delete Cache and reopen to rebuild.", true);
+  } else {
+    for (int i = 0; i < pageItems; i++) {
+      int itemIndex = pageStartIndex + i;
+      if (itemIndex >= totalItems) break;
 
-    int itemY = drawY + (i * LIST_ITEM_HEIGHT);
-    bool isSelected = (itemIndex == tocSelectedIndex);
+      int itemY = drawY + (i * LIST_ITEM_HEIGHT);
+      bool isSelected = (itemIndex == tocSelectedIndex);
 
-    if (isSelected) {
-      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      if (isSelected) {
+        renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      }
+
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+
+      auto item = epub->getTocItem(itemIndex);
+      const int level = std::max(1, static_cast<int>(item.level));
+      const int depthPx = (level - 1) * 20;
+      const int maxDepthPx = std::max(0, panelW - 120);
+      const int relIndent = 20 + std::min(depthPx, maxDepthPx);
+      const int indentSize = tocDrawerX + relIndent;
+      const int maxTitleW = std::max(40, panelW - 70 - relIndent);
+      const std::string truncatedName =
+          renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
+
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+      renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
+                        true);
     }
-
-    int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
-    auto item = epub->getTocItem(itemIndex);
-    int indentSize = tocDrawerX + 20 + (item.level - 1) * 20;
-    const std::string truncatedName =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), panelW - 60 - (indentSize - tocDrawerX));
-
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
   }
 
   // Footer with page indicator
-  const int totalPages = (totalItems + pageItems - 1) / pageItems;
+  const int totalPages = std::max(1, (totalItems + pageItems - 1) / pageItems);
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
@@ -445,6 +459,15 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   const int totalItems = epub->getTocItemsCount();
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
+
+  if (totalItems == 0) {
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      exitToc();
+      lastInputTime = currentTime;
+      renderWithRefresh();
+    }
+    return;
+  }
 
   if (readDrawerListPrev(input, renderer)) {
     if (skipPage) {

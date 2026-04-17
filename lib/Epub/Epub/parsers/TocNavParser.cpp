@@ -83,14 +83,25 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
     return;
   }
 
-  // Look for <nav epub:type="toc"> anywhere in body (or nested elements)
+  // Look for EPUB3 TOC nav: epub:type="toc", type="toc", or role="doc-toc" (common in publishers' nav.xhtml)
   if (self->state >= IN_BODY && strcmp(name, "nav") == 0) {
+    bool isTocNav = false;
     for (int i = 0; atts[i]; i += 2) {
-      if ((strcmp(atts[i], "epub:type") == 0 || strcmp(atts[i], "type") == 0) && strcmp(atts[i + 1], "toc") == 0) {
-        self->state = IN_NAV_TOC;
-        Serial.printf("[%lu] [NAV] Found nav toc element\n", millis());
-        return;
+      const char* k = atts[i];
+      const char* v = atts[i + 1];
+      if ((strcmp(k, "epub:type") == 0 || strcmp(k, "type") == 0) && strcmp(v, "toc") == 0) {
+        isTocNav = true;
+        break;
       }
+      if (strcmp(k, "role") == 0 && strcmp(v, "doc-toc") == 0) {
+        isTocNav = true;
+        break;
+      }
+    }
+    if (isTocNav) {
+      self->state = IN_NAV_TOC;
+      Serial.printf("[%lu] [NAV] Found nav toc element\n", millis());
+      return;
     }
     return;
   }
