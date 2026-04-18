@@ -589,50 +589,48 @@ void LibraryActivity::loadAllBooksRecursive() {
 /**
  * @brief Load books using recursive scan for book list view
  */
+void LibraryActivity::collectBooksRecursive(std::vector<TempBookEntry>& out, const std::string& path) {
+  auto dir = SdMan.open(path.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return;
+  }
+
+  dir.rewindDirectory();
+  char name[500];
+
+  for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
+    file.getName(name, sizeof(name));
+
+    if (shouldSkipFile(name)) {
+      file.close();
+      continue;
+    }
+
+    std::string fullPath = path;
+    if (fullPath.empty()) fullPath = "/";
+    if (fullPath.back() != '/') fullPath += "/";
+    fullPath += name;
+
+    if (file.isDirectory()) {
+      collectBooksRecursive(out, fullPath);
+      file.close();
+      continue;
+    }
+
+    std::string filename = name;
+    if (isValidBookFile(filename)) {
+      out.push_back(createTempBookEntry(fullPath, filename, path));
+    }
+    file.close();
+  }
+  dir.close();
+}
+
 void LibraryActivity::loadBooksRecursiveScan() {
   std::vector<TempBookEntry> tempBooks;
   tempBooks.reserve(512);
-
-  std::function<void(const std::string&)> collectBooks = [&](const std::string& path) {
-    auto dir = SdMan.open(path.c_str());
-    if (!dir || !dir.isDirectory()) {
-      if (dir) dir.close();
-      return;
-    }
-
-    dir.rewindDirectory();
-    char name[500];
-
-    for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
-      file.getName(name, sizeof(name));
-
-      if (shouldSkipFile(name)) {
-        file.close();
-        continue;
-      }
-
-      std::string fullPath = path;
-      if (fullPath.empty()) fullPath = "/";
-      if (fullPath.back() != '/') fullPath += "/";
-      fullPath += name;
-
-      if (file.isDirectory()) {
-        collectBooks(fullPath);
-        file.close();
-        continue;
-      }
-
-      std::string filename = name;
-      if (isValidBookFile(filename)) {
-        TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, path);
-        tempBooks.push_back(tempEntry);
-      }
-      file.close();
-    }
-    dir.close();
-  };
-
-  collectBooks(basepath);
+  collectBooksRecursive(tempBooks, basepath);
   sortTempBooks(tempBooks);
   applyPaginationToBooks(tempBooks);
 }
@@ -643,6 +641,8 @@ void LibraryActivity::loadBooksRecursiveScan() {
 void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
+  tempFolders.reserve(32);
+  tempBooks.reserve(64);
 
   auto root = SdMan.open(basepath.c_str());
   if (root && root.isDirectory()) {

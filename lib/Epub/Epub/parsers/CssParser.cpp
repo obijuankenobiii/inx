@@ -14,6 +14,7 @@ bool isIdentCont(unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c
 
 void splitClassTokens(const std::string& classAttr, std::vector<std::string>& out) {
   out.clear();
+  out.reserve(4);
   std::string cur;
   for (char c : classAttr) {
     if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {

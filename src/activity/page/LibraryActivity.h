@@ -351,6 +351,9 @@ class LibraryActivity final : public Activity, public Menu {
    */
   void loadBooksRecursiveScan();
 
+  /** Recursive SD scan for book list (no std::function — avoids heap alloc per recursion). */
+  void collectBooksRecursive(std::vector<TempBookEntry>& out, const std::string& path);
+
   /**
    * @brief Load folders and books for current directory view
    */

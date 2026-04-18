@@ -291,15 +291,20 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   uint32_t cumSize = 0;
   spineFile.seek(0);
   int lastSpineTocIndex = -1;
+  int spineTocMissingLogs = 0;
+  int spineSizeFailLogs = 0;
   for (int i = 0; i < spineCount; i++) {
     auto spineEntry = readSpineEntry(spineFile);
 
     spineEntry.tocIndex = spineToTocIndex[i];
 
     if (spineEntry.tocIndex == -1) {
-      Serial.printf(
-          "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
-          millis(), i, spineEntry.href.c_str());
+      if (spineTocMissingLogs < 5) {
+        Serial.printf(
+            "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
+            millis(), i, spineEntry.href.c_str());
+        spineTocMissingLogs++;
+      }
       spineEntry.tocIndex = lastSpineTocIndex;
     }
     lastSpineTocIndex = spineEntry.tocIndex;
@@ -310,13 +315,19 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
       if (itemSize == 0) {
         const std::string path = FsHelpers::normalisePath(spineEntry.href);
         if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-          Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+          if (spineSizeFailLogs < 8) {
+            Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+            spineSizeFailLogs++;
+          }
         }
       }
     } else {
       const std::string path = FsHelpers::normalisePath(spineEntry.href);
       if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-        Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+        if (spineSizeFailLogs < 8) {
+          Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+          spineSizeFailLogs++;
+        }
       }
     }
 
@@ -651,8 +662,6 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
           
           // Resolve full path
           std::string fullCssPath = basePath + cssHref;
-          
-          Serial.printf("[%lu] [BMC] Found CSS file in manifest: %s\n", millis(), fullCssPath.c_str());
 
           size_t cssSize = 0;
           if (zip.getInflatedFileSize(fullCssPath.c_str(), &cssSize)) {
