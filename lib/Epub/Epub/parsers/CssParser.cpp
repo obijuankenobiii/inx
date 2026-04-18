@@ -108,8 +108,8 @@ bool selectorListMatchesElementType(const std::string& fullSelectorLower, const 
 
 }  // namespace
 
-/** Parsed rules kept for EPUB image width/height only; keep very low for ZIP / bitmap heap. */
-static constexpr size_t kMaxParsedCssRules = 20;
+/** Parsed rules kept for EPUB image width/height only (~300KB SRAM). */
+static constexpr size_t kMaxParsedCssRules = 16;
 
 CssParser::CssParser() {}
 
@@ -132,7 +132,7 @@ void CssParser::shrinkStorage() {
 }
 
 void CssParser::parse(const std::string& cssContent) {
-  if (cssContent.length() > 28 * 1024) {
+  if (cssContent.length() > 16 * 1024) {
     Serial.printf("[CSSP] Skipping large CSS content (%d bytes)\n", (int)cssContent.length());
     return;
   }

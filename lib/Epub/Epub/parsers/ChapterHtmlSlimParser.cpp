@@ -69,19 +69,19 @@ void ChapterHtmlSlimParser::loadCssRules() {
   if (cssCount > 0) {
     Serial.printf("[EHP] Loading %d CSS files (image width/height only)\n", cssCount);
 
-    const size_t MAX_TOTAL_CSS_SIZE = 22 * 1024;
+    const size_t MAX_TOTAL_CSS_SIZE = 14 * 1024;
     size_t totalCssSize = 0;
 
+    constexpr size_t kCssZipCap = 8 * 1024;
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
-      auto cssEntry = epub.getCssItem(i);
-      std::string cssBlob = std::move(cssEntry.content);
-
-      if (cssBlob.empty()) {
+      const auto cssEntry = epub.getCssItem(i);
+      if (cssEntry.path.empty()) {
         continue;
       }
 
-      if (cssBlob.size() > 12 * 1024) {
-        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(), (int)cssBlob.size());
+      std::string cssBlob;
+      if (!epub.readInternalTextCapped(cssEntry.path, cssBlob, kCssZipCap)) {
+        Serial.printf("[EHP] Could not read CSS from zip: %s\n", cssEntry.path.c_str());
         continue;
       }
 
@@ -90,7 +90,8 @@ void ChapterHtmlSlimParser::loadCssRules() {
       cssBlob.clear();
       cssBlob.shrink_to_fit();
 
-      Serial.printf("[EHP] Parsed CSS: %s (total parsed bytes: %d)\n", cssEntry.path.c_str(), (int)totalCssSize);
+      Serial.printf("[EHP] Parsed CSS from zip: %s (cap %zu, total bytes: %d)\n", cssEntry.path.c_str(), kCssZipCap,
+                    (int)totalCssSize);
     }
 
     Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);

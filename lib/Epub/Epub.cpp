@@ -1,5 +1,7 @@
 #include "Epub.h"
 
+#include <algorithm>
+
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
@@ -90,6 +92,49 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
   Serial.printf("[EBP] Zip Request: %s\n", path.c_str());
 
   return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
+}
+
+bool Epub::readInternalTextCapped(const std::string& itemHref, std::string& out, const size_t maxBytes) const {
+  out.clear();
+  if (itemHref.empty() || maxBytes == 0) {
+    return false;
+  }
+
+  const std::string tmp = cachePath + "/.cap.tmp";
+  FsFile wf;
+  if (!SdMan.openFileForWrite("EBP", tmp, wf)) {
+    return false;
+  }
+  if (!readItemContentsToStream(itemHref, wf, 512)) {
+    wf.close();
+    SdMan.remove(tmp.c_str());
+    return false;
+  }
+  wf.close();
+
+  FsFile rf;
+  if (!SdMan.openFileForRead("EBP", tmp, rf)) {
+    SdMan.remove(tmp.c_str());
+    return false;
+  }
+
+  const size_t fz = rf.size();
+  const size_t cap = std::min(fz, maxBytes);
+  out.reserve(cap);
+  uint8_t buf[256];
+  size_t total = 0;
+  while (rf.available() && total < cap) {
+    const size_t n = std::min(sizeof(buf), cap - total);
+    const size_t len = rf.read(buf, n);
+    if (len == 0) {
+      break;
+    }
+    out.append(reinterpret_cast<const char*>(buf), len);
+    total += len;
+  }
+  rf.close();
+  SdMan.remove(tmp.c_str());
+  return true;
 }
 
 /**
@@ -675,7 +720,13 @@ BookMetadataCache::CssEntry Epub::getCssItem(int cssIndex) const {
  */
 std::string Epub::getCssContent(const std::string& cssPath) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return "";
-  return bookMetadataCache->getCssContent(cssPath);
+  std::string out;
+  // book.bin stores CSS paths only (v7+); pull from zip with a bounded buffer for RAM safety
+  constexpr size_t kMaxCssPull = 96 * 1024;
+  if (!readInternalTextCapped(cssPath, out, kMaxCssPull)) {
+    return "";
+  }
+  return out;
 }
 
 /**

@@ -78,8 +78,6 @@ class BookMetadataCache {
   bool useSpineHrefIndex = false;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
-  static constexpr uint32_t MAX_CSS_SIZE = 1024 * 1024;  // 1MB max per CSS file
-
   // FNV-1a 64-bit hash function
   static uint64_t fnvHash64(const std::string& s) {
     uint64_t hash = 14695981039346656037ull;
@@ -123,6 +121,7 @@ class BookMetadataCache {
   
   // New: CSS building phase methods
   bool beginCssPass();
+  /** Record a stylesheet path; content is stored empty (v7+); read from EPUB zip when parsing. */
   void createCssEntry(const std::string& path, const std::string& content);
   bool endCssPass();
   
@@ -142,7 +141,6 @@ class BookMetadataCache {
   
   // New: CSS reading methods
   CssEntry getCssEntry(int index);
-  std::string getCssContent(const std::string& cssPath);
   std::vector<std::string> getAllCssPaths();
   
   // Getters
