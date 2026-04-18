@@ -6,7 +6,7 @@
 
 class CssParser {
  public:
-  /** Stylesheet rules kept only for width/height (no per-rule std::map). */
+  /** Stylesheet rules kept only for width/height (no per-rule std::map). Selector is lowercased at parse time. */
   struct CssRule {
     std::string selector;
     std::string widthVal;
@@ -34,6 +34,13 @@ class CssParser {
                    int viewportHeight) const;
   int getMinHeight(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                    int viewportHeight) const;
+
+  /**
+   * Resolve width and height from inline `style` then stylesheet in one pass (one inline parse, one rules scan).
+   * Used for EPUB images to avoid duplicate work from separate getWidth/getHeight calls.
+   */
+  void getInlineSheetWidthHeightPx(const std::string& className, const std::string& id, const std::string& styleAttr,
+                                   int viewportWidth, int viewportHeight, int& outWidthPx, int& outHeightPx) const;
 
   /**
    * Parse a single CSS length (e.g. HTML width="50%" or style value).

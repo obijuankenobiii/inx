@@ -253,7 +253,7 @@ void CssParser::parse(const std::string& cssContent) {
     }
 
     CssRule rule;
-    rule.selector = selector;
+    rule.selector = toLower(trim(selector));
     if (rule.selector.size() > kMaxSelectorStoredBytes) {
       rule.selector.resize(kMaxSelectorStoredBytes);
     }
@@ -416,9 +416,7 @@ bool CssParser::selectorHasClassToken(const std::string& selectorLower, const st
 }
 
 bool CssParser::ruleMatchesElement(const CssRule& rule, const std::string& classAttr, const std::string& idAttr) const {
-  std::string selLower = rule.selector;
-  std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  const std::string& selLower = rule.selector;
 
   std::string idKey = trim(idAttr);
   std::transform(idKey.begin(), idKey.end(), idKey.begin(),
@@ -599,6 +597,10 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
     return parseDimensionValue(itIn->second, viewportWidth, viewportHeight, pct);
   }
 
+  if ((propName != "width" && propName != "height") || rules.empty()) {
+    return 0;
+  }
+
   std::string idLast;
   std::string clsLast;
 
@@ -610,9 +612,7 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
   }
 
   for (const auto& rule : rules) {
-    std::string selLower = rule.selector;
-    std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string& selLower = rule.selector;
 
     const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
     bool classMatch = false;
@@ -648,6 +648,84 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
     return parseDimensionValue(clsLast, viewportWidth, viewportHeight, pct);
   }
   return 0;
+}
+
+void CssParser::getInlineSheetWidthHeightPx(const std::string& className, const std::string& id,
+                                            const std::string& styleAttr, int viewportWidth, int viewportHeight,
+                                            int& outWidthPx, int& outHeightPx) const {
+  outWidthPx = 0;
+  outHeightPx = 0;
+
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+
+  const auto wIn = inlineMap.find("width");
+  if (wIn != inlineMap.end()) {
+    outWidthPx = parseDimensionValue(wIn->second, viewportWidth, viewportHeight, PercentRefersTo::Width);
+  }
+  const auto hIn = inlineMap.find("height");
+  if (hIn != inlineMap.end()) {
+    outHeightPx = parseDimensionValue(hIn->second, viewportWidth, viewportHeight, PercentRefersTo::Height);
+  }
+
+  const bool needW = (outWidthPx == 0);
+  const bool needH = (outHeightPx == 0);
+  if ((!needW && !needH) || rules.empty()) {
+    return;
+  }
+
+  std::string idLower = toLower(trim(id));
+  std::vector<std::string> classTokens;
+  splitClassTokens(className, classTokens);
+  for (auto& t : classTokens) {
+    t = toLower(trim(t));
+  }
+
+  std::string idLastW, clsLastW, idLastH, clsLastH;
+
+  for (const auto& rule : rules) {
+    const std::string& selLower = rule.selector;
+    const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
+    bool classMatch = false;
+    if (!idMatch) {
+      for (const auto& tok : classTokens) {
+        if (!tok.empty() && selectorHasClassToken(selLower, tok)) {
+          classMatch = true;
+          break;
+        }
+      }
+    }
+
+    if (needW && !rule.widthVal.empty()) {
+      if (idMatch) {
+        idLastW = rule.widthVal;
+      } else if (classMatch) {
+        clsLastW = rule.widthVal;
+      }
+    }
+    if (needH && !rule.heightVal.empty()) {
+      if (idMatch) {
+        idLastH = rule.heightVal;
+      } else if (classMatch) {
+        clsLastH = rule.heightVal;
+      }
+    }
+  }
+
+  if (needW) {
+    if (!idLastW.empty()) {
+      outWidthPx = parseDimensionValue(idLastW, viewportWidth, viewportHeight, PercentRefersTo::Width);
+    } else if (!clsLastW.empty()) {
+      outWidthPx = parseDimensionValue(clsLastW, viewportWidth, viewportHeight, PercentRefersTo::Width);
+    }
+  }
+  if (needH) {
+    if (!idLastH.empty()) {
+      outHeightPx = parseDimensionValue(idLastH, viewportWidth, viewportHeight, PercentRefersTo::Height);
+    } else if (!clsLastH.empty()) {
+      outHeightPx = parseDimensionValue(clsLastH, viewportWidth, viewportHeight, PercentRefersTo::Height);
+    }
+  }
 }
 
 int CssParser::getWidth(const std::string& className, const std::string& id, const std::string& styleAttr,
@@ -714,6 +792,13 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
     return itIn->second;
   }
 
+  if (propName != "width" && propName != "height") {
+    return "";
+  }
+  if (rules.empty()) {
+    return "";
+  }
+
   std::string idLast;
   std::string clsLast;
   std::string typeLast;
@@ -726,9 +811,7 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
   }
 
   for (const auto& rule : rules) {
-    std::string selLower = rule.selector;
-    std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string& selLower = rule.selector;
 
     const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
     bool classMatch = false;

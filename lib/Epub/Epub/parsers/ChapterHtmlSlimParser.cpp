@@ -169,10 +169,13 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       }
     }
 
-    // Use CssParser to get dimensions from inline style and CSS rules
+    // Use CssParser: one inline parse + one stylesheet pass for width and height
+    int cssWidth = 0;
+    int cssHeight = 0;
+    cssParser.getInlineSheetWidthHeightPx(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight, cssWidth,
+                                          cssHeight);
+
     if (imgWidth == 0) {
-      int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-      // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
       } else if (cssWidth > 0) {
@@ -181,7 +184,6 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
 
     if (imgHeight == 0) {
-      int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
       if (cssHeight == 0 && !heightIsPercentage) {
         imgHeight = cssHeight;
       } else if (cssHeight > 0) {
@@ -287,8 +289,11 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     if (imgWidth < 1) imgWidth = 1;
     if (imgHeight < 1) imgHeight = 1;
 
-    Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
-                  styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
+    static constexpr bool kTraceEachImage = false;
+    if (kTraceEachImage) {
+      Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
+                    styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
+    }
 
     addImageToPage(cacheImgPath, imgWidth, imgHeight);
   }

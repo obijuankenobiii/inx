@@ -591,6 +591,7 @@ void LibraryActivity::loadAllBooksRecursive() {
  */
 void LibraryActivity::loadBooksRecursiveScan() {
   std::vector<TempBookEntry> tempBooks;
+  tempBooks.reserve(512);
 
   std::function<void(const std::string&)> collectBooks = [&](const std::string& path) {
     auto dir = SdMan.open(path.c_str());
