@@ -9,6 +9,9 @@ struct BleStoredDevice {
   std::string name;
   /** NimBLE address type (`BLE_ADDR_PUBLIC`=0, `BLE_ADDR_RANDOM`=1, …). Default 1 for legacy files. */
   uint8_t addrType = 1;
+
+  BleStoredDevice() = default;
+  BleStoredDevice(std::string a, std::string n, uint8_t t) : address(std::move(a)), name(std::move(n)), addrType(t) {}
 };
 
 /**

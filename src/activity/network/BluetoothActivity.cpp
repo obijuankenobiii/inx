@@ -159,19 +159,29 @@ void BluetoothActivity::connectToDevice(int index) {
   if (index < 0 || index >= (int)devices.size()) {
     return;
   }
+  if (renderingMutex == nullptr || btManager == nullptr) {
+    return;
+  }
 
   const auto& device = devices[index];
 
   state = BluetoothState::CONNECTING;
-  updateRequired = true;
 
-  if (btManager->connectToDevice(device.address, device.addrType)) {
+  xSemaphoreTake(renderingMutex, portMAX_DELAY);
+  updateRequired = false;
+  render();
+
+  const bool ok = btManager->connectToDevice(device.address, device.addrType);
+
+  if (ok) {
     state = BluetoothState::CONNECTED;
   } else {
     connectionError = "Connection failed";
     state = BluetoothState::CONNECTION_FAILED;
   }
-  updateRequired = true;
+  updateRequired = false;
+  render();
+  xSemaphoreGive(renderingMutex);
 }
 
 void BluetoothActivity::loop() {

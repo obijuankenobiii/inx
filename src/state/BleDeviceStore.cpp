@@ -84,7 +84,7 @@ bool BleDeviceStore::loadFromFile() {
           typ = sanitizeAddrType(typ);
         }
         if (!addr.empty() && isDisplayableName(nm)) {
-          m_devices.push_back({std::move(addr), std::move(nm), typ});
+          m_devices.emplace_back(std::move(addr), std::move(nm), typ);
         }
       }
     }
@@ -92,7 +92,7 @@ bool BleDeviceStore::loadFromFile() {
   }
 
   if (m_devices.empty() && SETTINGS.bleSavedAddress[0] != '\0' && isDisplayableName(std::string(SETTINGS.bleSavedName))) {
-    m_devices.push_back({std::string(SETTINGS.bleSavedAddress), std::string(SETTINGS.bleSavedName), 1});
+    m_devices.emplace_back(std::string(SETTINGS.bleSavedAddress), std::string(SETTINGS.bleSavedName), 1);
     saveToFile();
   }
 
@@ -142,7 +142,7 @@ bool BleDeviceStore::addOrUpdate(const std::string& address, const std::string& 
   if (m_devices.size() >= kMaxDevices) {
     m_devices.erase(m_devices.begin());
   }
-  m_devices.push_back({address, name, typ});
+  m_devices.emplace_back(address, name, typ);
   saveToFile();
   return true;
 }
