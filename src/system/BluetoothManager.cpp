@@ -373,6 +373,11 @@ void BluetoothManager::onHidReport(const uint8_t* data, size_t len) {
         m_halGpio->injectOneShotRelease(readerPagePrevHal());
       } else if (k == SETTINGS.bleHidPageNextKey) {
         m_halGpio->injectOneShotRelease(readerPageNextHal());
+      } else {
+        const uint8_t btn = hidKeyToNavHalPress(static_cast<uint8_t>(k));
+        if (btn != 0xFF) {
+          m_halGpio->injectOneShotRelease(btn);
+        }
       }
     }
   }

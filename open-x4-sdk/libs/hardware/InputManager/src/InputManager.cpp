@@ -71,13 +71,13 @@ uint8_t InputManager::getState() {
 
 void InputManager::injectOneShotPress(const uint8_t buttonIndex) {
   if (buttonIndex <= BTN_POWER) {
-    pendingInjectPress |= static_cast<uint8_t>(1u << buttonIndex);
+    pendingInjectPress.fetch_or(static_cast<uint8_t>(1u << buttonIndex), std::memory_order_relaxed);
   }
 }
 
 void InputManager::injectOneShotRelease(const uint8_t buttonIndex) {
   if (buttonIndex <= BTN_POWER) {
-    pendingInjectRelease |= static_cast<uint8_t>(1u << buttonIndex);
+    pendingInjectRelease.fetch_or(static_cast<uint8_t>(1u << buttonIndex), std::memory_order_relaxed);
   }
 }
 
@@ -115,14 +115,19 @@ void InputManager::update() {
     }
   }
 
-  if (pendingInjectPress != 0) {
-    pressedEvents |= pendingInjectPress;
-    pendingInjectPress = 0;
+  const uint8_t injPress = pendingInjectPress.exchange(0, std::memory_order_acq_rel);
+  const uint8_t injRel = pendingInjectRelease.exchange(0, std::memory_order_acq_rel);
+  if (injPress != 0) {
+    pressedEvents |= injPress;
+    if (currentState == 0) {
+      buttonPressStart = currentTime;
+    }
   }
-
-  if (pendingInjectRelease != 0) {
-    releasedEvents |= pendingInjectRelease;
-    pendingInjectRelease = 0;
+  if (injRel != 0) {
+    releasedEvents |= injRel;
+    if (state == 0) {
+      buttonPressFinish = currentTime;
+    }
   }
 }
 

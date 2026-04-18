@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include <atomic>
+
 class InputManager {
  public:
   InputManager();
@@ -95,8 +97,8 @@ class InputManager {
   uint8_t lastState;
   uint8_t pressedEvents;
   uint8_t releasedEvents;
-  uint8_t pendingInjectPress{0};
-  uint8_t pendingInjectRelease{0};
+  std::atomic<uint8_t> pendingInjectPress{0};
+  std::atomic<uint8_t> pendingInjectRelease{0};
   unsigned long lastDebounceTime;
   unsigned long buttonPressStart;
   unsigned long buttonPressFinish;
