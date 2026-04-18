@@ -120,7 +120,8 @@ private:
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
         ReaderImagePresentation,  ///< Global: balanced vs full-gray bitmap mapping
         ReaderImageDither,        ///< EPUB reader BMP decode dither (None / Floyd-Steinberg / Atkinson)
-        PageAutoTurn
+        PageAutoTurn,
+        UsePageTurner             ///< BLE HID keyboard for paging (global saved device)
     };
     
     /**

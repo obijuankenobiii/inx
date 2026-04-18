@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 
@@ -100,19 +101,23 @@ uint8_t hidKeyToNavHalPress(uint8_t k) {
   }
 }
 
-void bluetoothStartupReconnectTask(void* /*param*/) {
-  vTaskDelay(pdMS_TO_TICKS(900));
+static std::atomic<bool> s_readerPageTurnerConnectBusy{false};
+
+void readerPageTurnerConnectTask(void* /*param*/) {
   BluetoothManager& m = BluetoothManager::getInstance();
-  if (!SETTINGS.bleAutoReconnect || SETTINGS.bleSavedAddress[0] == '\0') {
+  const std::string addr(SETTINGS.bleSavedAddress);
+  if (addr.empty()) {
+    s_readerPageTurnerConnectBusy = false;
     vTaskDelete(nullptr);
     return;
   }
-  if (m.isConnected(std::string(SETTINGS.bleSavedAddress))) {
-    vTaskDelete(nullptr);
-    return;
+  if (!m.isEnabled()) {
+    m.enable();
   }
-  m.enable();
-  m.connectToDevice(std::string(SETTINGS.bleSavedAddress));
+  if (m.connectToDevice(addr)) {
+    m.setReaderPageTurnerSession(true);
+  }
+  s_readerPageTurnerConnectBusy = false;
   vTaskDelete(nullptr);
 }
 }  // namespace
@@ -304,30 +309,29 @@ void BluetoothManager::trySubscribeHid(NimBLEClient* pClient) {
   LOG("No notifiable HID characteristic found");
 }
 
-void BluetoothManager::scheduleStartupReconnect() {
-  static bool scheduled = false;
-  if (scheduled) {
+void BluetoothManager::startReaderPageTurnerConnectTask() {
+  if (s_readerPageTurnerConnectBusy.exchange(true)) {
     return;
   }
-  scheduled = true;
-  if (!SETTINGS.bleAutoReconnect || SETTINGS.bleSavedAddress[0] == '\0') {
-    return;
+  if (xTaskCreate(readerPageTurnerConnectTask, "BTreadPT", 5120, nullptr, 1, nullptr) != pdPASS) {
+    s_readerPageTurnerConnectBusy = false;
   }
-  xTaskCreate(bluetoothStartupReconnectTask, "BTautorec", 5120, nullptr, 1, nullptr);
 }
 
-bool BluetoothManager::tryReconnectSavedDevice() {
-  if (!SETTINGS.bleAutoReconnect || SETTINGS.bleSavedAddress[0] == '\0') {
-    return false;
-  }
-  if (!m_enabled && !enable()) {
-    return false;
-  }
+void BluetoothManager::toggleReaderPageTurnerFromDrawer() {
   const std::string addr(SETTINGS.bleSavedAddress);
-  if (isConnected(addr)) {
-    return true;
+  if (addr.empty()) {
+    return;
   }
-  return connectToDevice(addr);
+  if (m_readerPageTurnerSession) {
+    disconnectAll();
+    return;
+  }
+  if (isConnected(addr)) {
+    setReaderPageTurnerSession(true);
+    return;
+  }
+  startReaderPageTurnerConnectTask();
 }
 
 void BluetoothManager::onHidReport(const uint8_t* data, size_t len) {
@@ -406,6 +410,7 @@ void BluetoothManager::handleClientDisconnected(NimBLEClient* pClient) {
 
   m_connected.erase(std::remove(m_connected.begin(), m_connected.end(), erasedAddr), m_connected.end());
   memset(m_prevHidBoot, 0, sizeof(m_prevHidBoot));
+  m_readerPageTurnerSession = false;
   NimBLEDevice::deleteClient(pClient);
 }
 
@@ -468,6 +473,7 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
 
 void BluetoothManager::disconnectAll() {
   LOG("Disconnecting all devices...");
+  m_readerPageTurnerSession = false;
   std::vector<NimBLEClient*> clients;
   clients.reserve(m_clientsByAddr.size());
   for (auto& kv : m_clientsByAddr) {

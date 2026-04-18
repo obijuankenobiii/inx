@@ -64,12 +64,7 @@ void BluetoothActivity::onEnter() {
 
   xTaskCreate(&BluetoothActivity::taskTrampoline, "BluetoothTask", 4096, this, 1, &displayTaskHandle);
 
-  if (btManager->tryReconnectSavedDevice()) {
-    state = BluetoothState::CONNECTED;
-    updateRequired = true;
-  } else {
-    startScan();
-  }
+  startScan();
 }
 
 void BluetoothActivity::onExit() {

@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
 
 #include "state/SystemSetting.h"
+#include "system/BluetoothManager.h"
 #include "system/Fonts.h"
 
 #define SETTINGS SystemSetting::getInstance()
@@ -371,6 +373,21 @@ void SettingsDrawer::setupMenu() {
   menuItems.push_back(controlsSeparator);
 
   if (groupExpanded[GroupType::CONTROLS]) {
+    if (SETTINGS.bleSavedAddress[0] != '\0') {
+      MenuEntry pageTurnerEntry;
+      pageTurnerEntry.item = MenuItem::UsePageTurner;
+      pageTurnerEntry.group = GroupType::CONTROLS;
+      pageTurnerEntry.name = "Use pageturner";
+      pageTurnerEntry.getValueText = [](const BookSettings&) -> const char* {
+        BluetoothManager& bt = BluetoothManager::getInstance();
+        const std::string addr(SETTINGS.bleSavedAddress);
+        const bool on = bt.readerPageTurnerSession() || (!addr.empty() && bt.isConnected(addr));
+        return on ? "On" : "Off";
+      };
+      pageTurnerEntry.change = [](BookSettings&, int) { BluetoothManager::getInstance().toggleReaderPageTurnerFromDrawer(); };
+      menuItems.push_back(pageTurnerEntry);
+    }
+
     MenuEntry aaEntry;
     aaEntry.item = MenuItem::AntiAliasing;
     aaEntry.group = GroupType::CONTROLS;
@@ -784,6 +801,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::AntiAliasing:
     case MenuItem::ChapterSkip:
     case MenuItem::NavigationLock:
+    case MenuItem::UsePageTurner:
     case MenuItem::Separator:
     case MenuItem::StatusBarSeparator:
       break;

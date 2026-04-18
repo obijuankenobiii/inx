@@ -14,6 +14,7 @@
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
 #include "state/BookProgress.h"
+#include "system/BluetoothManager.h"
 #include "state/BookSetting.h"
 #include "state/SystemSetting.h"
 #include "state/BookState.h"
@@ -561,6 +562,10 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
+  if (BluetoothManager::getInstance().readerPageTurnerSession()) {
+    BluetoothManager::getInstance().disconnectAll();
+  }
+
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;

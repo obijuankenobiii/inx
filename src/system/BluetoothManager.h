@@ -42,11 +42,15 @@ class BluetoothManager {
   /** BLE HID injects into the same HalGPIO path as physical keys (set once at startup). */
   void setHalGpio(HalGPIO* gpio) { m_halGpio = gpio; }
 
-  /** Non-blocking: after boot, try to reconnect to SETTINGS.bleSavedAddress if enabled. */
-  void scheduleStartupReconnect();
+  /** True after reader enables "Use pageturner" and link is up (or was taken over from drawer). */
+  bool readerPageTurnerSession() const { return m_readerPageTurnerSession; }
+  void setReaderPageTurnerSession(bool active) { m_readerPageTurnerSession = active; }
 
-  /** Blocking connect to saved device; returns whether connected. */
-  bool tryReconnectSavedDevice();
+  /** FreeRTOS task: enable BLE if needed, connect SETTINGS.bleSavedAddress, set reader session on success. */
+  void startReaderPageTurnerConnectTask();
+
+  /** Reader settings drawer: turn pageturner on/off (adopts existing link to saved device if already connected). */
+  void toggleReaderPageTurnerFromDrawer();
 
   void onScanResult(void* device);
 
@@ -70,6 +74,7 @@ class BluetoothManager {
   KeyCallback m_keyCallback;
   HalGPIO* m_halGpio = nullptr;
   uint8_t m_prevHidBoot[8]{};
+  bool m_readerPageTurnerSession = false;
 
   static BluetoothManager* s_instance;
 };
