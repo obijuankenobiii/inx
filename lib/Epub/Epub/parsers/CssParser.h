@@ -33,15 +33,6 @@ class CssParser {
   int getMinHeight(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                    int viewportHeight) const;
 
-  int getMarginLeft(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
-                    int viewportHeight) const;
-  int getMarginRight(const std::string& className, const std::string& id, const std::string& styleAttr,
-                     int viewportWidth, int viewportHeight) const;
-  int getMarginTop(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
-                   int viewportHeight) const;
-  int getMarginBottom(const std::string& className, const std::string& id, const std::string& styleAttr,
-                      int viewportWidth, int viewportHeight) const;
-
   /**
    * Parse a single CSS length (e.g. HTML width="50%" or style value).
    * @param percentOfWidth When true, % uses viewportWidth; when false, % uses viewportHeight.

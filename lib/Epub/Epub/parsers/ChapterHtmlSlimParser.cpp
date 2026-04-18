@@ -67,32 +67,30 @@ void ChapterHtmlSlimParser::loadCssRules() {
   // Get all CSS files from the EPUB
   int cssCount = epub.getCssItemsCount();
   if (cssCount > 0) {
-    Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
+    Serial.printf("[EHP] Loading %d CSS files (image width/height only)\n", cssCount);
 
-    // Limit total CSS size to prevent memory issues (leave heap for ZIP inflate / bitmaps)
-    const size_t MAX_TOTAL_CSS_SIZE = 36 * 1024;
+    const size_t MAX_TOTAL_CSS_SIZE = 22 * 1024;
     size_t totalCssSize = 0;
 
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
       auto cssEntry = epub.getCssItem(i);
+      std::string cssBlob = std::move(cssEntry.content);
 
-      // Skip empty CSS files
-      if (cssEntry.content.empty()) {
+      if (cssBlob.empty()) {
         continue;
       }
 
-      // Check individual file size
-      if (cssEntry.content.size() > 20 * 1024) {  // 20KB per file max
-        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
-                      (int)cssEntry.content.size());
+      if (cssBlob.size() > 12 * 1024) {
+        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(), (int)cssBlob.size());
         continue;
       }
 
-      totalCssSize += cssEntry.content.size();
-      cssParser.parse(cssEntry.content);
+      totalCssSize += cssBlob.size();
+      cssParser.parse(cssBlob);
+      cssBlob.clear();
+      cssBlob.shrink_to_fit();
 
-      Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(), (int)cssEntry.content.size(),
-                    (int)totalCssSize);
+      Serial.printf("[EHP] Parsed CSS: %s (total parsed bytes: %d)\n", cssEntry.path.c_str(), (int)totalCssSize);
     }
 
     Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);
@@ -291,11 +289,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
-    const int mL = cssParser.getMarginLeft(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int mR = cssParser.getMarginRight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int mT = cssParser.getMarginTop(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int mB = cssParser.getMarginBottom(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    addImageToPage(cacheImgPath, imgWidth, imgHeight, mL, mR, mT, mB);
+    addImageToPage(cacheImgPath, imgWidth, imgHeight);
   }
 }
 
@@ -646,17 +640,8 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param bmpPath Path to the cached BMP image
  * @param imgW Original image width
  * @param imgH Original image height
- * @param marginLeft marginRight marginTop marginBottom Resolved CSS margins in px (from stylesheet / inline).
  */
-void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH, int marginLeft,
-                                           int marginRight, int marginTop, int marginBottom) {
-  const int ml = std::max(0, marginLeft);
-  const int mr = std::max(0, marginRight);
-  const int mt = std::max(0, marginTop);
-  const int mb = std::max(0, marginBottom);
-  const int lineGap = renderer.getLineHeight(fontId) / 2;
-  const int blockH = mt + imgH + mb;
-
+void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
 
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
@@ -671,9 +656,9 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
 
     currentPage.reset(new Page());
     currentPageNextY = 0;
-    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, mt));
+    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
 
-    currentPageNextY = blockH + lineGap;
+    currentPageNextY = imgH + (renderer.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
     int minTextHeight = renderer.getLineHeight(fontId) * lineCompression * 2;
 
@@ -686,7 +671,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     return;
   }
 
-  if (currentPageNextY + blockH > viewportHeight) {
+  if (currentPageNextY + imgH > viewportHeight) {
     if (currentPage && !currentPage->elements.empty()) {
       completePageFn(std::move(currentPage));
     }
@@ -698,15 +683,10 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     currentPage.reset(new Page());
   }
 
-  int innerW = viewportWidth - ml - mr;
-  if (innerW < 1) {
-    innerW = 1;
-  }
-  const int xPos = (imgW < innerW) ? ml + (innerW - imgW) / 2 : ml;
-
-  currentPageNextY += mt;
+  int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
   currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
-  currentPageNextY += imgH + mb + lineGap;
+
+  currentPageNextY += imgH + (renderer.getLineHeight(fontId) / 2);
 }
 
 /**
