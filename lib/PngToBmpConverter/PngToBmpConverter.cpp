@@ -2,6 +2,7 @@
 #include <PNGdec.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 static PNG png;
 static bool debugEnabled = false; 
@@ -179,4 +180,213 @@ bool PngToBmpConverter::pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut) {
 bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
                                                        bool cropToFill) {
     return pngFileTo1BitBmpStreamWithSize(pngFile, bmpOut, targetWidth, targetHeight, cropToFill);
+}
+
+namespace {
+
+struct PngThumbGrayState {
+  uint8_t* gray;
+  int sw;
+  int sh;
+  int dw;
+  int dh;
+};
+
+static PngThumbGrayState* g_pngThumbGray = nullptr;
+
+static inline void pngThumbWrite16(Print& out, uint16_t v) {
+  out.write(static_cast<uint8_t>(v & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 8) & 0xFF));
+}
+
+static inline void pngThumbWrite32(Print& out, uint32_t v) {
+  out.write(static_cast<uint8_t>(v & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 8) & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 16) & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 24) & 0xFF));
+}
+
+static inline void pngThumbWrite32Signed(Print& out, int32_t v) {
+  pngThumbWrite32(out, static_cast<uint32_t>(v));
+}
+
+static void writeBmpHeader2BitThumb(Print& bmpOut, int width, int height) {
+  const int bytesPerRow = (width * 2 + 31) / 32 * 4;
+  const int imageSize = bytesPerRow * height;
+  bmpOut.write('B');
+  bmpOut.write('M');
+  pngThumbWrite32(bmpOut, 70 + static_cast<uint32_t>(imageSize));
+  pngThumbWrite32(bmpOut, 0);
+  pngThumbWrite32(bmpOut, 70);
+  pngThumbWrite32(bmpOut, 40);
+  pngThumbWrite32Signed(bmpOut, width);
+  pngThumbWrite32Signed(bmpOut, -height);
+  pngThumbWrite16(bmpOut, 1);
+  pngThumbWrite16(bmpOut, 2);
+  pngThumbWrite32(bmpOut, 0);
+  pngThumbWrite32(bmpOut, static_cast<uint32_t>(imageSize));
+  pngThumbWrite32(bmpOut, 2835);
+  pngThumbWrite32(bmpOut, 2835);
+  pngThumbWrite32(bmpOut, 4);
+  pngThumbWrite32(bmpOut, 4);
+  static const uint8_t kPal[16] = {0, 0, 0, 0, 85, 85, 85, 0, 170, 170, 170, 0, 255, 255, 255, 0};
+  for (size_t i = 0; i < sizeof(kPal); i++) {
+    bmpOut.write(kPal[i]);
+  }
+}
+
+int PNGDrawCallbackThumbGray(PNGDRAW* pDraw) {
+  if (!g_pngThumbGray || !g_pngThumbGray->gray) {
+    return 0;
+  }
+  uint16_t line[pDraw->iWidth];
+  png.getLineAsRGB565(pDraw, line, PNG_RGB565_LITTLE_ENDIAN, 0xFFFFFFFF);
+  PngThumbGrayState* st = g_pngThumbGray;
+  for (int x = 0; x < pDraw->iWidth; x++) {
+    const int outX = (x * st->dw) / st->sw;
+    const int outY = (pDraw->y * st->dh) / st->sh;
+    if (outX < 0 || outX >= st->dw || outY < 0 || outY >= st->dh) {
+      continue;
+    }
+    const uint16_t p = line[x];
+    const int r = ((p >> 11) & 0x1F) << 3;
+    const int g = ((p >> 5) & 0x3F) << 2;
+    const int b = (p & 0x1F) << 3;
+    const int gray = (r * 77 + g * 150 + b * 29) >> 8;
+    st->gray[outY * st->dw + outX] = static_cast<uint8_t>(gray);
+  }
+  return 1;
+}
+
+}  // namespace
+
+bool PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetW, int targetH,
+                                                      bool cropToFill) {
+  const uint32_t originalPos = pngFile.position();
+  pngFile.seek(0);
+
+  int rc = png.open((const char*)&pngFile, pngOpen, pngClose, pngRead, pngSeek, PNGDrawCallbackThumbGray);
+  if (rc != 0) {
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  const int sw = png.getWidth();
+  const int sh = png.getHeight();
+  int dw = 0;
+  int dh = 0;
+  if (targetW > 0 && targetH > 0) {
+    if (cropToFill) {
+      dw = targetW;
+      dh = targetH;
+    } else {
+      const float sx = static_cast<float>(targetW) / static_cast<float>(sw);
+      const float sy = static_cast<float>(targetH) / static_cast<float>(sh);
+      float s = std::min(sx, sy);
+      if (s > 1.0f) {
+        s = 1.0f;
+      }
+      dw = std::max(1, static_cast<int>(std::lround(static_cast<float>(sw) * s)));
+      dh = std::max(1, static_cast<int>(std::lround(static_cast<float>(sh) * s)));
+    }
+  } else {
+    dw = sw;
+    dh = sh;
+  }
+
+  const size_t grayBytes = static_cast<size_t>(dw) * static_cast<size_t>(dh);
+  uint8_t* gray = static_cast<uint8_t*>(malloc(grayBytes));
+  if (!gray) {
+    png.close();
+    pngFile.seek(originalPos);
+    return false;
+  }
+  memset(gray, 0, grayBytes);
+
+  PngThumbGrayState st;
+  st.gray = gray;
+  st.sw = sw;
+  st.sh = sh;
+  st.dw = dw;
+  st.dh = dh;
+  g_pngThumbGray = &st;
+  rc = png.decode(nullptr, 0);
+  png.close();
+  g_pngThumbGray = nullptr;
+
+  if (rc != 0) {
+    free(gray);
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  writeBmpHeader2BitThumb(bmpOut, dw, dh);
+  const int bytesPerRow = (dw * 2 + 31) / 32 * 4;
+  uint8_t* rowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(bytesPerRow)));
+  auto* errorBuffer = static_cast<int16_t*>(malloc(static_cast<size_t>(dw) * 2 * sizeof(int16_t)));
+  if (!rowBuffer || !errorBuffer) {
+    free(rowBuffer);
+    free(errorBuffer);
+    free(gray);
+    pngFile.seek(originalPos);
+    return false;
+  }
+  memset(errorBuffer, 0, static_cast<size_t>(dw) * 2 * sizeof(int16_t));
+
+  for (int y = 0; y < dh; y++) {
+    memset(rowBuffer, 0, static_cast<size_t>(bytesPerRow));
+    int16_t* currentError = &errorBuffer[(y & 1) * dw];
+    int16_t* nextError = &errorBuffer[((y + 1) & 1) * dw];
+    if (y < dh - 1) {
+      memset(nextError, 0, static_cast<size_t>(dw) * sizeof(int16_t));
+    }
+
+    const uint8_t* srcRow = gray + y * dw;
+    for (int x = 0; x < dw; x++) {
+      int16_t corrected = static_cast<int16_t>(srcRow[x]) + currentError[x];
+      if (corrected < 0) {
+        corrected = 0;
+      }
+      if (corrected > 255) {
+        corrected = 255;
+      }
+
+      uint8_t twoBit = 0;
+      uint8_t quantized = 0;
+      if (corrected < 48) {
+        twoBit = 0;
+        quantized = 0;
+      } else if (corrected < 112) {
+        twoBit = 1;
+        quantized = 85;
+      } else if (corrected < 192) {
+        twoBit = 2;
+        quantized = 170;
+      } else {
+        twoBit = 3;
+        quantized = 255;
+      }
+
+      const int16_t error = static_cast<int16_t>(corrected - quantized);
+      if (x < dw - 1) {
+        currentError[x + 1] += static_cast<int16_t>((error * 7) / 16);
+      }
+      nextError[x] += static_cast<int16_t>((error * 5) / 16);
+      if (x > 0) {
+        nextError[x - 1] += static_cast<int16_t>((error * 3) / 16);
+      }
+      if (x < dw - 1) {
+        nextError[x + 1] += static_cast<int16_t>((error * 1) / 16);
+      }
+
+      rowBuffer[(x * 2) / 8] |= static_cast<uint8_t>(twoBit << (6 - ((x * 2) % 8)));
+    }
+    bmpOut.write(rowBuffer, static_cast<size_t>(bytesPerRow));
+  }
+
+  free(errorBuffer);
+  free(rowBuffer);
+  free(gray);
+  pngFile.seek(originalPos);
+  return true;
 }

@@ -394,10 +394,16 @@ void EpubActivity::ensureThumbnailExists() {
  * @brief Displays cover if it exists, otherwise shows title
  */
 void EpubActivity::displayCoverOrTitle() {
-  std::string coverPath = epub->getCoverBmpPath(false);
-
+  // Prefer crop-to-fill cover (matches sleep "fill" intent); fall back to letterboxed cover.bmp.
+  std::string coverPath = epub->getCoverBmpPath(true);
   if (!SdMan.exists(coverPath.c_str())) {
-    epub->generateCoverBmp(false);
+    epub->generateCoverBmp(true);
+  }
+  if (!SdMan.exists(coverPath.c_str())) {
+    coverPath = epub->getCoverBmpPath(false);
+    if (!SdMan.exists(coverPath.c_str())) {
+      epub->generateCoverBmp(false);
+    }
   }
 
   FsFile coverFile;
@@ -851,6 +857,9 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::GENERATE_FULL_DATA:
               generateFullData();
               break;
+            case MenuDrawer::MenuAction::REGENERATE_THUMBNAIL:
+              regenerateThumbnail();
+              break;
             case MenuDrawer::MenuAction::KOREADER_SYNC:
               openKOReaderSyncFromMenu();
               break;
@@ -1081,6 +1090,29 @@ void EpubActivity::generateFullData() {
 
   loadingProgress = 100;
   drawLoadingScreen();
+}
+
+void EpubActivity::regenerateThumbnail() {
+  if (!epub) {
+    return;
+  }
+
+  ScreenComponents::drawPopup(renderer, "Regenerating thumbnail...");
+  renderer.displayBuffer();
+  vTaskDelay(pdMS_TO_TICKS(150));
+
+  const std::string thumbPath = epub->getThumbBmpPath();
+  const std::string smallThumbPath = epub->getSmallThumbBmpPath();
+  SdMan.remove(thumbPath.c_str());
+  SdMan.remove(smallThumbPath.c_str());
+
+  const bool ok = epub->generateThumbBmp();
+  ScreenComponents::drawPopup(renderer, ok ? "Thumbnail updated" : "Thumbnail failed");
+  renderer.displayBuffer();
+  vTaskDelay(pdMS_TO_TICKS(ok ? 800 : 1200));
+
+  updateRequired = true;
+  startPageTimer();
 }
 
 void EpubActivity::openKOReaderSyncFromMenu() {

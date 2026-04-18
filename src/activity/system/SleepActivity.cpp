@@ -283,6 +283,10 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
  * @param cy Vertical crop factor (0-1)
  */
 void SleepActivity::renderGreyscale(const Bitmap& bitmap, int x, int y, int w, int h, float cx, float cy) const {
+    BitmapGrayStyleScope displayGrayStyle(
+        renderer, SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
+                      ? GfxRenderer::BitmapGrayRenderStyle::FullGray
+                      : GfxRenderer::BitmapGrayRenderStyle::Balanced);
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);

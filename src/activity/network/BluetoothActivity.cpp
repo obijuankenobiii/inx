@@ -44,7 +44,10 @@ void BluetoothActivity::onEnter() {
 void BluetoothActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  if (btManager) btManager->stopScan();
+  if (btManager) {
+    btManager->stopScan();
+    btManager->disconnectAll();
+  }
 
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -115,6 +118,12 @@ void BluetoothActivity::loop() {
   }
 
   if (state == BluetoothState::SCANNING) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      if (onGoBack) {
+        onGoBack();
+      }
+      return;
+    }
     if (millis() - scanStartTime >= 3000) {
       processScanResults();
     }
@@ -155,6 +164,19 @@ void BluetoothActivity::loop() {
         selectedIndex++;
         updateRequired = true;
       }
+    }
+    // fall through to refresh display when only navigation keys updated
+  }
+
+  if (state == BluetoothState::CONNECTED) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      if (btManager) {
+        btManager->disconnectAll();
+      }
+      if (onGoBack) {
+        onGoBack();
+      }
+      return;
     }
   }
 
@@ -336,9 +358,12 @@ void BluetoothActivity::renderConnected() const {
   const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
   renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
 
-  const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+  const int centerY = dividerY + (screenHeight - dividerY - 120) / 2;
   renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY, "Connected to keyboard!");
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 30, "Press Back to exit");
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 28, "Esc=Back  Enter=Confirm");
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 48, "Arrow keys = Up/Down/Left/Right");
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 72, "Uses your Settings button layout.");
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 96, "Press Back to disconnect & exit");
 
   const auto labels = mappedInput.mapLabels("« Back", "", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

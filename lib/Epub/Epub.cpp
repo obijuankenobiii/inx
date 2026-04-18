@@ -179,6 +179,10 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
  */
 bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                             int targetH, bool cropToFill) const {
+  if (itemHref.empty()) {
+    return false;
+  }
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -210,13 +214,35 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
-    uint8_t buf[2048];
-    while (sourceFile.available()) {
-      size_t r = sourceFile.read(buf, sizeof(buf));
-      destFile.write(buf, r);
+    // Raw EPUB BMPs are often huge or wrong aspect; normalize into the reader/sleep canvas when possible.
+    if (targetW > 0 && targetH > 0) {
+      success = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, targetW, targetH);
+      if (!success) {
+        sourceFile.seek(0);
+        destFile.close();
+        SdMan.remove(outBmpPath.c_str());
+        if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+          sourceFile.close();
+          SdMan.remove(tempPath.c_str());
+          return false;
+        }
+        Serial.printf("[EBP] BMP resize failed, copying raw cover: %s\n", itemHref.c_str());
+        uint8_t buf[2048];
+        while (sourceFile.available()) {
+          size_t r = sourceFile.read(buf, sizeof(buf));
+          destFile.write(buf, r);
+        }
+        success = true;
+      }
+    } else {
+      Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
+      uint8_t buf[2048];
+      while (sourceFile.available()) {
+        size_t r = sourceFile.read(buf, sizeof(buf));
+        destFile.write(buf, r);
+      }
+      success = true;
     }
-    success = true;
   } else if (isPngFile(itemHref)) {
     success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH, cropToFill);
   } else {
@@ -237,6 +263,9 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
  * @return true if cover generation succeeded, false otherwise
  */
 bool Epub::generateCoverBmp(bool cropped) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
+    return false;
+  }
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
                                           800, cropped);
 }
@@ -286,19 +315,26 @@ bool Epub::generateThumbBmp() const {
       Serial.printf("[EBP] Source is BMP, resizing for thumbnail: %s\n", coverHref.c_str());
       thumbSuccess = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, 225, 340);
     } else if (isPngFile(coverHref)) {
-      thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
     } else {
       JpegToBmpConverter converter;
       thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
     }
 
     if (!thumbSuccess && !isBmpFile(coverHref)) {
-      destFile.seek(0);
-      if (isPngFile(coverHref)) {
-        thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      sourceFile.seek(0);
+      destFile.close();
+      SdMan.remove(getThumbBmpPath().c_str());
+      if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
+        success = false;
+        thumbSuccess = false;
       } else {
-        JpegToBmpConverter converter;
-        thumbSuccess = converter.jpegFileTo1BitThumbnailBmp(sourceFile, destFile, 225, 340);
+        if (isPngFile(coverHref)) {
+          thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
+        } else {
+          thumbSuccess =
+              JpegToBmpConverter::jpegFileToBmpStreamCentered(sourceFile, destFile, 225, 340, true);
+        }
       }
     }
 

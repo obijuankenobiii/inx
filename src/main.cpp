@@ -11,6 +11,7 @@
 #include <string>
 
 #include "activity/network/BluetoothActivity.h"
+#include "system/BluetoothManager.h"
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
@@ -236,6 +237,8 @@ void setupDisplayAndFonts() {
 void setup() {
   t1 = millis();
   gpio.begin();
+  BluetoothManager::getInstance().setBleButtonSink(
+      [](const uint8_t halBtn) { gpio.injectOneShotPress(halBtn); });
   setupDisplayAndFonts();
 
   if (gpio.isUsbConnected()) {

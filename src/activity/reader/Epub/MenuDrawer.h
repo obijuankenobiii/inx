@@ -23,7 +23,8 @@ public:
         DELETE_CACHE,
         DELETE_PROGRESS,
         DELETE_BOOK,
-        GENERATE_FULL_DATA
+        GENERATE_FULL_DATA,
+        REGENERATE_THUMBNAIL
     };
 
     /** One row in the bookmark drawer (same role as a TOC line). */

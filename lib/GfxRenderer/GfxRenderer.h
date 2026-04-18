@@ -112,6 +112,8 @@ class GfxRenderer {
   void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
 
  private:
+  /** BW mode: map 2bpp palette stage (0–3) to screen using halftones so levels 1 and 2 are not solid black. */
+  void drawBwFrom2bppStage(int px, int py, uint8_t stage03) const;
   // Helper for drawing rotated text (90 degrees clockwise, for side buttons)
   void drawTextRotated90CW(int fontId, int x, int y, const char* text, bool black = true,
                            EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;

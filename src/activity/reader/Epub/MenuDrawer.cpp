@@ -103,6 +103,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
                {"Delete Progress", MenuAction::DELETE_PROGRESS},
                {"Delete Book", MenuAction::DELETE_BOOK},
                {"Generate Full Data", MenuAction::GENERATE_FULL_DATA},
+               {"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL},
                {"Go Home", MenuAction::GO_HOME}};
 }
 
