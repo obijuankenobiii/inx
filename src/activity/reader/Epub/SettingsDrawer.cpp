@@ -99,7 +99,8 @@ void SettingsDrawer::syncLayoutFromRenderer() {
     drawerHeight = sh * 60 / 100;
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+  const int footerReserve = pageTurnerButtonShown() ? (itemHeight + 14) : 0;
+  itemsPerPage = std::max(1, (drawerHeight - 100 - footerReserve) / itemHeight);
 }
 
 /**
@@ -373,21 +374,6 @@ void SettingsDrawer::setupMenu() {
   menuItems.push_back(controlsSeparator);
 
   if (groupExpanded[GroupType::CONTROLS]) {
-    if (SETTINGS.bleSavedAddress[0] != '\0') {
-      MenuEntry pageTurnerEntry;
-      pageTurnerEntry.item = MenuItem::UsePageTurner;
-      pageTurnerEntry.group = GroupType::CONTROLS;
-      pageTurnerEntry.name = "Use pageturner";
-      pageTurnerEntry.getValueText = [](const BookSettings&) -> const char* {
-        BluetoothManager& bt = BluetoothManager::getInstance();
-        const std::string addr(SETTINGS.bleSavedAddress);
-        const bool on = bt.readerPageTurnerSession() || (!addr.empty() && bt.isConnected(addr));
-        return on ? "On" : "Off";
-      };
-      pageTurnerEntry.change = [](BookSettings&, int) { BluetoothManager::getInstance().toggleReaderPageTurnerFromDrawer(); };
-      menuItems.push_back(pageTurnerEntry);
-    }
-
     MenuEntry aaEntry;
     aaEntry.item = MenuItem::AntiAliasing;
     aaEntry.group = GroupType::CONTROLS;
@@ -530,6 +516,46 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(statusRightEntry);
   }
+
+  clampSelectedIndex();
+}
+
+bool SettingsDrawer::pageTurnerButtonShown() const {
+  return SETTINGS.bleSavedAddress[0] != '\0';
+}
+
+int SettingsDrawer::maxSelectableIndex() const {
+  const int lastMenu = static_cast<int>(menuItems.size()) - 1;
+  if (lastMenu < 0) {
+    return 0;
+  }
+  return pageTurnerButtonShown() ? lastMenu + 1 : lastMenu;
+}
+
+void SettingsDrawer::clampSelectedIndex() {
+  const int mx = maxSelectableIndex();
+  if (selectedIndex > mx) {
+    selectedIndex = mx;
+  }
+  if (selectedIndex < 0) {
+    selectedIndex = 0;
+  }
+}
+
+void SettingsDrawer::drawPageTurnerButton() {
+  if (!pageTurnerButtonShown()) {
+    return;
+  }
+  const int btnY = drawerY + drawerHeight - itemHeight - 8;
+  renderer.drawLine(drawerX, btnY - 4, drawerX + drawerWidth, btnY - 4, true);
+  const bool sel = (selectedIndex == static_cast<int>(menuItems.size()));
+  renderer.drawRect(drawerX + 10, btnY, drawerWidth - 20, itemHeight, true);
+  if (sel) {
+    renderer.fillRect(drawerX + 12, btnY + 2, drawerWidth - 24, itemHeight - 4, GfxRenderer::FillTone::Ink);
+  }
+  const int textY = btnY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 24, textY, "Connect pageturner", sel ? 0 : 1,
+                    EpdFontFamily::BOLD);
 }
 
 /**
@@ -665,6 +691,8 @@ void SettingsDrawer::drawMenuItems() {
 
     renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
+
+  drawPageTurnerButton();
 }
 
 /**
@@ -702,6 +730,7 @@ void SettingsDrawer::toggleGroup(GroupType group) {
       break;
     }
   }
+  clampSelectedIndex();
 }
 
 /**
@@ -727,28 +756,39 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
   }
 
   if (readSettingsListNext(input, renderer)) {
-    if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
+    const int maxSel = maxSelectableIndex();
+    if (selectedIndex < maxSel) {
       selectedIndex++;
-      int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
-        scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+      if (selectedIndex < static_cast<int>(menuItems.size())) {
+        int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
+        if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+          scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+        }
       }
       needRedraw = true;
     }
   }
 
   if (readValueDecrease(input, renderer)) {
-    applyChange(-1);
-    needRedraw = true;
+    if (selectedIndex < static_cast<int>(menuItems.size())) {
+      applyChange(-1);
+      needRedraw = true;
+    }
   }
 
   if (readValueIncrease(input, renderer)) {
-    applyChange(1);
-    needRedraw = true;
+    if (selectedIndex < static_cast<int>(menuItems.size())) {
+      applyChange(1);
+      needRedraw = true;
+    }
   }
 
   if (input.wasPressed(MappedInputManager::Button::Confirm)) {
-    if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
+    if (pageTurnerButtonShown() && selectedIndex == static_cast<int>(menuItems.size())) {
+      BluetoothManager::getInstance().activateReaderPageTurnerFromBookDrawer();
+      hide();
+      needRedraw = true;
+    } else if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       const auto& selected = menuItems[selectedIndex];
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
@@ -801,7 +841,6 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::AntiAliasing:
     case MenuItem::ChapterSkip:
     case MenuItem::NavigationLock:
-    case MenuItem::UsePageTurner:
     case MenuItem::Separator:
     case MenuItem::StatusBarSeparator:
       break;

@@ -318,13 +318,9 @@ void BluetoothManager::startReaderPageTurnerConnectTask() {
   }
 }
 
-void BluetoothManager::toggleReaderPageTurnerFromDrawer() {
+void BluetoothManager::activateReaderPageTurnerFromBookDrawer() {
   const std::string addr(SETTINGS.bleSavedAddress);
   if (addr.empty()) {
-    return;
-  }
-  if (m_readerPageTurnerSession) {
-    disconnectAll();
     return;
   }
   if (isConnected(addr)) {

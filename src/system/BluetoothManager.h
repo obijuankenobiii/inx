@@ -49,8 +49,8 @@ class BluetoothManager {
   /** FreeRTOS task: enable BLE if needed, connect SETTINGS.bleSavedAddress, set reader session on success. */
   void startReaderPageTurnerConnectTask();
 
-  /** Reader settings drawer: turn pageturner on/off (adopts existing link to saved device if already connected). */
-  void toggleReaderPageTurnerFromDrawer();
+  /** Reader settings drawer button: connect saved BLE keyboard and mark reader session (closes drawer). */
+  void activateReaderPageTurnerFromBookDrawer();
 
   void onScanResult(void* device);
 

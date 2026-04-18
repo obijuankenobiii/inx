@@ -120,8 +120,7 @@ private:
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
         ReaderImagePresentation,  ///< Global: balanced vs full-gray bitmap mapping
         ReaderImageDither,        ///< EPUB reader BMP decode dither (None / Floyd-Steinberg / Atkinson)
-        PageAutoTurn,
-        UsePageTurner             ///< BLE HID keyboard for paging (global saved device)
+        PageAutoTurn
     };
     
     /**
@@ -184,6 +183,11 @@ private:
     void drawScrollIndicator();
 
     void syncLayoutFromRenderer();
+
+    bool pageTurnerButtonShown() const;
+    int maxSelectableIndex() const;
+    void clampSelectedIndex();
+    void drawPageTurnerButton();
     
     /**
      * @brief Applies a delta change to the selected menu item
