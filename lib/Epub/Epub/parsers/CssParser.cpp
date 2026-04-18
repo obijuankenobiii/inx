@@ -109,7 +109,9 @@ bool selectorListMatchesElementType(const std::string& fullSelectorLower, const 
 }  // namespace
 
 /** Parsed rules kept for EPUB image width/height only (~300KB SRAM). */
-static constexpr size_t kMaxParsedCssRules = 16;
+static constexpr size_t kMaxParsedCssRules = 12;
+/** Long compound selectors are truncated; matching may miss tail-only tokens. */
+static constexpr size_t kMaxSelectorStoredBytes = 48;
 
 CssParser::CssParser() {}
 
@@ -123,9 +125,8 @@ void CssParser::clear() {
 void CssParser::shrinkStorage() {
   for (CssRule& r : rules) {
     r.selector.shrink_to_fit();
-    for (auto& kv : r.properties) {
-      kv.second.shrink_to_fit();
-    }
+    r.widthVal.shrink_to_fit();
+    r.heightVal.shrink_to_fit();
   }
   rules.shrink_to_fit();
   bodyTextAlignRaw.shrink_to_fit();
@@ -246,13 +247,20 @@ void CssParser::parse(const std::string& cssContent) {
 
     std::string propertiesStr = cssContent.substr(blockStart, pos - blockStart - 1);
 
+    const std::string textAlignVal = extractDeclarationValue(propertiesStr, "text-align");
+    if (!textAlignVal.empty()) {
+      noteBodyHtmlTextAlign(selector, textAlignVal);
+    }
+
     CssRule rule;
     rule.selector = selector;
+    if (rule.selector.size() > kMaxSelectorStoredBytes) {
+      rule.selector.resize(kMaxSelectorStoredBytes);
+    }
 
-    parsePropertiesForDimensions(propertiesStr, rule.properties);
+    parsePropertiesForDimensions(propertiesStr, rule.widthVal, rule.heightVal);
 
-    if (!rule.properties.empty()) {
-      noteBodyHtmlTextAlign(selector, rule.properties);
+    if (!rule.widthVal.empty() || !rule.heightVal.empty()) {
       if (rules.size() < kMaxParsedCssRules) {
         rules.push_back(std::move(rule));
       } else {
@@ -265,8 +273,10 @@ void CssParser::parse(const std::string& cssContent) {
   Serial.printf("[CSSP] Parsed %zu CSS rules\n", rules.size());
 }
 
-void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
-                                             std::map<std::string, std::string>& properties) const {
+void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr, std::string& outWidth,
+                                             std::string& outHeight) const {
+  outWidth.clear();
+  outHeight.clear();
   size_t pos = 0;
   size_t len = propertiesStr.length();
 
@@ -287,15 +297,9 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
     std::string propName = propertiesStr.substr(nameStart, pos - nameStart);
     propName = trim(toLower(propName));
 
-    static const char* kSheetProps[] = {"width", "height"};
-    bool wanted = false;
-    for (const char* p : kSheetProps) {
-      if (propName == p) {
-        wanted = true;
-        break;
-      }
-    }
-    if (!wanted) {
+    const bool wantWidth = (propName == "width");
+    const bool wantHeight = (propName == "height");
+    if (!wantWidth && !wantHeight) {
       while (pos < len && propertiesStr[pos] != ';') {
         pos++;
       }
@@ -323,12 +327,64 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
       propValue = trim(propValue);
     }
 
-    if (!propName.empty() && !propValue.empty()) {
-      properties[propName] = propValue;
+    if (!propValue.empty()) {
+      if (wantWidth) {
+        outWidth = std::move(propValue);
+      } else if (wantHeight) {
+        outHeight = std::move(propValue);
+      }
     }
 
     if (pos < len) pos++;
   }
+}
+
+std::string CssParser::extractDeclarationValue(const std::string& propertiesStr,
+                                               const std::string& propNameLower) const {
+  size_t pos = 0;
+  const size_t len = propertiesStr.length();
+
+  while (pos < len) {
+    while (pos < len && isspace(static_cast<unsigned char>(propertiesStr[pos]))) {
+      pos++;
+    }
+    if (pos >= len) break;
+
+    size_t nameStart = pos;
+    while (pos < len && propertiesStr[pos] != ':') {
+      pos++;
+    }
+    if (pos >= len) break;
+
+    std::string propName = propertiesStr.substr(nameStart, pos - nameStart);
+    propName = trim(toLower(propName));
+
+    if (propName != propNameLower) {
+      while (pos < len && propertiesStr[pos] != ';') {
+        pos++;
+      }
+      if (pos < len) pos++;
+      continue;
+    }
+
+    pos++;
+    while (pos < len && isspace(static_cast<unsigned char>(propertiesStr[pos]))) {
+      pos++;
+    }
+    size_t valueStart = pos;
+    while (pos < len && propertiesStr[pos] != ';') {
+      pos++;
+    }
+    std::string propValue = propertiesStr.substr(valueStart, pos - valueStart);
+    propValue = trim(propValue);
+    size_t importantPos = propValue.find("!important");
+    if (importantPos != std::string::npos) {
+      propValue = propValue.substr(0, importantPos);
+      propValue = trim(propValue);
+    }
+    return propValue;
+  }
+  return {};
 }
 
 bool CssParser::selectorHasIdToken(const std::string& selectorLower, const std::string& idLower) {
@@ -543,8 +599,8 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
     return parseDimensionValue(itIn->second, viewportWidth, viewportHeight, pct);
   }
 
-  std::map<std::string, std::string> idLast;
-  std::map<std::string, std::string> clsLast;
+  std::string idLast;
+  std::string clsLast;
 
   std::string idLower = toLower(trim(id));
   std::vector<std::string> classTokens;
@@ -569,25 +625,27 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
       }
     }
 
-    auto pit = rule.properties.find(propName);
-    if (pit == rule.properties.end()) {
+    const std::string* sheetVal = nullptr;
+    if (propName == "width" && !rule.widthVal.empty()) {
+      sheetVal = &rule.widthVal;
+    } else if (propName == "height" && !rule.heightVal.empty()) {
+      sheetVal = &rule.heightVal;
+    } else {
       continue;
     }
 
     if (idMatch) {
-      idLast[propName] = pit->second;
+      idLast = *sheetVal;
     } else if (classMatch) {
-      clsLast[propName] = pit->second;
+      clsLast = *sheetVal;
     }
   }
 
-  auto jt = idLast.find(propName);
-  if (jt != idLast.end()) {
-    return parseDimensionValue(jt->second, viewportWidth, viewportHeight, pct);
+  if (!idLast.empty()) {
+    return parseDimensionValue(idLast, viewportWidth, viewportHeight, pct);
   }
-  auto kt = clsLast.find(propName);
-  if (kt != clsLast.end()) {
-    return parseDimensionValue(kt->second, viewportWidth, viewportHeight, pct);
+  if (!clsLast.empty()) {
+    return parseDimensionValue(clsLast, viewportWidth, viewportHeight, pct);
   }
   return 0;
 }
@@ -622,13 +680,8 @@ int CssParser::getMinHeight(const std::string& className, const std::string& id,
   return getInlineOrSheetLength("min-height", className, id, styleAttr, viewportWidth, viewportHeight);
 }
 
-void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw,
-                                      const std::map<std::string, std::string>& props) {
-  const auto it = props.find("text-align");
-  if (it == props.end()) {
-    return;
-  }
-  const std::string val = trim(it->second);
+void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::string& textAlignValue) {
+  const std::string val = trim(textAlignValue);
   if (val.empty()) {
     return;
   }
@@ -661,9 +714,9 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
     return itIn->second;
   }
 
-  std::map<std::string, std::string> idLast;
-  std::map<std::string, std::string> clsLast;
-  std::map<std::string, std::string> typeLast;
+  std::string idLast;
+  std::string clsLast;
+  std::string typeLast;
 
   std::string idLower = toLower(trim(id));
   std::vector<std::string> classTokens;
@@ -690,31 +743,32 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
 
     const bool tagMatch = !elementTagLower.empty() && selectorListMatchesElementType(selLower, elementTagLower);
 
-    const auto pit = rule.properties.find(propName);
-    if (pit == rule.properties.end()) {
+    const std::string* sheetVal = nullptr;
+    if (propName == "width" && !rule.widthVal.empty()) {
+      sheetVal = &rule.widthVal;
+    } else if (propName == "height" && !rule.heightVal.empty()) {
+      sheetVal = &rule.heightVal;
+    } else {
       continue;
     }
 
     if (idMatch) {
-      idLast[propName] = pit->second;
+      idLast = *sheetVal;
     } else if (classMatch) {
-      clsLast[propName] = pit->second;
+      clsLast = *sheetVal;
     } else if (tagMatch) {
-      typeLast[propName] = pit->second;
+      typeLast = *sheetVal;
     }
   }
 
-  const auto jt = idLast.find(propName);
-  if (jt != idLast.end()) {
-    return jt->second;
+  if (!idLast.empty()) {
+    return idLast;
   }
-  const auto kt = clsLast.find(propName);
-  if (kt != clsLast.end()) {
-    return kt->second;
+  if (!clsLast.empty()) {
+    return clsLast;
   }
-  const auto tt = typeLast.find(propName);
-  if (tt != typeLast.end()) {
-    return tt->second;
+  if (!typeLast.empty()) {
+    return typeLast;
   }
   return "";
 }
@@ -846,8 +900,11 @@ std::map<std::string, std::string> CssParser::getCombinedPropertiesForElement(co
 
   for (const auto& rule : rules) {
     if (ruleMatchesElement(rule, className, id)) {
-      for (const auto& prop : rule.properties) {
-        result[prop.first] = prop.second;
+      if (!rule.widthVal.empty()) {
+        result["width"] = rule.widthVal;
+      }
+      if (!rule.heightVal.empty()) {
+        result["height"] = rule.heightVal;
       }
     }
   }

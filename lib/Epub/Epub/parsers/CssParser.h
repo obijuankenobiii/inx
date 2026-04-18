@@ -6,9 +6,11 @@
 
 class CssParser {
  public:
+  /** Stylesheet rules kept only for width/height (no per-rule std::map). */
   struct CssRule {
     std::string selector;
-    std::map<std::string, std::string> properties;
+    std::string widthVal;
+    std::string heightVal;
   };
 
   CssParser();
@@ -62,13 +64,15 @@ class CssParser {
   std::vector<CssRule> rules;
   std::string bodyTextAlignRaw;
 
-  void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
+  void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::string& textAlignValue);
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
                                        const std::string& id, const std::string& styleAttr,
                                        const std::string& elementTagLower = "") const;
   int mapTextAlignToStyleIndex(const std::string& rawValue) const;
 
-  void parsePropertiesForDimensions(const std::string& propertiesStr, std::map<std::string, std::string>& properties) const;
+  void parsePropertiesForDimensions(const std::string& propertiesStr, std::string& outWidth,
+                                    std::string& outHeight) const;
+  std::string extractDeclarationValue(const std::string& propertiesStr, const std::string& propNameLower) const;
   enum class PercentRefersTo { Width, Height };
   int parseDimensionValue(const std::string& value, int viewportWidth, int viewportHeight,
                           PercentRefersTo percentAxis) const;
