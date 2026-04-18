@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+class HalGPIO;
 class NimBLEClient;
 
 class BluetoothManager {
@@ -38,9 +39,14 @@ class BluetoothManager {
   using KeyCallback = std::function<void(uint8_t keycode, bool pressed)>;
   void setKeyCallback(KeyCallback cb) { m_keyCallback = cb; }
 
-  /** Maps BLE HID keys to HalGPIO button indices (see onHidReport). */
-  using BleButtonSink = std::function<void(uint8_t halButtonIndex)>;
-  void setBleButtonSink(BleButtonSink sink) { m_bleButtonSink = std::move(sink); }
+  /** BLE HID injects into the same HalGPIO path as physical keys (set once at startup). */
+  void setHalGpio(HalGPIO* gpio) { m_halGpio = gpio; }
+
+  /** Non-blocking: after boot, try to reconnect to SETTINGS.bleSavedAddress if enabled. */
+  void scheduleStartupReconnect();
+
+  /** Blocking connect to saved device; returns whether connected. */
+  bool tryReconnectSavedDevice();
 
   void onScanResult(void* device);
 
@@ -62,7 +68,8 @@ class BluetoothManager {
   std::vector<std::string> m_connected;
   std::map<std::string, NimBLEClient*> m_clientsByAddr;
   KeyCallback m_keyCallback;
-  BleButtonSink m_bleButtonSink;
+  HalGPIO* m_halGpio = nullptr;
+  uint8_t m_prevHidBoot[8]{};
 
   static BluetoothManager* s_instance;
 };

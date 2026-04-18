@@ -4,6 +4,7 @@
 #include <SDCardManager.h>
 
 #include "state/SystemSetting.h"
+#include "system/BluetoothManager.h"
 #include "state/Session.h"
 #include "state/RecentBooks.h"
 #include "state/BookState.h"
@@ -84,6 +85,7 @@ void BootActivity::initializeNextStage() {
       bootProgress = 100;
       drawProgressBar();
       BOOK_STATE.loadFromFile();
+      BluetoothManager::getInstance().scheduleStartupReconnect();
       bootComplete = true;
       break;
       

@@ -22,7 +22,9 @@ enum class BluetoothState {
     DEVICE_LIST,        /**< Showing list of discovered devices */
     CONNECTING,         /**< Connecting to selected device */
     CONNECTED,          /**< Connected to device */
-    CONNECTION_FAILED   /**< Connection attempt failed */
+    CONNECTION_FAILED,  /**< Connection attempt failed */
+    KEY_MAP_PREV,       /**< Choose HID code for reader page back */
+    KEY_MAP_NEXT        /**< Choose HID code for reader page forward */
 };
 
 /**
@@ -109,6 +111,9 @@ private:
     
     /** @brief Renders connection failed state */
     void renderConnectionFailed() const;
+
+    void renderKeyMapPrev() const;
+    void renderKeyMapNext() const;
     
     /** @brief Draws Bluetooth signal strength icon */
     void drawBluetoothIcon(int x, int y, int rssi, bool isSelected) const;
@@ -126,6 +131,7 @@ private:
     std::vector<DeviceInfo> devices;
     std::string connectionError;
     unsigned long scanStartTime;
+    int keyMapPresetIndex = 0;
 
     const std::function<void()> onGoBack;
 };

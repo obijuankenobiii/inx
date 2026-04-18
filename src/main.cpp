@@ -237,8 +237,7 @@ void setupDisplayAndFonts() {
 void setup() {
   t1 = millis();
   gpio.begin();
-  BluetoothManager::getInstance().setBleButtonSink(
-      [](const uint8_t halBtn) { gpio.injectOneShotPress(halBtn); });
+  BluetoothManager::getInstance().setHalGpio(&gpio);
   setupDisplayAndFonts();
 
   if (gpio.isUsbConnected()) {

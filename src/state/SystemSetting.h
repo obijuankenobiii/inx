@@ -375,6 +375,15 @@ public:
     /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
     uint8_t displayImagePresentation = IMAGE_PRESENTATION_BALANCED;
 
+    /** Last paired BLE HID device (NimBLE address string, e.g. aa:bb:cc:dd:ee:ff). */
+    char bleSavedAddress[48] = "";
+    char bleSavedName[64] = "";
+    /** If set, reconnect to bleSavedAddress on boot / when opening Bluetooth. */
+    uint8_t bleAutoReconnect = 1;
+    /** HID usage codes (boot keyboard) for reader page back / forward (default Up / Down). */
+    uint8_t bleHidPagePrevKey = 0x52;
+    uint8_t bleHidPageNextKey = 0x51;
+
     ~SystemSetting() = default;
 
     /**
