@@ -74,6 +74,8 @@ private:
         int rssi;
         /** Index in BleDeviceStore when this row comes from saved list; -1 for live scan only. */
         int storeIndex = -1;
+        /** NimBLE `BLE_ADDR_*` for connect (1 = random typical for HID). */
+        uint8_t addrType = 1;
     };
 
     /**

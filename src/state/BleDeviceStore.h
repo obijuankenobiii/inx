@@ -7,6 +7,8 @@
 struct BleStoredDevice {
   std::string address;
   std::string name;
+  /** NimBLE address type (`BLE_ADDR_PUBLIC`=0, `BLE_ADDR_RANDOM`=1, …). Default 1 for legacy files. */
+  uint8_t addrType = 1;
 };
 
 /**
@@ -31,12 +33,12 @@ class BleDeviceStore {
   static bool isDisplayableName(const std::string& name);
 
   /** Adds or updates by address; ignores if name not displayable. Returns true if list changed. */
-  bool addOrUpdate(const std::string& address, const std::string& name);
+  bool addOrUpdate(const std::string& address, const std::string& name, uint8_t addrType);
 
   void removeAt(size_t index);
 
   /** Writes this device as the preferred keyboard (SETTINGS.bleSaved* + save). */
-  void applyPreferred(const std::string& address, const std::string& name);
+  void applyPreferred(const std::string& address, const std::string& name, uint8_t addrType);
 
   /** Index in m_devices, or -1. */
   int findIndexByAddress(const std::string& address) const;
@@ -47,7 +49,7 @@ class BleDeviceStore {
 
   std::vector<BleStoredDevice> m_devices;
   static constexpr size_t kMaxDevices = 24;
-  static constexpr uint8_t kFileVersion = 1;
+  static constexpr uint8_t kFileVersion = 2;
 };
 
 #define BLE_DEVICES BleDeviceStore::getInstance()

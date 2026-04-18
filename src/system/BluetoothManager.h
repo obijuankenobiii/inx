@@ -17,6 +17,8 @@ class BluetoothManager {
     std::string name;
     int rssi;
     bool isHID;
+    /** NimBLE peer address type (`BLE_ADDR_PUBLIC`=0, `BLE_ADDR_RANDOM`=1, …). */
+    uint8_t addrType = 0;
   };
 
   static BluetoothManager& getInstance();
@@ -31,7 +33,8 @@ class BluetoothManager {
   bool isScanning() const { return m_scanning; }
   std::vector<Device> getDiscoveredDevices() const { return m_devices; }
 
-  bool connectToDevice(const std::string& address);
+  /** @param hintAddrType NimBLE address type, or 0xFF to resolve from last scan / ble_devices.bin (else random). */
+  bool connectToDevice(const std::string& address, uint8_t hintAddrType = 0xFF);
   void disconnectAll();
   bool isConnected(const std::string& address) const;
   std::vector<std::string> getConnectedDevices() const { return m_connected; }

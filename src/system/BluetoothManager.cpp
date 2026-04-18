@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -17,6 +18,22 @@
 #define LOG(fmt, ...) printf("[BT] " fmt "\n", ##__VA_ARGS__)
 
 namespace {
+constexpr uint8_t kBleAddrPublic = 0;
+constexpr uint8_t kBleAddrRandom = 1;
+constexpr uint8_t kAddrTypeAuto = 0xFF;
+
+bool addrEqCi(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 struct FrontLayoutMap {
   uint8_t back;
   uint8_t confirm;
@@ -275,6 +292,7 @@ void BluetoothManager::onScanResult(void* device) {
   dev.name = name;
   dev.rssi = rssi;
   dev.isHID = isHID;
+  dev.addrType = advDevice->getAddress().getType();
   m_devices.push_back(dev);
 
   LOG("Found: %s (%s) RSSI:%d HID:%d", name.c_str(), address.c_str(), rssi, isHID);
@@ -411,7 +429,7 @@ void BluetoothManager::handleClientDisconnected(NimBLEClient* pClient) {
   NimBLEDevice::deleteClient(pClient);
 }
 
-bool BluetoothManager::connectToDevice(const std::string& address) {
+bool BluetoothManager::connectToDevice(const std::string& address, uint8_t hintAddrType) {
   LOG("=== connectToDevice called for %s ===", address.c_str());
 
   if (!m_enabled) {
@@ -424,7 +442,28 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
     return true;
   }
 
-  NimBLEAddress bleAddress(address, BLE_ADDR_PUBLIC);
+  uint8_t resolvedAddrType = kBleAddrRandom;
+  if (hintAddrType != kAddrTypeAuto) {
+    resolvedAddrType = (hintAddrType > 3) ? kBleAddrRandom : hintAddrType;
+  } else {
+    bool found = false;
+    for (const auto& d : m_devices) {
+      if (addrEqCi(d.address, address)) {
+        resolvedAddrType = d.addrType;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      const int si = BleDeviceStore::getInstance().findIndexByAddress(address);
+      if (si >= 0) {
+        resolvedAddrType = BleDeviceStore::getInstance().devices()[static_cast<size_t>(si)].addrType;
+      }
+    }
+  }
+  LOG("Peer address type %u for %s", resolvedAddrType, address.c_str());
+
+  NimBLEAddress bleAddress(address, resolvedAddrType);
 
   LOG("Creating BLE client...");
   NimBLEClient* pClient = NimBLEDevice::createClient(bleAddress);
@@ -455,7 +494,7 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
   strncpy(SETTINGS.bleSavedAddress, address.c_str(), sizeof(SETTINGS.bleSavedAddress) - 1);
   SETTINGS.bleSavedAddress[sizeof(SETTINGS.bleSavedAddress) - 1] = '\0';
   for (const auto& d : m_devices) {
-    if (d.address == address) {
+    if (addrEqCi(d.address, address)) {
       strncpy(SETTINGS.bleSavedName, d.name.c_str(), sizeof(SETTINGS.bleSavedName) - 1);
       SETTINGS.bleSavedName[sizeof(SETTINGS.bleSavedName) - 1] = '\0';
       break;
@@ -468,13 +507,13 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
     std::string nm(SETTINGS.bleSavedName);
     if (!BleDeviceStore::isDisplayableName(nm)) {
       for (const auto& d : m_devices) {
-        if (d.address == address) {
+        if (addrEqCi(d.address, address)) {
           nm = d.name;
           break;
         }
       }
     }
-    BleDeviceStore::getInstance().addOrUpdate(address, nm);
+    BleDeviceStore::getInstance().addOrUpdate(address, nm, resolvedAddrType);
   }
 
   LOG("=== Successfully connected to %s ===", address.c_str());

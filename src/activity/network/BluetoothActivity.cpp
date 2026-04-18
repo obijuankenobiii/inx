@@ -121,9 +121,11 @@ void BluetoothActivity::rebuildMergedDeviceList() {
   const auto& stored = BLE_DEVICES.devices();
   for (size_t i = 0; i < stored.size(); ++i) {
     int rssi = -100;
+    uint8_t addrType = stored[i].addrType;
     for (const auto& dev : discovered) {
       if (strcasecmp(dev.address.c_str(), stored[i].address.c_str()) == 0) {
         rssi = dev.rssi;
+        addrType = dev.addrType;
         break;
       }
     }
@@ -132,6 +134,7 @@ void BluetoothActivity::rebuildMergedDeviceList() {
     di.address = stored[i].address;
     di.rssi = rssi;
     di.storeIndex = static_cast<int>(i);
+    di.addrType = addrType;
     devices.push_back(di);
   }
 
@@ -147,6 +150,7 @@ void BluetoothActivity::rebuildMergedDeviceList() {
     info.address = dev.address;
     info.rssi = dev.rssi;
     info.storeIndex = -1;
+    info.addrType = dev.addrType;
     devices.push_back(info);
   }
 }
@@ -161,7 +165,7 @@ void BluetoothActivity::connectToDevice(int index) {
   state = BluetoothState::CONNECTING;
   updateRequired = true;
 
-  if (btManager->connectToDevice(device.address)) {
+  if (btManager->connectToDevice(device.address, device.addrType)) {
     state = BluetoothState::CONNECTED;
   } else {
     connectionError = "Connection failed";
@@ -239,7 +243,7 @@ void BluetoothActivity::loop() {
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
       if (!devices.empty()) {
         const auto& sel = devices[static_cast<size_t>(selectedIndex)];
-        BLE_DEVICES.applyPreferred(sel.address, sel.name);
+        BLE_DEVICES.applyPreferred(sel.address, sel.name, sel.addrType);
         updateRequired = true;
       }
     }

@@ -12,7 +12,15 @@
 
 namespace {
 constexpr char kBleDevicesFile[] = "/.system/ble_devices.bin";
+constexpr uint8_t kLegacyFileVersion = 1;
+
+uint8_t sanitizeAddrType(uint8_t t) {
+  if (t > 3) {
+    return 1;
+  }
+  return t;
 }
+}  // namespace
 
 constexpr uint8_t BleDeviceStore::kFileVersion;
 constexpr size_t BleDeviceStore::kMaxDevices;
@@ -59,7 +67,7 @@ bool BleDeviceStore::loadFromFile() {
   if (SdMan.openFileForRead("BDS", kBleDevicesFile, inputFile)) {
     uint8_t version = 0;
     serialization::readPod(inputFile, version);
-    if (version == kFileVersion) {
+    if (version == kFileVersion || version == kLegacyFileVersion) {
       uint8_t count = 0;
       serialization::readPod(inputFile, count);
       if (count > kMaxDevices) {
@@ -70,8 +78,13 @@ bool BleDeviceStore::loadFromFile() {
         std::string nm;
         serialization::readString(inputFile, addr);
         serialization::readString(inputFile, nm);
+        uint8_t typ = 1;
+        if (version == kFileVersion) {
+          serialization::readPod(inputFile, typ);
+          typ = sanitizeAddrType(typ);
+        }
         if (!addr.empty() && isDisplayableName(nm)) {
-          m_devices.push_back({std::move(addr), std::move(nm)});
+          m_devices.push_back({std::move(addr), std::move(nm), typ});
         }
       }
     }
@@ -79,7 +92,7 @@ bool BleDeviceStore::loadFromFile() {
   }
 
   if (m_devices.empty() && SETTINGS.bleSavedAddress[0] != '\0' && isDisplayableName(std::string(SETTINGS.bleSavedName))) {
-    m_devices.push_back({std::string(SETTINGS.bleSavedAddress), std::string(SETTINGS.bleSavedName)});
+    m_devices.push_back({std::string(SETTINGS.bleSavedAddress), std::string(SETTINGS.bleSavedName), 1});
     saveToFile();
   }
 
@@ -100,21 +113,26 @@ bool BleDeviceStore::saveToFile() {
   for (uint8_t i = 0; i < count; ++i) {
     serialization::writeString(outputFile, m_devices[i].address);
     serialization::writeString(outputFile, m_devices[i].name);
+    serialization::writePod(outputFile, sanitizeAddrType(m_devices[i].addrType));
   }
   outputFile.close();
   Serial.printf("[%lu] [BDS] Saved %u BLE device(s)\n", millis(), count);
   return true;
 }
 
-bool BleDeviceStore::addOrUpdate(const std::string& address, const std::string& name) {
+bool BleDeviceStore::addOrUpdate(const std::string& address, const std::string& name, uint8_t addrType) {
   if (address.empty() || !isDisplayableName(name)) {
     return false;
   }
+  const uint8_t typ = sanitizeAddrType(addrType);
   const std::string key = addressKey(address);
   for (auto& d : m_devices) {
     if (addressKey(d.address) == key) {
-      if (d.name != name) {
+      const bool nameChg = (d.name != name);
+      const bool typChg = (d.addrType != typ);
+      if (nameChg || typChg) {
         d.name = name;
+        d.addrType = typ;
         saveToFile();
         return true;
       }
@@ -124,7 +142,7 @@ bool BleDeviceStore::addOrUpdate(const std::string& address, const std::string& 
   if (m_devices.size() >= kMaxDevices) {
     m_devices.erase(m_devices.begin());
   }
-  m_devices.push_back({address, name});
+  m_devices.push_back({address, name, typ});
   saveToFile();
   return true;
 }
@@ -143,7 +161,7 @@ void BleDeviceStore::removeAt(size_t index) {
   saveToFile();
 }
 
-void BleDeviceStore::applyPreferred(const std::string& address, const std::string& name) {
+void BleDeviceStore::applyPreferred(const std::string& address, const std::string& name, uint8_t addrType) {
   if (address.empty()) {
     return;
   }
@@ -156,6 +174,9 @@ void BleDeviceStore::applyPreferred(const std::string& address, const std::strin
     SETTINGS.bleSavedName[0] = '\0';
   }
   SETTINGS.saveToFile();
+  if (isDisplayableName(name)) {
+    addOrUpdate(address, name, addrType);
+  }
 }
 
 int BleDeviceStore::findIndexByAddress(const std::string& address) const {
