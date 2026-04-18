@@ -313,7 +313,7 @@ void BluetoothManager::scheduleStartupReconnect() {
   if (!SETTINGS.bleAutoReconnect || SETTINGS.bleSavedAddress[0] == '\0') {
     return;
   }
-  xTaskCreate(bluetoothStartupReconnectTask, "BTautorec", 8192, nullptr, 1, nullptr);
+  xTaskCreate(bluetoothStartupReconnectTask, "BTautorec", 5120, nullptr, 1, nullptr);
 }
 
 bool BluetoothManager::tryReconnectSavedDevice() {
