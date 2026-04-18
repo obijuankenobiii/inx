@@ -117,17 +117,24 @@ void BluetoothActivity::rebuildMergedDeviceList() {
     return;
   }
 
+  const auto discovered = btManager->getDiscoveredDevices();
   const auto& stored = BLE_DEVICES.devices();
   for (size_t i = 0; i < stored.size(); ++i) {
+    int rssi = -100;
+    for (const auto& dev : discovered) {
+      if (strcasecmp(dev.address.c_str(), stored[i].address.c_str()) == 0) {
+        rssi = dev.rssi;
+        break;
+      }
+    }
     DeviceInfo di;
     di.name = stored[i].name;
     di.address = stored[i].address;
-    di.rssi = -100;
+    di.rssi = rssi;
     di.storeIndex = static_cast<int>(i);
     devices.push_back(di);
   }
 
-  const auto discovered = btManager->getDiscoveredDevices();
   for (const auto& dev : discovered) {
     if (!BleDeviceStore::isDisplayableName(dev.name)) {
       continue;
@@ -215,7 +222,7 @@ void BluetoothActivity::loop() {
         selectedIndex--;
         updateRequired = true;
       }
-    } else     if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
       if (!devices.empty() && selectedIndex < (int)devices.size() - 1) {
         selectedIndex++;
         updateRequired = true;
@@ -415,6 +422,10 @@ void BluetoothActivity::renderDeviceList() const {
       }
 
       std::string displayName = device.name;
+      if (SETTINGS.bleSavedAddress[0] != '\0' &&
+          strcasecmp(SETTINGS.bleSavedAddress, device.address.c_str()) == 0) {
+        displayName += " *";
+      }
       if (displayName.length() > 25) {
         displayName.replace(22, displayName.length() - 22, "...");
       }
@@ -436,7 +447,10 @@ void BluetoothActivity::renderDeviceList() const {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 60, countStr);
   }
 
-  const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
+  const bool canForget =
+      !devices.empty() && devices[static_cast<size_t>(selectedIndex)].storeIndex >= 0;
+  const auto labels =
+      mappedInput.mapLabels("« Back", "Connect", canForget ? "Forget" : "", "Preferred");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
