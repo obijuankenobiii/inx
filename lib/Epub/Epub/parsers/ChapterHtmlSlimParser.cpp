@@ -69,8 +69,8 @@ void ChapterHtmlSlimParser::loadCssRules() {
   if (cssCount > 0) {
     Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
 
-    // Limit total CSS size to prevent memory issues
-    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  // 50KB max total CSS
+    // Limit total CSS size to prevent memory issues (leave heap for ZIP inflate / bitmaps)
+    const size_t MAX_TOTAL_CSS_SIZE = 36 * 1024;
     size_t totalCssSize = 0;
 
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
@@ -96,6 +96,7 @@ void ChapterHtmlSlimParser::loadCssRules() {
     }
 
     Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);
+    cssParser.shrinkStorage();
   }
 
   cssLoaded = true;
@@ -290,7 +291,11 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
-    addImageToPage(cacheImgPath, imgWidth, imgHeight);
+    const int mL = cssParser.getMarginLeft(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int mR = cssParser.getMarginRight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int mT = cssParser.getMarginTop(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int mB = cssParser.getMarginBottom(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    addImageToPage(cacheImgPath, imgWidth, imgHeight, mL, mR, mT, mB);
   }
 }
 
@@ -641,8 +646,17 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param bmpPath Path to the cached BMP image
  * @param imgW Original image width
  * @param imgH Original image height
+ * @param marginLeft marginRight marginTop marginBottom Resolved CSS margins in px (from stylesheet / inline).
  */
-void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
+void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH, int marginLeft,
+                                           int marginRight, int marginTop, int marginBottom) {
+  const int ml = std::max(0, marginLeft);
+  const int mr = std::max(0, marginRight);
+  const int mt = std::max(0, marginTop);
+  const int mb = std::max(0, marginBottom);
+  const int lineGap = renderer.getLineHeight(fontId) / 2;
+  const int blockH = mt + imgH + mb;
+
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
 
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
@@ -657,9 +671,9 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
 
     currentPage.reset(new Page());
     currentPageNextY = 0;
-    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
+    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, mt));
 
-    currentPageNextY = imgH + (renderer.getLineHeight(fontId) / 2);
+    currentPageNextY = blockH + lineGap;
     int remainingSpace = viewportHeight - currentPageNextY;
     int minTextHeight = renderer.getLineHeight(fontId) * lineCompression * 2;
 
@@ -672,7 +686,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     return;
   }
 
-  if (currentPageNextY + imgH > viewportHeight) {
+  if (currentPageNextY + blockH > viewportHeight) {
     if (currentPage && !currentPage->elements.empty()) {
       completePageFn(std::move(currentPage));
     }
@@ -684,10 +698,15 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     currentPage.reset(new Page());
   }
 
-  int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
-  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
+  int innerW = viewportWidth - ml - mr;
+  if (innerW < 1) {
+    innerW = 1;
+  }
+  const int xPos = (imgW < innerW) ? ml + (innerW - imgW) / 2 : ml;
 
-  currentPageNextY += imgH + (renderer.getLineHeight(fontId) / 2);
+  currentPageNextY += mt;
+  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
+  currentPageNextY += imgH + mb + lineGap;
 }
 
 /**

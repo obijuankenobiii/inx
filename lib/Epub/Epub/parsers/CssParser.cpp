@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -105,7 +107,60 @@ bool selectorListMatchesElementType(const std::string& fullSelectorLower, const 
   return false;
 }
 
+/** Split CSS `margin` shorthand into longhands (1–4 tokens). */
+void addMarginLonghandsFromShorthand(const std::string& rawVal, std::map<std::string, std::string>& properties) {
+  const std::string v = trimCssWs(rawVal);
+  if (v.empty()) {
+    return;
+  }
+  std::vector<std::string> tok;
+  size_t i = 0;
+  while (i < v.size()) {
+    while (i < v.size() && isspace(static_cast<unsigned char>(v[i]))) {
+      i++;
+    }
+    if (i >= v.size()) {
+      break;
+    }
+    size_t j = i;
+    while (j < v.size() && !isspace(static_cast<unsigned char>(v[j]))) {
+      j++;
+    }
+    tok.push_back(v.substr(i, j - i));
+    i = j;
+  }
+  if (tok.empty()) {
+    return;
+  }
+  std::string top;
+  std::string right;
+  std::string bottom;
+  std::string left;
+  if (tok.size() == 1) {
+    top = right = bottom = left = tok[0];
+  } else if (tok.size() == 2) {
+    top = bottom = tok[0];
+    left = right = tok[1];
+  } else if (tok.size() == 3) {
+    top = tok[0];
+    left = right = tok[1];
+    bottom = tok[2];
+  } else {
+    top = tok[0];
+    right = tok[1];
+    bottom = tok[2];
+    left = tok[3];
+  }
+  properties["margin-top"] = top;
+  properties["margin-right"] = right;
+  properties["margin-bottom"] = bottom;
+  properties["margin-left"] = left;
+}
+
 }  // namespace
+
+/** Parsed rules kept in RAM for EPUB layout; keep low to leave heap for ZIP inflate / images. */
+static constexpr size_t kMaxParsedCssRules = 48;
 
 CssParser::CssParser() {}
 
@@ -116,8 +171,19 @@ void CssParser::clear() {
   bodyTextAlignRaw.clear();
 }
 
+void CssParser::shrinkStorage() {
+  for (CssRule& r : rules) {
+    r.selector.shrink_to_fit();
+    for (auto& kv : r.properties) {
+      kv.second.shrink_to_fit();
+    }
+  }
+  rules.shrink_to_fit();
+  bodyTextAlignRaw.shrink_to_fit();
+}
+
 void CssParser::parse(const std::string& cssContent) {
-  if (cssContent.length() > 50 * 1024) {
+  if (cssContent.length() > 40 * 1024) {
     Serial.printf("[CSSP] Skipping large CSS content (%d bytes)\n", (int)cssContent.length());
     return;
   }
@@ -173,6 +239,38 @@ void CssParser::parse(const std::string& cssContent) {
       continue;
     }
 
+    if (selector[0] == '@') {
+      if (pos < len && cssContent[pos] == '{') {
+        pos++;
+        int braceDepth = 1;
+        inString = false;
+        while (pos < len && braceDepth > 0) {
+          const char c = cssContent[pos];
+          if (!inString && (c == '"' || c == '\'')) {
+            inString = true;
+            stringChar = c;
+          } else if (inString && c == stringChar) {
+            inString = false;
+          } else if (!inString) {
+            if (c == '{') {
+              braceDepth++;
+            } else if (c == '}') {
+              braceDepth--;
+            }
+          }
+          pos++;
+        }
+      } else {
+        while (pos < len && cssContent[pos] != ';') {
+          pos++;
+        }
+        if (pos < len) {
+          pos++;
+        }
+      }
+      continue;
+    }
+
     pos++;
     size_t blockStart = pos;
     int braceCount = 1;
@@ -206,10 +304,10 @@ void CssParser::parse(const std::string& cssContent) {
 
     if (!rule.properties.empty()) {
       noteBodyHtmlTextAlign(selector, rule.properties);
-      if (rules.size() < 100) {
-        rules.push_back(rule);
+      if (rules.size() < kMaxParsedCssRules) {
+        rules.push_back(std::move(rule));
       } else {
-        Serial.printf("[CSSP] Reached max rules limit (100)\n");
+        Serial.printf("[CSSP] Reached max rules limit (%zu)\n", kMaxParsedCssRules);
         break;
       }
     }
@@ -240,12 +338,10 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
     std::string propName = propertiesStr.substr(nameStart, pos - nameStart);
     propName = trim(toLower(propName));
 
-    static const char* kDimProps[] = {"width",           "height",           "max-width",       "max-height",
-                                      "min-width",       "min-height",       "inline-size",     "block-size",
-                                      "max-inline-size", "min-inline-size",  "max-block-size",  "min-block-size",
-                                      "text-align",      "text-indent"};
+    static const char* kSheetProps[] = {"width", "height", "margin", "margin-top", "margin-right", "margin-bottom",
+                                        "margin-left"};
     bool wanted = false;
-    for (const char* p : kDimProps) {
+    for (const char* p : kSheetProps) {
       if (propName == p) {
         wanted = true;
         break;
@@ -280,18 +376,8 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
     }
 
     if (!propName.empty() && !propValue.empty()) {
-      if (propName == "inline-size") {
-        properties["width"] = propValue;
-      } else if (propName == "block-size") {
-        properties["height"] = propValue;
-      } else if (propName == "max-inline-size") {
-        properties["max-width"] = propValue;
-      } else if (propName == "min-inline-size") {
-        properties["min-width"] = propValue;
-      } else if (propName == "max-block-size") {
-        properties["max-height"] = propValue;
-      } else if (propName == "min-block-size") {
-        properties["min-height"] = propValue;
+      if (propName == "margin") {
+        addMarginLonghandsFromShorthand(propValue, properties);
       } else {
         properties[propName] = propValue;
       }
@@ -399,6 +485,8 @@ void CssParser::parseInlineStyle(const std::string& styleAttr, std::map<std::str
         out["max-height"] = val;
       } else if (name == "min-block-size") {
         out["min-height"] = val;
+      } else if (name == "margin") {
+        addMarginLonghandsFromShorthand(val, out);
       } else {
         out[name] = val;
       }
@@ -590,6 +678,26 @@ int CssParser::getMaxHeight(const std::string& className, const std::string& id,
 int CssParser::getMinHeight(const std::string& className, const std::string& id, const std::string& styleAttr,
                             int viewportWidth, int viewportHeight) const {
   return getInlineOrSheetLength("min-height", className, id, styleAttr, viewportWidth, viewportHeight);
+}
+
+int CssParser::getMarginLeft(const std::string& className, const std::string& id, const std::string& styleAttr,
+                             int viewportWidth, int viewportHeight) const {
+  return getInlineOrSheetLength("margin-left", className, id, styleAttr, viewportWidth, viewportHeight);
+}
+
+int CssParser::getMarginRight(const std::string& className, const std::string& id, const std::string& styleAttr,
+                              int viewportWidth, int viewportHeight) const {
+  return getInlineOrSheetLength("margin-right", className, id, styleAttr, viewportWidth, viewportHeight);
+}
+
+int CssParser::getMarginTop(const std::string& className, const std::string& id, const std::string& styleAttr,
+                            int viewportWidth, int viewportHeight) const {
+  return getInlineOrSheetLength("margin-top", className, id, styleAttr, viewportWidth, viewportHeight);
+}
+
+int CssParser::getMarginBottom(const std::string& className, const std::string& id, const std::string& styleAttr,
+                               int viewportWidth, int viewportHeight) const {
+  return getInlineOrSheetLength("margin-bottom", className, id, styleAttr, viewportWidth, viewportHeight);
 }
 
 void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw,

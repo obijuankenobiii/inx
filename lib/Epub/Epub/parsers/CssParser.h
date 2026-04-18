@@ -17,6 +17,8 @@ class CssParser {
   void parse(const std::string& cssContent);
   void parseFile(const std::string& filepath);
   void clear();
+  /** Release excess capacity from parsed rules (call after loading CSS to reduce fragmentation). */
+  void shrinkStorage();
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                int viewportHeight) const;
@@ -30,6 +32,15 @@ class CssParser {
                    int viewportHeight) const;
   int getMinHeight(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                    int viewportHeight) const;
+
+  int getMarginLeft(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
+                    int viewportHeight) const;
+  int getMarginRight(const std::string& className, const std::string& id, const std::string& styleAttr,
+                     int viewportWidth, int viewportHeight) const;
+  int getMarginTop(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
+                   int viewportHeight) const;
+  int getMarginBottom(const std::string& className, const std::string& id, const std::string& styleAttr,
+                      int viewportWidth, int viewportHeight) const;
 
   /**
    * Parse a single CSS length (e.g. HTML width="50%" or style value).
