@@ -69,6 +69,12 @@ uint8_t InputManager::getState() {
   return state;
 }
 
+void InputManager::injectOneShotPress(const uint8_t buttonIndex) {
+  if (buttonIndex <= BTN_POWER) {
+    pendingInjectPress |= static_cast<uint8_t>(1u << buttonIndex);
+  }
+}
+
 void InputManager::update() {
   const unsigned long currentTime = millis();
   const uint8_t state = getState();
@@ -101,6 +107,11 @@ void InputManager::update() {
 
       currentState = state;
     }
+  }
+
+  if (pendingInjectPress != 0) {
+    pressedEvents |= pendingInjectPress;
+    pendingInjectPress = 0;
   }
 }
 

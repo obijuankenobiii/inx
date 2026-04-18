@@ -13,6 +13,9 @@ class InputManager {
    */
   void update();
 
+  /** Queue a one-shot press for the next update() (e.g. BLE HID → same path as physical buttons). */
+  void injectOneShotPress(uint8_t buttonIndex);
+
   /**
    * Returns true if the button was being held at the time of the last #update() call.
    *
@@ -89,6 +92,7 @@ class InputManager {
   uint8_t lastState;
   uint8_t pressedEvents;
   uint8_t releasedEvents;
+  uint8_t pendingInjectPress{0};
   unsigned long lastDebounceTime;
   unsigned long buttonPressStart;
   unsigned long buttonPressFinish;
