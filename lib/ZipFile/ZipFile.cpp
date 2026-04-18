@@ -5,22 +5,55 @@
 #include <miniz.h>
 
 #include <algorithm>
+#include <memory>
+
+namespace {
+
+/**
+ * EPUB zip access is effectively single-threaded; reuse the 32 KB LZ dictionary and read buffer
+ * across many small file inflates instead of malloc/free per extract (reduces fragmentation and OOM).
+ */
+struct ZipDeflateScratch {
+  tinfl_decompressor inflator{};
+  std::unique_ptr<uint8_t[]> dict;
+  std::unique_ptr<uint8_t[]> readBuf;
+  size_t readCap = 0;
+
+  bool ensureDict() {
+    if (!dict) {
+      dict.reset(new (std::nothrow) uint8_t[TINFL_LZ_DICT_SIZE]);
+    }
+    return dict != nullptr;
+  }
+
+  bool ensureRead(size_t chunk) {
+    if (chunk == 0) {
+      chunk = 4096;
+    }
+    if (readCap < chunk) {
+      readBuf.reset(new (std::nothrow) uint8_t[chunk]);
+      readCap = readBuf ? chunk : 0;
+    }
+    return readBuf != nullptr;
+  }
+};
+
+ZipDeflateScratch& zipDeflateScratch() {
+  static ZipDeflateScratch s;
+  return s;
+}
+
+}  // namespace
 
 bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t* outputBuf, const size_t inflatedSize) {
-  // Setup inflator
-  const auto inflator = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
-  if (!inflator) {
-    Serial.printf("[%lu] [ZIP] Failed to allocate memory for inflator\n", millis());
-    return false;
-  }
-  memset(inflator, 0, sizeof(tinfl_decompressor));
-  tinfl_init(inflator);
+  ZipDeflateScratch& sc = zipDeflateScratch();
+  memset(&sc.inflator, 0, sizeof(sc.inflator));
+  tinfl_init(&sc.inflator);
 
   size_t inBytes = deflatedSize;
   size_t outBytes = inflatedSize;
-  const tinfl_status status = tinfl_decompress(inflator, inputBuf, &inBytes, nullptr, outputBuf, &outBytes,
-                                               TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
-  free(inflator);
+  const tinfl_status status = tinfl_decompress(&sc.inflator, inputBuf, &inBytes, nullptr, outputBuf, &outBytes,
+                                              TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
 
   if (status != TINFL_STATUS_DONE) {
     Serial.printf("[%lu] [ZIP] tinfl_decompress() failed with status %d\n", millis(), status);
@@ -231,15 +264,8 @@ bool ZipFile::loadZipDetails() {
 
   // We scan the last 1KB (or the whole file if smaller) for the EOCD signature
   // 0x06054b50 is stored as 0x50, 0x4b, 0x05, 0x06 in little-endian
-  const int scanRange = fileSize > 1024 ? 1024 : fileSize;
-  const auto buffer = static_cast<uint8_t*>(malloc(scanRange));
-  if (!buffer) {
-    Serial.printf("[%lu] [ZIP] Failed to allocate memory for EOCD scan buffer\n", millis());
-    if (!wasOpen) {
-      close();
-    }
-    return false;
-  }
+  const int scanRange = fileSize > 1024 ? 1024 : static_cast<int>(fileSize);
+  uint8_t buffer[1024];
 
   file.seek(fileSize - scanRange);
   file.read(buffer, scanRange);
@@ -256,7 +282,6 @@ bool ZipFile::loadZipDetails() {
 
   if (foundOffset == -1) {
     Serial.printf("[%lu] [ZIP] EOCD signature not found in zip file\n", millis());
-    free(buffer);
     if (!wasOpen) {
       close();
     }
@@ -271,7 +296,6 @@ bool ZipFile::loadZipDetails() {
   zipDetails.centralDirOffset = *reinterpret_cast<uint32_t*>(&buffer[foundOffset + 16]);
   zipDetails.isSet = true;
 
-  free(buffer);
   if (!wasOpen) {
     close();
   }
@@ -494,23 +518,23 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
 
+  ZipDeflateScratch& sc = zipDeflateScratch();
+
   if (fileStat.method == MZ_NO_COMPRESSION) {
-    // no deflation, just read content
-    const auto buffer = static_cast<uint8_t*>(malloc(chunkSize));
-    if (!buffer) {
+    if (!sc.ensureRead(chunkSize)) {
       Serial.printf("[%lu] [ZIP] Failed to allocate memory for buffer\n", millis());
       if (!wasOpen) {
         close();
       }
       return false;
     }
+    uint8_t* const buffer = sc.readBuf.get();
 
     size_t remaining = inflatedDataSize;
     while (remaining > 0) {
       const size_t dataRead = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
       if (dataRead == 0) {
         Serial.printf("[%lu] [ZIP] Could not read more bytes\n", millis());
-        free(buffer);
         if (!wasOpen) {
           close();
         }
@@ -524,48 +548,26 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
     if (!wasOpen) {
       close();
     }
-    free(buffer);
     return true;
   }
 
   if (fileStat.method == MZ_DEFLATED) {
-    // Setup inflator
-    const auto inflator = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
-    if (!inflator) {
-      Serial.printf("[%lu] [ZIP] Failed to allocate memory for inflator\n", millis());
-      if (!wasOpen) {
-        close();
-      }
-      return false;
-    }
-    memset(inflator, 0, sizeof(tinfl_decompressor));
-    tinfl_init(inflator);
-
-    // Setup file read buffer
-    const auto fileReadBuffer = static_cast<uint8_t*>(malloc(chunkSize));
-    if (!fileReadBuffer) {
-      Serial.printf("[%lu] [ZIP] Failed to allocate memory for zip file read buffer\n", millis());
-      free(inflator);
+    if (!sc.ensureDict() || !sc.ensureRead(chunkSize)) {
+      Serial.printf("[%lu] [ZIP] Failed to allocate zip inflate scratch\n", millis());
       if (!wasOpen) {
         close();
       }
       return false;
     }
 
-    const auto outputBuffer = static_cast<uint8_t*>(malloc(TINFL_LZ_DICT_SIZE));
-    if (!outputBuffer) {
-      Serial.printf("[%lu] [ZIP] Failed to allocate memory for dictionary\n", millis());
-      free(inflator);
-      free(fileReadBuffer);
-      if (!wasOpen) {
-        close();
-      }
-      return false;
-    }
-    memset(outputBuffer, 0, TINFL_LZ_DICT_SIZE);
+    memset(&sc.inflator, 0, sizeof(sc.inflator));
+    tinfl_init(&sc.inflator);
+    memset(sc.dict.get(), 0, TINFL_LZ_DICT_SIZE);
+
+    uint8_t* const fileReadBuffer = sc.readBuf.get();
+    uint8_t* const outputBuffer = sc.dict.get();
 
     size_t fileRemainingBytes = deflatedDataSize;
-    size_t processedOutputBytes = 0;
     size_t fileReadBufferFilledBytes = 0;
     size_t fileReadBufferCursor = 0;
     size_t outputCursor = 0;  // Current offset in the circular dictionary
@@ -594,7 +596,7 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
       // Space remaining in outputBuffer
       size_t outBytes = TINFL_LZ_DICT_SIZE - outputCursor;
 
-      const tinfl_status status = tinfl_decompress(inflator, fileReadBuffer + fileReadBufferCursor, &inBytes,
+      const tinfl_status status = tinfl_decompress(&sc.inflator, fileReadBuffer + fileReadBufferCursor, &inBytes,
                                                    outputBuffer, outputBuffer + outputCursor, &outBytes,
                                                    fileRemainingBytes > 0 ? TINFL_FLAG_HAS_MORE_INPUT : 0);
 
@@ -603,15 +605,11 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
 
       // Write output chunk
       if (outBytes > 0) {
-        processedOutputBytes += outBytes;
         if (out.write(outputBuffer + outputCursor, outBytes) != outBytes) {
           Serial.printf("[%lu] [ZIP] Failed to write all output bytes to stream\n", millis());
           if (!wasOpen) {
             close();
           }
-          free(outputBuffer);
-          free(fileReadBuffer);
-          free(inflator);
           return false;
         }
         // Update output position in buffer (with wraparound)
@@ -623,9 +621,6 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
         if (!wasOpen) {
           close();
         }
-        free(outputBuffer);
-        free(fileReadBuffer);
-        free(inflator);
         return false;
       }
 
@@ -635,9 +630,6 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
         if (!wasOpen) {
           close();
         }
-        free(inflator);
-        free(fileReadBuffer);
-        free(outputBuffer);
         return true;
       }
     }
@@ -647,9 +639,6 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
     if (!wasOpen) {
       close();
     }
-    free(outputBuffer);
-    free(fileReadBuffer);
-    free(inflator);
     return false;
   }
 

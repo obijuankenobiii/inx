@@ -495,7 +495,7 @@ void EpubActivity::fastPath() {
   loadCurrentSection();
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
-  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
+  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 12288, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -524,7 +524,7 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
 
-  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
+  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 12288, this, 1, &displayTaskHandle);
 }
 
 /**
