@@ -585,6 +585,7 @@ void EpubActivity::onExit() {
     displayTaskHandle = nullptr;
     vTaskDelay(pdMS_TO_TICKS(10));
   }
+  renderer.releaseBwStagingBuffers();
 
   if (pageStartTime > 0) {
     endPageTimer();

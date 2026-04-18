@@ -1089,6 +1089,15 @@ void LibraryActivity::onExit() {
   }
 
   resetLibraryView();
+  libraryItems.clear();
+  libraryItems.shrink_to_fit();
+  allBooksList.clear();
+  allBooksList.shrink_to_fit();
+  currentPageItems.shrink_to_fit();
+  basepath.clear();
+  basepath.shrink_to_fit();
+  savedFolderPath.clear();
+  savedFolderPath.shrink_to_fit();
 }
 
 /**

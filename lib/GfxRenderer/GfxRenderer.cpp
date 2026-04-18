@@ -1392,6 +1392,8 @@ void GfxRenderer::freeBwBufferChunks() {
   }
 }
 
+void GfxRenderer::releaseBwStagingBuffers() { freeBwBufferChunks(); }
+
 /**
  * This should be called before grayscale buffers are populated.
  * A `restoreBwBuffer` call should always follow the grayscale render if this method was called.

@@ -118,6 +118,9 @@ void BluetoothActivity::onExit() {
     renderingMutex = nullptr;
   }
 
+  devices.clear();
+  devices.shrink_to_fit();
+
   exitActivity();
 }
 

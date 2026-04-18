@@ -127,6 +127,8 @@ class GfxRenderer {
   void displayGrayBuffer() const;
   bool storeBwBuffer();    // Returns true if buffer was stored successfully
   void restoreBwBuffer();  // Restore and free the stored buffer
+  /** Frees BW staging chunks if held (e.g. after storeBwBuffer); safe to call anytime. */
+  void releaseBwStagingBuffers();
   void cleanupGrayscaleWithFrameBuffer() const;
   void resetBitmapGrayscaleDetection() const { anyBitmapImageWantsGrayscale = false; }
   bool needsBitmapGrayscale() const;

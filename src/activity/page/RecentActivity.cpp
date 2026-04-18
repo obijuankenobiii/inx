@@ -170,6 +170,7 @@ void RecentActivity::onExit() {
   }
 
   recentBooks.clear();
+  recentBooks.shrink_to_fit();
   Activity::onExit();
 }
 

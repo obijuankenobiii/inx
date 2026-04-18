@@ -91,7 +91,10 @@ void TxtReaderActivity::onExit() {
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
   pageOffsets.clear();
+  pageOffsets.shrink_to_fit();
   currentPageLines.clear();
+  currentPageLines.shrink_to_fit();
+  renderer.releaseBwStagingBuffers();
   txt.reset();
 }
 

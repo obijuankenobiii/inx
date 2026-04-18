@@ -98,6 +98,8 @@ template <typename T, typename... Args>
 void switchTo(Args&&... args) {
   if (currentActivity) {
     currentActivity->onExit();
+    // Reader / EPUB may leave ~48KB BW staging allocated if teardown happened mid-grayscale path
+    render.releaseBwStagingBuffers();
     delete currentActivity;
     currentActivity = nullptr;
   }
