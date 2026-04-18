@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "state/BleDeviceStore.h"
 #include "state/SystemSetting.h"
 
 #define LOG(fmt, ...) printf("[BT] " fmt "\n", ##__VA_ARGS__)
@@ -462,6 +463,19 @@ bool BluetoothManager::connectToDevice(const std::string& address) {
   }
   SETTINGS.saveToFile();
   memset(m_prevHidBoot, 0, sizeof(m_prevHidBoot));
+
+  {
+    std::string nm(SETTINGS.bleSavedName);
+    if (!BleDeviceStore::isDisplayableName(nm)) {
+      for (const auto& d : m_devices) {
+        if (d.address == address) {
+          nm = d.name;
+          break;
+        }
+      }
+    }
+    BleDeviceStore::getInstance().addOrUpdate(address, nm);
+  }
 
   LOG("=== Successfully connected to %s ===", address.c_str());
   return true;

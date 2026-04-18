@@ -72,6 +72,8 @@ private:
         std::string name;
         std::string address;
         int rssi;
+        /** Index in BleDeviceStore when this row comes from saved list; -1 for live scan only. */
+        int storeIndex = -1;
     };
 
     /**
@@ -93,6 +95,8 @@ private:
     
     /** @brief Processes scan results */
     void processScanResults();
+
+    void rebuildMergedDeviceList();
     
     /** @brief Connects to selected device */
     void connectToDevice(int index);

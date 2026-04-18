@@ -3,7 +3,9 @@
 #include <GfxRenderer.h>
 
 #include <cstdio>
+#include <strings.h>
 
+#include "state/BleDeviceStore.h"
 #include "state/SystemSetting.h"
 #include "system/BluetoothManager.h"
 #include "system/Fonts.h"
@@ -50,6 +52,8 @@ void BluetoothActivity::onEnter() {
   if (!renderingMutex) return;
 
   btManager = &BluetoothManager::getInstance();
+
+  BLE_DEVICES.loadFromFile();
 
   selectedIndex = 0;
   devices.clear();
@@ -101,20 +105,43 @@ void BluetoothActivity::processScanResults() {
     return;
   }
 
-  auto discovered = btManager->getDiscoveredDevices();
-  devices.clear();
+  rebuildMergedDeviceList();
+  state = BluetoothState::DEVICE_LIST;
+  selectedIndex = 0;
+  updateRequired = true;
+}
 
+void BluetoothActivity::rebuildMergedDeviceList() {
+  devices.clear();
+  if (btManager == nullptr) {
+    return;
+  }
+
+  const auto& stored = BLE_DEVICES.devices();
+  for (size_t i = 0; i < stored.size(); ++i) {
+    DeviceInfo di;
+    di.name = stored[i].name;
+    di.address = stored[i].address;
+    di.rssi = -100;
+    di.storeIndex = static_cast<int>(i);
+    devices.push_back(di);
+  }
+
+  const auto discovered = btManager->getDiscoveredDevices();
   for (const auto& dev : discovered) {
+    if (!BleDeviceStore::isDisplayableName(dev.name)) {
+      continue;
+    }
+    if (BLE_DEVICES.findIndexByAddress(dev.address) >= 0) {
+      continue;
+    }
     DeviceInfo info;
     info.name = dev.name;
     info.address = dev.address;
     info.rssi = dev.rssi;
+    info.storeIndex = -1;
     devices.push_back(info);
   }
-
-  state = BluetoothState::DEVICE_LIST;
-  selectedIndex = 0;
-  updateRequired = true;
 }
 
 void BluetoothActivity::connectToDevice(int index) {
@@ -158,7 +185,11 @@ void BluetoothActivity::loop() {
   if (state == BluetoothState::CONNECTION_FAILED) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      rebuildMergedDeviceList();
       state = BluetoothState::DEVICE_LIST;
+      if (selectedIndex >= (int)devices.size()) {
+        selectedIndex = devices.empty() ? 0 : static_cast<int>(devices.size()) - 1;
+      }
       updateRequired = true;
     }
     return;
@@ -184,9 +215,24 @@ void BluetoothActivity::loop() {
         selectedIndex--;
         updateRequired = true;
       }
-    } else if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    } else     if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
       if (!devices.empty() && selectedIndex < (int)devices.size() - 1) {
         selectedIndex++;
+        updateRequired = true;
+      }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+      if (!devices.empty() && devices[static_cast<size_t>(selectedIndex)].storeIndex >= 0) {
+        BLE_DEVICES.removeAt(static_cast<size_t>(devices[static_cast<size_t>(selectedIndex)].storeIndex));
+        rebuildMergedDeviceList();
+        if (selectedIndex >= (int)devices.size()) {
+          selectedIndex = devices.empty() ? 0 : static_cast<int>(devices.size()) - 1;
+        }
+        updateRequired = true;
+      }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      if (!devices.empty()) {
+        const auto& sel = devices[static_cast<size_t>(selectedIndex)];
+        BLE_DEVICES.applyPreferred(sel.address, sel.name);
         updateRequired = true;
       }
     }
@@ -336,7 +382,7 @@ void BluetoothActivity::renderDeviceList() const {
   const char* headerText = "Bluetooth Devices";
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a device to connect";
+  const char* subtitleText = "Connect · Right = preferred · Left = forget (saved)";
   int subtitleY = startY + 40;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
