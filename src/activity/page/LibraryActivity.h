@@ -134,10 +134,6 @@ class LibraryActivity final : public Activity, public Menu {
   int totalPages;                             ///< Total number of pages
   std::vector<LibraryItem> currentPageItems;  ///< Items for current page
 
-  // Cache for index mode
-  std::vector<LibraryItem> libraryItems;  ///< Cached library items (index mode)
-  std::vector<LibraryItem> allBooksList;  ///< Cached all books list (index mode)
-
   // Callbacks
   const std::function<void()> onGoToRecent;                         ///< Callback to go to recent books
   const std::function<void(const std::string& path)> onSelectBook;  ///< Callback to open a book
@@ -354,6 +350,9 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load books using recursive scan for book list view
    */
   void loadBooksRecursiveScan();
+
+  /** Recursive SD scan for book list (no std::function — avoids heap alloc per recursion). */
+  void collectBooksRecursive(std::vector<TempBookEntry>& out, const std::string& path);
 
   /**
    * @brief Load folders and books for current directory view

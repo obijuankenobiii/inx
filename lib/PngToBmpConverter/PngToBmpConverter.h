@@ -13,6 +13,9 @@ public:
                                                bool cropToFill = true);
     static bool pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
                                                bool cropToFill = true);
+    /** 2bpp BMP (four ink levels) with Floyd–Steinberg; matches JPEG thumbnail look for library/recent covers. */
+    static bool pngFileTo2BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight,
+                                              bool cropToFill = true);
     
     // Thumbnail functions
     static bool pngFileToThumbnailBmp(FsFile& pngFile, Print& bmpOut,

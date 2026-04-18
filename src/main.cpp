@@ -11,6 +11,7 @@
 #include <string>
 
 #include "activity/network/BluetoothActivity.h"
+#include "system/BluetoothManager.h"
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
@@ -97,6 +98,8 @@ template <typename T, typename... Args>
 void switchTo(Args&&... args) {
   if (currentActivity) {
     currentActivity->onExit();
+    // Reader / EPUB may leave ~48KB BW staging allocated if teardown happened mid-grayscale path
+    render.releaseBwStagingBuffers();
     delete currentActivity;
     currentActivity = nullptr;
   }
@@ -236,6 +239,7 @@ void setupDisplayAndFonts() {
 void setup() {
   t1 = millis();
   gpio.begin();
+  BluetoothManager::getInstance().setHalGpio(&gpio);
   setupDisplayAndFonts();
 
   if (gpio.isUsbConnected()) {

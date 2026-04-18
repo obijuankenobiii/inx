@@ -4,6 +4,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
@@ -22,7 +23,9 @@ enum class BluetoothState {
     DEVICE_LIST,        /**< Showing list of discovered devices */
     CONNECTING,         /**< Connecting to selected device */
     CONNECTED,          /**< Connected to device */
-    CONNECTION_FAILED   /**< Connection attempt failed */
+    CONNECTION_FAILED,  /**< Connection attempt failed */
+    KEY_MAP_PREV,       /**< Choose HID code for reader page back */
+    KEY_MAP_NEXT        /**< Choose HID code for reader page forward */
 };
 
 /**
@@ -65,11 +68,18 @@ public:
     /** @brief Main loop - processes Bluetooth connections */
     void loop() override;
 
+    /** Called from FreeRTOS connect worker when connect attempt finishes. */
+    void finishBleConnectFromWorker(bool ok);
+
 private:
     struct DeviceInfo {
         std::string name;
         std::string address;
         int rssi;
+        /** Index in BleDeviceStore when this row comes from saved list; -1 for live scan only. */
+        int storeIndex = -1;
+        /** NimBLE `BLE_ADDR_*` for connect (1 = random typical for HID). */
+        uint8_t addrType = 1;
     };
 
     /**
@@ -91,10 +101,12 @@ private:
     
     /** @brief Processes scan results */
     void processScanResults();
+
+    void rebuildMergedDeviceList();
     
     /** @brief Connects to selected device */
     void connectToDevice(int index);
-    
+
     /** @brief Renders scanning state */
     void renderScanning() const;
     
@@ -109,6 +121,9 @@ private:
     
     /** @brief Renders connection failed state */
     void renderConnectionFailed() const;
+
+    void renderKeyMapPrev() const;
+    void renderKeyMapNext() const;
     
     /** @brief Draws Bluetooth signal strength icon */
     void drawBluetoothIcon(int x, int y, int rssi, bool isSelected) const;
@@ -126,6 +141,10 @@ private:
     std::vector<DeviceInfo> devices;
     std::string connectionError;
     unsigned long scanStartTime;
+    int keyMapPresetIndex = 0;
+
+    std::atomic<bool> m_bleConnectBusy{false};
+    std::atomic<bool> m_bleConnectUserCancel{false};
 
     const std::function<void()> onGoBack;
 };

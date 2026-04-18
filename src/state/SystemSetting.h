@@ -262,6 +262,25 @@ public:
         BOOT_SETTING_COUNT
     };
 
+    /**
+     * @brief How EPUB (and reader) bitmaps map 2bpp grays to ink when scaled in BW.
+     */
+    enum READER_IMAGE_PRESENTATION {
+        IMAGE_PRESENTATION_BALANCED = 0,  ///< Cleaner near-whites when downscaled; light gray may speckle
+        IMAGE_PRESENTATION_FULL_GRAY = 1, ///< Inks all 2bpp grays when scaled for smoother solid fills
+        READER_IMAGE_PRESENTATION_COUNT
+    };
+
+    /**
+     * @brief Error diffusion when decoding high-color BMP to 2bpp (matches `BitmapDitherMode`).
+     */
+    enum READER_IMAGE_DITHER {
+        IMAGE_DITHER_NONE = 0,
+        IMAGE_DITHER_FLOYD_STEINBERG = 1,
+        IMAGE_DITHER_ATKINSON = 2,
+        READER_IMAGE_DITHER_COUNT
+    };
+
     // Sleep screen settings
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
@@ -347,6 +366,23 @@ public:
     uint8_t readerImageGrayscale = 1;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
+    /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
+    uint8_t readerImagePresentation = IMAGE_PRESENTATION_BALANCED;
+    /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
+    uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
+    /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
+    uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
+    /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
+    uint8_t displayImagePresentation = IMAGE_PRESENTATION_BALANCED;
+
+    /** Last paired BLE HID device (NimBLE address string, e.g. aa:bb:cc:dd:ee:ff). */
+    char bleSavedAddress[48] = "";
+    char bleSavedName[64] = "";
+    /** If set, reconnect to bleSavedAddress on boot / when opening Bluetooth. */
+    uint8_t bleAutoReconnect = 1;
+    /** HID usage codes (boot keyboard) for reader page back / forward (default Up / Down). */
+    uint8_t bleHidPagePrevKey = 0x52;
+    uint8_t bleHidPageNextKey = 0x51;
 
     ~SystemSetting() = default;
 

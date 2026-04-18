@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
 
 #include "state/SystemSetting.h"
+#include "system/BluetoothManager.h"
 #include "system/Fonts.h"
 
 #define SETTINGS SystemSetting::getInstance()
@@ -71,6 +73,7 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
 
   groupExpanded[GroupType::FONT] = false;
   groupExpanded[GroupType::LAYOUT] = false;
+  groupExpanded[GroupType::IMAGE] = false;
   groupExpanded[GroupType::CONTROLS] = false;
   groupExpanded[GroupType::STATUS_BAR] = false;
 
@@ -96,7 +99,8 @@ void SettingsDrawer::syncLayoutFromRenderer() {
     drawerHeight = sh * 60 / 100;
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+  const int footerReserve = pageTurnerButtonShown() ? (itemHeight + 14) : 0;
+  itemsPerPage = std::max(1, (drawerHeight - 100 - footerReserve) / itemHeight);
 }
 
 /**
@@ -270,6 +274,93 @@ void SettingsDrawer::setupMenu() {
     menuItems.push_back(hypenEntry);
   }
 
+  MenuEntry imageSeparator;
+  imageSeparator.item = MenuItem::Separator;
+  imageSeparator.group = GroupType::IMAGE;
+  imageSeparator.name = "═══ Image ═══";
+  imageSeparator.getValueText = [this](const BookSettings&) -> const char* {
+    static char indicator[4];
+    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::IMAGE] ? "-" : "+");
+    return indicator;
+  };
+  imageSeparator.change = [](BookSettings&, int) {};
+  menuItems.push_back(imageSeparator);
+
+  if (groupExpanded[GroupType::IMAGE]) {
+    MenuEntry imgGrayEntry;
+    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
+    imgGrayEntry.group = GroupType::IMAGE;
+    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+    };
+    imgGrayEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(imgGrayEntry);
+
+    MenuEntry smartRefreshEntry;
+    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
+    smartRefreshEntry.group = GroupType::IMAGE;
+    smartRefreshEntry.name = "Smart Refresh (Images)";
+    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    };
+    smartRefreshEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(smartRefreshEntry);
+
+    MenuEntry presEntry;
+    presEntry.item = MenuItem::ReaderImagePresentation;
+    presEntry.group = GroupType::IMAGE;
+    presEntry.name = "Book image grays";
+    presEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY ? "Full gray" : "Balanced";
+    };
+    presEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerImagePresentation = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(presEntry);
+
+    MenuEntry ditherEntry;
+    ditherEntry.item = MenuItem::ReaderImageDither;
+    ditherEntry.group = GroupType::IMAGE;
+    ditherEntry.name = "Book image dithering";
+    ditherEntry.getValueText = [](const BookSettings&) -> const char* {
+      switch (SETTINGS.readerImageDither) {
+        case SystemSetting::IMAGE_DITHER_FLOYD_STEINBERG:
+          return "Floyd-Steinberg";
+        case SystemSetting::IMAGE_DITHER_ATKINSON:
+          return "Atkinson";
+        default:
+          return "None";
+      }
+    };
+    ditherEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerImageDither) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_IMAGE_DITHER_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_IMAGE_DITHER_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerImageDither = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(ditherEntry);
+  }
+
   MenuEntry controlsSeparator;
   controlsSeparator.item = MenuItem::Separator;
   controlsSeparator.group = GroupType::CONTROLS;
@@ -328,32 +419,6 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(refreshEntry);
-
-    MenuEntry imgGrayEntry;
-    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
-    imgGrayEntry.group = GroupType::CONTROLS;
-    imgGrayEntry.name = "Image Grayscale";
-    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImageGrayscale ? "On" : "Off";
-    };
-    imgGrayEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(imgGrayEntry);
-
-    MenuEntry smartRefreshEntry;
-    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
-    smartRefreshEntry.group = GroupType::CONTROLS;
-    smartRefreshEntry.name = "Smart Refresh (Images)";
-    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
-    };
-    smartRefreshEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(smartRefreshEntry);
 
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
@@ -451,6 +516,46 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(statusRightEntry);
   }
+
+  clampSelectedIndex();
+}
+
+bool SettingsDrawer::pageTurnerButtonShown() const {
+  return SETTINGS.bleSavedAddress[0] != '\0';
+}
+
+int SettingsDrawer::maxSelectableIndex() const {
+  const int lastMenu = static_cast<int>(menuItems.size()) - 1;
+  if (lastMenu < 0) {
+    return 0;
+  }
+  return pageTurnerButtonShown() ? lastMenu + 1 : lastMenu;
+}
+
+void SettingsDrawer::clampSelectedIndex() {
+  const int mx = maxSelectableIndex();
+  if (selectedIndex > mx) {
+    selectedIndex = mx;
+  }
+  if (selectedIndex < 0) {
+    selectedIndex = 0;
+  }
+}
+
+void SettingsDrawer::drawPageTurnerButton() {
+  if (!pageTurnerButtonShown()) {
+    return;
+  }
+  const int btnY = drawerY + drawerHeight - itemHeight - 8;
+  renderer.drawLine(drawerX, btnY - 4, drawerX + drawerWidth, btnY - 4, true);
+  const bool sel = (selectedIndex == static_cast<int>(menuItems.size()));
+  renderer.drawRect(drawerX + 10, btnY, drawerWidth - 20, itemHeight, true);
+  if (sel) {
+    renderer.fillRect(drawerX + 12, btnY + 2, drawerWidth - 24, itemHeight - 4, GfxRenderer::FillTone::Ink);
+  }
+  const int textY = btnY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 24, textY, "Connect pageturner", sel ? 0 : 1,
+                    EpdFontFamily::BOLD);
 }
 
 /**
@@ -586,6 +691,8 @@ void SettingsDrawer::drawMenuItems() {
 
     renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
+
+  drawPageTurnerButton();
 }
 
 /**
@@ -623,6 +730,7 @@ void SettingsDrawer::toggleGroup(GroupType group) {
       break;
     }
   }
+  clampSelectedIndex();
 }
 
 /**
@@ -648,28 +756,39 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
   }
 
   if (readSettingsListNext(input, renderer)) {
-    if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
+    const int maxSel = maxSelectableIndex();
+    if (selectedIndex < maxSel) {
       selectedIndex++;
-      int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
-        scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+      if (selectedIndex < static_cast<int>(menuItems.size())) {
+        int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
+        if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+          scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+        }
       }
       needRedraw = true;
     }
   }
 
   if (readValueDecrease(input, renderer)) {
-    applyChange(-1);
-    needRedraw = true;
+    if (selectedIndex < static_cast<int>(menuItems.size())) {
+      applyChange(-1);
+      needRedraw = true;
+    }
   }
 
   if (readValueIncrease(input, renderer)) {
-    applyChange(1);
-    needRedraw = true;
+    if (selectedIndex < static_cast<int>(menuItems.size())) {
+      applyChange(1);
+      needRedraw = true;
+    }
   }
 
   if (input.wasPressed(MappedInputManager::Button::Confirm)) {
-    if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
+    if (pageTurnerButtonShown() && selectedIndex == static_cast<int>(menuItems.size())) {
+      BluetoothManager::getInstance().activateReaderPageTurnerFromBookDrawer();
+      hide();
+      needRedraw = true;
+    } else if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       const auto& selected = menuItems[selectedIndex];
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
@@ -712,6 +831,8 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
+    case MenuItem::ReaderImagePresentation:
+    case MenuItem::ReaderImageDither:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

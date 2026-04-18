@@ -1384,7 +1384,7 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(
 }
 
 bool JpegToBmpConverter::resizeBitmap(FsFile& bmpFile, Print& bmpOut, int targetWidth, int targetHeight) {
-  Bitmap bitmap(bmpFile, false);
+  Bitmap bitmap(bmpFile);
   
   if (bitmap.parseHeaders() != BmpReaderError::Ok) {
     return false;

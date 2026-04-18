@@ -79,6 +79,7 @@ private:
     enum class GroupType {
         FONT,        ///< Font-related settings
         LAYOUT,      ///< Layout and spacing settings
+        IMAGE,       ///< Book bitmap appearance (global reader image options)
         CONTROLS,    ///< System and control settings
         STATUS_BAR   ///< Status bar configuration
     };
@@ -117,6 +118,8 @@ private:
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
+        ReaderImagePresentation,  ///< Global: balanced vs full-gray bitmap mapping
+        ReaderImageDither,        ///< EPUB reader BMP decode dither (None / Floyd-Steinberg / Atkinson)
         PageAutoTurn
     };
     
@@ -180,6 +183,11 @@ private:
     void drawScrollIndicator();
 
     void syncLayoutFromRenderer();
+
+    bool pageTurnerButtonShown() const;
+    int maxSelectableIndex() const;
+    void clampSelectedIndex();
+    void drawPageTurnerButton();
     
     /**
      * @brief Applies a delta change to the selected menu item

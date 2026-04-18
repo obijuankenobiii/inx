@@ -30,6 +30,83 @@ int cornerSpanFromRy(const int r, const int ry) {
   return static_cast<int>(std::sqrt(static_cast<double>(inner)));
 }
 
+/** Packed 2bpp sample: px in [0,width), py in [0,height). */
+inline uint8_t packed2bppAt(const uint8_t* buf, const int stride, const int px, const int py) {
+  const uint8_t* row = buf + static_cast<size_t>(py) * static_cast<size_t>(stride);
+  return (row[px / 4] >> (6 - ((px % 4) * 2))) & 0x3;
+}
+
+/** Bilinear sample in 0..3; reduces blocky NN upscale without changing downscale path. */
+float sampleBilinear2bpp(const uint8_t* packed, const int width, const int height, const int stride, float xf,
+                        float yf) {
+  if (width <= 0 || height <= 0) {
+    return 3.f;
+  }
+  if (xf < 0.f) {
+    xf = 0.f;
+  }
+  if (yf < 0.f) {
+    yf = 0.f;
+  }
+  const float maxX = static_cast<float>(width - 1);
+  const float maxY = static_cast<float>(height - 1);
+  if (xf > maxX) {
+    xf = maxX;
+  }
+  if (yf > maxY) {
+    yf = maxY;
+  }
+  const int x0 = static_cast<int>(std::floor(xf));
+  const int y0 = static_cast<int>(std::floor(yf));
+  const int x1 = std::min(x0 + 1, width - 1);
+  const int y1 = std::min(y0 + 1, height - 1);
+  const float wx = xf - static_cast<float>(x0);
+  const float wy = yf - static_cast<float>(y0);
+  const float v00 = static_cast<float>(packed2bppAt(packed, stride, x0, y0));
+  const float v10 = static_cast<float>(packed2bppAt(packed, stride, x1, y0));
+  const float v01 = static_cast<float>(packed2bppAt(packed, stride, x0, y1));
+  const float v11 = static_cast<float>(packed2bppAt(packed, stride, x1, y1));
+  const float t0 = v00 * (1.f - wx) + v10 * wx;
+  const float t1 = v01 * (1.f - wx) + v11 * wx;
+  return t0 * (1.f - wy) + t1 * wy;
+}
+
+/** Map bilinear 0..3 blend to a discrete 2 bpp stage; snaps near extremes so flat black/white stays solid. */
+inline int snapBilinear2bppStage(const float interp) {
+  if (interp <= 0.55f) {
+    return 0;
+  }
+  if (interp >= 2.45f) {
+    return 3;
+  }
+  const int r = static_cast<int>(interp + 0.5f);
+  if (r < 0) {
+    return 0;
+  }
+  if (r > 3) {
+    return 3;
+  }
+  return r;
+}
+
+/** After box-filter downscale, snap near-black / near-white column averages to solid 0 / 3. */
+inline uint8_t snapDownscaleResolved2bpp(const uint32_t sum, const uint32_t count) {
+  if (count == 0) {
+    return 3;
+  }
+  uint8_t v = static_cast<uint8_t>((sum + (count / 2)) / count);
+  const float avg = static_cast<float>(sum) / static_cast<float>(count);
+  if (avg >= 2.45f) {
+    v = 3;
+  } else if (avg <= 0.55f) {
+    v = 0;
+  }
+  return v;
+}
+
+/** Max RAM for full-image 2bpp decode used by bilinear upscale (fallback to NN blocks if larger). */
+constexpr size_t kMaxBilinearPackedBytes = 280u * 1024u;
+
 /**
  * True when a single bitmap has enough mid-gray (2bpp 1/2) to justify the grayscale refresh pass.
  * When most pixels are white (3), require a much larger gray area so JPEG/dither noise in margins
@@ -309,6 +386,31 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
   fillRect(x, y, width, height, state ? FillTone::Ink : FillTone::Paper, rounded);
 }
 
+void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t stage03) const {
+  const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
+  
+  if (v == 3u) return;  // WHITE - clean
+  
+  if (v == 0u) {
+    drawPixel(px, py, true);
+    return;
+  }
+  
+  // 2x2 Bayer pattern
+  static const uint8_t kBayer2[4] = {0, 2, 3, 1};
+  const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
+  const uint8_t tScaled = (t * 16) / 4;  // 0, 8, 12, 4
+  
+  if (v == 1u) {
+    // Dark gray - MORE BLACK (75% instead of 62.5%)
+    drawPixel(px, py, tScaled < 12);  // 12/16 = 75% black
+    return;
+  }
+  
+  // v == 2u - Light gray - MORE BLACK (50% instead of 43.75%)
+  drawPixel(px, py, tScaled < 6);  // 8/16 = 50% black
+}
+
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY) const {
   // For 1-bit bitmaps, use optimized 1-bit rendering path (no crop support for 1-bit)
@@ -367,6 +469,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
   // Use area accumulation for downscaled 2-bit bitmaps to avoid block/square artifacts.
   const bool useAreaDownscale = isScaled && scale < 1.0f && !bitmap.is1Bit();
+  const bool grayFull = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::FullGray);
   const int screenWidth = getScreenWidth();
   std::vector<uint32_t> graySums;
   std::vector<uint32_t> grayCounts;
@@ -376,6 +479,103 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   uint32_t localGray = 0;
   uint32_t localWhite = 0;
 
+  // Upscale: bilinear on a full decoded 2bpp buffer (avoids NN "squares"); large images fall back below.
+  if (upscaleBlock && !bitmap.is1Bit()) {
+    const int bw = bitmap.getWidth();
+    const int bh = bitmap.getHeight();
+    const int stride = outputRowSize;
+    const size_t packedBytes = static_cast<size_t>(bh) * static_cast<size_t>(stride);
+    if (packedBytes <= kMaxBilinearPackedBytes) {
+      if (uint8_t* packed = static_cast<uint8_t*>(malloc(packedBytes))) {
+        Bitmap* nc = const_cast<Bitmap*>(&bitmap);
+        bool decodeOk = nc->rewindToData() == BmpReaderError::Ok;
+        if (decodeOk) {
+          for (int ry = 0; ry < bh; ry++) {
+            if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+              decodeOk = false;
+              break;
+            }
+            memcpy(packed + static_cast<size_t>(ry) * static_cast<size_t>(stride), outputRow,
+                   static_cast<size_t>(stride));
+          }
+        }
+        if (decodeOk) {
+          const int cropW = bw - 2 * cropPixX;
+          const int cropH = bh - 2 * cropPixY;
+          if (cropW > 0 && cropH > 0) {
+            int destW = static_cast<int>(std::ceil(static_cast<float>(cropW) * scale - 1e-5f));
+            int destH = static_cast<int>(std::ceil(static_cast<float>(cropH) * scale - 1e-5f));
+            if (maxWidth > 0) {
+              destW = std::min(destW, maxWidth);
+            }
+            if (maxHeight > 0) {
+              destH = std::min(destH, maxHeight);
+            }
+            const int screenH = getScreenHeight();
+            uint32_t bChecked = 0, bGray = 0, bWhite = 0;
+            for (int dy = 0; dy < destH; dy++) {
+              const int dpy = y + dy;
+              if (dpy < 0 || dpy >= screenH) {
+                continue;
+              }
+              for (int dx = 0; dx < destW; dx++) {
+                const int dpx = x + dx;
+                if (dpx < 0 || dpx >= screenWidth) {
+                  continue;
+                }
+                const float logX = (static_cast<float>(dx) + 0.5f) / scale - 0.5f;
+                const float logY = (static_cast<float>(dy) + 0.5f) / scale - 0.5f;
+                if (logX < 0.f || logY < 0.f || logX > static_cast<float>(cropW) - 1.f - 1e-4f ||
+                    logY > static_cast<float>(cropH) - 1.f - 1e-4f) {
+                  continue;
+                }
+                const float bmpXf = logX + static_cast<float>(cropPixX);
+                const float bmpYf = bitmap.isTopDown()
+                                        ? (logY + static_cast<float>(cropPixY))
+                                        : (static_cast<float>(bh - 1) - logY - static_cast<float>(cropPixY));
+                const float interp = sampleBilinear2bpp(packed, bw, bh, stride, bmpXf, bmpYf);
+                if (renderMode == BW) {
+                  bChecked++;
+                  const int st = snapBilinear2bppStage(interp);
+                  if (st == 1 || st == 2) {
+                    bGray++;
+                  } else if (st == 3) {
+                    bWhite++;
+                  }
+                  if (grayFull ? (st < 3) : (st <= 1)) {
+                    drawBwFrom2bppStage(dpx, dpy, static_cast<uint8_t>(st));
+                  }
+                } else if (renderMode == GRAYSCALE_MSB) {
+                  const int rv = static_cast<int>(interp + 0.5f);
+                  if (rv == 1 || rv == 2) {
+                    drawPixel(dpx, dpy, false);
+                  }
+                } else if (renderMode == GRAYSCALE_LSB) {
+                  const int rv = static_cast<int>(interp + 0.5f);
+                  if (rv == 1) {
+                    drawPixel(dpx, dpy, false);
+                  }
+                }
+              }
+            }
+            localChecked += bChecked;
+            localGray += bGray;
+            localWhite += bWhite;
+            if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
+              anyBitmapImageWantsGrayscale = true;
+            }
+            free(packed);
+            free(outputRow);
+            free(rowBytes);
+            return;
+          }
+        }
+        (void)nc->rewindToData();
+        free(packed);
+      }
+    }
+  }
+
   auto flushAccumulatedRow = [&](const int destY) {
     if (destY < 0 || destY >= getScreenHeight()) {
       return;
@@ -383,7 +583,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     for (int sx = 0; sx < screenWidth; sx++) {
       uint8_t resolvedVal = 3;
       if (grayCounts[sx] > 0) {
-        resolvedVal = static_cast<uint8_t>((graySums[sx] + (grayCounts[sx] / 2)) / grayCounts[sx]);
+        resolvedVal = snapDownscaleResolved2bpp(graySums[sx], grayCounts[sx]);
       }
       if (renderMode == BW && grayCounts[sx] > 0) {
         localChecked++;
@@ -394,9 +594,10 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
         }
       }
       // No mapped source samples: leave white. Neighbor carry caused dark rectangular smears.
-      // Downscaled BW: only average black/dark-gray (<=1) inks; treat light gray (2) as paper to reduce speckle.
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
-        drawPixel(sx, destY);
+      // Downscaled BW: Balanced inks only dark averages (<=1); FullGray inks all non-white averages (<3).
+      if (renderMode == BW && grayCounts[sx] > 0 &&
+          (grayFull ? (resolvedVal < 3) : (resolvedVal <= 1))) {
+        drawBwFrom2bppStage(sx, destY, resolvedVal);
       } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
         drawPixel(sx, destY, false);
       } else if (renderMode == GRAYSCALE_LSB && resolvedVal == 1) {
@@ -500,8 +701,8 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
             if (xx < 0 || xx >= getScreenWidth()) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
-              drawPixel(xx, yy);
+            if (renderMode == BW && (grayFull ? (val < 3) : (val <= 1))) {
+              drawBwFrom2bppStage(xx, yy, val);
             } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
               drawPixel(xx, yy, false);
             } else if (renderMode == GRAYSCALE_LSB && val == 1) {
@@ -523,7 +724,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
         }
 
         if (renderMode == BW && val < 3) {
-          drawPixel(screenX, screenY);
+          drawBwFrom2bppStage(screenX, screenY, val);
         } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
           drawPixel(screenX, screenY, false);
         } else if (renderMode == GRAYSCALE_LSB && val == 1) {
@@ -576,6 +777,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
 
   // Downscaling by iterating source pixels leaves destination holes; box-filter like drawBitmap.
   const bool useAreaDownscale = isScaled && scale < 1.0f;
+  const bool grayFull = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::FullGray);
   const int screenWidth = getScreenWidth();
   std::vector<uint32_t> graySums;
   std::vector<uint32_t> grayCounts;
@@ -596,7 +798,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     for (int sx = 0; sx < screenWidth; sx++) {
       uint8_t resolvedVal = 3;
       if (grayCounts[sx] > 0) {
-        resolvedVal = static_cast<uint8_t>((graySums[sx] + (grayCounts[sx] / 2)) / grayCounts[sx]);
+        resolvedVal = snapDownscaleResolved2bpp(graySums[sx], grayCounts[sx]);
       }
       if (renderMode == BW && grayCounts[sx] > 0) {
         localChecked++;
@@ -606,8 +808,9 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
           localWhite++;
         }
       }
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
-        drawPixel(sx, destY, true);
+      if (renderMode == BW && grayCounts[sx] > 0 &&
+          (grayFull ? (resolvedVal < 3) : (resolvedVal <= 1))) {
+        drawBwFrom2bppStage(sx, destY, resolvedVal);
       } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
         drawPixel(sx, destY, false);
       } else if (renderMode == GRAYSCALE_LSB && resolvedVal == 1) {
@@ -631,6 +834,97 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     free(outputRow);
     free(rowBytes);
     return;
+  }
+
+  if (upscaleBlock) {
+    const int bw = bitmap.getWidth();
+    const int bh = bitmap.getHeight();
+    const int stride = outputRowSize;
+    const size_t packedBytes = static_cast<size_t>(bh) * static_cast<size_t>(stride);
+    if (packedBytes <= kMaxBilinearPackedBytes) {
+      if (uint8_t* packed = static_cast<uint8_t*>(malloc(packedBytes))) {
+        Bitmap* nc = const_cast<Bitmap*>(&bitmap);
+        bool decodeOk = nc->rewindToData() == BmpReaderError::Ok;
+        if (decodeOk) {
+          for (int ry = 0; ry < bh; ry++) {
+            if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+              decodeOk = false;
+              break;
+            }
+            memcpy(packed + static_cast<size_t>(ry) * static_cast<size_t>(stride), outputRow,
+                   static_cast<size_t>(stride));
+          }
+        }
+        if (decodeOk && bw > 0 && bh > 0) {
+          int destW = static_cast<int>(std::ceil(static_cast<float>(bw) * scale - 1e-5f));
+          int destH = static_cast<int>(std::ceil(static_cast<float>(bh) * scale - 1e-5f));
+          if (maxWidth > 0) {
+            destW = std::min(destW, maxWidth);
+          }
+          if (maxHeight > 0) {
+            destH = std::min(destH, maxHeight);
+          }
+          const int screenH = getScreenHeight();
+          uint32_t bChecked = 0, bGray = 0, bWhite = 0;
+          for (int dy = 0; dy < destH; dy++) {
+            const int dpy = y + dy;
+            if (dpy < 0 || dpy >= screenH) {
+              continue;
+            }
+            for (int dx = 0; dx < destW; dx++) {
+              const int dpx = x + dx;
+              if (dpx < 0 || dpx >= screenWidth) {
+                continue;
+              }
+              const float logX = (static_cast<float>(dx) + 0.5f) / scale - 0.5f;
+              const float logY = (static_cast<float>(dy) + 0.5f) / scale - 0.5f;
+              if (logX < 0.f || logY < 0.f || logX > static_cast<float>(bw) - 1.f - 1e-4f ||
+                  logY > static_cast<float>(bh) - 1.f - 1e-4f) {
+                continue;
+              }
+              const float bmpXf = logX;
+              const float bmpYf =
+                  bitmap.isTopDown() ? logY : (static_cast<float>(bh - 1) - logY);
+              const float interp = sampleBilinear2bpp(packed, bw, bh, stride, bmpXf, bmpYf);
+              if (renderMode == BW) {
+                bChecked++;
+                const int st = snapBilinear2bppStage(interp);
+                if (st == 1 || st == 2) {
+                  bGray++;
+                } else if (st == 3) {
+                  bWhite++;
+                }
+                if (grayFull ? (st < 3) : (st <= 1)) {
+                  drawBwFrom2bppStage(dpx, dpy, static_cast<uint8_t>(st));
+                }
+              } else if (renderMode == GRAYSCALE_MSB) {
+                const int rv = static_cast<int>(interp + 0.5f);
+                if (rv == 1 || rv == 2) {
+                  drawPixel(dpx, dpy, false);
+                }
+              } else if (renderMode == GRAYSCALE_LSB) {
+                const int rv = static_cast<int>(interp + 0.5f);
+                if (rv == 1) {
+                  drawPixel(dpx, dpy, false);
+                }
+              }
+            }
+          }
+          localChecked += bChecked;
+          localGray += bGray;
+          localWhite += bWhite;
+          if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
+            anyBitmapImageWantsGrayscale = true;
+          }
+          free(packed);
+          free(outputRow);
+          free(rowBytes);
+          return;
+        }
+        (void)nc->rewindToData();
+        free(packed);
+      }
+    }
   }
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
@@ -705,8 +999,8 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
             if (xx < 0 || xx >= getScreenWidth()) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
-              drawPixel(xx, yy, true);
+            if (renderMode == BW && (grayFull ? (val < 3) : (val <= 1))) {
+              drawBwFrom2bppStage(xx, yy, val);
             } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
               drawPixel(xx, yy, false);
             } else if (renderMode == GRAYSCALE_LSB && val == 1) {
@@ -724,7 +1018,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
         }
 
         if (renderMode == BW && val < 3) {
-          drawPixel(screenX, screenY, true);
+          drawBwFrom2bppStage(screenX, screenY, val);
         } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
           drawPixel(screenX, screenY, false);
         } else if (renderMode == GRAYSCALE_LSB && val == 1) {
@@ -1098,6 +1392,8 @@ void GfxRenderer::freeBwBufferChunks() {
   }
 }
 
+void GfxRenderer::releaseBwStagingBuffers() { freeBwBufferChunks(); }
+
 /**
  * This should be called before grayscale buffers are populated.
  * A `restoreBwBuffer` call should always follow the grayscale render if this method was called.
@@ -1341,7 +1637,8 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
     
     // Check if we're in grayscale mode for anti-aliasing
     bool isGrayscaleMode = (renderMode == GRAYSCALE_LSB || renderMode == GRAYSCALE_MSB);
-    
+    const bool grayFull = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::FullGray);
+
     for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
         // Read the row using readNextRow
         if (nonConstBitmap->readNextRow(outputRow, rowBytes_buf) != BmpReaderError::Ok) {
@@ -1386,13 +1683,15 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
                     // 1-bit: exactly 0 = black, 3 = white
                     pixelSet = (val == 0);
                 } else {
-                    // Match drawBitmap BW: ink for all non-white 2bpp (0–2); val 3 is white.
-                    // val<=1 was too harsh and made covers look flat vs thumb.bmp / reader.
-                    pixelSet = (val < 3);
+                    pixelSet = grayFull ? (val < 3) : (val <= 1);
                 }
-                
+
                 if (pixelSet) {
-                    drawPixel(destX, destY, true);
+                    if (isPure1Bit) {
+                        drawPixel(destX, destY, true);
+                    } else {
+                        drawBwFrom2bppStage(destX, destY, val);
+                    }
                 }
                 // White pixels (val >= 2) are not drawn - eliminates squares in white areas
             }
@@ -1736,8 +2035,11 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
             }
             
             if (shouldDraw) {
-                // In BW mode, val < 3 means draw black
-                drawPixel(destX, destY, true);
+                if (renderMode == BW) {
+                    drawBwFrom2bppStage(destX, destY, val);
+                } else {
+                    drawPixel(destX, destY, true);
+                }
             }
         }
     }

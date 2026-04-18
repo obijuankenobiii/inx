@@ -1,15 +1,47 @@
 #include "SDCardManager.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 namespace {
 constexpr uint8_t SD_CS = 12;
 constexpr uint32_t SPI_FQ = 40000000;
+
+SemaphoreHandle_t gSdMutex = nullptr;
+
+void sdMutexEnsure() {
+  if (gSdMutex == nullptr) {
+    gSdMutex = xSemaphoreCreateRecursiveMutex();
+  }
 }
+
+/** SdFat is not thread-safe; serialize all volume access (BLE settings vs reader EPUB cache, etc.). */
+struct SdScope {
+  bool held = false;
+  SdScope() {
+    sdMutexEnsure();
+    if (gSdMutex != nullptr) {
+      xSemaphoreTakeRecursive(gSdMutex, portMAX_DELAY);
+      held = true;
+    }
+  }
+  ~SdScope() {
+    if (held && gSdMutex != nullptr) {
+      xSemaphoreGiveRecursive(gSdMutex);
+    }
+  }
+  SdScope(const SdScope&) = delete;
+  SdScope& operator=(const SdScope&) = delete;
+};
+}  // namespace
 
 SDCardManager SDCardManager::instance;
 
 SDCardManager::SDCardManager() : sd() {}
 
 bool SDCardManager::begin() {
+  sdMutexEnsure();
+  SdScope lock;
   if (!sd.begin(SD_CS, SPI_FQ)) {
     if (Serial) Serial.printf("[%lu] [SD] SD card not detected\n", millis());
     initialized = false;
@@ -26,6 +58,7 @@ bool SDCardManager::ready() const {
 }
 
 std::vector<String> SDCardManager::listFiles(const char* path, const int maxFiles) {
+  SdScope lock;
   std::vector<String> ret;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] not initialized, returning empty list\n", millis());
@@ -60,6 +93,7 @@ std::vector<String> SDCardManager::listFiles(const char* path, const int maxFile
 }
 
 String SDCardManager::readFile(const char* path) {
+  SdScope lock;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] not initialized; cannot read file\n", millis());
     return {""};
@@ -83,6 +117,7 @@ String SDCardManager::readFile(const char* path) {
 }
 
 bool SDCardManager::readFileToStream(const char* path, Print& out, const size_t chunkSize) {
+  SdScope lock;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.println("SDCardManager: not initialized; cannot read file");
@@ -112,6 +147,7 @@ bool SDCardManager::readFileToStream(const char* path, Print& out, const size_t 
 }
 
 size_t SDCardManager::readFileToBuffer(const char* path, char* buffer, const size_t bufferSize, const size_t maxBytes) {
+  SdScope lock;
   if (!buffer || bufferSize == 0)
     return 0;
   if (!initialized) {
@@ -148,6 +184,7 @@ size_t SDCardManager::readFileToBuffer(const char* path, char* buffer, const siz
 }
 
 bool SDCardManager::writeFile(const char* path, const String& content) {
+  SdScope lock;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.println("SDCardManager: not initialized; cannot write file");
@@ -172,6 +209,7 @@ bool SDCardManager::writeFile(const char* path, const String& content) {
 }
 
 bool SDCardManager::ensureDirectoryExists(const char* path) {
+  SdScope lock;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.println("SDCardManager: not initialized; cannot create directory");
@@ -203,6 +241,7 @@ bool SDCardManager::ensureDirectoryExists(const char* path) {
 }
 
 bool SDCardManager::openFileForRead(const char* moduleName, const char* path, FsFile& file) {
+  SdScope lock;
   if (!sd.exists(path)) {
     if (Serial) Serial.printf("[%lu] [%s] File does not exist: %s\n", millis(), moduleName, path);
     return false;
@@ -225,6 +264,7 @@ bool SDCardManager::openFileForRead(const char* moduleName, const String& path, 
 }
 
 bool SDCardManager::openFileForWrite(const char* moduleName, const char* path, FsFile& file) {
+  SdScope lock;
   file = sd.open(path, O_RDWR | O_CREAT | O_TRUNC);
   if (!file) {
     if (Serial) Serial.printf("[%lu] [%s] Failed to open file for writing: %s\n", millis(), moduleName, path);
@@ -242,6 +282,7 @@ bool SDCardManager::openFileForWrite(const char* moduleName, const String& path,
 }
 
 bool SDCardManager::removeDir(const char* path) {
+  SdScope lock;
   // 1. Open the directory
   auto dir = sd.open(path);
   if (!dir) {
@@ -274,4 +315,34 @@ bool SDCardManager::removeDir(const char* path) {
   }
 
   return sd.rmdir(path);
+}
+
+FsFile SDCardManager::open(const char* path, const oflag_t oflag) {
+  SdScope lock;
+  return sd.open(path, oflag);
+}
+
+bool SDCardManager::mkdir(const char* path, const bool pFlag) {
+  SdScope lock;
+  return sd.mkdir(path, pFlag);
+}
+
+bool SDCardManager::exists(const char* path) {
+  SdScope lock;
+  return sd.exists(path);
+}
+
+bool SDCardManager::remove(const char* path) {
+  SdScope lock;
+  return sd.remove(path);
+}
+
+bool SDCardManager::rmdir(const char* path) {
+  SdScope lock;
+  return sd.rmdir(path);
+}
+
+bool SDCardManager::rename(const char* path, const char* newPath) {
+  SdScope lock;
+  return sd.rename(path, newPath);
 }

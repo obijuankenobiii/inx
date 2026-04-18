@@ -67,35 +67,35 @@ void ChapterHtmlSlimParser::loadCssRules() {
   // Get all CSS files from the EPUB
   int cssCount = epub.getCssItemsCount();
   if (cssCount > 0) {
-    Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
+    Serial.printf("[EHP] Loading %d CSS files (image width/height only)\n", cssCount);
 
-    // Limit total CSS size to prevent memory issues
-    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  // 50KB max total CSS
+    const size_t MAX_TOTAL_CSS_SIZE = 14 * 1024;
     size_t totalCssSize = 0;
 
+    constexpr size_t kCssZipCap = 8 * 1024;
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
-      auto cssEntry = epub.getCssItem(i);
-
-      // Skip empty CSS files
-      if (cssEntry.content.empty()) {
+      const auto cssEntry = epub.getCssItem(i);
+      if (cssEntry.path.empty()) {
         continue;
       }
 
-      // Check individual file size
-      if (cssEntry.content.size() > 20 * 1024) {  // 20KB per file max
-        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
-                      (int)cssEntry.content.size());
+      std::string cssBlob;
+      if (!epub.readInternalTextCapped(cssEntry.path, cssBlob, kCssZipCap)) {
+        Serial.printf("[EHP] Could not read CSS from zip: %s\n", cssEntry.path.c_str());
         continue;
       }
 
-      totalCssSize += cssEntry.content.size();
-      cssParser.parse(cssEntry.content);
+      totalCssSize += cssBlob.size();
+      cssParser.parse(cssBlob);
+      cssBlob.clear();
+      cssBlob.shrink_to_fit();
 
-      Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(), (int)cssEntry.content.size(),
+      Serial.printf("[EHP] Parsed CSS from zip: %s (cap %zu, total bytes: %d)\n", cssEntry.path.c_str(), kCssZipCap,
                     (int)totalCssSize);
     }
 
     Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);
+    cssParser.shrinkStorage();
   }
 
   cssLoaded = true;
@@ -169,10 +169,13 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       }
     }
 
-    // Use CssParser to get dimensions from inline style and CSS rules
+    // Use CssParser: one inline parse + one stylesheet pass for width and height
+    int cssWidth = 0;
+    int cssHeight = 0;
+    cssParser.getInlineSheetWidthHeightPx(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight, cssWidth,
+                                          cssHeight);
+
     if (imgWidth == 0) {
-      int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-      // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
       } else if (cssWidth > 0) {
@@ -181,7 +184,6 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
 
     if (imgHeight == 0) {
-      int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
       if (cssHeight == 0 && !heightIsPercentage) {
         imgHeight = cssHeight;
       } else if (cssHeight > 0) {
@@ -287,8 +289,11 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     if (imgWidth < 1) imgWidth = 1;
     if (imgHeight < 1) imgHeight = 1;
 
-    Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
-                  styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
+    static constexpr bool kTraceEachImage = false;
+    if (kTraceEachImage) {
+      Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
+                    styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
+    }
 
     addImageToPage(cacheImgPath, imgWidth, imgHeight);
   }

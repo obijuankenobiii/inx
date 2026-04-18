@@ -11,7 +11,7 @@
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = 6;  // Incremented version for CSS support
+constexpr uint8_t BOOK_CACHE_VERSION = 7;  // CSS: paths only in book.bin; content read from zip when needed
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
@@ -291,15 +291,20 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   uint32_t cumSize = 0;
   spineFile.seek(0);
   int lastSpineTocIndex = -1;
+  int spineTocMissingLogs = 0;
+  int spineSizeFailLogs = 0;
   for (int i = 0; i < spineCount; i++) {
     auto spineEntry = readSpineEntry(spineFile);
 
     spineEntry.tocIndex = spineToTocIndex[i];
 
     if (spineEntry.tocIndex == -1) {
-      Serial.printf(
-          "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
-          millis(), i, spineEntry.href.c_str());
+      if (spineTocMissingLogs < 5) {
+        Serial.printf(
+            "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
+            millis(), i, spineEntry.href.c_str());
+        spineTocMissingLogs++;
+      }
       spineEntry.tocIndex = lastSpineTocIndex;
     }
     lastSpineTocIndex = spineEntry.tocIndex;
@@ -310,13 +315,19 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
       if (itemSize == 0) {
         const std::string path = FsHelpers::normalisePath(spineEntry.href);
         if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-          Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+          if (spineSizeFailLogs < 8) {
+            Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+            spineSizeFailLogs++;
+          }
         }
       }
     } else {
       const std::string path = FsHelpers::normalisePath(spineEntry.href);
       if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-        Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+        if (spineSizeFailLogs < 8) {
+          Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
+          spineSizeFailLogs++;
+        }
       }
     }
 
@@ -458,14 +469,7 @@ void BookMetadataCache::createCssEntry(const std::string& path, const std::strin
     Serial.printf("[%lu] [BMC] createCssEntry called but not in build mode\n", millis());
     return;
   }
-  
-  // Check size limit
-  if (content.size() > MAX_CSS_SIZE) {
-    Serial.printf("[%lu] [BMC] CSS file too large: %s (%d bytes, max %d)\n", 
-                  millis(), path.c_str(), (int)content.size(), MAX_CSS_SIZE);
-    return;
-  }
-  
+
   const CssEntry entry{path, content, static_cast<uint32_t>(content.size())};
   writeCssEntry(cssFile, entry);
   cssCount++;
@@ -658,37 +662,13 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
           
           // Resolve full path
           std::string fullCssPath = basePath + cssHref;
-          
-          Serial.printf("[%lu] [BMC] Found CSS file in manifest: %s\n", millis(), fullCssPath.c_str());
-          
-          // Extract CSS content using the same method as other files
-          size_t cssSize;
+
+          size_t cssSize = 0;
           if (zip.getInflatedFileSize(fullCssPath.c_str(), &cssSize)) {
-            std::string tempCssPath = cachePath + "/.css.tmp";
-            FsFile cssTempFile;
-            if (SdMan.openFileForWrite("BMC", tempCssPath, cssTempFile)) {
-              if (zip.readFileToStream(fullCssPath.c_str(), cssTempFile, 1024)) {
-                cssTempFile.close();
-                
-                // Read the CSS content
-                if (SdMan.openFileForRead("BMC", tempCssPath, cssTempFile)) {
-                  std::string cssContent;
-                  cssContent.reserve(cssTempFile.size());
-                  uint8_t cssBuf[1024];
-                  while (cssTempFile.available()) {
-                    size_t len = cssTempFile.read(cssBuf, sizeof(cssBuf));
-                    cssContent.append(reinterpret_cast<char*>(cssBuf), len);
-                  }
-                  cssTempFile.close();
-                  
-                  createCssEntry(fullCssPath, cssContent);
-                  cssFound++;
-                }
-              } else {
-                cssTempFile.close();
-              }
-              SdMan.remove(tempCssPath.c_str());
-            }
+            // book.bin stores path only; full CSS is never loaded into RAM during cache build.
+            (void)cssSize;
+            createCssEntry(fullCssPath, "");
+            cssFound++;
           } else {
             Serial.printf("[%lu] [BMC] Could not get CSS file size: %s\n", millis(), fullCssPath.c_str());
           }
@@ -791,25 +771,6 @@ BookMetadataCache::CssEntry BookMetadataCache::getCssEntry(const int index) {
   serialization::readPod(bookFile, cssEntryPos);
   bookFile.seek(cssEntryPos);
   return readCssEntry(bookFile);
-}
-
-// New method: Get CSS content by path
-std::string BookMetadataCache::getCssContent(const std::string& cssPath) {
-  if (!loaded) {
-    Serial.printf("[%lu] [BMC] getCssContent called but cache not loaded\n", millis());
-    return "";
-  }
-  
-  // Linear search through CSS entries
-  for (int i = 0; i < static_cast<int>(cssCount); i++) {
-    auto cssEntry = getCssEntry(i);
-    if (cssEntry.path == cssPath) {
-      return cssEntry.content;
-    }
-  }
-  
-  Serial.printf("[%lu] [BMC] CSS file not found: %s\n", millis(), cssPath.c_str());
-  return "";
 }
 
 // New method: Get all CSS paths

@@ -3,13 +3,60 @@
 #include <GfxRenderer.h>
 
 #include <cstdio>
+#include <cstring>
+#include <strings.h>
 
+#include "state/BleDeviceStore.h"
+#include "state/SystemSetting.h"
 #include "system/BluetoothManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
 namespace {
 constexpr int LIST_ITEM_HEIGHT = 60;
+
+struct HidPagePreset {
+  const char* label;
+  uint8_t code;
+};
+
+constexpr HidPagePreset kHidPagePresets[] = {
+    {"Up", 0x52},        {"Down", 0x51},      {"Left", 0x50},     {"Right", 0x4F},
+    {"Page Up", 0x4B},   {"Page Down", 0x4E}, {"Space", 0x2C},    {"Comma", 0x36},
+    {"Period", 0x37},    {"[", 0x2F},         {"]", 0x30},
+};
+
+constexpr int kHidPagePresetCount = sizeof(kHidPagePresets) / sizeof(kHidPagePresets[0]);
+
+/** Hold Back at least this long on release to disconnect BLE before leaving. */
+constexpr unsigned long kBackHoldDisconnectMs = 800;
+
+int findPresetIndex(uint8_t code) {
+  for (int i = 0; i < kHidPagePresetCount; ++i) {
+    if (kHidPagePresets[i].code == code) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+struct BleConnectWork {
+  BluetoothActivity* activity;
+  char address[48];
+  uint8_t addrType;
+};
+
+void bleConnectTask(void* param) {
+  auto* w = static_cast<BleConnectWork*>(param);
+  BluetoothActivity* const act = w->activity;
+  const std::string addr(w->address);
+  const uint8_t typ = w->addrType;
+  delete w;
+
+  const bool ok = BluetoothManager::getInstance().connectToDevice(addr, typ);
+  act->finishBleConnectFromWorker(ok);
+  vTaskDelete(nullptr);
+}
 }  // namespace
 
 void BluetoothActivity::taskTrampoline(void* param) {
@@ -24,6 +71,11 @@ void BluetoothActivity::onEnter() {
   if (!renderingMutex) return;
 
   btManager = &BluetoothManager::getInstance();
+
+  BLE_DEVICES.loadFromFile();
+
+  m_bleConnectBusy.store(false);
+  m_bleConnectUserCancel.store(false);
 
   selectedIndex = 0;
   devices.clear();
@@ -42,9 +94,19 @@ void BluetoothActivity::onEnter() {
 }
 
 void BluetoothActivity::onExit() {
+  m_bleConnectUserCancel.store(true);
+  if (btManager != nullptr) {
+    btManager->cancelPendingConnect();
+  }
+  for (int i = 0; i < 80 && m_bleConnectBusy.load(); ++i) {
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+
   ActivityWithSubactivity::onExit();
 
-  if (btManager) btManager->stopScan();
+  if (btManager) {
+    btManager->stopScan();
+  }
 
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -55,6 +117,9 @@ void BluetoothActivity::onExit() {
     vSemaphoreDelete(renderingMutex);
     renderingMutex = nullptr;
   }
+
+  devices.clear();
+  devices.shrink_to_fit();
 
   exitActivity();
 }
@@ -73,38 +138,113 @@ void BluetoothActivity::processScanResults() {
     return;
   }
 
-  auto discovered = btManager->getDiscoveredDevices();
-  devices.clear();
-
-  for (const auto& dev : discovered) {
-    DeviceInfo info;
-    info.name = dev.name;
-    info.address = dev.address;
-    info.rssi = dev.rssi;
-    devices.push_back(info);
-  }
-
+  rebuildMergedDeviceList();
   state = BluetoothState::DEVICE_LIST;
   selectedIndex = 0;
   updateRequired = true;
 }
 
-void BluetoothActivity::connectToDevice(int index) {
-  if (index < 0 || index >= (int)devices.size()) {
+void BluetoothActivity::rebuildMergedDeviceList() {
+  devices.clear();
+  if (btManager == nullptr) {
     return;
   }
 
-  const auto& device = devices[index];
+  const auto discovered = btManager->getDiscoveredDevices();
+  const auto& stored = BLE_DEVICES.devices();
+  for (size_t i = 0; i < stored.size(); ++i) {
+    int rssi = -100;
+    uint8_t addrType = stored[i].addrType;
+    for (const auto& dev : discovered) {
+      if (strcasecmp(dev.address.c_str(), stored[i].address.c_str()) == 0) {
+        rssi = dev.rssi;
+        addrType = dev.addrType;
+        break;
+      }
+    }
+    DeviceInfo di;
+    di.name = stored[i].name;
+    di.address = stored[i].address;
+    di.rssi = rssi;
+    di.storeIndex = static_cast<int>(i);
+    di.addrType = addrType;
+    devices.push_back(di);
+  }
+
+  for (const auto& dev : discovered) {
+    if (!BleDeviceStore::isDisplayableName(dev.name)) {
+      continue;
+    }
+    if (BLE_DEVICES.findIndexByAddress(dev.address) >= 0) {
+      continue;
+    }
+    DeviceInfo info;
+    info.name = dev.name;
+    info.address = dev.address;
+    info.rssi = dev.rssi;
+    info.storeIndex = -1;
+    info.addrType = dev.addrType;
+    devices.push_back(info);
+  }
+}
+
+void BluetoothActivity::connectToDevice(int index) {
+  if (index < 0 || index >= (int)devices.size() || btManager == nullptr) {
+    return;
+  }
+
+  bool expected = false;
+  if (!m_bleConnectBusy.compare_exchange_strong(expected, true)) {
+    return;
+  }
+
+  m_bleConnectUserCancel.store(false);
+
+  auto* w = new BleConnectWork;
+  w->activity = this;
+  w->addrType = devices[static_cast<size_t>(index)].addrType;
+  memset(w->address, 0, sizeof(w->address));
+  strncpy(w->address, devices[static_cast<size_t>(index)].address.c_str(), sizeof(w->address) - 1);
 
   state = BluetoothState::CONNECTING;
   updateRequired = true;
 
-  if (btManager->connectToDevice(device.address)) {
+  if (xTaskCreate(bleConnectTask, "BTconn", 8192, w, 5, nullptr) != pdPASS) {
+    delete w;
+    m_bleConnectBusy.store(false);
+    connectionError = "Could not start connect";
+    state = BluetoothState::CONNECTION_FAILED;
+    updateRequired = true;
+  }
+}
+
+void BluetoothActivity::finishBleConnectFromWorker(bool ok) {
+  if (m_bleConnectUserCancel.load()) {
+    m_bleConnectUserCancel.store(false);
+    if (ok && btManager != nullptr) {
+      btManager->disconnectAll();
+    }
+    m_bleConnectBusy.store(false);
+    updateRequired = true;
+    return;
+  }
+
+  if (state != BluetoothState::CONNECTING) {
+    if (ok && btManager != nullptr) {
+      btManager->disconnectAll();
+    }
+    m_bleConnectBusy.store(false);
+    updateRequired = true;
+    return;
+  }
+
+  if (ok) {
     state = BluetoothState::CONNECTED;
   } else {
     connectionError = "Connection failed";
     state = BluetoothState::CONNECTION_FAILED;
   }
+  m_bleConnectBusy.store(false);
   updateRequired = true;
 }
 
@@ -114,7 +254,25 @@ void BluetoothActivity::loop() {
     return;
   }
 
+  if (state == BluetoothState::CONNECTING) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      m_bleConnectUserCancel.store(true);
+      if (btManager != nullptr) {
+        btManager->cancelPendingConnect();
+      }
+      state = BluetoothState::DEVICE_LIST;
+      updateRequired = true;
+    }
+    return;
+  }
+
   if (state == BluetoothState::SCANNING) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      if (onGoBack) {
+        onGoBack();
+      }
+      return;
+    }
     if (millis() - scanStartTime >= 3000) {
       processScanResults();
     }
@@ -124,7 +282,11 @@ void BluetoothActivity::loop() {
   if (state == BluetoothState::CONNECTION_FAILED) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      rebuildMergedDeviceList();
       state = BluetoothState::DEVICE_LIST;
+      if (selectedIndex >= (int)devices.size()) {
+        selectedIndex = devices.empty() ? 0 : static_cast<int>(devices.size()) - 1;
+      }
       updateRequired = true;
     }
     return;
@@ -155,6 +317,76 @@ void BluetoothActivity::loop() {
         selectedIndex++;
         updateRequired = true;
       }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+      if (!devices.empty() && devices[static_cast<size_t>(selectedIndex)].storeIndex >= 0) {
+        BLE_DEVICES.removeAt(static_cast<size_t>(devices[static_cast<size_t>(selectedIndex)].storeIndex));
+        rebuildMergedDeviceList();
+        if (selectedIndex >= (int)devices.size()) {
+          selectedIndex = devices.empty() ? 0 : static_cast<int>(devices.size()) - 1;
+        }
+        updateRequired = true;
+      }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      if (!devices.empty()) {
+        const auto& sel = devices[static_cast<size_t>(selectedIndex)];
+        BLE_DEVICES.applyPreferred(sel.address, sel.name, sel.addrType);
+        updateRequired = true;
+      }
+    }
+    // fall through to refresh display when only navigation keys updated
+  }
+
+  if (state == BluetoothState::KEY_MAP_PREV || state == BluetoothState::KEY_MAP_NEXT) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      state = BluetoothState::CONNECTED;
+      updateRequired = true;
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+      if (keyMapPresetIndex > 0) {
+        keyMapPresetIndex--;
+        updateRequired = true;
+      }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+      if (keyMapPresetIndex < kHidPagePresetCount - 1) {
+        keyMapPresetIndex++;
+        updateRequired = true;
+      }
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      if (state == BluetoothState::KEY_MAP_PREV) {
+        SETTINGS.bleHidPagePrevKey = kHidPagePresets[keyMapPresetIndex].code;
+        SETTINGS.saveToFile();
+        state = BluetoothState::KEY_MAP_NEXT;
+        keyMapPresetIndex = findPresetIndex(SETTINGS.bleHidPageNextKey);
+        if (keyMapPresetIndex < 0) {
+          keyMapPresetIndex = 0;
+        }
+      } else {
+        SETTINGS.bleHidPageNextKey = kHidPagePresets[keyMapPresetIndex].code;
+        SETTINGS.saveToFile();
+        state = BluetoothState::CONNECTED;
+      }
+      updateRequired = true;
+    }
+  } else if (state == BluetoothState::CONNECTED) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      if (btManager != nullptr && mappedInput.getHeldTime() >= kBackHoldDisconnectMs) {
+        btManager->disconnectAll();
+      }
+      if (onGoBack) {
+        onGoBack();
+      }
+      return;
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+      SETTINGS.bleAutoReconnect = SETTINGS.bleAutoReconnect ? 0 : 1;
+      SETTINGS.saveToFile();
+      updateRequired = true;
+    } else if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      state = BluetoothState::KEY_MAP_PREV;
+      keyMapPresetIndex = findPresetIndex(SETTINGS.bleHidPagePrevKey);
+      if (keyMapPresetIndex < 0) {
+        keyMapPresetIndex = 0;
+      }
+      updateRequired = true;
     }
   }
 
@@ -206,6 +438,12 @@ void BluetoothActivity::render() const {
     case BluetoothState::CONNECTION_FAILED:
       renderConnectionFailed();
       break;
+    case BluetoothState::KEY_MAP_PREV:
+      renderKeyMapPrev();
+      break;
+    case BluetoothState::KEY_MAP_NEXT:
+      renderKeyMapNext();
+      break;
   }
 
   renderer.displayBuffer();
@@ -241,7 +479,7 @@ void BluetoothActivity::renderDeviceList() const {
   const char* headerText = "Bluetooth Devices";
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a device to connect";
+  const char* subtitleText = "Connect · Right = preferred · Left = forget (saved)";
   int subtitleY = startY + 40;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
@@ -274,6 +512,10 @@ void BluetoothActivity::renderDeviceList() const {
       }
 
       std::string displayName = device.name;
+      if (SETTINGS.bleSavedAddress[0] != '\0' &&
+          strcasecmp(SETTINGS.bleSavedAddress, device.address.c_str()) == 0) {
+        displayName += " *";
+      }
       if (displayName.length() > 25) {
         displayName.replace(22, displayName.length() - 22, "...");
       }
@@ -295,7 +537,10 @@ void BluetoothActivity::renderDeviceList() const {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 60, countStr);
   }
 
-  const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
+  const bool canForget =
+      !devices.empty() && devices[static_cast<size_t>(selectedIndex)].storeIndex >= 0;
+  const auto labels =
+      mappedInput.mapLabels("« Back", "Connect", canForget ? "Forget" : "", "Preferred");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
@@ -324,6 +569,7 @@ void BluetoothActivity::renderConnecting() const {
 
 void BluetoothActivity::renderConnected() const {
   const int screenHeight = renderer.getScreenHeight();
+  const int screenWidth = renderer.getScreenWidth();
   const int startY = TAB_BAR_HEIGHT;
 
   const char* headerText = "Bluetooth Devices";
@@ -334,13 +580,59 @@ void BluetoothActivity::renderConnected() const {
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
   const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+
+  int lineY = dividerY + 12;
+  if (SETTINGS.bleSavedName[0] != '\0') {
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, lineY, SETTINGS.bleSavedName);
+    lineY += 22;
+  }
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, lineY,
+                            SETTINGS.bleAutoReconnect ? "Auto-reconnect: On (Up toggles)" : "Auto-reconnect: Off (Up toggles)");
+  lineY += 22;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, lineY, "Reader page keys: release (not hold) on keyboard");
+  lineY += 20;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, lineY, "Esc / Enter / arrows = device buttons (press)");
+  lineY += 22;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, lineY, "Right = map BLE keys to page back / forward");
+  lineY += 20;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, lineY, "Back: leave (keyboard stays on)");
+  lineY += 18;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, lineY, "Hold Back ~1s: disconnect then leave");
+
+  const auto labels = mappedInput.mapLabels("« Back", "", "", "Map keys");
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+}
+
+void BluetoothActivity::renderKeyMapPrev() const {
+  const int screenHeight = renderer.getScreenHeight();
+  const int startY = TAB_BAR_HEIGHT;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, "BLE page back key", true, EpdFontFamily::BOLD);
+  const int dividerY = startY + 42;
   renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+  const int mid = dividerY + (screenHeight - dividerY) / 2 - 20;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, mid, kHidPagePresets[keyMapPresetIndex].label);
+  char hex[24];
+  snprintf(hex, sizeof(hex), "HID code 0x%02X", kHidPagePresets[keyMapPresetIndex].code);
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, mid + 24, hex);
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, mid + 48, "Up/Down change  Confirm next  Back cancel");
+  const auto labels = mappedInput.mapLabels("« Back", "Next", "", "Up/Down");
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+}
 
-  const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY, "Connected to keyboard!");
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 30, "Press Back to exit");
-
-  const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+void BluetoothActivity::renderKeyMapNext() const {
+  const int screenHeight = renderer.getScreenHeight();
+  const int startY = TAB_BAR_HEIGHT;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, "BLE page forward key", true, EpdFontFamily::BOLD);
+  const int dividerY = startY + 42;
+  renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+  const int mid = dividerY + (screenHeight - dividerY) / 2 - 20;
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, mid, kHidPagePresets[keyMapPresetIndex].label);
+  char hex[24];
+  snprintf(hex, sizeof(hex), "HID code 0x%02X", kHidPagePresets[keyMapPresetIndex].code);
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, mid + 24, hex);
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, mid + 48, "Up/Down change  Confirm done  Back cancel");
+  const auto labels = mappedInput.mapLabels("« Back", "Done", "", "Up/Down");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 

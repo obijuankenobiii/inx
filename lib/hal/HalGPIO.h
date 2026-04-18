@@ -31,6 +31,20 @@ class HalGPIO {
 
   // Button input methods
   void update();
+  void injectOneShotPress(uint8_t buttonIndex) {
+#if CROSSPOINT_EMULATED == 0
+    inputMgr.injectOneShotPress(buttonIndex);
+#else
+    (void)buttonIndex;
+#endif
+  }
+  void injectOneShotRelease(uint8_t buttonIndex) {
+#if CROSSPOINT_EMULATED == 0
+    inputMgr.injectOneShotRelease(buttonIndex);
+#else
+    (void)buttonIndex;
+#endif
+  }
   bool isPressed(uint8_t buttonIndex) const;
   bool wasPressed(uint8_t buttonIndex) const;
   bool wasAnyPressed() const;

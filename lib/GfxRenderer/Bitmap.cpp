@@ -3,15 +3,9 @@
 #include <cstdlib>
 #include <cstring>
 
-// ============================================================================
-// IMAGE PROCESSING OPTIONS
-// ============================================================================
 // Dithering is applied when converting high-color BMPs to the display's native
 // 2-bit (4-level) grayscale. Images whose palette entries all map to native
 // gray levels (0, 85, 170, 255 ±21) are mapped directly without dithering.
-// For cover images, dithering is done in JpegToBmpConverter.cpp instead.
-constexpr bool USE_ATKINSON = true;  // Use Atkinson dithering instead of Floyd-Steinberg
-// ============================================================================
 
 Bitmap::~Bitmap() {
   delete[] errorCurRow;
@@ -163,15 +157,13 @@ BmpReaderError Bitmap::parseHeaders() {
 
   // Decide pixel processing strategy:
   //  - Native palette → direct mapping, no processing needed
-  //  - High-color + dithering enabled → error-diffusion dithering (Atkinson or Floyd-Steinberg)
-  //  - High-color + dithering disabled → simple quantization (no error diffusion)
+  //  - High-color + dither mode → error-diffusion (Atkinson or Floyd-Steinberg)
+  //  - High-color + None → simple quantization (no error diffusion)
   const bool highColor = !nativePalette;
-  if (highColor && dithering) {
-    if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(width);
-    } else {
-      fsDitherer = new FloydSteinbergDitherer(width);
-    }
+  if (highColor && ditherMode == BitmapDitherMode::Atkinson) {
+    atkinsonDitherer = new AtkinsonDitherer(width);
+  } else if (highColor && ditherMode == BitmapDitherMode::FloydSteinberg) {
+    fsDitherer = new FloydSteinbergDitherer(width);
   }
 
   return BmpReaderError::Ok;

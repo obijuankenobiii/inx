@@ -26,8 +26,10 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 6;
-constexpr uint8_t SETTINGS_COUNT = 37;
+constexpr uint8_t SETTINGS_FILE_VERSION = 11;
+constexpr uint8_t SETTINGS_COUNT = 46;
+/** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
+constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 
 void sanitizeSleepCustomBmp(char* buf) {
@@ -112,6 +114,15 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, readerSmartRefreshOnImages);
   serialization::writePod(outputFile, sleepScreenCoverGrayscale);
   serialization::writeString(outputFile, std::string(sleepCustomBmp));
+  serialization::writePod(outputFile, readerImagePresentation);
+  serialization::writePod(outputFile, readerImageDither);
+  serialization::writePod(outputFile, displayImageDither);
+  serialization::writePod(outputFile, displayImagePresentation);
+  serialization::writeString(outputFile, std::string(bleSavedAddress));
+  serialization::writeString(outputFile, std::string(bleSavedName));
+  serialization::writePod(outputFile, bleAutoReconnect);
+  serialization::writePod(outputFile, bleHidPagePrevKey);
+  serialization::writePod(outputFile, bleHidPageNextKey);
 
   outputFile.close();
 
@@ -137,9 +148,10 @@ bool SystemSetting::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  if (version != SETTINGS_FILE_VERSION && version != 3) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 3);
+  if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
+      version != 9 && version != 10) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 10, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -346,10 +358,65 @@ bool SystemSetting::loadFromFile() {
       setSleepCustomBmpFromInput(sleepBmpStr.c_str());
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, readerImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, readerImageDither, READER_IMAGE_DITHER_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, displayImageDither, READER_IMAGE_DITHER_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, displayImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      ++settingsRead;
+    }
+
+    if (version >= 11) {
+      if (settingsRead < fileSettingsCount) {
+        std::string bleAddr;
+        serialization::readString(inputFile, bleAddr);
+        strncpy(bleSavedAddress, bleAddr.c_str(), sizeof(bleSavedAddress) - 1);
+        bleSavedAddress[sizeof(bleSavedAddress) - 1] = '\0';
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        std::string bleNm;
+        serialization::readString(inputFile, bleNm);
+        strncpy(bleSavedName, bleNm.c_str(), sizeof(bleSavedName) - 1);
+        bleSavedName[sizeof(bleSavedName) - 1] = '\0';
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, bleAutoReconnect);
+        if (bleAutoReconnect > 1) {
+          bleAutoReconnect = 1;
+        }
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, bleHidPagePrevKey);
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, bleHidPageNextKey);
+        ++settingsRead;
+      }
+    }
 
   } while (false);
 
   inputFile.close();
+
+  if (settingsRead < SETTINGS_COUNT) {
+    if (settingsRead < SETTINGS_COUNT_V9) {
+      displayImageDither = readerImageDither;
+    }
+    displayImagePresentation = readerImagePresentation;
+  }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
 

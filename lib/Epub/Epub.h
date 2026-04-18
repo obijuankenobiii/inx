@@ -54,6 +54,10 @@ class Epub {
 
   uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr, bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
+  /**
+   * Decompress item from EPUB zip to a temp file, then read at most maxBytes into out (avoids holding full CSS in RAM).
+   */
+  bool readInternalTextCapped(const std::string& itemHref, std::string& out, size_t maxBytes) const;
   bool getItemSize(const std::string& itemHref, size_t* size) const;
 
   // Spine and TOC methods

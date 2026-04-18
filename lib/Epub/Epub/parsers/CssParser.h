@@ -6,9 +6,11 @@
 
 class CssParser {
  public:
+  /** Stylesheet rules kept only for width/height (no per-rule std::map). Selector is lowercased at parse time. */
   struct CssRule {
     std::string selector;
-    std::map<std::string, std::string> properties;
+    std::string widthVal;
+    std::string heightVal;
   };
 
   CssParser();
@@ -17,6 +19,8 @@ class CssParser {
   void parse(const std::string& cssContent);
   void parseFile(const std::string& filepath);
   void clear();
+  /** Release excess capacity from parsed rules (call after loading CSS to reduce fragmentation). */
+  void shrinkStorage();
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                int viewportHeight) const;
@@ -30,6 +34,13 @@ class CssParser {
                    int viewportHeight) const;
   int getMinHeight(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                    int viewportHeight) const;
+
+  /**
+   * Resolve width and height from inline `style` then stylesheet in one pass (one inline parse, one rules scan).
+   * Used for EPUB images to avoid duplicate work from separate getWidth/getHeight calls.
+   */
+  void getInlineSheetWidthHeightPx(const std::string& className, const std::string& id, const std::string& styleAttr,
+                                   int viewportWidth, int viewportHeight, int& outWidthPx, int& outHeightPx) const;
 
   /**
    * Parse a single CSS length (e.g. HTML width="50%" or style value).
@@ -60,13 +71,15 @@ class CssParser {
   std::vector<CssRule> rules;
   std::string bodyTextAlignRaw;
 
-  void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
+  void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::string& textAlignValue);
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
                                        const std::string& id, const std::string& styleAttr,
                                        const std::string& elementTagLower = "") const;
   int mapTextAlignToStyleIndex(const std::string& rawValue) const;
 
-  void parsePropertiesForDimensions(const std::string& propertiesStr, std::map<std::string, std::string>& properties) const;
+  void parsePropertiesForDimensions(const std::string& propertiesStr, std::string& outWidth,
+                                    std::string& outHeight) const;
+  std::string extractDeclarationValue(const std::string& propertiesStr, const std::string& propNameLower) const;
   enum class PercentRefersTo { Width, Height };
   int parseDimensionValue(const std::string& value, int viewportWidth, int viewportHeight,
                           PercentRefersTo percentAxis) const;

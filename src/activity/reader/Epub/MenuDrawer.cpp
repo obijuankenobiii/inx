@@ -98,10 +98,12 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
 
   menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
                {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
+               {"KOReader Sync", MenuAction::KOREADER_SYNC},
                {"Delete Cache", MenuAction::DELETE_CACHE},
                {"Delete Progress", MenuAction::DELETE_PROGRESS},
                {"Delete Book", MenuAction::DELETE_BOOK},
                {"Generate Full Data", MenuAction::GENERATE_FULL_DATA},
+               {"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL},
                {"Go Home", MenuAction::GO_HOME}};
 }
 

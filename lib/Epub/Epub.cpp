@@ -1,5 +1,7 @@
 #include "Epub.h"
 
+#include <algorithm>
+
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
@@ -92,6 +94,49 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
   return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
 }
 
+bool Epub::readInternalTextCapped(const std::string& itemHref, std::string& out, const size_t maxBytes) const {
+  out.clear();
+  if (itemHref.empty() || maxBytes == 0) {
+    return false;
+  }
+
+  const std::string tmp = cachePath + "/.cap.tmp";
+  FsFile wf;
+  if (!SdMan.openFileForWrite("EBP", tmp, wf)) {
+    return false;
+  }
+  if (!readItemContentsToStream(itemHref, wf, 512)) {
+    wf.close();
+    SdMan.remove(tmp.c_str());
+    return false;
+  }
+  wf.close();
+
+  FsFile rf;
+  if (!SdMan.openFileForRead("EBP", tmp, rf)) {
+    SdMan.remove(tmp.c_str());
+    return false;
+  }
+
+  const size_t fz = rf.size();
+  const size_t cap = std::min(fz, maxBytes);
+  out.reserve(cap);
+  uint8_t buf[256];
+  size_t total = 0;
+  while (rf.available() && total < cap) {
+    const size_t n = std::min(sizeof(buf), cap - total);
+    const size_t len = rf.read(buf, n);
+    if (len == 0) {
+      break;
+    }
+    out.append(reinterpret_cast<const char*>(buf), len);
+    total += len;
+  }
+  rf.close();
+  SdMan.remove(tmp.c_str());
+  return true;
+}
+
 /**
  * @brief Extracts an image from the EPUB and converts it to 1-bit BMP.
  *
@@ -179,6 +224,10 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
  */
 bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                             int targetH, bool cropToFill) const {
+  if (itemHref.empty()) {
+    return false;
+  }
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -210,13 +259,35 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
-    uint8_t buf[2048];
-    while (sourceFile.available()) {
-      size_t r = sourceFile.read(buf, sizeof(buf));
-      destFile.write(buf, r);
+    // Raw EPUB BMPs are often huge or wrong aspect; normalize into the reader/sleep canvas when possible.
+    if (targetW > 0 && targetH > 0) {
+      success = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, targetW, targetH);
+      if (!success) {
+        sourceFile.seek(0);
+        destFile.close();
+        SdMan.remove(outBmpPath.c_str());
+        if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+          sourceFile.close();
+          SdMan.remove(tempPath.c_str());
+          return false;
+        }
+        Serial.printf("[EBP] BMP resize failed, copying raw cover: %s\n", itemHref.c_str());
+        uint8_t buf[2048];
+        while (sourceFile.available()) {
+          size_t r = sourceFile.read(buf, sizeof(buf));
+          destFile.write(buf, r);
+        }
+        success = true;
+      }
+    } else {
+      Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
+      uint8_t buf[2048];
+      while (sourceFile.available()) {
+        size_t r = sourceFile.read(buf, sizeof(buf));
+        destFile.write(buf, r);
+      }
+      success = true;
     }
-    success = true;
   } else if (isPngFile(itemHref)) {
     success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH, cropToFill);
   } else {
@@ -237,6 +308,9 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
  * @return true if cover generation succeeded, false otherwise
  */
 bool Epub::generateCoverBmp(bool cropped) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
+    return false;
+  }
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
                                           800, cropped);
 }
@@ -286,19 +360,26 @@ bool Epub::generateThumbBmp() const {
       Serial.printf("[EBP] Source is BMP, resizing for thumbnail: %s\n", coverHref.c_str());
       thumbSuccess = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, 225, 340);
     } else if (isPngFile(coverHref)) {
-      thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
     } else {
       JpegToBmpConverter converter;
       thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
     }
 
     if (!thumbSuccess && !isBmpFile(coverHref)) {
-      destFile.seek(0);
-      if (isPngFile(coverHref)) {
-        thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      sourceFile.seek(0);
+      destFile.close();
+      SdMan.remove(getThumbBmpPath().c_str());
+      if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
+        success = false;
+        thumbSuccess = false;
       } else {
-        JpegToBmpConverter converter;
-        thumbSuccess = converter.jpegFileTo1BitThumbnailBmp(sourceFile, destFile, 225, 340);
+        if (isPngFile(coverHref)) {
+          thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
+        } else {
+          thumbSuccess =
+              JpegToBmpConverter::jpegFileToBmpStreamCentered(sourceFile, destFile, 225, 340, true);
+        }
       }
     }
 
@@ -639,7 +720,13 @@ BookMetadataCache::CssEntry Epub::getCssItem(int cssIndex) const {
  */
 std::string Epub::getCssContent(const std::string& cssPath) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return "";
-  return bookMetadataCache->getCssContent(cssPath);
+  std::string out;
+  // book.bin stores CSS paths only (v7+); pull from zip with a bounded buffer for RAM safety
+  constexpr size_t kMaxCssPull = 96 * 1024;
+  if (!readInternalTextCapped(cssPath, out, kMaxCssPull)) {
+    return "";
+  }
+  return out;
 }
 
 /**

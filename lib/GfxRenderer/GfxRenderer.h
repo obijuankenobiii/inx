@@ -11,6 +11,9 @@ class GfxRenderer {
  public:
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
+  /** How 2bpp grays map to ink when drawing scaled bitmaps in BW (reader can override per session). */
+  enum class BitmapGrayRenderStyle : uint8_t { Balanced, FullGray };
+
   // Logical screen orientation from the perspective of callers
   enum Orientation {
     Portrait,                  // 480x800 logical coordinates (current default)
@@ -34,6 +37,7 @@ class GfxRenderer {
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
   /** Set true if any drawBitmap in this page pass had enough mid-gray pixels to warrant the e-ink grayscale pass. */
   mutable bool anyBitmapImageWantsGrayscale = false;
+  mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
@@ -86,6 +90,9 @@ class GfxRenderer {
   void drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0,
                   float cropY = 0) const;
   void drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight) const;
+
+  void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
+  BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
 
   // Text
@@ -105,6 +112,8 @@ class GfxRenderer {
   void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
 
  private:
+  /** BW mode: map 2bpp palette stage (0–3) to screen using halftones so levels 1 and 2 are not solid black. */
+  void drawBwFrom2bppStage(int px, int py, uint8_t stage03) const;
   // Helper for drawing rotated text (90 degrees clockwise, for side buttons)
   void drawTextRotated90CW(int fontId, int x, int y, const char* text, bool black = true,
                            EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
@@ -118,6 +127,8 @@ class GfxRenderer {
   void displayGrayBuffer() const;
   bool storeBwBuffer();    // Returns true if buffer was stored successfully
   void restoreBwBuffer();  // Restore and free the stored buffer
+  /** Frees BW staging chunks if held (e.g. after storeBwBuffer); safe to call anytime. */
+  void releaseBwStagingBuffers();
   void cleanupGrayscaleWithFrameBuffer() const;
   void resetBitmapGrayscaleDetection() const { anyBitmapImageWantsGrayscale = false; }
   bool needsBitmapGrayscale() const;
@@ -142,4 +153,19 @@ void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, 
 void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
                              uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
 
+};
+
+/**
+ * RAII: temporarily sets scaled-bitmap gray style for drawBitmap; restores on destruction.
+ */
+struct BitmapGrayStyleScope {
+  GfxRenderer& r;
+  GfxRenderer::BitmapGrayRenderStyle prev;
+  BitmapGrayStyleScope(GfxRenderer& renderer, GfxRenderer::BitmapGrayRenderStyle style)
+      : r(renderer), prev(renderer.getBitmapGrayRenderStyle()) {
+    r.setBitmapGrayRenderStyle(style);
+  }
+  ~BitmapGrayStyleScope() { r.setBitmapGrayRenderStyle(prev); }
+  BitmapGrayStyleScope(const BitmapGrayStyleScope&) = delete;
+  BitmapGrayStyleScope& operator=(const BitmapGrayStyleScope&) = delete;
 };
