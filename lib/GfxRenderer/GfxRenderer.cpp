@@ -395,18 +395,16 @@ void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t 
     drawPixel(px, py, true);
     return;
   }
-  // Stages 1 / 2: 8×8 Bayer at full pixel resolution. 4×4 Bayer repeats every 4 px and reads as harsh “squares”;
-  // 8×8 doubles the period so mid-grays look smoother and more even (still dithered — true solid gray needs GC refresh).
-  static const uint8_t kBayer8[64] = {
-      0,  32, 8,  40, 2,  34, 10, 42,  48, 16, 56, 24, 50, 18, 58, 26,  12, 44, 4,  36, 14, 46, 6,  38,
-      60, 28, 52, 20, 62, 30, 54, 22,  3,  35, 11, 43, 1,  33, 9,  41,  51, 19, 59, 27, 49, 17, 57, 25,
-      15, 47, 7,  39, 13, 45, 5,  37,  63, 31, 55, 23, 61, 29, 53, 21};
-  const uint8_t t = kBayer8[((py & 7) << 3) | (px & 7)];
+  // Stages 1 / 2: 4×4 Bayer on (px/2, py/2) — each 2×2 block shares one threshold (the softer gray “diamond” look
+  // you preferred vs full-pixel 4×4 or 8×8 Bayer square grain).
+  static const uint8_t kBayer4[16] = {0,  8,  2,  10, 12, 4,  14, 6,  3,  11, 1,  9,
+                                       15, 7,  13, 5};
+  const uint8_t t = kBayer4[(((py >> 1) & 3) << 2) | ((px >> 1) & 3)];
   if (v == 1u) {
-    drawPixel(px, py, t < 40);  // 40/64 ≈ 62.5% ink
+    drawPixel(px, py, t < 10);  // 10/16 ≈ 62.5% ink
     return;
   }
-  drawPixel(px, py, t < 28);  // 28/64 ≈ 43.75% ink
+  drawPixel(px, py, t < 7);  // 7/16 ≈ 43.75% ink
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
