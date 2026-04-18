@@ -388,23 +388,27 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
 
 void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t stage03) const {
   const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
-  if (v == 3u) {
-    return;
-  }
+  
+  if (v == 3u) return;  // WHITE - clean
+  
   if (v == 0u) {
     drawPixel(px, py, true);
     return;
   }
-  // Stages 1 / 2: 4×4 Bayer on (px/2, py/2) — each 2×2 block shares one threshold (the softer gray “diamond” look
-  // you preferred vs full-pixel 4×4 or 8×8 Bayer square grain).
-  static const uint8_t kBayer4[16] = {0,  8,  2,  10, 12, 4,  14, 6,  3,  11, 1,  9,
-                                       15, 7,  13, 5};
-  const uint8_t t = kBayer4[(((py >> 1) & 3) << 2) | ((px >> 1) & 3)];
+  
+  // 2x2 Bayer pattern
+  static const uint8_t kBayer2[4] = {0, 2, 3, 1};
+  const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
+  const uint8_t tScaled = (t * 16) / 4;  // 0, 8, 12, 4
+  
   if (v == 1u) {
-    drawPixel(px, py, t < 10);  // 10/16 ≈ 62.5% ink
+    // Dark gray - MORE BLACK (75% instead of 62.5%)
+    drawPixel(px, py, tScaled < 12);  // 12/16 = 75% black
     return;
   }
-  drawPixel(px, py, t < 7);  // 7/16 ≈ 43.75% ink
+  
+  // v == 2u - Light gray - MORE BLACK (50% instead of 43.75%)
+  drawPixel(px, py, tScaled < 6);  // 8/16 = 50% black
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
