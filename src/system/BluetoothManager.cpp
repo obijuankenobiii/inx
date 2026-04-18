@@ -17,6 +17,14 @@
 
 #define LOG(fmt, ...) printf("[BT] " fmt "\n", ##__VA_ARGS__)
 
+void BluetoothManager::cancelPendingConnect() {
+  void* p = m_pendingConnectClient.load(std::memory_order_acquire);
+  if (p == nullptr) {
+    return;
+  }
+  static_cast<NimBLEClient*>(p)->cancelConnect();
+}
+
 namespace {
 constexpr uint8_t kBleAddrPublic = 0;
 constexpr uint8_t kBleAddrRandom = 1;
@@ -463,6 +471,11 @@ bool BluetoothManager::connectToDevice(const std::string& address, uint8_t hintA
   }
   LOG("Peer address type %u for %s", resolvedAddrType, address.c_str());
 
+  if (m_scanning) {
+    stopScan();
+  }
+  vTaskDelay(pdMS_TO_TICKS(40));
+
   NimBLEAddress bleAddress(address, resolvedAddrType);
 
   LOG("Creating BLE client...");
@@ -479,8 +492,12 @@ bool BluetoothManager::connectToDevice(const std::string& address, uint8_t hintA
 
   LOG("Attempting to connect to %s...", address.c_str());
 
-  if (!pClient->connect(bleAddress)) {
-    LOG("Failed to connect to %s", address.c_str());
+  m_pendingConnectClient.store(pClient, std::memory_order_release);
+  const bool connected = pClient->connect(bleAddress, true, false, false);
+  m_pendingConnectClient.store(nullptr, std::memory_order_release);
+
+  if (!connected) {
+    LOG("Failed to connect to %s (err=%d)", address.c_str(), pClient->getLastError());
     NimBLEDevice::deleteClient(pClient);
     return false;
   }
@@ -522,6 +539,7 @@ bool BluetoothManager::connectToDevice(const std::string& address, uint8_t hintA
 
 void BluetoothManager::disconnectAll() {
   LOG("Disconnecting all devices...");
+  m_pendingConnectClient.store(nullptr, std::memory_order_release);
   m_readerPageTurnerSession = false;
   std::vector<NimBLEClient*> clients;
   clients.reserve(m_clientsByAddr.size());

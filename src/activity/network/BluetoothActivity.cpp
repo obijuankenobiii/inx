@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 
 #include <cstdio>
+#include <cstring>
 #include <strings.h>
 
 #include "state/BleDeviceStore.h"
@@ -38,6 +39,24 @@ int findPresetIndex(uint8_t code) {
   }
   return -1;
 }
+
+struct BleConnectWork {
+  BluetoothActivity* activity;
+  char address[48];
+  uint8_t addrType;
+};
+
+void bleConnectTask(void* param) {
+  auto* w = static_cast<BleConnectWork*>(param);
+  BluetoothActivity* const act = w->activity;
+  const std::string addr(w->address);
+  const uint8_t typ = w->addrType;
+  delete w;
+
+  const bool ok = BluetoothManager::getInstance().connectToDevice(addr, typ);
+  act->finishBleConnectFromWorker(ok);
+  vTaskDelete(nullptr);
+}
 }  // namespace
 
 void BluetoothActivity::taskTrampoline(void* param) {
@@ -54,6 +73,9 @@ void BluetoothActivity::onEnter() {
   btManager = &BluetoothManager::getInstance();
 
   BLE_DEVICES.loadFromFile();
+
+  m_bleConnectBusy.store(false);
+  m_bleConnectUserCancel.store(false);
 
   selectedIndex = 0;
   devices.clear();
@@ -72,6 +94,14 @@ void BluetoothActivity::onEnter() {
 }
 
 void BluetoothActivity::onExit() {
+  m_bleConnectUserCancel.store(true);
+  if (btManager != nullptr) {
+    btManager->cancelPendingConnect();
+  }
+  for (int i = 0; i < 80 && m_bleConnectBusy.load(); ++i) {
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+
   ActivityWithSubactivity::onExit();
 
   if (btManager) {
@@ -156,22 +186,54 @@ void BluetoothActivity::rebuildMergedDeviceList() {
 }
 
 void BluetoothActivity::connectToDevice(int index) {
-  if (index < 0 || index >= (int)devices.size()) {
-    return;
-  }
-  if (renderingMutex == nullptr || btManager == nullptr) {
+  if (index < 0 || index >= (int)devices.size() || btManager == nullptr) {
     return;
   }
 
-  const auto& device = devices[index];
+  bool expected = false;
+  if (!m_bleConnectBusy.compare_exchange_strong(expected, true)) {
+    return;
+  }
+
+  m_bleConnectUserCancel.store(false);
+
+  auto* w = new BleConnectWork;
+  w->activity = this;
+  w->addrType = devices[static_cast<size_t>(index)].addrType;
+  memset(w->address, 0, sizeof(w->address));
+  strncpy(w->address, devices[static_cast<size_t>(index)].address.c_str(), sizeof(w->address) - 1);
 
   state = BluetoothState::CONNECTING;
+  updateRequired = true;
 
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  updateRequired = false;
-  render();
+  if (xTaskCreate(bleConnectTask, "BTconn", 8192, w, 5, nullptr) != pdPASS) {
+    delete w;
+    m_bleConnectBusy.store(false);
+    connectionError = "Could not start connect";
+    state = BluetoothState::CONNECTION_FAILED;
+    updateRequired = true;
+  }
+}
 
-  const bool ok = btManager->connectToDevice(device.address, device.addrType);
+void BluetoothActivity::finishBleConnectFromWorker(bool ok) {
+  if (m_bleConnectUserCancel.load()) {
+    m_bleConnectUserCancel.store(false);
+    if (ok && btManager != nullptr) {
+      btManager->disconnectAll();
+    }
+    m_bleConnectBusy.store(false);
+    updateRequired = true;
+    return;
+  }
+
+  if (state != BluetoothState::CONNECTING) {
+    if (ok && btManager != nullptr) {
+      btManager->disconnectAll();
+    }
+    m_bleConnectBusy.store(false);
+    updateRequired = true;
+    return;
+  }
 
   if (ok) {
     state = BluetoothState::CONNECTED;
@@ -179,14 +241,25 @@ void BluetoothActivity::connectToDevice(int index) {
     connectionError = "Connection failed";
     state = BluetoothState::CONNECTION_FAILED;
   }
-  updateRequired = false;
-  render();
-  xSemaphoreGive(renderingMutex);
+  m_bleConnectBusy.store(false);
+  updateRequired = true;
 }
 
 void BluetoothActivity::loop() {
   if (subActivity) {
     subActivity->loop();
+    return;
+  }
+
+  if (state == BluetoothState::CONNECTING) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      m_bleConnectUserCancel.store(true);
+      if (btManager != nullptr) {
+        btManager->cancelPendingConnect();
+      }
+      state = BluetoothState::DEVICE_LIST;
+      updateRequired = true;
+    }
     return;
   }
 

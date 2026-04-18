@@ -4,6 +4,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
@@ -67,6 +68,9 @@ public:
     /** @brief Main loop - processes Bluetooth connections */
     void loop() override;
 
+    /** Called from FreeRTOS connect worker when connect attempt finishes. */
+    void finishBleConnectFromWorker(bool ok);
+
 private:
     struct DeviceInfo {
         std::string name;
@@ -102,7 +106,7 @@ private:
     
     /** @brief Connects to selected device */
     void connectToDevice(int index);
-    
+
     /** @brief Renders scanning state */
     void renderScanning() const;
     
@@ -138,6 +142,9 @@ private:
     std::string connectionError;
     unsigned long scanStartTime;
     int keyMapPresetIndex = 0;
+
+    std::atomic<bool> m_bleConnectBusy{false};
+    std::atomic<bool> m_bleConnectUserCancel{false};
 
     const std::function<void()> onGoBack;
 };
