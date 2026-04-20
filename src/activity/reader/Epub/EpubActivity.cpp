@@ -10,11 +10,13 @@
 #include <SDCardManager.h>
 #include <time.h>
 
+#include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
+#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
@@ -39,10 +41,7 @@ constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
  */
 struct ReaderBitmapStyleGuard {
   BitmapGrayStyleScope scope;
-  explicit ReaderBitmapStyleGuard(GfxRenderer& ren)
-      : scope(ren, SystemSetting::getInstance().readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
-                    ? GfxRenderer::BitmapGrayRenderStyle::FullGray
-                    : GfxRenderer::BitmapGrayRenderStyle::Balanced) {}
+  explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
 };
 
 void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orientation,
@@ -861,7 +860,14 @@ void EpubActivity::toggleMenuDrawer() {
               regenerateThumbnail();
               break;
             case MenuDrawer::MenuAction::KOREADER_SYNC:
-              openKOReaderSyncFromMenu();
+              if (KOREADER_STORE.hasCredentials()) {
+                openKOReaderSyncFromMenu();
+              } else {
+                ScreenComponents::drawPopup(renderer, "Set up KOReader in Settings");
+                renderer.displayBuffer();
+                updateRequired = true;
+                startPageTimer();
+              }
               break;
           }
         },

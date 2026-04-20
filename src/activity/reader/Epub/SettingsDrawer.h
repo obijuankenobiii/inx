@@ -118,8 +118,7 @@ private:
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
-        ReaderImagePresentation,  ///< Global: balanced vs full-gray bitmap mapping
-        ReaderImageDither,        ///< EPUB reader BMP decode dither (None / Floyd-Steinberg / Atkinson)
+        ReaderImagePresentation,  ///< Global: Balance vs Dark bitmap contrast
         PageAutoTurn
     };
     

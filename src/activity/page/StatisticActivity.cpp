@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 
+#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -455,7 +456,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       const int maxW = std::max(1, width - 4);
       const int maxH = std::max(1, height - 4);
-      BitmapGrayStyleScope displayGrayStyle(renderer, GfxRenderer::BitmapGrayRenderStyle::FullGray);
+      BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
       renderer.drawBitmap(bitmap, x + 2, y + 2, maxW, maxH);
       coverDrawn = true;
     }
@@ -556,7 +557,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
         renderer.fillRect(boxX, yTop, frameW, frameH, false, false);
         renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
         {
-          BitmapGrayStyleScope displayGrayStyle(renderer, GfxRenderer::BitmapGrayRenderStyle::FullGray);
+          BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, innerX + 2, innerY + 2, drawW, drawH);
         }
         file.close();

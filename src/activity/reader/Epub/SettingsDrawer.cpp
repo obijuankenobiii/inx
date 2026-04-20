@@ -313,9 +313,9 @@ void SettingsDrawer::setupMenu() {
     MenuEntry presEntry;
     presEntry.item = MenuItem::ReaderImagePresentation;
     presEntry.group = GroupType::IMAGE;
-    presEntry.name = "Book image grays";
+    presEntry.name = "Contrast";
     presEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY ? "Full gray" : "Balanced";
+      return SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_DARK ? "Dark" : "Balance";
     };
     presEntry.change = [](BookSettings&, int delta) {
       int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
@@ -329,33 +329,6 @@ void SettingsDrawer::setupMenu() {
       SETTINGS.saveToFile();
     };
     menuItems.push_back(presEntry);
-
-    MenuEntry ditherEntry;
-    ditherEntry.item = MenuItem::ReaderImageDither;
-    ditherEntry.group = GroupType::IMAGE;
-    ditherEntry.name = "Book image dithering";
-    ditherEntry.getValueText = [](const BookSettings&) -> const char* {
-      switch (SETTINGS.readerImageDither) {
-        case SystemSetting::IMAGE_DITHER_FLOYD_STEINBERG:
-          return "Floyd-Steinberg";
-        case SystemSetting::IMAGE_DITHER_ATKINSON:
-          return "Atkinson";
-        default:
-          return "None";
-      }
-    };
-    ditherEntry.change = [](BookSettings&, int delta) {
-      int v = static_cast<int>(SETTINGS.readerImageDither) + delta;
-      if (v < 0) {
-        v = SystemSetting::READER_IMAGE_DITHER_COUNT - 1;
-      }
-      if (v >= SystemSetting::READER_IMAGE_DITHER_COUNT) {
-        v = 0;
-      }
-      SETTINGS.readerImageDither = static_cast<uint8_t>(v);
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(ditherEntry);
   }
 
   MenuEntry controlsSeparator;
@@ -775,7 +748,6 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
     case MenuItem::ReaderImagePresentation:
-    case MenuItem::ReaderImageDither:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

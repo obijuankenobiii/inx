@@ -11,6 +11,17 @@
 #include "system/Fonts.h"
 
 namespace {
+
+void wifiOff() {
+  if (esp_sntp_enabled()) {
+    esp_sntp_stop();
+  }
+  WiFi.disconnect(false);
+  delay(100);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
+}
+
 void syncTimeWithNTP() {
   // Stop SNTP if already running (can't reconfigure while running)
   if (esp_sntp_enabled()) {
@@ -120,7 +131,7 @@ void KOReaderSyncActivity::performSync() {
   // Convert remote progress to CrossPoint position
   hasRemoteProgress = true;
   KOReaderPosition koPos = {remoteProgress.progress, remoteProgress.percentage};
-  remotePosition = ProgressMapper::toCrossPoint(epub, koPos, totalPagesInSpine);
+  remotePosition = ProgressMapper::toCrossPoint(epub, koPos, currentSpineIndex, totalPagesInSpine);
 
   // Calculate local progress in KOReader format (for display)
   CrossPointPosition localPos = {currentSpineIndex, currentPage, totalPagesInSpine};
@@ -128,7 +139,12 @@ void KOReaderSyncActivity::performSync() {
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   state = SHOWING_RESULT;
-  selectedOption = 0;  // Default to "Apply"
+  // Default to the option that corresponds to the furthest progress (matches CrossPoint)
+  if (localProgress.percentage > remoteProgress.percentage) {
+    selectedOption = 1;  // Upload local progress
+  } else {
+    selectedOption = 0;  // Apply remote progress
+  }
   xSemaphoreGive(renderingMutex);
   updateRequired = true;
 }
@@ -153,6 +169,7 @@ void KOReaderSyncActivity::performUpload() {
   const auto result = KOReaderSyncClient::updateProgress(progress);
 
   if (result != KOReaderSyncClient::OK) {
+    wifiOff();
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     state = SYNC_FAILED;
     statusMessage = KOReaderSyncClient::errorString(result);
@@ -161,6 +178,7 @@ void KOReaderSyncActivity::performUpload() {
     return;
   }
 
+  wifiOff();
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   state = UPLOAD_COMPLETE;
   xSemaphoreGive(renderingMutex);
@@ -223,11 +241,7 @@ void KOReaderSyncActivity::onEnter() {
 void KOReaderSyncActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  // Turn off wifi
-  WiFi.disconnect(false);
-  delay(100);
-  WiFi.mode(WIFI_OFF);
-  delay(100);
+  wifiOff();
 
   // Wait until not rendering to delete task
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -316,29 +330,21 @@ void KOReaderSyncActivity::render() {
              localProgress.percentage * 100);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 320, localPageStr);
 
-    // Options
+    // Options (Apply / Upload only — Back cancels, same as CrossPoint reader menu)
     const int optionY = 350;
     const int optionHeight = 30;
 
-    // Apply option
     if (selectedOption == 0) {
       renderer.fillRect(0, optionY - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
     }
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY, "Apply remote progress", selectedOption != 0);
 
-    // Upload option
     if (selectedOption == 1) {
       renderer.fillRect(0, optionY + optionHeight - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
     }
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY + optionHeight, "Upload local progress", selectedOption != 1);
 
-    // Cancel option
-    if (selectedOption == 2) {
-      renderer.fillRect(0, optionY + optionHeight * 2 - 2, pageWidth - 1, optionHeight, GfxRenderer::FillTone::Ink);
-    }
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY + optionHeight * 2, "Cancel", selectedOption != 2);
-
-    const auto labels = mappedInput.mapLabels("", "Select", "", "");
+    const auto labels = mappedInput.mapLabels("Back", "Select", "Dir Up", "Dir Down");
     renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
@@ -381,45 +387,37 @@ void KOReaderSyncActivity::loop() {
   }
 
   if (state == NO_CREDENTIALS || state == SYNC_FAILED || state == UPLOAD_COMPLETE) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onCancel();
     }
     return;
   }
 
   if (state == SHOWING_RESULT) {
-    // Navigate options
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-      selectedOption = (selectedOption + 2) % 3;  // Wrap around
-      updateRequired = true;
-    } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-               mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-      selectedOption = (selectedOption + 1) % 3;
+    if (mappedInput.wasReleased(MappedInputManager::Button::Up) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Down) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      selectedOption = (selectedOption + 1) % 2;
       updateRequired = true;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       if (selectedOption == 0) {
-        // Apply remote progress
         onSyncComplete(remotePosition.spineIndex, remotePosition.pageNumber);
-      } else if (selectedOption == 1) {
-        // Upload local progress
-        performUpload();
       } else {
-        // Cancel
-        onCancel();
+        performUpload();
       }
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onCancel();
     }
     return;
   }
 
   if (state == NO_REMOTE_PROGRESS) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       // Calculate hash if not done yet
       if (documentHash.empty()) {
         if (KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME) {
@@ -431,7 +429,7 @@ void KOReaderSyncActivity::loop() {
       performUpload();
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onCancel();
     }
     return;

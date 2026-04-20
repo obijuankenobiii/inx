@@ -26,7 +26,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 10;
+constexpr uint8_t SETTINGS_FILE_VERSION = 11;
 constexpr uint8_t SETTINGS_COUNT = 41;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
@@ -144,9 +144,9 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 9, 8, 7, 6, 3);
+      version != 9 && version != 10) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 10, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -382,6 +382,16 @@ bool SystemSetting::loadFromFile() {
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
+
+  // v10 stored IMAGE_PRESENTATION_BALANCED=0 / FULL_GRAY=1. v11: BALANCE=0 / DARK=1; legacy byte 1 was full-gray look → BALANCE.
+  if (version == 10) {
+    if (readerImagePresentation == 1u) {
+      readerImagePresentation = IMAGE_PRESENTATION_BALANCE;
+    }
+    if (displayImagePresentation == 1u) {
+      displayImagePresentation = IMAGE_PRESENTATION_BALANCE;
+    }
+  }
 
   return true;
 }

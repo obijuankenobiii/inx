@@ -15,6 +15,7 @@
 #include "images/Up.h"
 #include "state/BookState.h"
 #include "state/Statistics.h"
+#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -40,12 +41,6 @@ static std::string getBaseFilename(const std::string& filename) {
 /**
  * Formats a title by capitalizing the first letter of each word.
  */
-static GfxRenderer::BitmapGrayRenderStyle displayImageGrayStyle() {
-  return SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
-             ? GfxRenderer::BitmapGrayRenderStyle::FullGray
-             : GfxRenderer::BitmapGrayRenderStyle::Balanced;
-}
-
 static std::string formatTitle(const std::string& title) {
   std::string formatted = title;
   bool capitalizeNext = true;
@@ -254,7 +249,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
         int drawX = coverAreaX + (containerWidth - scaledW) / 2;
         int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
-        BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, drawX, drawY, scaledW, scaledH);
         coverDrawn = true;
       }
@@ -431,7 +426,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
 
         if (drawX >= 0 && drawX < renderer.getScreenWidth() && drawY >= 0 && drawY < renderer.getScreenHeight()) {
           renderer.drawRect(drawX, drawY - 12, drawWidth, drawHeight);
-          BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
           coverDrawn = true;
         }
@@ -592,7 +587,7 @@ void RecentActivity::renderDefault() {
         int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
         int drawX = coverAreaX + (coverWidth - bw) / 2;
         int drawY = coverAreaY + (coverHeight - bh) / 2;
-        BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, drawX, drawY, bw, bh);
         coverDrawn = true;
       }
@@ -1054,7 +1049,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, leftX, sideY, sideW, sideH);
           drawn = true;
         }
@@ -1078,7 +1073,7 @@ void RecentActivity::renderFlow() {
       if (SdMan.openFileForRead("RECENT", path, file)) {
         Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, rightX, sideY, sideW, sideH);
           drawn = true;
         }
@@ -1102,7 +1097,7 @@ void RecentActivity::renderFlow() {
     if (SdMan.openFileForRead("RECENT", path, file)) {
       Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        BitmapGrayStyleScope displayGray(renderer, displayImageGrayStyle());
+        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, centerX, centerY, centerW, centerH);
         centerDrawn = true;
       }

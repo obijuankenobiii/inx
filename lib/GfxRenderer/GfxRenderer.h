@@ -12,7 +12,11 @@ class GfxRenderer {
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
   /** How 2bpp grays map to ink when drawing scaled bitmaps in BW (reader can override per session). */
-  enum class BitmapGrayRenderStyle : uint8_t { Balanced, FullGray };
+  enum class BitmapGrayRenderStyle : uint8_t {
+    Balanced,  ///< Legacy: only dark gray + black ink (light gray omitted)
+    FullGray,  ///< "Balance" contrast: ink both gray stages (former full-gray behavior)
+    Dark       ///< Stronger ink / tighter snap than FullGray
+  };
 
   // Logical screen orientation from the perspective of callers
   enum Orientation {

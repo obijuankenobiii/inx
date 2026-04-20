@@ -9,6 +9,7 @@
 
 #include "images/CorgiSleep.h"
 #include "state/Session.h"
+#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
@@ -210,10 +211,7 @@ void SleepActivity::renderCoverSleepScreen() const {
  * @param bitmap The bitmap image to render (custom /sleep image or book cover)
  */
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
-  BitmapGrayStyleScope displayGrayStyle(
-      renderer, SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
-                    ? GfxRenderer::BitmapGrayRenderStyle::FullGray
-                    : GfxRenderer::BitmapGrayRenderStyle::Balanced);
+  BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;
@@ -283,10 +281,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
  * @param cy Vertical crop factor (0-1)
  */
 void SleepActivity::renderGreyscale(const Bitmap& bitmap, int x, int y, int w, int h, float cx, float cy) const {
-    BitmapGrayStyleScope displayGrayStyle(
-        renderer, SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_FULL_GRAY
-                      ? GfxRenderer::BitmapGrayRenderStyle::FullGray
-                      : GfxRenderer::BitmapGrayRenderStyle::Balanced);
+    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);

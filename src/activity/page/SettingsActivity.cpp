@@ -15,7 +15,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 25;
+constexpr int systemPageSettingsCount = 24;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -34,12 +34,9 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
     SettingInfo::Toggle("Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
                       GroupType::IMAGE),
-    SettingInfo::Enum("Dither", &SystemSetting::displayImageDither,
-                      {"None","Floyd-Steinberg","Atkinson"},
-                      GroupType::IMAGE),
     SettingInfo::Enum(
-        "Gray", &SystemSetting::displayImagePresentation,
-        {"Balanced","Full gray"},
+        "Contrast", &SystemSetting::displayImagePresentation,
+        {"Balance","Dark"},
         GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
@@ -66,7 +63,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     /* Standalone row (not inside a collapsible group); always visible. */
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 29;
+constexpr int readerSettingsCount = 28;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
@@ -104,12 +101,9 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
     SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
     SettingInfo::Enum(
-        "Book image grays", &SystemSetting::readerImagePresentation,
-        {"Balanced (clean whites)","Full gray (smooth fills)"},
+        "Contrast", &SystemSetting::readerImagePresentation,
+        {"Balance","Dark"},
         GroupType::IMAGE),
-    SettingInfo::Enum("Book image dithering", &SystemSetting::readerImageDither,
-                      {"None","Floyd-Steinberg","Atkinson"},
-                      GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
