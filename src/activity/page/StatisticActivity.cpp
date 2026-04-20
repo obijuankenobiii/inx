@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
@@ -342,28 +343,40 @@ int measureAllItemsBodyHeight(const GfxRenderer& renderer) {
 }
 
 /**
- * Two-by-two grid: each column width stops short of the center rule so labels never bleed into the other column.
- * cellH should leave enough room below labels (descenders) before the next row.
- * Row 0 (“Total hours” / “Avg. min/session”) is shifted up only; row 1 unchanged. Rules stay at y and y + cellH.
+ * Two-column grid with `numRows` rows: value (serif lg) + label (sans sm) per cell.
+ * Each column width stops short of the center rule so labels never bleed across.
+ * Row 0 is shifted up by `row0LiftPx` only; other rows unchanged. Horizontal rules between rows.
  * @param row0LiftPx use 0 when this grid must not intrude into the margin above `y` (e.g. global stats layout).
+ * @param gapBeforeLastRowPx when numRows > 2, extra space inserted after the second-to-last row so the horizontal
+ *        rule above the bottom row sits lower (avoids overlap between the middle row labels and the pages row).
  */
-int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0, const char* l0,
-                           const char* v1, const char* l1, const char* v2, const char* l2, const char* v3,
-                           const char* l3, int cellH, int row0LiftPx) {
+int drawFourColumnStatsNx2(GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* const* vals,
+                           const char* const* labs, int numRows, int cellH, int row0LiftPx,
+                           int gapBeforeLastRowPx = 0) {
+  if (numRows < 1) {
+    return 0;
+  }
+  constexpr int kPadBelowMidRule = 2;
   const int halfW = innerW / 2;
   const int midX = innerLeft + halfW;
-  const int blockH = cellH * 2;
+  const int gap = (numRows > 2 ? gapBeforeLastRowPx : 0);
+  std::vector<int> yBound(static_cast<size_t>(numRows + 1), y);
+  for (int r = 1; r <= numRows; ++r) {
+    yBound[static_cast<size_t>(r)] =
+        yBound[static_cast<size_t>(r - 1)] + cellH + ((r == numRows - 1) ? gap : 0);
+  }
+  const int blockH = yBound[static_cast<size_t>(numRows)] - y;
   constexpr int kEdgePad = 8;
-  /** Horizontal clearance from the vertical mid rule (prevents “Total hours” / avg labels crossing into col 2). */
   constexpr int kMidGutter = 10;
-  /** Bottom inset per row band (keeps descenders off the horizontal rule / bottom edge). */
   constexpr int kCellVMarginBottom = 4;
   constexpr int kCellPadTop = 0;
-  constexpr int kPadBelowMidRule = 2;
   const int wLeft = std::max(20, midX - innerLeft - kEdgePad - kMidGutter);
   const int wRight = std::max(20, (innerLeft + innerW) - midX - kEdgePad - kMidGutter);
   drawVertRule(renderer, midX, y, blockH);
-  renderer.drawLine(innerLeft, y + cellH, innerLeft + innerW, y + cellH, true);
+  for (int r = 1; r < numRows; ++r) {
+    renderer.drawLine(innerLeft, yBound[static_cast<size_t>(r)], innerLeft + innerW, yBound[static_cast<size_t>(r)],
+                      true);
+  }
 
   const int lhVal = renderer.getLineHeight(FONT_SERIF_LG);
   const int lhLab = renderer.getLineHeight(FONT_SANS_SM);
@@ -373,10 +386,8 @@ int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int inne
   auto cell = [&](int col, int row, const char* val, const char* lab) {
     const int cellLeft = (col == 0) ? (innerLeft + kEdgePad) : (midX + kMidGutter);
     const int cw = (col == 0) ? wLeft : wRight;
-    const int bandTop =
-        (row == 0) ? (y + kCellPadTop) : (y + cellH + kPadBelowMidRule);
-    const int bandBottom =
-        (row == 0) ? (y + cellH - kCellVMarginBottom) : (y + cellH * 2 - kCellVMarginBottom);
+    const int bandTop = yBound[static_cast<size_t>(row)] + (row == 0 ? kCellPadTop : kPadBelowMidRule);
+    const int bandBottom = yBound[static_cast<size_t>(row + 1)] - kCellVMarginBottom;
     const int innerBand = std::max(1, bandBottom - bandTop);
     int rowTop;
     if (row == 0) {
@@ -396,11 +407,19 @@ int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int inne
     renderer.drawText(FONT_SERIF_LG, cellLeft, rowTop, valT.c_str());
     renderer.drawText(FONT_SANS_SM, cellLeft, rowTop + lhVal + kValLabGap, labT.c_str());
   };
-  cell(0, 0, v0, l0);
-  cell(1, 0, v1, l1);
-  cell(0, 1, v2, l2);
-  cell(1, 1, v3, l3);
+  for (int row = 0; row < numRows; ++row) {
+    cell(0, row, vals[row * 2], labs[row * 2]);
+    cell(1, row, vals[row * 2 + 1], labs[row * 2 + 1]);
+  }
   return blockH;
+}
+
+int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0, const char* l0,
+                           const char* v1, const char* l1, const char* v2, const char* l2, const char* v3,
+                           const char* l3, int cellH, int row0LiftPx) {
+  const char* vals[] = {v0, v1, v2, v3};
+  const char* labs[] = {l0, l1, l2, l3};
+  return drawFourColumnStatsNx2(renderer, innerLeft, y, innerW, vals, labs, 2, cellH, row0LiftPx, 0);
 }
 
 }  // namespace
@@ -721,7 +740,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   constexpr int kMarginX = 20;
   constexpr int g8 = 8;
   constexpr int g10 = 10;
-  constexpr int kStatsRowH = 58;
+  /** Taller rows than global stats; extra tail height so the pages row sits below the mid divider cleanly. */
+  constexpr int kSingleBookStatsRowH = 66;
+  constexpr int kSingleBookStatsLastRowExtraPx = 18;
 
   const int innerLeft = kMarginX;
   const int innerRight = kScreenW - kMarginX;
@@ -732,12 +753,11 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int lhLG = renderer.getLineHeight(FONT_SERIF_LG);
   const int lhSerif = renderer.getLineHeight(FONT_SERIF);
   const int lhSans = renderer.getLineHeight(FONT_SANS);
-  const int lhSm = renderer.getLineHeight(FONT_SANS_SM);
-  /** Title, author, sessions, chapters below cover row (donut is beside the cover). */
-  const int metaSpan = lhSerif + g8 + lhSans + g10 + (lhSm + 4) * 2;
+  /** Title and author below cover row; sessions/chapters are in the bottom stats grid (same style as hours). */
+  const int metaSpan = lhSerif + g8 + lhSans + g10;
   constexpr int gapCoverTitle = 6;
   constexpr int gapMetaStats = 12;
-  const int hStats = kStatsRowH * 2;
+  const int hStats = kSingleBookStatsRowH * 3 + kSingleBookStatsLastRowExtraPx;
   constexpr int kSingleBookStatsGridLiftPx = 20;
   const int yStatsTop = yEnd - hStats - kSingleBookStatsGridLiftPx;
   const int maxTitleY = yStatsTop - gapMetaStats - metaSpan;
@@ -755,7 +775,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   constexpr int kBookDonutR = 76;
   constexpr int kBookDonutThick = 11;
   constexpr int kCoverGaugeGap = 32;
-  constexpr int kGaugeRightMargin = 18;
+  constexpr int kGaugeRightMargin = 55;
   const int cxGauge = innerRight - kGaugeRightMargin - kBookDonutR;
   const int maxCoverW = std::max(100, cxGauge - kBookDonutR - kCoverGaugeGap - innerLeft);
 
@@ -791,16 +811,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
     renderer.drawText(FONT_SANS, innerLeft, yAuthor, auth.c_str());
   }
 
-  int yMeta = yAuthor + lhSans + g8;
-  char sessLine[40];
-  snprintf(sessLine, sizeof(sessLine), "%u sessions", static_cast<unsigned>(b.sessionCount));
-  renderer.drawText(FONT_SANS_SM, innerLeft, yMeta, sessLine);
-  yMeta += lhSm + 4;
-  char chapLine[48];
-  snprintf(chapLine, sizeof(chapLine), "%u chapters read", static_cast<unsigned>(b.totalChaptersRead));
-  renderer.drawText(FONT_SANS_SM, innerLeft, yMeta, chapLine);
-
-  char v0[20], v1[20], v2[20], v3[20];
+  char v0[20], v1[20], v2[20], v3[20], vSess[16], vChap[16];
   const float bookHrs = static_cast<float>(b.totalReadingTimeMs) / 3600000.f;
   snprintf(v0, sizeof(v0), "%.1f", bookHrs);
   const float bookAvgMin = b.sessionCount > 0 ? static_cast<float>(b.totalReadingTimeMs) / 60000.f /
@@ -811,9 +822,13 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const float bookReadMin = static_cast<float>(b.totalReadingTimeMs) / 60000.f;
   const float bookPgPerMin = bookReadMin > 0.01f ? static_cast<float>(b.totalPagesRead) / bookReadMin : 0.f;
   snprintf(v3, sizeof(v3), "%.1f", bookPgPerMin);
+  snprintf(vSess, sizeof(vSess), "%u", static_cast<unsigned>(b.sessionCount));
+  snprintf(vChap, sizeof(vChap), "%u", static_cast<unsigned>(b.totalChaptersRead));
 
-  drawFourColumnStats2x2(renderer, innerLeft, yStatsTop, innerW, v0, "Total hours", v1, "Avg. min/session", v2,
-                         "Pages read", v3, "Pages per min", kStatsRowH, 32);
+  const char* vals[] = {v0, v1, vSess, vChap, v2, v3};
+  const char* labs[] = {"Total hours", "Avg. min/session", "Sessions", "Chapters read", "Pages read", "Pages per min"};
+  drawFourColumnStatsNx2(renderer, innerLeft, yStatsTop + 20, innerW, vals, labs, 3, kSingleBookStatsRowH, 28,
+                         kSingleBookStatsLastRowExtraPx);
 
   char footer[24];
   snprintf(footer, sizeof(footer), "%d/%zu", bookIdx + 1, allBooksStats.size());
