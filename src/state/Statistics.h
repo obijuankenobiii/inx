@@ -119,9 +119,6 @@ bool loadGlobalStats(GlobalReadingStats& stats);
 void saveGlobalStats(const GlobalReadingStats& stats);
 
 /**
- * Updates global statistics with data from a book.
- * Aggregates book statistics into the global totals.
- * 
- * @param bookStats The book statistics to aggregate
+ * Recomputes global totals by scanning all per-book statistics files.
  */
-void generateGlobalStats(const BookReadingStats& bookStats);
+GlobalReadingStats generateGlobalStats();
