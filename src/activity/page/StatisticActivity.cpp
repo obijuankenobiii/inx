@@ -732,8 +732,8 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int lhLG = renderer.getLineHeight(FONT_SERIF_LG);
   const int lhSerif = renderer.getLineHeight(FONT_SERIF);
   const int lhSans = renderer.getLineHeight(FONT_SANS);
-  const int lhSm = renderer.getLineHeight(FONT_SANS_SM);
-  const int metaSpan = lhSerif + g8 + lhSans + g10 + lhSm + g8 + 8;
+  /** Title + author only below cover row (progress is the donut beside the cover). */
+  const int metaSpan = lhSerif + g8 + lhSans + g10;
   constexpr int gapCoverTitle = 6;
   constexpr int gapMetaStats = 12;
   const int hStats = kStatsRowH * 2;
@@ -750,37 +750,45 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   y += g8;
   const int yCoverTop = y;
 
+  /** Same donut style as global stats; sits to the right of the left-aligned cover. */
+  constexpr int kBookDonutR = 54;
+  constexpr int kBookDonutThick = 9;
+  constexpr int kCoverGaugeGap = 14;
+  const int gaugeBandW = kCoverGaugeGap + 2 * kBookDonutR;
+  const int maxCoverW = std::max(100, innerW - gaugeBandW - 4);
+
   const int coverAllow = std::max(0, maxTitleY - gapCoverTitle - yCoverTop);
   int coverH = std::max(std::min(260, coverAllow), std::min(120, coverAllow));
-  int coverW = std::min(innerW - 8, (coverH * 2) / 3);
-  if (coverW < 120) {
-    coverW = 120;
+  int coverW = std::min(maxCoverW, (coverH * 2) / 3);
+  if (coverW < 100) {
+    coverW = 100;
   }
   coverH = std::min(coverH, (coverW * 3) / 2);
   coverH = std::min(coverH, coverAllow);
 
   const float prog =
       (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
-  const int boxX = innerLeft + (innerW - coverW) / 2;
+  const int boxX = innerLeft;
   renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, false);
   renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 
+  const int rowHeight = std::max(coverH, 2 * kBookDonutR + 4);
+  const int cxGauge = boxX + coverW + kCoverGaugeGap + kBookDonutR;
+  const int cyGauge = yCoverTop + rowHeight / 2;
+  char pctStr[16];
+  snprintf(pctStr, sizeof(pctStr), "%.0f%%", prog * 100.f);
+  drawFullDonutGauge(renderer, cxGauge, cyGauge, kBookDonutR, kBookDonutThick, prog, pctStr);
+
   const int textMaxW = innerW;
   std::string titleLine = renderer.truncatedText(FONT_SERIF, b.title.c_str(), textMaxW, EpdFontFamily::ITALIC);
-  const int yTitle = yCoverTop + coverH + gapCoverTitle;
+  const int yTitle = yCoverTop + rowHeight + gapCoverTitle;
   renderer.drawText(FONT_SERIF, innerLeft, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
   const int yAuthor = yTitle + lhSerif + g8;
   if (!b.author.empty()) {
     std::string auth = renderer.truncatedText(FONT_SANS, b.author.c_str(), textMaxW);
     renderer.drawText(FONT_SANS, innerLeft, yAuthor, auth.c_str());
   }
-  const int yProg = yAuthor + lhSans + g10;
-  char progLabel[48];
-  snprintf(progLabel, sizeof(progLabel), "Book progress: %.0f%%", prog * 100.f);
-  renderer.drawText(FONT_SANS_SM, innerLeft, yProg, progLabel);
-  const int yBar = yProg + lhSm + g8;
-  drawThinProgressBar(renderer, innerLeft, yBar, innerW, 8, prog);
 
   char v0[20], v1[20], v2[20], v3[20];
   const float bookHrs = static_cast<float>(b.totalReadingTimeMs) / 3600000.f;
