@@ -268,7 +268,8 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  // FAST matches EpubActivity::displayCoverOrTitle; HALF can fail to settle some decoded covers on panel.
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   if (hasGreyscale && renderer.needsBitmapGrayscale()) {
     renderGreyscale(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);

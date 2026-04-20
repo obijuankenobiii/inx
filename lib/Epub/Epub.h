@@ -29,6 +29,7 @@ class Epub {
 
   ~Epub() = default;
 
+  /** Loads book.bin from cache; on success returns immediately without re-parsing OPF/TOC/CSS. */
   bool load(bool buildIfMissing = true);
   bool clearCache();
   void setupCacheDir() const;

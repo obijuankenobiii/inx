@@ -1336,9 +1336,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
-  if (SETTINGS.readerSmartRefreshOnImages && page->hasImages() && !isBookmarking) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-  }
+  // Do not HALF-refresh here before page->render(): renderScreen() already clearScreen() to white; pushing
+  // that empty buffer with HALF confuses the first paint (and some image pages) vs drawing then FAST.
 
   if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1362,7 +1361,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   if (pagesUntilFullRefresh <= 1) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    // Image-heavy pages need a full framebuffer push (FAST); HALF here can leave bitmaps incomplete
+    // when the periodic "full" refresh counter hits (e.g. refresh every 1 page).
+    renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = false;
     return;

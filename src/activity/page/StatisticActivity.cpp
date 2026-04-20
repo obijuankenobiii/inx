@@ -732,8 +732,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int lhLG = renderer.getLineHeight(FONT_SERIF_LG);
   const int lhSerif = renderer.getLineHeight(FONT_SERIF);
   const int lhSans = renderer.getLineHeight(FONT_SANS);
-  /** Title + author only below cover row (progress is the donut beside the cover). */
-  const int metaSpan = lhSerif + g8 + lhSans + g10;
+  const int lhSm = renderer.getLineHeight(FONT_SANS_SM);
+  /** Title, author, sessions, chapters below cover row (donut is beside the cover). */
+  const int metaSpan = lhSerif + g8 + lhSans + g10 + (lhSm + 4) * 2;
   constexpr int gapCoverTitle = 6;
   constexpr int gapMetaStats = 12;
   const int hStats = kStatsRowH * 2;
@@ -750,12 +751,13 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   y += g8;
   const int yCoverTop = y;
 
-  /** Same donut style as global stats; sits to the right of the left-aligned cover. */
-  constexpr int kBookDonutR = 54;
-  constexpr int kBookDonutThick = 9;
-  constexpr int kCoverGaugeGap = 14;
-  const int gaugeBandW = kCoverGaugeGap + 2 * kBookDonutR;
-  const int maxCoverW = std::max(100, innerW - gaugeBandW - 4);
+  /** Donut anchored toward the right margin with a wide gap from the cover. */
+  constexpr int kBookDonutR = 76;
+  constexpr int kBookDonutThick = 11;
+  constexpr int kCoverGaugeGap = 32;
+  constexpr int kGaugeRightMargin = 18;
+  const int cxGauge = innerRight - kGaugeRightMargin - kBookDonutR;
+  const int maxCoverW = std::max(100, cxGauge - kBookDonutR - kCoverGaugeGap - innerLeft);
 
   const int coverAllow = std::max(0, maxTitleY - gapCoverTitle - yCoverTop);
   int coverH = std::max(std::min(260, coverAllow), std::min(120, coverAllow));
@@ -774,7 +776,6 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 
   const int rowHeight = std::max(coverH, 2 * kBookDonutR + 4);
-  const int cxGauge = boxX + coverW + kCoverGaugeGap + kBookDonutR;
   const int cyGauge = yCoverTop + rowHeight / 2;
   char pctStr[16];
   snprintf(pctStr, sizeof(pctStr), "%.0f%%", prog * 100.f);
@@ -789,6 +790,15 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
     std::string auth = renderer.truncatedText(FONT_SANS, b.author.c_str(), textMaxW);
     renderer.drawText(FONT_SANS, innerLeft, yAuthor, auth.c_str());
   }
+
+  int yMeta = yAuthor + lhSans + g8;
+  char sessLine[40];
+  snprintf(sessLine, sizeof(sessLine), "%u sessions", static_cast<unsigned>(b.sessionCount));
+  renderer.drawText(FONT_SANS_SM, innerLeft, yMeta, sessLine);
+  yMeta += lhSm + 4;
+  char chapLine[48];
+  snprintf(chapLine, sizeof(chapLine), "%u chapters read", static_cast<unsigned>(b.totalChaptersRead));
+  renderer.drawText(FONT_SANS_SM, innerLeft, yMeta, chapLine);
 
   char v0[20], v1[20], v2[20], v3[20];
   const float bookHrs = static_cast<float>(b.totalReadingTimeMs) / 3600000.f;

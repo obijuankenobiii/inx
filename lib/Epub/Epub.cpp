@@ -461,13 +461,18 @@ bool Epub::load(const bool buildIfMissing) {
 
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
-  if (!bookMetadataCache->load()) {
-    if (!bookMetadataCache->beginWrite()) return false;
+  if (bookMetadataCache->load()) {
+    // book.bin already present (includes title, author, coverItemHref, etc.) — do not rebuild spine/TOC/CSS.
+    return true;
   }
 
-  if (!buildIfMissing) return false;
+  if (!buildIfMissing) {
+    return false;
+  }
 
-  if (!bookMetadataCache->beginWrite()) return false;
+  if (!bookMetadataCache->beginWrite()) {
+    return false;
+  }
 
   BookMetadataCache::BookMetadata meta;
   bookMetadataCache->beginContentOpfPass();
