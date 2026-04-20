@@ -164,17 +164,26 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   std::string coverPath;
-  // Match asset to display: FIT fills the screen (cover at encode time); CROP shows whole image (contain).
-  const bool coverFillScreen = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+  // FIT vs CROP scaling is applied in renderBitmapSleepScreen from sleepScreenCoverMode.
   const std::string& path = APP_STATE.lastRead;
 
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      if (book.generateCoverBmp(coverFillScreen)) {
-        coverPath = book.getCoverBmpPath(coverFillScreen);
-      } else if (book.generateCoverBmp(false)) {
+      // Same resolution order as EpubActivity::displayCoverOrTitle: use on-disk covers when present;
+      // only generate if missing (sleep used to require generateCoverBmp()==true, so existing files were ignored).
+      coverPath = book.getCoverBmpPath(true);
+      if (!SdMan.exists(coverPath.c_str())) {
+        book.generateCoverBmp(true);
+      }
+      if (!SdMan.exists(coverPath.c_str())) {
         coverPath = book.getCoverBmpPath(false);
+        if (!SdMan.exists(coverPath.c_str())) {
+          book.generateCoverBmp(false);
+        }
+      }
+      if (!SdMan.exists(coverPath.c_str())) {
+        coverPath.clear();
       }
     }
   }

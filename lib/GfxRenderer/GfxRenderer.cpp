@@ -424,12 +424,12 @@ void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t 
   const bool dark = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::Dark);
 
   if (v == 1u) {
-    // Dark gray halftone; Dark contrast biases further toward ink
-    drawPixel(px, py, tScaled < (dark ? 14u : 12u));
+    // Dark gray halftone; Dark contrast: tScaled is only 0,4,8,12 — <13 inks all four taps (Balance keeps 75%).
+    drawPixel(px, py, tScaled < (dark ? 13u : 12u));
     return;
   }
 
-  // v == 2u — light gray
+  // v == 2u — light gray (higher threshold ⇒ more ink in Dark)
   drawPixel(px, py, tScaled < (dark ? 9u : 6u));
 }
 

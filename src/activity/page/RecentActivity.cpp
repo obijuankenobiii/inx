@@ -11,7 +11,6 @@
 #include <sstream>
 
 #include "images/Down.h"
-#include "images/Tree.h"
 #include "images/Up.h"
 #include "state/BookState.h"
 #include "state/Statistics.h"
@@ -53,6 +52,13 @@ static std::string formatTitle(const std::string& title) {
     }
   }
   return formatted;
+}
+
+static std::string bookDisplayTitle(const RecentBook& book) {
+  if (!book.title.empty()) {
+    return book.title;
+  }
+  return formatTitle(getBaseFilename(book.path));
 }
 
 /**
@@ -264,14 +270,11 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     int bookHeightInt = static_cast<int>(containerHeight);
 
     renderer.drawRect(bookX, bookY, bookWidth, bookHeightInt, true);
-    renderer.fillRect(bookX, bookY, bookWidth, bookHeightInt);
-    renderer.drawIcon(Tree, bookX, bookY + 100, 200, 200, GfxRenderer::None, false);
+    renderer.fillRect(bookX, bookY, bookWidth, bookHeightInt, false);
     char titleBuf[128];
-    if (!book.title.empty()) {
-      strncpy(titleBuf, book.title.c_str(), sizeof(titleBuf));
-    } else {
-      std::string tmp = formatTitle(getBaseFilename(book.path));
-      strncpy(titleBuf, tmp.c_str(), sizeof(titleBuf));
+    {
+      std::string disp = bookDisplayTitle(book);
+      strncpy(titleBuf, disp.c_str(), sizeof(titleBuf));
     }
     titleBuf[sizeof(titleBuf) - 1] = '\0';
 
@@ -306,11 +309,9 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   }
 
   char titleBuf[128];
-  if (!book.title.empty()) {
-    strncpy(titleBuf, book.title.c_str(), sizeof(titleBuf));
-  } else {
-    std::string tmp = formatTitle(getBaseFilename(book.path));
-    strncpy(titleBuf, tmp.c_str(), sizeof(titleBuf));
+  {
+    std::string disp = bookDisplayTitle(book);
+    strncpy(titleBuf, disp.c_str(), sizeof(titleBuf));
   }
   titleBuf[sizeof(titleBuf) - 1] = '\0';
 
@@ -439,27 +440,31 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
     int fillX = thumbX + 10;
     int fillY = thumbY - 10;
     if (fillX >= 0 && fillX < renderer.getScreenWidth()) {
-      renderer.fillRect(fillX, fillY, thumbWidth - 20, thumbHeight, true);
+      renderer.fillRect(fillX, fillY, thumbWidth - 20, thumbHeight, false);
+      renderer.drawRect(fillX, fillY, thumbWidth - 20, thumbHeight, true);
+      std::string thumbTitle = bookDisplayTitle(book);
+      std::string truncThumb = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, thumbTitle.c_str(),
+                                                      thumbWidth - 24, EpdFontFamily::BOLD);
+      const int thumbLineH = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+      int ty = fillY + (thumbHeight - thumbLineH) / 2;
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, fillX + 8, ty, truncThumb.c_str(), true,
+                        EpdFontFamily::BOLD);
     }
   }
 
-  std::string titleString;
-  if (book.title.empty()) {
-    titleString = formatTitle(getBaseFilename(book.path));
-  } else {
-    titleString = book.title;
-  }
+  const bool blackInk = !selected;
+  const std::string titleString = bookDisplayTitle(book);
 
   if (textX >= 0 && textX < renderer.getScreenWidth()) {
     std::string truncatedTitle =
         renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleString.c_str(), textWidth, EpdFontFamily::BOLD);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, truncatedTitle.c_str(), true,
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, truncatedTitle.c_str(), blackInk,
                       EpdFontFamily::BOLD);
   }
 
   int authorY = textY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
   if (authorY >= 0 && authorY < renderer.getScreenHeight()) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, book.author.c_str());
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, book.author.c_str(), blackInk);
   }
 
   if (book.progress >= 0.0f && book.progress <= 1.0f && !next && book.progress < 0.99f) {
@@ -485,7 +490,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
         int percentX = progressBarX + progressBarWidth - textW - 5;
         int percentY = progressBarY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 2;
         if (percentX >= 0 && percentY >= 0) {
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentX, percentY, progressText);
+          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentX, percentY, progressText, blackInk);
         }
       }
     }
@@ -496,7 +501,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
       int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedText);
       int completedX = textX + textWidth - textW - 5;
       if (completedX >= 0 && completedX < renderer.getScreenWidth()) {
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText, blackInk);
       }
     }
   }
@@ -600,15 +605,12 @@ void RecentActivity::renderDefault() {
     int bookY = coverAreaY - 40;
     int bookWidth = containerWidth - 10;
     int bookHeight = static_cast<int>(containerHeight - 30);
-    constexpr bool kTreeInvert = true;
     renderer.drawRect(bookX, bookY, bookWidth, bookHeight, true);
-    renderer.drawIcon(Tree, (bookWidth - 170) / 2, (bookHeight / 2) - 50, 200, 200, GfxRenderer::None, kTreeInvert);
+    renderer.fillRect(bookX, bookY, bookWidth, bookHeight, false);
     char titleBuf[128];
-    if (!currentBook.title.empty()) {
-      strncpy(titleBuf, currentBook.title.c_str(), sizeof(titleBuf));
-    } else {
-      std::string tmp = formatTitle(getBaseFilename(currentBook.path));
-      strncpy(titleBuf, tmp.c_str(), sizeof(titleBuf));
+    {
+      std::string disp = bookDisplayTitle(currentBook);
+      strncpy(titleBuf, disp.c_str(), sizeof(titleBuf));
     }
     titleBuf[sizeof(titleBuf) - 1] = '\0';
 
@@ -643,11 +645,9 @@ void RecentActivity::renderDefault() {
   }
 
   char titleBuf[128];
-  if (!currentBook.title.empty()) {
-    strncpy(titleBuf, currentBook.title.c_str(), sizeof(titleBuf));
-  } else {
-    std::string tmp = formatTitle(getBaseFilename(currentBook.path));
-    strncpy(titleBuf, tmp.c_str(), sizeof(titleBuf));
+  {
+    std::string disp = bookDisplayTitle(currentBook);
+    strncpy(titleBuf, disp.c_str(), sizeof(titleBuf));
   }
   titleBuf[sizeof(titleBuf) - 1] = '\0';
 
@@ -662,7 +662,8 @@ void RecentActivity::renderDefault() {
   char authorBuf[64];
   strncpy(authorBuf, currentBook.author.c_str(), sizeof(authorBuf));
   authorBuf[sizeof(authorBuf) - 1] = '\0';
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, trunc.c_str());
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, trunc.c_str(), true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, authorBuf, true);
 
   float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
   if (progress >= 0) {
@@ -1059,7 +1060,13 @@ void RecentActivity::renderFlow() {
     if (!drawn) {
       renderer.fillRect(leftX, sideY, sideW, sideH, false);
       renderer.drawRect(leftX, sideY, sideW, sideH, true);
-      renderer.drawIcon(Tree, leftX + sideW / 2 - 30, sideY + sideH / 2 - 30, 60, 60, GfxRenderer::None, false);
+      std::string lt = bookDisplayTitle(leftBook);
+      std::string ltrunc = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, lt.c_str(), sideW - 8,
+                                                  EpdFontFamily::BOLD);
+      const int ltw = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, ltrunc.c_str());
+      const int lth = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftX + (sideW - ltw) / 2, sideY + (sideH - lth) / 2,
+                        ltrunc.c_str(), true, EpdFontFamily::BOLD);
     }
   }
 
@@ -1083,7 +1090,13 @@ void RecentActivity::renderFlow() {
     if (!drawn) {
       renderer.fillRect(rightX, sideY, sideW, sideH, false);
       renderer.drawRect(rightX, sideY, sideW, sideH, true);
-      renderer.drawIcon(Tree, rightX + sideW / 2 - 30, sideY + sideH / 2 - 30, 60, 60, GfxRenderer::None, false);
+      std::string rt = bookDisplayTitle(rightBook);
+      std::string rtrunc = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, rt.c_str(), sideW - 8,
+                                                  EpdFontFamily::BOLD);
+      const int rtw = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, rtrunc.c_str());
+      const int rth = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, rightX + (sideW - rtw) / 2, sideY + (sideH - rth) / 2,
+                        rtrunc.c_str(), true, EpdFontFamily::BOLD);
     }
   }
 
@@ -1107,8 +1120,13 @@ void RecentActivity::renderFlow() {
   if (!centerDrawn) {
     renderer.fillRect(centerX, centerY, centerW, centerH, false);
     renderer.drawRect(centerX, centerY, centerW, centerH, true);
-    renderer.drawIcon(Tree, centerX + centerW / 2 - 50, centerY + centerH / 2 - 50, 100, 100, GfxRenderer::None,
-                      false);
+    std::string ct = bookDisplayTitle(currentBook);
+    std::string ctrunc = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_14_FONT_ID, ct.c_str(), centerW - 16,
+                                                 EpdFontFamily::BOLD);
+    const int ctw = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_14_FONT_ID, ctrunc.c_str());
+    const int cth = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_14_FONT_ID);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerX + (centerW - ctw) / 2, centerY + (centerH - cth) / 2,
+                      ctrunc.c_str(), true, EpdFontFamily::BOLD);
   }
 
   BookReadingStats stats;

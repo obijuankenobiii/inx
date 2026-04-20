@@ -286,7 +286,7 @@ public:
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
     /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
-    uint8_t sleepScreenCoverGrayscale = 1;
+    uint8_t sleepScreenCoverGrayscale = 0;
     /**
      * Fixed custom/transparent sleep BMP when multiple images exist.
      * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
@@ -351,7 +351,7 @@ public:
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
     // Library display settings
-    uint8_t recentLibraryMode = RECENT_LIST;                    ///< Recent library display mode
+    uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
     
     // Boot settings
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
@@ -363,7 +363,7 @@ public:
     uint8_t pageAutoTurnSeconds = 0;
 
     /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
-    uint8_t readerImageGrayscale = 1;
+    uint8_t readerImageGrayscale = 0;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
     /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
