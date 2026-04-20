@@ -8,6 +8,8 @@ class CssParser {
  public:
   struct CssRule {
     std::string selector;
+    /** Lowercase selector; filled at parse time so hot paths do not reallocate/transform on every lookup. */
+    std::string selectorLower;
     std::map<std::string, std::string> properties;
   };
 

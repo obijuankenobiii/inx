@@ -75,7 +75,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight","Normal","Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
     SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
-                      {"Justify","Left","Center","Right","Default (CSS)"},
+                      {"Justify", "Left", "Center", "Right", "Use EPUB CSS"},
                       GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,

@@ -185,8 +185,9 @@ public:
         LEFT_ALIGN = 1,     ///< Left alignment
         CENTER_ALIGN = 2,   ///< Center alignment
         RIGHT_ALIGN = 3,    ///< Right alignment
-        /** Use text-align from EPUB CSS (and inline styles) for each paragraph; layout viewport matches reader. */
-        FOLLOW_CSS = 4,  // keep equal to EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/.../ChapterHtmlSlimParser.h
+        /** Same role as CrossPoint “Book style”: use EPUB `text-align` / cascade for each block (value must match
+         *  EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h). */
+        FOLLOW_CSS = 4,
         PARAGRAPH_ALIGNMENT_COUNT
     };
 

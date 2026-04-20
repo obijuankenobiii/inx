@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <sstream>
+#include <cstdlib>
 
 namespace {
 
@@ -201,6 +201,7 @@ void CssParser::parse(const std::string& cssContent) {
 
     CssRule rule;
     rule.selector = selector;
+    rule.selectorLower = toLower(selector);
 
     parsePropertiesForDimensions(propertiesStr, rule.properties);
 
@@ -330,9 +331,7 @@ bool CssParser::selectorHasClassToken(const std::string& selectorLower, const st
 }
 
 bool CssParser::ruleMatchesElement(const CssRule& rule, const std::string& classAttr, const std::string& idAttr) const {
-  std::string selLower = rule.selector;
-  std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  const std::string& selLower = rule.selectorLower;
 
   std::string idKey = trim(idAttr);
   std::transform(idKey.begin(), idKey.end(), idKey.begin(),
@@ -407,6 +406,14 @@ void CssParser::parseInlineStyle(const std::string& styleAttr, std::map<std::str
   }
 }
 
+/** EPUB CSS can contain huge numbers; clamp so layout math cannot overflow or corrupt memory. */
+static int clampCssPixels(const int v) {
+  constexpr int kMaxCssPx = 8192;
+  if (v < 0) return 0;
+  if (v > kMaxCssPx) return kMaxCssPx;
+  return v;
+}
+
 int CssParser::parseCssLength(const std::string& value, int viewportWidth, int viewportHeight,
                               bool percentOfWidth) const {
   return parseDimensionValue(trim(value), viewportWidth, viewportHeight,
@@ -441,10 +448,10 @@ int CssParser::parseDimensionValue(const std::string& valueIn, int viewportWidth
 
   if (numStr.empty()) return 0;
 
-  float num = 0.f;
-  try {
-    num = std::stof(numStr);
-  } catch (...) {
+  // Never use std::stof here: it throws on bad input and with -fno-exceptions that can terminate the process.
+  char* parseEnd = nullptr;
+  const float num = std::strtof(numStr.c_str(), &parseEnd);
+  if (parseEnd == numStr.c_str()) {
     return 0;
   }
 
@@ -455,48 +462,48 @@ int CssParser::parseDimensionValue(const std::string& valueIn, int viewportWidth
   constexpr float PX_PER_MM = PX_PER_IN / 25.4f;
 
   if (unit == "px" || unit.empty()) {
-    return static_cast<int>(num + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num + (num >= 0 ? 0.5f : -0.5f)));
   }
   if (unit == "em" || unit == "rem") {
-    return static_cast<int>(num * BASE_FONT_SIZE + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num * BASE_FONT_SIZE + (num >= 0 ? 0.5f : -0.5f)));
   }
   if (unit == "%") {
     if (percentAxis == PercentRefersTo::Width && viewportWidth > 0) {
-      return static_cast<int>(num * viewportWidth / 100.0f + (num >= 0 ? 0.5f : -0.5f));
+      return clampCssPixels(static_cast<int>(num * viewportWidth / 100.0f + (num >= 0 ? 0.5f : -0.5f)));
     }
     if (percentAxis == PercentRefersTo::Height && viewportHeight > 0) {
-      return static_cast<int>(num * viewportHeight / 100.0f + (num >= 0 ? 0.5f : -0.5f));
+      return clampCssPixels(static_cast<int>(num * viewportHeight / 100.0f + (num >= 0 ? 0.5f : -0.5f)));
     }
     return 0;
   }
   if (unit == "vw" && viewportWidth > 0) {
-    return static_cast<int>(num * viewportWidth / 100.0f + 0.5f);
+    return clampCssPixels(static_cast<int>(num * viewportWidth / 100.0f + 0.5f));
   }
   if (unit == "vh" && viewportHeight > 0) {
-    return static_cast<int>(num * viewportHeight / 100.0f + 0.5f);
+    return clampCssPixels(static_cast<int>(num * viewportHeight / 100.0f + 0.5f));
   }
   if (unit == "vmin" && viewportWidth > 0 && viewportHeight > 0) {
     const int mn = std::min(viewportWidth, viewportHeight);
-    return static_cast<int>(num * mn / 100.0f + 0.5f);
+    return clampCssPixels(static_cast<int>(num * mn / 100.0f + 0.5f));
   }
   if (unit == "vmax" && viewportWidth > 0 && viewportHeight > 0) {
     const int mx = std::max(viewportWidth, viewportHeight);
-    return static_cast<int>(num * mx / 100.0f + 0.5f);
+    return clampCssPixels(static_cast<int>(num * mx / 100.0f + 0.5f));
   }
   if (unit == "pt") {
-    return static_cast<int>(num * PX_PER_PT + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num * PX_PER_PT + (num >= 0 ? 0.5f : -0.5f)));
   }
   if (unit == "in") {
-    return static_cast<int>(num * PX_PER_IN + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num * PX_PER_IN + (num >= 0 ? 0.5f : -0.5f)));
   }
   if (unit == "cm") {
-    return static_cast<int>(num * PX_PER_CM + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num * PX_PER_CM + (num >= 0 ? 0.5f : -0.5f)));
   }
   if (unit == "mm") {
-    return static_cast<int>(num * PX_PER_MM + (num >= 0 ? 0.5f : -0.5f));
+    return clampCssPixels(static_cast<int>(num * PX_PER_MM + (num >= 0 ? 0.5f : -0.5f)));
   }
 
-  return static_cast<int>(num + (num >= 0 ? 0.5f : -0.5f));
+  return clampCssPixels(static_cast<int>(num + (num >= 0 ? 0.5f : -0.5f)));
 }
 
 int CssParser::getInlineOrSheetLength(const std::string& propName, const std::string& className, const std::string& id,
@@ -524,9 +531,7 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
   }
 
   for (const auto& rule : rules) {
-    std::string selLower = rule.selector;
-    std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string& selLower = rule.selectorLower;
 
     const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
     bool classMatch = false;
@@ -643,9 +648,7 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
   }
 
   for (const auto& rule : rules) {
-    std::string selLower = rule.selector;
-    std::transform(selLower.begin(), selLower.end(), selLower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string& selLower = rule.selectorLower;
 
     const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
     bool classMatch = false;

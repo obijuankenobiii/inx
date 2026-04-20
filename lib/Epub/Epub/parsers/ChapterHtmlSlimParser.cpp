@@ -4,6 +4,8 @@
 #include <cctype>
 #include <cstring>
 
+#include <Arduino.h>
+
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
@@ -63,6 +65,15 @@ void ChapterHtmlSlimParser::loadCssRules() {
   if (cssLoaded) return;
 
   cssParser.clear();
+
+  // Same idea as crosspoint-reader MIN_FREE_HEAP_FOR_CSS: avoid parsing a full stylesheet when malloc is likely to fail.
+  constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
+  if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
+    Serial.printf("[EHP] Low heap (%u bytes), skipping EPUB CSS cascade (use fixed alignment / inline styles only)\n",
+                  static_cast<unsigned>(ESP.getFreeHeap()));
+    cssLoaded = true;
+    return;
+  }
 
   // Get all CSS files from the EPUB
   int cssCount = epub.getCssItemsCount();
