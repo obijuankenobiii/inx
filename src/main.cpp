@@ -10,8 +10,6 @@
 #include <new>
 #include <string>
 
-#include "activity/network/BluetoothActivity.h"
-#include "system/BluetoothManager.h"
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
@@ -158,9 +156,6 @@ void onNetworkModeSelected(NetworkMode mode) {
     case NetworkMode::CREATE_HOTSPOT:
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
       break;
-    case NetworkMode::ADD_BLUETOOTH:
-      switchTo<BluetoothActivity>(render, input, onGoToFileTransfer);
-      break;
   }
 }
 
@@ -237,8 +232,6 @@ void setupDisplayAndFonts() {
 void setup() {
   t1 = millis();
   gpio.begin();
-  BluetoothManager::getInstance().setBleButtonSink(
-      [](const uint8_t halBtn) { gpio.injectOneShotPress(halBtn); });
   setupDisplayAndFonts();
 
   if (gpio.isUsbConnected()) {

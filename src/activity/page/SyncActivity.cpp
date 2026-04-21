@@ -2,14 +2,12 @@
 
 #include <GfxRenderer.h>
 
-#include "../network/BluetoothActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
-#include "images/Bluetooth.h"
 
 namespace {
 /**
@@ -127,10 +125,6 @@ void SyncActivity::loop() {
       mode = NetworkMode::CREATE_HOTSPOT;
     }
 
-    if (selectedIndex == 3) {
-      mode = NetworkMode::ADD_BLUETOOTH;
-    }
-
     if (onModeSelected) {
       onModeSelected(mode);
     }
@@ -227,9 +221,6 @@ void SyncActivity::render() const {
           break;
         case 2:  // Create Hotspot
           renderer.drawIcon(Qr, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
-          break;
-        case 3:  // Bluetooth
-          renderer.drawIcon(Bluetooth, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       

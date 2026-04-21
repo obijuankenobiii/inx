@@ -8,7 +8,7 @@
 #include "../ActivityWithSubactivity.h"
 #include "../Menu.h"
 
-enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT, ADD_BLUETOOTH };
+enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT };
 
 class SyncActivity final : public ActivityWithSubactivity, public Menu {
  public:
