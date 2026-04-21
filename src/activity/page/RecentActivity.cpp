@@ -1027,8 +1027,8 @@ void RecentActivity::renderFlow() {
     }
   }
 
-  int centerW = 198;
-  int centerH = 298;
+  int centerW = 218;
+  int centerH = 318;
   int centerX = carouselX + (carouselW - centerW) / 2;
   int centerY = carouselY + (carouselH - centerH) / 2 + 4;
 
@@ -1136,7 +1136,7 @@ void RecentActivity::renderFlow() {
   }
 
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
   int statsX = 30;
   int statsY = carouselY + carouselH + 25;
