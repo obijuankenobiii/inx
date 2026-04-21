@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstring>
 
+class Print;
+
 struct BmpHeader;
 
 // Helper functions
@@ -330,4 +332,22 @@ class FloydSteinbergDitherer {
   int rowCount;
   int16_t* errorCurRow;
   int16_t* errorNextRow;
+};
+
+// EPUB in-body images: match web FilesPage 2-bit pipeline (contain max 500×820, BT.601 rounded luma,
+// nearest {0,85,170,255}, Floyd–Steinberg 7/16–3/16–5/16–1/16, BMP pack thresholds 42/127/212).
+uint8_t epubWebRgb565ToGray8Rounded(uint16_t rgb565LittleEndian);
+void epubWebContainDimensionsFloor(int srcW, int srcH, int maxW, int maxH, int* outW, int* outH);
+void epubWebWrite2BitBmpHeader(Print& bmpOut, int width, int height);
+
+struct EpubWeb2BitRowPacker {
+  int dw = 0;
+  int bytesPerRow = 0;
+  uint8_t* rowBuffer = nullptr;
+  int16_t* errorBuffers = nullptr;
+  int rowIndex = 0;
+
+  bool init(int width);
+  void freeBuffers();
+  bool writeGrayRow(Print& bmpOut, const uint8_t* grayRow);
 };

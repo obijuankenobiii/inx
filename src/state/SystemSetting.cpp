@@ -26,7 +26,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 11;
+constexpr uint8_t SETTINGS_FILE_VERSION = 12;
 constexpr uint8_t SETTINGS_COUNT = 41;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
@@ -144,9 +144,9 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 10, 9, 8, 7, 6, 3);
+      version != 9 && version != 10 && version != 11) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 11, 10, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -383,14 +383,29 @@ bool SystemSetting::loadFromFile() {
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
 
-  // v10 stored IMAGE_PRESENTATION_BALANCED=0 / FULL_GRAY=1. v11: BALANCE=0 / DARK=1; legacy byte 1 was full-gray look → BALANCE.
+  // v10 stored two-level presentation; byte 1 remapped to same tier as byte 0 for v11 file layout.
   if (version == 10) {
     if (readerImagePresentation == 1u) {
-      readerImagePresentation = IMAGE_PRESENTATION_BALANCE;
+      readerImagePresentation = 0u;
     }
     if (displayImagePresentation == 1u) {
-      displayImagePresentation = IMAGE_PRESENTATION_BALANCE;
+      displayImagePresentation = 0u;
     }
+  }
+
+  // v12+: Low (0) / Medium (1) / High (2). v10–v11 files stored old two-level 0/1 (balance / dark).
+  if (version == 10 || version == 11) {
+    auto mapLegacyPresentation = [](uint8_t& p) {
+      if (p == 0u) {
+        p = SystemSetting::IMAGE_PRESENTATION_MEDIUM;
+      } else if (p == 1u) {
+        p = SystemSetting::IMAGE_PRESENTATION_HIGH;
+      } else if (p >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        p = SystemSetting::IMAGE_PRESENTATION_MEDIUM;
+      }
+    };
+    mapLegacyPresentation(readerImagePresentation);
+    mapLegacyPresentation(displayImagePresentation);
   }
 
   return true;

@@ -34,13 +34,12 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-constexpr int MENU_ITEM_COUNT = 4;  // Changed from 3 to 4
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "Bluetooth"};
+constexpr int MENU_ITEM_COUNT = 3;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
 const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
     "Connect to an existing WiFi network",
     "Use Calibre wireless device transfers",
     "Create a WiFi network others can join",
-    "Connect Bluetooth devices",
 };
 constexpr int LIST_ITEM_HEIGHT = 80;
 }  // namespace

@@ -1,7 +1,10 @@
 #include "PngToBmpConverter.h"
+
+#include <BitmapHelpers.h>
 #include <PNGdec.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 static PNG png;
@@ -40,12 +43,18 @@ static void pngClose(void *pHandle) {}
 
 int PNGDrawCallback(PNGDRAW *pDraw) {
     if (!g_state) return 0;
-    
-    uint16_t line[pDraw->iWidth];
+
+    const int lw = pDraw->iWidth;
+    if (lw <= 0) return 1;
+    uint16_t* line = static_cast<uint16_t*>(malloc(static_cast<size_t>(lw) * sizeof(uint16_t)));
+    if (!line) return 0;
     png.getLineAsRGB565(pDraw, line, PNG_RGB565_LITTLE_ENDIAN, 0xFFFFFFFF);
 
     int outY = (pDraw->y * g_state->dh) / g_state->sh;
-    if (outY >= g_state->dh) return 1;
+    if (outY >= g_state->dh) {
+        free(line);
+        return 1;
+    }
 
     // 4x4 Bayer Matrix (Values 0-255)
     static const uint8_t bayer[4][4] = {
@@ -55,7 +64,7 @@ int PNGDrawCallback(PNGDRAW *pDraw) {
         { 240, 120, 210,  90 }
     };
 
-    for (int x = 0; x < pDraw->iWidth; x++) {
+    for (int x = 0; x < lw; x++) {
         int outX = (x * g_state->dw) / g_state->sw;
         if (outX >= g_state->dw) continue;
 
@@ -76,6 +85,7 @@ int PNGDrawCallback(PNGDRAW *pDraw) {
         }
         // Else stays 0 (Index 0: BLACK)
     }
+    free(line);
     return 1;
 }
 
@@ -239,10 +249,13 @@ int PNGDrawCallbackThumbGray(PNGDRAW* pDraw) {
   if (!g_pngThumbGray || !g_pngThumbGray->gray) {
     return 0;
   }
-  uint16_t line[pDraw->iWidth];
+  const int lw = pDraw->iWidth;
+  if (lw <= 0) return 1;
+  uint16_t* line = static_cast<uint16_t*>(malloc(static_cast<size_t>(lw) * sizeof(uint16_t)));
+  if (!line) return 0;
   png.getLineAsRGB565(pDraw, line, PNG_RGB565_LITTLE_ENDIAN, 0xFFFFFFFF);
   PngThumbGrayState* st = g_pngThumbGray;
-  for (int x = 0; x < pDraw->iWidth; x++) {
+  for (int x = 0; x < lw; x++) {
     const int outX = (x * st->dw) / st->sw;
     const int outY = (pDraw->y * st->dh) / st->sh;
     if (outX < 0 || outX >= st->dw || outY < 0 || outY >= st->dh) {
@@ -255,10 +268,77 @@ int PNGDrawCallbackThumbGray(PNGDRAW* pDraw) {
     const int gray = (r * 77 + g * 150 + b * 29) >> 8;
     st->gray[outY * st->dw + outX] = static_cast<uint8_t>(gray);
   }
+  free(line);
   return 1;
 }
 
 }  // namespace
+
+struct PngEpubWebDrawState {
+  Print* bmpOut = nullptr;
+  EpubWeb2BitRowPacker* packer = nullptr;
+  int sw = 0;
+  int sh = 0;
+  int dw = 0;
+  int dh = 0;
+  uint8_t* grayDw = nullptr;
+  int oy = 0;
+  int lastMappedSy = -1;
+  bool haveCachedDownsample = false;
+};
+
+static PngEpubWebDrawState* g_pngEpubWeb = nullptr;
+
+static int PNGDrawCallbackEpubWeb(PNGDRAW* pDraw) {
+  if (!g_pngEpubWeb || !g_pngEpubWeb->bmpOut || !g_pngEpubWeb->packer || !g_pngEpubWeb->grayDw) {
+    return 0;
+  }
+  PngEpubWebDrawState* st = g_pngEpubWeb;
+  if (st->oy >= st->dh) {
+    return 0;
+  }
+
+  const int sy = (st->dh <= 1) ? 0 : std::min(st->sh - 1, (st->oy * st->sh) / st->dh);
+  if (pDraw->y < sy) {
+    return 1;
+  }
+  if (pDraw->y > sy) {
+    return 0;
+  }
+
+  const int lw = pDraw->iWidth;
+  if (lw <= 0) {
+    return 1;
+  }
+  uint16_t* line = static_cast<uint16_t*>(malloc(static_cast<size_t>(lw) * sizeof(uint16_t)));
+  if (!line) {
+    return 0;
+  }
+  png.getLineAsRGB565(pDraw, line, PNG_RGB565_LITTLE_ENDIAN, 0xFFFFFFFF);
+
+  if (!(st->haveCachedDownsample && st->lastMappedSy == sy)) {
+    for (int ox = 0; ox < st->dw; ox++) {
+      const int sx = (st->dw <= 1) ? 0 : std::min(st->sw - 1, (ox * st->sw) / st->dw);
+      st->grayDw[ox] = epubWebRgb565ToGray8Rounded(line[sx]);
+    }
+    st->haveCachedDownsample = true;
+    st->lastMappedSy = sy;
+  }
+  free(line);
+
+  while (st->oy < st->dh) {
+    const int syNeed = (st->dh <= 1) ? 0 : std::min(st->sh - 1, (st->oy * st->sh) / st->dh);
+    if (syNeed != pDraw->y) {
+      break;
+    }
+    if (!st->packer->writeGrayRow(*st->bmpOut, st->grayDw)) {
+      return 0;
+    }
+    st->oy++;
+  }
+
+  return (st->oy >= st->dh) ? 0 : 1;
+}
 
 bool PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetW, int targetH,
                                                       bool cropToFill) {
@@ -389,4 +469,61 @@ bool PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(FsFile& pngFile, Print& b
   free(gray);
   pngFile.seek(originalPos);
   return true;
+}
+
+bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Print& bmpOut) {
+  const uint32_t originalPos = pngFile.position();
+  pngFile.seek(0);
+
+  int rc = png.open((const char*)&pngFile, pngOpen, pngClose, pngRead, pngSeek, PNGDrawCallbackEpubWeb);
+  if (rc != 0) {
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  const int sw = png.getWidth();
+  const int sh = png.getHeight();
+  if (sw <= 0 || sh <= 0) {
+    png.close();
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  int dw = 0;
+  int dh = 0;
+  epubWebContainDimensionsFloor(sw, sh, 500, 820, &dw, &dh);
+
+  epubWebWrite2BitBmpHeader(bmpOut, dw, dh);
+
+  uint8_t* grayDw = static_cast<uint8_t*>(malloc(static_cast<size_t>(dw)));
+  EpubWeb2BitRowPacker packer;
+  if (!grayDw || !packer.init(dw)) {
+    free(grayDw);
+    packer.freeBuffers();
+    png.close();
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  PngEpubWebDrawState st;
+  st.bmpOut = &bmpOut;
+  st.packer = &packer;
+  st.sw = sw;
+  st.sh = sh;
+  st.dw = dw;
+  st.dh = dh;
+  st.grayDw = grayDw;
+  st.oy = 0;
+  st.lastMappedSy = -1;
+  st.haveCachedDownsample = false;
+
+  g_pngEpubWeb = &st;
+  rc = png.decode(nullptr, 0);
+  png.close();
+  g_pngEpubWeb = nullptr;
+
+  packer.freeBuffers();
+  free(grayDw);
+  pngFile.seek(originalPos);
+  return (rc == 0) && (st.oy == dh);
 }

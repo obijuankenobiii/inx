@@ -4,18 +4,26 @@
 
 #include "state/SystemSetting.h"
 
-/** Reader "Contrast" → scaled bitmap gray style (Balance = former full-gray pipeline). */
+/** Reader image contrast (Low / Medium / High) → scaled bitmap gray style. */
 inline GfxRenderer::BitmapGrayRenderStyle readerImageBitmapGrayStyle() {
-  if (SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_DARK) {
-    return GfxRenderer::BitmapGrayRenderStyle::Dark;
+  switch (SETTINGS.readerImagePresentation) {
+    case SystemSetting::IMAGE_PRESENTATION_HIGH:
+      return GfxRenderer::BitmapGrayRenderStyle::Dark;
+    case SystemSetting::IMAGE_PRESENTATION_MEDIUM:
+      return GfxRenderer::BitmapGrayRenderStyle::FullGray;
+    default:
+      return GfxRenderer::BitmapGrayRenderStyle::Balanced;
   }
-  return GfxRenderer::BitmapGrayRenderStyle::FullGray;
 }
 
-/** System/library/sleep/stats "Contrast" → same mapping as reader. */
+/** System/library/sleep/stats image contrast → same mapping as reader. */
 inline GfxRenderer::BitmapGrayRenderStyle displayImageBitmapGrayStyle() {
-  if (SETTINGS.displayImagePresentation == SystemSetting::IMAGE_PRESENTATION_DARK) {
-    return GfxRenderer::BitmapGrayRenderStyle::Dark;
+  switch (SETTINGS.displayImagePresentation) {
+    case SystemSetting::IMAGE_PRESENTATION_HIGH:
+      return GfxRenderer::BitmapGrayRenderStyle::Dark;
+    case SystemSetting::IMAGE_PRESENTATION_MEDIUM:
+      return GfxRenderer::BitmapGrayRenderStyle::FullGray;
+    default:
+      return GfxRenderer::BitmapGrayRenderStyle::Balanced;
   }
-  return GfxRenderer::BitmapGrayRenderStyle::FullGray;
 }

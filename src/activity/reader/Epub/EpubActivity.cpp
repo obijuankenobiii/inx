@@ -8,6 +8,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+#include <esp_task_wdt.h>
 #include <time.h>
 
 #include "KOReaderCredentialStore.h"
@@ -455,12 +456,16 @@ void EpubActivity::preloadChapters() {
   int chaptersToCache = std::min(8, totalSpineItems);
 
   for (int i = 1; i < chaptersToCache; i++) {
+    esp_task_wdt_reset();
     buildSection(i, info, false, false);
+    vTaskDelay(pdMS_TO_TICKS(30));
   }
 
   int nextChapterIndex = currentSpineIndex + 1;
   if (nextChapterIndex < epub->getSpineItemsCount()) {
+    esp_task_wdt_reset();
     buildSection(nextChapterIndex, info, false, false);
+    vTaskDelay(pdMS_TO_TICKS(30));
   }
 }
 
@@ -1088,10 +1093,11 @@ void EpubActivity::generateFullData() {
   int totalSpineItems = epub->getSpineItemsCount();
 
   for (int i = 0; i < totalSpineItems; i++) {
+    esp_task_wdt_reset();
     loadingProgress = (i * 100) / totalSpineItems;
     drawLoadingScreen();
     buildSection(i, info, false);
-    vTaskDelay(10);
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 
   loadingProgress = 100;

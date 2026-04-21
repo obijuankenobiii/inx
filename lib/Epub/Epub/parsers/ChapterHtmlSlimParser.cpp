@@ -559,17 +559,20 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
  * @return true if dimensions were successfully read
  */
 bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, int* h) {
+  *w = 0;
+  *h = 0;
   FsFile file;
   if (!SdMan.openFileForRead("EHP", path, file)) return false;
 
   Bitmap bitmap(file);
-  if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+  const bool ok = (bitmap.parseHeaders() == BmpReaderError::Ok);
+  if (ok) {
     *w = bitmap.getWidth();
     *h = bitmap.getHeight();
   }
 
   file.close();
-  return (*w > 0 && *h > 0);
+  return ok && (*w > 0) && (*h > 0);
 }
 
 /**
@@ -634,7 +637,10 @@ void ChapterHtmlSlimParser::makePages() {
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
   if (SdMan.exists(cacheImgPath.c_str())) {
-    return getBmpDimensions(cacheImgPath, w, h);
+    if (getBmpDimensions(cacheImgPath, w, h)) {
+      return true;
+    }
+    SdMan.remove(cacheImgPath.c_str());
   }
 
   if (skipImages) return false;

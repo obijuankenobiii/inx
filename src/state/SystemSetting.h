@@ -264,11 +264,12 @@ public:
     };
 
     /**
-     * @brief Bitmap "Contrast" for reader and system images (2bpp → BW when scaled).
+     * @brief Bitmap contrast / ink weight for reader and system images (2bpp → BW when scaled).
      */
     enum READER_IMAGE_PRESENTATION {
-        IMAGE_PRESENTATION_BALANCE = 0, ///< Former full-gray: ink light + dark gray halftones
-        IMAGE_PRESENTATION_DARK = 1,  ///< Darker: tighter snap + heavier halftone toward ink
+        IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
+        IMAGE_PRESENTATION_MEDIUM = 1, ///< Default: full-gray halftone (former “Balance”)
+        IMAGE_PRESENTATION_HIGH = 2,   ///< Strongest: tighter snap + more ink (former “Dark”)
         READER_IMAGE_PRESENTATION_COUNT
     };
 
@@ -368,13 +369,13 @@ public:
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
     /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
-    uint8_t readerImagePresentation = IMAGE_PRESENTATION_BALANCE;
+    uint8_t readerImagePresentation = IMAGE_PRESENTATION_MEDIUM;
     /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
     uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
     /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
     uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
     /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
-    uint8_t displayImagePresentation = IMAGE_PRESENTATION_BALANCE;
+    uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
 
     ~SystemSetting() = default;
 

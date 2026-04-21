@@ -1,7 +1,11 @@
 #include "BitmapHelpers.h"
 
+#include <Print.h>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
-#include <cstring>  // Added for memset
+#include <cstdlib>
+#include <cstring>
 
 #include "Bitmap.h"
 
@@ -205,4 +209,135 @@ void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder ro
   bmpHeader->colors[1].rgbGreen = 255;
   bmpHeader->colors[1].rgbRed = 255;
   bmpHeader->colors[1].rgbReserved = 0;
+}
+
+namespace {
+
+inline void epubWebWrite16(Print& out, uint16_t v) {
+  out.write(static_cast<uint8_t>(v & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 8) & 0xFF));
+}
+
+inline void epubWebWrite32(Print& out, uint32_t v) {
+  out.write(static_cast<uint8_t>(v & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 8) & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 16) & 0xFF));
+  out.write(static_cast<uint8_t>((v >> 24) & 0xFF));
+}
+
+inline void epubWebWrite32Signed(Print& out, int32_t v) { epubWebWrite32(out, static_cast<uint32_t>(v)); }
+
+}  // namespace
+
+uint8_t epubWebRgb565ToGray8Rounded(uint16_t p) {
+  const int r = ((p >> 11) & 0x1F) << 3;
+  const int g = ((p >> 5) & 0x3F) << 2;
+  const int b = (p & 0x1F) << 3;
+  return static_cast<uint8_t>((r * 77 + g * 150 + b * 29 + 128) / 256);
+}
+
+void epubWebContainDimensionsFloor(int srcW, int srcH, int maxW, int maxH, int* outW, int* outH) {
+  int dw = srcW;
+  int dh = srcH;
+  if (srcW > maxW || srcH > maxH) {
+    const double sx = static_cast<double>(maxW) / static_cast<double>(srcW);
+    const double sy = static_cast<double>(maxH) / static_cast<double>(srcH);
+    const double s = std::min(sx, sy);
+    dw = std::max(1, static_cast<int>(std::floor(static_cast<double>(srcW) * s)));
+    dh = std::max(1, static_cast<int>(std::floor(static_cast<double>(srcH) * s)));
+  }
+  *outW = dw;
+  *outH = dh;
+}
+
+void epubWebWrite2BitBmpHeader(Print& bmpOut, int width, int height) {
+  const int bytesPerRow = (width * 2 + 31) / 32 * 4;
+  const int imageSize = bytesPerRow * height;
+  bmpOut.write('B');
+  bmpOut.write('M');
+  epubWebWrite32(bmpOut, 70u + static_cast<uint32_t>(imageSize));
+  epubWebWrite32(bmpOut, 0);
+  epubWebWrite32(bmpOut, 70);
+  epubWebWrite32(bmpOut, 40);
+  epubWebWrite32Signed(bmpOut, width);
+  epubWebWrite32Signed(bmpOut, -height);
+  epubWebWrite16(bmpOut, 1);
+  epubWebWrite16(bmpOut, 2);
+  epubWebWrite32(bmpOut, 0);
+  epubWebWrite32(bmpOut, static_cast<uint32_t>(imageSize));
+  epubWebWrite32(bmpOut, 2835);
+  epubWebWrite32(bmpOut, 2835);
+  epubWebWrite32(bmpOut, 4);
+  epubWebWrite32(bmpOut, 4);
+  static const uint8_t kPal[16] = {0, 0, 0, 0, 85, 85, 85, 0, 170, 170, 170, 0, 255, 255, 255, 0};
+  for (size_t i = 0; i < sizeof(kPal); i++) {
+    bmpOut.write(kPal[i]);
+  }
+}
+
+bool EpubWeb2BitRowPacker::init(int width) {
+  freeBuffers();
+  if (width <= 0) return false;
+  dw = width;
+  bytesPerRow = (dw * 2 + 31) / 32 * 4;
+  rowBuffer = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(bytesPerRow), 1));
+  errorBuffers = static_cast<int16_t*>(std::calloc(static_cast<size_t>(dw) * 2u, sizeof(int16_t)));
+  if (!rowBuffer || !errorBuffers) {
+    freeBuffers();
+    return false;
+  }
+  rowIndex = 0;
+  return true;
+}
+
+void EpubWeb2BitRowPacker::freeBuffers() {
+  std::free(rowBuffer);
+  rowBuffer = nullptr;
+  std::free(errorBuffers);
+  errorBuffers = nullptr;
+  dw = 0;
+  bytesPerRow = 0;
+  rowIndex = 0;
+}
+
+bool EpubWeb2BitRowPacker::writeGrayRow(Print& bmpOut, const uint8_t* grayRow) {
+  if (!rowBuffer || !errorBuffers || !grayRow || dw <= 0) return false;
+  std::memset(rowBuffer, 0, static_cast<size_t>(bytesPerRow));
+  int16_t* cur = &errorBuffers[(rowIndex & 1) * dw];
+  int16_t* nxt = &errorBuffers[((rowIndex + 1) & 1) * dw];
+  std::memset(nxt, 0, static_cast<size_t>(dw) * sizeof(int16_t));
+
+  for (int x = 0; x < dw; x++) {
+    int16_t corrected = static_cast<int16_t>(grayRow[x]) + cur[x];
+    if (corrected < 0) corrected = 0;
+    if (corrected > 255) corrected = 255;
+
+    uint8_t twoBit = 0;
+    uint8_t quantized = 0;
+    if (corrected < 42) {
+      twoBit = 0;
+      quantized = 0;
+    } else if (corrected < 127) {
+      twoBit = 1;
+      quantized = 85;
+    } else if (corrected < 212) {
+      twoBit = 2;
+      quantized = 170;
+    } else {
+      twoBit = 3;
+      quantized = 255;
+    }
+
+    const int16_t err = static_cast<int16_t>(corrected - static_cast<int16_t>(quantized));
+    if (x < dw - 1) cur[x + 1] += static_cast<int16_t>((err * 7) / 16);
+    nxt[x] += static_cast<int16_t>((err * 5) / 16);
+    if (x > 0) nxt[x - 1] += static_cast<int16_t>((err * 3) / 16);
+    if (x < dw - 1) nxt[x + 1] += static_cast<int16_t>((err * 1) / 16);
+
+    rowBuffer[(x * 2) / 8] |= static_cast<uint8_t>(twoBit << (6 - ((x * 2) % 8)));
+  }
+
+  bmpOut.write(rowBuffer, static_cast<size_t>(bytesPerRow));
+  rowIndex++;
+  return true;
 }

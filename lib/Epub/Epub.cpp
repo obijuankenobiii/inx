@@ -93,15 +93,16 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
 }
 
 /**
- * @brief Extracts an image from the EPUB and converts it to 1-bit BMP.
+ * @brief Extracts an image from the EPUB and converts it for in-body rendering.
  *
- * For BMP sources, the file is copied directly without conversion.
- * For PNG and JPEG sources, the image is converted to 1-bit BMP format.
+ * BMP sources are copied as-is. PNG/JPEG use the same 2-bit Floyd–Steinberg pipeline as the web
+ * Files page (contain within 500×820, BT.601 rounded luma, palette 0/85/170/255, pack thresholds
+ * 42/127/212). Thumbnails, covers, and full-screen extraction use other entry points.
  *
  * @param itemHref Internal path to the image file
  * @param outBmpPath Output path for the converted BMP file
- * @param targetW Target width for resizing (0 for no resize)
- * @param targetH Target height for resizing (0 for no resize)
+ * @param targetW Ignored for PNG/JPEG (kept for API compatibility with callers)
+ * @param targetH Ignored for PNG/JPEG
  * @return true if extraction and conversion succeeded, false otherwise
  */
 bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW,
@@ -142,19 +143,15 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
     }
     success = true;
   } else if (isPngFile(itemHref)) {
-    Serial.printf("[EBP] Converting PNG: %s\n", itemHref.c_str());
-    if (targetW > 0 && targetH > 0) {
-      success = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, targetW, targetH);
-    } else {
-      success = PngToBmpConverter::pngFileTo1BitBmpStream(sourceFile, destFile);
-    }
+    (void)targetW;
+    (void)targetH;
+    Serial.printf("[EBP] Converting PNG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    success = PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
   } else {
-    Serial.printf("[EBP] Converting as JPEG: %s\n", itemHref.c_str());
-    if (targetW > 0 && targetH > 0) {
-      success = JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(sourceFile, destFile, targetW, targetH);
-    } else {
-      success = JpegToBmpConverter::jpegFileToBmpStream(sourceFile, destFile);
-    }
+    (void)targetW;
+    (void)targetH;
+    Serial.printf("[EBP] Converting JPEG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    success = JpegToBmpConverter::jpegFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
   }
 
   sourceFile.close();

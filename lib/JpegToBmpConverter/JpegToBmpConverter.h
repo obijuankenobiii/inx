@@ -31,6 +31,9 @@ class JpegToBmpConverter {
   static bool jpegFileToBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool cropToFill = true);
 
+  /** EPUB body images: 2-bit BMP matching web reader (contain 500×820, FS dither, 42/127/212). */
+  static bool jpegFileToEpubWebStyle2BitBmpStream(FsFile& jpegFile, Print& bmpOut);
+
   /**
    * Resize a 1-bit BMP file to new dimensions
    * @param bmpFile Source BMP file (must be 1-bit)

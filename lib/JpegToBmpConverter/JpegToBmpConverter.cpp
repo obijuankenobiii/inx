@@ -234,7 +234,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(
 
   // Pre-allocate all buffers at once
   uint8_t* rowBuffer = (uint8_t*)malloc(bytesPerRow);
-  uint8_t* mcuRowBuffer = (uint8_t*)malloc(imageInfo.m_width * imageInfo.m_MCUHeight);
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight));
   
   // Use a single accumulator structure instead of separate arrays
   struct PixelAccumulator {
@@ -248,7 +249,7 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(
   struct ScaleMapEntry {
     uint16_t startX;
     uint16_t endX;
-    uint8_t count;
+    uint16_t count;
   };
   
   ScaleMapEntry* scaleMap = new ScaleMapEntry[outWidth];
@@ -549,7 +550,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
   }
 
   uint8_t* rowBuffer = (uint8_t*)malloc(bytesPerRow);
-  uint8_t* mcuRowBuffer = (uint8_t*)malloc(imageInfo.m_width * imageInfo.m_MCUHeight);
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight));
   uint32_t* rowAccum = new uint32_t[outWidth]();
   uint16_t* rowCount = new uint16_t[outWidth]();
   
@@ -835,7 +837,8 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(
 
   // Allocate buffers
   uint8_t* rowBuffer = (uint8_t*)malloc(bytesPerRow);
-  uint8_t* mcuRowBuffer = (uint8_t*)malloc(imageInfo.m_width * imageInfo.m_MCUHeight);
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight));
   uint32_t* rowAccum = new uint32_t[outWidth]();
   uint16_t* rowCount = new uint16_t[outWidth]();
 
@@ -1036,7 +1039,8 @@ bool JpegToBmpConverter::jpegFileTo1BitThumbnailBmp(
   for (const uint8_t i : palette) bmpOut.write(i);
 
   uint8_t* rowBuffer = (uint8_t*)malloc(bytesPerRow);
-  uint8_t* mcuRowBuffer = (uint8_t*)malloc(imageInfo.m_width * imageInfo.m_MCUHeight);
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight));
   uint32_t* rowAccum = new uint32_t[outWidth]();
   uint16_t* rowCount = new uint16_t[outWidth]();
   
@@ -1214,7 +1218,8 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(
 
   // Pre-allocate buffers
   uint8_t* rowBuffer = (uint8_t*)malloc(bytesPerRow);
-  uint8_t* mcuRowBuffer = (uint8_t*)malloc(imageInfo.m_width * imageInfo.m_MCUHeight);
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight));
   int16_t* errorBuffer = new int16_t[targetMaxWidth * 2]();
   
   // Pre-compute scale mapping for all output columns
@@ -1380,6 +1385,130 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(
   delete[] fadeFactors;
   delete[] srcYThresholds;
   
+  return true;
+}
+
+bool JpegToBmpConverter::jpegFileToEpubWebStyle2BitBmpStream(FsFile& jpegFile, Print& bmpOut) {
+  if (isUnsupportedJpeg(jpegFile)) return false;
+
+  JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
+  pjpeg_image_info_t imageInfo;
+  if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
+
+  const int sw = imageInfo.m_width;
+  const int sh = imageInfo.m_height;
+  if (sw <= 0 || sh <= 0) return false;
+
+  int dw = 0;
+  int dh = 0;
+  epubWebContainDimensionsFloor(sw, sh, 500, 820, &dw, &dh);
+
+  epubWebWrite2BitBmpHeader(bmpOut, dw, dh);
+
+  const int mcuWidth = imageInfo.m_MCUWidth;
+  const int mcuHeight = imageInfo.m_MCUHeight;
+  const int imgWidth = imageInfo.m_width;
+  const int imgHeight = imageInfo.m_height;
+  const bool isGrayscale = (imageInfo.m_comps == 1);
+  const int mcusPerRow = imageInfo.m_MCUSPerRow;
+
+  uint8_t* mcuRowBuffer =
+      (uint8_t*)malloc(static_cast<size_t>(imgWidth) * static_cast<size_t>(mcuHeight));
+  uint8_t* grayDw = (uint8_t*)malloc(static_cast<size_t>(dw));
+  if (!mcuRowBuffer || !grayDw) {
+    free(mcuRowBuffer);
+    free(grayDw);
+    return false;
+  }
+
+  EpubWeb2BitRowPacker packer;
+  if (!packer.init(dw)) {
+    free(mcuRowBuffer);
+    free(grayDw);
+    return false;
+  }
+
+  auto decodeStripe = [&]() -> bool {
+    for (int mcuX = 0; mcuX < mcusPerRow; mcuX++) {
+      if (pjpeg_decode_mcu() != 0) return false;
+
+      if (isGrayscale) {
+        for (int bY = 0; bY < mcuHeight; bY++) {
+          uint8_t* destRow = mcuRowBuffer + bY * imgWidth;
+          for (int bX = 0; bX < mcuWidth; bX++) {
+            int pX = mcuX * mcuWidth + bX;
+            if (pX >= imgWidth) continue;
+
+            int off = (bY / 8 * (mcuWidth / 8) + bX / 8) * 64 + (bY % 8) * 8 + (bX % 8);
+            destRow[pX] = imageInfo.m_pMCUBufR[off];
+          }
+        }
+      } else {
+        const uint8_t* rBuf = imageInfo.m_pMCUBufR;
+        const uint8_t* gBuf = imageInfo.m_pMCUBufG;
+        const uint8_t* bBuf = imageInfo.m_pMCUBufB;
+
+        for (int bY = 0; bY < mcuHeight; bY++) {
+          uint8_t* destRow = mcuRowBuffer + bY * imgWidth;
+          for (int bX = 0; bX < mcuWidth; bX++) {
+            int pX = mcuX * mcuWidth + bX;
+            if (pX >= imgWidth) continue;
+
+            int off = (bY / 8 * (mcuWidth / 8) + bX / 8) * 64 + (bY % 8) * 8 + (bX % 8);
+            destRow[pX] = (rBuf[off] * 77 + gBuf[off] * 150 + bBuf[off] * 29) >> 8;
+          }
+        }
+      }
+    }
+    return true;
+  };
+
+  int stripeMcuY = -1;
+
+  for (int oy = 0; oy < dh; oy++) {
+    const int sy = (dh <= 1) ? 0 : std::min(sh - 1, (oy * sh) / dh);
+
+    while (stripeMcuY < 0 || sy < stripeMcuY * mcuHeight || sy >= stripeMcuY * mcuHeight + mcuHeight) {
+      stripeMcuY++;
+      if (stripeMcuY >= imageInfo.m_MCUSPerCol) {
+        packer.freeBuffers();
+        free(mcuRowBuffer);
+        free(grayDw);
+        return false;
+      }
+      if (!decodeStripe()) {
+        packer.freeBuffers();
+        free(mcuRowBuffer);
+        free(grayDw);
+        return false;
+      }
+    }
+
+    const int rowInStripe = sy - stripeMcuY * mcuHeight;
+    if (rowInStripe < 0 || rowInStripe >= mcuHeight || sy >= imgHeight) {
+      packer.freeBuffers();
+      free(mcuRowBuffer);
+      free(grayDw);
+      return false;
+    }
+
+    const uint8_t* srcRow = mcuRowBuffer + rowInStripe * imgWidth;
+    for (int ox = 0; ox < dw; ox++) {
+      const int sx = (dw <= 1) ? 0 : std::min(sw - 1, (ox * sw) / dw);
+      grayDw[ox] = srcRow[sx];
+    }
+
+    if (!packer.writeGrayRow(bmpOut, grayDw)) {
+      packer.freeBuffers();
+      free(mcuRowBuffer);
+      free(grayDw);
+      return false;
+    }
+  }
+
+  packer.freeBuffers();
+  free(mcuRowBuffer);
+  free(grayDw);
   return true;
 }
 

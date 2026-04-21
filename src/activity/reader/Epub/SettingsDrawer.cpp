@@ -315,7 +315,14 @@ void SettingsDrawer::setupMenu() {
     presEntry.group = GroupType::IMAGE;
     presEntry.name = "Contrast";
     presEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImagePresentation == SystemSetting::IMAGE_PRESENTATION_DARK ? "Dark" : "Balance";
+      switch (SETTINGS.readerImagePresentation) {
+        case SystemSetting::IMAGE_PRESENTATION_LOW:
+          return "Low";
+        case SystemSetting::IMAGE_PRESENTATION_HIGH:
+          return "High";
+        default:
+          return "Medium";
+      }
     };
     presEntry.change = [](BookSettings&, int delta) {
       int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;

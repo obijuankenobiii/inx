@@ -17,7 +17,7 @@ const int LIST_ITEM_HEIGHT = 60;
 namespace {
 constexpr int systemPageSettingsCount = 24;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
-    SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
+    SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
                       {"Dark","Light","Custom","Recent Book","Transparent Cover","None"}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
@@ -36,7 +36,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::displayImagePresentation,
-        {"Balance","Dark"},
+        {"Low","Medium","High"},
         GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
@@ -47,7 +47,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore","Sleep","Page Refresh"},
                       GroupType::DEVICE_BUTTONS),
 
-    SettingInfo::Separator("Device & library", GroupType::DEVICE_ADVANCED),
+    SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min","5 min","10 min","15 min","30 min"},
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
@@ -102,7 +102,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::readerImagePresentation,
-        {"Balance","Dark"},
+        {"Low","Medium","High"},
         GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),

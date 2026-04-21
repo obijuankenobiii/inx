@@ -138,7 +138,7 @@ void LocalServer::begin() {
       File f = SPIFFS.open("/js/jszip.min.js", "r");
       Serial.printf("  Size: %d bytes\n", f.size());
       f.close();
-          server->serveStatic("/js", SPIFFS, "/js");
+      server->serveStatic("/js", SPIFFS, "/js");
     }
 
   }
