@@ -50,7 +50,10 @@ bool ExternalFont::load(const char* path) {
   uint8_t is2Bit;
   m_file.read(&is2Bit, 1);
 
-  m_fontData->advanceY = lineHeight;
+  int lh = static_cast<int>(lineHeight);
+  if (lh < 1) lh = 12;
+  if (lh > 255) lh = 255;
+  m_fontData->advanceY = static_cast<uint8_t>(lh);
   m_fontData->ascender = ascender;
   m_fontData->descender = descender;
   m_fontData->is2Bit = (is2Bit != 0);

@@ -32,17 +32,41 @@ std::vector<std::string> g_sdFamiliesSorted;
 }  // namespace
 
 /**
- * @brief Extracts font size from filename
+ * @brief Extracts font size from filename (pt), e.g. Regular_14.bin -> 14.
+ * Prefers the trailing "_<digits>" stem suffix so names like "4001_Regular_12.bin" still map to 12pt.
  */
 static int extractSizeFromFilename(const std::string& filename) {
+  const size_t dot = filename.rfind('.');
+  const std::string stem =
+      (dot != std::string::npos && dot > 0) ? filename.substr(0, dot) : filename;
+  const size_t us = stem.rfind('_');
+  if (us != std::string::npos && us + 1 < stem.size()) {
+    size_t j = us + 1;
+    while (j < stem.size() && isdigit(static_cast<unsigned char>(stem[j]))) {
+      ++j;
+    }
+    if (j > us + 1 && j == stem.size()) {
+      int v = 0;
+      for (size_t k = us + 1; k < j; ++k) {
+        v = v * 10 + (stem[k] - '0');
+        if (v > 128) {
+          v = 0;
+          break;
+        }
+      }
+      if (v > 0) return v;
+    }
+  }
+
   for (size_t i = 0; i < filename.length(); i++) {
-    if (isdigit(filename[i])) {
-      std::string numStr;
-      while (i < filename.length() && isdigit(filename[i])) {
-        numStr += filename[i];
+    if (isdigit(static_cast<unsigned char>(filename[i]))) {
+      long v = 0;
+      while (i < filename.length() && isdigit(static_cast<unsigned char>(filename[i]))) {
+        v = v * 10 + (filename[i] - '0');
+        if (v > 128) return 0;
         i++;
       }
-      return std::stoi(numStr);
+      return static_cast<int>(v);
     }
   }
   return 0;

@@ -7,6 +7,7 @@
 
   var MAGIC = 0x45504446;
   var VERSION = 1;
+  /** Reader font steps are treated as pt; use pt here too (px would look ~4/3 smaller). */
   var SIZES = [10, 12, 14, 16, 18];
   /** Codepoint ranges (BMP-focused; device uses uint32 CP search). */
   var CP_RANGES = [
@@ -73,9 +74,13 @@
     return out;
   }
 
+  function fontSpec(family, sizePt) {
+    return sizePt + 'pt "' + family + '"';
+  }
+
   function measureRef(ctx, family, size) {
     ctx.textBaseline = 'alphabetic';
-    ctx.font = size + 'px "' + family + '"';
+    ctx.font = fontSpec(family, size);
     var m = ctx.measureText('|');
     var asc = m.actualBoundingBoxAscent;
     var desc = m.actualBoundingBoxDescent;
@@ -102,7 +107,7 @@
     ctx.fillRect(0, 0, W, H);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#000000';
-    ctx.font = size + 'px "' + family + '"';
+    ctx.font = fontSpec(family, size);
     var ch = String.fromCodePoint(cp);
     var m = ctx.measureText(ch);
     var adv = Math.round(m.width);
@@ -211,7 +216,7 @@
     }
 
     if (!rows.length) {
-      throw new Error('No glyphs generated for ' + styleName + ' at ' + size + 'px');
+      throw new Error('No glyphs generated for ' + styleName + ' at ' + size + 'pt');
     }
 
     var enc = new TextEncoder();
@@ -303,7 +308,7 @@
           var sz = SIZES[si];
           step++;
           onProgress(step, totalSteps, job.key, sz);
-          await document.fonts.load(sz + 'px "' + fam + '"');
+          await document.fonts.load(sz + 'pt "' + fam + '"');
           var bytes = buildBin(job.key, fam, sz, cps);
           var fn = job.key + '_' + sz + '.bin';
           outBins.push({ filename: fn, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
