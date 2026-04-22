@@ -330,12 +330,6 @@ void CategorySettingsActivity::loop() {
       }
       needRedraw = true;
     }
-  } else if (leftPressed) {
-    applyChange(-1);
-    needRedraw = true;
-  } else if (rightPressed) {
-    applyChange(1);
-    needRedraw = true;
   } else if (confirmPressed) {
     if (selectedIndex >= 0 && selectedIndex < (int)menuItems.size()) {
       const auto& selected = menuItems[selectedIndex];

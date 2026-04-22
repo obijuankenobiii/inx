@@ -221,7 +221,6 @@ private:
 
     void syncLayoutFromRenderer();
     void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
-    static bool isLandscapeDrawer(const GfxRenderer& gfx);
 
     std::vector<BookmarkNavItem> bookmarkEntries;
     int bookmarkSelectedIndex = 0;

@@ -577,7 +577,7 @@ int SystemSetting::getReaderFontId() const {
   return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
 }
 
-void SystemSetting::runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const {
+void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer) const {
   if (refreshOnLoad) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }

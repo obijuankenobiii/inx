@@ -182,7 +182,7 @@ void XtcReaderActivity::loop() {
 
   const uint32_t pageCount = xtc->getPageCount();
 
-  if (currentPage >= pageCount && pageCount > 0) {
+  if (currentPage >= pageCount) {
     endPageTimer();
     currentPage = pageCount - 1;
     updateRequired = true;
@@ -210,7 +210,7 @@ void XtcReaderActivity::loop() {
     if (currentPage >= pageCount) {
       currentPage = pageCount;
     }
-    const uint32_t refPage = pageCount > 0 ? std::min(currentPage, pageCount - 1) : 0;
+    const uint32_t refPage = std::min(currentPage, pageCount - 1);
     const int newCh = chapterIndexForPage(*xtc, refPage);
     if (newCh > oldCh) {
       bookStats.totalChaptersRead += static_cast<uint32_t>(newCh - oldCh);

@@ -251,7 +251,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         progressCallback,
         skipImages);
 
-  if (isDoingSomethingHeavy && showProgress) {
+  if (showProgress) {
     renderer.clearScreen();
     renderer.displayBuffer();
   }
@@ -315,7 +315,7 @@ void EpubActivity::setupOrientation() {
 
 void EpubActivity::syncOrientationFromGlobalIfNeeded() {
   if (!bookSettings.useCustomSettings) {
-    SystemSetting& g = SystemSetting::getInstance();
+    const SystemSetting& g = SystemSetting::getInstance();
     bookSettings.orientation = g.orientation;
     bookSettings.paragraphCssIndentEnabled = g.paragraphCssIndentEnabled;
   }
@@ -418,7 +418,7 @@ void EpubActivity::displayCoverOrTitle() {
   if (SdMan.openFileForRead("EBP", coverPath, coverFile)) {
     Bitmap coverBmp(coverFile, bitmapDitherModeFromSetting(SETTINGS.readerImageDither));
     if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
-      ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+      [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
       renderer.clearScreen();
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
       renderer.displayBuffer();
@@ -1345,7 +1345,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginRight, const int orientedMarginBottom,
                                   const int orientedMarginLeft) {
   if (!page) return;
-  ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
   renderer.resetBitmapGrayscaleDetection();
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);

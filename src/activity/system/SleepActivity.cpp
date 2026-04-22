@@ -45,10 +45,10 @@ std::string pickSleepBmpPath() {
   }
 
   std::string selectedPath;
-  size_t matchCount = 0;
   auto dir = SdMan.open("/sleep");
 
   if (dir && dir.isDirectory()) {
+    size_t matchCount = 0;
     char name[256];
     while (auto file = dir.openNextFile()) {
       file.getName(name, sizeof(name));

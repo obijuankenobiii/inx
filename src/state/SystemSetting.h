@@ -401,7 +401,7 @@ public:
     /**
      * If `refreshOnLoad` is enabled, performs one HALF_REFRESH (no-op when off).
      */
-    void runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const;
+    void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer) const;
 
     /**
      * @brief Gets power button duration in milliseconds

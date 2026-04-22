@@ -61,7 +61,7 @@ constexpr int kGlobalAllItemsDonutPadB = 14;
 constexpr int kGlobalAllItemsPadSide = 12;
 constexpr int kGlobalAllItemsDonutTextGap = 10;
 
-void drawThinProgressBar(GfxRenderer& renderer, int x, int y, int w, int h, float pct01) {
+void drawThinProgressBar(const GfxRenderer& renderer, int x, int y, int w, int h, float pct01) {
   if (w <= 0 || h <= 0) {
     return;
   }
@@ -75,7 +75,7 @@ void drawThinProgressBar(GfxRenderer& renderer, int x, int y, int w, int h, floa
 }
 
 /** Circle outline via pixels (GfxRenderer::drawLine does not draw diagonals). */
-void drawCircleOutlinePixels(GfxRenderer& renderer, int cx, int cy, int radius) {
+void drawCircleOutlinePixels(const GfxRenderer& renderer, int cx, int cy, int radius) {
   if (radius < 1) {
     return;
   }
@@ -121,7 +121,7 @@ static bool inSweepCcw(float ang, float a0, float sweepRad) {
 }
 
 /** Solid ink in annulus wedge (GfxRenderer has no diagonal drawLine for radials/arcs). */
-void fillAnnulusWedgeInkPixels(GfxRenderer& renderer, int cx, int cy, int ro, int ri, float a0, float sweepRad) {
+void fillAnnulusWedgeInkPixels(const GfxRenderer& renderer, int cx, int cy, int ro, int ri, float a0, float sweepRad) {
   if (ri >= ro || sweepRad <= 0.f) {
     return;
   }
@@ -155,7 +155,7 @@ void fillAnnulusWedgeInkPixels(GfxRenderer& renderer, int cx, int cy, int ro, in
 }
 
 /** Annulus filled row-by-row (reliable on e-ink; avoids polygon / radial artifacts). */
-void fillAnnulusToneScanlines(GfxRenderer& renderer, int cx, int cy, int ro, int ri, GfxRenderer::FillTone tone) {
+void fillAnnulusToneScanlines(const GfxRenderer& renderer, int cx, int cy, int ro, int ri, GfxRenderer::FillTone tone) {
   if (ri >= ro || ro < 2) {
     return;
   }
@@ -200,7 +200,7 @@ void fillAnnulusToneScanlines(GfxRenderer& renderer, int cx, int cy, int ro, int
   }
 }
 
-void drawFullDonutGauge(GfxRenderer& renderer, int cx, int cy, int rOut, int thick, float pct01, const char* centerPct) {
+void drawFullDonutGauge(const GfxRenderer& renderer, int cx, int cy, int rOut, int thick, float pct01, const char* centerPct) {
   const int thickMin = 6;
   const int thickMax = std::max(thickMin + 2, rOut - 8);
   const int thickUse = std::max(thickMin, std::min(thickMax, thick));
@@ -236,7 +236,7 @@ void drawFullDonutGauge(GfxRenderer& renderer, int cx, int cy, int rOut, int thi
   renderer.drawText(FONT_SERIF_MD, cx - tw / 2, cy - lhMd / 2, centerPct);
 }
 
-void drawVertRule(GfxRenderer& renderer, int x, int y, int h) {
+void drawVertRule(const GfxRenderer& renderer, int x, int y, int h) {
   if (h > 0) {
     renderer.drawLine(x, y, x, y + h, true);
   }
@@ -245,7 +245,6 @@ void drawVertRule(GfxRenderer& renderer, int x, int y, int h) {
 /** Shared geometry for the global “all items” donut + metrics block (must stay in sync across draw paths). */
 struct GlobalAllItemsGeom {
   int lhSans;
-  int lhSm;
   int lhNum;
   int kCaptionStackH;
   int kMetricsPadT;
@@ -262,11 +261,11 @@ static GlobalAllItemsGeom computeGlobalAllItemsGeom(const GfxRenderer& renderer)
   const int kMetricsH = kMetricsPadT + lhNum + 4 + lhSm;
   const int rowH = std::max(kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR + kGlobalAllItemsDonutR + kGlobalAllItemsDonutPadB,
                             kCaptionStackH + 4);
-  return {lhSans, lhSm, lhNum, kCaptionStackH, kMetricsPadT, kMetricsH, rowH};
+  return {lhSans, lhNum, kCaptionStackH, kMetricsPadT, kMetricsH, rowH};
 }
 
 /** Donut row + right captions only (gauge height = rowH). Donut is centered horizontally in the inner band. */
-static void drawGlobalAllItemsGaugeRow(GfxRenderer& renderer, int innerLeft, int innerRight, int y, float finishedRatio01,
+static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLeft, int innerRight, int y, float finishedRatio01,
                                        const GlobalAllItemsGeom& g) {
   const int innerW = innerRight - innerLeft;
   const int cx = innerLeft + innerW / 2;
@@ -292,7 +291,7 @@ static void drawGlobalAllItemsGaugeRow(GfxRenderer& renderer, int innerLeft, int
  * yRulePreferred: caller’s ideal rule Y (after gauge + gap).
  * yRuleMin: never place the rule above this (prevents the old min(y, yEnd-h) clamp from erasing the gap under the gauge).
  */
-static int drawGlobalAllItemsSecondBand(GfxRenderer& renderer, int innerLeft, int innerRight, int yRulePreferred,
+static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLeft, int innerRight, int yRulePreferred,
                                         int yRuleMin, int yContentEnd, uint32_t booksFinished, uint32_t booksOpened,
                                         const GlobalAllItemsGeom& g) {
   const int innerW = innerRight - innerLeft;
@@ -330,7 +329,7 @@ static int drawGlobalAllItemsSecondBand(GfxRenderer& renderer, int innerLeft, in
  * Bottom summary block (480×800): donut on the left, caption lines to the right; rule + two metrics below.
  * y = top of that block (caller leaves a small gap from the row above).
  */
-int drawAllItems480x800(GfxRenderer& renderer, int innerLeft, int innerRight, int y, int yContentEnd,
+int drawAllItems480x800(const GfxRenderer& renderer, int innerLeft, int innerRight, int y, int yContentEnd,
                          float finishedRatio01, uint32_t booksFinished, uint32_t booksOpened) {
   const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
   drawGlobalAllItemsGaugeRow(renderer, innerLeft, innerRight, y, finishedRatio01, g);
@@ -355,7 +354,7 @@ int measureAllItemsBodyHeight(const GfxRenderer& renderer) {
  * @param gapBeforeLastRowPx when numRows > 2, extra space inserted after the second-to-last row so the horizontal
  *        rule above the bottom row sits lower (avoids overlap between the middle row labels and the pages row).
  */
-int drawFourColumnStatsNx2(GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* const* vals,
+int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* const* vals,
                            const char* const* labs, int numRows, int cellH, int row0LiftPx,
                            int gapBeforeLastRowPx = 0) {
   if (numRows < 1) {
@@ -419,7 +418,7 @@ int drawFourColumnStatsNx2(GfxRenderer& renderer, int innerLeft, int y, int inne
   return blockH;
 }
 
-int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0, const char* l0,
+int drawFourColumnStats2x2(const GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0, const char* l0,
                            const char* v1, const char* l1, const char* v2, const char* l2, const char* v3,
                            const char* l3, int cellH, int row0LiftPx) {
   const char* vals[] = {v0, v1, v2, v3};
@@ -450,23 +449,6 @@ void StatisticActivity::loadStats() {
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
   globalStats = generateGlobalStats();
   viewIndex = 0;
-}
-
-std::string StatisticActivity::formatTime(uint32_t milliseconds) const {
-  char buffer[32];
-  uint32_t seconds = milliseconds / 1000;
-  uint32_t hours = seconds / 3600;
-  uint32_t minutes = (seconds % 3600) / 60;
-  uint32_t days = hours / 24;
-
-  if (days > 0) {
-    snprintf(buffer, sizeof(buffer), "%u %s %u %s", days, "d", hours % 24, "h");
-  } else if (hours > 0) {
-    snprintf(buffer, sizeof(buffer), "%u %s %u %s", hours, "h", minutes, "m");
-  } else {
-    snprintf(buffer, sizeof(buffer), "%u %s", minutes, "m");
-  }
-  return std::string(buffer);
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -660,7 +642,7 @@ int StatisticActivity::renderRecent(int y, int innerLeft, int innerRight, int in
   const int yCoverTop = y;
 
   std::pair<int, int> tf;
-  int yThumbBottom = yCoverTop;
+  int yThumbBottom;
   if (!allBooksStats.empty()) {
     const BookReadingStats& cur = allBooksStats[0];
     const float prog = (cur.progressPercent >= 0.f)
