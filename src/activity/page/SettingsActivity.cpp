@@ -72,7 +72,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
-    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
+    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Literata", "Atkinson Hyperlegible"},
                       GroupType::FONT),
     SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small","Small","Medium","Large","X Large"},
                       GroupType::FONT),

@@ -16,12 +16,14 @@
 #include <algorithm>
 
 #include "html/FilesPageHtml.generated.h"
+#include "html/FontManagerPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "util/StringUtils.h"
 #include "state/SystemSetting.h"
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
+#include "system/FontManager.h"
 
 namespace {
 
@@ -108,6 +110,7 @@ void LocalServer::begin() {
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
   server->on("/", HTTP_GET, [this] { handleRoot(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
+  server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -133,6 +136,8 @@ void LocalServer::begin() {
   server->on("/api/koreader", HTTP_GET, [this] { handleKOReaderGet(); });
   server->on("/api/koreader", HTTP_POST, [this] { handleKOReaderPost(); });
 
+  server->on("/api/fonts/rescan", HTTP_POST, [this] { handleFontsRescan(); });
+
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
   if (!SPIFFS.begin(true)) {
@@ -144,6 +149,11 @@ void LocalServer::begin() {
       Serial.printf("  Size: %d bytes\n", f.size());
       f.close();
       server->serveStatic("/js", SPIFFS, "/js");
+    }
+    if (SPIFFS.exists("/js/inx_font_pack.js")) {
+      Serial.println("✓ inx_font_pack.js found in SPIFFS (reader font installer)");
+    } else {
+      Serial.println("⚠ inx_font_pack.js missing from SPIFFS — web font installer disabled until uploadfs");
     }
 
   }
@@ -377,6 +387,8 @@ bool LocalServer::isEpubFile(const String& filename) const {
 }
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
+
+void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
 void LocalServer::handleFileListData() const {
   
@@ -1305,4 +1317,17 @@ void LocalServer::handleKOReaderPost() const {
     KOREADER_STORE.saveToFile();
     
     server->send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void LocalServer::handleFontsRescan() const {
+  if (!SdMan.ready()) {
+    server->send(503, "application/json", "{\"ok\":false,\"error\":\"sd_unavailable\"}");
+    return;
+  }
+  const bool ok = FontManager::scanSDFonts("/fonts", true);
+  if (ok) {
+    server->send(200, "application/json", "{\"ok\":true}");
+  } else {
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"scan_failed\"}");
+  }
 }

@@ -9,7 +9,9 @@
 #include <HalDisplay.h>
 
 #include <map>
+#include <memory>
 
+#include "../../src/system/ExternalFont.h"
 #include "Bitmap.h"
 
 class GfxRenderer {
@@ -48,8 +50,13 @@ class GfxRenderer {
   mutable bool anyBitmapImageWantsGrayscale = false;
   mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
+  std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
+
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
+  int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
+  bool getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer,
+                      EpdFontFamily::Style style) const;
   void freeBwBufferChunks();
   void rotateCoordinates(int x, int y, int* rotatedX, int* rotatedY) const;
 
@@ -64,8 +71,11 @@ class GfxRenderer {
 
   
   void insertFont(int fontId, EpdFontFamily font);
+  void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, const EpdFontFamily& font);
+  void removeFont(int fontId);
+  void removeAllStreamingFonts();
+  void addStreamingFontStyle(int fontId, EpdFontFamily::Style style, std::unique_ptr<ExternalFont> streamingFont);
 
-  
   void setOrientation(const Orientation o) { orientation = o; }
   Orientation getOrientation() const { return orientation; }
 

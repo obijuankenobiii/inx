@@ -7,6 +7,7 @@
 
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+#include "system/FontManager.h"
 
 #include "state/SystemSetting.h"
 #include "state/Session.h"
@@ -106,7 +107,11 @@ void BootActivity::initializeNextStage() {
  */
 void BootActivity::onEnter() {
   Activity::onEnter();
-
+  
+  FontManager::scanSDFonts("/fonts");
+  FontManager::clampReaderFontFamilySlot(SETTINGS.fontFamily);
+  FontManager::printFontStats();
+  
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
@@ -141,6 +146,8 @@ void BootActivity::onEnter() {
  */
 void BootActivity::loop() {
   if (bootComplete) {
+    onGoToRecent();
+    return;
     if (APP_STATE.lastRead.empty() || SETTINGS.bootSetting == SystemSetting::HOME_PAGE) {
       onGoToRecent();
     } else {

@@ -7,9 +7,11 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
 
 #include "../../settings/ReaderFontSettingsDraw.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 
 #define SETTINGS SystemSetting::getInstance()
@@ -130,17 +132,25 @@ void SettingsDrawer::setupMenu() {
     fontFamEntry.group = GroupType::FONT;
     fontFamEntry.name = "Style";
     fontFamEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* families[] = {"Bookerly", "Atkinson Hyperlegible", "Literata"};
-      int index = s.fontFamily;
-      if (index > 2) index = 0;
-      return families[index];
+      thread_local std::string tls;
+      tls = FontManager::readerFontFamilyLabel(s.fontFamily);
+      return tls.c_str();
     };
     fontFamEntry.change = [](BookSettings& s, int delta) {
-      int newVal = s.fontFamily + delta;
-      if (newVal >= 0 && newVal <= 2) {
-        s.fontFamily = newVal;
-        s.useCustomSettings = true;
+      const int n = static_cast<int>(FontManager::readerFontFamilyOptionCount());
+      if (n <= 0) {
+        return;
       }
+      int newVal = static_cast<int>(s.fontFamily) + delta;
+      if (newVal < 0) {
+        newVal = n - 1;
+      }
+      if (newVal >= n) {
+        newVal = 0;
+      }
+      s.fontFamily = static_cast<uint8_t>(newVal);
+      FontManager::clampReaderFontFamilySlot(s.fontFamily);
+      s.useCustomSettings = true;
     };
     menuItems.push_back(fontFamEntry);
 

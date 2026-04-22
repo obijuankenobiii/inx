@@ -153,13 +153,14 @@ public:
     };
     
     /**
-     * @brief Font family options
+     * @brief Font family options (stored in fontFamily / BookSettings::fontFamily)
+     * @details 0–1 are built-ins; 2+ select SD card folders under /fonts (sorted names), see FontManager.
      */
-    enum FONT_FAMILY { 
-        BOOKERLY = 0,               ///< Bookerly font
-        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible font
-        LITERATA = 2,               ///< Literata font
-        FONT_FAMILY_COUNT 
+    enum FONT_FAMILY {
+        LITERATA = 0,                ///< Literata (default body font)
+        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible
+        FONT_FAMILY_BUILTIN_COUNT,
+        FONT_FAMILY_COUNT = FONT_FAMILY_BUILTIN_COUNT  ///< Built-in count; reader option count includes SD families
     };
     
     /**
@@ -421,6 +422,11 @@ public:
      * @brief Reader font ID for a given family and size (e.g. settings previews).
      */
     int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
+
+    /**
+     * @brief Font ID for reader **settings UI** previews only (built-in; avoids loading SD streaming fonts in menus).
+     */
+    int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
     
     /**
      * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").

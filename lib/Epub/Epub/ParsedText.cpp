@@ -52,7 +52,51 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
   return renderer.getTextWidth(fontId, sanitized.c_str(), style);
 }
 
-}  
+/**
+ * When a drop cap / left indent is active, the optimal layout uses O(n^2) DP tables (~12 bytes per cell).
+ * Long paragraphs (common in fixed-layout / image-heavy EPUBs) exhaust heap and abort(); greedy packing
+ * matches the width rules used by hyphenated layout without O(n^2) memory.
+ */
+std::vector<size_t> computeGreedyLineBreaksWithDropIndent(const int pageWidth, const int spaceWidth,
+                                                          const std::vector<uint16_t>& wordWidths,
+                                                          const int dropIndentW, const int dropIndentLines) {
+  std::vector<size_t> lineBreakIndices;
+  const size_t n = wordWidths.size();
+  size_t currentIndex = 0;
+  int lineNum = 0;
+
+  while (currentIndex < n) {
+    const size_t lineStart = currentIndex;
+    int lineWidth = 0;
+    const int lineW =
+        (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
+
+    while (currentIndex < n) {
+      const bool isFirstWord = currentIndex == lineStart;
+      const int spacing = isFirstWord ? 0 : spaceWidth;
+      const int candidateWidth = spacing + static_cast<int>(wordWidths[currentIndex]);
+
+      if (lineWidth + candidateWidth <= lineW) {
+        lineWidth += candidateWidth;
+        ++currentIndex;
+        continue;
+      }
+
+      if (currentIndex == lineStart) {
+        lineWidth += candidateWidth;
+        ++currentIndex;
+      }
+      break;
+    }
+
+    lineBreakIndices.push_back(currentIndex);
+    ++lineNum;
+  }
+
+  return lineBreakIndices;
+}
+
+}  // namespace
 
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle) {
   if (word.empty()) return;
@@ -117,10 +161,12 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
     return {};
   }
 
-  
+  /** Break words wider than the *tightest* column they may occupy (narrow drop-cap lines), not full pageWidth. */
+  const int narrowColumn =
+      (dropIndentW > 0 && dropIndentLines > 0) ? std::max(1, pageWidth - dropIndentW) : pageWidth;
   for (size_t i = 0; i < wordWidths.size(); ++i) {
-    while (wordWidths[i] > pageWidth) {
-      if (!hyphenateWordAtIndex(i, pageWidth, renderer, fontId, wordWidths, true)) {
+    while (static_cast<int>(wordWidths[i]) > narrowColumn) {
+      if (!hyphenateWordAtIndex(i, narrowColumn, renderer, fontId, wordWidths, true)) {
         break;
       }
     }
@@ -180,6 +226,13 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       currentWordIndex = nextBreakIndex;
     }
     return lineBreakIndices;
+  }
+
+  /** Drop-indent optimal DP is (n+1)*(n+2) cells * ~12 B — fails on long blocks (bad_alloc / abort). */
+  constexpr size_t kMaxDropIndentDpCells = 4800;
+  const size_t gridCells = static_cast<size_t>(n + 1) * static_cast<size_t>(n + 2);
+  if (gridCells > kMaxDropIndentDpCells) {
+    return computeGreedyLineBreaksWithDropIndent(pageWidth, spaceWidth, wordWidths, dropIndentW, dropIndentLines);
   }
 
   const int maxEll = n + 1;
@@ -441,10 +494,16 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   
   int spacing = spaceWidth;
   const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
+  const int gapCount = lineWordCount >= 2 ? static_cast<int>(lineWordCount) - 1 : 0;
 
-  
-  if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2 && spareSpace >= 0) {
-    spacing = spareSpace / (lineWordCount - 1);
+  if (style == TextBlock::JUSTIFIED && !isLastLine && gapCount > 0) {
+    if (spareSpace >= 0) {
+      spacing = spareSpace / gapCount;
+    } else {
+      /** Greedy/DP mismatch or rounding: line is overfull — tighten gaps so words do not overlap the margin. */
+      const int tightened = spaceWidth + spareSpace / gapCount;
+      spacing = std::max(1, tightened);
+    }
   }
   
 
@@ -461,7 +520,20 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     const uint16_t currentWordWidth = wordWidths[i];
     lineXPos.push_back(xpos);
-    xpos += currentWordWidth + spacing;
+    int gapAfter = 0;
+    if (i + 1 < lineBreak) {
+      gapAfter = spaceWidth;
+      if (style == TextBlock::JUSTIFIED && !isLastLine && gapCount > 0) {
+        if (spareSpace >= 0) {
+          const int rem = spareSpace % gapCount;
+          const size_t gapIndex = i - lastBreakAt;
+          gapAfter = spacing + (gapIndex < static_cast<size_t>(rem) ? 1 : 0);
+        } else {
+          gapAfter = spacing;
+        }
+      }
+    }
+    xpos = static_cast<uint16_t>(static_cast<int>(xpos) + static_cast<int>(currentWordWidth) + gapAfter);
   }
 
   

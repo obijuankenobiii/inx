@@ -550,6 +550,8 @@ void EpubActivity::onEnter() {
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
+
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   bool hasProgress = bookProgress->exists();
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
@@ -1350,9 +1352,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
-  
-  
-
   if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
@@ -1674,6 +1673,7 @@ void EpubActivity::applyBookSettings() {
   setupOrientation();
 
   ViewportInfo info = calculateViewport();
+  FontManager::ensureReaderLayoutFonts(info.fontId, renderer);
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {

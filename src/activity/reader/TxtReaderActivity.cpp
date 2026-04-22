@@ -11,6 +11,7 @@
 #include <Utf8.h>
 
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "state/Session.h"
 #include "system/MappedInputManager.h"
 #include "state/RecentBooks.h"
@@ -164,6 +165,7 @@ void TxtReaderActivity::initializeReader() {
 
   
   cachedFontId = SETTINGS.getReaderFontId();
+  FontManager::ensureFontReady(cachedFontId, renderer);
   cachedScreenMargin = SETTINGS.screenMargin;
   cachedParagraphAlignment = SETTINGS.paragraphAlignment;
 

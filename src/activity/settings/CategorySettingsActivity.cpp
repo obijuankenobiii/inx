@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
@@ -18,6 +19,7 @@
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -40,6 +42,11 @@ void CategorySettingsActivity::onEnter() {
   selectedIndex = 0;
   scrollOffset = 0;
   updateRequired = true;
+
+  if (categoryName != nullptr && strcmp(categoryName, "Reader") == 0) {
+    FontManager::scanSDFonts("/fonts", true);
+    FontManager::clampReaderFontFamilySlot(SETTINGS.fontFamily);
+  }
 
   setupMenu();
 
@@ -151,22 +158,48 @@ void CategorySettingsActivity::setupMenu() {
           };
         }
         if (setting.type == SettingType::ENUM) {
-          entry.getValueText = [this, setting]() -> const char* {
-            int index = SETTINGS.*(setting.valuePtr);
-            if (index >= 0 && index < (int)setting.enumValues.size()) {
-              return setting.enumValues[index].c_str();
-            }
-            return "Unknown";
-          };
-          entry.change = [this, setting](int delta) {
-            int current = SETTINGS.*(setting.valuePtr);
-            int newVal = current + delta;
-            if (newVal < 0) newVal = setting.enumValues.size() - 1;
-            if (newVal >= (int)setting.enumValues.size()) newVal = 0;
-            SETTINGS.*(setting.valuePtr) = newVal;
-            SETTINGS.saveToFile();
-            updateRequired = true;
-          };
+          if (setting.name != nullptr && strcmp(setting.name, "Font Family") == 0) {
+            entry.enumValues = FontManager::readerFontFamilyEnumLabels();
+            entry.getValueText = [this, setting]() -> const char* {
+              thread_local std::string tls;
+              tls = FontManager::readerFontFamilyLabel(SETTINGS.*(setting.valuePtr));
+              return tls.c_str();
+            };
+            entry.change = [this, setting](int delta) {
+              int current = SETTINGS.*(setting.valuePtr);
+              const int n = static_cast<int>(FontManager::readerFontFamilyOptionCount());
+              if (n <= 0) {
+                return;
+              }
+              int newVal = current + delta;
+              if (newVal < 0) {
+                newVal = n - 1;
+              }
+              if (newVal >= n) {
+                newVal = 0;
+              }
+              SETTINGS.*(setting.valuePtr) = static_cast<uint8_t>(newVal);
+              SETTINGS.saveToFile();
+              updateRequired = true;
+            };
+          } else {
+            entry.getValueText = [this, setting]() -> const char* {
+              int index = SETTINGS.*(setting.valuePtr);
+              if (index >= 0 && index < (int)setting.enumValues.size()) {
+                return setting.enumValues[index].c_str();
+              }
+              return "Unknown";
+            };
+            entry.change = [this, setting](int delta) {
+              int current = SETTINGS.*(setting.valuePtr);
+              int newVal = current + delta;
+              if (newVal < 0) newVal = setting.enumValues.size() - 1;
+              if (newVal >= (int)setting.enumValues.size()) newVal = 0;
+              SETTINGS.*(setting.valuePtr) = newVal;
+              SETTINGS.saveToFile();
+              updateRequired = true;
+            };
+          }
         }
         if (setting.type == SettingType::VALUE) {
           entry.getValueText = [this, setting]() -> const char* {
