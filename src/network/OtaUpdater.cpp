@@ -1,3 +1,8 @@
+/**
+ * @file OtaUpdater.cpp
+ * @brief Definitions for OtaUpdater.
+ */
+
 #include "OtaUpdater.h"
 
 #include <Arduino.h>
@@ -17,22 +22,18 @@
 namespace {
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
 
-/* Pre-TLS body slab; smaller first so esp_http_client_init + TLS have headroom in internal heap. */
+
 constexpr size_t kReleaseJsonPreallocSizes[] = {4096, 6144, 8192, 10240, 12288};
 
 constexpr int kGithubCheckTaskStack = 16384;
 constexpr int kGithubCheckTaskPrio = 3;
 
-/* Response body buffer for latestReleaseUrl (GitHub uses chunked encoding). */
+
 char* local_buf = nullptr;
 int output_len = 0;
 size_t local_buf_cap = 0;
 
-/*
- * When esp_crt_bundle.h included, it is pointing wrong header file
- * which is something under WifiClientSecure because of our framework based on arduno platform.
- * To manage this obstacle, don't include anything, just extern and it will point correct one.
- */
+
 extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
 }
@@ -55,8 +56,7 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
       local_buf_cap = static_cast<size_t>(content_len) + 1;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     } else {
-      /* Chunked or unknown length: do not preallocate 8K — right after Wi‑Fi/TLS, heap is
-       * often fragmented; a large first calloc fails while smaller blocks succeed. */
+      
       local_buf_cap = need;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     }
@@ -69,8 +69,7 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   }
 
   if (need > local_buf_cap) {
-    /* Grow to exact `need` only. Doubling (e.g. max(need, cap*2)) asks for more RAM than the JSON
-     * needs; under Wi‑Fi/TLS that extra contiguous block often fails while `need` still fits. */
+    
     const size_t ncap = need;
     char* nb = static_cast<char*>(realloc(local_buf, ncap));
     if (nb == nullptr) {
@@ -93,8 +92,8 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   }
 
   return ESP_OK;
-} /* event_handler */
-} /* namespace */
+} 
+} 
 
 struct OtaGithubCheckCtx {
   OtaUpdater* updater;
@@ -144,9 +143,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   esp_err_t esp_err;
   JsonDocument doc;
 
-  /* Smaller TLS/HTTP buffers than install path: GitHub JSON check runs when heap is
-   * tight (e.g. right after WiFi + display); large buffers make mbedtls_ssl_setup fail
-   * with MBEDTLS_ERR_SSL_ALLOC_FAILED (-0x7F00). */
+  
   esp_http_client_config_t client_config = {};
   client_config.url = latestReleaseUrl;
   client_config.event_handler = event_handler;
@@ -157,7 +154,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   client_config.crt_bundle_attach = esp_crt_bundle_attach;
   client_config.keep_alive_enable = false;
 
-  /* Reset body buffer state (in case a prior check aborted). */
+  
   if (local_buf != nullptr) {
     free(local_buf);
     local_buf = nullptr;
@@ -165,7 +162,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   output_len = 0;
   local_buf_cap = 0;
 
-  /* To track life time of local_buf, dtor will be called on exit from that function */
+  
   struct localBufCleaner {
     char** bufPtr;
     ~localBufCleaner() {
@@ -191,7 +188,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     return INTERNAL_UPDATE_ERROR;
   }
 
-  /* Reserve body after client init; lets init use heap first, then slab before TLS in perform(). */
+  
   for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
     void* p = calloc(tryBytes, 1);
     if (p != nullptr) {
@@ -204,8 +201,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     }
   }
 
-  /* Let EPD / Wi-Fi driver finish in-flight work; mbedtls_ssl_setup was failing when perform() ran
-   * immediately after display flush on the same CPU. */
+  
   vTaskDelay(pdMS_TO_TICKS(200));
   esp_task_wdt_reset();
 
@@ -218,7 +214,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     return HTTP_ERROR;
   }
 
-  /* esp_http_client_close will be called inside cleanup as well*/
+  
   esp_err = esp_http_client_cleanup(client_handle);
   if (esp_err != ESP_OK) {
     Serial.printf("[%lu] [OTA] esp_http_client_cleanupp Failed : %s\n", millis(), esp_err_to_name(esp_err));
@@ -281,27 +277,17 @@ bool OtaUpdater::isUpdateNewer() const {
 
   const auto currentVersion = INX_VERSION;
 
-  // semantic version check (only match on 3 segments)
+  
   sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
   sscanf(currentVersion, "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch);
 
-  /*
-   * Compare major versions.
-   * If they differ, return true if latest major version greater than current major version
-   * otherwise return false.
-   */
+  
   if (latestMajor != currentMajor) return latestMajor > currentMajor;
 
-  /*
-   * Compare minor versions.
-   * If they differ, return true if latest minor version greater than current minor version
-   * otherwise return false.
-   */
+  
   if (latestMinor != currentMinor) return latestMinor > currentMinor;
 
-  /*
-   * Check patch versions.
-   */
+  
   return latestPatch > currentPatch;
 }
 
@@ -314,7 +300,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
 
   esp_https_ota_handle_t ota_handle = NULL;
   esp_err_t esp_err;
-  /* Signal for OtaUpdateActivity */
+  
   render = false;
 
   esp_http_client_config_t client_config = {};
@@ -330,7 +316,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   ota_config.http_config = &client_config;
   ota_config.http_client_init_cb = http_client_set_header_cb;
 
-  /* For better timing and connectivity, we disable power saving for WiFi */
+  
   esp_wifi_set_ps(WIFI_PS_NONE);
 
   esp_err = esp_https_ota_begin(&ota_config, &ota_handle);
@@ -342,12 +328,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   do {
     esp_err = esp_https_ota_perform(ota_handle);
     processedSize = esp_https_ota_get_image_len_read(ota_handle);
-    /* Sent signal to  OtaUpdateActivity */
+    
     render = true;
     vTaskDelay(10 / portTICK_PERIOD_MS);
   } while (esp_err == ESP_ERR_HTTPS_OTA_IN_PROGRESS);
 
-  /* Return back to default power saving for WiFi in case of failing */
+  
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
 
   if (esp_err != ESP_OK) {

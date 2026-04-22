@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Statistics.h
+ * @brief Public interface and types for Statistics.
+ */
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -85,11 +90,11 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats);
 bool loadBookStats(const char* cachePath, BookReadingStats& stats);
 
 /**
- * Retrieves reading statistics for all books in the EPUB cache.
- * 
- * Scans the /.metadata/epub directory for subdirectories containing
- * statistics files and loads statistics for each book found.
- * 
+ * Retrieves reading statistics for all books with per-book stats on the SD card.
+ *
+ * Scans `/.metadata/epub` (EPUB caches) and `/.metadata/xtc` (XTC caches)
+ * for `statistics.bin` files.
+ *
  * @return Vector containing statistics for all books with valid stats files
  */
 std::vector<BookReadingStats> getAllBooksStats();
@@ -119,9 +124,6 @@ bool loadGlobalStats(GlobalReadingStats& stats);
 void saveGlobalStats(const GlobalReadingStats& stats);
 
 /**
- * Updates global statistics with data from a book.
- * Aggregates book statistics into the global totals.
- * 
- * @param bookStats The book statistics to aggregate
+ * Recomputes global totals by scanning all per-book statistics files.
  */
-void generateGlobalStats(const BookReadingStats& bookStats);
+GlobalReadingStats generateGlobalStats();

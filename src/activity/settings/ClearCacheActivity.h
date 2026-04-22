@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ClearCacheActivity.h
+ * @brief Public interface and types for ClearCacheActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

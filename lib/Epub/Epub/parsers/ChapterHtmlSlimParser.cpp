@@ -1,13 +1,21 @@
+/**
+ * @file ChapterHtmlSlimParser.cpp
+ * @brief Definitions for ChapterHtmlSlimParser.
+ */
+
 #include "ChapterHtmlSlimParser.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cstring>
 
+#include <Arduino.h>
+
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+#include <Utf8.h>
 #include <expat.h>
 
 #include "../Page.h"
@@ -17,6 +25,21 @@ const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
+
+namespace {
+
+int countUtf8Codepoints(const char* s, int byteLen) {
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  int n = 0;
+  while (p < end) {
+    utf8NextCodepoint(&p);
+    ++n;
+  }
+  return n;
+}
+
+}  
 
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
@@ -64,25 +87,34 @@ void ChapterHtmlSlimParser::loadCssRules() {
 
   cssParser.clear();
 
-  // Get all CSS files from the EPUB
+  
+  constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
+  if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
+    Serial.printf("[EHP] Low heap (%u bytes), skipping EPUB CSS cascade (use fixed alignment / inline styles only)\n",
+                  static_cast<unsigned>(ESP.getFreeHeap()));
+    cssLoaded = true;
+    return;
+  }
+
+  
   int cssCount = epub.getCssItemsCount();
   if (cssCount > 0) {
     Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
 
-    // Limit total CSS size to prevent memory issues
-    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  // 50KB max total CSS
+    
+    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  
     size_t totalCssSize = 0;
 
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
       auto cssEntry = epub.getCssItem(i);
 
-      // Skip empty CSS files
+      
       if (cssEntry.content.empty()) {
         continue;
       }
 
-      // Check individual file size
-      if (cssEntry.content.size() > 20 * 1024) {  // 20KB per file max
+      
+      if (cssEntry.content.size() > 20 * 1024) {  
         Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
                       (int)cssEntry.content.size());
         continue;
@@ -112,7 +144,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   int explicitWidth = 0;
   int explicitHeight = 0;
 
-  // Parse attributes
+  
   if (atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       std::string attrName = atts[i];
@@ -136,21 +168,21 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
   if (src.empty()) return;
 
-  // Load CSS rules if not already loaded
+  
   loadCssRules();
 
-  // Determine dimensions (priority: explicit > inline style > CSS class)
+  
   int imgWidth = explicitWidth;
   int imgHeight = explicitHeight;
 
   bool widthIsPercentage = false;
   bool heightIsPercentage = false;
 
-  // Check inline style and CSS if explicit dimensions not provided
+  
   if (imgWidth == 0 || imgHeight == 0) {
-    // Check for percentage values in inline style
+    
     if (!styleAttr.empty()) {
-      // Check if width is percentage
+      
       size_t widthPos = styleAttr.find("width:");
       if (widthPos != std::string::npos) {
         size_t percentPos = styleAttr.find("%", widthPos);
@@ -159,7 +191,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
         }
       }
 
-      // Check if height is percentage
+      
       size_t heightPos = styleAttr.find("height:");
       if (heightPos != std::string::npos) {
         size_t percentPos = styleAttr.find("%", heightPos);
@@ -169,10 +201,10 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       }
     }
 
-    // Use CssParser to get dimensions from inline style and CSS rules
+    
     if (imgWidth == 0) {
       int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-      // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
+      
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
       } else if (cssWidth > 0) {
@@ -190,7 +222,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
   }
 
-  // Resolve full path and cache image
+  
   std::string base = internalPath.empty() ? filepath : internalPath;
   std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
   std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
@@ -211,11 +243,11 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgWidth = (actualW * imgHeight) / std::max(1, actualH);
     }
 
-    // Apply dimension constraints and maintain aspect ratio
+    
     if (widthIsPercentage || heightIsPercentage) {
-      // Handle percentage-based dimensions
+      
       if (widthIsPercentage && heightIsPercentage) {
-        // Both are percentages - use actual image size as fallback
+        
         if (imgWidth == 0 && imgHeight == 0) {
           imgWidth = actualW;
           imgHeight = actualH;
@@ -225,7 +257,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
           imgHeight = (actualH * imgWidth) / actualW;
         }
       } else if (widthIsPercentage && imgWidth == 0) {
-        // Width is percentage, use height to determine width
+        
         if (imgHeight > 0) {
           imgWidth = (actualW * imgHeight) / actualH;
         } else {
@@ -233,7 +265,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
           imgHeight = actualH;
         }
       } else if (heightIsPercentage && imgHeight == 0) {
-        // Height is percentage, use width to determine height
+        
         if (imgWidth > 0) {
           imgHeight = (actualH * imgWidth) / actualW;
         } else {
@@ -242,15 +274,15 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
         }
       }
     } else {
-      // Handle fixed dimensions
+      
       if (imgWidth > 0 && imgHeight == 0) {
-        // Height not specified, maintain aspect ratio based on width
+        
         imgHeight = (actualH * imgWidth) / std::max(1, actualW);
       } else if (imgHeight > 0 && imgWidth == 0) {
-        // Width not specified, maintain aspect ratio based on height
+        
         imgWidth = (actualW * imgHeight) / std::max(1, actualH);
       } else if (imgWidth == 0 && imgHeight == 0) {
-        // No dimensions specified, use actual image size
+        
         imgWidth = actualW;
         imgHeight = actualH;
       }
@@ -273,7 +305,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = cssMinH;
     }
 
-    // Cap at viewport size to prevent overflow
+    
     if (imgWidth > viewportWidth) {
       imgHeight = (imgHeight * viewportWidth) / imgWidth;
       imgWidth = viewportWidth;
@@ -384,7 +416,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  // Check for dropcap class
+  
   if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
@@ -396,7 +428,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
-  // Handle image tags with CSS dimension extraction
+  
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
     self->processImageElement(atts);
     self->depth += 1;
@@ -441,25 +473,27 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
       }
       self->startNewTextBlock(blockStyle);
-      if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && self->currentTextBlock) {
-        std::string classAttr;
-        std::string idAttr;
-        std::string styleAttr;
-        if (atts != nullptr) {
-          for (int i = 0; atts[i]; i += 2) {
-            if (strcmp(atts[i], "class") == 0) {
-              classAttr = atts[i + 1];
-            } else if (strcmp(atts[i], "id") == 0) {
-              idAttr = atts[i + 1];
-            } else if (strcmp(atts[i], "style") == 0) {
-              styleAttr = atts[i + 1];
-            }
+      std::string classAttr;
+      std::string idAttr;
+      std::string styleAttr;
+      if (atts != nullptr) {
+        for (int i = 0; atts[i]; i += 2) {
+          if (strcmp(atts[i], "class") == 0) {
+            classAttr = atts[i + 1];
+          } else if (strcmp(atts[i], "id") == 0) {
+            idAttr = atts[i + 1];
+          } else if (strcmp(atts[i], "style") == 0) {
+            styleAttr = atts[i + 1];
           }
         }
-        if (self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
-          const int tip = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
-                                                          self->viewportHeight);
-          self->currentTextBlock->setCssTextIndentFromCascade(tip);
+      }
+      if (self->currentTextBlock && self->respectCssParagraphIndent &&
+          self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+        const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                                       self->viewportHeight);
+        if (px > 0) {
+          const int clamped = std::min(px, 65535);
+          self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(clamped), 1);
         }
       }
     }
@@ -484,7 +518,10 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
   for (int i = 0; i < len; i++) {
     if (isWhitespace(s[i])) {
-      self->flushPartWordBuffer();
+      
+      if (!self->inDropCap) {
+        self->flushPartWordBuffer();
+      }
       continue;
     }
 
@@ -493,10 +530,17 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       continue;
     }
 
-    if (self->partWordBufferIndex >= MAX_WORD_SIZE) self->flushPartWordBuffer();
+    if (!self->inDropCap && self->partWordBufferIndex >= MAX_WORD_SIZE) {
+      self->flushPartWordBuffer();
+    }
+    if (self->partWordBufferIndex >= MAX_WORD_SIZE) {
+      continue;
+    }
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
-    if (self->inDropCap) self->flushPartWordBuffer();
+    if (self->inDropCap && countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >= 2) {
+      self->flushPartWordBuffer();
+    }
   }
 
   if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
@@ -534,7 +578,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
 
-  if (self->inDropCap && self->dropCapDepth == self->depth) {
+  if (self->dropCapDepth == self->depth) {
+    if (self->inDropCap && self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+    }
     self->inDropCap = false;
     self->dropCapDepth = INT_MAX;
   }
@@ -548,17 +595,20 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
  * @return true if dimensions were successfully read
  */
 bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, int* h) {
+  *w = 0;
+  *h = 0;
   FsFile file;
   if (!SdMan.openFileForRead("EHP", path, file)) return false;
 
   Bitmap bitmap(file);
-  if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+  const bool ok = (bitmap.parseHeaders() == BmpReaderError::Ok);
+  if (ok) {
     *w = bitmap.getWidth();
     *h = bitmap.getHeight();
   }
 
   file.close();
-  return (*w > 0 && *h > 0);
+  return ok && (*w > 0) && (*h > 0);
 }
 
 /**
@@ -623,7 +673,10 @@ void ChapterHtmlSlimParser::makePages() {
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
   if (SdMan.exists(cacheImgPath.c_str())) {
-    return getBmpDimensions(cacheImgPath, w, h);
+    if (getBmpDimensions(cacheImgPath, w, h)) {
+      return true;
+    }
+    SdMan.remove(cacheImgPath.c_str());
   }
 
   if (skipImages) return false;
@@ -701,7 +754,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
-  cssLoaded = false;  // Reset CSS loaded flag for new chapter
+  cssLoaded = false;  
 
   loadCssRules();
 

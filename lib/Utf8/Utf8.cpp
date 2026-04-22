@@ -1,11 +1,16 @@
+/**
+ * @file Utf8.cpp
+ * @brief Definitions for Utf8.
+ */
+
 #include "Utf8.h"
 
 int utf8CodepointLen(const unsigned char c) {
-  if (c < 0x80) return 1;          // 0xxxxxxx
-  if ((c >> 5) == 0x6) return 2;   // 110xxxxx
-  if ((c >> 4) == 0xE) return 3;   // 1110xxxx
-  if ((c >> 3) == 0x1E) return 4;  // 11110xxx
-  return 1;                        // fallback for invalid
+  if (c < 0x80) return 1;          
+  if ((c >> 5) == 0x6) return 2;   
+  if ((c >> 4) == 0xE) return 3;   
+  if ((c >> 3) == 0x1E) return 4;  
+  return 1;                        
 }
 
 uint32_t utf8NextCodepoint(const unsigned char** string) {
@@ -21,7 +26,7 @@ uint32_t utf8NextCodepoint(const unsigned char** string) {
     return chr[0];
   }
 
-  uint32_t cp = chr[0] & ((1 << (7 - bytes)) - 1);  // mask header bits
+  uint32_t cp = chr[0] & ((1 << (7 - bytes)) - 1);  
 
   for (int i = 1; i < bytes; i++) {
     cp = (cp << 6) | (chr[i] & 0x3F);
@@ -40,7 +45,7 @@ size_t utf8RemoveLastChar(std::string& str) {
   return pos;
 }
 
-// Truncate string by removing N UTF-8 characters from the end
+
 void utf8TruncateChars(std::string& str, const size_t numChars) {
   for (size_t i = 0; i < numChars && !str.empty(); ++i) {
     utf8RemoveLastChar(str);

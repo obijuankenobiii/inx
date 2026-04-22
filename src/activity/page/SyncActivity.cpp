@@ -1,15 +1,19 @@
+/**
+ * @file SyncActivity.cpp
+ * @brief Definitions for SyncActivity.
+ */
+
 #include "../page/SyncActivity.h"
 
 #include <GfxRenderer.h>
 
-#include "../network/BluetoothActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
-#include "images/Bluetooth.h"
+#include "state/SystemSetting.h"
 
 namespace {
 /**
@@ -36,16 +40,15 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-constexpr int MENU_ITEM_COUNT = 4;  // Changed from 3 to 4
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "Bluetooth"};
+constexpr int MENU_ITEM_COUNT = 3;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
 const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
     "Connect to an existing WiFi network",
     "Use Calibre wireless device transfers",
     "Create a WiFi network others can join",
-    "Connect Bluetooth devices",
 };
 constexpr int LIST_ITEM_HEIGHT = 80;
-}  // namespace
+}  
 
 /**
  * Static task trampoline that forwards to the displayTaskLoop member function.
@@ -67,8 +70,9 @@ void SyncActivity::onEnter() {
 
   selectedIndex = 0;
 
-  // Initial render immediately
+  
   render();
+  SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 16384, this, 1, &displayTaskHandle);
@@ -125,10 +129,6 @@ void SyncActivity::loop() {
     
     if (selectedIndex == 2) {
       mode = NetworkMode::CREATE_HOTSPOT;
-    }
-
-    if (selectedIndex == 3) {
-      mode = NetworkMode::ADD_BLUETOOTH;
     }
 
     if (onModeSelected) {
@@ -219,17 +219,14 @@ void SyncActivity::render() const {
       const int descriptionY = itemY + 42;
 
       switch (i) {
-        case 0:  // Join a Network
+        case 0:  
           renderer.drawIcon(Wifi, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
-        case 1:  // Connect to Calibre
+        case 1:  
           renderer.drawIcon(Calibre, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
-        case 2:  // Create Hotspot
+        case 2:  
           renderer.drawIcon(Qr, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
-          break;
-        case 3:  // Bluetooth
-          renderer.drawIcon(Bluetooth, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       

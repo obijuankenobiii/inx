@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file CalibreSettingsActivity.h
+ * @brief Public interface and types for CalibreSettingsActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

@@ -40,7 +40,6 @@ From the **Sync** tab:
 - **Join a Network** – Wi‑Fi station setup (`LocalNetworkActivity`); after connect, a small **`LocalServer`** HTTP/Web UI can run for file upload from the browser (see that activity’s flow).
 - **Connect to Calibre** – wireless Calibre device flow (`CalibreConnectActivity`).
 - **Create Hotspot** – device as AP (`HotspotActivity`).
-- **Bluetooth** – Bluetooth setup (`BluetoothActivity`).
 
 File transfer / device workflows return to Sync or related callbacks as implemented.
 
@@ -52,9 +51,9 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 
 | Group | Items |
 |--------|--------|
-| **Display & sleep** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
+| **Display ** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
 | **Buttons** | Front Button Layout (four layouts mapping Back / Confirm / Left / Right); Short Power Button Click (Ignore, Sleep, Page Refresh) |
-| **Device & library** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
+| **Device ** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
 | **Actions** | **Index your library**; **KOReader Sync**; **OPDS Browser**; **Clear Cache**; **Check for updates** (opens OTA flow with Wi‑Fi selection) |
 | **About** | **About** is a **standalone row** at the bottom of System settings (not inside a collapsible group). Opens the modal with **Current version** and an **Update** button; **Update** (Confirm) starts the same OTA path as **Check for updates** (Wi‑Fi, then GitHub / HTTPS OTA). |
 
@@ -73,7 +72,7 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 For **Custom** and **Transparent Cover** sleep modes, BMPs can live in a **`/sleep/`** folder on the SD card (any number of `.bmp` files). Optionally, a single **`sleep.bmp`** at the **card root** is used when the folder has no matches or as an extra choice.
 
 - **Random (each sleep)** (default): each sleep picks a random image from `/sleep/` and root `sleep.bmp`, as before.
-- **Choose sleep image** (System → Display & sleep): opens **`SleepImagePickerActivity`**—select one file to always use, or **Random** to clear that choice. The selection is stored in settings (`sleepCustomBmp` in `/.system/settings.bin`; also exposed as **`sleepCustomBmp`** in the device **LocalServer** settings JSON: empty string = random, a basename = `/sleep/<basename>`, or the exact value **`/sleep.bmp`** for the root file only).
+- **Choose sleep image** (System → Display ): opens **`SleepImagePickerActivity`**—select one file to always use, or **Random** to clear that choice. The selection is stored in settings (`sleepCustomBmp` in `/.system/settings.bin`; also exposed as **`sleepCustomBmp`** in the device **LocalServer** settings JSON: empty string = random, a basename = `/sleep/<basename>`, or the exact value **`/sleep.bmp`** for the root file only).
 
 #### Related settings flows (activities)
 
@@ -117,7 +116,7 @@ Rough inventory of major UI entry points (see `src/activity/` and `src/main.cpp`
 | **EPUB UI** | `MenuDrawer` (TOC + actions), `SettingsDrawer`, `BookmarkActivity` |
 | **XTC** | `XtcReaderChapterSelectionActivity` |
 | **Settings detail** | `CategorySettingsActivity`; `AboutPage` (modal); `SleepImagePickerActivity`, `KOReaderSettingsActivity`, `KOReaderAuthActivity`, `CalibreSettingsActivity`, `ClearCacheActivity`, `OtaUpdateActivity` |
-| **Network** | `LocalNetworkActivity`, `CalibreConnectActivity`, `HotspotActivity`, `BluetoothActivity`, `WifiSelectionActivity` |
+| **Network** | `LocalNetworkActivity`, `CalibreConnectActivity`, `HotspotActivity`, `WifiSelectionActivity` |
 | **Browser** | `OpdsBookBrowserActivity` |
 | **KOReader (book)** | `KOReaderSyncActivity` |
 | **Utilities** | `KeyboardEntryActivity` |

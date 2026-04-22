@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file ProgressMapper.h
+ * @brief Public interface and types for ProgressMapper.
+ */
+
 #include <Epub.h>
 
 #include <memory>
@@ -8,17 +14,19 @@
  * CrossPoint position representation.
  */
 struct CrossPointPosition {
-  int spineIndex;  // Current spine item (chapter) index
-  int pageNumber;  // Current page within the spine item
-  int totalPages;  // Total pages in the current spine item
+  int spineIndex;                  
+  int pageNumber;                  
+  int totalPages;                  
+  uint16_t paragraphIndex = 0;     
+  bool hasParagraphIndex = false;  
 };
 
 /**
  * KOReader position representation.
  */
 struct KOReaderPosition {
-  std::string xpath;  // XPath-like progress string
-  float percentage;   // Progress percentage (0.0 to 1.0)
+  std::string xpath;  
+  float percentage;   
 };
 
 /**
@@ -50,23 +58,19 @@ class ProgressMapper {
    *
    * @param epub The EPUB book
    * @param koPos KOReader position
-   * @param totalPagesInSpine Total pages in the target spine item (for page estimation)
+   * @param currentSpineIndex Index of the currently open spine item (for density estimation)
+   * @param totalPagesInCurrentSpine Total pages in the current spine item (for density estimation)
    * @return CrossPoint position
    */
   static CrossPointPosition toCrossPoint(const std::shared_ptr<Epub>& epub, const KOReaderPosition& koPos,
-                                         int totalPagesInSpine = 0);
+                                         int currentSpineIndex = -1, int totalPagesInCurrentSpine = 0);
 
  private:
   /**
-   * Generate XPath for KOReader compatibility.
-   * Format: /body/DocFragment[spineIndex+1]/body/p[estimatedParagraph]
-   * Paragraph is estimated based on page position within the chapter.
+   * Generate a fallback XPath by streaming the spine item's XHTML and resolving
+   * a paragraph/text position from intra-spine progress.
+   * Produces a full ancestry path such as
+   * /body/DocFragment[3]/body/p[42]/text().17.
    */
-  static std::string generateXPath(int spineIndex, int pageNumber, int totalPages);
-
-  /**
-   * Parse DocFragment index from XPath string.
-   * Returns -1 if not found.
-   */
-  static int parseDocFragmentIndex(const std::string& xpath);
+  static std::string generateXPath(const std::shared_ptr<Epub>& epub, int spineIndex, float intraSpineProgress);
 };

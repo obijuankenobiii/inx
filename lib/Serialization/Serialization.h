@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file Serialization.h
+ * @brief Public interface and types for Serialization.
+ */
+
 #include <SdFat.h>
 
 #include <iostream>
@@ -49,4 +55,4 @@ static void readString(FsFile& file, std::string& s) {
   s.resize(len);
   file.read(&s[0], len);
 }
-}  // namespace serialization
+}  

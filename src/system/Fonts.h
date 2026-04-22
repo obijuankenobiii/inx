@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Fonts.h
+ * @brief Public interface and types for Fonts.
+ */
+
 #include "font/bookerly_10_bold.h"
 #include "font/bookerly_12_bold.h"
 #include "font/bookerly_10_bolditalic.h"

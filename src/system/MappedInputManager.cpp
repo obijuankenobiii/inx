@@ -1,3 +1,8 @@
+/**
+ * @file MappedInputManager.cpp
+ * @brief Definitions for MappedInputManager.
+ */
+
 #include "system/MappedInputManager.h"
 
 #include "state/SystemSetting.h"
@@ -17,7 +22,7 @@ struct SideLayoutMap {
   ButtonIndex pageForward;
 };
 
-// Order matches SystemSetting::FRONT_BUTTON_LAYOUT.
+
 constexpr FrontLayoutMap kFrontLayouts[] = {
     {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT},
     {HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT, HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM},
@@ -25,7 +30,7 @@ constexpr FrontLayoutMap kFrontLayouts[] = {
     {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_RIGHT, HalGPIO::BTN_LEFT},
 };
 
-// Order matches SystemSetting::SIDE_BUTTON_LAYOUT.
+
 constexpr SideLayoutMap kSideLayouts[] = {
     {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
     {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},
@@ -49,7 +54,7 @@ MappedInputManager::Button remapDirectional180(const MappedInputManager::Button 
       return button;
   }
 }
-}  // namespace
+}  
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
   const auto frontLayout = static_cast<SystemSetting::FRONT_BUTTON_LAYOUT>(SETTINGS.frontButtonLayout);
@@ -97,7 +102,7 @@ unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(
 
 MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
   const auto sideLayout = static_cast<SystemSetting::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  // UTF-8 « (U+00AB) and » (U+00BB); short labels for the vertical side strip.
+  
   static constexpr const char* kPrev = "\xC2\xAB";
   static constexpr const char* kNext = "\xC2\xBB";
   if (sideLayout == SystemSetting::NEXT_PREV) {

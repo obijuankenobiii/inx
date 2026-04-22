@@ -1,3 +1,8 @@
+/**
+ * @file BookProgress.cpp
+ * @brief Definitions for BookProgress.
+ */
+
 #include "BookProgress.h"
 #include <SDCardManager.h>
 #include <cstring>

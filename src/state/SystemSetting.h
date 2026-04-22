@@ -1,7 +1,14 @@
 #pragma once
 
+/**
+ * @file SystemSetting.h
+ * @brief Public interface and types for SystemSetting.
+ */
+
 #include <cstdint>
 #include <iosfwd>
+
+class GfxRenderer;
 
 /**
  * @brief System settings management class
@@ -185,8 +192,9 @@ public:
         LEFT_ALIGN = 1,     ///< Left alignment
         CENTER_ALIGN = 2,   ///< Center alignment
         RIGHT_ALIGN = 3,    ///< Right alignment
-        /** Use text-align from EPUB CSS (and inline styles) for each paragraph; layout viewport matches reader. */
-        FOLLOW_CSS = 4,  // keep equal to EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/.../ChapterHtmlSlimParser.h
+        /** Same role as CrossPoint “Book style”: use EPUB `text-align` / cascade for each block (value must match
+         *  EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h). */
+        FOLLOW_CSS = 4,
         PARAGRAPH_ALIGNMENT_COUNT
     };
 
@@ -262,12 +270,32 @@ public:
         BOOT_SETTING_COUNT
     };
 
-    // Sleep screen settings
+    /**
+     * @brief Bitmap contrast / ink weight for reader and system images (2bpp → BW when scaled).
+     */
+    enum READER_IMAGE_PRESENTATION {
+        IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
+        IMAGE_PRESENTATION_MEDIUM = 1, ///< Default: full-gray halftone (former “Balance”)
+        IMAGE_PRESENTATION_HIGH = 2,   ///< Strongest: tighter snap + more ink (former “Dark”)
+        READER_IMAGE_PRESENTATION_COUNT
+    };
+
+    /**
+     * @brief Error diffusion when decoding high-color BMP to 2bpp (matches `BitmapDitherMode`).
+     */
+    enum READER_IMAGE_DITHER {
+        IMAGE_DITHER_NONE = 0,
+        IMAGE_DITHER_FLOYD_STEINBERG = 1,
+        IMAGE_DITHER_ATKINSON = 2,
+        READER_IMAGE_DITHER_COUNT
+    };
+
+    
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
     /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
-    uint8_t sleepScreenCoverGrayscale = 1;
+    uint8_t sleepScreenCoverGrayscale = 0;
     /**
      * Fixed custom/transparent sleep BMP when multiple images exist.
      * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
@@ -276,52 +304,54 @@ public:
      */
     char sleepCustomBmp[64] = "";
 
-    // Legacy status bar mode (kept for backward compatibility)
+    
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
     
-    // New configurable status bar sections
+    
     uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;   ///< Left status bar section
     uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;             ///< Middle status bar section
     uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;               ///< Right status bar section
     
-    // Text rendering settings
+    
     uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
     uint8_t textAntiAliasing = 1;                               ///< Text anti-aliasing enabled
     
-    // Global short power button click behaviour (outside reader)
+    
     uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
     
-    // Reader-specific short power button click behaviour
+    
     uint8_t readerShortPwrBtn = READER_PAGE_TURN;               ///< Reader short power button behavior
     
-    // EPUB reading orientation settings
+    
     uint8_t orientation = PORTRAIT;                             ///< Screen orientation
     
-    // Button layouts
+    
     uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;        ///< Front button layout
     uint8_t sideButtonLayout = PREV_NEXT;                       ///< Side button layout
     
-    // Reader navigation settings
+    
     uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
     uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
     
-    // Reader font settings
+    
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
     uint8_t lineSpacing = TIGHT;                                ///< Line spacing
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
+    /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
+    uint8_t paragraphCssIndentEnabled = 0;
+
     
-    // Auto-sleep timeout setting (default 10 minutes)
     uint8_t sleepTimeout = SLEEP_10_MIN;                        ///< Sleep timeout
     
-    // E-ink refresh frequency (default 15 pages)
+    
     uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
     uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
 
-    // Reader screen margin settings
+    
     uint8_t screenMargin = 20;                                  ///< Screen margin in pixels
     
-    // OPDS browser settings
+    
     char opdsServerUrl[128] = "";                               ///< OPDS server URL
     char opdsUsername[64] = "";                                 ///< OPDS username
     char opdsPassword[64] = "";                                 ///< OPDS password
@@ -329,12 +359,14 @@ public:
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
     uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
+    /** When set, main hub screens run a half refresh once after their first paint (cleans ghosting). */
+    uint8_t refreshOnLoad = 0;
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
-    // Library display settings
-    uint8_t recentLibraryMode = RECENT_LIST;                    ///< Recent library display mode
     
-    // Boot settings
+    uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
+    
+    
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 
     /**
@@ -344,9 +376,17 @@ public:
     uint8_t pageAutoTurnSeconds = 0;
 
     /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
-    uint8_t readerImageGrayscale = 1;
+    uint8_t readerImageGrayscale = 0;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
+    /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
+    uint8_t readerImagePresentation = IMAGE_PRESENTATION_MEDIUM;
+    /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
+    uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
+    /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
+    uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
+    /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
+    uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
 
     ~SystemSetting() = default;
 
@@ -357,6 +397,11 @@ public:
     static SystemSetting& getInstance() { 
         return instance; 
     }
+
+    /**
+     * If `refreshOnLoad` is enabled, performs one HALF_REFRESH (no-op when off).
+     */
+    void runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const;
 
     /**
      * @brief Gets power button duration in milliseconds
@@ -371,6 +416,11 @@ public:
      * @return Font identifier for rendering
      */
     int getReaderFontId() const;
+
+    /**
+     * @brief Reader font ID for a given family and size (e.g. settings previews).
+     */
+    int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
     
     /**
      * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").

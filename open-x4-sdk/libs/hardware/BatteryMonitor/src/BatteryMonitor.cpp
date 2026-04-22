@@ -1,3 +1,8 @@
+/**
+ * @file BatteryMonitor.cpp
+ * @brief Definitions for BatteryMonitor.
+ */
+
 #include "BatteryMonitor.h"
 #include <esp32-hal-adc.h>
 #include <esp_adc_cal.h>
@@ -36,13 +41,13 @@ double BatteryMonitor::readVolts() const
 uint16_t BatteryMonitor::percentageFromMillivolts(uint16_t millivolts)
 {
     double volts = millivolts / 1000.0;
-    // Polynomial derived from LiPo samples
+    
     double y = -144.9390 * volts * volts * volts +
                1655.8629 * volts * volts -
                6158.8520 * volts +
                7501.3202;
 
-    // Clamp to [0,100] and round
+    
     y = max(y, 0.0);
     y = min(y, 100.0);
     y = round(y);

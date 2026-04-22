@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ChapterHtmlSlimParser.h
+ * @brief Public interface and types for ChapterHtmlSlimParser.
+ */
+
 #include <expat.h>
 
 #include <climits>
@@ -18,7 +23,7 @@ class GfxRenderer;
 #define MAX_WORD_SIZE 200
 
 /**
- * Reader paragraph alignment: 0–3 match TextBlock::Style; 4 = follow EPUB/CSS text-align.
+ * Reader paragraph alignment: 0–3 match TextBlock::Style; 4 = follow CSS text-align per block.
  * Must stay in sync with SystemSetting::PARAGRAPH_ALIGNMENT (see src/state/SystemSetting.h).
  */
 constexpr uint8_t EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS = 4;
@@ -43,15 +48,15 @@ class ChapterHtmlSlimParser {
   int boldUntilDepth = INT_MAX;
   int italicUntilDepth = INT_MAX;
 
-  // Font tracking
+  
   int fontId;
   int headerFontId;
   int maxFontId;
 
-  // Header tracking
+  
   bool inHeader = false;
 
-  // Drop Cap tracking
+  
   bool inDropCap = false;
   int dropCapDepth = INT_MAX;
 
@@ -67,10 +72,12 @@ class ChapterHtmlSlimParser {
   uint16_t viewportWidth;
   uint16_t viewportHeight;
   bool hyphenationEnabled;
+  /** Book/global "Indent": honor CSS `text-indent` when true (from paragraphCssIndentEnabled). */
+  bool respectCssParagraphIndent = false;
 
   bool skipImages = false;
 
-  // CSS Parser for dimension extraction
+  
   CssParser cssParser;
   bool cssLoaded;
 
@@ -123,7 +130,7 @@ class ChapterHtmlSlimParser {
    */
   void processImageElement(const char** atts);
 
-  // XML parser callbacks
+  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
@@ -137,10 +144,10 @@ class ChapterHtmlSlimParser {
    */
   explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
                                  const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId, const int maxFontId, const float lineCompression, 
-                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment, 
-                                 const uint16_t viewportWidth, const uint16_t viewportHeight, 
-                                 const bool hyphenationEnabled,
+                                 const int headerFontId, const int maxFontId, const float lineCompression,
+                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
+                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
+                                 const bool hyphenationEnabled, const bool respectCssParagraphIndent,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
                                  const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
@@ -157,6 +164,7 @@ class ChapterHtmlSlimParser {
         viewportWidth(viewportWidth),
         viewportHeight(viewportHeight),
         hyphenationEnabled(hyphenationEnabled),
+        respectCssParagraphIndent(respectCssParagraphIndent),
         completePageFn(completePageFn),
         popupFn(popupFn),
         cssLoaded(false) {}

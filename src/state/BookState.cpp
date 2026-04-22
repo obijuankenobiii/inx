@@ -1,3 +1,8 @@
+/**
+ * @file BookState.cpp
+ * @brief Definitions for BookState.
+ */
+
 #include "state/BookState.h"
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -47,7 +52,7 @@ std::vector<BookState::Book> BookState::getReadingBooks() const {
 
 std::vector<BookState::Book> BookState::getFinishedBooks() const {
   std::vector<Book> result;
-  // FIXED: Use std::copy_if instead of raw loop
+  
   std::copy_if(books.begin(), books.end(), std::back_inserter(result),
                [](const Book& book) { return book.isFinished; });
   std::sort(result.begin(), result.end(),

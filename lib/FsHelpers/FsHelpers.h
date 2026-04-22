@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file FsHelpers.h
+ * @brief Public interface and types for FsHelpers.
+ */
+
 #include <string>
 
 class FsHelpers {

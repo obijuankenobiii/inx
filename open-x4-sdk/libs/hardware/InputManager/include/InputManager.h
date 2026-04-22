@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file InputManager.h
+ * @brief Public interface and types for InputManager.
+ */
+
 #include <Arduino.h>
 
 class InputManager {
@@ -12,6 +17,9 @@ class InputManager {
    * Updates the button states. Should be called regularly in the main loop.
    */
   void update();
+
+  /** Queue a one-shot press for the next update() (e.g. BLE HID → same path as physical buttons). */
+  void injectOneShotPress(uint8_t buttonIndex);
 
   /**
    * Returns true if the button was being held at the time of the last #update() call.
@@ -62,7 +70,7 @@ class InputManager {
    */
   unsigned long getHeldTime() const;
 
-  // Button indices
+  
   static constexpr uint8_t BTN_BACK = 0;
   static constexpr uint8_t BTN_CONFIRM = 1;
   static constexpr uint8_t BTN_LEFT = 2;
@@ -71,15 +79,15 @@ class InputManager {
   static constexpr uint8_t BTN_DOWN = 5;
   static constexpr uint8_t BTN_POWER = 6;
 
-  // Pins
+  
   static constexpr int BUTTON_ADC_PIN_1 = 1;
   static constexpr int BUTTON_ADC_PIN_2 = 2;
   static constexpr int POWER_BUTTON_PIN = 3;
 
-  // Power button methods
+  
   bool isPowerButtonPressed() const;
 
-  // Button names
+  
   static const char* getButtonName(uint8_t buttonIndex);
 
  private:
@@ -89,6 +97,7 @@ class InputManager {
   uint8_t lastState;
   uint8_t pressedEvents;
   uint8_t releasedEvents;
+  uint8_t pendingInjectPress{0};
   unsigned long lastDebounceTime;
   unsigned long buttonPressStart;
   unsigned long buttonPressFinish;

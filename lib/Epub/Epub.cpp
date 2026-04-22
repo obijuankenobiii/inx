@@ -1,3 +1,8 @@
+/**
+ * @file Epub.cpp
+ * @brief Definitions for Epub.
+ */
+
 #include "Epub.h"
 
 #include <FsHelpers.h>
@@ -93,15 +98,16 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
 }
 
 /**
- * @brief Extracts an image from the EPUB and converts it to 1-bit BMP.
+ * @brief Extracts an image from the EPUB and converts it for in-body rendering.
  *
- * For BMP sources, the file is copied directly without conversion.
- * For PNG and JPEG sources, the image is converted to 1-bit BMP format.
+ * BMP sources are copied as-is. PNG/JPEG use the same 2-bit Floyd–Steinberg pipeline as the web
+ * Files page (contain within 500×820, BT.601 rounded luma, palette 0/85/170/255, pack thresholds
+ * 42/127/212). Thumbnails, covers, and full-screen extraction use other entry points.
  *
  * @param itemHref Internal path to the image file
  * @param outBmpPath Output path for the converted BMP file
- * @param targetW Target width for resizing (0 for no resize)
- * @param targetH Target height for resizing (0 for no resize)
+ * @param targetW Ignored for PNG/JPEG (kept for API compatibility with callers)
+ * @param targetH Ignored for PNG/JPEG
  * @return true if extraction and conversion succeeded, false otherwise
  */
 bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW,
@@ -142,19 +148,15 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
     }
     success = true;
   } else if (isPngFile(itemHref)) {
-    Serial.printf("[EBP] Converting PNG: %s\n", itemHref.c_str());
-    if (targetW > 0 && targetH > 0) {
-      success = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, targetW, targetH);
-    } else {
-      success = PngToBmpConverter::pngFileTo1BitBmpStream(sourceFile, destFile);
-    }
+    (void)targetW;
+    (void)targetH;
+    Serial.printf("[EBP] Converting PNG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    success = PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
   } else {
-    Serial.printf("[EBP] Converting as JPEG: %s\n", itemHref.c_str());
-    if (targetW > 0 && targetH > 0) {
-      success = JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(sourceFile, destFile, targetW, targetH);
-    } else {
-      success = JpegToBmpConverter::jpegFileToBmpStream(sourceFile, destFile);
-    }
+    (void)targetW;
+    (void)targetH;
+    Serial.printf("[EBP] Converting JPEG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    success = JpegToBmpConverter::jpegFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
   }
 
   sourceFile.close();
@@ -179,6 +181,10 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
  */
 bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                             int targetH, bool cropToFill) const {
+  if (itemHref.empty()) {
+    return false;
+  }
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -210,13 +216,35 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
-    uint8_t buf[2048];
-    while (sourceFile.available()) {
-      size_t r = sourceFile.read(buf, sizeof(buf));
-      destFile.write(buf, r);
+    
+    if (targetW > 0 && targetH > 0) {
+      success = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, targetW, targetH);
+      if (!success) {
+        sourceFile.seek(0);
+        destFile.close();
+        SdMan.remove(outBmpPath.c_str());
+        if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+          sourceFile.close();
+          SdMan.remove(tempPath.c_str());
+          return false;
+        }
+        Serial.printf("[EBP] BMP resize failed, copying raw cover: %s\n", itemHref.c_str());
+        uint8_t buf[2048];
+        while (sourceFile.available()) {
+          size_t r = sourceFile.read(buf, sizeof(buf));
+          destFile.write(buf, r);
+        }
+        success = true;
+      }
+    } else {
+      Serial.printf("[EBP] Source is already BMP for cover, copying directly: %s\n", itemHref.c_str());
+      uint8_t buf[2048];
+      while (sourceFile.available()) {
+        size_t r = sourceFile.read(buf, sizeof(buf));
+        destFile.write(buf, r);
+      }
+      success = true;
     }
-    success = true;
   } else if (isPngFile(itemHref)) {
     success = PngToBmpConverter::pngFileTo1BitBmpStreamCentered(sourceFile, destFile, targetW, targetH, cropToFill);
   } else {
@@ -237,6 +265,9 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
  * @return true if cover generation succeeded, false otherwise
  */
 bool Epub::generateCoverBmp(bool cropped) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
+    return false;
+  }
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
                                           800, cropped);
 }
@@ -286,19 +317,26 @@ bool Epub::generateThumbBmp() const {
       Serial.printf("[EBP] Source is BMP, resizing for thumbnail: %s\n", coverHref.c_str());
       thumbSuccess = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, 225, 340);
     } else if (isPngFile(coverHref)) {
-      thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, false);
     } else {
       JpegToBmpConverter converter;
       thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
     }
 
     if (!thumbSuccess && !isBmpFile(coverHref)) {
-      destFile.seek(0);
-      if (isPngFile(coverHref)) {
-        thumbSuccess = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(sourceFile, destFile, 225, 340);
+      sourceFile.seek(0);
+      destFile.close();
+      SdMan.remove(getThumbBmpPath().c_str());
+      if (!SdMan.openFileForWrite("EBP", getThumbBmpPath(), destFile)) {
+        success = false;
+        thumbSuccess = false;
       } else {
-        JpegToBmpConverter converter;
-        thumbSuccess = converter.jpegFileTo1BitThumbnailBmp(sourceFile, destFile, 225, 340);
+        if (isPngFile(coverHref)) {
+          thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, false);
+        } else {
+          thumbSuccess =
+              JpegToBmpConverter::jpegFileToBmpStreamCentered(sourceFile, destFile, 225, 340, false);
+        }
       }
     }
 
@@ -425,13 +463,18 @@ bool Epub::load(const bool buildIfMissing) {
 
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
-  if (!bookMetadataCache->load()) {
-    if (!bookMetadataCache->beginWrite()) return false;
+  if (bookMetadataCache->load()) {
+    
+    return true;
   }
 
-  if (!buildIfMissing) return false;
+  if (!buildIfMissing) {
+    return false;
+  }
 
-  if (!bookMetadataCache->beginWrite()) return false;
+  if (!bookMetadataCache->beginWrite()) {
+    return false;
+  }
 
   BookMetadataCache::BookMetadata meta;
   bookMetadataCache->beginContentOpfPass();
@@ -456,7 +499,7 @@ bool Epub::load(const bool buildIfMissing) {
 
   bookMetadataCache->endContentOpfPass();
   
-  // Extract and cache CSS files
+  
   bookMetadataCache->beginCssPass();
   if (!bookMetadataCache->extractAndCacheCssFiles(filepath)) {
     Serial.printf("[EBP] Warning: Failed to extract CSS files\n");

@@ -1,3 +1,8 @@
+/**
+ * @file StatusBar.cpp
+ * @brief Definitions for StatusBar.
+ */
+
 #include "StatusBar.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
@@ -6,7 +11,7 @@
 #include "BatteryManager.h"
 #endif
 
-// Define constants for status bar positions
+
 static const int STATUS_BAR_LEFT = 0;
 static const int STATUS_BAR_MIDDLE = 1;
 static const int STATUS_BAR_RIGHT = 2;
@@ -43,7 +48,7 @@ void StatusBar::render(const Section* section, int currentSpineIndex,
     const int availableWidth = screenWidth - orientedMarginLeft - orientedMarginRight;
     const int sectionWidth = availableWidth / 3;
     
-    // Calculate section boundaries
+    
     const int leftSectionStart = orientedMarginLeft;
     const int leftSectionCenter = leftSectionStart + (sectionWidth / 2);
     
@@ -54,7 +59,7 @@ void StatusBar::render(const Section* section, int currentSpineIndex,
     const int rightSectionCenter = rightThirdStart + (sectionWidth / 2);
     const int rightSectionStart = rightThirdStart;
 
-    // Render each section
+    
     renderSection(STATUS_BAR_LEFT, leftSectionStart, leftSectionCenter, 
                  sectionWidth, textY, section, currentSpineIndex);
     

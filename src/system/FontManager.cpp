@@ -1,8 +1,13 @@
+/**
+ * @file FontManager.cpp
+ * @brief Definitions for FontManager.
+ */
+
 #include "FontManager.h"
 #include "system/Fonts.h"
 
 void FontManager::initialize(GfxRenderer& renderer) {
-    // Bookerly fonts
+    
     static EpdFont bookerly10RegularFont(&bookerly_10_regular);
     static EpdFont bookerly10BoldFont(&bookerly_10_bold);
     static EpdFont bookerly10ItalicFont(&bookerly_10_italic);
@@ -48,7 +53,7 @@ void FontManager::initialize(GfxRenderer& renderer) {
                                                &bookerly18ItalicFont,
                                                &bookerly18BoldItalicFont);
 
-    // Literata fonts
+    
     static EpdFont literata10RegularFont(&literata_10_regular);
     static EpdFont literata10BoldFont(&literata_10_bold);
     static EpdFont literata10ItalicFont(&literata_10_italic);
@@ -94,7 +99,7 @@ void FontManager::initialize(GfxRenderer& renderer) {
                                                       &literata18ItalicFont,
                                                       &literata18BoldItalicFont);
 
-    // Atkinson Hyperlegible fonts
+    
     static EpdFont atkinson_hyperlegible8RegularFont(&atkinson_hyperlegible_8_regular);
     static EpdFontFamily atkinson_hyperlegible8FontFamily(&atkinson_hyperlegible8RegularFont, 
                                                            nullptr, 

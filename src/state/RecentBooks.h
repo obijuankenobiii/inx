@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file RecentBooks.h
+ * @brief Public interface and types for RecentBooks.
+ */
+
 #include <string>
 #include <vector>
 

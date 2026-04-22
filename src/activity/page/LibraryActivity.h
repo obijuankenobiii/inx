@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file LibraryActivity.h
+ * @brief Public interface and types for LibraryActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -111,6 +116,7 @@ class LibraryActivity final : public Activity, public Menu {
  private:
   TaskHandle_t displayTaskHandle = nullptr;    ///< Handle for display update task
   SemaphoreHandle_t renderingMutex = nullptr;  ///< Mutex for render thread safety
+  bool halfRefreshOnLoadApplied_ = false;
 
   std::string savedFolderPath;  ///< Saved path when switching views
   std::string basepath;         ///< Current browsing path
@@ -128,23 +134,23 @@ class LibraryActivity final : public Activity, public Menu {
   /** Millis deadline for next Up repeat while held (0 = not repeating). */
   unsigned long libraryListUpNextMs = 0;
 
-  // Pagination
+  
   int itemsPerPage;                           ///< Dynamic items per page based on view mode
   int currentPage;                            ///< Current page index (0-based)
   int totalPages;                             ///< Total number of pages
   std::vector<LibraryItem> currentPageItems;  ///< Items for current page
 
-  // Cache for index mode
+  
   std::vector<LibraryItem> libraryItems;  ///< Cached library items (index mode)
   std::vector<LibraryItem> allBooksList;  ///< Cached all books list (index mode)
 
-  // Callbacks
+  
   const std::function<void()> onGoToRecent;                         ///< Callback to go to recent books
   const std::function<void(const std::string& path)> onSelectBook;  ///< Callback to open a book
   const std::function<void()> onRecentOpen;                         ///< Callback to open recent tab
   const std::function<void()> onSettingsOpen;                       ///< Callback to open settings tab
 
-  // State
+  
   ViewMode currentViewMode;  ///< Current display mode
   SortMode currentSortMode;  ///< Current sorting mode
 

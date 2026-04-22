@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file ActivityWithSubactivity.h
+ * @brief Public interface and types for ActivityWithSubactivity.
+ */
+
 #include <memory>
 
 #include "Activity.h"

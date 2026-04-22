@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file CategorySettingsActivity.h
+ * @brief Public interface and types for CategorySettingsActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -27,6 +33,7 @@ enum class GroupType {
     DEVICE_BUTTONS,
     DEVICE_ADVANCED,
     DEVICE_ACTIONS,
+    IMAGE,
 };
 
 struct ValueRange {
@@ -114,6 +121,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
+  bool halfRefreshOnLoadApplied_ = false;
   int selectedIndex = 0;
   int scrollOffset = 0;
   int itemsPerPage = 0;
@@ -129,7 +137,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   const std::function<void()> onTabSync;
   const std::function<void()> onTabStatistics;
   
-  // Dynamic menu items
+  
   struct MenuEntry {
       const char* name;
       SettingType type;
@@ -188,6 +196,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     groupExpanded[GroupType::DEVICE_BUTTONS] = false;
     groupExpanded[GroupType::DEVICE_ADVANCED] = false;
     groupExpanded[GroupType::DEVICE_ACTIONS] = false;
+    groupExpanded[GroupType::IMAGE] = false;
   }
   void onEnter() override;
   void onExit() override;

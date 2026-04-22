@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file KOReaderSyncActivity.h
+ * @brief Public interface and types for KOReaderSyncActivity.
+ */
+
 #include <Epub.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -74,15 +80,15 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
   std::string statusMessage;
   std::string documentHash;
 
-  // Remote progress data
+  
   bool hasRemoteProgress = false;
   KOReaderProgress remoteProgress;
   CrossPointPosition remotePosition;
 
-  // Local progress as KOReader format (for display)
+  
   KOReaderPosition localProgress;
 
-  // Selection in result screen (0=Apply, 1=Upload, 2=Cancel)
+  
   int selectedOption = 0;
 
   OnCancelCallback onCancel;

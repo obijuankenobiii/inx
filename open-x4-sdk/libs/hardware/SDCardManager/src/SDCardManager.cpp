@@ -1,3 +1,8 @@
+/**
+ * @file SDCardManager.cpp
+ * @brief Definitions for SDCardManager.
+ */
+
 #include "SDCardManager.h"
 
 namespace {
@@ -71,7 +76,7 @@ String SDCardManager::readFile(const char* path) {
   }
 
   String content = "";
-  constexpr size_t maxSize = 50000;  // Limit to 50KB
+  constexpr size_t maxSize = 50000;  
   size_t readSize = 0;
   while (f.available() && readSize < maxSize) {
     const char c = static_cast<char>(f.read());
@@ -154,7 +159,7 @@ bool SDCardManager::writeFile(const char* path, const String& content) {
     return false;
   }
 
-  // Remove existing file so we perform an overwrite rather than append
+  
   if (sd.exists(path)) {
     sd.remove(path);
   }
@@ -178,7 +183,7 @@ bool SDCardManager::ensureDirectoryExists(const char* path) {
     return false;
   }
 
-  // Check if directory already exists
+  
   if (sd.exists(path)) {
     FsFile dir = sd.open(path);
     if (dir && dir.isDirectory()) {
@@ -190,7 +195,7 @@ bool SDCardManager::ensureDirectoryExists(const char* path) {
     dir.close();
   }
 
-  // Create the directory
+  
   if (sd.mkdir(path)) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.printf("Created directory: %s\n", path);
@@ -242,7 +247,7 @@ bool SDCardManager::openFileForWrite(const char* moduleName, const String& path,
 }
 
 bool SDCardManager::removeDir(const char* path) {
-  // 1. Open the directory
+  
   auto dir = sd.open(path);
   if (!dir) {
     return false;

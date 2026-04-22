@@ -1,3 +1,8 @@
+/**
+ * @file CalibreSettingsActivity.cpp
+ * @brief Definitions for CalibreSettingsActivity.
+ */
+
 #include "CalibreSettingsActivity.h"
 
 #include <GfxRenderer.h>
@@ -12,7 +17,7 @@
 namespace {
 constexpr int MENU_ITEMS = 3;
 const char* menuNames[MENU_ITEMS] = {"OPDS Server URL", "Username", "Password"};
-}  // namespace
+}  
 
 void CalibreSettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CalibreSettingsActivity*>(param);
@@ -27,10 +32,10 @@ void CalibreSettingsActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&CalibreSettingsActivity::taskTrampoline, "CalibreSettingsTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 }
 
@@ -77,12 +82,12 @@ void CalibreSettingsActivity::handleSelection() {
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
   if (selectedIndex == 0) {
-    // OPDS Server URL
+    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
         renderer, mappedInput, "OPDS Server URL", SETTINGS.opdsServerUrl, 10,
-        127,    // maxLength
-        false,  // not password
+        127,    
+        false,  
         [this](const std::string& url) {
           strncpy(SETTINGS.opdsServerUrl, url.c_str(), sizeof(SETTINGS.opdsServerUrl) - 1);
           SETTINGS.opdsServerUrl[sizeof(SETTINGS.opdsServerUrl) - 1] = '\0';
@@ -95,12 +100,12 @@ void CalibreSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 1) {
-    // Username
+    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
         renderer, mappedInput, "Username", SETTINGS.opdsUsername, 10,
-        63,     // maxLength
-        false,  // not password
+        63,     
+        false,  
         [this](const std::string& username) {
           strncpy(SETTINGS.opdsUsername, username.c_str(), sizeof(SETTINGS.opdsUsername) - 1);
           SETTINGS.opdsUsername[sizeof(SETTINGS.opdsUsername) - 1] = '\0';
@@ -113,12 +118,12 @@ void CalibreSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 2) {
-    // Password
+    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
         renderer, mappedInput, "Password", SETTINGS.opdsPassword, 10,
-        63,     // maxLength
-        false,  // not password mode
+        63,     
+        false,  
         [this](const std::string& password) {
           strncpy(SETTINGS.opdsPassword, password.c_str(), sizeof(SETTINGS.opdsPassword) - 1);
           SETTINGS.opdsPassword[sizeof(SETTINGS.opdsPassword) - 1] = '\0';
@@ -152,23 +157,23 @@ void CalibreSettingsActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  // Draw header
+  
   renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
 
-  // Draw info text about Calibre
+  
   renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
 
-  // Draw selection highlight
+  
   renderer.fillRect(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30, GfxRenderer::FillTone::Ink);
 
-  // Draw menu items
+  
   for (int i = 0; i < MENU_ITEMS; i++) {
     const int settingY = 70 + i * 30;
     const bool isSelected = (i == selectedIndex);
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
-    // Draw status for each setting
+    
     const char* status = "[Not Set]";
     if (i == 0) {
       status = (strlen(SETTINGS.opdsServerUrl) > 0) ? "[Set]" : "[Not Set]";
@@ -181,7 +186,7 @@ void CalibreSettingsActivity::render() {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
   }
 
-  // Draw button hints
+  
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 

@@ -1,3 +1,8 @@
+/**
+ * @file ParsedText.cpp
+ * @brief Definitions for ParsedText.
+ */
+
 #include "ParsedText.h"
 
 #include <GfxRenderer.h>
@@ -15,13 +20,13 @@ constexpr int MAX_COST = std::numeric_limits<int>::max();
 
 namespace {
 
-// Soft hyphen byte pattern used throughout EPUBs (UTF-8 for U+00AD).
+
 constexpr char SOFT_HYPHEN_UTF8[] = "\xC2\xAD";
 constexpr size_t SOFT_HYPHEN_BYTES = 2;
 
 bool containsSoftHyphen(const std::string& word) { return word.find(SOFT_HYPHEN_UTF8) != std::string::npos; }
 
-// Removes every soft hyphen in-place so rendered glyphs match measured widths.
+
 void stripSoftHyphensInPlace(std::string& word) {
   size_t pos = 0;
   while ((pos = word.find(SOFT_HYPHEN_UTF8, pos)) != std::string::npos) {
@@ -29,7 +34,7 @@ void stripSoftHyphensInPlace(std::string& word) {
   }
 }
 
-// Returns the rendered width for a word while ignoring soft hyphen glyphs and optionally appending a visible hyphen.
+
 uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
                           const EpdFontFamily::Style style, const bool appendHyphen = false) {
   const bool hasSoftHyphen = containsSoftHyphen(word);
@@ -47,7 +52,7 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
   return renderer.getTextWidth(fontId, sanitized.c_str(), style);
 }
 
-}  // namespace
+}  
 
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle) {
   if (word.empty()) return;
@@ -56,7 +61,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle)
   wordStyles.push_back(fontStyle);
 }
 
-// Consumes data to minimize memory usage
+
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
                                        const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                                        const bool includeLastLine) {
@@ -64,7 +69,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     return;
   }
 
-  // Apply fixed transforms before any per-line layout work.
+  
   applyParagraphIndent(renderer, fontId);
 
   const int pageWidth = viewportWidth;
@@ -74,7 +79,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   const int dropW = static_cast<int>(leftIndentWidth);
   const int dropL = static_cast<int>(leftIndentLineCount);
   if (hyphenationEnabled) {
-    // Use greedy layout that can split words mid-loop when a hyphenated prefix fits.
+    
     lineBreakIndices = computeHyphenatedLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
   } else {
     lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
@@ -112,10 +117,10 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
     return {};
   }
 
-  // Ensure any word that would overflow even as the first entry on a line is split using fallback hyphenation.
+  
   for (size_t i = 0; i < wordWidths.size(); ++i) {
     while (wordWidths[i] > pageWidth) {
-      if (!hyphenateWordAtIndex(i, pageWidth, renderer, fontId, wordWidths, /*allowFallbackBreaks=*/true)) {
+      if (!hyphenateWordAtIndex(i, pageWidth, renderer, fontId, wordWidths, true)) {
         break;
       }
     }
@@ -123,7 +128,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   const int n = static_cast<int>(words.size());
 
-  // No drop cap: keep original single-layer DP (faster for long paragraphs).
+  
   if (dropIndentW <= 0 || dropIndentLines <= 0) {
     const size_t totalWordCount = words.size();
     std::vector<int> dp(totalWordCount);
@@ -179,7 +184,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   const int maxEll = n + 1;
 
-  // dp[i][ell] = min badness for suffix words [i, n) when ell lines have already been placed above this suffix.
+  
   std::vector<std::vector<int>> dp(static_cast<size_t>(n + 1), std::vector<int>(static_cast<size_t>(maxEll + 1), MAX_COST));
   std::vector<std::vector<size_t>> ans(static_cast<size_t>(n + 1), std::vector<size_t>(static_cast<size_t>(maxEll + 1), 0));
 
@@ -247,14 +252,17 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 }
 
 void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fontId) {
-  if (extraParagraphSpacing || words.empty()) {
+  if (words.empty()) {
     return;
   }
 
+  
+  
   if (cssTextIndentPx >= 0) {
     if (cssTextIndentPx > 0) {
       static const char em[] = "\xe2\x80\x83";
-      const int emw = renderer.getTextWidth(fontId, em, EpdFontFamily::REGULAR);
+      const EpdFontFamily::Style emStyle = wordStyles.empty() ? EpdFontFamily::REGULAR : wordStyles.front();
+      const int emw = renderer.getTextWidth(fontId, em, emStyle);
       if (emw > 0) {
         const int n = std::min(80, (cssTextIndentPx + emw - 1) / emw);
         std::string pad;
@@ -268,12 +276,18 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
+  
+  
+  if (extraParagraphSpacing && style != TextBlock::JUSTIFIED) {
+    return;
+  }
+
   if (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) {
     words.front().insert(0, "\xe2\x80\x83");
   }
 }
 
-// Builds break indices while opportunistically splitting the word that would overflow the current line.
+
 std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& renderer, const int fontId,
                                                             const int pageWidth, const int spaceWidth,
                                                             std::vector<uint16_t>& wordWidths, int dropIndentW,
@@ -288,32 +302,32 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
     const int lineW =
         (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
 
-    // Consume as many words as possible for current line, splitting when prefixes fit
+    
     while (currentIndex < wordWidths.size()) {
       const bool isFirstWord = currentIndex == lineStart;
       const int spacing = isFirstWord ? 0 : spaceWidth;
       const int candidateWidth = spacing + wordWidths[currentIndex];
 
-      // Word fits on current line
+      
       if (lineWidth + candidateWidth <= lineW) {
         lineWidth += candidateWidth;
         ++currentIndex;
         continue;
       }
 
-      // Word would overflow — try to split based on hyphenation points
+      
       const int availableWidth = lineW - lineWidth - spacing;
-      const bool allowFallbackBreaks = isFirstWord;  // Only for first word on line
+      const bool allowFallbackBreaks = isFirstWord;  
 
       if (availableWidth > 0 &&
           hyphenateWordAtIndex(currentIndex, availableWidth, renderer, fontId, wordWidths, allowFallbackBreaks)) {
-        // Prefix now fits; append it to this line and move to next line
+        
         lineWidth += spacing + wordWidths[currentIndex];
         ++currentIndex;
         break;
       }
 
-      // Could not split: force at least one word per line to avoid infinite loop
+      
       if (currentIndex == lineStart) {
         lineWidth += candidateWidth;
         ++currentIndex;
@@ -328,17 +342,17 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
   return lineBreakIndices;
 }
 
-// Splits words[wordIndex] into prefix (adding a hyphen only when needed) and remainder when a legal breakpoint fits the
-// available width.
+
+
 bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availableWidth, const GfxRenderer& renderer,
                                       const int fontId, std::vector<uint16_t>& wordWidths,
                                       const bool allowFallbackBreaks) {
-  // Guard against invalid indices or zero available width before attempting to split.
+  
   if (availableWidth <= 0 || wordIndex >= words.size()) {
     return false;
   }
 
-  // Get iterators to target word and style.
+  
   auto wordIt = words.begin();
   auto styleIt = wordStyles.begin();
   std::advance(wordIt, wordIndex);
@@ -347,7 +361,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   const std::string& word = *wordIt;
   const auto style = *styleIt;
 
-  // Collect candidate breakpoints (byte offsets and hyphen requirements).
+  
   auto breakInfos = Hyphenator::breakOffsets(word, allowFallbackBreaks);
   if (breakInfos.empty()) {
     return false;
@@ -357,7 +371,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   int chosenWidth = -1;
   bool chosenNeedsHyphen = true;
 
-  // Iterate over each legal breakpoint and retain the widest prefix that still fits.
+  
   for (const auto& info : breakInfos) {
     const size_t offset = info.byteOffset;
     if (offset == 0 || offset >= word.size()) {
@@ -367,7 +381,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
     const bool needsHyphen = info.requiresInsertedHyphen;
     const int prefixWidth = measureWordWidth(renderer, fontId, word.substr(0, offset), style, needsHyphen);
     if (prefixWidth > availableWidth || prefixWidth <= chosenWidth) {
-      continue;  // Skip if too wide or not an improvement
+      continue;  
     }
 
     chosenWidth = prefixWidth;
@@ -376,24 +390,24 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   }
 
   if (chosenWidth < 0) {
-    // No hyphenation point produced a prefix that fits in the remaining space.
+    
     return false;
   }
 
-  // Split the word at the selected breakpoint and append a hyphen if required.
+  
   std::string remainder = word.substr(chosenOffset);
   wordIt->resize(chosenOffset);
   if (chosenNeedsHyphen) {
     wordIt->push_back('-');
   }
 
-  // Insert the remainder word (with matching style) directly after the prefix.
+  
   auto insertWordIt = std::next(wordIt);
   auto insertStyleIt = std::next(styleIt);
   words.insert(insertWordIt, remainder);
   wordStyles.insert(insertStyleIt, style);
 
-  // Update cached widths to reflect the new prefix/remainder pairing.
+  
   wordWidths[wordIndex] = static_cast<uint16_t>(chosenWidth);
   const uint16_t remainderWidth = measureWordWidth(renderer, fontId, remainder, style);
   wordWidths.insert(wordWidths.begin() + wordIndex + 1, remainderWidth);
@@ -407,34 +421,34 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   const size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
   const size_t lineWordCount = lineBreak - lastBreakAt;
 
-  // Calculate total word width for this line
+  
   int lineWordWidthSum = 0;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     lineWordWidthSum += wordWidths[i];
   }
 
-  // --- INDENT LOGIC ---
+  
   uint16_t currentIndent = 0;
   if (this->leftIndentLineCount > 0) {
     currentIndent = this->leftIndentWidth;
     this->leftIndentLineCount--;
   }
 
-  // Adjusted available page width
+  
   const int effectivePageWidth = pageWidth - currentIndent;
   const int spareSpace = effectivePageWidth - lineWordWidthSum;
 
-  // Use normal spacing, don't compress!
+  
   int spacing = spaceWidth;
   const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
 
-  // Only justify if we have extra space (spareSpace >= 0)
+  
   if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2 && spareSpace >= 0) {
     spacing = spareSpace / (lineWordCount - 1);
   }
-  // If spareSpace is negative, keep normal spacing and let it overflow or be handled by the renderer
+  
 
-  // Calculate initial x position starting from the indent
+  
   uint16_t xpos = currentIndent;
   if (style == TextBlock::RIGHT_ALIGN && spareSpace >= 0) {
     xpos += spareSpace - (lineWordCount - 1) * spaceWidth;
@@ -442,7 +456,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos += (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
-  // Pre-calculate X positions for words
+  
   std::list<uint16_t> lineXPos;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     const uint16_t currentWordWidth = wordWidths[i];
@@ -450,7 +464,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos += currentWordWidth + spacing;
   }
 
-  // Extract words (same as before)
+  
   auto wordEndIt = words.begin();
   auto wordStyleEndIt = wordStyles.begin();
   std::advance(wordEndIt, lineWordCount);

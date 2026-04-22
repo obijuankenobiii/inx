@@ -1,3 +1,8 @@
+/**
+ * @file Session.cpp
+ * @brief Definitions for Session.
+ */
+
 #include "state/Session.h"
 
 #include <HardwareSerial.h>
@@ -7,7 +12,7 @@
 namespace {
 constexpr uint8_t STATE_FILE_VERSION = 2;
 constexpr char STATE_FILE[] = "/.system/state.bin";
-}  // namespace
+}  
 
 Session Session::instance;
 
@@ -32,7 +37,7 @@ bool Session::saveToFile() const {
 }
 
 bool Session::loadFromFile() {
-  // Check if file exists
+  
   if (!SdMan.exists(STATE_FILE)) {
     lastRead = "";
     lastSleepImage = 0;
@@ -66,7 +71,7 @@ bool Session::loadFromFile() {
 
   inputFile.close();
 
-  // Basic sanity check
+  
   if (lastRead.length() > 512) {
     lastRead = "";
     lastSleepImage = 0;

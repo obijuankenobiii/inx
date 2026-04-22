@@ -1,3 +1,8 @@
+/**
+ * @file HotspotActivity.cpp
+ * @brief Definitions for HotspotActivity.
+ */
+
 #include "HotspotActivity.h"
 
 #include <DNSServer.h>
@@ -20,7 +25,7 @@ constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 DNSServer* dnsServer = nullptr;
 constexpr uint16_t DNS_PORT = 53;
 
-// Layout constants matching other activities
+
 constexpr int CONTENT_MARGIN = 25;
 constexpr int LINE_SPACING = 28;
 constexpr int SMALL_SPACING = 25;
@@ -31,10 +36,10 @@ constexpr int SUBTITLE_Y_OFFSET = 40;
 constexpr int DIVIDER_PADDING = 10;
 constexpr int BOTTOM_AREA_HEIGHT = 80;
 
-// QR code constants
+
 constexpr int QR_VERSION = 4;
 constexpr int QR_PIXEL_SIZE = 6;
-constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;  // 33 modules for version 4
+constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;  
 
 /**
  * @brief Renders the header section for the activity
@@ -71,7 +76,7 @@ std::string truncateString(const std::string& str, int maxLength) {
     result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
     return result;
 }
-}  // namespace
+}  
 
 /**
  * @brief Static trampoline function for FreeRTOS task creation
@@ -95,7 +100,7 @@ void HotspotActivity::onEnter() {
     updateRequired = true;
     state = HotspotState::STARTING;
 
-    // Increase stack size to match CalibreConnectActivity
+    
     xTaskCreate(&HotspotActivity::taskTrampoline, "HotspotTask", 3072, this, 1, &displayTaskHandle);
 
     startAccessPoint();
@@ -335,18 +340,18 @@ void HotspotActivity::renderServerRunning() const {
     
     int currentY = startY + SUBTITLE_Y_OFFSET + 
                    renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                   DIVIDER_PADDING + 40;  // Increased space after header (was 15)
+                   DIVIDER_PADDING + 40;  
 
-    // Define column positions
+    
     const int leftColX = CONTENT_MARGIN;
     const int rightColX = screenWidth - QR_SIZE - CONTENT_MARGIN;
     const int qrX = rightColX;
 
-    // Network Details (left column)
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
                      "Scan to connect", true, EpdFontFamily::BOLD);
     
-    // WiFi QR Code (right column, aligned with network details header)
+    
     drawQRCode(qrX, currentY - 10, "WIFI:S:" + connectedSSID + ";;");
     
     currentY += LINE_SPACING;
@@ -361,13 +366,13 @@ void HotspotActivity::renderServerRunning() const {
                      ipInfo.c_str());
     currentY += LINE_SPACING;
     
-    currentY += QR_SIZE + 20;  // Reduced space between QR codes (was 40)
+    currentY += QR_SIZE + 20;  
 
-    // Web Access Section
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
                      "Scan to visit", true, EpdFontFamily::BOLD);
     
-    // URL QR Code (right column, aligned with web access header)
+    
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
     drawQRCode(qrX, currentY - 10, hostnameUrl);
     
@@ -383,7 +388,7 @@ void HotspotActivity::renderServerRunning() const {
                      ipUrl.c_str());
     currentY += QR_SIZE + 20;
 
-    // Button hints at bottom
+    
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
     renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                             labels.btn1, labels.btn2, labels.btn3, labels.btn4);

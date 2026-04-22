@@ -1,3 +1,8 @@
+/**
+ * @file ContentOpfParser.cpp
+ * @brief Definitions for ContentOpfParser.
+ */
+
 #include "ContentOpfParser.h"
 
 #include <FsHelpers.h>
@@ -9,7 +14,7 @@
 namespace {
 constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char itemCacheFile[] = "/.items.bin";
-}  // namespace
+}  
 
 bool ContentOpfParser::setup() {
   parser = XML_ParserCreate(nullptr);
@@ -26,8 +31,8 @@ bool ContentOpfParser::setup() {
 
 ContentOpfParser::~ContentOpfParser() {
   if (parser) {
-    XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
-    XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
+    XML_StopParser(parser, XML_FALSE);                
+    XML_SetElementHandler(parser, nullptr, nullptr);  
     XML_SetCharacterDataHandler(parser, nullptr);
     XML_ParserFree(parser);
     parser = nullptr;
@@ -56,8 +61,8 @@ size_t ContentOpfParser::write(const uint8_t* buffer, const size_t size) {
 
     if (!buf) {
       Serial.printf("[%lu] [COF] Couldn't allocate memory for buffer\n", millis());
-      XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
-      XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
+      XML_StopParser(parser, XML_FALSE);                
+      XML_SetElementHandler(parser, nullptr, nullptr);  
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -70,8 +75,8 @@ size_t ContentOpfParser::write(const uint8_t* buffer, const size_t size) {
     if (XML_ParseBuffer(parser, static_cast<int>(toRead), remainingSize == toRead) == XML_STATUS_ERROR) {
       Serial.printf("[%lu] [COF] Parse error at line %lu: %s\n", millis(), XML_GetCurrentLineNumber(parser),
                     XML_ErrorString(XML_GetErrorCode(parser)));
-      XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
-      XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
+      XML_StopParser(parser, XML_FALSE);                
+      XML_SetElementHandler(parser, nullptr, nullptr);  
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -133,7 +138,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           millis());
     }
 
-    // Sort item index for binary search if we have enough items
+    
     if (self->itemIndex.size() >= LARGE_SPINE_THRESHOLD) {
       std::sort(self->itemIndex.begin(), self->itemIndex.end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
         return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
@@ -146,7 +151,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_PACKAGE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
     self->state = IN_GUIDE;
-    // TODO Remove print
+    
     Serial.printf("[%lu] [COF] Entering guide state.\n", millis());
     if (!SdMan.openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
       Serial.printf(
@@ -192,7 +197,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    // Record index entry for fast lookup later
+    
     if (self->tempItemStore) {
       ItemIndexEntry entry;
       entry.idHash = fnvHash(itemId);
@@ -201,7 +206,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       self->itemIndex.push_back(entry);
     }
 
-    // Write items down to SD card
+    
     serialization::writeString(self->tempItemStore, itemId);
     serialization::writeString(self->tempItemStore, href);
 
@@ -218,9 +223,9 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    // EPUB 3: Check for nav document (properties contains "nav")
+    
     if (!properties.empty() && self->tocNavPath.empty()) {
-      // Properties is space-separated, check if "nav" is present as a word
+      
       if (properties == "nav" || properties.find("nav ") == 0 || properties.find(" nav") != std::string::npos) {
         self->tocNavPath = href;
         Serial.printf("[%lu] [COF] Found EPUB 3 nav document: %s\n", millis(), href.c_str());
@@ -229,8 +234,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     return;
   }
 
-  // NOTE: This relies on spine appearing after item manifest (which is pretty safe as it's part of the EPUB spec)
-  // Only run the spine parsing if there's a cache to add it to
+  
+  
   if (self->cache) {
     if (self->state == IN_SPINE && (strcmp(name, "itemref") == 0 || strcmp(name, "opf:itemref") == 0)) {
       for (int i = 0; atts[i]; i += 2) {
@@ -240,7 +245,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           bool found = false;
 
           if (self->useItemIndex) {
-            // Fast path: binary search
+            
             uint32_t targetHash = fnvHash(idref);
             uint16_t targetLen = static_cast<uint16_t>(idref.size());
 
@@ -250,7 +255,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
                                          return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
                                        });
 
-            // Check for match (may need to check a few due to hash collisions)
+            
             while (it != self->itemIndex.end() && it->idHash == targetHash) {
               self->tempItemStore.seek(it->fileOffset);
               std::string itemId;
@@ -263,9 +268,9 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
               ++it;
             }
           } else {
-            // Slow path: linear scan (for small manifests, keeps original behavior)
-            // TODO: This lookup is slow as need to scan through all items each time.
-            //       It can take up to 200ms per item when getting to 1500 items.
+            
+            
+            
             self->tempItemStore.seek(0);
             std::string itemId;
             while (self->tempItemStore.available()) {
@@ -286,7 +291,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       return;
     }
   }
-  // parse the guide
+  
   if (self->state == IN_GUIDE && (strcmp(name, "reference") == 0 || strcmp(name, "opf:reference") == 0)) {
     std::string type;
     std::string textHref;
@@ -381,15 +386,15 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
 std::vector<ContentOpfParser::ManifestItem> ContentOpfParser::getImages() const {
     std::vector<ManifestItem> images;
     FsFile file;
-    // The parser uses a file named ".items.bin" inside the cache directory
+    
     std::string path = cachePath + "/.items.bin";
     
     if (!SdMan.openFileForRead("EBP", path, file)) return images;
 
-    // The binary format usually stores: ID_LEN (1) + ID + HREF_LEN (1) + HREF + MIME_LEN (1) + MIME
+    
     while (file.available()) {
         uint8_t idLen = file.read();
-        file.seekCur(idLen); // Skip ID
+        file.seekCur(idLen); 
         
         uint8_t hrefLen = file.read();
         char hrefBuf[hrefLen + 1];

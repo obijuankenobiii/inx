@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file RecentActivity.h
+ * @brief Public interface and types for RecentActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -44,6 +50,7 @@ class RecentActivity final : public Activity, public Menu {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool taskRunning = false;
+  bool halfRefreshOnLoadApplied_ = false;
 
   int selectorIndex = 0;
   bool updateRequired = false;

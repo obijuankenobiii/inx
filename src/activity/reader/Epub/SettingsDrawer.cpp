@@ -1,8 +1,14 @@
+/**
+ * @file SettingsDrawer.cpp
+ * @brief Definitions for SettingsDrawer.
+ */
+
 #include "SettingsDrawer.h"
 
 #include <algorithm>
 #include <cstdio>
 
+#include "../../settings/ReaderFontSettingsDraw.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 
@@ -47,7 +53,7 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
   return in.wasPressed(MappedInputManager::Button::Right);
 }
 
-}  // namespace
+}  
 
 /**
  * @brief Constructs a new SettingsDrawer
@@ -71,6 +77,7 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
 
   groupExpanded[GroupType::FONT] = false;
   groupExpanded[GroupType::LAYOUT] = false;
+  groupExpanded[GroupType::IMAGE] = false;
   groupExpanded[GroupType::CONTROLS] = false;
   groupExpanded[GroupType::STATUS_BAR] = false;
 
@@ -194,7 +201,7 @@ void SettingsDrawer::setupMenu() {
     alignEntry.group = GroupType::LAYOUT;
     alignEntry.name = "Paragraph Alignment";
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* align[] = {"Justify", "Left", "Center", "Right", "Default (CSS)"};
+      static const char* align[] = {"Justify", "Left", "Center", "Right", "Css"};
       int index = s.paragraphAlignment;
       if (index > 4) index = 0;
       return align[index];
@@ -220,6 +227,19 @@ void SettingsDrawer::setupMenu() {
       s.useCustomSettings = true;
     };
     menuItems.push_back(extraParaEntry);
+
+    MenuEntry cssIndentEntry;
+    cssIndentEntry.item = MenuItem::ParagraphCssIndent;
+    cssIndentEntry.group = GroupType::LAYOUT;
+    cssIndentEntry.name = "Indent";
+    cssIndentEntry.getValueText = [](const BookSettings& s) -> const char* {
+      return s.paragraphCssIndentEnabled ? "On" : "Off";
+    };
+    cssIndentEntry.change = [](BookSettings& s, int) {
+      s.paragraphCssIndentEnabled = s.paragraphCssIndentEnabled ? 0 : 1;
+      s.useCustomSettings = true;
+    };
+    menuItems.push_back(cssIndentEntry);
 
     MenuEntry marginEntry;
     marginEntry.item = MenuItem::ScreenMargin;
@@ -268,6 +288,73 @@ void SettingsDrawer::setupMenu() {
       s.useCustomSettings = true;
     };
     menuItems.push_back(hypenEntry);
+  }
+
+  MenuEntry imageSeparator;
+  imageSeparator.item = MenuItem::Separator;
+  imageSeparator.group = GroupType::IMAGE;
+  imageSeparator.name = "═══ Image ═══";
+  imageSeparator.getValueText = [this](const BookSettings&) -> const char* {
+    static char indicator[4];
+    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::IMAGE] ? "-" : "+");
+    return indicator;
+  };
+  imageSeparator.change = [](BookSettings&, int) {};
+  menuItems.push_back(imageSeparator);
+
+  if (groupExpanded[GroupType::IMAGE]) {
+    MenuEntry imgGrayEntry;
+    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
+    imgGrayEntry.group = GroupType::IMAGE;
+    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+    };
+    imgGrayEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(imgGrayEntry);
+
+    MenuEntry smartRefreshEntry;
+    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
+    smartRefreshEntry.group = GroupType::IMAGE;
+    smartRefreshEntry.name = "Smart Refresh (Images)";
+    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
+      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    };
+    smartRefreshEntry.change = [](BookSettings&, int) {
+      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(smartRefreshEntry);
+
+    MenuEntry presEntry;
+    presEntry.item = MenuItem::ReaderImagePresentation;
+    presEntry.group = GroupType::IMAGE;
+    presEntry.name = "Contrast";
+    presEntry.getValueText = [](const BookSettings&) -> const char* {
+      switch (SETTINGS.readerImagePresentation) {
+        case SystemSetting::IMAGE_PRESENTATION_LOW:
+          return "Low";
+        case SystemSetting::IMAGE_PRESENTATION_HIGH:
+          return "High";
+        default:
+          return "Medium";
+      }
+    };
+    presEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerImagePresentation = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(presEntry);
   }
 
   MenuEntry controlsSeparator;
@@ -328,32 +415,6 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(refreshEntry);
-
-    MenuEntry imgGrayEntry;
-    imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
-    imgGrayEntry.group = GroupType::CONTROLS;
-    imgGrayEntry.name = "Image Grayscale";
-    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImageGrayscale ? "On" : "Off";
-    };
-    imgGrayEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(imgGrayEntry);
-
-    MenuEntry smartRefreshEntry;
-    smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
-    smartRefreshEntry.group = GroupType::CONTROLS;
-    smartRefreshEntry.name = "Smart Refresh (Images)";
-    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
-    };
-    smartRefreshEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(smartRefreshEntry);
 
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
@@ -577,11 +638,64 @@ void SettingsDrawer::drawMenuItems() {
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
-    const char* val = entry.getValueText(settings);
-    if (val && val[0] != '\0') {
-      int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - valW - 30, textY, val,
-                        isSelected ? 0 : 1);
+    const int valueColumnRight = drawerX + drawerWidth - 24;
+    if (entry.item == MenuItem::FontFamily) {
+      const char* val = entry.getValueText(settings);
+      if (val && val[0] != '\0') {
+        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
+                                                       itemHeight, isSelected, val);
+      }
+    } else if (entry.item == MenuItem::FontSize) {
+      const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
+      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
+                                                         valueAreaLeft, valueColumnRight, itemY, itemHeight,
+                                                         isSelected);
+    } else {
+      bool checkbox = false;
+      bool checked = false;
+      switch (entry.item) {
+        case MenuItem::ExtraParagraphSpacing:
+          checkbox = true;
+          checked = settings.extraParagraphSpacing != 0;
+          break;
+        case MenuItem::ParagraphCssIndent:
+          checkbox = true;
+          checked = settings.paragraphCssIndentEnabled != 0;
+          break;
+        case MenuItem::Hyphenation:
+          checkbox = true;
+          checked = settings.hyphenationEnabled != 0;
+          break;
+        case MenuItem::ReaderImageGrayscale:
+          checkbox = true;
+          checked = SETTINGS.readerImageGrayscale != 0;
+          break;
+        case MenuItem::ReaderSmartImageRefresh:
+          checkbox = true;
+          checked = SETTINGS.readerSmartRefreshOnImages != 0;
+          break;
+        case MenuItem::AntiAliasing:
+          checkbox = true;
+          checked = settings.textAntiAliasing != 0;
+          break;
+        case MenuItem::ChapterSkip:
+          checkbox = true;
+          checked = settings.longPressChapterSkip != 0;
+          break;
+        default:
+          break;
+      }
+      if (checkbox) {
+        ReaderFontSettingsDraw::drawToggleCheckbox(renderer, valueColumnRight, itemY, itemHeight, isSelected,
+                                                   checked);
+      } else {
+        const char* val = entry.getValueText(settings);
+        if (val && val[0] != '\0') {
+          int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
+                            isSelected ? 0 : 1);
+        }
+      }
     }
 
     renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
@@ -705,6 +819,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::ScreenMargin:
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:
+    case MenuItem::ParagraphCssIndent:
     case MenuItem::ReadingOrientation:
       settingsUpdated = true;
       break;
@@ -712,6 +827,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
+    case MenuItem::ReaderImagePresentation:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

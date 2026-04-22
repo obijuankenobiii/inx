@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file ContainerParser.h
+ * @brief Public interface and types for ContainerParser.
+ */
+
 #include <Print.h>
 
 #include <string>

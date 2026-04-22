@@ -1,3 +1,8 @@
+/**
+ * @file TableOfContentsActivity.cpp
+ * @brief Definitions for TableOfContentsActivity.
+ */
+
 #include "TableOfContentsActivity.h"
 #include <GfxRenderer.h>
 
@@ -43,13 +48,13 @@ void TableOfContentsActivity::onEnter() {
 }
 
 void TableOfContentsActivity::onExit() {
-    // Stop display task first
+    
     if (displayTaskHandle) {
         vTaskDelete(displayTaskHandle);
         displayTaskHandle = nullptr;
     }
     
-    // Then delete mutex
+    
     if (renderingMutex) {
         vSemaphoreDelete(renderingMutex);
         renderingMutex = nullptr;
@@ -127,7 +132,7 @@ void TableOfContentsActivity::renderScreen() {
     const int totalItems = epub->getTocItemsCount();
     const int pageItems = getPageItems();
 
-    // Header
+    
     const int headerY = 20;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerY, "Table of Contents", true, EpdFontFamily::BOLD);
 
@@ -138,7 +143,7 @@ void TableOfContentsActivity::renderScreen() {
     const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
     renderer.drawLine(0, dividerY, screenWidth, dividerY);
 
-    // List
+    
     const int pageStartIndex = (selectorIndex / pageItems) * pageItems;
     int drawY = dividerY + 2;
 
@@ -172,7 +177,7 @@ void TableOfContentsActivity::renderScreen() {
         renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
     }
 
-    // Footer
+    
     const int totalPages = (totalItems + pageItems - 1) / pageItems;
     const int currentPageNum = (selectorIndex / pageItems) + 1;
     char pageStr[24];

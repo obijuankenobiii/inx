@@ -1,38 +1,42 @@
 #pragma once
 
+/**
+ * @file StatisticActivity.h
+ * @brief Public interface and types for StatisticActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../Activity.h"
 #include "../Menu.h"
 #include "state/Statistics.h"
 
-// Forward declaration for Bitmap
+
 class Bitmap;
 
 /**
  * Activity for displaying reading statistics.
- * Shows a grid of books with their reading statistics including:
- * - Reading time
- * - Pages read
- * - Chapters completed
- * - Average time per page
- * - Reading progress with visual progress bar
+ * First view is a global reading-stats summary; Up/Down steps through one book at a time.
+ * Confirm saves recomputed global totals to the statistics file.
  */
 class StatisticActivity final : public Activity, public Menu {
 private:
     TaskHandle_t displayTaskHandle = nullptr;
     SemaphoreHandle_t renderingMutex = nullptr;
 
-    int bookSelectorIndex = 0;        // Current page index (2 books per page)
+    /** 0 = aggregated global overview; 1..N = one book (index N-1 in allBooksStats). */
+    int viewIndex = 0;
     bool updateRequired = false;
 
     std::vector<BookReadingStats> allBooksStats;
+    GlobalReadingStats globalStats;
 
     const std::function<void()> onGoToRecent;
     const std::function<void()> onSyncOpen;
@@ -52,6 +56,10 @@ private:
      */
     void renderCover(const std::string& bookPath, int x, int y, int width, int height, const std::string& title, const std::string& author) const;
 
+    /** Global view: draw recent cover with frame sized to bitmap (max 165×182); returns {frameW, frameH}. */
+    std::pair<int, int> drawGlobalRecentThumbBlock(int x, int y, const std::string& bookPath,
+                                                   const std::string& title) const;
+
     /**
      * Static task trampoline for the display update task.
      */
@@ -66,6 +74,15 @@ private:
      * Renders the complete statistics view.
      */
     void render() const;
+
+    void renderSingleBookView(int bookIdx, int contentTop, int contentBottom) const;
+
+    /** Global overview (view 0): each returns next Y after band height + Margin. */
+    int renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const;
+    int renderRecent(int y, int innerLeft, int innerRight, int innerW, int Margin) const;
+    int renderFirstGrid(int y, int innerLeft, int innerW, int Margin) const;
+    int renderGuage(int y, int innerLeft, int innerRight, int Margin) const;
+    void renderSecondGrid(int y, int innerLeft, int innerRight, int contentBottom) const;
 
     /**
      * Navigates to the selected tab.
@@ -99,9 +116,9 @@ public:
         Menu(),
         onGoToRecent(onGoToRecent),
         onSyncOpen(onSyncOpen),
-        bookSelectorIndex(0),
+        viewIndex(0),
         updateRequired(false) {
-        tabSelectorIndex = 4;  // Statistics tab index
+        tabSelectorIndex = 4;  
     };
 
     void onEnter() override;

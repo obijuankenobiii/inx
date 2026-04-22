@@ -1,3 +1,8 @@
+/**
+ * @file CalibreConnectActivity.cpp
+ * @brief Definitions for CalibreConnectActivity.
+ */
+
 #include "CalibreConnectActivity.h"
 
 #include <ESPmDNS.h>
@@ -133,7 +138,7 @@ namespace {
         result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
         return result;
     }
-}  // namespace
+}  
 
 /**
  * @brief Web server context structure managing connection state and upload progress

@@ -1,3 +1,8 @@
+/**
+ * @file GfxRenderer.cpp
+ * @brief Definitions for GfxRenderer.
+ */
+
 #include "GfxRenderer.h"
 
 #include <Utf8.h>
@@ -30,6 +35,14 @@ int cornerSpanFromRy(const int r, const int ry) {
   return static_cast<int>(std::sqrt(static_cast<double>(inner)));
 }
 
+inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
+  const uint8_t st = stage03 & 3u;
+  if (gs == GfxRenderer::BitmapGrayRenderStyle::Balanced) {
+    return st <= 1u;
+  }
+  return st < 3u;
+}
+
 /**
  * True when a single bitmap has enough mid-gray (2bpp 1/2) to justify the grayscale refresh pass.
  * When most pixels are white (3), require a much larger gray area so JPEG/dither noise in margins
@@ -50,7 +63,7 @@ bool bitmapStatsWarrantGrayscale(const uint32_t checked, const uint32_t grayPixe
     return grayPixels >= minGray;
   }
 
-  const uint32_t thresholdByRatio = (checked * 80U) / 1000U;  // 8%
+  const uint32_t thresholdByRatio = (checked * 80U) / 1000U;  
   const uint32_t threshold = std::max<uint32_t>(256U, thresholdByRatio);
   return grayPixels >= threshold;
 }
@@ -67,58 +80,58 @@ bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int heigh
 
 /** Quarter-circle outline (same centers as rounded fillRect), not a filled wedge. */
 void drawRoundedRectCornerOutlines(const GfxRenderer& gfx, int x, int y, int width, int height, int r, bool state) {
-  // Top-left center (x+r, y+r)
+  
   for (int h = 0; h <= r; ++h) {
     const int span = cornerSpanFromRy(r, r - h);
     gfx.drawPixel(x + r - span, y + h, state);
   }
 
-  // Top-right center (x+width-r-1, y+r)
+  
   for (int h = 0; h <= r; ++h) {
     const int span = cornerSpanFromRy(r, r - h);
     gfx.drawPixel(x + width - r - 1 + span, y + h, state);
   }
 
-  // Bottom-left center (x+r, y+height-r-1)
+  
   for (int h = 0; h <= r; ++h) {
     const int span = cornerSpanFromRy(r, r - h);
     gfx.drawPixel(x + r - span, y + height - 1 - h, state);
   }
 
-  // Bottom-right center (x+width-r-1, y+height-r-1)
+  
   for (int h = 0; h <= r; ++h) {
     const int span = cornerSpanFromRy(r, r - h);
     gfx.drawPixel(x + width - r - 1 + span, y + height - 1 - h, state);
   }
 }
-}  // namespace
+}  
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) { fontMap.insert({fontId, font}); }
 
 void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int* rotatedY) const {
   switch (orientation) {
     case Portrait: {
-      // Logical portrait (480x800) → panel (800x480)
-      // Rotation: 90 degrees clockwise
+      
+      
       *rotatedX = y;
       *rotatedY = HalDisplay::DISPLAY_HEIGHT - 1 - x;
       break;
     }
     case LandscapeClockwise: {
-      // Logical landscape (800x480) rotated 180 degrees (swap top/bottom and left/right)
+      
       *rotatedX = HalDisplay::DISPLAY_WIDTH - 1 - x;
       *rotatedY = HalDisplay::DISPLAY_HEIGHT - 1 - y;
       break;
     }
     case PortraitInverted: {
-      // Logical portrait (480x800) → panel (800x480)
-      // Rotation: 90 degrees counter-clockwise
+      
+      
       *rotatedX = HalDisplay::DISPLAY_WIDTH - 1 - y;
       *rotatedY = x;
       break;
     }
     case LandscapeCounterClockwise: {
-      // Logical landscape (800x480) aligned with panel orientation
+      
       *rotatedX = x;
       *rotatedY = y;
       break;
@@ -129,7 +142,7 @@ void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int
 void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   uint8_t* frameBuffer = display.getFrameBuffer();
 
-  // Early return if no framebuffer is set
+  
   if (!frameBuffer) {
     Serial.printf("[%lu] [GFX] !! No framebuffer\n", millis());
     return;
@@ -139,20 +152,20 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   int rotatedY = 0;
   rotateCoordinates(x, y, &rotatedX, &rotatedY);
 
-  // Bounds checking against physical panel dimensions
+  
   if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 || rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
     Serial.printf("[%lu] [GFX] !! Outside range (%d, %d) -> (%d, %d)\n", millis(), x, y, rotatedX, rotatedY);
     return;
   }
 
-  // Calculate byte position and bit position
+  
   const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
-  const uint8_t bitPosition = 7 - (rotatedX % 8);  // MSB first
+  const uint8_t bitPosition = 7 - (rotatedX % 8);  
 
   if (state) {
-    frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+    frameBuffer[byteIndex] &= ~(1 << bitPosition);  
   } else {
-    frameBuffer[byteIndex] |= 1 << bitPosition;  // Set bit
+    frameBuffer[byteIndex] |= 1 << bitPosition;  
   }
 }
 
@@ -178,7 +191,7 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
   const int yPos = y + getFontAscenderSize(fontId);
   int xpos = x;
 
-  // cannot draw a NULL / empty string
+  
   if (text == nullptr || *text == '\0') {
     return;
   }
@@ -189,7 +202,7 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
   }
   const auto font = fontMap.at(fontId);
 
-  // no printable characters
+  
   if (!font.hasPrintableChars(text, style)) {
     return;
   }
@@ -227,35 +240,35 @@ void GfxRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) con
       drawPixel(x, y1, state);
     }
   } else {
-    // TODO: Implement
+    
     Serial.printf("[%lu] [GFX] Line drawing not supported\n", millis());
   }
 }
 
 void GfxRenderer::drawRect(const int x, const int y, const int width, const int height, const bool state, const bool rounded) const {
   if (!rounded) {
-    // Original rectangle drawing
+    
     drawLine(x, y, x + width - 1, y, state);
     drawLine(x + width - 1, y, x + width - 1, y + height - 1, state);
     drawLine(x + width - 1, y + height - 1, x, y + height - 1, state);
     drawLine(x, y, x, y + height - 1, state);
   } else {
-    // Rounded rectangle drawing
+    
     const int radius = roundedRectCornerRadius(width, height);
     
-    // Draw top edge (excluding corners)
+    
     drawLine(x + radius, y, x + width - radius - 1, y, state);
     
-    // Draw bottom edge (excluding corners)
+    
     drawLine(x + radius, y + height - 1, x + width - radius - 1, y + height - 1, state);
     
-    // Draw left edge (excluding corners)
+    
     drawLine(x, y + radius, x, y + height - radius - 1, state);
     
-    // Draw right edge (excluding corners)
+    
     drawLine(x + width - 1, y + radius, x + width - 1, y + height - radius - 1, state);
 
-    // Thin quarter arcs (filled wedges used to spill black inside white rounded fills)
+    
     drawRoundedRectCornerOutlines(*this, x, y, width, height, radius, state);
   }
 }
@@ -264,7 +277,7 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
                            const bool rounded) const {
   if (tone == FillTone::Gray) {
     if (rounded) {
-      // Checkerboard not implemented for rounded fills; use solid ink so corners stay correct.
+      
       fillRect(x, y, width, height, FillTone::Ink, true);
       return;
     }
@@ -309,9 +322,34 @@ void GfxRenderer::fillRect(const int x, const int y, const int width, const int 
   fillRect(x, y, width, height, state ? FillTone::Ink : FillTone::Paper, rounded);
 }
 
+void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t stage03) const {
+  const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
+
+  if (v == 3u) return;  
+
+  if (v == 0u) {
+    drawPixel(px, py, true);
+    return;
+  }
+
+  
+  static const uint8_t kBayer2[4] = {0, 2, 3, 1};
+  const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
+  const uint8_t tScaled = (t * 16) / 4;  
+  const bool dark = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::Dark);
+
+  if (v == 1u) {
+    
+    drawPixel(px, py, tScaled < (dark ? 13u : 12u));
+    return;
+  }
+
+  
+  drawPixel(px, py, tScaled < (dark ? 9u : 6u));
+}
+
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY) const {
-  // For 1-bit bitmaps, use optimized 1-bit rendering path (no crop support for 1-bit)
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     drawBitmap1Bit(bitmap, x, y, maxWidth, maxHeight);
     return;
@@ -319,9 +357,8 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
   float scale = 1.0f;
   bool isScaled = false;
-  int cropPixX = std::floor(bitmap.getWidth() * cropX / 2.0f);
-  int cropPixY = std::floor(bitmap.getHeight() * cropY / 2.0f);
-
+  const int cropPixX = static_cast<int>(std::floor(bitmap.getWidth() * cropX / 2.0f));
+  const int cropPixY = static_cast<int>(std::floor(bitmap.getHeight() * cropY / 2.0f));
 
   const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
   const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
@@ -332,187 +369,111 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     fitScale = static_cast<float>(maxWidth) / croppedWidth;
     hasTargetBounds = true;
   }
-
   if (maxHeight > 0 && croppedHeight > 0.0f) {
     const float heightScale = static_cast<float>(maxHeight) / croppedHeight;
     fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
     hasTargetBounds = true;
   }
 
+  
   constexpr float kScaleEps = 1e-5f;
-  const bool upscaleBlock = hasTargetBounds && fitScale > 1.0f + kScaleEps;
-  if (hasTargetBounds && fitScale < 1.0f - kScaleEps) {
-    scale = fitScale;
-    isScaled = true;
-  } else if (upscaleBlock) {
+  if (hasTargetBounds && std::abs(fitScale - 1.0f) > kScaleEps) {
     scale = fitScale;
     isScaled = true;
   }
+  const bool replicateUpscale = isScaled && scale > 1.0f + kScaleEps;
+  const int tFirstY = -cropPixY + (bitmap.isTopDown() ? cropPixY : bitmap.getHeight() - 1 - cropPixY);
 
-  // Calculate output row size (2 bits per pixel, packed into bytes)
-  // IMPORTANT: Use int, not uint8_t, to avoid overflow for images > 1020 pixels wide
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
-
   if (!outputRow || !rowBytes) {
     free(outputRow);
     free(rowBytes);
     return;
   }
 
-  auto get2BitPixel = [](const uint8_t* row, const int px) -> uint8_t {
-    return (row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3;
-  };
-
-  // Use area accumulation for downscaled 2-bit bitmaps to avoid block/square artifacts.
-  const bool useAreaDownscale = isScaled && scale < 1.0f && !bitmap.is1Bit();
-  const int screenWidth = getScreenWidth();
-  std::vector<uint32_t> graySums;
-  std::vector<uint32_t> grayCounts;
-  int activeDestY = -1;
-
+  const BitmapGrayRenderStyle grayStyle = bitmapGrayRenderStyle;
   uint32_t localChecked = 0;
   uint32_t localGray = 0;
   uint32_t localWhite = 0;
 
-  auto flushAccumulatedRow = [&](const int destY) {
-    if (destY < 0 || destY >= getScreenHeight()) {
-      return;
-    }
-    for (int sx = 0; sx < screenWidth; sx++) {
-      uint8_t resolvedVal = 3;
-      if (grayCounts[sx] > 0) {
-        resolvedVal = static_cast<uint8_t>((graySums[sx] + (grayCounts[sx] / 2)) / grayCounts[sx]);
+  auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
+    return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
+  };
+
+  auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
+    if (renderMode == BW) {
+      localChecked++;
+      if (val == 1 || val == 2) {
+        localGray++;
+      } else if (val == 3) {
+        localWhite++;
       }
-      if (renderMode == BW && grayCounts[sx] > 0) {
-        localChecked++;
-        if (resolvedVal == 1 || resolvedVal == 2) {
-          localGray++;
-        } else if (resolvedVal == 3) {
-          localWhite++;
-        }
+      if (bwShouldInk2bpp(val, grayStyle)) {
+        drawBwFrom2bppStage(screenX, screenY, val);
       }
-      // No mapped source samples: leave white. Neighbor carry caused dark rectangular smears.
-      // Downscaled BW: only average black/dark-gray (<=1) inks; treat light gray (2) as paper to reduce speckle.
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
-        drawPixel(sx, destY);
-      } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
-        drawPixel(sx, destY, false);
-      } else if (renderMode == GRAYSCALE_LSB && resolvedVal == 1) {
-        drawPixel(sx, destY, false);
-      }
-      graySums[sx] = 0;
-      grayCounts[sx] = 0;
+    } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+      drawPixel(screenX, screenY, false);
+    } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+      drawPixel(screenX, screenY, false);
     }
   };
 
-  if (useAreaDownscale) {
-    graySums.assign(screenWidth, 0);
-    grayCounts.assign(screenWidth, 0);
-  }
-
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
-    // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
-    // Screen's (0, 0) is the top-left corner.
-    const int logicalYUnscaled = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
-
-    int screenY = logicalYUnscaled;
-    if (isScaled && !upscaleBlock) {
-      screenY = static_cast<int>(std::floor(logicalYUnscaled * scale));
-    }
-    screenY += y;
-    if (!upscaleBlock && screenY >= getScreenHeight()) {
-      break;
-    }
-
     if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
       free(outputRow);
       free(rowBytes);
       return;
     }
 
-    if (!upscaleBlock && screenY < 0) {
-      continue;
-    }
-
     if (bmpY < cropPixY) {
-      // Skip the row if it's outside the crop area
       continue;
     }
 
-    int destY0 = screenY;
-    int destY1 = screenY;
-    if (upscaleBlock) {
-      destY0 = y + static_cast<int>(std::floor(logicalYUnscaled * scale));
-      destY1 = y + static_cast<int>(std::floor((logicalYUnscaled + 1) * scale)) - 1;
-      if (destY0 >= getScreenHeight()) {
+    const int t = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
+    const int uY = bitmap.isTopDown() ? (t - tFirstY) : (tFirstY - t);
+
+    if (replicateUpscale) {
+      const int y0 = y + static_cast<int>(std::floor(static_cast<float>(uY) * scale));
+      const int y1 = y + static_cast<int>(std::floor(static_cast<float>(uY + 1) * scale));
+      if (y0 >= getScreenHeight()) {
         break;
       }
-      if (destY1 < 0) {
-        continue;
-      }
-    }
-
-    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
-      const uint8_t sourceVal = get2BitPixel(outputRow, bmpX);
-      uint8_t val = sourceVal;
-
-      // Grayscale pass decision: use source 2bpp only (per-image), BW pass only.
-      if (renderMode == BW && !useAreaDownscale) {
-        localChecked++;
-        if (sourceVal == 1 || sourceVal == 2) {
-          localGray++;
-        } else if (sourceVal == 3) {
-          localWhite++;
-        }
-      }
-
-      if (useAreaDownscale) {
-        if (activeDestY == -1) {
-          activeDestY = screenY;
-        } else if (screenY != activeDestY) {
-          flushAccumulatedRow(activeDestY);
-          activeDestY = screenY;
-        }
-        int screenX = bmpX - cropPixX;
-        if (isScaled) {
-          screenX = static_cast<int>(std::floor(screenX * scale));
-        }
-        screenX += x;
-        if (screenX >= getScreenWidth()) {
-          break;
-        }
-        if (screenX < 0) {
+      for (int sy = y0; sy < y1 && sy < getScreenHeight(); ++sy) {
+        if (sy < 0) {
           continue;
         }
-        graySums[screenX] = static_cast<uint16_t>(graySums[screenX] + val);
-        grayCounts[screenX]++;
-      } else if (upscaleBlock) {
-        const int logicalX = bmpX - cropPixX;
-        const int destX0 = x + static_cast<int>(std::floor(logicalX * scale));
-        const int destX1 = x + static_cast<int>(std::floor((logicalX + 1) * scale)) - 1;
-        for (int yy = destY0; yy <= destY1; ++yy) {
-          if (yy < 0 || yy >= getScreenHeight()) {
-            continue;
-          }
-          for (int xx = destX0; xx <= destX1; ++xx) {
-            if (xx < 0 || xx >= getScreenWidth()) {
+        for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
+          const int srcCol = bmpX - cropPixX;
+          const int x0 = x + static_cast<int>(std::floor(static_cast<float>(srcCol) * scale));
+          const int x1 = x + static_cast<int>(std::floor(static_cast<float>(srcCol + 1) * scale));
+          const uint8_t val = pixel2bpp(outputRow, bmpX);
+          for (int sx = x0; sx < x1 && sx < getScreenWidth(); ++sx) {
+            if (sx < 0) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
-              drawPixel(xx, yy);
-            } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-              drawPixel(xx, yy, false);
-            } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-              drawPixel(xx, yy, false);
-            }
+            emitPixel(sx, sy, val);
           }
         }
-      } else {
+      }
+    } else {
+      int screenY = t;
+      if (isScaled) {
+        screenY = static_cast<int>(std::floor(static_cast<float>(t) * scale));
+      }
+      screenY += y;
+      if (screenY >= getScreenHeight()) {
+        break;
+      }
+      if (screenY < 0) {
+        continue;
+      }
+
+      for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
         int screenX = bmpX - cropPixX;
         if (isScaled) {
-          screenX = static_cast<int>(std::floor(screenX * scale));
+          screenX = static_cast<int>(std::floor(static_cast<float>(screenX) * scale));
         }
         screenX += x;
         if (screenX >= getScreenWidth()) {
@@ -522,20 +483,10 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
           continue;
         }
 
-        if (renderMode == BW && val < 3) {
-          drawPixel(screenX, screenY);
-        } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-          drawPixel(screenX, screenY, false);
-        } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-          drawPixel(screenX, screenY, false);
-        }
+        const uint8_t val = pixel2bpp(outputRow, bmpX);
+        emitPixel(screenX, screenY, val);
       }
     }
-
-  }
-
-  if (useAreaDownscale && activeDestY >= 0) {
-    flushAccumulatedRow(activeDestY);
   }
 
   if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
@@ -548,90 +499,59 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
 void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
                                  const int maxHeight) const {
-  float fitScale = 1.0f;
-  bool hasTargetBounds = false;
-  const float iw = static_cast<float>(bitmap.getWidth());
-  const float ih = static_cast<float>(bitmap.getHeight());
-  if (maxWidth > 0 && iw > 0.0f) {
-    fitScale = static_cast<float>(maxWidth) / iw;
-    hasTargetBounds = true;
-  }
-  if (maxHeight > 0 && ih > 0.0f) {
-    const float heightScale = static_cast<float>(maxHeight) / ih;
-    fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
-    hasTargetBounds = true;
-  }
-
-  constexpr float kEps = 1e-5f;
+  constexpr float kScaleEps = 1e-5f;
+  constexpr float kHuge = 1e9f;
   float scale = 1.0f;
   bool isScaled = false;
-  const bool upscaleBlock = hasTargetBounds && fitScale > 1.0f + kEps;
-  if (hasTargetBounds && fitScale < 1.0f - kEps) {
-    scale = fitScale;
-    isScaled = true;
-  } else if (upscaleBlock) {
-    scale = fitScale;
-    isScaled = true;
-  }
-
-  // Downscaling by iterating source pixels leaves destination holes; box-filter like drawBitmap.
-  const bool useAreaDownscale = isScaled && scale < 1.0f;
-  const int screenWidth = getScreenWidth();
-  std::vector<uint32_t> graySums;
-  std::vector<uint32_t> grayCounts;
-  int activeDestY = -1;
-
-  uint32_t localChecked = 0;
-  uint32_t localGray = 0;
-  uint32_t localWhite = 0;
-
-  auto get2BitPixel = [](const uint8_t* row, const int px) -> uint8_t {
-    return (row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3;
-  };
-
-  auto flushAccumulatedRow = [&](const int destY) {
-    if (destY < 0 || destY >= getScreenHeight()) {
-      return;
+  const int bw = bitmap.getWidth();
+  const bool hasW = maxWidth > 0;
+  const bool hasH = maxHeight > 0;
+  if (hasW || hasH) {
+    const float fitW = hasW ? static_cast<float>(maxWidth) / static_cast<float>(bw) : kHuge;
+    const float fitH = hasH ? static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()) : kHuge;
+    const float fitScale = (hasW && hasH) ? std::min(fitW, fitH) : (hasW ? fitW : fitH);
+    if (std::abs(fitScale - 1.0f) > kScaleEps) {
+      scale = fitScale;
+      isScaled = true;
     }
-    for (int sx = 0; sx < screenWidth; sx++) {
-      uint8_t resolvedVal = 3;
-      if (grayCounts[sx] > 0) {
-        resolvedVal = static_cast<uint8_t>((graySums[sx] + (grayCounts[sx] / 2)) / grayCounts[sx]);
-      }
-      if (renderMode == BW && grayCounts[sx] > 0) {
-        localChecked++;
-        if (resolvedVal == 1 || resolvedVal == 2) {
-          localGray++;
-        } else if (resolvedVal == 3) {
-          localWhite++;
-        }
-      }
-      if (renderMode == BW && grayCounts[sx] > 0 && resolvedVal <= 1) {
-        drawPixel(sx, destY, true);
-      } else if (renderMode == GRAYSCALE_MSB && (resolvedVal == 1 || resolvedVal == 2)) {
-        drawPixel(sx, destY, false);
-      } else if (renderMode == GRAYSCALE_LSB && resolvedVal == 1) {
-        drawPixel(sx, destY, false);
-      }
-      graySums[sx] = 0;
-      grayCounts[sx] = 0;
-    }
-  };
-
-  if (useAreaDownscale) {
-    graySums.assign(screenWidth, 0);
-    grayCounts.assign(screenWidth, 0);
   }
+  const bool replicateUpscale = isScaled && scale > 1.0f + kScaleEps;
 
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
-
   if (!outputRow || !rowBytes) {
     free(outputRow);
     free(rowBytes);
     return;
   }
+
+  const BitmapGrayRenderStyle grayStyle = bitmapGrayRenderStyle;
+  uint32_t localChecked = 0;
+  uint32_t localGray = 0;
+  uint32_t localWhite = 0;
+
+  auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
+    return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
+  };
+
+  auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
+    if (renderMode == BW) {
+      localChecked++;
+      if (val == 1 || val == 2) {
+        localGray++;
+      } else if (val == 3) {
+        localWhite++;
+      }
+      if (bwShouldInk2bpp(val, grayStyle)) {
+        drawBwFrom2bppStage(screenX, screenY, val);
+      }
+    } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+      drawPixel(screenX, screenY, false);
+    } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+      drawPixel(screenX, screenY, false);
+    }
+  };
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
     if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
@@ -640,82 +560,41 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
       return;
     }
 
-    const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-    int screenY = y + bmpYOffset;
-    if (isScaled && !upscaleBlock) {
-      screenY = y + static_cast<int>(std::floor(bmpYOffset * scale));
-    }
-    if (!upscaleBlock && screenY >= getScreenHeight()) {
-      continue;
-    }
-    if (!upscaleBlock && screenY < 0) {
-      continue;
-    }
+    const int vr = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
 
-    int destY0 = screenY;
-    int destY1 = screenY;
-    if (upscaleBlock) {
-      destY0 = y + static_cast<int>(std::floor(bmpYOffset * scale));
-      destY1 = y + static_cast<int>(std::floor((bmpYOffset + 1) * scale)) - 1;
-      if (destY0 >= getScreenHeight()) {
+    if (replicateUpscale) {
+      const int y0 = y + static_cast<int>(std::floor(static_cast<float>(vr) * scale));
+      const int y1 = y + static_cast<int>(std::floor(static_cast<float>(vr + 1) * scale));
+      if (y0 >= getScreenHeight()) {
         continue;
       }
-      if (destY1 < 0) {
-        continue;
-      }
-    }
-
-    for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-      const uint8_t sourceVal = get2BitPixel(outputRow, bmpX);
-      const uint8_t val = sourceVal;
-
-      if (renderMode == BW && !useAreaDownscale) {
-        localChecked++;
-        if (sourceVal == 1 || sourceVal == 2) {
-          localGray++;
-        } else if (sourceVal == 3) {
-          localWhite++;
-        }
-      }
-
-      if (useAreaDownscale) {
-        int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
-        if (screenX >= getScreenWidth()) {
-          break;
-        }
-        if (screenX < 0) {
+      for (int sy = y0; sy < y1 && sy < getScreenHeight(); ++sy) {
+        if (sy < 0) {
           continue;
         }
-        if (activeDestY == -1) {
-          activeDestY = screenY;
-        } else if (screenY != activeDestY) {
-          flushAccumulatedRow(activeDestY);
-          activeDestY = screenY;
-        }
-        graySums[screenX] += val;
-        grayCounts[screenX]++;
-      } else if (upscaleBlock) {
-        const int destX0 = x + static_cast<int>(std::floor(bmpX * scale));
-        const int destX1 = x + static_cast<int>(std::floor((bmpX + 1) * scale)) - 1;
-        for (int yy = destY0; yy <= destY1; ++yy) {
-          if (yy < 0 || yy >= getScreenHeight()) {
-            continue;
-          }
-          for (int xx = destX0; xx <= destX1; ++xx) {
-            if (xx < 0 || xx >= getScreenWidth()) {
+        for (int bmpX = 0; bmpX < bw; bmpX++) {
+          const int x0 = x + static_cast<int>(std::floor(static_cast<float>(bmpX) * scale));
+          const int x1 = x + static_cast<int>(std::floor(static_cast<float>(bmpX + 1) * scale));
+          const uint8_t val = pixel2bpp(outputRow, bmpX);
+          for (int sx = x0; sx < x1 && sx < getScreenWidth(); ++sx) {
+            if (sx < 0) {
               continue;
             }
-            if (renderMode == BW && val <= 1) {
-              drawPixel(xx, yy, true);
-            } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-              drawPixel(xx, yy, false);
-            } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-              drawPixel(xx, yy, false);
-            }
+            emitPixel1(sx, sy, val);
           }
         }
-      } else {
-        int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
+      }
+    } else {
+      const int screenY = y + (isScaled ? static_cast<int>(std::floor(static_cast<float>(vr) * scale)) : vr);
+      if (screenY >= getScreenHeight()) {
+        continue;
+      }
+      if (screenY < 0) {
+        continue;
+      }
+
+      for (int bmpX = 0; bmpX < bw; bmpX++) {
+        const int screenX = x + (isScaled ? static_cast<int>(std::floor(static_cast<float>(bmpX) * scale)) : bmpX);
         if (screenX >= getScreenWidth()) {
           break;
         }
@@ -723,19 +602,10 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
           continue;
         }
 
-        if (renderMode == BW && val < 3) {
-          drawPixel(screenX, screenY, true);
-        } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-          drawPixel(screenX, screenY, false);
-        } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-          drawPixel(screenX, screenY, false);
-        }
+        const uint8_t val = pixel2bpp(outputRow, bmpX);
+        emitPixel1(screenX, screenY, val);
       }
     }
-  }
-
-  if (useAreaDownscale && activeDestY >= 0) {
-    flushAccumulatedRow(activeDestY);
   }
 
   if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
@@ -751,33 +621,33 @@ bool GfxRenderer::needsBitmapGrayscale() const { return anyBitmapImageWantsGrays
 void GfxRenderer::fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state) const {
   if (numPoints < 3) return;
 
-  // Find bounding box
+  
   int minY = yPoints[0], maxY = yPoints[0];
   for (int i = 1; i < numPoints; i++) {
     if (yPoints[i] < minY) minY = yPoints[i];
     if (yPoints[i] > maxY) maxY = yPoints[i];
   }
 
-  // Clip to screen
+  
   if (minY < 0) minY = 0;
   if (maxY >= getScreenHeight()) maxY = getScreenHeight() - 1;
 
-  // Allocate node buffer for scanline algorithm
+  
   auto* nodeX = static_cast<int*>(malloc(numPoints * sizeof(int)));
   if (!nodeX) {
     Serial.printf("[%lu] [GFX] !! Failed to allocate polygon node buffer\n", millis());
     return;
   }
 
-  // Scanline fill algorithm
+  
   for (int scanY = minY; scanY <= maxY; scanY++) {
     int nodes = 0;
 
-    // Find all intersection points with edges
+    
     int j = numPoints - 1;
     for (int i = 0; i < numPoints; i++) {
       if ((yPoints[i] < scanY && yPoints[j] >= scanY) || (yPoints[j] < scanY && yPoints[i] >= scanY)) {
-        // Calculate X intersection using fixed-point to avoid float
+        
         int dy = yPoints[j] - yPoints[i];
         if (dy != 0) {
           nodeX[nodes++] = xPoints[i] + (scanY - yPoints[i]) * (xPoints[j] - xPoints[i]) / dy;
@@ -786,7 +656,7 @@ void GfxRenderer::fillPolygon(const int* xPoints, const int* yPoints, int numPoi
       j = i;
     }
 
-    // Sort nodes by X (simple bubble sort, numPoints is small)
+    
     for (int i = 0; i < nodes - 1; i++) {
       for (int k = i + 1; k < nodes; k++) {
         if (nodeX[i] > nodeX[k]) {
@@ -797,16 +667,16 @@ void GfxRenderer::fillPolygon(const int* xPoints, const int* yPoints, int numPoi
       }
     }
 
-    // Fill between pairs of nodes
+    
     for (int i = 0; i < nodes - 1; i += 2) {
       int startX = nodeX[i];
       int endX = nodeX[i + 1];
 
-      // Clip to screen
+      
       if (startX < 0) startX = 0;
       if (endX >= getScreenWidth()) endX = getScreenWidth() - 1;
 
-      // Draw horizontal line
+      
       for (int x = startX; x <= endX; x++) {
         drawPixel(x, scanY, state);
       }
@@ -839,7 +709,7 @@ std::string GfxRenderer::truncatedText(const int fontId, const char* text, const
   const char* ellipsis = "...";
   int textWidth = getTextWidth(fontId, item.c_str(), style);
   if (textWidth <= maxWidth) {
-    // Text fits, return as is
+    
     return item;
   }
 
@@ -850,16 +720,16 @@ std::string GfxRenderer::truncatedText(const int fontId, const char* text, const
   return item.empty() ? ellipsis : item + ellipsis;
 }
 
-// Note: Internal driver treats screen in command orientation; this library exposes a logical orientation
+
 int GfxRenderer::getScreenWidth() const {
   switch (orientation) {
     case Portrait:
     case PortraitInverted:
-      // 480px wide in portrait logical coordinates
+      
       return HalDisplay::DISPLAY_HEIGHT;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
-      // 800px wide in landscape logical coordinates
+      
       return HalDisplay::DISPLAY_WIDTH;
   }
   return HalDisplay::DISPLAY_HEIGHT;
@@ -869,11 +739,11 @@ int GfxRenderer::getScreenHeight() const {
   switch (orientation) {
     case Portrait:
     case PortraitInverted:
-      // 800px tall in portrait logical coordinates
+      
       return HalDisplay::DISPLAY_WIDTH;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
-      // 480px tall in landscape logical coordinates
+      
       return HalDisplay::DISPLAY_HEIGHT;
   }
   return HalDisplay::DISPLAY_WIDTH;
@@ -914,13 +784,13 @@ void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char
   const int pageHeight = getScreenHeight();
   constexpr int buttonWidth = 106;
   constexpr int buttonHeight = 40;
-  constexpr int buttonY = 40;     // Distance from bottom
-  constexpr int textYOffset = 7;  // Distance from top of button to text baseline
+  constexpr int buttonY = 40;     
+  constexpr int textYOffset = 7;  
   constexpr int buttonPositions[] = {25, 130, 245, 350};
   const char* labels[] = {btn1, btn2, btn3, btn4};
 
   for (int i = 0; i < 4; i++) {
-    // Only draw if the label is non-empty
+    
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       const int x = buttonPositions[i];
       fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false, true);
@@ -936,47 +806,47 @@ void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char
 
 void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, const char* bottomBtn) const {
   const int screenWidth = getScreenWidth();
-  constexpr int buttonWidth = 40;   // Width on screen (height when rotated)
-  constexpr int buttonHeight = 80;  // Height on screen (width when rotated)
-  constexpr int buttonX = 5;        // Distance from right edge
-  // Position for the button group - buttons share a border so they're adjacent
-  constexpr int topButtonY = 345;  // Top button position
+  constexpr int buttonWidth = 40;   
+  constexpr int buttonHeight = 80;  
+  constexpr int buttonX = 5;        
+  
+  constexpr int topButtonY = 345;  
 
   const char* labels[] = {topBtn, bottomBtn};
 
-  // Draw the shared border for both buttons as one unit
+  
   const int x = screenWidth - buttonX - buttonWidth;
 
-  // Draw top button outline (3 sides, bottom open)
+  
   if (topBtn != nullptr && topBtn[0] != '\0') {
-    drawLine(x, topButtonY, x + buttonWidth - 1, topButtonY);                                       // Top
-    drawLine(x, topButtonY, x, topButtonY + buttonHeight - 1);                                      // Left
-    drawLine(x + buttonWidth - 1, topButtonY, x + buttonWidth - 1, topButtonY + buttonHeight - 1);  // Right
+    drawLine(x, topButtonY, x + buttonWidth - 1, topButtonY);                                       
+    drawLine(x, topButtonY, x, topButtonY + buttonHeight - 1);                                      
+    drawLine(x + buttonWidth - 1, topButtonY, x + buttonWidth - 1, topButtonY + buttonHeight - 1);  
   }
 
-  // Draw shared middle border
+  
   if ((topBtn != nullptr && topBtn[0] != '\0') || (bottomBtn != nullptr && bottomBtn[0] != '\0')) {
-    drawLine(x, topButtonY + buttonHeight, x + buttonWidth - 1, topButtonY + buttonHeight);  // Shared border
+    drawLine(x, topButtonY + buttonHeight, x + buttonWidth - 1, topButtonY + buttonHeight);  
   }
 
-  // Draw bottom button outline (3 sides, top is shared)
+  
   if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-    drawLine(x, topButtonY + buttonHeight, x, topButtonY + 2 * buttonHeight - 1);  // Left
+    drawLine(x, topButtonY + buttonHeight, x, topButtonY + 2 * buttonHeight - 1);  
     drawLine(x + buttonWidth - 1, topButtonY + buttonHeight, x + buttonWidth - 1,
-             topButtonY + 2 * buttonHeight - 1);                                                             // Right
-    drawLine(x, topButtonY + 2 * buttonHeight - 1, x + buttonWidth - 1, topButtonY + 2 * buttonHeight - 1);  // Bottom
+             topButtonY + 2 * buttonHeight - 1);                                                             
+    drawLine(x, topButtonY + 2 * buttonHeight - 1, x + buttonWidth - 1, topButtonY + 2 * buttonHeight - 1);  
   }
 
-  // Draw text for each button
+  
   for (int i = 0; i < 2; i++) {
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       const int y = topButtonY + i * buttonHeight;
 
-      // Draw rotated text centered in the button
+      
       const int textWidth = getTextWidth(fontId, labels[i]);
       const int textHeight = getTextHeight(fontId);
 
-      // Center the rotated text in the button
+      
       const int textX = x + (buttonWidth - textHeight) / 2;
       const int textY = y + (buttonHeight + textWidth) / 2;
 
@@ -995,7 +865,7 @@ int GfxRenderer::getTextHeight(const int fontId) const {
 
 void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y, const char* text, const bool black,
                                       const EpdFontFamily::Style style) const {
-  // Cannot draw a NULL / empty string
+  
   if (text == nullptr || *text == '\0') {
     return;
   }
@@ -1006,16 +876,16 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
   }
   const auto font = fontMap.at(fontId);
 
-  // No printable characters
+  
   if (!font.hasPrintableChars(text, style)) {
     return;
   }
 
-  // For 90° clockwise rotation:
-  // Original (glyphX, glyphY) -> Rotated (glyphY, -glyphX)
-  // Text reads from bottom to top
+  
+  
+  
 
-  int yPos = y;  // Current Y position (decreases as we draw characters)
+  int yPos = y;  
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
@@ -1041,9 +911,9 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
         for (int glyphX = 0; glyphX < width; glyphX++) {
           const int pixelPosition = glyphY * width + glyphX;
 
-          // 90° clockwise rotation transformation:
-          // screenX = x + (ascender - top + glyphY)
-          // screenY = yPos - (left + glyphX)
+          
+          
+          
           const int screenX = x + (font.getData(style)->ascender - top + glyphY);
           const int screenY = yPos - left - glyphX;
 
@@ -1071,7 +941,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
       }
     }
 
-    // Move to next character position (going up, so decrease Y)
+    
     yPos -= glyph->advanceX;
   }
 }
@@ -1080,8 +950,8 @@ uint8_t* GfxRenderer::getFrameBuffer() const { return display.getFrameBuffer(); 
 
 size_t GfxRenderer::getBufferSize() { return HalDisplay::BUFFER_SIZE; }
 
-// unused
-// void GfxRenderer::grayscaleRevert() const { display.grayscaleRevert(); }
+
+
 
 void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuffers(display.getFrameBuffer()); }
 
@@ -1111,9 +981,9 @@ bool GfxRenderer::storeBwBuffer() {
     return false;
   }
 
-  // Allocate and copy each chunk
+  
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
-    // Check if any chunks are already allocated
+    
     if (bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunk %zu already stored - this is likely a bug, freeing chunk\n",
                     millis(), i);
@@ -1127,7 +997,7 @@ bool GfxRenderer::storeBwBuffer() {
     if (!bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i,
                     BW_BUFFER_CHUNK_SIZE);
-      // Free previously allocated chunks
+      
       freeBwBufferChunks();
       return false;
     }
@@ -1146,7 +1016,7 @@ bool GfxRenderer::storeBwBuffer() {
  * Uses chunked restoration to match chunked storage.
  */
 void GfxRenderer::restoreBwBuffer() {
-  // Check if any all chunks are allocated
+  
   bool missingChunks = false;
   for (const auto& bwBufferChunk : bwBufferChunks) {
     if (!bwBufferChunk) {
@@ -1168,7 +1038,7 @@ void GfxRenderer::restoreBwBuffer() {
   }
 
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
-    // Check if chunk is missing
+    
     if (!bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunks not stored - this is likely a bug\n", millis());
       freeBwBufferChunks();
@@ -1203,7 +1073,7 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
     glyph = fontFamily.getGlyph(REPLACEMENT_GLYPH, style);
   }
 
-  // no glyph?
+  
   if (!glyph) {
     Serial.printf("[%lu] [GFX] No glyph for codepoint %d\n", millis(), cp);
     return;
@@ -1228,20 +1098,20 @@ void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp,
         if (is2Bit) {
           const uint8_t byte = bitmap[pixelPosition / 4];
           const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
-          // the direct bit from the font is 0 -> white, 1 -> light gray, 2 -> dark gray, 3 -> black
-          // we swap this to better match the way images and screen think about colors:
-          // 0 -> black, 1 -> dark grey, 2 -> light grey, 3 -> white
+          
+          
+          
           const uint8_t bmpVal = 3 - (byte >> bit_index) & 0x3;
 
           if (renderMode == BW && bmpVal < 3) {
-            // Black (also paints over the grays in BW mode)
+            
             drawPixel(screenX, screenY, pixelState);
           } else if (renderMode == GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-            // Light gray (also mark the MSB if it's going to be a dark gray too)
-            // We have to flag pixels in reverse for the gray buffers, as 0 leave alone, 1 update
+            
+            
             drawPixel(screenX, screenY, false);
           } else if (renderMode == GRAYSCALE_LSB && bmpVal == 1) {
-            // Dark gray
+            
             drawPixel(screenX, screenY, false);
           }
         } else {
@@ -1292,7 +1162,7 @@ void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBo
  * Uses threshold-based rendering to eliminate artifacts in white areas
  */
 void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight) const {
-    // For small images, we want crisp scaling without artifacts
+    
     float scaleX = 1.0f;
     float scaleY = 1.0f;
     bool needsScaling = false;
@@ -1306,15 +1176,15 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
         needsScaling = true;
     }
     
-    // Use the smaller scale to maintain aspect ratio
+    
     if (needsScaling) {
         float scale = std::min(scaleX, scaleY);
         scaleX = scale;
         scaleY = scale;
     }
     
-    // Allocate buffers for processing
-    const int outputRowSize = (bitmap.getWidth() + 3) / 4; // Size for 2bpp output
+    
+    const int outputRowSize = (bitmap.getWidth() + 3) / 4; 
     const int rowBytes = bitmap.getRowBytes();
     
     auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
@@ -1327,7 +1197,7 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
         return;
     }
     
-    // We need to read rows sequentially - first rewind to start
+    
     Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
     if (nonConstBitmap->rewindToData() != BmpReaderError::Ok) {
         Serial.printf("[%lu] [GFX] Failed to rewind bitmap\n", millis());
@@ -1336,14 +1206,15 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
         return;
     }
     
-    // Pre-calculate if this is a 1-bit image (no dithering artifacts)
+    
     bool isPure1Bit = (bitmap.getBpp() == 1);
     
-    // Check if we're in grayscale mode for anti-aliasing
-    bool isGrayscaleMode = (renderMode == GRAYSCALE_LSB || renderMode == GRAYSCALE_MSB);
     
+    bool isGrayscaleMode = (renderMode == GRAYSCALE_LSB || renderMode == GRAYSCALE_MSB);
+    const BitmapGrayRenderStyle grayStyle = bitmapGrayRenderStyle;
+
     for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-        // Read the row using readNextRow
+        
         if (nonConstBitmap->readNextRow(outputRow, rowBytes_buf) != BmpReaderError::Ok) {
             Serial.printf("[%lu] [GFX] Failed to read row %d from bitmap\n", millis(), bmpY);
             free(outputRow);
@@ -1351,50 +1222,52 @@ void GfxRenderer::drawSmallBitmapClean(const Bitmap& bitmap, const int x, const 
             return;
         }
         
-        // Calculate source Y in bitmap coordinates (handle top-down/bottom-up)
+        
         int srcY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
         
-        // Calculate destination Y with scaling
+        
         int destY = y + static_cast<int>(srcY * scaleY);
         
-        // Skip if outside screen bounds
+        
         if (destY >= getScreenHeight() || destY < 0) continue;
         
-        // For each pixel in the source row
+        
         for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-            // Get the 2bpp value from the output row
+            
             uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
             
-            // Calculate destination X with scaling
+            
             int destX = x + static_cast<int>(bmpX * scaleX);
             
-            // Skip if outside screen bounds
+            
             if (destX < 0 || destX >= getScreenWidth()) continue;
             
             if (isGrayscaleMode) {
-                // In grayscale mode, preserve all 4 levels for anti-aliasing
-                // The existing drawPixel function should handle grayscale rendering
-                // based on the current renderMode
-                if (val > 0) { // Only draw non-white pixels
+                
+                
+                
+                if (val > 0) { 
                     drawPixel(destX, destY, val);
                 }
             } else {
-                // BW mode - use threshold for crisp rendering
+                
                 bool pixelSet;
                 
                 if (isPure1Bit) {
-                    // 1-bit: exactly 0 = black, 3 = white
+                    
                     pixelSet = (val == 0);
                 } else {
-                    // Match drawBitmap BW: ink for all non-white 2bpp (0–2); val 3 is white.
-                    // val<=1 was too harsh and made covers look flat vs thumb.bmp / reader.
-                    pixelSet = (val < 3);
+                    pixelSet = bwShouldInk2bpp(val, grayStyle);
+                }
+
+                if (pixelSet) {
+                    if (isPure1Bit) {
+                        drawPixel(destX, destY, true);
+                    } else {
+                        drawBwFrom2bppStage(destX, destY, val);
+                    }
                 }
                 
-                if (pixelSet) {
-                    drawPixel(destX, destY, true);
-                }
-                // White pixels (val >= 2) are not drawn - eliminates squares in white areas
             }
         }
     }
@@ -1441,11 +1314,11 @@ void GfxRenderer::drawSmallBitmapAdaptive(const Bitmap& bitmap, const int x, con
     Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
     nonConstBitmap->rewindToData();
     
-    // First pass: analyze the image to find the best threshold
-    std::vector<uint8_t> sampleValues;
-    sampleValues.reserve(100); // Sample up to 100 pixels
     
-    // Sample some pixels to determine image characteristics
+    std::vector<uint8_t> sampleValues;
+    sampleValues.reserve(100); 
+    
+    
     for (int bmpY = 0; bmpY < std::min(10, bitmap.getHeight()); bmpY++) {
         nonConstBitmap->readNextRow(outputRow, rowBytes_buf);
         for (int bmpX = 0; bmpX < std::min(10, bitmap.getWidth()); bmpX++) {
@@ -1454,8 +1327,8 @@ void GfxRenderer::drawSmallBitmapAdaptive(const Bitmap& bitmap, const int x, con
         }
     }
     
-    // Find the threshold - look for a gap between dark and light values
-    int threshold = 1; // Default
+    
+    int threshold = 1; 
     bool hasWhite = false;
     bool hasBlack = false;
     
@@ -1465,17 +1338,17 @@ void GfxRenderer::drawSmallBitmapAdaptive(const Bitmap& bitmap, const int x, con
     }
     
     if (hasWhite && hasBlack) {
-        // Image has both dark and light - use threshold 1
+        
         threshold = 1;
     } else if (!hasWhite) {
-        // All dark image - draw everything
+        
         threshold = 3;
     } else {
-        // All light image - draw nothing
+        
         threshold = -1;
     }
     
-    // Rewind for second pass (actual rendering)
+    
     nonConstBitmap->rewindToData();
     
     for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
@@ -1493,7 +1366,7 @@ void GfxRenderer::drawSmallBitmapAdaptive(const Bitmap& bitmap, const int x, con
         for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
             uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
             
-            // Use adaptive threshold
+            
             bool pixelSet = (static_cast<int>(val) <= threshold);
             
             if (pixelSet) {
@@ -1548,8 +1421,8 @@ void GfxRenderer::drawSmallBitmap(const Bitmap& bitmap, const int x, const int y
     Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
     nonConstBitmap->rewindToData();
     
-    // For high-contrast images like book covers, use aggressive thresholding
-    // and majority voting to eliminate white grains in black areas
+    
+    
     
     for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
         if (nonConstBitmap->readNextRow(outputRow, rowBytes_buf) != BmpReaderError::Ok) {
@@ -1563,27 +1436,27 @@ void GfxRenderer::drawSmallBitmap(const Bitmap& bitmap, const int x, const int y
         
         if (destY >= getScreenHeight() || destY < 0) continue;
         
-        // For each output pixel
+        
         for (int outX = 0; outX < static_cast<int>(bitmap.getWidth() * scaleX); outX++) {
             int srcX = static_cast<int>(outX / scaleX);
             if (srcX >= bitmap.getWidth()) continue;
             
             uint8_t val = (outputRow[srcX / 4] >> (6 - ((srcX * 2) % 8))) & 0x03;
             
-            // Map 2-bit values to pure black/white
-            // 0 = pure black (0), 1 = near black (85), 2 = near white (170), 3 = pure white (255)
             
-            // Aggressive threshold - treat anything less than 170 as black
-            // This eliminates white grains in black areas
-            bool isBlack = (val < 2);  // Values 0 and 1 are black, 2 and 3 are white
             
-            // For even cleaner text, also check neighboring pixels to remove isolated white specks
+            
+            
+            
+            bool isBlack = (val < 2);  
+            
+            
             if (!isBlack && scaleX > 0.5f) {
-                // If this is a white pixel, check if it's isolated
+                
                 int neighborCount = 0;
                 int whiteNeighbors = 0;
                 
-                // Check 3x3 neighborhood
+                
                 for (int ny = -1; ny <= 1; ny++) {
                     for (int nx = -1; nx <= 1; nx++) {
                         if (ny == 0 && nx == 0) continue;
@@ -1595,8 +1468,8 @@ void GfxRenderer::drawSmallBitmap(const Bitmap& bitmap, const int x, const int y
                             checkX >= 0 && checkX < bitmap.getWidth()) {
                             neighborCount++;
                             
-                            // For simplicity, we'd need to buffer previous rows for proper neighborhood check
-                            // Instead, we'll use a simpler approach below
+                            
+                            
                         }
                     }
                 }
@@ -1605,9 +1478,9 @@ void GfxRenderer::drawSmallBitmap(const Bitmap& bitmap, const int x, const int y
             int destX = x + outX;
             if (destX >= 0 && destX < getScreenWidth()) {
                 if (isBlack) {
-                    drawPixel(destX, destY, true);  // Black
+                    drawPixel(destX, destY, true);  
                 }
-                // White pixels are not drawn
+                
             }
         }
     }
@@ -1655,7 +1528,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
           sy = width - 1 - dy;
           break;
       }
-      // Match packed 1bpp + drawImage: MSB 1 = light, 0 = ink (drawImage copied bytes verbatim).
+      
       const bool ink = !readIconBitMsbFirst(bitmap, width, height, sx, sy);
       const bool black = ink ^ invert;
       drawPixel(x + dx, y + dy, black);
@@ -1665,7 +1538,7 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], int x, int y, int width, int 
 
 void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
                                       uint8_t transparentColor, ImageOrientation imgOrientation) const {
-    // Calculate scaling if needed
+    
     float scaleX = 1.0f;
     float scaleY = 1.0f;
     
@@ -1679,10 +1552,10 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
         scaleY = static_cast<float>(maxHeight) / static_cast<float>(targetHeight);
     }
     
-    // Use the smaller scale to maintain aspect ratio
+    
     float scale = std::min(scaleX, scaleY);
     
-    // Allocate buffers for row processing
+    
     const int outputRowSize = (targetWidth + 3) / 4;
     const int rowBytes = bitmap.getRowBytes();
     
@@ -1696,7 +1569,7 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
         return;
     }
     
-    // Rewind bitmap to start
+    
     Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
     if (nonConstBitmap->rewindToData() != BmpReaderError::Ok) {
         Serial.printf("[%lu] [GFX] Failed to rewind bitmap\n", millis());
@@ -1705,7 +1578,7 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
         return;
     }
     
-    // Process each row
+    
     for (int bmpY = 0; bmpY < targetHeight; bmpY++) {
         if (nonConstBitmap->readNextRow(outputRow, rowBytes_buf) != BmpReaderError::Ok) {
             Serial.printf("[%lu] [GFX] Failed to read row %d\n", millis(), bmpY);
@@ -1718,26 +1591,31 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
         if (destY < 0 || destY >= getScreenHeight()) continue;
         
         for (int bmpX = 0; bmpX < targetWidth; bmpX++) {
-            // Get 2-bit value from outputRow
+            
             uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
             
             int destX = x + static_cast<int>(bmpX * scale);
             if (destX < 0 || destX >= getScreenWidth()) continue;
             
-            // transparentColor: 1 = make white transparent (most common)
-            // For 1-bit source: val < 3 means black/dark, val == 3 means white
+            
+            
             bool shouldDraw;
             if (transparentColor == 1) {
-                // White is transparent - draw if not white
+                
                 shouldDraw = (val < 3);
             } else {
-                // Black is transparent - draw if white
+                
                 shouldDraw = (val == 3);
             }
             
             if (shouldDraw) {
-                // In BW mode, val < 3 means draw black
-                drawPixel(destX, destY, true);
+                if (renderMode == BW) {
+                    if (bwShouldInk2bpp(val, bitmapGrayRenderStyle)) {
+                      drawBwFrom2bppStage(destX, destY, val);
+                    }
+                } else {
+                    drawPixel(destX, destY, true);
+                }
             }
         }
     }
@@ -1746,7 +1624,7 @@ void GfxRenderer::drawTransparentImage(const Bitmap& bitmap, int x, int y, int m
     free(rowBytes_buf);
 }
 
-// Overload for 2-bit grayscale images with alpha threshold
+
 void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
                                           uint8_t alphaThreshold, ImageOrientation imgOrientation) const {
   int targetX = x;
@@ -1754,7 +1632,7 @@ void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y,
   int targetW = width;
   int targetH = height;
 
-  // Handle rotation if needed (simplified - you'd need 2-bit rotation logic)
+  
   if (imgOrientation != None) {
     Serial.printf("[%lu] [GFX] 2-bit transparent image rotation not yet implemented\n", millis());
     return;
@@ -1777,7 +1655,7 @@ void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y,
   }
 
   const int stride = HalDisplay::DISPLAY_WIDTH_BYTES;
-  const int bytesPerRow = (width + 3) / 4; // 2 bits per pixel
+  const int bytesPerRow = (width + 3) / 4; 
   
   for (int row = 0; row < height; row++) {
     int screenY = rotatedY + row;
@@ -1790,25 +1668,25 @@ void GfxRenderer::drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y,
       int screenX = rotatedX + pixelX;
       if (screenX < 0 || screenX >= HalDisplay::DISPLAY_WIDTH) continue;
       
-      // Extract 2-bit value
+      
       const int byteIdx = pixelX / 4;
       const int bitShift = 6 - ((pixelX & 3) << 1);
       const uint8_t pixelValue = (srcRow[byteIdx] >> bitShift) & 0x03;
       
-      // Only draw if pixel value is above alpha threshold
-      // alphaThreshold 0-3, where 3 is fully opaque, 0 is fully transparent
+      
+      
       if (pixelValue >= alphaThreshold) {
         const uint16_t byteIndex = screenY * stride + (screenX / 8);
         const uint8_t bitPosition = 7 - (screenX % 8);
         
-        // For 2-bit, we need to map to 1-bit framebuffer
-        // This is simplified - you might want more sophisticated dithering
-        bool drawBlack = (pixelValue < 2); // Treat as black if dark enough
+        
+        
+        bool drawBlack = (pixelValue < 2); 
         
         if (drawBlack) {
-          frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit (black)
+          frameBuffer[byteIndex] &= ~(1 << bitPosition);  
         } else {
-          frameBuffer[byteIndex] |= 1 << bitPosition;   // Set bit (white)
+          frameBuffer[byteIndex] |= 1 << bitPosition;   
         }
       }
     }

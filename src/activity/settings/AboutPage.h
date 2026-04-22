@@ -1,3 +1,8 @@
+/**
+ * @file AboutPage.h
+ * @brief Public interface and types for AboutPage.
+ */
+
 #ifndef ABOUT_PAGE_H
 #define ABOUT_PAGE_H
 
@@ -36,4 +41,4 @@ class AboutPage {
   uint32_t lastInputTime;
 };
 
-#endif  // ABOUT_PAGE_H
+#endif  

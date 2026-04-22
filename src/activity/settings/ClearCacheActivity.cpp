@@ -1,3 +1,8 @@
+/**
+ * @file ClearCacheActivity.cpp
+ * @brief Definitions for ClearCacheActivity.
+ */
+
 #include "ClearCacheActivity.h"
 
 #include <GfxRenderer.h>
@@ -20,17 +25,17 @@ void ClearCacheActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 }
 
 void ClearCacheActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
+  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -110,7 +115,7 @@ void ClearCacheActivity::clearCache() {
   clearedCount = 0;
   failedCount = 0;
 
-  // Delete .metadata directory completely
+  
   if (SdMan.exists("/.system")) {
     Serial.printf("[%lu] [CLEAR_CACHE] Removing /.metadata directory\n", millis());
     if (SdMan.removeDir("/.system")) {
@@ -124,7 +129,7 @@ void ClearCacheActivity::clearCache() {
     Serial.printf("[%lu] [CLEAR_CACHE] /.metadata directory not found\n", millis());
   }
 
-  // Delete .metadata directory completely
+  
   if (SdMan.exists("/.metadata")) {
     Serial.printf("[%lu] [CLEAR_CACHE] Removing /.metadata directory\n", millis());
     if (SdMan.rmdir("/.metadata")) {

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ParsedText.h
+ * @brief Public interface and types for ParsedText.
+ */
+
 #include <EpdFontFamily.h>
 
 #include <functional>
@@ -19,10 +24,10 @@ class ParsedText {
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
 
-  // First-line indent from CSS text-indent (FOLLOW_CSS). -1 = not specified (legacy em-space may apply).
+  
   int cssTextIndentPx = -1;
 
-  // Indent state for drop caps
+  
   uint16_t leftIndentWidth = 0;
   uint16_t leftIndentLineCount = 0;
 
@@ -48,7 +53,7 @@ class ParsedText {
   void addWord(std::string word, EpdFontFamily::Style fontStyle);
   void setStyle(const TextBlock::Style style) { this->style = style; }
   
-  // Setter for drop cap indentation
+  
   void setLeftIndent(uint16_t width, uint16_t lineCount) {
     leftIndentWidth = width;
     leftIndentLineCount = lineCount;

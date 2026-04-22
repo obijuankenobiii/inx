@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file SyncActivity.h
+ * @brief Public interface and types for SyncActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -8,7 +14,7 @@
 #include "../ActivityWithSubactivity.h"
 #include "../Menu.h"
 
-enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT, ADD_BLUETOOTH };
+enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT };
 
 class SyncActivity final : public ActivityWithSubactivity, public Menu {
  public:

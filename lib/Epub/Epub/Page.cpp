@@ -1,6 +1,10 @@
+/**
+ * @file Page.cpp
+ * @brief Definitions for Page.
+ */
+
 #include "Page.h"
 
-#include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -14,7 +18,8 @@
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                      BitmapDitherMode ) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -53,7 +58,8 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                        BitmapDitherMode ) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -93,7 +99,8 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Renders a drop cap on the screen.
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
-void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                         BitmapDitherMode ) {
   renderer.drawText(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
@@ -138,14 +145,15 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {  
+void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                       const BitmapDitherMode imageDitherMode) {
   FsFile file;
   if (!SdMan.openFileForRead("EHP", cachePath, file)) {
     Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
     return;
   }
 
-  Bitmap bitmap(file);
+  Bitmap bitmap(file, imageDitherMode);
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
     int screenW = renderer.getScreenWidth();
     int screenH = renderer.getScreenHeight();
@@ -205,28 +213,28 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  * @param skipImages If true, images are not rendered
  */
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages) const {  
+                  bool skipImages, const BitmapDitherMode imageDitherMode) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
     }
 
     uint8_t tag = element->getTag();
-    if (tag == TAG_PageHeader) {      
-      element->render(renderer, headerFontId, xOffset, yOffset);
+    if (tag == TAG_PageHeader) {
+      element->render(renderer, headerFontId, xOffset, yOffset, imageDitherMode);
     } else {
-      element->render(renderer, fontId, xOffset,yOffset);
+      element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
     }
-
   }
 }
 
-void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) const {
+void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                        const BitmapDitherMode imageDitherMode) const {
   for (auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
-    element->render(renderer, fontId, xOffset, yOffset);
+    element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
   }
 }
 

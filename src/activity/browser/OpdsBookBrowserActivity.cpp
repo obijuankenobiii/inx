@@ -1,3 +1,8 @@
+/**
+ * @file OpdsBookBrowserActivity.cpp
+ * @brief Definitions for OpdsBookBrowserActivity.
+ */
+
 #include "OpdsBookBrowserActivity.h"
 
 #include <Epub.h>
@@ -18,7 +23,7 @@
 namespace {
 constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
-}  // namespace
+}  
 
 void OpdsBookBrowserActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OpdsBookBrowserActivity*>(param);
@@ -32,27 +37,27 @@ void OpdsBookBrowserActivity::onEnter() {
   state = BrowserState::CHECK_WIFI;
   entries.clear();
   navigationHistory.clear();
-  currentPath = "";  // Root path - user provides full URL in settings
+  currentPath = "";  
   selectorIndex = 0;
   errorMessage.clear();
   statusMessage = "Checking WiFi...";
   updateRequired = true;
 
   xTaskCreate(&OpdsBookBrowserActivity::taskTrampoline, "OpdsBookBrowserTask",
-              4096,               // Stack size (larger for HTTP operations)
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 
-  // Check WiFi and connect if needed, then fetch feed
+  
   checkAndConnectWifi();
 }
 
 void OpdsBookBrowserActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  // Turn off WiFi when exiting
+  
   WiFi.mode(WIFI_OFF);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -67,25 +72,25 @@ void OpdsBookBrowserActivity::onExit() {
 }
 
 void OpdsBookBrowserActivity::loop() {
-  // Handle WiFi selection subactivity
+  
   if (state == BrowserState::WIFI_SELECTION) {
     ActivityWithSubactivity::loop();
     return;
   }
 
-  // Handle error state - Confirm retries, Back goes back or home
+  
   if (state == BrowserState::ERROR) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      // Check if WiFi is still connected
+      
       if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
-        // WiFi connected - just retry fetching the feed
+        
         Serial.printf("[%lu] [OPDS] Retry: WiFi connected, retrying fetch\n", millis());
         state = BrowserState::LOADING;
         statusMessage = "Loading...";
         updateRequired = true;
         fetchFeed(currentPath);
       } else {
-        // WiFi not connected - launch WiFi selection
+        
         Serial.printf("[%lu] [OPDS] Retry: WiFi not connected, launching selection\n", millis());
         launchWifiSelection();
       }
@@ -95,7 +100,7 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  // Handle WiFi check state - only Back works
+  
   if (state == BrowserState::CHECK_WIFI) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onGoToRecent();
@@ -103,7 +108,7 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  // Handle loading state - only Back works
+  
   if (state == BrowserState::LOADING) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       navigateBack();
@@ -111,12 +116,12 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  // Handle downloading state - no input allowed
+  
   if (state == BrowserState::DOWNLOADING) {
     return;
   }
 
-  // Handle browsing state
+  
   if (state == BrowserState::BROWSING) {
     const bool prevReleased = mappedInput.wasReleased(MappedInputManager::Button::Up) ||
                               mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -212,8 +217,8 @@ void OpdsBookBrowserActivity::render() const {
     return;
   }
 
-  // Browsing state
-  // Show appropriate button hint based on selected entry type
+  
+  
   const char* confirmLabel = "Open";
   if (!entries.empty() && entries[selectorIndex].type == OpdsEntryType::BOOK) {
     confirmLabel = "Download";
@@ -233,12 +238,12 @@ void OpdsBookBrowserActivity::render() const {
   for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + PAGE_ITEMS); i++) {
     const auto& entry = entries[i];
 
-    // Format display text with type indicator
+    
     std::string displayText;
     if (entry.type == OpdsEntryType::NAVIGATION) {
-      displayText = "> " + entry.title;  // Folder/navigation indicator
+      displayText = "> " + entry.title;  
     } else {
-      // Book: "Title - Author" or just "Title"
+      
       displayText = entry.title;
       if (!entry.author.empty()) {
         displayText += " - " + entry.author;
@@ -300,7 +305,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
 }
 
 void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
-  // Push current path to history before navigating
+  
   navigationHistory.push_back(currentPath);
   currentPath = entry.href;
 
@@ -315,10 +320,10 @@ void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
 
 void OpdsBookBrowserActivity::navigateBack() {
   if (navigationHistory.empty()) {
-    // At root, go home
+    
     onGoToRecent();
   } else {
-    // Go back to previous catalog
+    
     currentPath = navigationHistory.back();
     navigationHistory.pop_back();
 
@@ -339,10 +344,10 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   downloadTotal = 0;
   updateRequired = true;
 
-  // Build full download URL
+  
   std::string downloadUrl = UrlUtils::buildUrl(SETTINGS.opdsServerUrl, book.href);
 
-  // Create sanitized filename: "Title - Author.epub" or just "Title.epub" if no author
+  
   std::string baseName = book.title;
   if (!book.author.empty()) {
     baseName += " - " + book.author;
@@ -361,7 +366,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   if (result == HttpDownloader::OK) {
     Serial.printf("[%lu] [OPDS] Download complete: %s\n", millis(), filename.c_str());
 
-    // Invalidate any existing cache for this file to prevent stale metadata issues
+    
     Epub epub(filename, "/.system");
     epub.clearCache();
     Serial.printf("[%lu] [OPDS] Cleared cache for: %s\n", millis(), filename.c_str());
@@ -376,7 +381,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
 }
 
 void OpdsBookBrowserActivity::checkAndConnectWifi() {
-  // Already connected? Verify connection is valid by checking IP
+  
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
     state = BrowserState::LOADING;
     statusMessage = "Loading...";
@@ -385,7 +390,7 @@ void OpdsBookBrowserActivity::checkAndConnectWifi() {
     return;
   }
 
-  // Not connected - launch WiFi selection screen directly
+  
   launchWifiSelection();
 }
 
@@ -408,8 +413,8 @@ void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
     fetchFeed(currentPath);
   } else {
     Serial.printf("[%lu] [OPDS] WiFi selection cancelled/failed\n", millis());
-    // Force disconnect to ensure clean state for next retry
-    // This prevents stale connection status from interfering
+    
+    
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     state = BrowserState::ERROR;

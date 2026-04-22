@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file FontManager.h
+ * @brief Public interface and types for FontManager.
+ */
+
 #include <GfxRenderer.h>
 #include <unordered_map>
 

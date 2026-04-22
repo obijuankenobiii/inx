@@ -1,3 +1,8 @@
+/**
+ * @file SettingsActivity.cpp
+ * @brief Definitions for SettingsActivity.
+ */
+
 #include"SettingsActivity.h"
 
 #include <GfxRenderer.h>
@@ -15,23 +20,29 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 22;
+constexpr int systemPageSettingsCount = 26;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
-    SettingInfo::Separator("Display & sleep", GroupType::DEVICE_DISPLAY),
+    SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
                       {"Dark","Light","Custom","Recent Book","Transparent Cover","None"}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen Cover Mode", &SystemSetting::sleepScreenCoverMode,
-                      {"Fill","Crop"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen Cover Filter", &SystemSetting::sleepScreenCoverFilter,
-                      {"None","Contrast","Inverted"}, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Toggle("Sleep Screen Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
-                      GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","List Stats","Flow"},
                       GroupType::DEVICE_DISPLAY),
+
+    SettingInfo::Separator("Image", GroupType::IMAGE),
+    SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode,
+                      {"Fill","Crop"},
+                      GroupType::IMAGE),
+    SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
+                      {"None","Contrast","Inverted"}, GroupType::IMAGE),
+    SettingInfo::Toggle("Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
+                      GroupType::IMAGE),
+    SettingInfo::Enum(
+        "Contrast", &SystemSetting::displayImagePresentation,
+        {"Low","Medium","High"},
+        GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum(
@@ -41,11 +52,12 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore","Sleep","Page Refresh"},
                       GroupType::DEVICE_BUTTONS),
 
-    SettingInfo::Separator("Device & library", GroupType::DEVICE_ADVANCED),
+    SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min","5 min","10 min","15 min","30 min"},
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load", &SystemSetting::refreshOnLoad, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
@@ -54,10 +66,10 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
 
-    /* Standalone row (not inside a collapsible group); always visible. */
+    
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 26;
+constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
@@ -69,14 +81,15 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight","Normal","Wide"}, GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
     SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
-                      {"Justify","Left","Center","Right","Default (CSS)"},
+                      {"Justify", "Left", "Center", "Right", "Css"},
                       GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
+    SettingInfo::Toggle("Indent", &SystemSetting::paragraphCssIndentEnabled, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
                       {"Portrait","Landscape CW","Inverted","Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
 
-    SettingInfo::Separator("Navigation", GroupType::READER_CONTROLS),
+    SettingInfo::Separator("Buttons", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
                       {"Left/Right","Right/Left","Up/Down","Down/Up","None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
@@ -90,8 +103,14 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
     SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
                       {"1 page","5 pages","10 pages","15 pages","30 pages"}, GroupType::SYSTEM),
-    SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::SYSTEM),
-    SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::SYSTEM),
+
+    SettingInfo::Separator("Image", GroupType::IMAGE),
+    SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
+    SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
+    SettingInfo::Enum(
+        "Contrast", &SystemSetting::readerImagePresentation,
+        {"Low","Medium","High"},
+        GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
@@ -111,7 +130,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
                       GroupType::STATUS_BAR)};
 
-}  // namespace
+}  
 
 /**
  * @brief Static trampoline function for FreeRTOS task creation.

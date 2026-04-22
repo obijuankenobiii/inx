@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file SettingsDrawer.h
+ * @brief Public interface and types for SettingsDrawer.
+ */
+
 #include <functional>
 #include <vector>
 #include <string>
@@ -79,6 +84,7 @@ private:
     enum class GroupType {
         FONT,        ///< Font-related settings
         LAYOUT,      ///< Layout and spacing settings
+        IMAGE,       ///< Book bitmap appearance (global reader image options)
         CONTROLS,    ///< System and control settings
         STATUS_BAR   ///< Status bar configuration
     };
@@ -88,35 +94,37 @@ private:
      * @brief All available menu items in the settings drawer
      */
     enum class MenuItem {
-        // Separators
+        
         Separator,           ///< Generic separator for Font, Layout, Controls groups
         StatusBarSeparator,  ///< Special separator for Status Bar group
         
-        // Font Group
+        
         FontFamily,          ///< Font style selection
         FontSize,            ///< Font size selection
         
-        // Layout Group
+        
         LineSpacing,         ///< Line spacing adjustment
         Alignment,           ///< Paragraph alignment
         ExtraParagraphSpacing, ///< Additional spacing between paragraphs
+        ParagraphCssIndent,  ///< CSS `text-indent` on/off (labeled "Indent" in UI)
         ScreenMargin,        ///< Screen margin size
         ReadingOrientation,  ///< Screen orientation
         
-        // Controls Group
+        
         Hyphenation,         ///< Hyphenation toggle
         AntiAliasing,        ///< Text anti-aliasing toggle
         RefreshRate,         ///< Display refresh frequency
         ChapterSkip,         ///< Long-press chapter skip toggle
         NavigationLock,      ///< Navigation lock setting
         
-        // Status Bar Group
+        
         StatusBarLeft,       ///< Left status bar section content
         StatusBarMiddle,     ///< Middle status bar section content
         StatusBarRight,    ///< Right status bar section content
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
+        ReaderImagePresentation,  ///< Global: Low / Medium / High bitmap contrast
         PageAutoTurn
     };
     

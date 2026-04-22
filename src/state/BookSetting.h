@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file BookSetting.h
+ * @brief Public interface and types for BookSetting.
+ */
+
 #include <SDCardManager.h>
 
 #include <cstdint>
@@ -74,30 +79,32 @@ struct StatusBarLayout {
  * @brief Per-book reading settings
  */
 struct BookSettings {
-  // Font and text settings
+  
   uint8_t fontFamily = SystemSetting::LITERATA;           ///< Font family
   uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
   uint8_t lineSpacing = SystemSetting::NORMAL;            ///< Line spacing
   uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
+  /** Honor CSS `text-indent` when on (mirrors global "Indent" when unset in per-book file). */
+  uint8_t paragraphCssIndentEnabled = 0;
 
-  // Text rendering settings
+  
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
   uint8_t textAntiAliasing = 1;       ///< Text anti-aliasing enabled
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
 
-  // Reader screen margin settings
+  
   uint8_t screenMargin = 20;  ///< Screen margin in pixels
 
-  // Reading orientation settings
+  
   uint8_t orientation = SystemSetting::PORTRAIT;  ///< Screen orientation
 
-  // Navigation settings
+  
   uint8_t longPressChapterSkip = 1;  ///< Long press chapter skip enabled
 
-  // Display settings - stores the literal value (1, 5, 10, 15, or 30)
+  
   uint8_t refreshFrequency = 15;  ///< Screen refresh frequency in pages
 
-  // Configurable status bar sections
+  
   StatusBarSectionConfig statusBarLeft;    ///< Left status bar section
   StatusBarSectionConfig statusBarMiddle;  ///< Middle status bar section
   StatusBarSectionConfig statusBarRight;   ///< Right status bar section
@@ -180,6 +187,15 @@ struct BookSettings {
             pageAutoTurnSeconds = 0;
           }
 
+          if (bytesRead >= offset + 1) {
+            paragraphCssIndentEnabled = data[offset++];
+            if (paragraphCssIndentEnabled > 1) {
+              paragraphCssIndentEnabled = 1;
+            }
+          } else {
+            paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
+          }
+
           useCustomSettings = true;
           f.close();
           return true;
@@ -222,6 +238,7 @@ struct BookSettings {
       statusBarRight.toBytes(data, offset);
 
       data[offset++] = pageAutoTurnSeconds;
+      data[offset++] = paragraphCssIndentEnabled;
 
       bool success = (f.write(data, offset) == offset);
       f.close();
@@ -244,6 +261,7 @@ struct BookSettings {
     lineSpacing = global.lineSpacing;
     extraParagraphSpacing = global.extraParagraphSpacing;
     paragraphAlignment = global.paragraphAlignment;
+    paragraphCssIndentEnabled = global.paragraphCssIndentEnabled;
     hyphenationEnabled = global.hyphenationEnabled;
     screenMargin = global.screenMargin;
 
@@ -317,7 +335,9 @@ struct BookSettings {
    */
   bool operator==(const BookSettings& other) const {
     return fontFamily == other.fontFamily && fontSize == other.fontSize && lineSpacing == other.lineSpacing &&
-           paragraphAlignment == other.paragraphAlignment && extraParagraphSpacing == other.extraParagraphSpacing &&
+           paragraphAlignment == other.paragraphAlignment &&
+           paragraphCssIndentEnabled == other.paragraphCssIndentEnabled &&
+           extraParagraphSpacing == other.extraParagraphSpacing &&
            textAntiAliasing == other.textAntiAliasing && hyphenationEnabled == other.hyphenationEnabled &&
            screenMargin == other.screenMargin && orientation == other.orientation &&
            longPressChapterSkip == other.longPressChapterSkip && refreshFrequency == other.refreshFrequency &&

@@ -1,3 +1,8 @@
+/**
+ * @file BootActivity.cpp
+ * @brief Definitions for BootActivity.
+ */
+
 #include "BootActivity.h"
 
 #include <GfxRenderer.h>

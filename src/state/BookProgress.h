@@ -1,3 +1,8 @@
+/**
+ * @file BookProgress.h
+ * @brief Public interface and types for BookProgress.
+ */
+
 #ifndef BOOK_PROGRESS_H
 #define BOOK_PROGRESS_H
 

@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file BookState.h
+ * @brief Public interface and types for BookState.
+ */
+
 #include <string>
 #include <vector>
 #include <algorithm>

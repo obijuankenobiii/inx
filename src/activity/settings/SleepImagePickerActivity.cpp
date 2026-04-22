@@ -1,3 +1,8 @@
+/**
+ * @file SleepImagePickerActivity.cpp
+ * @brief Definitions for SleepImagePickerActivity.
+ */
+
 #include "SleepImagePickerActivity.h"
 
 #include <GfxRenderer.h>
@@ -35,7 +40,7 @@ void truncateLabelToWidth(GfxRenderer& renderer, int fontId, int maxWidth, const
   }
   strncat(out, ell, outSize - strlen(out) - 1);
 }
-}  // namespace
+}  
 
 void SleepImagePickerActivity::taskTrampoline(void* param) {
   auto* self = static_cast<SleepImagePickerActivity*>(param);

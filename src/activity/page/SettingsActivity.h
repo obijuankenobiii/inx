@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file SettingsActivity.h
+ * @brief Public interface and types for SettingsActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

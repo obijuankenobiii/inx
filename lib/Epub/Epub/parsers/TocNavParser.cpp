@@ -1,3 +1,8 @@
+/**
+ * @file TocNavParser.cpp
+ * @brief Definitions for TocNavParser.
+ */
+
 #include "TocNavParser.h"
 
 #include <FsHelpers.h>
@@ -72,7 +77,7 @@ size_t TocNavParser::write(const uint8_t* buffer, const size_t size) {
 void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<TocNavParser*>(userData);
 
-  // Track HTML structure loosely - we mainly care about finding <nav epub:type="toc">
+  
   if (strcmp(name, "html") == 0) {
     self->state = IN_HTML;
     return;
@@ -83,7 +88,7 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
     return;
   }
 
-  // Look for EPUB3 TOC nav: epub:type="toc", type="toc", or role="doc-toc" (common in publishers' nav.xhtml)
+  
   if (self->state >= IN_BODY && strcmp(name, "nav") == 0) {
     bool isTocNav = false;
     for (int i = 0; atts[i]; i += 2) {
@@ -106,7 +111,7 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
     return;
   }
 
-  // Only process ol/li/a if we're inside the toc nav
+  
   if (self->state < IN_NAV_TOC) {
     return;
   }
@@ -126,7 +131,7 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
 
   if (self->state == IN_LI && strcmp(name, "a") == 0) {
     self->state = IN_ANCHOR;
-    // Get href attribute
+    
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "href") == 0) {
         self->currentHref = atts[i + 1];
@@ -140,7 +145,7 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
 void XMLCALL TocNavParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<TocNavParser*>(userData);
 
-  // Only collect text when inside an anchor within the TOC nav
+  
   if (self->state == IN_ANCHOR) {
     self->currentLabel.append(s, len);
   }
@@ -150,7 +155,7 @@ void XMLCALL TocNavParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<TocNavParser*>(userData);
 
   if (strcmp(name, "a") == 0 && self->state == IN_ANCHOR) {
-    // Create TOC entry when closing anchor tag (we have all data now)
+    
     if (!self->currentLabel.empty() && !self->currentHref.empty()) {
       std::string href = FsHelpers::normalisePath(self->baseContentPath + self->currentHref);
       std::string anchor;
@@ -162,7 +167,7 @@ void XMLCALL TocNavParser::endElement(void* userData, const XML_Char* name) {
       }
 
       if (self->cache) {
-        // olDepth gives us the nesting level (1-based from the outer ol)
+        
         self->cache->createTocEntry(self->currentLabel, href, anchor, self->olDepth);
       }
 
@@ -183,7 +188,7 @@ void XMLCALL TocNavParser::endElement(void* userData, const XML_Char* name) {
     if (self->olDepth == 0) {
       self->state = IN_NAV_TOC;
     } else {
-      self->state = IN_LI;  // Back to parent li
+      self->state = IN_LI;  
     }
     return;
   }

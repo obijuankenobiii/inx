@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file TocNcxParser.h
+ * @brief Public interface and types for TocNcxParser.
+ */
+
 #include <Print.h>
 #include <expat.h>
 

@@ -1,7 +1,9 @@
 import os
 import re
 
-SRC_DIR = "src"
+# PlatformIO runs this script via exec() (no __file__); use project dir when set.
+REPO_ROOT = os.environ.get("PLATFORMIO_PROJECT_DIR", os.getcwd())
+SRC_DIR = os.path.join(REPO_ROOT, "src")
 
 def minify_html(html: str) -> str:
     # Tags where whitespace should be preserved

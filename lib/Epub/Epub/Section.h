@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file Section.h
+ * @brief Public interface and types for Section.
+ */
+
 #include <functional>
 #include <memory>
 
@@ -30,7 +36,8 @@ class Section {
    * @param hyphenationEnabled Whether hyphenation is enabled
    */
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled);
+                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
+                              bool respectCssParagraphIndent);
 
   /**
    * Handles completion of a page during section creation.
@@ -72,7 +79,8 @@ class Section {
    * @return true if section file exists and settings match
    */
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled);
+                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
+                       bool respectCssParagraphIndent);
 
   /**
    * Removes the section file from the filesystem.
@@ -98,10 +106,10 @@ class Section {
    * @param skipImages If true, skip processing new images and only use existing cached images
    * @return true if section file was successfully created
    */
-  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, bool extraParagraphSpacing, 
-                         uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight, 
-                         bool hyphenationEnabled, const std::function<void()>& popupFn = nullptr,
-                         bool skipImages = false);
+  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, bool extraParagraphSpacing,
+                         uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                         bool hyphenationEnabled, bool respectCssParagraphIndent,
+                         const std::function<void()>& popupFn = nullptr, bool skipImages = false);
 
   /**
    * Loads a specific page from the section file.

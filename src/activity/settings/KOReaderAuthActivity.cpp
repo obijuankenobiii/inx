@@ -1,3 +1,8 @@
+/**
+ * @file KOReaderAuthActivity.cpp
+ * @brief Definitions for KOReaderAuthActivity.
+ */
+
 #include "KOReaderAuthActivity.h"
 
 #include <GfxRenderer.h>
@@ -56,22 +61,22 @@ void KOReaderAuthActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   xTaskCreate(&KOReaderAuthActivity::taskTrampoline, "KOAuthTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 
-  // Turn on WiFi
+  
   WiFi.mode(WIFI_STA);
 
-  // Check if already connected
+  
   if (WiFi.status() == WL_CONNECTED) {
     state = AUTHENTICATING;
     statusMessage = "Authenticating...";
     updateRequired = true;
 
-    // Perform authentication in a separate task
+    
     xTaskCreate(
         [](void* param) {
           auto* self = static_cast<KOReaderAuthActivity*>(param);
@@ -82,7 +87,7 @@ void KOReaderAuthActivity::onEnter() {
     return;
   }
 
-  // Launch WiFi selection
+  
   enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                              [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
@@ -90,7 +95,7 @@ void KOReaderAuthActivity::onEnter() {
 void KOReaderAuthActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  // Turn off wifi
+  
   WiFi.disconnect(false);
   delay(100);
   WiFi.mode(WIFI_OFF);

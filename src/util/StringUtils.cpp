@@ -1,3 +1,8 @@
+/**
+ * @file StringUtils.cpp
+ * @brief Definitions for StringUtils.
+ */
+
 #include "StringUtils.h"
 
 #include <cstring>
@@ -9,25 +14,25 @@ std::string sanitizeFilename(const std::string& name, size_t maxLength) {
   result.reserve(name.size());
 
   for (char c : name) {
-    // Replace invalid filename characters with underscore
+    
     if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
       result += '_';
     } else if (c >= 32 && c < 127) {
-      // Keep printable ASCII characters
+      
       result += c;
     }
-    // Skip non-printable characters
+    
   }
 
-  // Trim leading/trailing spaces and dots
+  
   size_t start = result.find_first_not_of(" .");
   if (start == std::string::npos) {
-    return "book";  // Fallback if name is all invalid characters
+    return "book";  
   }
   size_t end = result.find_last_not_of(" .");
   result = result.substr(start, end - start + 1);
 
-  // Limit filename length
+  
   if (result.length() > maxLength) {
     result.resize(maxLength);
   }
@@ -61,4 +66,4 @@ bool checkFileExtension(const String& fileName, const char* extension) {
   return localFile.endsWith(localExtension);
 }
 
-}  // namespace StringUtils
+}  

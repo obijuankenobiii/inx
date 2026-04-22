@@ -1,3 +1,8 @@
+/**
+ * @file XtcReaderChapterSelectionActivity.cpp
+ * @brief Definitions for XtcReaderChapterSelectionActivity.
+ */
+
 #include "XtcReaderChapterSelectionActivity.h"
 
 #include <GfxRenderer.h>
@@ -7,7 +12,7 @@
 
 namespace {
 constexpr int SKIP_PAGE_MS = 700;
-}  // namespace
+}  
 
 int XtcReaderChapterSelectionActivity::getPageItems() const {
   constexpr int startY = 60;
@@ -55,10 +60,10 @@ void XtcReaderChapterSelectionActivity::onEnter() {
 
   updateRequired = true;
   xTaskCreate(&XtcReaderChapterSelectionActivity::taskTrampoline, "XtcReaderChapterSelectionActivityTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 }
 
@@ -149,7 +154,7 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
   }
 
-  // Skip button hints in landscape CW mode (they overlap content)
+  
   if (renderer.getOrientation() != GfxRenderer::LandscapeClockwise) {
     const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
     renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file MenuDrawer.h
+ * @brief Public interface and types for MenuDrawer.
+ */
+
 #include "GfxRenderer.h"
 #include "system/MappedInputManager.h"
 
@@ -7,7 +12,7 @@
 #include <string>
 #include <vector>
 
-// Forward declaration
+
 class Epub;
 
 /**
@@ -18,11 +23,13 @@ public:
     enum class MenuAction {
         SHOW_BOOKMARKS,
         SELECT_CHAPTER,
+        KOREADER_SYNC,
         GO_HOME,
         DELETE_CACHE,
         DELETE_PROGRESS,
         DELETE_BOOK,
-        GENERATE_FULL_DATA
+        GENERATE_FULL_DATA,
+        REGENERATE_THUMBNAIL
     };
 
     /** One row in the bookmark drawer (same role as a TOC line). */
@@ -203,14 +210,14 @@ private:
     bool dismissed;
     uint32_t lastInputTime;
     
-    // TOC display state
+    
     bool showingToc = false;
     bool showingBookmarks = false;
     bool isFromToc = false;
     int tocSelectedIndex = 0;
     int tocScrollOffset = 0;
-    int tocDrawerHeight = 0;      // Height of TOC drawer (80% of screen in portrait, full in landscape)
-    int tocDrawerY = 0;           // Y position of TOC drawer
+    int tocDrawerHeight = 0;      
+    int tocDrawerY = 0;           
 
     void syncLayoutFromRenderer();
     void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);

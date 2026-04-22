@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file BootActivity.h
+ * @brief Public interface and types for BootActivity.
+ */
+
 #include "../Activity.h"
 #include "system/MappedInputManager.h"
 

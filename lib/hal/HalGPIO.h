@@ -1,22 +1,27 @@
 #pragma once
 
+/**
+ * @file HalGPIO.h
+ * @brief Public interface and types for HalGPIO.
+ */
+
 #include <Arduino.h>
 #include <BatteryMonitor.h>
 #include <InputManager.h>
 
-// Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
-#define EPD_SCLK 8   // SPI Clock
-#define EPD_MOSI 10  // SPI MOSI (Master Out Slave In)
-#define EPD_CS 21    // Chip Select
-#define EPD_DC 4     // Data/Command
-#define EPD_RST 5    // Reset
-#define EPD_BUSY 6   // Busy
 
-#define SPI_MISO 7  // SPI MISO, shared between SD card and display (Master In Slave Out)
+#define EPD_SCLK 8   
+#define EPD_MOSI 10  
+#define EPD_CS 21    
+#define EPD_DC 4     
+#define EPD_RST 5    
+#define EPD_BUSY 6   
 
-#define BAT_GPIO0 0  // Battery voltage
+#define SPI_MISO 7  
 
-#define UART0_RXD 20  // Used for USB connection detection
+#define BAT_GPIO0 0  
+
+#define UART0_RXD 20  
 
 class HalGPIO {
 #if CROSSPOINT_EMULATED == 0
@@ -26,11 +31,18 @@ class HalGPIO {
  public:
   HalGPIO() = default;
 
-  // Start button GPIO and setup SPI for screen and SD card
+  
   void begin();
 
-  // Button input methods
+  
   void update();
+  void injectOneShotPress(uint8_t buttonIndex) {
+#if CROSSPOINT_EMULATED == 0
+    inputMgr.injectOneShotPress(buttonIndex);
+#else
+    (void)buttonIndex;
+#endif
+  }
   bool isPressed(uint8_t buttonIndex) const;
   bool wasPressed(uint8_t buttonIndex) const;
   bool wasAnyPressed() const;
@@ -38,20 +50,20 @@ class HalGPIO {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
 
-  // Setup wake up GPIO and enter deep sleep
+  
   void startDeepSleep();
 
-  // Get battery percentage (range 0-100)
+  
   int getBatteryPercentage() const;
 
-  // Check if USB is connected
+  
   bool isUsbConnected() const;
 
   enum class WakeupReason { PowerButton, AfterFlash, AfterUSBPower, Other };
 
   WakeupReason getWakeupReason() const;
 
-  // Button indices
+  
   static constexpr uint8_t BTN_BACK = 0;
   static constexpr uint8_t BTN_CONFIRM = 1;
   static constexpr uint8_t BTN_LEFT = 2;

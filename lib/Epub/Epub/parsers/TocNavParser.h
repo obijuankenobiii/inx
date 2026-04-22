@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file TocNavParser.h
+ * @brief Public interface and types for TocNavParser.
+ */
+
 #include <Print.h>
 #include <expat.h>
 
@@ -6,17 +12,17 @@
 
 class BookMetadataCache;
 
-// Parser for EPUB 3 nav.xhtml navigation documents
-// Parses HTML5 nav elements with epub:type="toc" to extract table of contents
+
+
 class TocNavParser final : public Print {
   enum ParserState {
     START,
     IN_HTML,
     IN_BODY,
-    IN_NAV_TOC,  // Inside <nav epub:type="toc">
-    IN_OL,       // Inside <ol>
-    IN_LI,       // Inside <li>
-    IN_ANCHOR,   // Inside <a>
+    IN_NAV_TOC,  
+    IN_OL,       
+    IN_LI,       
+    IN_ANCHOR,   
   };
 
   const std::string& baseContentPath;
@@ -25,9 +31,9 @@ class TocNavParser final : public Print {
   ParserState state = START;
   BookMetadataCache* cache;
 
-  // Track nesting depth for <ol> elements to determine TOC depth
+  
   uint8_t olDepth = 0;
-  // Current entry data being collected
+  
   std::string currentLabel;
   std::string currentHref;
 

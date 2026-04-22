@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file KOReaderAuthActivity.h
+ * @brief Public interface and types for KOReaderAuthActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

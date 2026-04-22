@@ -1,5 +1,10 @@
-// From
-// https://github.com/vroland/epdiy/blob/c61e9e923ce2418150d54f88cea5d196cdc40c54/src/epd_internals.h
+/**
+ * @file EpdFontData.h
+ * @brief Public interface and types for EpdFontData.
+ */
+
+
+
 
 #pragma once
 #include <cstdint>

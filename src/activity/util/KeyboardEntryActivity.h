@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file KeyboardEntryActivity.h
+ * @brief Public interface and types for KeyboardEntryActivity.
+ */
+
 #include <GfxRenderer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -23,7 +29,7 @@
  */
 class KeyboardEntryActivity : public Activity {
  public:
-  // Callback types
+  
   using OnCompleteCallback = std::function<void(const std::string&)>;
   using OnCancelCallback = std::function<void()>;
 
@@ -52,7 +58,7 @@ class KeyboardEntryActivity : public Activity {
         onComplete(std::move(onComplete)),
         onCancel(std::move(onCancel)) {}
 
-  // Activity overrides
+  
   void onEnter() override;
   void onExit() override;
   void loop() override;
@@ -67,22 +73,22 @@ class KeyboardEntryActivity : public Activity {
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
 
-  // Keyboard state
+  
   int selectedRow = 0;
   int selectedCol = 0;
   bool shiftActive = false;
 
-  // Callbacks
+  
   OnCompleteCallback onComplete;
   OnCancelCallback onCancel;
 
-  // Keyboard layout
+  
   static constexpr int NUM_ROWS = 5;
-  static constexpr int KEYS_PER_ROW = 13;  // Max keys per row (rows 0 and 1 have 13 keys)
+  static constexpr int KEYS_PER_ROW = 13;  
   static const char* const keyboard[NUM_ROWS];
   static const char* const keyboardShift[NUM_ROWS];
 
-  // Special key positions (bottom row)
+  
   static constexpr int SPECIAL_ROW = 4;
   static constexpr int SHIFT_COL = 0;
   static constexpr int SPACE_COL = 2;
