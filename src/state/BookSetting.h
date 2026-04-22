@@ -79,6 +79,8 @@ struct BookSettings {
   uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
   uint8_t lineSpacing = SystemSetting::NORMAL;            ///< Line spacing
   uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
+  /** Honor EPUB/CSS `text-indent` when not using "Use EPUB CSS" alignment (mirrors global when unset in file). */
+  uint8_t paragraphCssIndentEnabled = 0;
 
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
@@ -180,6 +182,15 @@ struct BookSettings {
             pageAutoTurnSeconds = 0;
           }
 
+          if (bytesRead >= offset + 1) {
+            paragraphCssIndentEnabled = data[offset++];
+            if (paragraphCssIndentEnabled > 1) {
+              paragraphCssIndentEnabled = 1;
+            }
+          } else {
+            paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
+          }
+
           useCustomSettings = true;
           f.close();
           return true;
@@ -222,6 +233,7 @@ struct BookSettings {
       statusBarRight.toBytes(data, offset);
 
       data[offset++] = pageAutoTurnSeconds;
+      data[offset++] = paragraphCssIndentEnabled;
 
       bool success = (f.write(data, offset) == offset);
       f.close();
@@ -244,6 +256,7 @@ struct BookSettings {
     lineSpacing = global.lineSpacing;
     extraParagraphSpacing = global.extraParagraphSpacing;
     paragraphAlignment = global.paragraphAlignment;
+    paragraphCssIndentEnabled = global.paragraphCssIndentEnabled;
     hyphenationEnabled = global.hyphenationEnabled;
     screenMargin = global.screenMargin;
 
@@ -317,7 +330,9 @@ struct BookSettings {
    */
   bool operator==(const BookSettings& other) const {
     return fontFamily == other.fontFamily && fontSize == other.fontSize && lineSpacing == other.lineSpacing &&
-           paragraphAlignment == other.paragraphAlignment && extraParagraphSpacing == other.extraParagraphSpacing &&
+           paragraphAlignment == other.paragraphAlignment &&
+           paragraphCssIndentEnabled == other.paragraphCssIndentEnabled &&
+           extraParagraphSpacing == other.extraParagraphSpacing &&
            textAntiAliasing == other.textAntiAliasing && hyphenationEnabled == other.hyphenationEnabled &&
            screenMargin == other.screenMargin && orientation == other.orientation &&
            longPressChapterSkip == other.longPressChapterSkip && refreshFrequency == other.refreshFrequency &&

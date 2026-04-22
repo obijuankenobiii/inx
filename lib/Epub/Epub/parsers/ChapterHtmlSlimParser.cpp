@@ -10,6 +10,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+#include <Utf8.h>
 #include <expat.h>
 
 #include "../Page.h"
@@ -19,6 +20,21 @@ const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
+
+namespace {
+
+int countUtf8Codepoints(const char* s, int byteLen) {
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  int n = 0;
+  while (p < end) {
+    utf8NextCodepoint(&p);
+    ++n;
+  }
+  return n;
+}
+
+}  // namespace
 
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
@@ -452,25 +468,35 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
       }
       self->startNewTextBlock(blockStyle);
-      if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && self->currentTextBlock) {
-        std::string classAttr;
-        std::string idAttr;
-        std::string styleAttr;
-        if (atts != nullptr) {
-          for (int i = 0; atts[i]; i += 2) {
-            if (strcmp(atts[i], "class") == 0) {
-              classAttr = atts[i + 1];
-            } else if (strcmp(atts[i], "id") == 0) {
-              idAttr = atts[i + 1];
-            } else if (strcmp(atts[i], "style") == 0) {
-              styleAttr = atts[i + 1];
-            }
+      std::string classAttr;
+      std::string idAttr;
+      std::string styleAttr;
+      if (atts != nullptr) {
+        for (int i = 0; atts[i]; i += 2) {
+          if (strcmp(atts[i], "class") == 0) {
+            classAttr = atts[i + 1];
+          } else if (strcmp(atts[i], "id") == 0) {
+            idAttr = atts[i + 1];
+          } else if (strcmp(atts[i], "style") == 0) {
+            styleAttr = atts[i + 1];
           }
         }
-        if (self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+      }
+      if (self->currentTextBlock) {
+        const bool applyCssTextIndent = self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS ||
+                                        self->respectCssParagraphIndent;
+        if (applyCssTextIndent && self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
           const int tip = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
                                                           self->viewportHeight);
           self->currentTextBlock->setCssTextIndentFromCascade(tip);
+        }
+        if (strstr(classAttr.c_str(), "indent") != nullptr && strstr(classAttr.c_str(), "noindent") == nullptr) {
+          static const char kEmSpace[] = "\xe2\x80\x83";
+          const int fid = self->inHeader ? self->headerFontId : self->fontId;
+          const int w = self->renderer.getTextWidth(fid, kEmSpace, EpdFontFamily::REGULAR);
+          if (w > 0) {
+            self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(w), 1);
+          }
         }
       }
     }
@@ -495,7 +521,10 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
   for (int i = 0; i < len; i++) {
     if (isWhitespace(s[i])) {
-      self->flushPartWordBuffer();
+      // Inside drop-cap span, whitespace is layout only; do not flush partial letters (fixes 2-letter caps).
+      if (!self->inDropCap) {
+        self->flushPartWordBuffer();
+      }
       continue;
     }
 
@@ -507,7 +536,9 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     if (self->partWordBufferIndex >= MAX_WORD_SIZE) self->flushPartWordBuffer();
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
-    if (self->inDropCap) self->flushPartWordBuffer();
+    if (self->inDropCap && countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >= 2) {
+      self->flushPartWordBuffer();
+    }
   }
 
   if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
@@ -545,7 +576,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
 
-  if (self->inDropCap && self->dropCapDepth == self->depth) {
+  if (self->dropCapDepth == self->depth) {
+    if (self->inDropCap && self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+    }
     self->inDropCap = false;
     self->dropCapDepth = INT_MAX;
   }

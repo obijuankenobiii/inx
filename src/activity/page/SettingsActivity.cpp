@@ -63,7 +63,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     /* Standalone row (not inside a collapsible group); always visible. */
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 28;
+constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
@@ -78,6 +78,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"Justify", "Left", "Center", "Right", "Use EPUB CSS"},
                       GroupType::LAYOUT),
     SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
+    SettingInfo::Toggle("CSS paragraph indents", &SystemSetting::paragraphCssIndentEnabled, GroupType::LAYOUT),
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
                       {"Portrait","Landscape CW","Inverted","Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),

@@ -312,7 +312,7 @@ bool Epub::generateThumbBmp() const {
       Serial.printf("[EBP] Source is BMP, resizing for thumbnail: %s\n", coverHref.c_str());
       thumbSuccess = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, 225, 340);
     } else if (isPngFile(coverHref)) {
-      thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
+      thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, false);
     } else {
       JpegToBmpConverter converter;
       thumbSuccess = converter.jpegFileToThumbnailBmp(sourceFile, destFile, 225, 340);
@@ -327,10 +327,10 @@ bool Epub::generateThumbBmp() const {
         thumbSuccess = false;
       } else {
         if (isPngFile(coverHref)) {
-          thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, true);
+          thumbSuccess = PngToBmpConverter::pngFileTo2BitBmpStreamWithSize(sourceFile, destFile, 225, 340, false);
         } else {
           thumbSuccess =
-              JpegToBmpConverter::jpegFileToBmpStreamCentered(sourceFile, destFile, 225, 340, true);
+              JpegToBmpConverter::jpegFileToBmpStreamCentered(sourceFile, destFile, 225, 340, false);
         }
       }
     }

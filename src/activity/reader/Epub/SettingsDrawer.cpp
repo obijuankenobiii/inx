@@ -222,6 +222,19 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(extraParaEntry);
 
+    MenuEntry cssIndentEntry;
+    cssIndentEntry.item = MenuItem::ParagraphCssIndent;
+    cssIndentEntry.group = GroupType::LAYOUT;
+    cssIndentEntry.name = "CSS paragraph indents";
+    cssIndentEntry.getValueText = [](const BookSettings& s) -> const char* {
+      return s.paragraphCssIndentEnabled ? "On" : "Off";
+    };
+    cssIndentEntry.change = [](BookSettings& s, int) {
+      s.paragraphCssIndentEnabled = s.paragraphCssIndentEnabled ? 0 : 1;
+      s.useCustomSettings = true;
+    };
+    menuItems.push_back(cssIndentEntry);
+
     MenuEntry marginEntry;
     marginEntry.item = MenuItem::ScreenMargin;
     marginEntry.group = GroupType::LAYOUT;
@@ -747,6 +760,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::ScreenMargin:
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:
+    case MenuItem::ParagraphCssIndent:
     case MenuItem::ReadingOrientation:
       settingsUpdated = true;
       break;

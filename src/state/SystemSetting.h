@@ -331,7 +331,9 @@ public:
     uint8_t fontSize = SMALL;                                   ///< Font size
     uint8_t lineSpacing = TIGHT;                                ///< Line spacing
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
-    
+    /** When set, EPUB/CSS `text-indent` (inline or stylesheet) is honored even if paragraph alignment is not Use EPUB CSS. */
+    uint8_t paragraphCssIndentEnabled = 0;
+
     // Auto-sleep timeout setting (default 10 minutes)
     uint8_t sleepTimeout = SLEEP_10_MIN;                        ///< Sleep timeout
     

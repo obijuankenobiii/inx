@@ -247,14 +247,17 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 }
 
 void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fontId) {
-  if (extraParagraphSpacing || words.empty()) {
+  if (words.empty()) {
     return;
   }
 
+  // Explicit CSS text-indent (set via cascade): always apply, including when "extra paragraph spacing"
+  // adds vertical gap between blocks — that setting must not strip publisher indents.
   if (cssTextIndentPx >= 0) {
     if (cssTextIndentPx > 0) {
       static const char em[] = "\xe2\x80\x83";
-      const int emw = renderer.getTextWidth(fontId, em, EpdFontFamily::REGULAR);
+      const EpdFontFamily::Style emStyle = wordStyles.empty() ? EpdFontFamily::REGULAR : wordStyles.front();
+      const int emw = renderer.getTextWidth(fontId, em, emStyle);
       if (emw > 0) {
         const int n = std::min(80, (cssTextIndentPx + emw - 1) / emw);
         std::string pad;
@@ -265,6 +268,12 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
         words.front().insert(0, pad);
       }
     }
+    return;
+  }
+
+  // Legacy first-line em: with extra vertical gap between blocks, skip for left (Kindle-style);
+  // justified text still gets a first-line indent so paragraphs do not look flat against the margin.
+  if (extraParagraphSpacing && style != TextBlock::JUSTIFIED) {
     return;
   }
 

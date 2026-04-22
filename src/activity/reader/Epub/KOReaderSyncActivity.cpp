@@ -134,7 +134,10 @@ void KOReaderSyncActivity::performSync() {
   remotePosition = ProgressMapper::toCrossPoint(epub, koPos, currentSpineIndex, totalPagesInSpine);
 
   // Calculate local progress in KOReader format (for display)
-  CrossPointPosition localPos = {currentSpineIndex, currentPage, totalPagesInSpine};
+  CrossPointPosition localPos{};
+  localPos.spineIndex = currentSpineIndex;
+  localPos.pageNumber = currentPage;
+  localPos.totalPages = totalPagesInSpine;
   localProgress = ProgressMapper::toKOReader(epub, localPos);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -158,7 +161,10 @@ void KOReaderSyncActivity::performUpload() {
   vTaskDelay(10 / portTICK_PERIOD_MS);
 
   // Convert current position to KOReader format
-  CrossPointPosition localPos = {currentSpineIndex, currentPage, totalPagesInSpine};
+  CrossPointPosition localPos{};
+  localPos.spineIndex = currentSpineIndex;
+  localPos.pageNumber = currentPage;
+  localPos.totalPages = totalPagesInSpine;
   KOReaderPosition koPos = ProgressMapper::toKOReader(epub, localPos);
 
   KOReaderProgress progress;

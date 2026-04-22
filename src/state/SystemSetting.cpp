@@ -26,8 +26,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 12;
-constexpr uint8_t SETTINGS_COUNT = 41;
+constexpr uint8_t SETTINGS_FILE_VERSION = 13;
+constexpr uint8_t SETTINGS_COUNT = 42;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -118,6 +118,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, readerImageDither);
   serialization::writePod(outputFile, displayImageDither);
   serialization::writePod(outputFile, displayImagePresentation);
+  serialization::writePod(outputFile, paragraphCssIndentEnabled);
 
   outputFile.close();
 
@@ -144,9 +145,9 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 11, 10, 9, 8, 7, 6, 3);
+      version != 9 && version != 10 && version != 11 && version != 12) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 12, 11, 10, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -367,6 +368,13 @@ bool SystemSetting::loadFromFile() {
     }
     if (settingsRead < fileSettingsCount) {
       readAndValidate(inputFile, displayImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, paragraphCssIndentEnabled);
+      if (paragraphCssIndentEnabled > 1) {
+        paragraphCssIndentEnabled = 1;
+      }
       ++settingsRead;
     }
 

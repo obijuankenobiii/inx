@@ -1027,7 +1027,7 @@ void RecentActivity::renderFlow() {
     }
   }
 
-  int centerW = 218;
+  int centerW = 210;
   int centerH = 318;
   int centerX = carouselX + (carouselW - centerW) / 2;
   int centerY = carouselY + (carouselH - centerH) / 2 + 4;

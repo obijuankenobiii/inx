@@ -233,18 +233,18 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
 
   bool success =
       tempSection->createSectionFile(
-        info.fontId, 
+        info.fontId,
         FontManager::getNextFont(info.fontId),
         FontManager::getMaxFontId(info.fontId),
         info.lineCompression,
-        bookSettings.extraParagraphSpacing, 
-        bookSettings.paragraphAlignment, 
+        bookSettings.extraParagraphSpacing,
+        bookSettings.paragraphAlignment,
         info.width,
-        info.height, 
-        bookSettings.hyphenationEnabled, 
-        progressCallback, 
-        skipImages
-      );
+        info.height,
+        bookSettings.hyphenationEnabled,
+        bookSettings.paragraphCssIndentEnabled != 0,
+        progressCallback,
+        skipImages);
 
   if (isDoingSomethingHeavy && showProgress) {
     renderer.clearScreen();
@@ -270,13 +270,14 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
 
   bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                                  bookSettings.paragraphAlignment, info.width, info.height,
-                                                 bookSettings.hyphenationEnabled);
+                                                 bookSettings.hyphenationEnabled,
+                                                 bookSettings.paragraphCssIndentEnabled != 0);
 
   if (!isCached && loadedSection) {
     buildSection(spineIndex, info, true, false);
     loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                    bookSettings.paragraphAlignment, info.width, info.height,
-                                   bookSettings.hyphenationEnabled);
+                                   bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0);
   }
 
   return loadedSection;
@@ -309,7 +310,9 @@ void EpubActivity::setupOrientation() {
 
 void EpubActivity::syncOrientationFromGlobalIfNeeded() {
   if (!bookSettings.useCustomSettings) {
-    bookSettings.orientation = SystemSetting::getInstance().orientation;
+    SystemSetting& g = SystemSetting::getInstance();
+    bookSettings.orientation = g.orientation;
+    bookSettings.paragraphCssIndentEnabled = g.paragraphCssIndentEnabled;
   }
 }
 

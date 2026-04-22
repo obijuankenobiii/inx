@@ -990,6 +990,7 @@ void LocalServer::handleSettingsGet() const {
   doc["lineSpacing"] = SETTINGS.lineSpacing;
   doc["screenMargin"] = SETTINGS.screenMargin;
   doc["paragraphAlignment"] = SETTINGS.paragraphAlignment;
+  doc["paragraphCssIndentEnabled"] = SETTINGS.paragraphCssIndentEnabled;
   doc["extraParagraphSpacing"] = SETTINGS.extraParagraphSpacing;
   doc["orientation"] = SETTINGS.orientation;
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
@@ -1107,6 +1108,10 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "extraParagraphSpacing") == 0) {
       SETTINGS.extraParagraphSpacing = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "paragraphCssIndentEnabled") == 0) {
+      SETTINGS.paragraphCssIndentEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "orientation") == 0) {

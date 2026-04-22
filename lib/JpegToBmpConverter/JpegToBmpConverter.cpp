@@ -773,7 +773,7 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(
   
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
-  // Calculate scaling to FILL the target dimensions (crop if necessary)
+  // Thumbnail output size (contain: full cover visible, may be smaller than target box).
   int outWidth = targetMaxWidth;
   int outHeight = targetMaxHeight;
   uint32_t scaleX_fp = 65536;
@@ -783,27 +783,22 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(
   int cropSrcWidth = imageInfo.m_width;
   int cropSrcHeight = imageInfo.m_height;
 
-  if (targetMaxWidth > 0 && targetMaxHeight > 0) 
-  {
-    // Calculate scale to fill the target area completely
-    float scaleX = (float)targetMaxWidth / imageInfo.m_width;
-    float scaleY = (float)targetMaxHeight / imageInfo.m_height;
-    
-    // Use MAX scale to ensure we fill the entire target
-    // This will crop the image if aspect ratios don't match
-    float scale = std::max(scaleX, scaleY);
-    
-    // Calculate crop dimensions from source
-    cropSrcWidth = (int)(targetMaxWidth / scale);
-    cropSrcHeight = (int)(targetMaxHeight / scale);
-    
-    // Center the crop area
-    srcOffsetX = (imageInfo.m_width - cropSrcWidth) / 2;
-    srcOffsetY = (imageInfo.m_height - cropSrcHeight) / 2;
-    
-    // Fixed-point scaling factors
-    scaleX_fp = (uint32_t)(cropSrcWidth << 16) / outWidth;
-    scaleY_fp = (uint32_t)(cropSrcHeight << 16) / outHeight;
+  if (targetMaxWidth > 0 && targetMaxHeight > 0) {
+    // Fit entire cover inside the thumb box (contain). MAX scale cropped top/bottom on typical jackets.
+    const float scaleX = static_cast<float>(targetMaxWidth) / static_cast<float>(imageInfo.m_width);
+    const float scaleY = static_cast<float>(targetMaxHeight) / static_cast<float>(imageInfo.m_height);
+    float scale = std::min(scaleX, scaleY);
+    if (scale > 1.0f) {
+      scale = 1.0f;
+    }
+    outWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_width) * scale)));
+    outHeight = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_height) * scale)));
+    cropSrcWidth = imageInfo.m_width;
+    cropSrcHeight = imageInfo.m_height;
+    srcOffsetX = 0;
+    srcOffsetY = 0;
+    scaleX_fp = (uint32_t)(cropSrcWidth << 16) / static_cast<uint32_t>(outWidth);
+    scaleY_fp = (uint32_t)(cropSrcHeight << 16) / static_cast<uint32_t>(outHeight);
   }
 
   // Write 2-bit BMP header
