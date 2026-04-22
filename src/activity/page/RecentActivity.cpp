@@ -159,6 +159,7 @@ void RecentActivity::onEnter() {
 
   renderingMutex = xSemaphoreCreateMutex();
   if (!renderingMutex) return;
+  halfRefreshOnLoadApplied_ = false;
   renderer.clearScreen(0xff);
   loadRecentBooks();
 
@@ -342,6 +343,10 @@ void RecentActivity::displayTaskLoop() {
                                  labels.btn4);
 
         renderer.displayBuffer();
+        if (!halfRefreshOnLoadApplied_) {
+          halfRefreshOnLoadApplied_ = true;
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+        }
         updateRequired = false;
       }
     }

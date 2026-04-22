@@ -16,6 +16,7 @@
 #include "SleepImagePickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
+#include "ReaderFontSettingsDraw.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -35,6 +36,7 @@ void CategorySettingsActivity::onEnter() {
   Activity::onEnter();
   renderingMutex = xSemaphoreCreateMutex();
 
+  halfRefreshOnLoadApplied_ = false;
   selectedIndex = 0;
   scrollOffset = 0;
   updateRequired = true;
@@ -365,6 +367,10 @@ void CategorySettingsActivity::displayTaskLoop() {
       if (renderingMutex) {
         xSemaphoreTake(renderingMutex, portMAX_DELAY);
         render();
+        if (!halfRefreshOnLoadApplied_) {
+          halfRefreshOnLoadApplied_ = true;
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+        }
         xSemaphoreGive(renderingMutex);
       }
     }
@@ -444,10 +450,26 @@ void CategorySettingsActivity::render() {
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
-    const char* val = entry.getValueText();
-    if (val && val[0] != '\0') {
-      int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, textY, val, !isSelected);
+    const bool useCheckbox = (entry.type == SettingType::TOGGLE && entry.valuePtr);
+    if (useCheckbox) {
+      ReaderFontSettingsDraw::drawToggleCheckbox(renderer, pageWidth - 24, itemY, itemHeight, isSelected,
+                                                 SETTINGS.*(entry.valuePtr) != 0);
+    } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Family") == 0) {
+      const char* val = entry.getValueText();
+      if (val && val[0] != '\0') {
+        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, SETTINGS.fontFamily, pageWidth - 24, itemY,
+                                                       itemHeight, isSelected, val);
+      }
+    } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Size") == 0) {
+      const int valueAreaLeft = std::max(textX + 88, pageWidth * 38 / 100);
+      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, SETTINGS.fontFamily, SETTINGS.fontSize,
+                                                         valueAreaLeft, pageWidth - 24, itemY, itemHeight, isSelected);
+    } else {
+      const char* val = entry.getValueText();
+      if (val && val[0] != '\0') {
+        int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, textY, val, !isSelected);
+      }
     }
 
     renderer.drawLine(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);

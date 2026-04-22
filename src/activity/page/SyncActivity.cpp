@@ -13,6 +13,7 @@
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
+#include "state/SystemSetting.h"
 
 namespace {
 /**
@@ -71,6 +72,7 @@ void SyncActivity::onEnter() {
 
   
   render();
+  SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 16384, this, 1, &displayTaskHandle);

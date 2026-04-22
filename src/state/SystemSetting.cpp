@@ -5,6 +5,8 @@
 
 #include "state/SystemSetting.h"
 
+#include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
@@ -31,8 +33,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 13;
-constexpr uint8_t SETTINGS_COUNT = 42;
+constexpr uint8_t SETTINGS_FILE_VERSION = 14;
+constexpr uint8_t SETTINGS_COUNT = 43;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -124,6 +126,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, displayImageDither);
   serialization::writePod(outputFile, displayImagePresentation);
   serialization::writePod(outputFile, paragraphCssIndentEnabled);
+  serialization::writePod(outputFile, refreshOnLoad);
 
   outputFile.close();
 
@@ -150,9 +153,9 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11 && version != 12) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 12, 11, 10, 9, 8, 7, 6, 3);
+      version != 9 && version != 10 && version != 11 && version != 12 && version != 13) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION, 13, 12, 11, 10, 9, 8, 7, 6, 3);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -382,6 +385,13 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, refreshOnLoad);
+      if (refreshOnLoad > 1) {
+        refreshOnLoad = 0;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -392,6 +402,7 @@ bool SystemSetting::loadFromFile() {
       displayImageDither = readerImageDither;
     }
     displayImagePresentation = readerImagePresentation;
+    refreshOnLoad = 0;
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
@@ -504,15 +515,17 @@ int SystemSetting::getRefreshFrequency() const {
   }
 }
 
-/**
- * @brief Gets reader font ID based on font family and size
- * @return Font identifier for rendering
- */
-int SystemSetting::getReaderFontId() const {
-  switch (fontFamily) {
+int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const {
+  if (family >= FONT_FAMILY_COUNT) {
+    family = BOOKERLY;
+  }
+  if (size >= FONT_SIZE_COUNT) {
+    size = MEDIUM;
+  }
+  switch (family) {
     case BOOKERLY:
     default:
-      switch (fontSize) {
+      switch (size) {
         case EXTRA_SMALL:
           return BOOKERLY_10_FONT_ID;
         case SMALL:
@@ -526,7 +539,7 @@ int SystemSetting::getReaderFontId() const {
           return BOOKERLY_18_FONT_ID;
       }
     case ATKINSON_HYPERLEGIBLE:
-      switch (fontSize) {
+      switch (size) {
         case EXTRA_SMALL:
           return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
         case SMALL:
@@ -540,7 +553,7 @@ int SystemSetting::getReaderFontId() const {
           return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
       }
     case LITERATA:
-      switch (fontSize) {
+      switch (size) {
         case EXTRA_SMALL:
           return LITERATA_10_FONT_ID;
         case SMALL:
@@ -553,5 +566,19 @@ int SystemSetting::getReaderFontId() const {
         case EXTRA_LARGE:
           return LITERATA_18_FONT_ID;
       }
+  }
+}
+
+/**
+ * @brief Gets reader font ID based on font family and size
+ * @return Font identifier for rendering
+ */
+int SystemSetting::getReaderFontId() const {
+  return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
+}
+
+void SystemSetting::runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const {
+  if (refreshOnLoad) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 }

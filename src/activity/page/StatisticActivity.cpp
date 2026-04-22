@@ -614,6 +614,7 @@ void StatisticActivity::onEnter() {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   render();
+  SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);

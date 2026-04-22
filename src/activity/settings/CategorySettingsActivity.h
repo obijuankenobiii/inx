@@ -121,6 +121,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
+  bool halfRefreshOnLoadApplied_ = false;
   int selectedIndex = 0;
   int scrollOffset = 0;
   int itemsPerPage = 0;

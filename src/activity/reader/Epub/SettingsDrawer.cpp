@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "../../settings/ReaderFontSettingsDraw.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 
@@ -637,11 +638,64 @@ void SettingsDrawer::drawMenuItems() {
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
-    const char* val = entry.getValueText(settings);
-    if (val && val[0] != '\0') {
-      int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - valW - 30, textY, val,
-                        isSelected ? 0 : 1);
+    const int valueColumnRight = drawerX + drawerWidth - 24;
+    if (entry.item == MenuItem::FontFamily) {
+      const char* val = entry.getValueText(settings);
+      if (val && val[0] != '\0') {
+        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
+                                                       itemHeight, isSelected, val);
+      }
+    } else if (entry.item == MenuItem::FontSize) {
+      const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
+      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
+                                                         valueAreaLeft, valueColumnRight, itemY, itemHeight,
+                                                         isSelected);
+    } else {
+      bool checkbox = false;
+      bool checked = false;
+      switch (entry.item) {
+        case MenuItem::ExtraParagraphSpacing:
+          checkbox = true;
+          checked = settings.extraParagraphSpacing != 0;
+          break;
+        case MenuItem::ParagraphCssIndent:
+          checkbox = true;
+          checked = settings.paragraphCssIndentEnabled != 0;
+          break;
+        case MenuItem::Hyphenation:
+          checkbox = true;
+          checked = settings.hyphenationEnabled != 0;
+          break;
+        case MenuItem::ReaderImageGrayscale:
+          checkbox = true;
+          checked = SETTINGS.readerImageGrayscale != 0;
+          break;
+        case MenuItem::ReaderSmartImageRefresh:
+          checkbox = true;
+          checked = SETTINGS.readerSmartRefreshOnImages != 0;
+          break;
+        case MenuItem::AntiAliasing:
+          checkbox = true;
+          checked = settings.textAntiAliasing != 0;
+          break;
+        case MenuItem::ChapterSkip:
+          checkbox = true;
+          checked = settings.longPressChapterSkip != 0;
+          break;
+        default:
+          break;
+      }
+      if (checkbox) {
+        ReaderFontSettingsDraw::drawToggleCheckbox(renderer, valueColumnRight, itemY, itemHeight, isSelected,
+                                                   checked);
+      } else {
+        const char* val = entry.getValueText(settings);
+        if (val && val[0] != '\0') {
+          int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
+                            isSelected ? 0 : 1);
+        }
+      }
     }
 
     renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);

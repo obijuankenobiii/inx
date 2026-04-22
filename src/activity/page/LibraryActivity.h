@@ -116,6 +116,7 @@ class LibraryActivity final : public Activity, public Menu {
  private:
   TaskHandle_t displayTaskHandle = nullptr;    ///< Handle for display update task
   SemaphoreHandle_t renderingMutex = nullptr;  ///< Mutex for render thread safety
+  bool halfRefreshOnLoadApplied_ = false;
 
   std::string savedFolderPath;  ///< Saved path when switching views
   std::string basepath;         ///< Current browsing path

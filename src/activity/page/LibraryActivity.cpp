@@ -942,6 +942,10 @@ void LibraryActivity::displayTaskLoop() {
       if (guard.isAcquired() && updateRequired) {
         updateRequired = false;
         render();
+        if (!halfRefreshOnLoadApplied_) {
+          halfRefreshOnLoadApplied_ = true;
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+        }
       }
     }
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -1063,6 +1067,7 @@ void LibraryActivity::onEnter() {
   Activity::onEnter();
   renderingMutex = xSemaphoreCreateMutex();
   if (!renderingMutex) return;
+  halfRefreshOnLoadApplied_ = false;
   renderer.clearScreen(0xff);
 
   currentViewMode = ViewMode::FOLDER_VIEW;

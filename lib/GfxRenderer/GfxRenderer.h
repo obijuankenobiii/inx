@@ -72,7 +72,7 @@ class GfxRenderer {
   
   int getScreenWidth() const;
   int getScreenHeight() const;
-  void displayBuffer(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
+  void displayBuffer(const HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;
 
@@ -103,6 +103,10 @@ class GfxRenderer {
   void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
   BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
+  /** Same as `fillPolygon` (filled polygon scanline fill). */
+  void drawPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const {
+    fillPolygon(xPoints, yPoints, numPoints, state);
+  }
 
   
   int getTextWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;

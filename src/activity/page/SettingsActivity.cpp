@@ -20,7 +20,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 24;
+constexpr int systemPageSettingsCount = 26;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -57,6 +57,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load", &SystemSetting::refreshOnLoad, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
@@ -88,7 +89,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"Portrait","Landscape CW","Inverted","Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
 
-    SettingInfo::Separator("Navigation", GroupType::READER_CONTROLS),
+    SettingInfo::Separator("Buttons", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
                       {"Left/Right","Right/Left","Up/Down","Down/Up","None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,

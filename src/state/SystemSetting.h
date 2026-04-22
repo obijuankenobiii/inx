@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <iosfwd>
 
+class GfxRenderer;
+
 /**
  * @brief System settings management class
  */
@@ -357,6 +359,8 @@ public:
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
     uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
+    /** When set, main hub screens run a half refresh once after their first paint (cleans ghosting). */
+    uint8_t refreshOnLoad = 0;
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
     
@@ -395,6 +399,11 @@ public:
     }
 
     /**
+     * If `refreshOnLoad` is enabled, performs one HALF_REFRESH (no-op when off).
+     */
+    void runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const;
+
+    /**
      * @brief Gets power button duration in milliseconds
      * @return Duration in ms (10ms for sleep, 400ms for ignore)
      */
@@ -407,6 +416,11 @@ public:
      * @return Font identifier for rendering
      */
     int getReaderFontId() const;
+
+    /**
+     * @brief Reader font ID for a given family and size (e.g. settings previews).
+     */
+    int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
     
     /**
      * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").
