@@ -180,6 +180,49 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
     return true;
 }
 
+namespace {
+
+void appendStatsFromCacheDir(std::vector<BookReadingStats>& result, const char* rootDir,
+                             bool (*acceptName)(const char* name)) {
+    FsFile root;
+    FileGuard rootGuard(root);
+
+    root = SdMan.open(rootDir);
+    if (!root || !root.isDirectory()) {
+        return;
+    }
+
+    root.rewindDirectory();
+    char fileName[128];
+
+    while (true) {
+        FsFile entry;
+        FileGuard entryGuard(entry);
+
+        entry = root.openNextFile();
+        if (!entry) {
+            break;
+        }
+
+        if (!entry.isDirectory()) {
+            continue;
+        }
+
+        entry.getName(fileName, sizeof(fileName));
+        if (acceptName != nullptr && !acceptName(fileName)) {
+            continue;
+        }
+
+        const std::string path = std::string(rootDir) + "/" + std::string(fileName);
+        BookReadingStats stats;
+        if (loadBookStats(path.c_str(), stats)) {
+            result.push_back(stats);
+        }
+    }
+}
+
+}  
+
 /**
  * Retrieves reading statistics for all books in the EPUB cache directory.
  * Scans through all subdirectories in /.metadata/epub and loads stats for each.
@@ -188,40 +231,11 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
  */
 std::vector<BookReadingStats> getAllBooksStats() {
     std::vector<BookReadingStats> result;
-    
-    result.reserve(10); 
-    
-    FsFile root;
-    FileGuard rootGuard(root);  
-    
-    root = SdMan.open("/.metadata/epub");
-    if (!root || !root.isDirectory()) {
-        return result;  
-    }
-    
-    root.rewindDirectory();
-    char fileName[128]; 
-    
-    while (true) {
-        FsFile entry;
-        FileGuard entryGuard(entry);  
-        
-        entry = root.openNextFile();
-        if (!entry) break;
-        
-        if (entry.isDirectory()) {
-            entry.getName(fileName, sizeof(fileName));
-            std::string path = "/.metadata/epub/" + std::string(fileName);
-            
-            BookReadingStats stats;
-            if (loadBookStats(path.c_str(), stats)) {
-                result.push_back(stats);
-            }
-        }
-        
-    }
-    
-    
+    result.reserve(24);
+
+    appendStatsFromCacheDir(result, "/.metadata/epub", nullptr);
+    appendStatsFromCacheDir(result, "/.metadata/xtc", nullptr);
+
     return result;
 }
 

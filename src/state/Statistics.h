@@ -90,11 +90,11 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats);
 bool loadBookStats(const char* cachePath, BookReadingStats& stats);
 
 /**
- * Retrieves reading statistics for all books in the EPUB cache.
- * 
- * Scans the /.metadata/epub directory for subdirectories containing
- * statistics files and loads statistics for each book found.
- * 
+ * Retrieves reading statistics for all books with per-book stats on the SD card.
+ *
+ * Scans `/.metadata/epub` (EPUB caches) and `/.metadata/xtc` (XTC caches)
+ * for `statistics.bin` files.
+ *
  * @return Vector containing statistics for all books with valid stats files
  */
 std::vector<BookReadingStats> getAllBooksStats();

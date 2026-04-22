@@ -16,6 +16,8 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
+#include <algorithm>
+
 #include "state/SystemSetting.h"
 #include "state/Session.h"
 #include "system/MappedInputManager.h"
@@ -26,6 +28,21 @@
 namespace {
 constexpr unsigned long skipPageMs = 700;
 constexpr unsigned long goHomeMs = 1000;
+constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
+
+int chapterIndexForPage(const Xtc& book, uint32_t page) {
+  if (!book.hasChapters()) {
+    return 0;
+  }
+  const auto& ch = book.getChapters();
+  int best = -1;
+  for (size_t i = 0; i < ch.size(); i++) {
+    if (page >= static_cast<uint32_t>(ch[i].startPage)) {
+      best = static_cast<int>(i);
+    }
+  }
+  return best < 0 ? 0 : best;
+}
 }  
 
 void XtcReaderActivity::taskTrampoline(void* param) {
@@ -43,16 +60,20 @@ void XtcReaderActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   xtc->setupCacheDir();
-
-  
   loadProgress();
+  ensureThumbnailExists();
+  initStats();
 
-  
   APP_STATE.lastRead = xtc->getPath();
   APP_STATE.saveToFile();
-  RECENT_BOOKS.addBook(xtc->getPath(),xtc->getCachePath(), xtc->getTitle(), xtc->getAuthor());
 
-  
+  const uint32_t n = xtc->getPageCount();
+  float progressFrac = 0.f;
+  if (n > 0) {
+    progressFrac = (static_cast<float>(std::min(currentPage, n - 1)) + 1.f) / static_cast<float>(n);
+  }
+  RECENT_BOOKS.addBook(xtc->getPath(), xtc->getCachePath(), xtc->getTitle(), xtc->getAuthor(), progressFrac);
+
   updateRequired = true;
 
   xTaskCreate(&XtcReaderActivity::taskTrampoline, "XtcReaderActivityTask",
@@ -66,12 +87,30 @@ void XtcReaderActivity::onEnter() {
 void XtcReaderActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
+  vTaskDelay(pdMS_TO_TICKS(10));
+
+  if (pageStartTime > 0) {
+    endPageTimer();
+  }
+  if (xtc) {
+    saveBookStatsToFile();
+    saveProgress();
+    const uint32_t n = xtc->getPageCount();
+    uint32_t progPage = currentPage;
+    if (n > 0 && progPage >= n) {
+      progPage = n - 1;
+    }
+    const float progressFrac = (n > 0) ? (static_cast<float>(progPage) + 1.f) / static_cast<float>(n) : 0.f;
+    RECENT_BOOKS.addBook(xtc->getPath(), xtc->getCachePath(), xtc->getTitle(), xtc->getAuthor(), progressFrac);
+    APP_STATE.lastRead = xtc->getPath();
+    APP_STATE.saveToFile();
+  }
+
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
   xtc.reset();
@@ -87,6 +126,7 @@ void XtcReaderActivity::loop() {
   
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (xtc && xtc->hasChapters() && !xtc->getChapters().empty()) {
+      endPageTimer();
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       exitActivity();
       enterNewActivity(new XtcReaderChapterSelectionActivity(
@@ -94,11 +134,13 @@ void XtcReaderActivity::loop() {
           [this] {
             exitActivity();
             updateRequired = true;
+            startPageTimer();
           },
           [this](const uint32_t newPage) {
             currentPage = newPage;
             exitActivity();
             updateRequired = true;
+            startPageTimer();
           }));
       xSemaphoreGive(renderingMutex);
     }
@@ -134,10 +176,17 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  
-  if (currentPage >= xtc->getPageCount()) {
-    currentPage = xtc->getPageCount() - 1;
+  if (xtc->getPageCount() == 0) {
+    return;
+  }
+
+  const uint32_t pageCount = xtc->getPageCount();
+
+  if (currentPage >= pageCount && pageCount > 0) {
+    endPageTimer();
+    currentPage = pageCount - 1;
     updateRequired = true;
+    startPageTimer();
     return;
   }
 
@@ -145,17 +194,28 @@ void XtcReaderActivity::loop() {
   const int skipAmount = skipPages ? 10 : 1;
 
   if (prevTriggered) {
+    endPageTimer();
     if (currentPage >= static_cast<uint32_t>(skipAmount)) {
       currentPage -= skipAmount;
     } else {
       currentPage = 0;
     }
+    startPageTimer();
     updateRequired = true;
   } else if (nextTriggered) {
+    endPageTimer();
+    const uint32_t oldPage = currentPage;
+    const int oldCh = chapterIndexForPage(*xtc, oldPage);
     currentPage += skipAmount;
-    if (currentPage >= xtc->getPageCount()) {
-      currentPage = xtc->getPageCount();  
+    if (currentPage >= pageCount) {
+      currentPage = pageCount;
     }
+    const uint32_t refPage = pageCount > 0 ? std::min(currentPage, pageCount - 1) : 0;
+    const int newCh = chapterIndexForPage(*xtc, refPage);
+    if (newCh > oldCh) {
+      bookStats.totalChaptersRead += static_cast<uint32_t>(newCh - oldCh);
+    }
+    startPageTimer();
     updateRequired = true;
   }
 }
@@ -403,4 +463,89 @@ void XtcReaderActivity::loadProgress() {
     }
     f.close();
   }
+}
+
+void XtcReaderActivity::ensureThumbnailExists() {
+  if (!xtc) {
+    return;
+  }
+  const std::string thumbPath = xtc->getThumbBmpPath();
+  if (!SdMan.exists(thumbPath.c_str())) {
+    xtc->generateThumbBmp();
+  }
+}
+
+void XtcReaderActivity::initStats() {
+  if (!xtc) {
+    return;
+  }
+
+  if (loadBookStats(xtc->getCachePath().c_str(), bookStats)) {
+    bookStats.sessionCount++;
+  } else {
+    bookStats.path = xtc->getCachePath();
+    bookStats.title = xtc->getTitle();
+    bookStats.author = xtc->getAuthor();
+    bookStats.totalReadingTimeMs = 0;
+    bookStats.totalPagesRead = 0;
+    bookStats.totalChaptersRead = 0;
+    bookStats.lastReadTimeMs = millis();
+    bookStats.progressPercent = 0;
+    bookStats.lastSpineIndex = static_cast<uint16_t>(chapterIndexForPage(*xtc, currentPage));
+    bookStats.lastPageNumber = static_cast<uint16_t>(std::min<uint32_t>(currentPage, UINT16_MAX));
+    bookStats.avgPageTimeMs = 0;
+    bookStats.sessionCount = 1;
+  }
+
+  bookStats.lastReadTimeMs = millis();
+  pageStartTime = millis();
+  lastSaveTime = millis();
+}
+
+void XtcReaderActivity::startPageTimer() { pageStartTime = millis(); }
+
+void XtcReaderActivity::endPageTimer() {
+  if (pageStartTime == 0 || !xtc) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  const uint32_t timeSpent = now - pageStartTime;
+
+  if (timeSpent < 1000) {
+    pageStartTime = 0;
+    return;
+  }
+
+  const uint32_t pageCount = xtc->getPageCount();
+  if (pageCount > 0 && currentPage < pageCount) {
+    bookStats.totalReadingTimeMs += timeSpent;
+    bookStats.totalPagesRead++;
+    bookStats.lastReadTimeMs = now;
+    bookStats.lastPageNumber = static_cast<uint16_t>(std::min<uint32_t>(currentPage, UINT16_MAX));
+    bookStats.lastSpineIndex = static_cast<uint16_t>(chapterIndexForPage(*xtc, currentPage));
+    bookStats.progressPercent = (static_cast<float>(currentPage) + 1.f) / static_cast<float>(pageCount) * 100.f;
+
+    if (bookStats.totalPagesRead > 0) {
+      bookStats.avgPageTimeMs = bookStats.totalReadingTimeMs / bookStats.totalPagesRead;
+    }
+
+    if (now - lastSaveTime >= STATS_SAVE_INTERVAL_MS) {
+      saveBookStatsToFile();
+      lastSaveTime = now;
+    }
+  }
+
+  pageStartTime = 0;
+}
+
+void XtcReaderActivity::saveBookStatsToFile() {
+  if (!xtc) {
+    return;
+  }
+  bookStats.lastReadTimeMs = millis();
+  bookStats.path = xtc->getCachePath();
+  bookStats.title = xtc->getTitle();
+  bookStats.author = xtc->getAuthor();
+  ::saveBookStats(xtc->getCachePath().c_str(), bookStats);
 }

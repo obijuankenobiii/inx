@@ -18,6 +18,7 @@
 #include <freertos/task.h>
 
 #include "activity/ActivityWithSubactivity.h"
+#include "state/Statistics.h"
 
 class XtcReaderActivity final : public ActivityWithSubactivity {
   std::shared_ptr<Xtc> xtc;
@@ -29,12 +30,21 @@ class XtcReaderActivity final : public ActivityWithSubactivity {
   const std::function<void()> onGoBack;
   const std::function<void()> onGoToRecent;
 
+  BookReadingStats bookStats;
+  uint32_t pageStartTime = 0;
+  uint32_t lastSaveTime = 0;
+
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void renderScreen();
   void renderPage();
   void saveProgress() const;
   void loadProgress();
+  void ensureThumbnailExists();
+  void initStats();
+  void startPageTimer();
+  void endPageTimer();
+  void saveBookStatsToFile();
 
  public:
   explicit XtcReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Xtc> xtc,

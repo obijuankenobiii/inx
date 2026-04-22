@@ -73,7 +73,7 @@ std::unique_ptr<Xtc> ReaderActivity::loadXtc(const std::string& path) {
     return nullptr;
   }
 
-  auto xtc = std::unique_ptr<Xtc>(new Xtc(path, "/.system"));
+  auto xtc = std::unique_ptr<Xtc>(new Xtc(path, "/.metadata/xtc"));
   if (xtc->load()) {
     return xtc;
   }

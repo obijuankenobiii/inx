@@ -33,8 +33,7 @@ class Xtc {
 
  public:
   explicit Xtc(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)), loaded(false) {
-    
-    cachePath = cacheDir + "/xtc_" + std::to_string(std::hash<std::string>{}(this->filepath));
+    cachePath = cacheDir + "/" + std::to_string(std::hash<std::string>{}(this->filepath));
   }
   ~Xtc() = default;
 

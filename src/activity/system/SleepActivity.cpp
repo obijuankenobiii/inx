@@ -194,8 +194,19 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   if (StringUtils::checkFileExtension(path, ".xtc") || StringUtils::checkFileExtension(path, ".xtch")) {
-    Xtc book(path, "/.system");
-    if (book.load() && book.generateCoverBmp()) coverPath = book.getCoverBmpPath();
+    Xtc book(path, "/.metadata/xtc");
+    if (book.load()) {
+      book.setupCacheDir();
+      const std::string thumbPath = book.getThumbBmpPath();
+      if (!SdMan.exists(thumbPath.c_str())) {
+        book.generateThumbBmp();
+      }
+      if (SdMan.exists(thumbPath.c_str())) {
+        coverPath = thumbPath;
+      } else if (book.generateCoverBmp()) {
+        coverPath = book.getCoverBmpPath();
+      }
+    }
   }
 
   if (StringUtils::checkFileExtension(path, ".txt")) {
