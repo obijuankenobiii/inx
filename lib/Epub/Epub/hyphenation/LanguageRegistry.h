@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file LanguageRegistry.h
+ * @brief Public interface and types for LanguageRegistry.
+ */
+
 #include <cstddef>
 #include <string>
 
@@ -19,8 +24,8 @@ struct LanguageEntryView {
   const LanguageEntry* end() const { return data + size; }
 };
 
-// Returns the Liang-backed hyphenator for a given primary language tag (e.g., "en", "fr").
+
 const LanguageHyphenator* getLanguageHyphenatorForPrimaryTag(const std::string& primaryTag);
 
-// Exposes the list of supported languages primarily for tooling/tests.
+
 LanguageEntryView getLanguageEntries();

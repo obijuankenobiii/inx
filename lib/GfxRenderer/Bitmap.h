@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Bitmap.h
+ * @brief Public interface and types for Bitmap.
+ */
+
 #include <SdFat.h>
 
 #include <cstdint>
@@ -100,14 +105,14 @@ class Bitmap {
   uint32_t bfOffBits = 0;
   uint16_t bpp = 0;
   uint32_t colorsUsed = 0;
-  bool nativePalette = false;  // true if all palette entries map to native gray levels
+  bool nativePalette = false;  
   int rowBytes = 0;
   uint8_t paletteLum[256] = {};
 
-  // Dithering state (mutable for const methods)
+  
   mutable int16_t* errorCurRow = nullptr;
   mutable int16_t* errorNextRow = nullptr;
-  mutable int prevRowY = -1;  // Track row progression for error propagation
+  mutable int prevRowY = -1;  
 
   mutable AtkinsonDitherer* atkinsonDitherer = nullptr;
   mutable FloydSteinbergDitherer* fsDitherer = nullptr;

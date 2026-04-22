@@ -1,3 +1,8 @@
+/**
+ * @file OpdsStream.cpp
+ * @brief Definitions for OpdsStream.
+ */
+
 #include "OpdsStream.h"
 
 OpdsParserStream::OpdsParserStream(OpdsParser& parser) : parser(parser) {}

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file InputManager.h
+ * @brief Public interface and types for InputManager.
+ */
+
 #include <Arduino.h>
 
 class InputManager {
@@ -65,7 +70,7 @@ class InputManager {
    */
   unsigned long getHeldTime() const;
 
-  // Button indices
+  
   static constexpr uint8_t BTN_BACK = 0;
   static constexpr uint8_t BTN_CONFIRM = 1;
   static constexpr uint8_t BTN_LEFT = 2;
@@ -74,15 +79,15 @@ class InputManager {
   static constexpr uint8_t BTN_DOWN = 5;
   static constexpr uint8_t BTN_POWER = 6;
 
-  // Pins
+  
   static constexpr int BUTTON_ADC_PIN_1 = 1;
   static constexpr int BUTTON_ADC_PIN_2 = 2;
   static constexpr int POWER_BUTTON_PIN = 3;
 
-  // Power button methods
+  
   bool isPowerButtonPressed() const;
 
-  // Button names
+  
   static const char* getButtonName(uint8_t buttonIndex);
 
  private:

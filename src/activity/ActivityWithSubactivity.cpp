@@ -1,3 +1,8 @@
+/**
+ * @file ActivityWithSubactivity.cpp
+ * @brief Definitions for ActivityWithSubactivity.
+ */
+
 #include "ActivityWithSubactivity.h"
 
 void ActivityWithSubactivity::exitActivity() {

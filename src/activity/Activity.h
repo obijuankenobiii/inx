@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Activity.h
+ * @brief Public interface and types for Activity.
+ */
+
 #include <HardwareSerial.h>
 #include <string>
 #include <utility>

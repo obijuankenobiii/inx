@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file TextBlock.h
+ * @brief Public interface and types for TextBlock.
+ */
+
 #include <EpdFontFamily.h>
 #include <SdFat.h>
 

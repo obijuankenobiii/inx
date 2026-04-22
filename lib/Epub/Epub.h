@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Epub.h
+ * @brief Public interface and types for Epub.
+ */
+
 #include <Print.h>
 #include <memory>
 #include <string>
@@ -57,7 +62,7 @@ class Epub {
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
   bool getItemSize(const std::string& itemHref, size_t* size) const;
 
-  // Spine and TOC methods
+  
   int getSpineItemsCount() const;
   BookMetadataCache::SpineEntry getSpineItem(int spineIndex) const;
   int getTocItemsCount() const;
@@ -66,14 +71,14 @@ class Epub {
   int getTocIndexForSpineIndex(int spineIndex) const;
   int getSpineIndexForTextReference() const;
   
-  // CSS methods
+  
   int getCssItemsCount() const;
   BookMetadataCache::CssEntry getCssItem(int cssIndex) const;
   std::string getCssContent(const std::string& cssPath) const;
   std::vector<std::string> getAllCssPaths() const;
   std::string getCombinedCss() const;
   
-  // Size and progress methods
+  
   size_t getCumulativeSpineItemSize(int spineIndex) const;
   size_t getBookSize() const;
   float calculateProgress(int currentSpineIndex, float currentSpineRead) const;

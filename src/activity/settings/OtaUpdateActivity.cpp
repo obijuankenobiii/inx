@@ -1,3 +1,8 @@
+/**
+ * @file OtaUpdateActivity.cpp
+ * @brief Definitions for OtaUpdateActivity.
+ */
+
 #include "OtaUpdateActivity.h"
 
 #include <GfxRenderer.h>
@@ -114,10 +119,10 @@ void OtaUpdateActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   xTaskCreate(&OtaUpdateActivity::taskTrampoline, "OtaUpdateActivityTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 
   Serial.printf("[%lu] [OTA] Turning on WiFi...\n", millis());
@@ -136,13 +141,13 @@ void OtaUpdateActivity::onEnter() {
 void OtaUpdateActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  // Turn off wifi
-  WiFi.disconnect(false);  // false = don't erase credentials, send disconnect frame
-  delay(100);              // Allow disconnect frame to be sent
+  
+  WiFi.disconnect(false);  
+  delay(100);              
   WiFi.mode(WIFI_OFF);
-  delay(100);  // Allow WiFi hardware to fully power down
+  delay(100);  
 
-  // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
+  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);

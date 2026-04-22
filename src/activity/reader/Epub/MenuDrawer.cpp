@@ -1,3 +1,8 @@
+/**
+ * @file MenuDrawer.cpp
+ * @brief Definitions for MenuDrawer.
+ */
+
 #include "MenuDrawer.h"
 
 #include <algorithm>
@@ -10,7 +15,7 @@
 #define SETTINGS SystemSetting::getInstance()
 
 constexpr int LIST_ITEM_HEIGHT = 60;
-constexpr float TOC_DRAWER_HEIGHT_PERCENT = 0.8f;  // TOC takes 80% of screen height (portrait)
+constexpr float TOC_DRAWER_HEIGHT_PERCENT = 0.8f;  
 
 namespace {
 
@@ -76,7 +81,7 @@ bool readBookmarkLineNext(const MappedInputManager& in, const GfxRenderer& r) {
   return in.wasReleased(MappedInputManager::Button::Down);
 }
 
-}  // namespace
+}  
 
 /**
  * @brief Constructs a new MenuDrawer
@@ -255,7 +260,7 @@ void MenuDrawer::drawMenuItems() {
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
 
-    // Draw arrow indicator
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
 
     renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
@@ -282,7 +287,7 @@ void MenuDrawer::drawScrollIndicator() {
  * @return Number of items per page
  */
 int MenuDrawer::getTocPageItems() const {
-  constexpr int headerReserved = 120;  // Header space in TOC drawer
+  constexpr int headerReserved = 120;  
   int items = (tocDrawerHeight - headerReserved) / LIST_ITEM_HEIGHT;
   return (items < 1) ? 1 : items;
 }
@@ -305,10 +310,10 @@ void MenuDrawer::renderToc() {
   const int totalItems = epub->getTocItemsCount();
   const int pageItems = getTocPageItems();
 
-  // Draw TOC background
+  
   drawTocBackground();
 
-  // Header
+  
   const int headerY = tocDrawerY + 10;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                     EpdFontFamily::BOLD);
@@ -360,7 +365,7 @@ void MenuDrawer::renderToc() {
     }
   }
 
-  // Footer with page indicator
+  
   const int totalPages = std::max(1, (totalItems + pageItems - 1) / pageItems);
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
@@ -369,7 +374,7 @@ void MenuDrawer::renderToc() {
   int footerY = tocDrawerY + tocDrawerHeight - 35;
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + (panelW - pageStrWidth) / 2, footerY, pageStr, true);
 
-  // Button hints for TOC view
+  
   drawDrawerHintRow("« Back", "Select", "«", "»");
 }
 

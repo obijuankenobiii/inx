@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file RecentActivity.h
+ * @brief Public interface and types for RecentActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

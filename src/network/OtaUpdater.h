@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file OtaUpdater.h
+ * @brief Public interface and types for OtaUpdater.
+ */
+
 #include <functional>
 #include <string>
 

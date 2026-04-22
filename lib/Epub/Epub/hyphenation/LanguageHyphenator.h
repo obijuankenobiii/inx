@@ -1,8 +1,13 @@
 #pragma once
 
+/**
+ * @file LanguageHyphenator.h
+ * @brief Public interface and types for LanguageHyphenator.
+ */
+
 #include "LiangHyphenation.h"
 
-// Generic Liang-backed hyphenator that stores pattern metadata plus language-specific helpers.
+
 class LanguageHyphenator {
  public:
   LanguageHyphenator(const SerializedHyphenationPatterns& patterns, bool (*isLetterFn)(uint32_t),

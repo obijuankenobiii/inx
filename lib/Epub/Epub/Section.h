@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file Section.h
+ * @brief Public interface and types for Section.
+ */
+
 #include <functional>
 #include <memory>
 

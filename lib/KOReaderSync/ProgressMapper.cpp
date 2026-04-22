@@ -1,3 +1,8 @@
+/**
+ * @file ProgressMapper.cpp
+ * @brief Definitions for ProgressMapper.
+ */
+
 #include "ProgressMapper.h"
 
 #include <HardwareSerial.h>
@@ -50,20 +55,20 @@ class ParagraphStreamer final : public Print {
   char entityBuffer[MAX_ENTITY_SIZE] = {};
   size_t entityLen = 0;
 
-  // Forward mode: count paragraphs at a byte offset
+  
   size_t fwdTarget;
   int fwdResult = 0;
   bool fwdCaptured = false;
 
-  // Reverse mode: find position of Nth paragraph + char offset
+  
   int revParagraph;
   int revChar;
   int pCount = 0;
   bool revPFound = false;
   bool revDone = false;
-  int revVisChars = 0;        // Visible chars counted WITHIN target paragraph
-  size_t totalVisChars = 0;   // Total visible chars in entire file
-  size_t targetVisChars = 0;  // Visible chars from start of file to target position
+  int revVisChars = 0;        
+  size_t totalVisChars = 0;   
+  size_t targetVisChars = 0;  
 
   void onP() {
     pCount++;
@@ -164,7 +169,7 @@ class ParagraphStreamer final : public Print {
       }
     }
 
-    // Paragraph detection
+    
     switch (pState) {
       case IDLE:
         if (c == '<') pState = SAW_LT;
@@ -198,7 +203,7 @@ bool streamSpine(const std::shared_ptr<Epub>& epub, int spineIndex, ParagraphStr
   const auto href = epub->getSpineItem(spineIndex).href;
   return !href.empty() && epub->readItemContentsToStream(href, s, 1024);
 }
-}  // namespace
+}  
 
 KOReaderPosition ProgressMapper::toKOReader(const std::shared_ptr<Epub>& epub, const CrossPointPosition& pos) {
   KOReaderPosition result;

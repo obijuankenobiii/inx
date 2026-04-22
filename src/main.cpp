@@ -1,3 +1,8 @@
+/**
+ * @file main.cpp
+ * @brief Firmware entry point, globals, and activity bootstrap.
+ */
+
 #include <Arduino.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
@@ -57,32 +62,32 @@ void openReaderFromCallback(const std::string& path);
 void printMemoryInfo() {
   Serial.println("=== MEMORY INFO ===");
 
-  // Free heap memory
+  
   Serial.printf("Free heap: %d bytes (%d KB)\n", ESP.getFreeHeap(), ESP.getFreeHeap() / 1024);
 
-  // Total heap (what's available total)
+  
   Serial.printf("Total heap: %d bytes (%d KB)\n", ESP.getHeapSize(), ESP.getHeapSize() / 1024);
 
-  // Lifetime low watermark since boot (does not go back up when memory is freed)
+  
   Serial.printf("Min free heap (since boot): %d bytes (%d KB)\n", ESP.getMinFreeHeap(), ESP.getMinFreeHeap() / 1024);
 
-  // Largest contiguous block (critical for large allocations)
+  
   Serial.printf("Largest free block: %d bytes (%d KB)\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
                 heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024);
 
-  // Free PSRAM if available
+  
   if (ESP.getPsramSize() > 0) {
     Serial.printf("Free PSRAM: %d bytes (%d KB)\n", ESP.getFreePsram(), ESP.getFreePsram() / 1024);
     Serial.printf("Total PSRAM: %d bytes (%d KB)\n", ESP.getPsramSize(), ESP.getPsramSize() / 1024);
   }
 
-  // Heap fragmentation percentage
+  
   int largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
   int totalFree = ESP.getFreeHeap();
   int fragmentation = 100 - (largestBlock * 100 / totalFree);
   Serial.printf("Fragmentation: %d%%\n", fragmentation);
 
-  // Stack water mark for current task (shows stack usage)
+  
   Serial.printf("Stack free: %d bytes\n", uxTaskGetStackHighWaterMark(NULL) * 4);
 
   Serial.println("==================");

@@ -1,3 +1,8 @@
+/**
+ * @file KOReaderDocumentId.cpp
+ * @brief Definitions for KOReaderDocumentId.
+ */
+
 #include "KOReaderDocumentId.h"
 
 #include <HardwareSerial.h>
@@ -5,7 +10,7 @@
 #include <SDCardManager.h>
 
 namespace {
-// Extract filename from path (everything after last '/')
+
 std::string getFilename(const std::string& path) {
   const size_t pos = path.rfind('/');
   if (pos == std::string::npos) {
@@ -13,7 +18,7 @@ std::string getFilename(const std::string& path) {
   }
   return path.substr(pos + 1);
 }
-}  // namespace
+}  
 
 std::string KOReaderDocumentId::calculateFromFilename(const std::string& filePath) {
   const std::string filename = getFilename(filePath);
@@ -32,9 +37,9 @@ std::string KOReaderDocumentId::calculateFromFilename(const std::string& filePat
 }
 
 size_t KOReaderDocumentId::getOffset(int i) {
-  // Offset = 1024 << (2*i)
-  // For i = -1: KOReader uses a value of 0
-  // For i >= 0: 1024 << (2*i)
+  
+  
+  
   if (i < 0) {
     return 0;
   }
@@ -51,30 +56,30 @@ std::string KOReaderDocumentId::calculate(const std::string& filePath) {
   const size_t fileSize = file.fileSize();
   Serial.printf("[%lu] [KODoc] Calculating hash for file: %s (size: %zu)\n", millis(), filePath.c_str(), fileSize);
 
-  // Initialize MD5 builder
+  
   MD5Builder md5;
   md5.begin();
 
-  // Buffer for reading chunks
+  
   uint8_t buffer[CHUNK_SIZE];
   size_t totalBytesRead = 0;
 
-  // Read from each offset (i = -1 to 10)
+  
   for (int i = -1; i < OFFSET_COUNT - 1; i++) {
     const size_t offset = getOffset(i);
 
-    // Skip if offset is beyond file size
+    
     if (offset >= fileSize) {
       continue;
     }
 
-    // Seek to offset
+    
     if (!file.seekSet(offset)) {
       Serial.printf("[%lu] [KODoc] Failed to seek to offset %zu\n", millis(), offset);
       continue;
     }
 
-    // Read up to CHUNK_SIZE bytes
+    
     const size_t bytesToRead = std::min(CHUNK_SIZE, fileSize - offset);
     const size_t bytesRead = file.read(buffer, bytesToRead);
 
@@ -86,7 +91,7 @@ std::string KOReaderDocumentId::calculate(const std::string& filePath) {
 
   file.close();
 
-  // Calculate final hash
+  
   md5.calculate();
   std::string result = md5.toString().c_str();
 

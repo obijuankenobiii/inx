@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file LibraryIndexer.h
+ * @brief Public interface and types for LibraryIndexer.
+ */
+
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -86,7 +91,7 @@ class LibraryIndexer {
     dir.rewindDirectory();
     char name[256];
 
-    // Write Directory Marker
+    
     uint8_t dirMarker = 0xFF;
     idxFile.write(&dirMarker, 1);
     uint16_t pathLen = (uint16_t)currentPath.length();

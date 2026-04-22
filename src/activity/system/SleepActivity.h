@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file SleepActivity.h
+ * @brief Public interface and types for SleepActivity.
+ */
+
 #include "../Activity.h"
 #include <memory> 
 

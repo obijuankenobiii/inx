@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file SyncActivity.h
+ * @brief Public interface and types for SyncActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

@@ -1,3 +1,8 @@
+/**
+ * @file StatusBar.h
+ * @brief Public interface and types for StatusBar.
+ */
+
 #ifndef STATUS_BAR_H
 #define STATUS_BAR_H
 
@@ -117,4 +122,4 @@ private:
     bool m_visible;
 };
 
-#endif // STATUS_BAR_H
+#endif 

@@ -1,5 +1,10 @@
-// based on
-// https://github.com/atomic14/diy-esp32-epub-reader/blob/2c2f57fdd7e2a788d14a0bcb26b9e845a47aac42/lib/Epub/RubbishHtmlParser/htmlEntities.cpp
+/**
+ * @file htmlEntities.cpp
+ * @brief Definitions for htmlEntities.
+ */
+
+
+
 
 #include "htmlEntities.h"
 
@@ -10,7 +15,7 @@ struct EntityPair {
   const char* value;
 };
 
-// Sorted lexicographically by key to allow binary search.
+
 static constexpr EntityPair ENTITY_LOOKUP[] = {
     {"&AElig;", "Æ"},    {"&Aacute;", "Á"},     {"&Acirc;", "Â"},      {"&Agrave;", "À"},   {"&Alpha;", "Α"},
     {"&Aring;", "Å"},    {"&Atilde;", "Ã"},     {"&Auml;", "Ä"},       {"&Beta;", "Β"},     {"&Ccedil;", "Ç"},
@@ -64,7 +69,7 @@ static constexpr EntityPair ENTITY_LOOKUP[] = {
 
 static const size_t ENTITY_LOOKUP_COUNT = sizeof(ENTITY_LOOKUP) / sizeof(ENTITY_LOOKUP[0]);
 
-// Lookup a single HTML entity and return its UTF-8 value.
+
 const char* lookupHtmlEntity(const char* entity, size_t len) {
   if (entity == nullptr || len == 0) return nullptr;
 
@@ -78,7 +83,7 @@ const char* lookupHtmlEntity(const char* entity, size_t len) {
     const size_t cmpLen = (len < keyLen) ? len : keyLen;
     int cmp = memcmp(entity, key, cmpLen);
     if (cmp == 0) {
-      // safety net: if prefix equal, shorter string is considered smaller
+      
       if (len < keyLen)
         cmp = -1;
       else if (len > keyLen)

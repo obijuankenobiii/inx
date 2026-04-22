@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file StringUtils.h
+ * @brief Public interface and types for StringUtils.
+ */
+
 #include <WString.h>
 
 #include <string>
@@ -19,4 +24,4 @@ std::string sanitizeFilename(const std::string& name, size_t maxLength = 100);
 bool checkFileExtension(const std::string& fileName, const char* extension);
 bool checkFileExtension(const String& fileName, const char* extension);
 
-}  // namespace StringUtils
+}  

@@ -1,3 +1,8 @@
+/**
+ * @file LibraryActivity.cpp
+ * @brief Definitions for LibraryActivity.
+ */
+
 #include "LibraryActivity.h"
 
 #include <Bitmap.h>
@@ -61,7 +66,7 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-// Timing constants
+
 constexpr unsigned long GO_HOME_MS = 1000;
 constexpr unsigned long FAVORITE_HOLD_MS = 500;
 /** First repeat delay after Down/Up press while browsing the list */
@@ -69,7 +74,7 @@ constexpr unsigned long LIB_LIST_REPEAT_INITIAL_MS = 420;
 /** Repeat interval while Down/Up held */
 constexpr unsigned long LIB_LIST_REPEAT_RATE_MS = 95;
 
-}  // namespace
+}  
 
 /**
  * @brief Construct a new Library Activity object
@@ -648,7 +653,7 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
     root.rewindDirectory();
     char name[500];
 
-    // Scan for folders
+    
     for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
       file.getName(name, sizeof(name));
 
@@ -671,7 +676,7 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
       file.close();
     }
 
-    // Scan for books
+    
     root.rewindDirectory();
     for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
       file.getName(name, sizeof(name));
@@ -777,9 +782,9 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
         return a.sortKey < b.sortKey;
       };
     case SortMode::READING_AZ:
-      return getReadingStatusComparator(true);  // Favorites NOT prioritized
+      return getReadingStatusComparator(true);  
     case SortMode::READING_ZA:
-      return getReadingStatusComparator(false);  // Favorites NOT prioritized
+      return getReadingStatusComparator(false);  
   }
   return [](const TempBookEntry& a, const TempBookEntry& b) { return a.sortKey < b.sortKey; };
 }
@@ -792,8 +797,8 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
 std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity::getReadingStatusComparator(
     bool ascending) const {
   return [ascending, this](const TempBookEntry& a, const TempBookEntry& b) {
-    // NOTE: Favorites are NOT prioritized in this sort mode
-    // Sort by reading status: Reading (2) > Unfinished (1) > Completed (0)
+    
+    
     bool aIsReading = isBookOpened(a.path);
     bool aIsFinished = isBookFinished(a.path);
     bool bIsReading = isBookOpened(b.path);
@@ -804,7 +809,7 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
 
     if (aPriority != bPriority) return aPriority > bPriority;
 
-    // Then sort by title
+    
     if (ascending) {
       return a.sortKey < b.sortKey;
     } else {
@@ -1145,7 +1150,7 @@ void LibraryActivity::goToPreviousPage() {
  * @brief Main loop for handling user input
  */
 void LibraryActivity::loop() {
-  // Handle power button page refresh
+  
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1195,7 +1200,7 @@ void LibraryActivity::loop() {
 
   bool pageChanged = false;
 
-  // Handle page navigation
+  
   if (tabSelectorIndex == 1 && !isHeaderButtonSelected && !isSortButtonSelected) {
     pageChanged = handlePageNavigation(wantUpStep, wantDownStep, itemCount);
     if (pageChanged) {
@@ -1203,7 +1208,7 @@ void LibraryActivity::loop() {
     }
   }
 
-  // Handle long press for favorite marking
+  
   if (confirmHeld && holdTime >= FAVORITE_HOLD_MS) {
     handleFavoriteLongPress(itemCount);
     return;
@@ -1211,7 +1216,7 @@ void LibraryActivity::loop() {
 
   if (tabSelectorIndex != 1) return;
 
-  // Handle tab navigation
+  
   if (leftPressed) {
     tabSelectorIndex = 0;
     navigateToSelectedMenu();
@@ -1226,11 +1231,11 @@ void LibraryActivity::loop() {
 
   if (tabSelectorIndex != 1) return;
 
-  // Handle selection navigation
+  
   handleSelectionNavigation(wantUpStep, wantDownStep, itemCount);
   handleButtonSelectionNavigation(leftPressed, rightPressed);
 
-  // Handle confirm action
+  
   if (confirmPressed && holdTime < FAVORITE_HOLD_MS) {
     handleConfirmAction(itemCount);
     return;
@@ -1254,7 +1259,7 @@ bool LibraryActivity::handlePageNavigation(bool wantUpStep, bool wantDownStep, i
     return false;
   }
 
-  // Auto page down when reaching bottom of list
+  
   if (currentPage < totalPages - 1) {
     int pageChangeThreshold = itemCount - 1;
     if (selectorIndex >= pageChangeThreshold && wantDownStep) {
@@ -1263,7 +1268,7 @@ bool LibraryActivity::handlePageNavigation(bool wantUpStep, bool wantDownStep, i
     }
   }
 
-  // Auto page up when reaching top of list
+  
   if (currentPage > 0) {
     int pageChangeThreshold = 1;
     if (selectorIndex <= pageChangeThreshold && wantUpStep) {
@@ -1433,7 +1438,7 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
  * @brief Handle back button navigation
  */
 void LibraryActivity::handleBackNavigation() {
-  // Toggle view mode when at root
+  
   if (basepath == "/") {
     toggleViewMode();
     return;
@@ -1727,7 +1732,7 @@ int LibraryActivity::getItemHeight(const LibraryItem& item) const {
   if (currentViewMode == ViewMode::FOLDER_VIEW && item.type == LibraryItem::Type::FOLDER) {
     return LIST_ITEM_HEIGHT;
   }
-  return 70;  // Book item height
+  return 70;  
 }
 
 /**
@@ -1750,7 +1755,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
   int drawY = startY;
   int maxVisibleItems = 0;
 
-  // Calculate visible items
+  
   for (int i = listScrollOffset; i < static_cast<int>(items.size()); i++) {
     int itemHeight = getItemHeight(items[i]);
     if (drawY + itemHeight > screenHeight) break;
@@ -1892,10 +1897,10 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
     uint8_t marker;
     if (idxFile.read(&marker, 1) != 1) break;
 
-    if (marker == 0x01) {  // Book entry
+    if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
 
-      // Filter books under basepath
+      
       if (tempEntry.path.find(cleanBase) == 0) {
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
@@ -1922,10 +1927,10 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
     uint8_t marker;
     if (idxFile.read(&marker, 1) != 1) break;
 
-    if (marker == 0x01) {  // Book entry
+    if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
 
-      // Check if book is in current folder
+      
       size_t lastSlash = tempEntry.path.find_last_of('/');
       std::string bookParent =
           (lastSlash == 0 || lastSlash == std::string::npos) ? "/" : tempEntry.path.substr(0, lastSlash);
@@ -1933,7 +1938,7 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
       }
-    } else if (marker == 0xFF) {  // Directory marker
+    } else if (marker == 0xFF) {  
       LibraryItem folderItem = readDirectoryEntryFromIndex(idxFile);
 
       if (shouldIncludeFolder(folderItem.path, cleanBase)) {
@@ -1962,7 +1967,7 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 
   uint8_t nLen;
   idxFile.read(&nLen, sizeof(nLen));
-  idxFile.seek(idxFile.position() + nLen);  // Skip name
+  idxFile.seek(idxFile.position() + nLen);  
 
   uint8_t dLen;
   idxFile.read(&dLen, sizeof(dLen));

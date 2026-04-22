@@ -1,3 +1,8 @@
+/**
+ * @file CategorySettingsActivity.cpp
+ * @brief Definitions for CategorySettingsActivity.
+ */
+
 #include "CategorySettingsActivity.h"
 
 #include <GfxRenderer.h>
@@ -83,7 +88,7 @@ void CategorySettingsActivity::toggleGroup(GroupType group) {
   groupExpanded[group] = !groupExpanded[group];
   setupMenu();
 
-  // Find the separator for this group and set selected index to it
+  
   for (size_t i = 0; i < menuItems.size(); i++) {
     if (menuItems[i].type == SettingType::SEPARATOR && menuItems[i].group == group) {
       selectedIndex = i;
@@ -244,7 +249,7 @@ void CategorySettingsActivity::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= (int)menuItems.size()) return;
   const auto& selected = menuItems[selectedIndex];
   if (selected.type == SettingType::SEPARATOR) return;
-  /* Left/Right must not fire ACTION rows (would open About/OTA/etc. accidentally). */
+  
   if (selected.type == SettingType::ACTION) return;
   selected.change(delta);
 }
@@ -272,7 +277,7 @@ void CategorySettingsActivity::loop() {
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool backPressed = mappedInput.wasPressed(MappedInputManager::Button::Back);
 
-  // Handle tab navigation
+  
   if (leftPressed) {
     int newTabIndex = (tabSelectorIndex - 1 + TAB_COUNT) % TAB_COUNT;
     tabSelectorIndex = newTabIndex;
@@ -282,7 +287,7 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
-    /* Landed on Settings tab: consume this press so list left/right does not run too. */
+    
     updateRequired = true;
     return;
   }
@@ -402,7 +407,7 @@ void CategorySettingsActivity::render() {
     int index = i + scrollOffset;
     const auto& entry = menuItems[index];
 
-    // Skip separators with empty names
+    
     if (entry.type == SettingType::SEPARATOR && (entry.name == nullptr || entry.name[0] == '\0')) {
       continue;
     }
@@ -449,7 +454,7 @@ void CategorySettingsActivity::render() {
     visibleCount++;
   }
 
-  // Draw scroll indicator
+  
   if ((int)menuItems.size() > itemsPerPage) {
     int listHeight = itemsPerPage * itemHeight;
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();

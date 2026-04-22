@@ -1,3 +1,8 @@
+/**
+ * @file ChapterXPathResolver.cpp
+ * @brief Definitions for ChapterXPathResolver.
+ */
+
 #include "ChapterXPathResolver.h"
 
 #include <HardwareSerial.h>
@@ -485,7 +490,7 @@ class XPathProgressResolver final : public Print {
   std::vector<PathSegment> path;
   std::string xpath;
 };
-}  // namespace
+}  
 
 std::string ChapterXPathResolver::findXPathForParagraph(const std::shared_ptr<Epub>& epub, const int spineIndex,
                                                         const uint16_t paragraphIndex) {

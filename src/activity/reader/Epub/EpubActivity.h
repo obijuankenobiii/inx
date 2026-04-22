@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file EpubActivity.h
+ * @brief Public interface and types for EpubActivity.
+ */
+
 #include <Epub.h>
 #include <Epub/Section.h>
 #include <freertos/FreeRTOS.h>
@@ -28,11 +34,11 @@ public:
      * Represents a bookmark in the book.
      */
     struct Bookmark {
-        uint16_t spineIndex;      // Chapter index in spine
-        uint16_t pageNumber;      // Page number within chapter
-        uint16_t pageCount;       // Total pages in chapter for validation
-        char chapterTitle[64];    // Title of the chapter
-        uint32_t timestamp;       // When bookmark was created
+        uint16_t spineIndex;      
+        uint16_t pageNumber;      
+        uint16_t pageCount;       
+        char chapterTitle[64];    
+        uint32_t timestamp;       
         
         /**
          * Validates if the bookmark contains reasonable data.

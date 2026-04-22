@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ChapterHtmlSlimParser.h
+ * @brief Public interface and types for ChapterHtmlSlimParser.
+ */
+
 #include <expat.h>
 
 #include <climits>
@@ -43,15 +48,15 @@ class ChapterHtmlSlimParser {
   int boldUntilDepth = INT_MAX;
   int italicUntilDepth = INT_MAX;
 
-  // Font tracking
+  
   int fontId;
   int headerFontId;
   int maxFontId;
 
-  // Header tracking
+  
   bool inHeader = false;
 
-  // Drop Cap tracking
+  
   bool inDropCap = false;
   int dropCapDepth = INT_MAX;
 
@@ -72,7 +77,7 @@ class ChapterHtmlSlimParser {
 
   bool skipImages = false;
 
-  // CSS Parser for dimension extraction
+  
   CssParser cssParser;
   bool cssLoaded;
 
@@ -125,7 +130,7 @@ class ChapterHtmlSlimParser {
    */
   void processImageElement(const char** atts);
 
-  // XML parser callbacks
+  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);

@@ -1,3 +1,8 @@
+/**
+ * @file StatisticActivity.cpp
+ * @brief Definitions for StatisticActivity.
+ */
+
 #include "StatisticActivity.h"
 
 #include <Bitmap.h>
@@ -422,7 +427,7 @@ int drawFourColumnStats2x2(GfxRenderer& renderer, int innerLeft, int y, int inne
   return drawFourColumnStatsNx2(renderer, innerLeft, y, innerW, vals, labs, 2, cellH, row0LiftPx, 0);
 }
 
-}  // namespace
+}  
 
 void StatisticActivity::taskTrampoline(void* param) { static_cast<StatisticActivity*>(param)->displayTaskLoop(); }
 

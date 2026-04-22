@@ -1,3 +1,8 @@
+/**
+ * @file WifiSelectionActivity.cpp
+ * @brief Definitions for WifiSelectionActivity.
+ */
+
 #include "WifiSelectionActivity.h"
 
 #include <GfxRenderer.h>
@@ -13,7 +18,7 @@
 
 namespace {
 constexpr int LIST_ITEM_HEIGHT = 60;
-}  // namespace
+}  
 
 /**
  * @brief Static trampoline function for the display task

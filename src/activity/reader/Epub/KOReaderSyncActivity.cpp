@@ -1,3 +1,8 @@
+/**
+ * @file KOReaderSyncActivity.cpp
+ * @brief Definitions for KOReaderSyncActivity.
+ */
+
 #include "KOReaderSyncActivity.h"
 
 #include <GfxRenderer.h>
@@ -23,19 +28,19 @@ void wifiOff() {
 }
 
 void syncTimeWithNTP() {
-  // Stop SNTP if already running (can't reconfigure while running)
+  
   if (esp_sntp_enabled()) {
     esp_sntp_stop();
   }
 
-  // Configure SNTP
+  
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
   esp_sntp_setservername(0, "pool.ntp.org");
   esp_sntp_init();
 
-  // Wait for time to sync (with timeout)
+  
   int retry = 0;
-  const int maxRetries = 50;  // 5 seconds max
+  const int maxRetries = 50;  
   while (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED && retry < maxRetries) {
     vTaskDelay(100 / portTICK_PERIOD_MS);
     retry++;
@@ -47,7 +52,7 @@ void syncTimeWithNTP() {
     Serial.printf("[%lu] [KOSync] NTP sync timeout, using fallback\n", millis());
   }
 }
-}  // namespace
+}  
 
 void KOReaderSyncActivity::taskTrampoline(void* param) {
   auto* self = static_cast<KOReaderSyncActivity*>(param);
@@ -71,7 +76,7 @@ void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
   xSemaphoreGive(renderingMutex);
   updateRequired = true;
 
-  // Sync time with NTP before making API requests
+  
   syncTimeWithNTP();
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -83,7 +88,7 @@ void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
 }
 
 void KOReaderSyncActivity::performSync() {
-  // Calculate document hash based on user's preferred method
+  
   if (KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME) {
     documentHash = KOReaderDocumentId::calculateFromFilename(epubPath);
   } else {
@@ -106,11 +111,11 @@ void KOReaderSyncActivity::performSync() {
   updateRequired = true;
   vTaskDelay(10 / portTICK_PERIOD_MS);
 
-  // Fetch remote progress
+  
   const auto result = KOReaderSyncClient::getProgress(documentHash, remoteProgress);
 
   if (result == KOReaderSyncClient::NOT_FOUND) {
-    // No remote progress - offer to upload
+    
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     state = NO_REMOTE_PROGRESS;
     hasRemoteProgress = false;
@@ -128,12 +133,12 @@ void KOReaderSyncActivity::performSync() {
     return;
   }
 
-  // Convert remote progress to CrossPoint position
+  
   hasRemoteProgress = true;
   KOReaderPosition koPos = {remoteProgress.progress, remoteProgress.percentage};
   remotePosition = ProgressMapper::toCrossPoint(epub, koPos, currentSpineIndex, totalPagesInSpine);
 
-  // Calculate local progress in KOReader format (for display)
+  
   CrossPointPosition localPos{};
   localPos.spineIndex = currentSpineIndex;
   localPos.pageNumber = currentPage;
@@ -142,11 +147,11 @@ void KOReaderSyncActivity::performSync() {
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   state = SHOWING_RESULT;
-  // Default to the option that corresponds to the furthest progress (matches CrossPoint)
+  
   if (localProgress.percentage > remoteProgress.percentage) {
-    selectedOption = 1;  // Upload local progress
+    selectedOption = 1;  
   } else {
-    selectedOption = 0;  // Apply remote progress
+    selectedOption = 0;  
   }
   xSemaphoreGive(renderingMutex);
   updateRequired = true;
@@ -160,7 +165,7 @@ void KOReaderSyncActivity::performUpload() {
   updateRequired = true;
   vTaskDelay(10 / portTICK_PERIOD_MS);
 
-  // Convert current position to KOReader format
+  
   CrossPointPosition localPos{};
   localPos.spineIndex = currentSpineIndex;
   localPos.pageNumber = currentPage;
@@ -197,35 +202,35 @@ void KOReaderSyncActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   xTaskCreate(&KOReaderSyncActivity::taskTrampoline, "KOSyncTask",
-              4096,               // Stack size (larger for network operations)
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,               
+              this,               
+              1,                  
+              &displayTaskHandle  
   );
 
-  // Check for credentials first
+  
   if (!KOREADER_STORE.hasCredentials()) {
     state = NO_CREDENTIALS;
     updateRequired = true;
     return;
   }
 
-  // Turn on WiFi
+  
   Serial.printf("[%lu] [KOSync] Turning on WiFi...\n", millis());
   WiFi.mode(WIFI_STA);
 
-  // Check if already connected
+  
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("[%lu] [KOSync] Already connected to WiFi\n", millis());
     state = SYNCING;
     statusMessage = "Syncing time...";
     updateRequired = true;
 
-    // Perform sync directly (will be handled in loop)
+    
     xTaskCreate(
         [](void* param) {
           auto* self = static_cast<KOReaderSyncActivity*>(param);
-          // Sync time first
+          
           syncTimeWithNTP();
           xSemaphoreTake(self->renderingMutex, portMAX_DELAY);
           self->statusMessage = "Calculating document hash...";
@@ -238,7 +243,7 @@ void KOReaderSyncActivity::onEnter() {
     return;
   }
 
-  // Launch WiFi selection subactivity
+  
   Serial.printf("[%lu] [KOSync] Launching WifiSelectionActivity...\n", millis());
   enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                              [this](const bool connected) { onWifiSelectionComplete(connected); }));
@@ -249,7 +254,7 @@ void KOReaderSyncActivity::onExit() {
 
   wifiOff();
 
-  // Wait until not rendering to delete task
+  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -298,10 +303,10 @@ void KOReaderSyncActivity::render() {
   }
 
   if (state == SHOWING_RESULT) {
-    // Show comparison
+    
     renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 120, "Progress found!", true, EpdFontFamily::BOLD);
 
-    // Get chapter names from TOC
+    
     const int remoteTocIndex = epub->getTocIndexForSpineIndex(remotePosition.spineIndex);
     const int localTocIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
     const std::string remoteChapter = (remoteTocIndex >= 0)
@@ -310,7 +315,7 @@ void KOReaderSyncActivity::render() {
     const std::string localChapter = (localTocIndex >= 0) ? epub->getTocItem(localTocIndex).title
                                                           : ("Section " + std::to_string(currentSpineIndex + 1));
 
-    // Remote progress - chapter and page
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 160, "Remote:", true);
     char remoteChapterStr[128];
     snprintf(remoteChapterStr, sizeof(remoteChapterStr), "  %s", remoteChapter.c_str());
@@ -326,7 +331,7 @@ void KOReaderSyncActivity::render() {
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 235, deviceStr);
     }
 
-    // Local progress - chapter and page
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 270, "Local:", true);
     char localChapterStr[128];
     snprintf(localChapterStr, sizeof(localChapterStr), "  %s", localChapter.c_str());
@@ -336,7 +341,7 @@ void KOReaderSyncActivity::render() {
              localProgress.percentage * 100);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 320, localPageStr);
 
-    // Options (Apply / Upload only — Back cancels, same as CrossPoint reader menu)
+    
     const int optionY = 350;
     const int optionHeight = 30;
 
@@ -424,7 +429,7 @@ void KOReaderSyncActivity::loop() {
 
   if (state == NO_REMOTE_PROGRESS) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      // Calculate hash if not done yet
+      
       if (documentHash.empty()) {
         if (KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME) {
           documentHash = KOReaderDocumentId::calculateFromFilename(epubPath);

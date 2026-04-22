@@ -1,4 +1,9 @@
 /**
+ * @file XtcReaderActivity.h
+ * @brief Public interface and types for XtcReaderActivity.
+ */
+
+/**
  * XtcReaderActivity.h
  *
  * XTC ebook reader activity for Inx Reader

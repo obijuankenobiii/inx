@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ScreenComponents.h
+ * @brief Public interface and types for ScreenComponents.
+ */
+
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -29,12 +34,12 @@ class ScreenComponents {
 
   static void fillPopupProgress(const GfxRenderer& renderer, const PopupLayout& layout, int progress);
 
-  // Draw a horizontal tab bar with underline indicator for selected tab
-  // Returns the height of the tab bar (for positioning content below)
+  
+  
   static int drawTabBar(const GfxRenderer& renderer, int y, const std::vector<TabInfo>& tabs);
 
-  // Draw a scroll/page indicator on the right side of the screen
-  // Shows up/down arrows and current page fraction (e.g., "1/3")
+  
+  
   static void drawScrollIndicator(const GfxRenderer& renderer, int currentPage, int totalPages, int contentTop,
                                   int contentHeight);
 

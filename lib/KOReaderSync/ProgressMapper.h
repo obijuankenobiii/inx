@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file ProgressMapper.h
+ * @brief Public interface and types for ProgressMapper.
+ */
+
 #include <Epub.h>
 
 #include <memory>
@@ -8,19 +14,19 @@
  * CrossPoint position representation.
  */
 struct CrossPointPosition {
-  int spineIndex;                  // Current spine item (chapter) index
-  int pageNumber;                  // Current page within the spine item
-  int totalPages;                  // Total pages in the current spine item
-  uint16_t paragraphIndex = 0;     // 1-based synthetic paragraph index from XPath p[N]
-  bool hasParagraphIndex = false;  // True when paragraphIndex was resolved from XPath
+  int spineIndex;                  
+  int pageNumber;                  
+  int totalPages;                  
+  uint16_t paragraphIndex = 0;     
+  bool hasParagraphIndex = false;  
 };
 
 /**
  * KOReader position representation.
  */
 struct KOReaderPosition {
-  std::string xpath;  // XPath-like progress string
-  float percentage;   // Progress percentage (0.0 to 1.0)
+  std::string xpath;  
+  float percentage;   
 };
 
 /**

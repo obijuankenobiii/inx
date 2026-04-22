@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file OtaUpdateActivity.h
+ * @brief Public interface and types for OtaUpdateActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

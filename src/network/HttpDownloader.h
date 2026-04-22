@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file HttpDownloader.h
+ * @brief Public interface and types for HttpDownloader.
+ */
+
 #include <SDCardManager.h>
 
 #include <functional>

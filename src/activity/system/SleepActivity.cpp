@@ -1,3 +1,8 @@
+/**
+ * @file SleepActivity.cpp
+ * @brief Definitions for SleepActivity.
+ */
+
 #include "SleepActivity.h"
 
 #include <Bitmap.h>
@@ -50,7 +55,7 @@ std::string pickSleepBmpPath() {
       std::string filename = name;
       if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
         matchCount++;
-        // Reservoir sampling keeps memory usage constant.
+        
         if (random(matchCount) == 0) {
           selectedPath = "/sleep/" + filename;
         }
@@ -68,7 +73,7 @@ std::string pickSleepBmpPath() {
   }
   return "";
 }
-}  // namespace
+}  
 
 /**
  * @brief Initializes and renders the sleep screen when activity becomes active.
@@ -164,14 +169,14 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   std::string coverPath;
-  // FIT vs CROP scaling is applied in renderBitmapSleepScreen from sleepScreenCoverMode.
+  
   const std::string& path = APP_STATE.lastRead;
 
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      // Same resolution order as EpubActivity::displayCoverOrTitle: use on-disk covers when present;
-      // only generate if missing (sleep used to require generateCoverBmp()==true, so existing files were ignored).
+      
+      
       coverPath = book.getCoverBmpPath(true);
       if (!SdMan.exists(coverPath.c_str())) {
         book.generateCoverBmp(true);
@@ -236,14 +241,14 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
 
   if (fitMode) {
-    // Fit: fill the screen; preserve aspect by cropping overscan (no letterboxing).
+    
     if (imageRatio > screenRatio) {
       cropX = 1.0f - (screenRatio / imageRatio);
     } else if (imageRatio < screenRatio) {
       cropY = 1.0f - (imageRatio / screenRatio);
     }
   } else if (cropMode) {
-    // Crop: show the whole image inside the screen (letterbox), no upscale past native resolution.
+    
     const float scaleW = static_cast<float>(pageWidth) / imageWidth;
     const float scaleH = static_cast<float>(pageHeight) / imageHeight;
     float containScale = std::min(scaleW, scaleH);
@@ -268,7 +273,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
     renderer.invertScreen();
   }
 
-  // FAST matches EpubActivity::displayCoverOrTitle; HALF can fail to settle some decoded covers on panel.
+  
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   if (hasGreyscale && renderer.needsBitmapGrayscale()) {

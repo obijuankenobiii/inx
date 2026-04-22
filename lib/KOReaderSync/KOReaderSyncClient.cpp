@@ -1,3 +1,8 @@
+/**
+ * @file KOReaderSyncClient.cpp
+ * @brief Definitions for KOReaderSyncClient.
+ */
+
 #include "KOReaderSyncClient.h"
 
 #include <ArduinoJson.h>
@@ -11,7 +16,7 @@
 #include "KOReaderCredentialStore.h"
 
 namespace {
-// Device identifier for CrossPoint reader
+
 constexpr char DEVICE_NAME[] = "CrossPoint";
 constexpr char DEVICE_ID[] = "crosspoint-reader";
 
@@ -20,12 +25,12 @@ void addAuthHeaders(HTTPClient& http) {
   http.addHeader("x-auth-user", KOREADER_STORE.getUsername().c_str());
   http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password().c_str());
 
-  // HTTP Basic Auth (RFC 7617). Needed for KOReader sync embedded in Calibre Web Automated and similar servers.
+  
   http.setAuthorization(KOREADER_STORE.getUsername().c_str(), KOREADER_STORE.getPassword().c_str());
 }
 
 bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
-}  // namespace
+}  
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   if (!KOREADER_STORE.hasCredentials()) {
@@ -90,7 +95,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   const int httpCode = http.GET();
 
   if (httpCode == 200) {
-    // Parse JSON response from response string
+    
     String responseBody = http.getString();
     http.end();
 
@@ -151,7 +156,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   addAuthHeaders(http);
   http.addHeader("Content-Type", "application/json");
 
-  // Build JSON body (timestamp not required per API spec)
+  
   JsonDocument doc;
   doc["document"] = progress.document;
   doc["progress"] = progress.progress;

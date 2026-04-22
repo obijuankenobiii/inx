@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file SystemSetting.h
+ * @brief Public interface and types for SystemSetting.
+ */
+
 #include <cstdint>
 #include <iosfwd>
 
@@ -283,7 +288,7 @@ public:
         READER_IMAGE_DITHER_COUNT
     };
 
-    // Sleep screen settings
+    
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
@@ -297,36 +302,36 @@ public:
      */
     char sleepCustomBmp[64] = "";
 
-    // Legacy status bar mode (kept for backward compatibility)
+    
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
     
-    // New configurable status bar sections
+    
     uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;   ///< Left status bar section
     uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;             ///< Middle status bar section
     uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;               ///< Right status bar section
     
-    // Text rendering settings
+    
     uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
     uint8_t textAntiAliasing = 1;                               ///< Text anti-aliasing enabled
     
-    // Global short power button click behaviour (outside reader)
+    
     uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
     
-    // Reader-specific short power button click behaviour
+    
     uint8_t readerShortPwrBtn = READER_PAGE_TURN;               ///< Reader short power button behavior
     
-    // EPUB reading orientation settings
+    
     uint8_t orientation = PORTRAIT;                             ///< Screen orientation
     
-    // Button layouts
+    
     uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;        ///< Front button layout
     uint8_t sideButtonLayout = PREV_NEXT;                       ///< Side button layout
     
-    // Reader navigation settings
+    
     uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
     uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
     
-    // Reader font settings
+    
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
     uint8_t lineSpacing = TIGHT;                                ///< Line spacing
@@ -334,17 +339,17 @@ public:
     /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
     uint8_t paragraphCssIndentEnabled = 0;
 
-    // Auto-sleep timeout setting (default 10 minutes)
+    
     uint8_t sleepTimeout = SLEEP_10_MIN;                        ///< Sleep timeout
     
-    // E-ink refresh frequency (default 15 pages)
+    
     uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
     uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
 
-    // Reader screen margin settings
+    
     uint8_t screenMargin = 20;                                  ///< Screen margin in pixels
     
-    // OPDS browser settings
+    
     char opdsServerUrl[128] = "";                               ///< OPDS server URL
     char opdsUsername[64] = "";                                 ///< OPDS username
     char opdsPassword[64] = "";                                 ///< OPDS password
@@ -354,10 +359,10 @@ public:
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
-    // Library display settings
+    
     uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
     
-    // Boot settings
+    
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 
     /**

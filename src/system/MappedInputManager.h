@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file MappedInputManager.h
+ * @brief Public interface and types for MappedInputManager.
+ */
+
 #include <HalGPIO.h>
 
 class MappedInputManager {

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Statistics.h
+ * @brief Public interface and types for Statistics.
+ */
+
 #include <cstdint>
 #include <string>
 #include <vector>

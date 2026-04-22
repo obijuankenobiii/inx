@@ -1,11 +1,16 @@
+/**
+ * @file Bitmap.cpp
+ * @brief Definitions for Bitmap.
+ */
+
 #include "Bitmap.h"
 
 #include <cstdlib>
 #include <cstring>
 
-// Dithering is applied when converting high-color BMPs to the display's native
-// 2-bit (4-level) grayscale. Images whose palette entries all map to native
-// gray levels (0, 85, 170, 255 ±21) are mapped directly without dithering.
+
+
+
 
 Bitmap::~Bitmap() {
   delete[] errorCurRow;
@@ -80,14 +85,14 @@ BmpReaderError Bitmap::parseHeaders() {
   if (!file) return BmpReaderError::FileInvalid;
   if (!file.seek(0)) return BmpReaderError::SeekStartFailed;
 
-  // --- BMP FILE HEADER ---
+  
   const uint16_t bfType = readLE16(file);
   if (bfType != 0x4D42) return BmpReaderError::NotBMP;
 
   file.seekCur(8);
   bfOffBits = readLE32(file);
 
-  // --- DIB HEADER ---
+  
   const uint32_t biSize = readLE32(file);
   if (biSize < 40) return BmpReaderError::DIBTooSmall;
 
@@ -103,33 +108,33 @@ BmpReaderError Bitmap::parseHeaders() {
 
   if (planes != 1) return BmpReaderError::BadPlanes;
   if (!validBpp) return BmpReaderError::UnsupportedBpp;
-  // Allow BI_RGB (0) for all, and BI_BITFIELDS (3) for 32bpp which is common for BGRA masks.
+  
   if (!(comp == 0 || (bpp == 32 && comp == 3))) return BmpReaderError::UnsupportedCompression;
 
-  file.seekCur(12);  // biSizeImage, biXPelsPerMeter, biYPelsPerMeter
+  file.seekCur(12);  
   colorsUsed = readLE32(file);
-  // BMP spec: colorsUsed==0 means default (2^bpp for paletted formats)
+  
   if (colorsUsed == 0 && bpp <= 8) colorsUsed = 1u << bpp;
   if (colorsUsed > 256u) return BmpReaderError::PaletteTooLarge;
-  file.seekCur(4);  // biClrImportant
+  file.seekCur(4);  
 
   if (width <= 0 || height <= 0) return BmpReaderError::BadDimensions;
 
-  // Safety limits to prevent memory issues on ESP32
+  
   constexpr int MAX_IMAGE_WIDTH = 2048;
   constexpr int MAX_IMAGE_HEIGHT = 3072;
   if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
     return BmpReaderError::ImageTooLarge;
   }
 
-  // Pre-calculate Row Bytes to avoid doing this every row
+  
   rowBytes = (width * bpp + 31) / 32 * 4;
 
   for (int i = 0; i < 256; i++) paletteLum[i] = static_cast<uint8_t>(i);
   if (colorsUsed > 0) {
     for (uint32_t i = 0; i < colorsUsed; i++) {
       uint8_t rgb[4];
-      file.read(rgb, 4);  // Read B, G, R, Reserved in one go
+      file.read(rgb, 4);  
       paletteLum[i] = (77u * rgb[2] + 150u * rgb[1] + 29u * rgb[0]) >> 8;
     }
   }
@@ -138,27 +143,27 @@ BmpReaderError Bitmap::parseHeaders() {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
-  // Check if palette luminances map cleanly to the display's 4 native gray levels.
-  // Native levels are 0, 85, 170, 255 — i.e. values where (lum >> 6) is lossless.
-  // If all palette entries are near a native level, we can skip dithering entirely.
-  nativePalette = bpp <= 2;  // 1-bit and 2-bit are always native
+  
+  
+  
+  nativePalette = bpp <= 2;  
   if (!nativePalette && colorsUsed > 0) {
     nativePalette = true;
     for (uint32_t i = 0; i < colorsUsed; i++) {
       const uint8_t lum = paletteLum[i];
-      const uint8_t level = lum >> 6;            // quantize to 0-3
-      const uint8_t reconstructed = level * 85;  // back to 0, 85, 170, 255
+      const uint8_t level = lum >> 6;            
+      const uint8_t reconstructed = level * 85;  
       if (lum > reconstructed + 21 || lum + 21 < reconstructed) {
-        nativePalette = false;  // luminance is too far from any native level
+        nativePalette = false;  
         break;
       }
     }
   }
 
-  // Decide pixel processing strategy:
-  //  - Native palette → direct mapping, no processing needed
-  //  - High-color + dither mode → error-diffusion (Atkinson or Floyd-Steinberg)
-  //  - High-color + None → simple quantization (no error diffusion)
+  
+  
+  
+  
   const bool highColor = !nativePalette;
   if (highColor && ditherMode == BitmapDitherMode::Atkinson) {
     atkinsonDitherer = new AtkinsonDitherer(width);
@@ -169,9 +174,9 @@ BmpReaderError Bitmap::parseHeaders() {
   return BmpReaderError::Ok;
 }
 
-// packed 2bpp output, 0 = black, 1 = dark gray, 2 = light gray, 3 = white
+
 BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
-  // Note: rowBuffer should be pre-allocated by the caller to size 'rowBytes'
+  
   if (file.read(rowBuffer, rowBytes) != rowBytes) return BmpReaderError::ShortReadRow;
 
   prevRowY += 1;
@@ -181,7 +186,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   int bitShift = 6;
   int currentX = 0;
 
-  // Helper lambda to pack 2bpp color into the output stream
+  
   auto packPixel = [&](const uint8_t lum) {
     uint8_t color;
     if (atkinsonDitherer) {
@@ -190,10 +195,10 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
       color = fsDitherer->processPixel(adjustPixel(lum), currentX);
     } else {
       if (nativePalette) {
-        // Palette matches native gray levels: direct mapping (still apply brightness/contrast/gamma)
+        
         color = static_cast<uint8_t>(adjustPixel(lum) >> 6);
       } else {
-        // Non-native palette with dithering disabled: simple quantization
+        
         color = quantize(adjustPixel(lum), currentX, prevRowY);
       }
     }
@@ -251,9 +256,9 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     }
     case 1: {
       for (int x = 0; x < width; x++) {
-        // Get palette index (0 or 1) from bit at position x
+        
         const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
-        // Use palette lookup for proper black/white mapping
+        
         lum = paletteLum[palIndex];
         packPixel(lum);
       }
@@ -268,7 +273,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   else if (fsDitherer)
     fsDitherer->nextRow();
 
-  // Flush remaining bits if width is not a multiple of 4
+  
   if (bitShift != 6) *outPtr = currentOutByte;
 
   return BmpReaderError::Ok;
@@ -279,7 +284,7 @@ BmpReaderError Bitmap::rewindToData() const {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
-  // Reset dithering when rewinding
+  
   if (fsDitherer) fsDitherer->reset();
   if (atkinsonDitherer) atkinsonDitherer->reset();
 

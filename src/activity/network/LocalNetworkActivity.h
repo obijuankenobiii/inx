@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file LocalNetworkActivity.h
+ * @brief Public interface and types for LocalNetworkActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

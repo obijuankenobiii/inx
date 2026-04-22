@@ -1,3 +1,8 @@
+/**
+ * @file SystemSetting.cpp
+ * @brief Definitions for SystemSetting.
+ */
+
 #include "state/SystemSetting.h"
 
 #include <HardwareSerial.h>
@@ -50,7 +55,7 @@ void sanitizeSleepCustomBmp(char* buf) {
     }
   }
 }
-}  // namespace
+}  
 
 void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
   if (s == nullptr || s[0] == '\0') {
@@ -391,7 +396,7 @@ bool SystemSetting::loadFromFile() {
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
 
-  // v10 stored two-level presentation; byte 1 remapped to same tier as byte 0 for v11 file layout.
+  
   if (version == 10) {
     if (readerImagePresentation == 1u) {
       readerImagePresentation = 0u;
@@ -401,7 +406,7 @@ bool SystemSetting::loadFromFile() {
     }
   }
 
-  // v12+: Low (0) / Medium (1) / High (2). v10–v11 files stored old two-level 0/1 (balance / dark).
+  
   if (version == 10 || version == 11) {
     auto mapLegacyPresentation = [](uint8_t& p) {
       if (p == 0u) {

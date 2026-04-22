@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file BitmapHelpers.h
+ * @brief Public interface and types for BitmapHelpers.
+ */
+
 #include <cstdint>
 #include <cstring>
 
@@ -7,39 +12,39 @@ class Print;
 
 struct BmpHeader;
 
-// Helper functions
+
 uint8_t quantize(int gray, int x, int y);
 uint8_t quantizeSimple(int gray);
 uint8_t quantize1bit(int gray, int x, int y);
 int adjustPixel(int gray);
 
-// RGB to grayscale conversion using BT.601 coefficients via lookup tables.
-// Avoids 3 multiplications per pixel on ESP32-C3 (no FPU).
-// Note: Sum of max values is 254 (not 255) due to integer truncation of coefficients.
-// This is expected behavior - pure white (255,255,255) maps to 254.
+
+
+
+
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b);
 
-// Scale down a BMP file to create a 1-bit thumbnail.
-// Uses 2x2 pixel averaging for clean downscaling with Atkinson dithering.
-// Returns true on success, false on failure.
+
+
+
 bool bmpTo1BitBmpScaled(const char* srcPath, const char* dstPath, int targetMaxWidth, int targetMaxHeight);
 
 enum class BmpRowOrder { BottomUp, TopDown };
 
-// Populates a 1-bit BMP header in the provided memory.
+
 void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder rowOrder);
 
-// 1-bit Atkinson dithering - better quality than noise dithering for thumbnails
-// Error distribution pattern (same as 2-bit but quantizes to 2 levels):
-//     X  1/8 1/8
-// 1/8 1/8 1/8
-//     1/8
+
+
+
+
+
 class Atkinson1BitDitherer {
  public:
   explicit Atkinson1BitDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();  // Current row
-    errorRow1 = new int16_t[width + 4]();  // Next row
-    errorRow2 = new int16_t[width + 4]();  // Row after next
+    errorRow0 = new int16_t[width + 4]();  
+    errorRow1 = new int16_t[width + 4]();  
+    errorRow2 = new int16_t[width + 4]();  
   }
 
   ~Atkinson1BitDitherer() {
@@ -48,22 +53,22 @@ class Atkinson1BitDitherer {
     delete[] errorRow2;
   }
 
-  // EXPLICITLY DELETE THE COPY CONSTRUCTOR
+  
   Atkinson1BitDitherer(const Atkinson1BitDitherer& other) = delete;
 
-  // EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR
+  
   Atkinson1BitDitherer& operator=(const Atkinson1BitDitherer& other) = delete;
 
   uint8_t processPixel(int gray, int x) {
-    // Apply brightness/contrast/gamma adjustments
+    
     gray = adjustPixel(gray);
 
-    // Add accumulated error
+    
     int adjusted = gray + errorRow0[x + 2];
     if (adjusted < 0) adjusted = 0;
     if (adjusted > 255) adjusted = 255;
 
-    // Quantize to 2 levels (1-bit): 0 = black, 1 = white
+    
     uint8_t quantized;
     int quantizedValue;
     if (adjusted < 128) {
@@ -74,16 +79,16 @@ class Atkinson1BitDitherer {
       quantizedValue = 255;
     }
 
-    // Calculate error (only distribute 6/8 = 75%)
-    int error = (adjusted - quantizedValue) >> 3;  // error/8
+    
+    int error = (adjusted - quantizedValue) >> 3;  
 
-    // Distribute 1/8 to each of 6 neighbors
-    errorRow0[x + 3] += error;  // Right
-    errorRow0[x + 4] += error;  // Right+1
-    errorRow1[x + 1] += error;  // Bottom-left
-    errorRow1[x + 2] += error;  // Bottom
-    errorRow1[x + 3] += error;  // Bottom-right
-    errorRow2[x + 2] += error;  // Two rows down
+    
+    errorRow0[x + 3] += error;  
+    errorRow0[x + 4] += error;  
+    errorRow1[x + 1] += error;  
+    errorRow1[x + 2] += error;  
+    errorRow1[x + 3] += error;  
+    errorRow2[x + 2] += error;  
 
     return quantized;
   }
@@ -109,18 +114,18 @@ class Atkinson1BitDitherer {
   int16_t* errorRow2;
 };
 
-// Atkinson dithering - distributes only 6/8 (75%) of error for cleaner results
-// Error distribution pattern:
-//     X  1/8 1/8
-// 1/8 1/8 1/8
-//     1/8
-// Less error buildup = fewer artifacts than Floyd-Steinberg
+
+
+
+
+
+
 class AtkinsonDitherer {
  public:
   explicit AtkinsonDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();  // Current row
-    errorRow1 = new int16_t[width + 4]();  // Next row
-    errorRow2 = new int16_t[width + 4]();  // Row after next
+    errorRow0 = new int16_t[width + 4]();  
+    errorRow1 = new int16_t[width + 4]();  
+    errorRow2 = new int16_t[width + 4]();  
   }
 
   ~AtkinsonDitherer() {
@@ -128,22 +133,22 @@ class AtkinsonDitherer {
     delete[] errorRow1;
     delete[] errorRow2;
   }
-  // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
+  
   AtkinsonDitherer(const AtkinsonDitherer& other) = delete;
 
-  // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
+  
   AtkinsonDitherer& operator=(const AtkinsonDitherer& other) = delete;
 
   uint8_t processPixel(int gray, int x) {
-    // Add accumulated error
+    
     int adjusted = gray + errorRow0[x + 2];
     if (adjusted < 0) adjusted = 0;
     if (adjusted > 255) adjusted = 255;
 
-    // Quantize to 4 levels
+    
     uint8_t quantized;
     int quantizedValue;
-    if (false) {  // original thresholds
+    if (false) {  
       if (adjusted < 43) {
         quantized = 0;
         quantizedValue = 0;
@@ -157,7 +162,7 @@ class AtkinsonDitherer {
         quantized = 3;
         quantizedValue = 255;
       }
-    } else {  // fine-tuned to X4 eink display
+    } else {  
       if (adjusted < 30) {
         quantized = 0;
         quantizedValue = 15;
@@ -173,16 +178,16 @@ class AtkinsonDitherer {
       }
     }
 
-    // Calculate error (only distribute 6/8 = 75%)
-    int error = (adjusted - quantizedValue) >> 3;  // error/8
+    
+    int error = (adjusted - quantizedValue) >> 3;  
 
-    // Distribute 1/8 to each of 6 neighbors
-    errorRow0[x + 3] += error;  // Right
-    errorRow0[x + 4] += error;  // Right+1
-    errorRow1[x + 1] += error;  // Bottom-left
-    errorRow1[x + 2] += error;  // Bottom
-    errorRow1[x + 3] += error;  // Bottom-right
-    errorRow2[x + 2] += error;  // Two rows down
+    
+    errorRow0[x + 3] += error;  
+    errorRow0[x + 4] += error;  
+    errorRow1[x + 1] += error;  
+    errorRow1[x + 2] += error;  
+    errorRow1[x + 3] += error;  
+    errorRow2[x + 2] += error;  
 
     return quantized;
   }
@@ -208,18 +213,18 @@ class AtkinsonDitherer {
   int16_t* errorRow2;
 };
 
-// Floyd-Steinberg error diffusion dithering with serpentine scanning
-// Serpentine scanning alternates direction each row to reduce "worm" artifacts
-// Error distribution pattern (left-to-right):
-//       X   7/16
-// 3/16 5/16 1/16
-// Error distribution pattern (right-to-left, mirrored):
-// 1/16 5/16 3/16
-//      7/16  X
+
+
+
+
+
+
+
+
 class FloydSteinbergDitherer {
  public:
   explicit FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
-    errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
+    errorCurRow = new int16_t[width + 2]();  
     errorNextRow = new int16_t[width + 2]();
   }
 
@@ -228,26 +233,26 @@ class FloydSteinbergDitherer {
     delete[] errorNextRow;
   }
 
-  // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
+  
   FloydSteinbergDitherer(const FloydSteinbergDitherer& other) = delete;
 
-  // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
+  
   FloydSteinbergDitherer& operator=(const FloydSteinbergDitherer& other) = delete;
 
-  // Process a single pixel and return quantized 2-bit value
-  // x is the logical x position (0 to width-1), direction handled internally
+  
+  
   uint8_t processPixel(int gray, int x) {
-    // Add accumulated error to this pixel
+    
     int adjusted = gray + errorCurRow[x + 1];
 
-    // Clamp to valid range
+    
     if (adjusted < 0) adjusted = 0;
     if (adjusted > 255) adjusted = 255;
 
-    // Quantize to 4 levels (0, 85, 170, 255)
+    
     uint8_t quantized;
     int quantizedValue;
-    if (false) {  // original thresholds
+    if (false) {  
       if (adjusted < 43) {
         quantized = 0;
         quantizedValue = 0;
@@ -261,7 +266,7 @@ class FloydSteinbergDitherer {
         quantized = 3;
         quantizedValue = 255;
       }
-    } else {  // fine-tuned to X4 eink display
+    } else {  
       if (adjusted < 30) {
         quantized = 0;
         quantizedValue = 15;
@@ -277,50 +282,50 @@ class FloydSteinbergDitherer {
       }
     }
 
-    // Calculate error
+    
     int error = adjusted - quantizedValue;
 
-    // Distribute error to neighbors (serpentine: direction-aware)
+    
     if (!isReverseRow()) {
-      // Left to right: standard distribution
-      // Right: 7/16
+      
+      
       errorCurRow[x + 2] += (error * 7) >> 4;
-      // Bottom-left: 3/16
+      
       errorNextRow[x] += (error * 3) >> 4;
-      // Bottom: 5/16
+      
       errorNextRow[x + 1] += (error * 5) >> 4;
-      // Bottom-right: 1/16
+      
       errorNextRow[x + 2] += (error) >> 4;
     } else {
-      // Right to left: mirrored distribution
-      // Left: 7/16
+      
+      
       errorCurRow[x] += (error * 7) >> 4;
-      // Bottom-right: 3/16
+      
       errorNextRow[x + 2] += (error * 3) >> 4;
-      // Bottom: 5/16
+      
       errorNextRow[x + 1] += (error * 5) >> 4;
-      // Bottom-left: 1/16
+      
       errorNextRow[x] += (error) >> 4;
     }
 
     return quantized;
   }
 
-  // Call at the end of each row to swap buffers
+  
   void nextRow() {
-    // Swap buffers
+    
     int16_t* temp = errorCurRow;
     errorCurRow = errorNextRow;
     errorNextRow = temp;
-    // Clear the next row buffer
+    
     memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
     rowCount++;
   }
 
-  // Check if current row should be processed in reverse
+  
   bool isReverseRow() const { return (rowCount & 1) != 0; }
 
-  // Reset for a new image or MCU block
+  
   void reset() {
     memset(errorCurRow, 0, (width + 2) * sizeof(int16_t));
     memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
@@ -334,8 +339,8 @@ class FloydSteinbergDitherer {
   int16_t* errorNextRow;
 };
 
-// EPUB in-body images: match web FilesPage 2-bit pipeline (contain max 500×820, BT.601 rounded luma,
-// nearest {0,85,170,255}, Floyd–Steinberg 7/16–3/16–5/16–1/16, BMP pack thresholds 42/127/212).
+
+
 uint8_t epubWebRgb565ToGray8Rounded(uint16_t rgb565LittleEndian);
 void epubWebContainDimensionsFloor(int srcW, int srcH, int maxW, int maxH, int* outW, int* outH);
 void epubWebWrite2BitBmpHeader(Print& bmpOut, int width, int height);

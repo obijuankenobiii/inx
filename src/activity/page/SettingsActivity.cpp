@@ -1,3 +1,8 @@
+/**
+ * @file SettingsActivity.cpp
+ * @brief Definitions for SettingsActivity.
+ */
+
 #include"SettingsActivity.h"
 
 #include <GfxRenderer.h>
@@ -60,7 +65,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
 
-    /* Standalone row (not inside a collapsible group); always visible. */
+    
     SettingInfo::Action("About", GroupType::NONE)};
 
 constexpr int readerSettingsCount = 29;
@@ -124,7 +129,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
                       GroupType::STATUS_BAR)};
 
-}  // namespace
+}  
 
 /**
  * @brief Static trampoline function for FreeRTOS task creation.

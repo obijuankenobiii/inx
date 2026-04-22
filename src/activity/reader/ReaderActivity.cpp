@@ -1,3 +1,8 @@
+/**
+ * @file ReaderActivity.cpp
+ * @brief Definitions for ReaderActivity.
+ */
+
 #include "ReaderActivity.h"
 
 #include "Epub.h"
@@ -101,7 +106,7 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
 void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
   std::string bookPath = epub->getPath();
 
-  auto callback = onGoBack;  // Copy the std::function
+  auto callback = onGoBack;  
 
   exitActivity();
   enterNewActivity(new EpubActivity(

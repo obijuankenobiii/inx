@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ImageBitmapGrayMaps.h
+ * @brief Public interface and types for ImageBitmapGrayMaps.
+ */
+
 #include <GfxRenderer.h>
 
 #include "state/SystemSetting.h"

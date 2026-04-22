@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file ContentOpfParser.h
+ * @brief Public interface and types for ContentOpfParser.
+ */
+
 #include <Print.h>
 
 #include <algorithm>
@@ -31,18 +37,18 @@ class ContentOpfParser final : public Print {
   FsFile tempItemStore;
   std::string coverItemId;
 
-  // Index for fast idref→href lookup (used only for large EPUBs)
+  
   struct ItemIndexEntry {
-    uint32_t idHash;      // FNV-1a hash of itemId
-    uint16_t idLen;       // length for collision reduction
-    uint32_t fileOffset;  // offset in .items.bin
+    uint32_t idHash;      
+    uint16_t idLen;       
+    uint32_t fileOffset;  
   };
   std::vector<ItemIndexEntry> itemIndex;
   bool useItemIndex = false;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
 
-  // FNV-1a hash function
+  
   static uint32_t fnvHash(const std::string& s) {
     uint32_t hash = 2166136261u;
     for (char c : s) {
@@ -61,7 +67,7 @@ class ContentOpfParser final : public Print {
   std::string author;
   std::string language;
   std::string tocNcxPath;
-  std::string tocNavPath;  // EPUB 3 nav document path
+  std::string tocNavPath;  
   std::string coverItemHref;
   std::string textReferenceHref;
 

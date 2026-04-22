@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file SleepImagePickerActivity.h
+ * @brief Public interface and types for SleepImagePickerActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -27,7 +32,7 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
  private:
   struct Row {
     std::string label;
-    std::string value;  // stored in SETTINGS.sleepCustomBmp (empty = random)
+    std::string value;  
   };
 
   TaskHandle_t displayTaskHandle = nullptr;

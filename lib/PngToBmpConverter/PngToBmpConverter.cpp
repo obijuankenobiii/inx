@@ -1,3 +1,8 @@
+/**
+ * @file PngToBmpConverter.cpp
+ * @brief Definitions for PngToBmpConverter.
+ */
+
 #include "PngToBmpConverter.h"
 
 #include <BitmapHelpers.h>
@@ -17,7 +22,7 @@ struct ConvertState {
 
 static ConvertState* g_state = nullptr;
 
-// --- PNGdec Callbacks ---
+
 
 static int32_t pngRead(PNGFILE *pFile, uint8_t *pBuf, int32_t iLen) { 
     FsFile* file = (FsFile*)pFile->fHandle;
@@ -39,7 +44,7 @@ static void* pngOpen(const char *szFilename, int32_t *pFileSize) {
 
 static void pngClose(void *pHandle) {}
 
-// --- High Quality Bayer Dither Callback ---
+
 
 int PNGDrawCallback(PNGDRAW *pDraw) {
     if (!g_state) return 0;
@@ -56,7 +61,7 @@ int PNGDrawCallback(PNGDRAW *pDraw) {
         return 1;
     }
 
-    // 4x4 Bayer Matrix (Values 0-255)
+    
     static const uint8_t bayer[4][4] = {
         {  15, 135,  45, 165 },
         { 195,  75, 225, 105 },
@@ -70,26 +75,26 @@ int PNGDrawCallback(PNGDRAW *pDraw) {
 
         uint16_t p = line[x];
         
-        // Robust RGB to Gray (0-255)
-        // Extract 5-6-5 bits and scale to 8-bit
+        
+        
         int r = ((p >> 11) & 0x1F) << 3; 
         int g = ((p >> 5) & 0x3F) << 2;
         int b = (p & 0x1F) << 3;
         
-        // Luminance formula: Y = 0.299R + 0.587G + 0.114B
+        
         int gray = (r * 77 + g * 150 + b * 29) >> 8;
 
-        // If pixel is LIGHTER than threshold, set bit to 1 (Index 1: WHITE)
+        
         if (gray > bayer[outX % 4][outY % 4]) {
             g_state->bitmap[outY * g_state->bpr + (outX / 8)] |= (0x80 >> (outX % 8));
         }
-        // Else stays 0 (Index 0: BLACK)
+        
     }
     free(line);
     return 1;
 }
 
-// --- Class Implementation ---
+
 
 bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetW, int targetH,
                                                        bool cropToFill) {
@@ -125,7 +130,7 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
         dh = sh;
     }
     
-    // BMP scanlines must be padded to 4-byte boundaries
+    
     int bpr = (dw + 31) / 32 * 4;
     size_t dataSize = (size_t)bpr * dh;
     
@@ -134,7 +139,7 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
         png.close();
         return false;
     }
-    memset(buf, 0, dataSize); // Initialize as all BLACK (Index 0)
+    memset(buf, 0, dataSize); 
 
     ConvertState state = { buf, sw, sh, dw, dh, bpr };
     g_state = &state;
@@ -143,34 +148,34 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
     png.close();
     
     if (rc == 0) {
-        // --- BMP Header (54 bytes) ---
+        
         uint8_t header[54] = {0};
         header[0] = 'B'; header[1] = 'M';
         
-        uint32_t offset = 62; // 54 (Header) + 8 (2-color Palette)
+        uint32_t offset = 62; 
         uint32_t fileSize = offset + dataSize;
         
         memcpy(&header[2], &fileSize, 4);
-        header[10] = 62;      // Data offset
-        header[14] = 40;      // Info Header size
+        header[10] = 62;      
+        header[14] = 40;      
         memcpy(&header[18], &dw, 4);
-        int32_t negHeight = -dh; // Top-down BMP
+        int32_t negHeight = -dh; 
         memcpy(&header[22], &negHeight, 4);
-        header[26] = 1;       // Planes
-        header[28] = 1;       // Bit count (1-bit)
+        header[26] = 1;       
+        header[28] = 1;       
         memcpy(&header[34], &dataSize, 4);
         
         uint32_t colors = 2;
-        memcpy(&header[46], &colors, 4); // Colors Used
-        memcpy(&header[50], &colors, 4); // Important Colors
+        memcpy(&header[46], &colors, 4); 
+        memcpy(&header[50], &colors, 4); 
         
         bmpOut.write(header, 54);
         
-        // --- Palette (8 bytes) ---
-        // Index 0: Black, Index 1: White
+        
+        
         uint8_t pal[8] = {
-            0,   0,   0,   0,   // [0] B, G, R, Alpha
-            255, 255, 255, 0    // [1] B, G, R, Alpha
+            0,   0,   0,   0,   
+            255, 255, 255, 0    
         };
         bmpOut.write(pal, 8);
         
@@ -272,7 +277,7 @@ int PNGDrawCallbackThumbGray(PNGDRAW* pDraw) {
   return 1;
 }
 
-}  // namespace
+}  
 
 struct PngEpubWebDrawState {
   Print* bmpOut = nullptr;

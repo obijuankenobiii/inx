@@ -1,3 +1,8 @@
+/**
+ * @file Epub.cpp
+ * @brief Definitions for Epub.
+ */
+
 #include "Epub.h"
 
 #include <FsHelpers.h>
@@ -211,7 +216,7 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    // Raw EPUB BMPs are often huge or wrong aspect; normalize into the reader/sleep canvas when possible.
+    
     if (targetW > 0 && targetH > 0) {
       success = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, targetW, targetH);
       if (!success) {
@@ -459,7 +464,7 @@ bool Epub::load(const bool buildIfMissing) {
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
   if (bookMetadataCache->load()) {
-    // book.bin already present (includes title, author, coverItemHref, etc.) — do not rebuild spine/TOC/CSS.
+    
     return true;
   }
 
@@ -494,7 +499,7 @@ bool Epub::load(const bool buildIfMissing) {
 
   bookMetadataCache->endContentOpfPass();
   
-  // Extract and cache CSS files
+  
   bookMetadataCache->beginCssPass();
   if (!bookMetadataCache->extractAndCacheCssFiles(filepath)) {
     Serial.printf("[EBP] Warning: Failed to extract CSS files\n");

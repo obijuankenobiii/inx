@@ -1,3 +1,8 @@
+/**
+ * @file FullScreenMessageActivity.cpp
+ * @brief Definitions for FullScreenMessageActivity.
+ */
+
 #include "FullScreenMessageActivity.h"
 
 #include <GfxRenderer.h>

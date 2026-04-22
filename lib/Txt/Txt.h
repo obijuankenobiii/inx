@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Txt.h
+ * @brief Public interface and types for Txt.
+ */
+
 #include <SDCardManager.h>
 
 #include <memory>
@@ -23,11 +28,11 @@ class Txt {
 
   void setupCacheDir() const;
 
-  // Cover image support - looks for cover.bmp/jpg/jpeg/png in same folder as txt file
+  
   [[nodiscard]] std::string getCoverBmpPath() const;
   [[nodiscard]] bool generateCoverBmp() const;
   [[nodiscard]] std::string findCoverImage() const;
 
-  // Read content from file
+  
   [[nodiscard]] bool readContent(uint8_t* buffer, size_t offset, size_t length) const;
 };

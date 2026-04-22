@@ -1,3 +1,8 @@
+/**
+ * @file ChapterHtmlSlimParser.cpp
+ * @brief Definitions for ChapterHtmlSlimParser.
+ */
+
 #include "ChapterHtmlSlimParser.h"
 
 #include <algorithm>
@@ -34,7 +39,7 @@ int countUtf8Codepoints(const char* s, int byteLen) {
   return n;
 }
 
-}  // namespace
+}  
 
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
@@ -82,7 +87,7 @@ void ChapterHtmlSlimParser::loadCssRules() {
 
   cssParser.clear();
 
-  // Same idea as crosspoint-reader MIN_FREE_HEAP_FOR_CSS: avoid parsing a full stylesheet when malloc is likely to fail.
+  
   constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
   if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
     Serial.printf("[EHP] Low heap (%u bytes), skipping EPUB CSS cascade (use fixed alignment / inline styles only)\n",
@@ -91,25 +96,25 @@ void ChapterHtmlSlimParser::loadCssRules() {
     return;
   }
 
-  // Get all CSS files from the EPUB
+  
   int cssCount = epub.getCssItemsCount();
   if (cssCount > 0) {
     Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
 
-    // Limit total CSS size to prevent memory issues
-    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  // 50KB max total CSS
+    
+    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  
     size_t totalCssSize = 0;
 
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
       auto cssEntry = epub.getCssItem(i);
 
-      // Skip empty CSS files
+      
       if (cssEntry.content.empty()) {
         continue;
       }
 
-      // Check individual file size
-      if (cssEntry.content.size() > 20 * 1024) {  // 20KB per file max
+      
+      if (cssEntry.content.size() > 20 * 1024) {  
         Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
                       (int)cssEntry.content.size());
         continue;
@@ -139,7 +144,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   int explicitWidth = 0;
   int explicitHeight = 0;
 
-  // Parse attributes
+  
   if (atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       std::string attrName = atts[i];
@@ -163,21 +168,21 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
   if (src.empty()) return;
 
-  // Load CSS rules if not already loaded
+  
   loadCssRules();
 
-  // Determine dimensions (priority: explicit > inline style > CSS class)
+  
   int imgWidth = explicitWidth;
   int imgHeight = explicitHeight;
 
   bool widthIsPercentage = false;
   bool heightIsPercentage = false;
 
-  // Check inline style and CSS if explicit dimensions not provided
+  
   if (imgWidth == 0 || imgHeight == 0) {
-    // Check for percentage values in inline style
+    
     if (!styleAttr.empty()) {
-      // Check if width is percentage
+      
       size_t widthPos = styleAttr.find("width:");
       if (widthPos != std::string::npos) {
         size_t percentPos = styleAttr.find("%", widthPos);
@@ -186,7 +191,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
         }
       }
 
-      // Check if height is percentage
+      
       size_t heightPos = styleAttr.find("height:");
       if (heightPos != std::string::npos) {
         size_t percentPos = styleAttr.find("%", heightPos);
@@ -196,10 +201,10 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       }
     }
 
-    // Use CssParser to get dimensions from inline style and CSS rules
+    
     if (imgWidth == 0) {
       int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-      // If CSS returned 0 but we have a percentage flag, keep it as 0 to trigger aspect ratio
+      
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
       } else if (cssWidth > 0) {
@@ -217,7 +222,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
   }
 
-  // Resolve full path and cache image
+  
   std::string base = internalPath.empty() ? filepath : internalPath;
   std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
   std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
@@ -238,11 +243,11 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgWidth = (actualW * imgHeight) / std::max(1, actualH);
     }
 
-    // Apply dimension constraints and maintain aspect ratio
+    
     if (widthIsPercentage || heightIsPercentage) {
-      // Handle percentage-based dimensions
+      
       if (widthIsPercentage && heightIsPercentage) {
-        // Both are percentages - use actual image size as fallback
+        
         if (imgWidth == 0 && imgHeight == 0) {
           imgWidth = actualW;
           imgHeight = actualH;
@@ -252,7 +257,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
           imgHeight = (actualH * imgWidth) / actualW;
         }
       } else if (widthIsPercentage && imgWidth == 0) {
-        // Width is percentage, use height to determine width
+        
         if (imgHeight > 0) {
           imgWidth = (actualW * imgHeight) / actualH;
         } else {
@@ -260,7 +265,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
           imgHeight = actualH;
         }
       } else if (heightIsPercentage && imgHeight == 0) {
-        // Height is percentage, use width to determine height
+        
         if (imgWidth > 0) {
           imgHeight = (actualH * imgWidth) / actualW;
         } else {
@@ -269,15 +274,15 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
         }
       }
     } else {
-      // Handle fixed dimensions
+      
       if (imgWidth > 0 && imgHeight == 0) {
-        // Height not specified, maintain aspect ratio based on width
+        
         imgHeight = (actualH * imgWidth) / std::max(1, actualW);
       } else if (imgHeight > 0 && imgWidth == 0) {
-        // Width not specified, maintain aspect ratio based on height
+        
         imgWidth = (actualW * imgHeight) / std::max(1, actualH);
       } else if (imgWidth == 0 && imgHeight == 0) {
-        // No dimensions specified, use actual image size
+        
         imgWidth = actualW;
         imgHeight = actualH;
       }
@@ -300,7 +305,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = cssMinH;
     }
 
-    // Cap at viewport size to prevent overflow
+    
     if (imgWidth > viewportWidth) {
       imgHeight = (imgHeight * viewportWidth) / imgWidth;
       imgWidth = viewportWidth;
@@ -411,7 +416,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  // Drop cap: first letters inside span/p (class …dropcap…); use UTF-8 codepoints in buffer, max 2, then flush or on close.
+  
   if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
@@ -423,7 +428,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
-  // Handle image tags with CSS dimension extraction
+  
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
     self->processImageElement(atts);
     self->depth += 1;
@@ -513,7 +518,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
   for (int i = 0; i < len; i++) {
     if (isWhitespace(s[i])) {
-      // Inside drop-cap span, whitespace is layout only; do not flush partial letters (fixes 2-letter caps).
+      
       if (!self->inDropCap) {
         self->flushPartWordBuffer();
       }
@@ -749,7 +754,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
-  cssLoaded = false;  // Reset CSS loaded flag for new chapter
+  cssLoaded = false;  
 
   loadCssRules();
 

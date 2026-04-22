@@ -1,3 +1,8 @@
+/**
+ * @file Menu.h
+ * @brief Public interface and types for Menu.
+ */
+
 #ifndef BASE_TAB_ACTIVITY_H
 #define BASE_TAB_ACTIVITY_H
 
@@ -9,7 +14,7 @@
 #include "system/ScreenComponents.h"
 #include "system/Fonts.h"
 
-// Include the actual icon images
+
 #include "images/Library.h"
 #include "images/Recent.h"
 #include "images/Setting.h"

@@ -1,3 +1,8 @@
+/**
+ * @file LanguageRegistry.cpp
+ * @brief Definitions for LanguageRegistry.
+ */
+
 #include "LanguageRegistry.h"
 
 #include <algorithm>
@@ -12,7 +17,7 @@
 
 namespace {
 
-// English hyphenation patterns (3/3 minimum prefix/suffix length)
+
 LanguageHyphenator englishHyphenator(en_us_patterns, isLatinLetter, toLowerLatin, 3, 3);
 LanguageHyphenator frenchHyphenator(fr_patterns, isLatinLetter, toLowerLatin);
 LanguageHyphenator germanHyphenator(de_patterns, isLatinLetter, toLowerLatin);
@@ -30,7 +35,7 @@ const EntryArray& entries() {
   return kEntries;
 }
 
-}  // namespace
+}  
 
 const LanguageHyphenator* getLanguageHyphenatorForPrimaryTag(const std::string& primaryTag) {
   const auto& allEntries = entries();

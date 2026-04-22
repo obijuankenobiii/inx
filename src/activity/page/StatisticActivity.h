@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file StatisticActivity.h
+ * @brief Public interface and types for StatisticActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -13,7 +18,7 @@
 #include "../Menu.h"
 #include "state/Statistics.h"
 
-// Forward declaration for Bitmap
+
 class Bitmap;
 
 /**
@@ -113,7 +118,7 @@ public:
         onSyncOpen(onSyncOpen),
         viewIndex(0),
         updateRequired(false) {
-        tabSelectorIndex = 4;  // Statistics tab index
+        tabSelectorIndex = 4;  
     };
 
     void onEnter() override;

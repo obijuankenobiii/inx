@@ -1,55 +1,14 @@
+/**
+ * @file LiangHyphenation.cpp
+ * @brief Definitions for LiangHyphenation.
+ */
+
 #include "LiangHyphenation.h"
 
 #include <algorithm>
 #include <vector>
 
-/*
- * Liang hyphenation pipeline overview (Typst-style binary trie variant)
- * --------------------------------------------------------------------
- * 1.  Input normalization (buildAugmentedWord)
- *     - Accepts a vector of CodepointInfo structs emitted by the EPUB text
- *       parser. Each codepoint is validated with LiangWordConfig::isLetter so
- *       we abort early on digits, punctuation, etc. If the word is valid we
- *       build an "augmented" byte sequence: leading '.', lowercase UTF-8 bytes
- *       for every letter, then a trailing '.'. While doing this we capture the
- *       UTF-8 byte offset for each character and a reverse lookup table that
- *       maps UTF-8 byte indexes back to codepoint indexes. This lets the rest
- *       of the algorithm stay byte-oriented (matching the serialized automaton)
- *       while still emitting hyphen positions in codepoint space.
- *
- * 2.  Automaton decoding
- *     - SerializedHyphenationPatterns stores a contiguous blob generated from
- *       Typst's binary tries. The first 4 bytes contain the root offset. Each
- *       node packs transitions, variable-stride relative offsets to child
- *       nodes, and an optional pointer into a shared "levels" list. We parse
- *       that layout lazily via decodeState/transition, keeping everything in
- *       flash memory; no heap allocations besides the stack-local AutomatonState
- *       structs. getAutomaton caches parseAutomaton results per blob pointer so
- *       multiple words hitting the same language only pay the cost once.
- *
- * 3.  Pattern application
- *     - We walk the augmented bytes left-to-right. For each starting byte we
- *       stream transitions through the trie, terminating when a transition
- *       fails. Whenever a node exposes level data we expand the packed
- *       "dist+level" bytes: `dist` is the delta (in UTF-8 bytes) from the
- *       starting cursor and `level` is the Liang priority digit. Using the
- *       byte→codepoint lookup we mark the corresponding index in `scores`.
- *       Scores are only updated if the new level is higher, mirroring Liang's
- *       "max digit wins" rule.
- *
- * 4.  Output filtering
- *     - collectBreakIndexes converts odd-valued score entries back to codepoint
- *       break positions while enforcing `minPrefix`/`minSuffix` constraints from
- *       LiangWordConfig. The caller (language-specific hyphenators) can then
- *       translate these indexes into renderer glyph offsets, page layout data,
- *       etc.
- *
- * Keeping the entire algorithm small and deterministic is critical on the
- * ESP32-C3: we avoid recursion, dynamic allocations per node, or copying the
- * trie. All lookups stay within the generated blob, which lives in flash, and
- * the working buffers (augmented bytes/scores) scale with the word length rather
- * than the pattern corpus.
- */
+
 
 namespace {
 
@@ -62,7 +21,7 @@ struct AugmentedWord {
   size_t charCount() const { return charByteOffsets.size(); }
 };
 
-// Encode a single Unicode codepoint into UTF-8 and append to the provided buffer.
+
 size_t encodeUtf8(uint32_t cp, std::vector<uint8_t>& out) {
   if (cp <= 0x7Fu) {
     out.push_back(static_cast<uint8_t>(cp));
@@ -86,7 +45,7 @@ size_t encodeUtf8(uint32_t cp, std::vector<uint8_t>& out) {
   return 4;
 }
 
-// Build the dotted, lowercase UTF-8 representation plus lookup tables.
+
 AugmentedWord buildAugmentedWord(const std::vector<CodepointInfo>& cps, const LiangWordConfig& config) {
   AugmentedWord word;
   if (cps.empty()) {
@@ -123,10 +82,10 @@ AugmentedWord buildAugmentedWord(const std::vector<CodepointInfo>& cps, const Li
   return word;
 }
 
-// Decoded view of a single trie node pulled straight out of the serialized blob.
-// - transitions: contiguous list of next-byte values
-// - targets: packed relative offsets (1/2/3 bytes) for each transition
-// - levels: optional pointer into the global levels list with packed dist/level pairs
+
+
+
+
 struct AutomatonState {
   const uint8_t* data = nullptr;
   size_t size = 0;
@@ -141,10 +100,10 @@ struct AutomatonState {
   bool valid() const { return data != nullptr; }
 };
 
-// Lightweight descriptor for the entire embedded automaton.
-// The blob format is:
-//   [0..3]  - big-endian root offset
-//   [4....] - node heap containing variable-sized headers + transition data
+
+
+
+
 struct EmbeddedAutomaton {
   const uint8_t* data = nullptr;
   size_t size = 0;
@@ -153,7 +112,7 @@ struct EmbeddedAutomaton {
   bool valid() const { return data != nullptr && size >= 4 && rootOffset < size; }
 };
 
-// Decode the serialized automaton header and root offset.
+
 EmbeddedAutomaton parseAutomaton(const SerializedHyphenationPatterns& patterns) {
   EmbeddedAutomaton automaton;
   if (!patterns.data || patterns.size < 4) {
@@ -172,7 +131,7 @@ EmbeddedAutomaton parseAutomaton(const SerializedHyphenationPatterns& patterns) 
   return automaton;
 }
 
-// Cache parsed automata per blob pointer to avoid reparsing.
+
 const EmbeddedAutomaton& getAutomaton(const SerializedHyphenationPatterns& patterns) {
   struct CacheEntry {
     const SerializedHyphenationPatterns* key;
@@ -190,7 +149,7 @@ const EmbeddedAutomaton& getAutomaton(const SerializedHyphenationPatterns& patte
   return cache.back().automaton;
 }
 
-// Interpret the node located at `addr`, returning transition metadata.
+
 AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   AutomatonState state;
   if (!automaton.valid() || addr >= automaton.size) {
@@ -202,10 +161,10 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   size_t pos = 0;
 
   const uint8_t header = base[pos++];
-  // Header layout (bits):
-  //   7        - hasLevels flag
-  //   6..5     - stride selector (0 -> 1 byte, otherwise 1|2|3)
-  //   4..0     - child count (5 bits), 31 == overflow -> extra byte
+  
+  
+  
+  
   const bool hasLevels = (header >> 7) != 0;
   uint8_t stride = static_cast<uint8_t>((header >> 5) & 0x03u);
   if (stride == 0) {
@@ -227,8 +186,8 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
     }
     const uint8_t offsetHi = base[pos++];
     const uint8_t offsetLoLen = base[pos++];
-    // The 12-bit offset (hi<<4 | top nibble) points into the blob-level levels list.
-    // The bottom nibble stores how many packed entries belong to this node.
+    
+    
     const size_t offset = (static_cast<size_t>(offsetHi) << 4) | (offsetLoLen >> 4);
     levelsLen = offsetLoLen & 0x0Fu;
     if (offset + levelsLen > automaton.size) {
@@ -261,7 +220,7 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   return state;
 }
 
-// Convert the packed stride-sized delta back into a signed offset.
+
 int32_t decodeDelta(const uint8_t* buf, uint8_t stride) {
   if (stride == 1) {
     return static_cast<int8_t>(buf[0]);
@@ -274,22 +233,22 @@ int32_t decodeDelta(const uint8_t* buf, uint8_t stride) {
   return unsignedVal - (1 << 23);
 }
 
-// Follow a single byte transition from `state`, decoding the child node on success.
+
 bool transition(const EmbeddedAutomaton& automaton, const AutomatonState& state, uint8_t letter, AutomatonState& out) {
   if (!state.valid()) {
     return false;
   }
 
-  // Children remain sorted by letter in the serialized blob, but the lists are
-  // short enough that a linear scan keeps code size down compared to binary search.
+  
+  
   for (size_t idx = 0; idx < state.childCount; ++idx) {
     if (state.transitions[idx] != letter) {
       continue;
     }
     const uint8_t* deltaPtr = state.targets + idx * state.stride;
     const int32_t delta = decodeDelta(deltaPtr, state.stride);
-    // Deltas are relative to the current node's address, allowing us to keep all
-    // targets within 24 bits while still referencing further nodes in the blob.
+    
+    
     const int64_t nextAddr = static_cast<int64_t>(state.addr) + delta;
     if (nextAddr < 0 || static_cast<size_t>(nextAddr) >= automaton.size) {
       return false;
@@ -300,9 +259,9 @@ bool transition(const EmbeddedAutomaton& automaton, const AutomatonState& state,
   return false;
 }
 
-// Converts odd score positions back into codepoint indexes, honoring min prefix/suffix constraints.
-// Each break corresponds to scores[breakIndex + 1] because of the leading '.' sentinel.
-// Convert odd score entries into hyphen positions while honoring prefix/suffix limits.
+
+
+
 std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, const std::vector<uint8_t>& scores,
                                         const size_t minPrefix, const size_t minSuffix) {
   std::vector<size_t> indexes;
@@ -334,9 +293,9 @@ std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, c
   return indexes;
 }
 
-}  // namespace
+}  
 
-// Entry point that runs the full Liang pipeline for a single word.
+
 std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
                                       const SerializedHyphenationPatterns& patterns, const LiangWordConfig& config) {
   const auto augmented = buildAugmentedWord(cps, config);
@@ -354,10 +313,10 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     return {};
   }
 
-  // Liang scores: one entry per augmented char (leading/trailing dots included).
+  
   std::vector<uint8_t> scores(augmented.charCount(), 0);
 
-  // Walk every starting character position and stream bytes through the trie.
+  
   for (size_t charStart = 0; charStart < augmented.charByteOffsets.size(); ++charStart) {
     const size_t byteStart = augmented.charByteOffsets[charStart];
     AutomatonState state = root;
@@ -365,13 +324,13 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     for (size_t cursor = byteStart; cursor < augmented.bytes.size(); ++cursor) {
       AutomatonState next;
       if (!transition(automaton, state, augmented.bytes[cursor], next)) {
-        break;  // No more matches for this prefix.
+        break;  
       }
       state = next;
 
       if (state.levels && state.levelsLen > 0) {
         size_t offset = 0;
-        // Each packed byte stores the byte-distance delta and the Liang level digit.
+        
         for (size_t i = 0; i < state.levelsLen; ++i) {
           const uint8_t packed = state.levels[i];
           const size_t dist = static_cast<size_t>(packed / 10);
@@ -385,10 +344,10 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
 
           const int32_t boundary = augmented.byteToCharIndex[splitByte];
           if (boundary < 0) {
-            continue;  // Mid-codepoint byte, wait for the next one.
+            continue;  
           }
           if (boundary < 2 || boundary + 2 > static_cast<int32_t>(augmented.charCount())) {
-            continue;  // Skip splits that land in the leading/trailing sentinels.
+            continue;  
           }
 
           const size_t idx = static_cast<size_t>(boundary);

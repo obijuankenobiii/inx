@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file TxtReaderActivity.h
+ * @brief Public interface and types for TxtReaderActivity.
+ */
+
 #include <Txt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -21,14 +26,14 @@ class TxtReaderActivity final : public ActivityWithSubactivity {
   const std::function<void()> onGoBack;
   const std::function<void()> onGoToRecent;
 
-  // Streaming text reader - stores file offsets for each page
-  std::vector<size_t> pageOffsets;  // File offset for start of each page
+  
+  std::vector<size_t> pageOffsets;  
   std::vector<std::string> currentPageLines;
   int linesPerPage = 0;
   int viewportWidth = 0;
   bool initialized = false;
 
-  // Cached settings for cache validation (different fonts/margins require re-indexing)
+  
   int cachedFontId = 0;
   int cachedScreenMargin = 0;
   uint8_t cachedParagraphAlignment = SystemSetting::LEFT_ALIGN;

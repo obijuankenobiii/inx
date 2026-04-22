@@ -1,3 +1,8 @@
+/**
+ * @file Statistics.cpp
+ * @brief Definitions for Statistics.
+ */
+
 #include "state/Statistics.h"
 #include <SDCardManager.h>
 #include <cstring>
@@ -8,7 +13,7 @@
 static const char* STATS_DIR = ".system/";
 static const char* statistics_FILE = ".system/statistics.bin";
 
-constexpr uint32_t STATS_FILE_VERSION = 2;  // Incremented version for sessionCount addition
+constexpr uint32_t STATS_FILE_VERSION = 2;  
 constexpr uint32_t STATS_MAGIC_NUMBER = 0x53544154; 
 
 /**
@@ -42,7 +47,7 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats) {
     
     bool writeSuccess = false;
     
-    // Use a separate scope for file writing
+    
     {
         FsFile file;
         FileGuard guard(file);
@@ -54,7 +59,7 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats) {
             file.write(&magic, sizeof(uint32_t));
             file.write(&version, sizeof(uint32_t));
             
-            // Main stats
+            
             file.write(&stats.totalReadingTimeMs, sizeof(uint32_t));
             file.write(&stats.totalPagesRead, sizeof(uint32_t));
             file.write(&stats.totalChaptersRead, sizeof(uint32_t));
@@ -63,7 +68,7 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats) {
             file.write(&stats.lastSpineIndex, sizeof(uint16_t));
             file.write(&stats.lastPageNumber, sizeof(uint16_t));
             file.write(&stats.avgPageTimeMs, sizeof(uint32_t));
-            file.write(&stats.sessionCount, sizeof(uint32_t));  // Added sessionCount
+            file.write(&stats.sessionCount, sizeof(uint32_t));  
             
             uint32_t pathLength = stats.path.length();
             file.write(&pathLength, sizeof(uint32_t));
@@ -79,14 +84,14 @@ void saveBookStats(const char* cachePath, const BookReadingStats& stats) {
             
             writeSuccess = true;
         }
-        // FileGuard closes file here
+        
     }
     
-    // File is definitely closed now, safe to do filesystem operations
+    
     if (writeSuccess) {
         SdMan.remove(statsPath.c_str());
         if (!SdMan.rename(tempPath.c_str(), statsPath.c_str())) {
-            // Rename failed - clean up temp file
+            
             SdMan.remove(tempPath.c_str());
         }
     } else {
@@ -107,7 +112,7 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
     std::string statsPath = std::string(cachePath) + "/statistics.bin";
     
     FsFile file;
-    FileGuard guard(file);  // Ensures file is closed on function exit
+    FileGuard guard(file);  
     
     if (!SdMan.openFileForRead("STATS", statsPath.c_str(), file)) {
         return false;
@@ -115,14 +120,14 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
     
     uint32_t magic, version;
     if (file.read(&magic, sizeof(uint32_t)) != sizeof(uint32_t) || magic != STATS_MAGIC_NUMBER) {
-        return false;  // File closes automatically via FileGuard
+        return false;  
     }
     
     if (file.read(&version, sizeof(uint32_t)) != sizeof(uint32_t)) {
-        return false;  // File closes automatically via FileGuard
+        return false;  
     }
     
-    // Main stats
+    
     file.read(&stats.totalReadingTimeMs, sizeof(uint32_t));
     file.read(&stats.totalPagesRead, sizeof(uint32_t));
     file.read(&stats.totalChaptersRead, sizeof(uint32_t));
@@ -132,14 +137,14 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
     file.read(&stats.lastPageNumber, sizeof(uint16_t));
     file.read(&stats.avgPageTimeMs, sizeof(uint32_t));
     
-    // Handle version differences
+    
     if (version >= 2) {
         file.read(&stats.sessionCount, sizeof(uint32_t));
     } else {
-        stats.sessionCount = 0;  // Default for old version files
+        stats.sessionCount = 0;  
     }
     
-    // Path String - Read directly into std::string to save stack space
+    
     uint32_t pathLen;
     if (file.read(&pathLen, sizeof(uint32_t)) == sizeof(uint32_t) && pathLen < 512) {
         if (pathLen > 0) {
@@ -150,7 +155,7 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
         }
     }
 
-    // Title String
+    
     uint32_t titleLen;
     if (file.read(&titleLen, sizeof(uint32_t)) == sizeof(uint32_t) && titleLen < 512) {
         if (titleLen > 0) {
@@ -171,7 +176,7 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
         }
     }
     
-    // File closes automatically via FileGuard
+    
     return true;
 }
 
@@ -183,23 +188,23 @@ bool loadBookStats(const char* cachePath, BookReadingStats& stats) {
  */
 std::vector<BookReadingStats> getAllBooksStats() {
     std::vector<BookReadingStats> result;
-    // Reserve space to avoid frequent reallocations (potential heap fragmentation)
+    
     result.reserve(10); 
     
     FsFile root;
-    FileGuard rootGuard(root);  // Ensures root directory is closed
+    FileGuard rootGuard(root);  
     
     root = SdMan.open("/.metadata/epub");
     if (!root || !root.isDirectory()) {
-        return result;  // root closes automatically via FileGuard
+        return result;  
     }
     
     root.rewindDirectory();
-    char fileName[128]; // Smaller buffer
+    char fileName[128]; 
     
     while (true) {
         FsFile entry;
-        FileGuard entryGuard(entry);  // Ensures each entry is closed
+        FileGuard entryGuard(entry);  
         
         entry = root.openNextFile();
         if (!entry) break;
@@ -213,10 +218,10 @@ std::vector<BookReadingStats> getAllBooksStats() {
                 result.push_back(stats);
             }
         }
-        // entry closes automatically via FileGuard
+        
     }
     
-    // root closes automatically via FileGuard
+    
     return result;
 }
 
@@ -239,18 +244,18 @@ bool getBookStats(const char* bookPath, BookReadingStats& stats) {
  * @return true if statistics were successfully loaded, false otherwise
  */
 bool loadGlobalStats(GlobalReadingStats& stats) {
-    // Ensure the struct is zeroed if read fails
+    
     memset(&stats, 0, sizeof(GlobalReadingStats));
     
     FsFile file;
-    FileGuard guard(file);  // Ensures file is closed on function exit
+    FileGuard guard(file);  
     
     if (!SdMan.openFileForRead("STATS", statistics_FILE, file)) {
-        return false;  // File closes automatically via FileGuard
+        return false;  
     }
     
     size_t bytesRead = file.read(&stats, sizeof(GlobalReadingStats));
-    // File closes automatically via FileGuard
+    
     
     return bytesRead == sizeof(GlobalReadingStats);
 }
@@ -267,15 +272,15 @@ void saveGlobalStats(const GlobalReadingStats& stats) {
     std::string tempPath = std::string(statistics_FILE) + ".tmp";
     
     FsFile file;
-    FileGuard guard(file);  // Ensures file is closed on function exit
+    FileGuard guard(file);  
     
     if (SdMan.openFileForWrite("STATS", tempPath.c_str(), file)) {
         file.write(&stats, sizeof(GlobalReadingStats));
-        // File closes automatically via FileGuard
+        
     }
     
-    // File is closed here, safe to do filesystem operations
-    if (file) {  // Check if file was successfully opened
+    
+    if (file) {  
         SdMan.remove(statistics_FILE);
         SdMan.rename(tempPath.c_str(), statistics_FILE);
     } else {

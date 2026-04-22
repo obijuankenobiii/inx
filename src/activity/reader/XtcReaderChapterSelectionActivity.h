@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file XtcReaderChapterSelectionActivity.h
+ * @brief Public interface and types for XtcReaderChapterSelectionActivity.
+ */
+
 #include <Xtc.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>

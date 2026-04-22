@@ -1,3 +1,8 @@
+/**
+ * @file SyncActivity.cpp
+ * @brief Definitions for SyncActivity.
+ */
+
 #include "../page/SyncActivity.h"
 
 #include <GfxRenderer.h>
@@ -42,7 +47,7 @@ const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
     "Create a WiFi network others can join",
 };
 constexpr int LIST_ITEM_HEIGHT = 80;
-}  // namespace
+}  
 
 /**
  * Static task trampoline that forwards to the displayTaskLoop member function.
@@ -64,7 +69,7 @@ void SyncActivity::onEnter() {
 
   selectedIndex = 0;
 
-  // Initial render immediately
+  
   render();
 
   if (displayTaskHandle == nullptr) {
@@ -212,13 +217,13 @@ void SyncActivity::render() const {
       const int descriptionY = itemY + 42;
 
       switch (i) {
-        case 0:  // Join a Network
+        case 0:  
           renderer.drawIcon(Wifi, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
-        case 1:  // Connect to Calibre
+        case 1:  
           renderer.drawIcon(Calibre, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
-        case 2:  // Create Hotspot
+        case 2:  
           renderer.drawIcon(Qr, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }

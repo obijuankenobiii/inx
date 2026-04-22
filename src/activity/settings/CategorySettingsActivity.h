@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file CategorySettingsActivity.h
+ * @brief Public interface and types for CategorySettingsActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -130,7 +136,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   const std::function<void()> onTabSync;
   const std::function<void()> onTabStatistics;
   
-  // Dynamic menu items
+  
   struct MenuEntry {
       const char* name;
       SettingType type;

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file CssParser.h
+ * @brief Public interface and types for CssParser.
+ */
+
 #include <map>
 #include <string>
 #include <vector>

@@ -1,3 +1,8 @@
+/**
+ * @file HalDisplay.cpp
+ * @brief Definitions for HalDisplay.
+ */
+
 #include <HalDisplay.h>
 #include <HalGPIO.h>
 

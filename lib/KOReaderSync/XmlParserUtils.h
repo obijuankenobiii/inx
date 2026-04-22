@@ -1,8 +1,13 @@
 #pragma once
 
+/**
+ * @file XmlParserUtils.h
+ * @brief Public interface and types for XmlParserUtils.
+ */
+
 #include <expat.h>
 
-// Safely tear down an expat parser: stop processing, clear callbacks, free, and null the pointer.
+
 inline void destroyXmlParser(XML_Parser& parser) {
   if (!parser) return;
   XML_StopParser(parser, XML_FALSE);

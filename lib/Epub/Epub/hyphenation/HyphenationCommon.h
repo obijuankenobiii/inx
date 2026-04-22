@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file HyphenationCommon.h
+ * @brief Public interface and types for HyphenationCommon.
+ */
+
 #include <cstddef>
 #include <cstdint>
 #include <string>

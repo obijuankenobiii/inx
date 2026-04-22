@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file Page.h
+ * @brief Public interface and types for Page.
+ */
+
 #include <Bitmap.h>
 #include <SdFat.h>
 #include <utility>
@@ -11,7 +17,7 @@ enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
   TAG_PageHeader = 2,
   TAG_PageImage = 3,
-  TAG_PageDropCap = 4, // Added for drop cap support
+  TAG_PageDropCap = 4, 
 };
 
 /**

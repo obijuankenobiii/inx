@@ -1,3 +1,8 @@
+/**
+ * @file Page.cpp
+ * @brief Definitions for Page.
+ */
+
 #include "Page.h"
 
 #include <GfxRenderer.h>
@@ -14,7 +19,7 @@
  * @param yOffset Vertical offset for page margins
  */
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                      BitmapDitherMode /*imageDitherMode*/) {
+                      BitmapDitherMode ) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -54,7 +59,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        BitmapDitherMode /*imageDitherMode*/) {
+                        BitmapDitherMode ) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -95,7 +100,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                         BitmapDitherMode /*imageDitherMode*/) {
+                         BitmapDitherMode ) {
   renderer.drawText(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 

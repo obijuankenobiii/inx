@@ -1,3 +1,8 @@
+/**
+ * @file RecentBooks.cpp
+ * @brief Definitions for RecentBooks.
+ */
+
 #include "state/RecentBooks.h"
 
 #include <HardwareSerial.h>
@@ -10,7 +15,7 @@ namespace {
 constexpr uint8_t RECENT_BOOKS_FILE_VERSION = 4;
 constexpr char RECENT_BOOKS_FILE[] = "/.metadata/recent.bin";
 constexpr int MAX_RECENT_BOOKS = 8;
-}  // namespace
+}  
 
 RecentBooks RecentBooks::instance;
 
@@ -81,7 +86,7 @@ bool RecentBooks::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  // Basic sanity check
+  
   if (version < 1 || version > 4) {
     inputFile.close();
     return false;
@@ -91,7 +96,7 @@ bool RecentBooks::loadFromFile() {
     uint8_t count;
     serialization::readPod(inputFile, count);
 
-    // Sanity check count
+    
     if (count > MAX_RECENT_BOOKS * 2) {
       inputFile.close();
       return false;
@@ -106,7 +111,7 @@ bool RecentBooks::loadFromFile() {
       serialization::readString(inputFile, title);
       serialization::readString(inputFile, author);
 
-      // Skip if path is empty (corrupted)
+      
       if (path.empty()) {
         recentBooks.clear();
         inputFile.close();

@@ -1,3 +1,8 @@
+/**
+ * @file CssParser.cpp
+ * @brief Definitions for CssParser.
+ */
+
 #include "CssParser.h"
 
 #include <HardwareSerial.h>
@@ -105,7 +110,7 @@ bool selectorListMatchesElementType(const std::string& fullSelectorLower, const 
   return false;
 }
 
-}  // namespace
+}  
 
 CssParser::CssParser() {}
 
@@ -448,7 +453,7 @@ int CssParser::parseDimensionValue(const std::string& valueIn, int viewportWidth
 
   if (numStr.empty()) return 0;
 
-  // Never use std::stof here: it throws on bad input and with -fno-exceptions that can terminate the process.
+  
   char* parseEnd = nullptr;
   const float num = std::strtof(numStr.c_str(), &parseEnd);
   if (parseEnd == numStr.c_str()) {
@@ -746,7 +751,7 @@ uint8_t CssParser::computeParagraphAlignment(const std::string& className, const
     }
   }
 
-  return 1;  // LEFT when CSS gives no usable hint
+  return 1;  
 }
 
 int CssParser::getTextIndentPx(const std::string& elementTagLower, const std::string& className, const std::string& id,

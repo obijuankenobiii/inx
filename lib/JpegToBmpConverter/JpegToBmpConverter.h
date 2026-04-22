@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file JpegToBmpConverter.h
+ * @brief Public interface and types for JpegToBmpConverter.
+ */
+
 class FsFile;
 class Print;
 class ZipFile;
@@ -9,23 +14,23 @@ class JpegToBmpConverter {
                                         unsigned char* pBytes_actually_read, void* pCallback_data);
   static bool jpegFileToBmpStreamInternal(class FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool oneBit, bool quickMode = false);
-  // Internal: cropToFill true = cover (fill target, center crop); false = contain (fit in target, no upscale).
+  
   static bool jpegFileToBmpStreamInternalCentered(class FsFile& jpegFile, Print& bmpOut, int targetWidth,
                                                   int targetHeight, bool oneBit, bool quickMode = false,
                                                   bool cropToFill = true);
 
  public:
   static bool jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut);
-  // Convert with custom target size (for thumbnails)
+  
   static bool jpegFileToBmpStreamWithSize(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
-  // Convert to 1-bit BMP (black and white only, no grays)
+  
   static bool jpegFileTo1BitBmpStream(FsFile& jpegFile, Print& bmpOut);
-  // Convert to 1-bit BMP with custom target size (for thumbnails)
+  
   static bool jpegFileTo1BitBmpStreamWithSize(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
-  // Quick preview mode: simple threshold instead of dithering (faster but lower quality)
+  
   static bool jpegFileToBmpStreamQuick(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
 
-  // NEW: Centered full-screen fill functions (crops and centers to fit exactly)
+  
   static bool jpegFileTo1BitBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                             bool cropToFill = true);
   static bool jpegFileToBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,

@@ -1,3 +1,8 @@
+/**
+ * @file SettingsDrawer.cpp
+ * @brief Definitions for SettingsDrawer.
+ */
+
 #include "SettingsDrawer.h"
 
 #include <algorithm>
@@ -47,7 +52,7 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
   return in.wasPressed(MappedInputManager::Button::Right);
 }
 
-}  // namespace
+}  
 
 /**
  * @brief Constructs a new SettingsDrawer

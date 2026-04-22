@@ -1,3 +1,8 @@
+/**
+ * @file EpubActivity.cpp
+ * @brief Definitions for EpubActivity.
+ */
+
 #include "EpubActivity.h"
 
 #include <cstdio>
@@ -57,7 +62,7 @@ void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orie
     if (!next) next = rightReleased;
   }
 }
-}  // namespace
+}  
 
 /**
  * @brief Structure containing viewport calculation results.
@@ -303,8 +308,8 @@ void EpubActivity::setupOrientation() {
     default:
       break;
   }
-  // Landscape CW maps logical coordinates with a 180° flip vs the panel; swap directional inputs
-  // so physical up/down/left/right (and page keys) stay aligned with what is drawn.
+  
+  
   mappedInput.setInvertDirectionalAxes180(renderer.getOrientation() == GfxRenderer::Orientation::LandscapeClockwise);
 }
 
@@ -317,11 +322,11 @@ void EpubActivity::syncOrientationFromGlobalIfNeeded() {
 }
 
 void EpubActivity::onBookSettingsLiveLayoutSync() {
-  // Do not call setupOrientation() or relayout the menu while the book settings drawer is open;
-  // orientation and section rebuild run when the drawer closes (see isToggleClosed).
-  // Do not set updateRequired here: the display task's renderScreen() clears the framebuffer and
-  // redraws the page before the drawer, which makes the drawer flash on/off in landscape (CCW/CW)
-  // while changing values. The drawer already redraws via handleInput -> renderWithRefresh.
+  
+  
+  
+  
+  
   if (settingsDrawer) {
     settingsDrawer->relayoutForRendererChange();
   }
@@ -397,7 +402,7 @@ void EpubActivity::ensureThumbnailExists() {
  * @brief Displays cover if it exists, otherwise shows title
  */
 void EpubActivity::displayCoverOrTitle() {
-  // Prefer crop-to-fill cover (matches sleep "fill" intent); fall back to letterboxed cover.bmp.
+  
   std::string coverPath = epub->getCoverBmpPath(true);
   if (!SdMan.exists(coverPath.c_str())) {
     epub->generateCoverBmp(true);
@@ -622,8 +627,8 @@ void EpubActivity::onExit() {
  * @brief Main loop function called repeatedly while activity is active
  */
 void EpubActivity::loop() {
-  // Sub-activities (KOReader sync, WiFi picker, etc.) must run even while the reader display task holds
-  // `epubScreenRenderBusy`; otherwise their input handling never runs and the UI appears frozen.
+  
+  
   if (subActivity) {
     subActivity->loop();
     return;
@@ -932,7 +937,7 @@ void EpubActivity::toggleSettingsDrawer() {
 
   if (settingsDrawerVisible) {
     syncOrientationFromGlobalIfNeeded();
-    // Keep current renderer orientation until the drawer is dismissed; apply on close.
+    
     settingsDrawer->show();
     return;
   }
@@ -1233,7 +1238,7 @@ void EpubActivity::pageTurn(bool forward) {
     }
     if (updateRequired) {
       if (subActivity) {
-        // Reader redraw is deferred while a modal sub-activity owns the screen (it has its own render task).
+        
         updateRequired = false;
       } else {
         updateRequired = false;
@@ -1345,8 +1350,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
-  // Do not HALF-refresh here before page->render(): renderScreen() already clearScreen() to white; pushing
-  // that empty buffer with HALF confuses the first paint (and some image pages) vs drawing then FAST.
+  
+  
 
   if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1370,8 +1375,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   if (pagesUntilFullRefresh <= 1) {
-    // Image-heavy pages need a full framebuffer push (FAST); HALF here can leave bitmaps incomplete
-    // when the periodic "full" refresh counter hits (e.g. refresh every 1 page).
+    
+    
     renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = false;
@@ -1383,7 +1388,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale =
       SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
 
-  // First push of the composed frame; grayscale pass (if any) expects FAST here, not HALF.
+  
   renderer.displayBuffer();
 
   if (needsImageGrayscale) {

@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file OpdsParser.h
+ * @brief Public interface and types for OpdsParser.
+ */
+
 #include <Print.h>
 #include <expat.h>
 
@@ -9,8 +15,8 @@
  * Type of OPDS entry.
  */
 enum class OpdsEntryType {
-  NAVIGATION,  // Link to another catalog
-  BOOK         // Downloadable book
+  NAVIGATION,  
+  BOOK         
 };
 
 /**
@@ -19,12 +25,12 @@ enum class OpdsEntryType {
 struct OpdsEntry {
   OpdsEntryType type = OpdsEntryType::NAVIGATION;
   std::string title;
-  std::string author;  // Only for books
-  std::string href;    // Navigation URL or epub download URL
+  std::string author;  
+  std::string href;    
   std::string id;
 };
 
-// Legacy alias for backward compatibility
+
 using OpdsBook = OpdsEntry;
 
 /**
@@ -48,7 +54,7 @@ class OpdsParser final : public Print {
   OpdsParser();
   ~OpdsParser();
 
-  // Disable copy
+  
   OpdsParser(const OpdsParser&) = delete;
   OpdsParser& operator=(const OpdsParser&) = delete;
 
@@ -80,12 +86,12 @@ class OpdsParser final : public Print {
   void clear();
 
  private:
-  // Expat callbacks
+  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
 
-  // Helper to find attribute value
+  
   static const char* findAttribute(const XML_Char** atts, const char* name);
 
   XML_Parser parser = nullptr;
@@ -93,7 +99,7 @@ class OpdsParser final : public Print {
   OpdsEntry currentEntry;
   std::string currentText;
 
-  // Parser state
+  
   bool inEntry = false;
   bool inTitle = false;
   bool inAuthor = false;

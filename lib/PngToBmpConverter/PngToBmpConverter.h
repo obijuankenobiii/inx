@@ -1,3 +1,8 @@
+/**
+ * @file PngToBmpConverter.h
+ * @brief Public interface and types for PngToBmpConverter.
+ */
+
 #ifndef PngToBmpConverter_h
 #define PngToBmpConverter_h
 
@@ -6,7 +11,7 @@
 
 class PngToBmpConverter {
 public:
-    // Convert PNG to 1-bit BMP
+    
     static bool pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut);
     static bool pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut,
                                                int targetMaxWidth, int targetMaxHeight,
@@ -20,13 +25,13 @@ public:
     /** EPUB body images: 2-bit BMP matching web reader (contain 500×820, FS dither, 42/127/212). */
     static bool pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Print& bmpOut);
     
-    // Thumbnail functions
+    
     static bool pngFileToThumbnailBmp(FsFile& pngFile, Print& bmpOut,
                                       int targetMaxWidth = 0, int targetMaxHeight = 0);
     static bool pngFileTo1BitThumbnailBmp(FsFile& pngFile, Print& bmpOut,
                                           int targetMaxWidth = 0, int targetMaxHeight = 0);
     
-    // Debug function to print PNG header info
+    
     static void printPngInfo(uint8_t* pngBuffer, size_t fileSize);
 };
 

@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file FullScreenMessageActivity.h
+ * @brief Public interface and types for FullScreenMessageActivity.
+ */
+
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
 

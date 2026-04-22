@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file TableOfContentsActivity.h
+ * @brief Public interface and types for TableOfContentsActivity.
+ */
+
 #include <Epub.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>

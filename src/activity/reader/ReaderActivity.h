@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file ReaderActivity.h
+ * @brief Public interface and types for ReaderActivity.
+ */
+
 #include <memory>
 #include <functional>
 #include <string>
@@ -7,7 +12,7 @@
 #include "../ActivityWithSubactivity.h"
 #include "activity/page/LibraryActivity.h"
 
-// Forward declarations
+
 class Epub;
 class Xtc;
 class Txt;

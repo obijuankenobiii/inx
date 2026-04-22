@@ -1,3 +1,8 @@
+/**
+ * @file EpdFont.cpp
+ * @brief Definitions for EpdFont.
+ */
+
 #include "EpdFont.h"
 
 #include <Utf8.h>
@@ -26,7 +31,7 @@ void EpdFont::getTextBounds(const char* string, const int startX, const int star
     }
 
     if (!glyph) {
-      // TODO: Better handle this?
+      
       continue;
     }
 
@@ -61,8 +66,8 @@ const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
 
   if (count == 0) return nullptr;
 
-  // Binary search for O(log n) lookup instead of O(n)
-  // Critical for Korean fonts with many unicode intervals
+  
+  
   int left = 0;
   int right = count - 1;
 
@@ -75,7 +80,7 @@ const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
     } else if (cp > interval->last) {
       left = mid + 1;
     } else {
-      // Found: cp >= interval->first && cp <= interval->last
+      
       return &data->glyph[interval->offset + (cp - interval->first)];
     }
   }

@@ -1,3 +1,8 @@
+/**
+ * @file EpdFontFamily.cpp
+ * @brief Definitions for EpdFontFamily.
+ */
+
 #include "EpdFontFamily.h"
 
 const EpdFont* EpdFontFamily::getFont(const Style style) const {

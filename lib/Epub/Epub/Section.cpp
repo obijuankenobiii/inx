@@ -1,3 +1,8 @@
+/**
+ * @file Section.cpp
+ * @brief Definitions for Section.
+ */
+
 #include "Section.h"
 #include <SDCardManager.h>
 #include <Serialization.h>

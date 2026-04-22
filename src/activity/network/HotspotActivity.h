@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file HotspotActivity.h
+ * @brief Public interface and types for HotspotActivity.
+ */
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>

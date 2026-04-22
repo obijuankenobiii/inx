@@ -1,3 +1,8 @@
+/**
+ * @file AboutPage.cpp
+ * @brief Definitions for AboutPage.
+ */
+
 #include "AboutPage.h"
 
 #include "system/Fonts.h"

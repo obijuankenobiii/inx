@@ -1,4 +1,10 @@
 #pragma once
+
+/**
+ * @file EpdFont.h
+ * @brief Public interface and types for EpdFont.
+ */
+
 #include "EpdFontData.h"
 
 class EpdFont {

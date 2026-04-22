@@ -1,3 +1,8 @@
+/**
+ * @file LocalNetworkActivity.cpp
+ * @brief Definitions for LocalNetworkActivity.
+ */
+
 #include "LocalNetworkActivity.h"
 
 #include <ESPmDNS.h>
@@ -13,7 +18,7 @@
 namespace {
 constexpr const char* AP_HOSTNAME = "crosspoint";
 
-// Layout constants matching other activities
+
 constexpr int CONTENT_MARGIN = 25;
 constexpr int LINE_SPACING = 28;
 constexpr int SMALL_SPACING = 25;
@@ -59,7 +64,7 @@ std::string truncateString(const std::string& str, int maxLength) {
     result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
     return result;
 }
-}  // namespace
+}  
 
 /**
  * @brief Static trampoline function for FreeRTOS task creation
@@ -291,7 +296,7 @@ void LocalNetworkActivity::renderServerRunning() const {
                    renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                    DIVIDER_PADDING + SECTION_SPACING - 10;
 
-    // Network Section
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
@@ -308,7 +313,7 @@ void LocalNetworkActivity::renderServerRunning() const {
     renderer.drawLine(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
     currentY += SECTION_SPACING;
 
-    // Web Access Section
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Web Access", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
@@ -326,7 +331,7 @@ void LocalNetworkActivity::renderServerRunning() const {
                      hostnameUrl.c_str());
     currentY += SMALL_SPACING + 10;
 
-    // Instructions
+    
     renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
                      "Use this address to transfer files");
     currentY += SMALL_SPACING;
