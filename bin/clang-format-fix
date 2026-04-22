@@ -12,8 +12,8 @@ fi
 # Use 'git ls-files' to get a list of all files tracked by git:
 # --modified: files tracked by git that have been modified (staged or unstaged)
 # --exclude-standard: ignores files in .gitignore
-# Additionally exclude files in 'lib/EpdFont/builtinFonts/' as they are script-generated.
+# Additionally exclude files in 'lib/EpdFont/system/font/' as they are script-generated.
 git ls-files  --exclude-standard ${GIT_LS_FILES_FLAGS} \
     | grep -E '\.(c|cpp|h|hpp)$' \
-    | grep -v -E '^lib/EpdFont/builtinFonts/' \
+    | grep -v -E '^lib/EpdFont/system/font/' \
     | xargs -r clang-format -style=file -i
