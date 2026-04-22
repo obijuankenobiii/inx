@@ -79,7 +79,7 @@ struct BookSettings {
   uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
   uint8_t lineSpacing = SystemSetting::NORMAL;            ///< Line spacing
   uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
-  /** Honor EPUB/CSS `text-indent` when not using "Use EPUB CSS" alignment (mirrors global when unset in file). */
+  /** Honor CSS `text-indent` when on (mirrors global "Indent" when unset in per-book file). */
   uint8_t paragraphCssIndentEnabled = 0;
 
   // Text rendering settings

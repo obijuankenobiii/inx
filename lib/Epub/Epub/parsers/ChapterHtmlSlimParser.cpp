@@ -411,7 +411,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  // Check for dropcap class
+  // Drop cap: first letters inside span/p (class …dropcap…); use UTF-8 codepoints in buffer, max 2, then flush or on close.
   if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
@@ -482,21 +482,13 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           }
         }
       }
-      if (self->currentTextBlock) {
-        const bool applyCssTextIndent = self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS ||
-                                        self->respectCssParagraphIndent;
-        if (applyCssTextIndent && self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
-          const int tip = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
-                                                          self->viewportHeight);
-          self->currentTextBlock->setCssTextIndentFromCascade(tip);
-        }
-        if (strstr(classAttr.c_str(), "indent") != nullptr && strstr(classAttr.c_str(), "noindent") == nullptr) {
-          static const char kEmSpace[] = "\xe2\x80\x83";
-          const int fid = self->inHeader ? self->headerFontId : self->fontId;
-          const int w = self->renderer.getTextWidth(fid, kEmSpace, EpdFontFamily::REGULAR);
-          if (w > 0) {
-            self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(w), 1);
-          }
+      if (self->currentTextBlock && self->respectCssParagraphIndent &&
+          self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+        const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                                       self->viewportHeight);
+        if (px > 0) {
+          const int clamped = std::min(px, 65535);
+          self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(clamped), 1);
         }
       }
     }
@@ -533,7 +525,12 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       continue;
     }
 
-    if (self->partWordBufferIndex >= MAX_WORD_SIZE) self->flushPartWordBuffer();
+    if (!self->inDropCap && self->partWordBufferIndex >= MAX_WORD_SIZE) {
+      self->flushPartWordBuffer();
+    }
+    if (self->partWordBufferIndex >= MAX_WORD_SIZE) {
+      continue;
+    }
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
     if (self->inDropCap && countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >= 2) {

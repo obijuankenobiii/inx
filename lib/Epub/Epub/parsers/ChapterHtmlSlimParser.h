@@ -18,7 +18,7 @@ class GfxRenderer;
 #define MAX_WORD_SIZE 200
 
 /**
- * Reader paragraph alignment: 0–3 match TextBlock::Style; 4 = follow EPUB/CSS text-align.
+ * Reader paragraph alignment: 0–3 match TextBlock::Style; 4 = follow CSS text-align per block.
  * Must stay in sync with SystemSetting::PARAGRAPH_ALIGNMENT (see src/state/SystemSetting.h).
  */
 constexpr uint8_t EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS = 4;
@@ -67,6 +67,7 @@ class ChapterHtmlSlimParser {
   uint16_t viewportWidth;
   uint16_t viewportHeight;
   bool hyphenationEnabled;
+  /** Book/global "Indent": honor CSS `text-indent` when true (from paragraphCssIndentEnabled). */
   bool respectCssParagraphIndent = false;
 
   bool skipImages = false;

@@ -195,7 +195,7 @@ void SettingsDrawer::setupMenu() {
     alignEntry.group = GroupType::LAYOUT;
     alignEntry.name = "Paragraph Alignment";
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* align[] = {"Justify", "Left", "Center", "Right", "Use EPUB CSS"};
+      static const char* align[] = {"Justify", "Left", "Center", "Right", "Css"};
       int index = s.paragraphAlignment;
       if (index > 4) index = 0;
       return align[index];
@@ -225,7 +225,7 @@ void SettingsDrawer::setupMenu() {
     MenuEntry cssIndentEntry;
     cssIndentEntry.item = MenuItem::ParagraphCssIndent;
     cssIndentEntry.group = GroupType::LAYOUT;
-    cssIndentEntry.name = "CSS paragraph indents";
+    cssIndentEntry.name = "Indent";
     cssIndentEntry.getValueText = [](const BookSettings& s) -> const char* {
       return s.paragraphCssIndentEnabled ? "On" : "Off";
     };

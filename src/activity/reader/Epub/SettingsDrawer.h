@@ -101,7 +101,7 @@ private:
         LineSpacing,         ///< Line spacing adjustment
         Alignment,           ///< Paragraph alignment
         ExtraParagraphSpacing, ///< Additional spacing between paragraphs
-        ParagraphCssIndent,  ///< Honor CSS/inline text-indent for paragraphs
+        ParagraphCssIndent,  ///< CSS `text-indent` on/off (labeled "Indent" in UI)
         ScreenMargin,        ///< Screen margin size
         ReadingOrientation,  ///< Screen orientation
         
