@@ -7,6 +7,7 @@
 
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+
 #include "system/FontManager.h"
 
 #include "state/SystemSetting.h"
@@ -31,7 +32,7 @@ BootActivity::BootActivity(GfxRenderer& renderer, MappedInputManager& inputManag
 
 /**
  * @brief Draws the boot progress bar on the screen.
- * 
+ *
  * Renders a horizontal progress bar centered on the screen, with the fill width
  * determined by the current bootProgress value (0-100). The bar is drawn with
  * a border and filled portion based on completion percentage.
@@ -39,115 +40,79 @@ BootActivity::BootActivity(GfxRenderer& renderer, MappedInputManager& inputManag
 void BootActivity::drawProgressBar() {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-  
+
   const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;
-  
+
   renderer.fillRect(barX + 2, barY + 2, barWidth - 4, barHeight - 4, false);
-  
+
   int fillWidth = barWidth * bootProgress / 100;
   if (fillWidth > 4) {
     renderer.fillRect(barX + 2, barY + 2, fillWidth - 4, barHeight - 4, true);
   }
-  
+
   renderer.displayBuffer();
 }
 
 /**
- * @brief Advances the boot sequence to the next initialization stage.
- * 
- * Executes the next step in the boot process based on the current bootStage.
- * Each stage loads a different system component and updates the progress bar.
- * Stages progress from settings loading through app state, recent books,
- * book state, and finally marks boot as complete.
- */
-void BootActivity::initializeNextStage() {
-  switch (bootStage) {
-    case 0:
-      bootProgress = 10;
-      drawProgressBar();
-      SETTINGS.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 1:
-      bootProgress = 50;
-      drawProgressBar();
-      APP_STATE.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 2:
-      bootProgress = 70;
-      drawProgressBar();
-      RECENT_BOOKS.loadFromFile();
-      bootStage++;
-      break;
-      
-    case 3:
-      bootProgress = 100;
-      drawProgressBar();
-      BOOK_STATE.loadFromFile();
-      bootComplete = true;
-      break;
-      
-    default:
-      break;
-  }
-}
-
-/**
  * @brief Initializes the boot activity when it becomes active.
- * 
+ *
  * Clears the screen, displays the Corgi logo centered on the screen, draws
- * the progress bar outline, and resets all boot state variables including
- * progress, timing, and stage tracking.
+ * the progress bar outline, loads persisted state (including KOReader sync
+ * settings when present), then marks boot complete. SD reader fonts are not
+ * scanned here; that runs when opening a book.
  */
 void BootActivity::onEnter() {
   Activity::onEnter();
-  
-  FontManager::scanSDFonts("/fonts");
-  FontManager::clampReaderFontFamilySlot(SETTINGS.fontFamily);
-  FontManager::printFontStats();
-  
+
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen(0xFF);
   renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
-  
+
   const int barWidth = 150;
   const int barHeight = 10;
   const int barX = (pageWidth - barWidth) / 2;
   const int barY = (pageHeight - 200) / 2 + 200 + 30;
-  
+
   renderer.drawRect(barX, barY, barWidth, barHeight, true);
 
   renderer.fillRect(barX + 2, barY + 2, barWidth - 4, barHeight - 4, false);
-  
+
   renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, (renderer.getScreenWidth() / 2) - (renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, INX_VERSION) / 2), renderer.getScreenHeight() - 30, INX_VERSION);
   renderer.displayBuffer();
-  
+
   bootProgress = 0;
-  lastBootUpdate = millis();
   bootComplete = false;
-  bootStage = 0;
+
+  SETTINGS.loadFromFile();
+  APP_STATE.loadFromFile();
+  RECENT_BOOKS.loadFromFile();
+  BOOK_STATE.loadFromFile();
+
+  if (SdMan.ready() && SdMan.exists(KOReaderCredentialStore::SYSTEM_SETTINGS_PATH)) {
+    (void)KOREADER_STORE.loadFromFile();
+  }
+
+  bootProgress = 100;
+  drawProgressBar();
+
+  FontManager::scanSDFonts("/fonts");
+  FontManager::printFontStats();
+  bootComplete = true;
 }
 
 /**
  * @brief Main update loop for the boot activity.
- * 
- * Handles the boot sequence timing and transition to the next activity.
- * If boot is complete, determines whether to navigate to the recent books
- * view or directly to the last opened book based on app state and settings.
- * If boot is in progress, advances the boot stage at 300ms intervals.
+ *
+ * When boot is complete, navigates to the recent list or resumes the last book
+ * per settings. SD font metadata is not loaded until the reader opens a book.
  */
 void BootActivity::loop() {
   if (bootComplete) {
-    onGoToRecent();
-    return;
     if (APP_STATE.lastRead.empty() || SETTINGS.bootSetting == SystemSetting::HOME_PAGE) {
       onGoToRecent();
     } else {
@@ -157,10 +122,5 @@ void BootActivity::loop() {
       onGoToReader(path);
     }
     return;
-  }
-
-  if (millis() - lastBootUpdate > 300) {
-    lastBootUpdate = millis();
-    initializeNextStage();
   }
 }

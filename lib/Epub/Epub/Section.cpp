@@ -157,6 +157,8 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
  * Extracts the HTML from the EPUB, runs the parser, and saves the resulting pages.
  * When building images, runs a prefetch pass (ZIP→cache, SD fonts unloaded) before opening
  * the section file and laying out pages (fonts loaded, images from cache only).
+ * ZIP extract heap scope applies only to the initial HTML unzip retries (not parse), so SD fonts
+ * are not unloaded/reloaded on every embedded ZIP read during layout.
  * Can optionally skip image processing to only rebuild text layout.
  * 
  * @param fontId Font identifier for text rendering
@@ -187,15 +189,18 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
 
   SdMan.mkdir((epub->getCachePath() + "/sections").c_str());
 
-  const ZipExtractHeapScope zipExtractHeapScope(fontId);
-
   bool success = false;
-  for (int attempt = 0; attempt < 3 && !success; attempt++) {
-    FsFile tmpHtml;
-    if (SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
-      success = epub->readItemContentsToStream(localPath, tmpHtml, 2048);
-      tmpHtml.close();
-    }
+  {
+    const ZipExtractHeapScope zipExtractHeapScope(fontId);
+    FontManager::withSdFontsReleasedForHeapIntensiveWork(fontId, [&]() {
+      for (int attempt = 0; attempt < 3 && !success; attempt++) {
+        FsFile tmpHtml;
+        if (SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+          success = epub->readItemContentsToStream(localPath, tmpHtml, 2048);
+          tmpHtml.close();
+        }
+      }
+    });
   }
   if (!success) return false;
 

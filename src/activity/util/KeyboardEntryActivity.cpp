@@ -9,10 +9,12 @@
 #include "system/Fonts.h"
 
 namespace {
-constexpr int KEY_HEIGHT = 28;  
-constexpr int KEY_SPACING = 4;  
-constexpr int BOTTOM_MARGIN = 60;  
-}  
+constexpr int KEY_HEIGHT = 28;
+constexpr int KEY_SPACING = 4;
+constexpr int BOTTOM_MARGIN = 60;
+/** Stack size (bytes) for xTaskCreate; 2048 overflowed with render() + GfxRenderer on ESP32-C3. */
+constexpr uint32_t kDisplayTaskStackBytes = 8192;
+}  // namespace
 
 
 const char* const KeyboardEntryActivity::keyboard[NUM_ROWS] = {
@@ -49,12 +51,8 @@ void KeyboardEntryActivity::onEnter() {
   
   updateRequired = true;
 
-  xTaskCreate(&KeyboardEntryActivity::taskTrampoline, "KeyboardEntryActivity",
-              2048,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&KeyboardEntryActivity::taskTrampoline, "KeyboardEntryActivity", kDisplayTaskStackBytes, this, 1,
+              &displayTaskHandle);
 }
 
 void KeyboardEntryActivity::onExit() {

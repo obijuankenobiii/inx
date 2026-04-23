@@ -971,6 +971,12 @@ std::string FontManager::readerFontFamilyLabel(uint8_t slot) {
 }
 
 void FontManager::clampReaderFontFamilySlot(uint8_t& slot) {
+  if (!g_scannedForFonts) {
+    if (static_cast<uint32_t>(slot) < 2u) {
+      return;
+    }
+    return;
+  }
   const uint32_t n = readerFontFamilyOptionCount();
   if (n == 0u) {
     slot = 0;

@@ -69,9 +69,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
-
-    
-    SettingInfo::Action("About", GroupType::NONE)};
+    SettingInfo::Action("About", GroupType::DEVICE_ACTIONS)};
 
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {

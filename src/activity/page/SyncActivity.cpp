@@ -42,7 +42,7 @@ class MutexGuard {
 
 constexpr int MENU_ITEM_COUNT = 3;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
-constexpr int LIST_ITEM_HEIGHT = 64;
+constexpr int LIST_ITEM_HEIGHT = 60;
 }  
 
 /**
@@ -205,7 +205,7 @@ void SyncActivity::render() const {
       const int textX = 70;
       const int iconX = (textX - kIconSize) / 2;
       const int titleY =
-          itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+          itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
 
       switch (i) {
@@ -220,7 +220,7 @@ void SyncActivity::render() const {
           break;
       }
       
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
         renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);

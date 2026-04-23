@@ -17,10 +17,6 @@ namespace {
 
 constexpr uint8_t KOREADER_FILE_VERSION = 1;
 
-
-constexpr char KOREADER_FILE[] = "/.system/koreader.bin";
-
-
 constexpr char DEFAULT_SERVER_URL[] = "https://sync.koreader.rocks:443";
 
 
@@ -40,7 +36,7 @@ bool KOReaderCredentialStore::saveToFile() const {
   SdMan.mkdir("/.system");
 
   FsFile file;
-  if (!SdMan.openFileForWrite("KRS", KOREADER_FILE, file)) {
+  if (!SdMan.openFileForWrite("KRS", KOReaderCredentialStore::SYSTEM_SETTINGS_PATH, file)) {
     return false;
   }
 
@@ -69,7 +65,7 @@ bool KOReaderCredentialStore::saveToFile() const {
 
 bool KOReaderCredentialStore::loadFromFile() {
   FsFile file;
-  if (!SdMan.openFileForRead("KRS", KOREADER_FILE, file)) {
+  if (!SdMan.openFileForRead("KRS", KOReaderCredentialStore::SYSTEM_SETTINGS_PATH, file)) {
     saveToFile();
     return false;
   }

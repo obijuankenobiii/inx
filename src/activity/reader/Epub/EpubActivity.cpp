@@ -89,6 +89,8 @@ struct ViewportInfo {
 EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub,
                            const std::function<void()>& onGoBack, const std::function<void()>& onGoToRecent)
     : ActivityWithSubactivity("EpubReader", renderer, mappedInput),
+      currentFontId(0),
+      nextFontId(0),
       epub(std::move(epub)),
       onGoBack(onGoBack),
       onGoToRecent(onGoToRecent),
@@ -278,11 +280,19 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
                                                  bookSettings.hyphenationEnabled,
                                                  bookSettings.paragraphCssIndentEnabled != 0);
 
-  if (!isCached && loadedSection) {
-    buildSection(spineIndex, info, true, false);
-    loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
-                                   bookSettings.paragraphAlignment, info.width, info.height,
-                                   bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0);
+  if (!isCached) {
+    if (!buildSection(spineIndex, info, true, false)) {
+      return nullptr;
+    }
+    if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+                                        bookSettings.paragraphAlignment, info.width, info.height,
+                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0)) {
+      return nullptr;
+    }
+  }
+
+  if (loadedSection->pageCount == 0) {
+    return nullptr;
   }
 
   return loadedSection;
@@ -1309,8 +1319,9 @@ void EpubActivity::renderScreen() {
 
   if (section->pageCount == 0) {
     section.reset();
-    currentSpineIndex = (currentSpineIndex + 1 < totalSpine) ? currentSpineIndex + 1 : totalSpine;
-    nextPageNumber = 0;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 280, "This chapter could not be built.", true,
+                              EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "Try less memory use (e.g. builtin font) or reopen the book.", true);
     updateRequired = true;
     return;
   }
@@ -1657,6 +1668,7 @@ void EpubActivity::drawBookmarkIndicator() {
  */
 void EpubActivity::loadBookSettings() {
   if (epub) {
+    FontManager::scanSDFonts("/fonts");
     bool loaded = bookSettings.loadFromFile(epub->getCachePath());
     if (!loaded) {
       bookSettings.loadFromGlobalSettings();
@@ -1760,6 +1772,8 @@ void EpubActivity::applyBookSettings() {
 
   currentSpineIndex = currentSpine;
   nextPageNumber = currentPage;
+
+  section.reset();
 
   bookLayoutAppliedOrientation_ = bookSettings.orientation;
   updateRequired = true;

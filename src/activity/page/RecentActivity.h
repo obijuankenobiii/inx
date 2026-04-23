@@ -15,6 +15,7 @@
 
 #include "../Activity.h"
 #include "../Menu.h"
+#include "state/BookState.h"
 #include "state/RecentBooks.h"
 
 /**
@@ -55,9 +56,12 @@ class RecentActivity final : public Activity, public Menu {
   int selectorIndex = 0;
   bool updateRequired = false;
   bool bookSelected = false;
-  bool statsSectionSelected = false; 
   int scrollOffset = 0;
   int scrollOffsetDefault = 0;
+  /** Horizontal window for list-stats top carousel (index of leftmost full tile). */
+  int listStatsRecentHScroll = 0;
+  int listStatsFavHScroll = 0;
+  std::vector<BookState::Book> listStatsFavoriteOnly_;
 
   std::vector<RecentBook> recentBooks;
 
@@ -77,6 +81,7 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
+  void rebuildListStatsFavorites();
 
   /**
    * Static trampoline function for FreeRTOS task creation.
@@ -122,17 +127,6 @@ class RecentActivity final : public Activity, public Menu {
    */
   void renderFlow();
   
-  /**
-   * Renders a single list item with thumbnail on left, title, author, and progress bar.
-   * 
-   * @param index Index within the visible list (0-4)
-   * @param startY Starting Y coordinate for the list
-   * @param book Book information to render
-   * @param selected Whether this item is selected
-   * @param next Whether to render next book (unused parameter, kept for compatibility)
-   */
-  void renderListItem(int index, int startY, const RecentBook& book, bool selected, bool next = false);
-
   struct ThumbnailGrayscaleJob {
     std::string cacheDir;
     int drawX = 0;
@@ -144,8 +138,10 @@ class RecentActivity final : public Activity, public Menu {
 
   void noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW, int drawH);
   void runThumbnailGrayscalePassIfNeeded();
-  /** Bounding box covering all thumbnails recorded for this frame (reader image grayscale pass). */
-  bool getImageScreenRect(int& x, int& y, int& w, int& h) const;
+  void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
+                             int placeholderFontId);
+  /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
+  void renderDefaultStatsGrid(int gridStartY, int screenW);
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.
@@ -192,6 +188,11 @@ class RecentActivity final : public Activity, public Menu {
      {}
 
  private:
+  void drawListStatsStrip(int bandX, int bandY, int bandW, int bandH, int hScroll, int count,
+                          const std::function<std::string(int)>& cacheDirAt,
+                          const std::function<std::string(int)>& titleAt,
+                          const std::function<bool(int)>& selectedAt);
+
   bool firstRender = true;
 
   void onEnter() override;
