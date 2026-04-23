@@ -201,62 +201,6 @@ inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
 }
 }  // namespace
 
-void RecentActivity::noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW,
-                                               int drawH) {
-  if (!SETTINGS.readerImageGrayscale || cacheDir.empty() || drawW <= 0 || drawH <= 0) {
-    return;
-  }
-  ThumbnailGrayscaleJob job;
-  job.cacheDir = cacheDir;
-  job.drawX = drawX;
-  job.drawY = drawY;
-  job.drawW = drawW;
-  job.drawH = drawH;
-  thumbnailGrayscaleJobs_.push_back(std::move(job));
-}
-
-void RecentActivity::runThumbnailGrayscalePassIfNeeded() {
-  if (!SETTINGS.readerImageGrayscale || thumbnailGrayscaleJobs_.empty() || !renderer.needsBitmapGrayscale()) {
-    thumbnailGrayscaleJobs_.clear();
-    return;
-  }
-
-  const bool storedBwBuffer = renderer.storeBwBuffer();
-  const BitmapDitherMode dither = bitmapDitherModeFromSetting(SETTINGS.displayImageDither);
-
-  auto drawThumbsForMode = [&](GfxRenderer::RenderMode mode) {
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(mode);
-    BitmapGrayStyleScope grayScope(renderer, displayImageBitmapGrayStyle());
-    for (const ThumbnailGrayscaleJob& job : thumbnailGrayscaleJobs_) {
-      char path[160];
-      snprintf(path, sizeof(path), "%s/thumb.bmp", job.cacheDir.c_str());
-      FsFile file;
-      if (!SdMan.openFileForRead("RECENT", path, file)) {
-        continue;
-      }
-      Bitmap bitmap(file, dither);
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawBitmap(bitmap, job.drawX, job.drawY, job.drawW, job.drawH);
-      }
-      file.close();
-    }
-  };
-
-  drawThumbsForMode(GfxRenderer::GRAYSCALE_LSB);
-  renderer.copyGrayscaleLsbBuffers();
-  drawThumbsForMode(GfxRenderer::GRAYSCALE_MSB);
-  renderer.copyGrayscaleMsbBuffers();
-  renderer.displayGrayBuffer();
-  renderer.setRenderMode(GfxRenderer::BW);
-  if (storedBwBuffer) {
-    renderer.restoreBwBuffer();
-  } else {
-    renderer.cleanupGrayscaleWithFrameBuffer();
-  }
-  thumbnailGrayscaleJobs_.clear();
-}
-
 void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                                            const std::string& placeholderTitle, int placeholderFontId) {
   if (w < 8 || h < 8) {
@@ -273,7 +217,7 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
     drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
     return;
   }
-  Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+  Bitmap bitmap(file, BitmapDitherMode::None);
   if (bitmap.parseHeaders() != BmpReaderError::Ok) {
     file.close();
     drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
@@ -284,7 +228,6 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
     renderer.drawBitmap(bitmap, x, y, w, h);
   }
   file.close();
-  noteThumbnailGrayscaleJob(cacheDir, x, y, w, h);
 }
 
 void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
@@ -690,7 +633,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
     FsFile file;
     if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+      Bitmap bitmap(file, BitmapDitherMode::None);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         int bw = bitmap.getWidth() > 225 ? containerWidth : bitmap.getWidth();
         int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
@@ -752,8 +695,6 @@ void RecentActivity::displayTaskLoop() {
     {
       MutexGuard guard(renderingMutex);
       if (guard.isAcquired() && updateRequired) {
-        renderer.resetBitmapGrayscaleDetection();
-        thumbnailGrayscaleJobs_.clear();
         renderer.clearScreen();
         renderTabBar(renderer);
 
@@ -770,7 +711,6 @@ void RecentActivity::displayTaskLoop() {
                                  labels.btn4);
 
         renderer.displayBuffer();
-        runThumbnailGrayscalePassIfNeeded();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
           SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);

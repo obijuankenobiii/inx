@@ -126,18 +126,7 @@ class RecentActivity final : public Activity, public Menu {
    * @param startY Starting Y coordinate for the grid
    */
   void renderFlow();
-  
-  struct ThumbnailGrayscaleJob {
-    std::string cacheDir;
-    int drawX = 0;
-    int drawY = 0;
-    int drawW = 0;
-    int drawH = 0;
-  };
-  std::vector<ThumbnailGrayscaleJob> thumbnailGrayscaleJobs_;
 
-  void noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW, int drawH);
-  void runThumbnailGrayscalePassIfNeeded();
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
