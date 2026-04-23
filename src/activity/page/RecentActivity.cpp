@@ -110,6 +110,85 @@ static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, in
 
 }  
 
+void RecentActivity::noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW,
+                                               int drawH) {
+  if (!SETTINGS.readerImageGrayscale || cacheDir.empty() || drawW <= 0 || drawH <= 0) {
+    return;
+  }
+  ThumbnailGrayscaleJob job;
+  job.cacheDir = cacheDir;
+  job.drawX = drawX;
+  job.drawY = drawY;
+  job.drawW = drawW;
+  job.drawH = drawH;
+  thumbnailGrayscaleJobs_.push_back(std::move(job));
+}
+
+bool RecentActivity::getImageScreenRect(int& x, int& y, int& w, int& h) const {
+  if (thumbnailGrayscaleJobs_.empty()) {
+    return false;
+  }
+  const ThumbnailGrayscaleJob& j0 = thumbnailGrayscaleJobs_.front();
+  int minX = j0.drawX;
+  int minY = j0.drawY;
+  int maxX = j0.drawX + j0.drawW;
+  int maxY = j0.drawY + j0.drawH;
+  for (size_t i = 1; i < thumbnailGrayscaleJobs_.size(); ++i) {
+    const ThumbnailGrayscaleJob& j = thumbnailGrayscaleJobs_[i];
+    minX = std::min(minX, j.drawX);
+    minY = std::min(minY, j.drawY);
+    maxX = std::max(maxX, j.drawX + j.drawW);
+    maxY = std::max(maxY, j.drawY + j.drawH);
+  }
+  x = minX;
+  y = minY;
+  w = maxX - minX;
+  h = maxY - minY;
+  return w > 0 && h > 0;
+}
+
+void RecentActivity::runThumbnailGrayscalePassIfNeeded() {
+  if (!SETTINGS.readerImageGrayscale || thumbnailGrayscaleJobs_.empty() || !renderer.needsBitmapGrayscale()) {
+    thumbnailGrayscaleJobs_.clear();
+    return;
+  }
+
+  const bool storedBwBuffer = renderer.storeBwBuffer();
+  const BitmapDitherMode dither = bitmapDitherModeFromSetting(SETTINGS.displayImageDither);
+
+  auto drawThumbsForMode = [&](GfxRenderer::RenderMode mode) {
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(mode);
+    BitmapGrayStyleScope grayScope(renderer, displayImageBitmapGrayStyle());
+    for (const ThumbnailGrayscaleJob& job : thumbnailGrayscaleJobs_) {
+      char path[160];
+      snprintf(path, sizeof(path), "%s/thumb.bmp", job.cacheDir.c_str());
+      FsFile file;
+      if (!SdMan.openFileForRead("RECENT", path, file)) {
+        continue;
+      }
+      Bitmap bitmap(file, dither);
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        renderer.drawBitmap(bitmap, job.drawX, job.drawY, job.drawW, job.drawH);
+      }
+      file.close();
+    }
+  };
+
+  drawThumbsForMode(GfxRenderer::GRAYSCALE_LSB);
+  renderer.copyGrayscaleLsbBuffers();
+  drawThumbsForMode(GfxRenderer::GRAYSCALE_MSB);
+  renderer.copyGrayscaleMsbBuffers();
+  renderer.displayGrayBuffer();
+  renderer.setRenderMode(GfxRenderer::BW);
+  if (storedBwBuffer) {
+    renderer.restoreBwBuffer();
+  } else {
+    renderer.cleanupGrayscaleWithFrameBuffer();
+  }
+  thumbnailGrayscaleJobs_.clear();
+}
+
 /**
  * Calculates the number of rows that can be displayed on screen at once.
  */
@@ -279,6 +358,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
         int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
         BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, drawX, drawY, scaledW, scaledH);
+        noteThumbnailGrayscaleJob(book.cachePath, drawX, drawY, scaledW, scaledH);
         coverDrawn = true;
       }
       file.close();
@@ -327,6 +407,8 @@ void RecentActivity::displayTaskLoop() {
     {
       MutexGuard guard(renderingMutex);
       if (guard.isAcquired() && updateRequired) {
+        renderer.resetBitmapGrayscaleDetection();
+        thumbnailGrayscaleJobs_.clear();
         renderer.clearScreen();
         renderTabBar(renderer);
 
@@ -343,6 +425,7 @@ void RecentActivity::displayTaskLoop() {
                                  labels.btn4);
 
         renderer.displayBuffer();
+        runThumbnailGrayscalePassIfNeeded();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
           SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
@@ -412,6 +495,7 @@ void RecentActivity::renderListItem(int index, int startY, const RecentBook& boo
           renderer.drawRect(drawX, drawY - 12, drawWidth, drawHeight);
           BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
+          noteThumbnailGrayscaleJob(book.cachePath, drawX, drawY - 12, drawWidth, drawHeight);
           coverDrawn = true;
         }
       }
@@ -570,6 +654,7 @@ void RecentActivity::renderDefault() {
         int drawY = coverAreaY + (coverHeight - bh) / 2;
         BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, drawX, drawY, bw, bh);
+        noteThumbnailGrayscaleJob(currentBook.cachePath, drawX, drawY, bw, bh);
         coverDrawn = true;
       }
       file.close();
@@ -972,6 +1057,7 @@ void RecentActivity::renderFlow() {
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
           BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, leftX, sideY, sideW, sideH);
+          noteThumbnailGrayscaleJob(leftBook.cachePath, leftX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -995,6 +1081,7 @@ void RecentActivity::renderFlow() {
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
           BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
           renderer.drawBitmap(bitmap, rightX, sideY, sideW, sideH);
+          noteThumbnailGrayscaleJob(rightBook.cachePath, rightX, sideY, sideW, sideH);
           drawn = true;
         }
         file.close();
@@ -1018,6 +1105,7 @@ void RecentActivity::renderFlow() {
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
         renderer.drawBitmap(bitmap, centerX, centerY, centerW, centerH);
+        noteThumbnailGrayscaleJob(currentBook.cachePath, centerX, centerY, centerW, centerH);
         centerDrawn = true;
       }
       file.close();

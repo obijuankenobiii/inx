@@ -133,7 +133,19 @@ class RecentActivity final : public Activity, public Menu {
    */
   void renderListItem(int index, int startY, const RecentBook& book, bool selected, bool next = false);
 
+  struct ThumbnailGrayscaleJob {
+    std::string cacheDir;
+    int drawX = 0;
+    int drawY = 0;
+    int drawW = 0;
+    int drawH = 0;
+  };
+  std::vector<ThumbnailGrayscaleJob> thumbnailGrayscaleJobs_;
 
+  void noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW, int drawH);
+  void runThumbnailGrayscalePassIfNeeded();
+  /** Bounding box covering all thumbnails recorded for this frame (reader image grayscale pass). */
+  bool getImageScreenRect(int& x, int& y, int& w, int& h) const;
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.

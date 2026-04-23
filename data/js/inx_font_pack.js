@@ -39,19 +39,37 @@
     }
     return Math.max(8, Math.round(base * RASTER_CALIBRATION));
   }
-  /** Codepoint ranges (BMP-focused; device uses uint32 CP search). */
+  /**
+   * Codepoint ranges packed into SD .bin fonts (BMP; device uses uint32 CP search).
+   * Keep roughly aligned with built-in Literata/Atkinson coverage: Latin + punctuation +
+   * Greek (π…), arrows, letterlike/number forms, math operators, technical & shapes.
+   */
   var CP_RANGES = [
     [0x0020, 0x007e],
     [0x00a0, 0x00ff],
     [0x0100, 0x017f],
     [0x0180, 0x024f],
+    [0x0300, 0x036f],
+    [0x0370, 0x03ff],
+    [0x0400, 0x04ff],
+    [0x1e00, 0x1eff],
     [0x2000, 0x206f],
+    [0x2070, 0x209f],
     [0x2010, 0x203a],
     [0x2040, 0x205f],
     [0x20a0, 0x20cf],
-    [0x0300, 0x036f],
-    [0x0400, 0x04ff],
+    [0x2100, 0x214f],
+    [0x2150, 0x218f],
+    [0x2190, 0x21ff],
     [0x2200, 0x22ff],
+    [0x2300, 0x23ff],
+    [0x2460, 0x24ff],
+    [0x2500, 0x257f],
+    [0x2580, 0x259f],
+    [0x25a0, 0x25ff],
+    [0x2600, 0x26ff],
+    [0x2700, 0x27bf],
+    [0x2b00, 0x2bff],
     [0xfffd, 0xfffd],
   ];
   var MAX_SIDE = 384;
