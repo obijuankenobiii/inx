@@ -47,11 +47,6 @@ private:
     void loadStats();
 
     /**
-     * Formats a time duration in milliseconds to a human-readable string.
-     */
-    std::string formatTime(uint32_t milliseconds) const;
-
-    /**
      * Renders a book cover or placeholder at the specified position.
      */
     void renderCover(const std::string& bookPath, int x, int y, int width, int height, const std::string& title, const std::string& author) const;

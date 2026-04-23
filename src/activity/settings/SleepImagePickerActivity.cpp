@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
@@ -22,7 +23,7 @@ constexpr int HEADER_BOTTOM = 88;
 constexpr int FOOTER = 52;
 constexpr int MAX_LABEL_PX_MARGIN = 36;
 
-void truncateLabelToWidth(GfxRenderer& renderer, int fontId, int maxWidth, const char* text, char* out,
+void truncateLabelToWidth(const GfxRenderer& renderer, int fontId, int maxWidth, const char* text, char* out,
                           size_t outSize) {
   if (outSize == 0) {
     return;
@@ -98,9 +99,10 @@ void SleepImagePickerActivity::rebuildRows() {
                return a.first < b.first;
              });
 
-  for (const auto& p : folderBmps) {
-    rows.push_back({p.first, p.second});
-  }
+  std::transform(folderBmps.begin(), folderBmps.end(), std::back_inserter(rows),
+                 [](const std::pair<std::string, std::string>& p) {
+                   return SleepImagePickerActivity::Row{p.first, p.second};
+                 });
 
   if (SdMan.exists("/sleep.bmp")) {
     rows.push_back({"sleep.bmp (SD root)", "/sleep.bmp"});
@@ -139,7 +141,6 @@ void SleepImagePickerActivity::displayTaskLoop() {
 
 void SleepImagePickerActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
   renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "Sleep screen image", true, EpdFontFamily::BOLD);

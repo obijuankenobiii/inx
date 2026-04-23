@@ -188,21 +188,6 @@ class LibraryActivity final : public Activity, public Menu {
   void goToPreviousPage();
 
   /**
-   * @brief Load the current page of items
-   */
-  void loadPage();
-
-  /**
-   * @brief Update pagination based on current item list
-   */
-  void updatePagination();
-
-  /**
-   * @brief Update items per page based on current view mode
-   */
-  void updateItemsPerPage();
-
-  /**
    * @brief Handle page up/down navigation
    * @param upPressed Whether up button was pressed
    * @param downPressed Whether down button was pressed
@@ -272,13 +257,6 @@ class LibraryActivity final : public Activity, public Menu {
   int countTotalBooks(const std::string& path);
 
   /**
-   * @brief Count total folders with books without storing them (fast scan)
-   * @param path Starting directory path
-   * @return Total number of folders with books found
-   */
-  int countTotalFolders(const std::string& path);
-
-  /**
    * @brief Find books with pagination - stops when enough books are found
    * @param path Starting directory path
    * @param books Vector to populate with found books
@@ -289,18 +267,6 @@ class LibraryActivity final : public Activity, public Menu {
    */
   void findBooksPaginated(const std::string& path, std::vector<LibraryItem>& books, int startIndex, int count,
                           int& foundCount, bool& stop);
-
-  /**
-   * @brief Find folders with pagination - stops when enough folders are found
-   * @param path Starting directory path
-   * @param folders Vector to populate with found folders
-   * @param startIndex Skip this many folders before adding
-   * @param count Maximum number of folders to add
-   * @param foundCount Running count of folders found (updated during scan)
-   * @param stop Flag to stop scanning when enough folders are found
-   */
-  void findFoldersPaginated(const std::string& path, std::vector<LibraryItem>& folders, int startIndex, int count,
-                            int& foundCount, bool& stop);
 
   /**
    * @brief Check if a book is marked as favorite
@@ -409,17 +375,6 @@ class LibraryActivity final : public Activity, public Menu {
   bool shouldIncludeFolder(const std::string& folderPath, const std::string& cleanBase) const;
 
   /**
-   * @brief Legacy method - use loadAllBooksRecursive instead
-   * @deprecated Use loadAllBooksRecursive() instead
-   */
-  void loadLibraryItems();
-
-  /**
-   * @brief Apply sorting to current items
-   */
-  void applySorting();
-
-  /**
    * @brief Sort temporary books based on current sort mode
    * @param tempBooks Vector of temporary book entries to sort
    */
@@ -467,21 +422,6 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Reset the library view state
    */
   void resetLibraryView();
-
-  /**
-   * @deprecated Use sortTempBooks instead
-   */
-  void sortByTitle(bool ascending = true);
-
-  /**
-   * @deprecated Use sortTempBooks with GROUP mode instead
-   */
-  void sortByGroup(bool ascending = true);
-
-  /**
-   * @deprecated Use combineAndPaginateItems instead
-   */
-  void sortFolderViewByType(bool ascending = true);
 
   /**
    * @brief Format a folder name by replacing underscores with spaces and capitalizing words
@@ -591,26 +531,9 @@ class LibraryActivity final : public Activity, public Menu {
   void drawButtonHints() const;
 
   /**
-   * @brief Update the scroll position based on current selection
-   */
-  void updateScrollPosition();
-
-  /**
    * @brief Get the height of a list item based on its type
    * @param item The library item
    * @return Height in pixels
    */
   int getItemHeight(const LibraryItem& item) const;
-
-  /**
-   * @brief Get the current list of items (const version)
-   * @return Reference to current page items
-   */
-  const std::vector<LibraryItem>& getCurrentList() const { return currentPageItems; }
-
-  /**
-   * @brief Get the current list of items (non-const version)
-   * @return Reference to current page items
-   */
-  std::vector<LibraryItem>& getCurrentList() { return currentPageItems; }
 };

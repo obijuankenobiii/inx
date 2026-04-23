@@ -10,9 +10,9 @@
 #include <miniz.h>
 
 #include <algorithm>
+#include <cstring>
 
 bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t* outputBuf, const size_t inflatedSize) {
-  
   const auto inflator = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
   if (!inflator) {
     Serial.printf("[%lu] [ZIP] Failed to allocate memory for inflator\n", millis());
@@ -534,7 +534,6 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
   }
 
   if (fileStat.method == MZ_DEFLATED) {
-    
     const auto inflator = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
     if (!inflator) {
       Serial.printf("[%lu] [ZIP] Failed to allocate memory for inflator\n", millis());
@@ -546,7 +545,6 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
     memset(inflator, 0, sizeof(tinfl_decompressor));
     tinfl_init(inflator);
 
-    
     const auto fileReadBuffer = static_cast<uint8_t*>(malloc(chunkSize));
     if (!fileReadBuffer) {
       Serial.printf("[%lu] [ZIP] Failed to allocate memory for zip file read buffer\n", millis());

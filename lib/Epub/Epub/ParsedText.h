@@ -23,8 +23,9 @@ class ParsedText {
   TextBlock::Style style;
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
+  /** Reader "Indent" / book setting: legacy first-line em and em-based CSS indent simulation. */
+  bool respectParagraphIndent_ = true;
 
-  
   int cssTextIndentPx = -1;
 
   
@@ -45,13 +46,17 @@ class ParsedText {
   std::vector<uint16_t> calculateWordWidths(const GfxRenderer& renderer, int fontId);
 
  public:
-  explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing,
-                      const bool hyphenationEnabled = false)
-      : style(style), extraParagraphSpacing(extraParagraphSpacing), hyphenationEnabled(hyphenationEnabled) {}
+  explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing, const bool hyphenationEnabled,
+                      const bool respectParagraphIndent = true)
+      : style(style),
+        extraParagraphSpacing(extraParagraphSpacing),
+        hyphenationEnabled(hyphenationEnabled),
+        respectParagraphIndent_(respectParagraphIndent) {}
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle);
   void setStyle(const TextBlock::Style style) { this->style = style; }
+  void setRespectParagraphIndent(bool v) { respectParagraphIndent_ = v; }
   
   
   void setLeftIndent(uint16_t width, uint16_t lineCount) {

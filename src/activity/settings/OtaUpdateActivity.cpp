@@ -19,6 +19,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+// cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
 
 void OtaUpdateActivity::taskTrampoline(void* param) {
@@ -36,6 +37,7 @@ bool OtaUpdateActivity::tryConnectUsingStoredCredentials() {
 
   WiFi.mode(WIFI_STA);
 
+  // cppcheck-suppress useStlAlgorithm
   for (const auto& cred : creds) {
     if (cred.ssid.empty()) {
       continue;

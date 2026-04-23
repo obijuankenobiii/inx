@@ -74,6 +74,7 @@ class LocalServer {
 
   
   void handleRoot() const;
+  void handleFontManagerPage() const;
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;
@@ -94,4 +95,6 @@ class LocalServer {
   void handleWifiDelete() const;
   void handleKOReaderGet() const;
   void handleKOReaderPost() const;
+
+  void handleFontsRescan() const;
 };

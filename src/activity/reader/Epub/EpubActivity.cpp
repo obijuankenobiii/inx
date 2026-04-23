@@ -89,6 +89,8 @@ struct ViewportInfo {
 EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub,
                            const std::function<void()>& onGoBack, const std::function<void()>& onGoToRecent)
     : ActivityWithSubactivity("EpubReader", renderer, mappedInput),
+      currentFontId(0),
+      nextFontId(0),
       epub(std::move(epub)),
       onGoBack(onGoBack),
       onGoToRecent(onGoToRecent),
@@ -251,7 +253,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         progressCallback,
         skipImages);
 
-  if (isDoingSomethingHeavy && showProgress) {
+  if (showProgress) {
     renderer.clearScreen();
     renderer.displayBuffer();
   }
@@ -278,11 +280,19 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
                                                  bookSettings.hyphenationEnabled,
                                                  bookSettings.paragraphCssIndentEnabled != 0);
 
-  if (!isCached && loadedSection) {
-    buildSection(spineIndex, info, true, false);
-    loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
-                                   bookSettings.paragraphAlignment, info.width, info.height,
-                                   bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0);
+  if (!isCached) {
+    if (!buildSection(spineIndex, info, true, false)) {
+      return nullptr;
+    }
+    if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+                                        bookSettings.paragraphAlignment, info.width, info.height,
+                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0)) {
+      return nullptr;
+    }
+  }
+
+  if (loadedSection->pageCount == 0) {
+    return nullptr;
   }
 
   return loadedSection;
@@ -315,7 +325,7 @@ void EpubActivity::setupOrientation() {
 
 void EpubActivity::syncOrientationFromGlobalIfNeeded() {
   if (!bookSettings.useCustomSettings) {
-    SystemSetting& g = SystemSetting::getInstance();
+    const SystemSetting& g = SystemSetting::getInstance();
     bookSettings.orientation = g.orientation;
     bookSettings.paragraphCssIndentEnabled = g.paragraphCssIndentEnabled;
   }
@@ -418,7 +428,7 @@ void EpubActivity::displayCoverOrTitle() {
   if (SdMan.openFileForRead("EBP", coverPath, coverFile)) {
     Bitmap coverBmp(coverFile, bitmapDitherModeFromSetting(SETTINGS.readerImageDither));
     if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
-      ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+      [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
       renderer.clearScreen();
       renderer.drawBitmap(coverBmp, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
       renderer.displayBuffer();
@@ -549,6 +559,8 @@ void EpubActivity::onEnter() {
 
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
+
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   bool hasProgress = bookProgress->exists();
@@ -1307,8 +1319,9 @@ void EpubActivity::renderScreen() {
 
   if (section->pageCount == 0) {
     section.reset();
-    currentSpineIndex = (currentSpineIndex + 1 < totalSpine) ? currentSpineIndex + 1 : totalSpine;
-    nextPageNumber = 0;
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 280, "This chapter could not be built.", true,
+                              EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "Try less memory use (e.g. builtin font) or reopen the book.", true);
     updateRequired = true;
     return;
   }
@@ -1345,28 +1358,24 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginRight, const int orientedMarginBottom,
                                   const int orientedMarginLeft) {
   if (!page) return;
-  ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
   renderer.resetBitmapGrayscaleDetection();
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
-
-  
-  
 
   if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
   const BitmapDitherMode imageDitherMode = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
-  page->render(
-    renderer, 
-    fontId,
-    headerFontId,
-    orientedMarginLeft, 
-    orientedMarginTop,
-    false,
-    imageDitherMode
-  );
+
+  // BW: text first, then images (same separation as grayscale passes: text AA uses skipImages; image tone uses
+  // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
+  auto drawPageBodyBw = [&]() {
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageDitherMode);
+  };
+  drawPageBodyBw();
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
 
@@ -1374,10 +1383,54 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
+  const bool textAa = bookSettings.textAntiAliasing != 0;
+
+  /** Crosspoint-style: HALF_REFRESH fixes ink too firmly for grayscale LUT; blank image area + two FAST passes. */
+  auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
+    if (!textAa || !page->hasImages()) {
+      return false;
+    }
+    int16_t ix = 0;
+    int16_t iy = 0;
+    int16_t iw = 0;
+    int16_t ih = 0;
+    if (!page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, ix, iy, iw, ih)) {
+      return false;
+    }
+    renderer.fillRect(ix, iy, iw, ih, false);
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    drawPageBodyBw();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    return true;
+  };
+
+  auto runTextAntiAliasPass = [&]() {
+    if (!textAa) {
+      return;
+    }
+    if (!renderer.storeBwBuffer()) {
+      return;
+    }
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    renderer.copyGrayscaleLsbBuffers();
+
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+    renderer.setRenderMode(GfxRenderer::BW);
+    renderer.restoreBwBuffer();
+  };
+
   if (pagesUntilFullRefresh <= 1) {
-    
-    
-    renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    if (!tryImagePageTextAaDisplayPrep()) {
+      renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    }
+    runTextAntiAliasPass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = false;
     return;
@@ -1388,8 +1441,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale =
       SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
 
-  
-  renderer.displayBuffer();
+  if (!tryImagePageTextAaDisplayPrep()) {
+    renderer.displayBuffer();
+  }
+  runTextAntiAliasPass();
 
   if (needsImageGrayscale) {
     const bool storedBwBuffer = renderer.storeBwBuffer();
@@ -1613,6 +1668,7 @@ void EpubActivity::drawBookmarkIndicator() {
  */
 void EpubActivity::loadBookSettings() {
   if (epub) {
+    FontManager::scanSDFonts("/fonts");
     bool loaded = bookSettings.loadFromFile(epub->getCachePath());
     if (!loaded) {
       bookSettings.loadFromGlobalSettings();
@@ -1674,6 +1730,7 @@ void EpubActivity::applyBookSettings() {
   setupOrientation();
 
   ViewportInfo info = calculateViewport();
+  FontManager::ensureReaderLayoutFonts(info.fontId, renderer);
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {
@@ -1715,6 +1772,8 @@ void EpubActivity::applyBookSettings() {
 
   currentSpineIndex = currentSpine;
   nextPageNumber = currentPage;
+
+  section.reset();
 
   bookLayoutAppliedOrientation_ = bookSettings.orientation;
   updateRequired = true;

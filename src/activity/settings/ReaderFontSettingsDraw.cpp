@@ -12,12 +12,13 @@
 #include <EpdFontFamily.h>
 
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 
 #define SETTINGS SystemSetting::getInstance()
 
 namespace {
 
-void drawCheckboxCheckWithPolygons(GfxRenderer& renderer, int cbX, int cbY, int kCb, bool ink) {
+void drawCheckboxCheckWithPolygons(const GfxRenderer& renderer, int cbX, int cbY, int kCb, bool ink) {
   const int oX = cbX;
   const int oY = cbY;
   const int shortLegX[] = {oX + 2, oX + 8, oX + 5};
@@ -30,7 +31,7 @@ void drawCheckboxCheckWithPolygons(GfxRenderer& renderer, int cbX, int cbY, int 
 }
 
 /** Filled circle (octagon) for the slider thumb. */
-void drawSliderThumb(GfxRenderer& renderer, int cx, int cy, bool ink) {
+void drawSliderThumb(const GfxRenderer& renderer, int cx, int cy, bool ink) {
   constexpr int kR = 5;
   constexpr int n = 8;
   int xs[n];
@@ -47,12 +48,12 @@ void drawSliderThumb(GfxRenderer& renderer, int cx, int cy, bool ink) {
 
 namespace ReaderFontSettingsDraw {
 
-void drawFontFamilyRowValue(GfxRenderer& renderer, uint8_t fontFamily, int valueColumnRight, int itemY, int itemHeight,
-                            bool rowSelected, const char* familyLabel) {
+void drawFontFamilyRowValue(const GfxRenderer& renderer, uint8_t fontFamily, int valueColumnRight, int itemY,
+                            int itemHeight, bool rowSelected, const char* familyLabel) {
   if (!familyLabel || familyLabel[0] == '\0') {
     return;
   }
-  const int previewFont = SETTINGS.getReaderFontIdForFamilyAndSize(fontFamily, SystemSetting::EXTRA_SMALL);
+  const int previewFont = SETTINGS.getReaderFontIdForSettingsUi(fontFamily, SystemSetting::EXTRA_SMALL);
   const bool black = !rowSelected;
   const int valW = renderer.getTextWidth(previewFont, familyLabel, EpdFontFamily::REGULAR);
   const int lh = renderer.getLineHeight(previewFont);
@@ -61,16 +62,18 @@ void drawFontFamilyRowValue(GfxRenderer& renderer, uint8_t fontFamily, int value
   renderer.drawText(previewFont, valX, valY, familyLabel, black, EpdFontFamily::REGULAR);
 }
 
-void drawFontSizeSliderRowValue(GfxRenderer& renderer, uint8_t fontFamily, uint8_t fontSizeIndex, int valueAreaLeft,
-                                int valueAreaRight, int itemY, int itemHeight, bool rowSelected) {
+void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily, uint8_t fontSizeIndex,
+                                int valueAreaLeft, int valueAreaRight, int itemY, int itemHeight, bool rowSelected) {
   const bool ink = !rowSelected;
-  const uint8_t fam = std::min<uint8_t>(fontFamily, SystemSetting::FONT_FAMILY_COUNT - 1);
+  const uint32_t famCount = FontManager::readerFontFamilyOptionCount();
+  const uint8_t fam =
+      famCount > 0 ? std::min<uint8_t>(fontFamily, static_cast<uint8_t>(famCount - 1u)) : fontFamily;
   const uint8_t sel = std::min<uint8_t>(fontSizeIndex, SystemSetting::FONT_SIZE_COUNT - 1);
   constexpr int kN = SystemSetting::FONT_SIZE_COUNT;
 
-  const int fidSel = SETTINGS.getReaderFontIdForFamilyAndSize(fam, sel);
-  const int fidMin = SETTINGS.getReaderFontIdForFamilyAndSize(fam, SystemSetting::EXTRA_SMALL);
-  const int fidMax = SETTINGS.getReaderFontIdForFamilyAndSize(fam, SystemSetting::EXTRA_LARGE);
+  const int fidSel = SETTINGS.getReaderFontIdForSettingsUi(fam, sel);
+  const int fidMin = SETTINGS.getReaderFontIdForSettingsUi(fam, SystemSetting::EXTRA_SMALL);
+  const int fidMax = SETTINGS.getReaderFontIdForSettingsUi(fam, SystemSetting::EXTRA_LARGE);
 
   const int trackY = itemY + itemHeight - 9;
   const int maxPreviewW = std::max(24, valueAreaRight - valueAreaLeft - 8);
@@ -123,7 +126,7 @@ void drawFontSizeSliderRowValue(GfxRenderer& renderer, uint8_t fontFamily, uint8
   }
 }
 
-void drawToggleCheckbox(GfxRenderer& renderer, int valueColumnRight, int itemY, int itemHeight, bool rowSelected,
+void drawToggleCheckbox(const GfxRenderer& renderer, int valueColumnRight, int itemY, int itemHeight, bool rowSelected,
                         bool checked) {
   constexpr int kCb = 16;
   const int cbX = valueColumnRight - kCb;

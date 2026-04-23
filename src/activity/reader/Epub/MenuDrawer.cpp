@@ -115,8 +115,6 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
 /**
  * @brief Destructor
  */
-bool MenuDrawer::isLandscapeDrawer(const GfxRenderer& gfx) { return isLandscapeReader(gfx); }
-
 void MenuDrawer::syncLayoutFromRenderer() {
   const int sw = renderer.getScreenWidth();
   const int sh = renderer.getScreenHeight();

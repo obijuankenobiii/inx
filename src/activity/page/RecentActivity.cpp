@@ -12,14 +12,17 @@
 #include <Xtc.h>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <sstream>
+#include <unordered_set>
+#include <vector>
 
 #include "images/Down.h"
 #include "images/Up.h"
 #include "state/BookState.h"
-#include "state/Statistics.h"
 #include "state/ImageBitmapGrayMaps.h"
+#include "state/Statistics.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -92,23 +95,423 @@ class MutexGuard {
 
 constexpr unsigned long GO_HOME_MS = 1000;
 
-/** No-cover tile: white fill, border, centered truncated title (same style as flow carousel placeholders). */
+/** No-cover: stats-style double frame + title one word per line, each line centered (see StatisticActivity::renderCover). */
 static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, int w, int h, const std::string& title,
                                           int fontId) {
   if (w <= 1 || h <= 1) {
     return;
   }
   renderer.fillRect(x, y, w, h, false);
-  renderer.drawRect(x, y, w, h, true);
-  constexpr int kPad = 8;
-  const int availW = std::max(1, w - kPad);
-  const std::string trunc = renderer.truncatedText(fontId, title.c_str(), availW, EpdFontFamily::BOLD);
-  const int tw = renderer.getTextWidth(fontId, trunc.c_str());
-  const int th = renderer.getLineHeight(fontId);
-  renderer.drawText(fontId, x + (w - tw) / 2, y + (h - th) / 2, trunc.c_str(), true, EpdFontFamily::BOLD);
+  renderer.drawRect(x, y, w, h, true, false);
+  if (w > 6 && h > 6) {
+    renderer.drawRect(x + 2, y + 2, w - 4, h - 4, true, false);
+  }
+
+  std::vector<std::string> words;
+  std::string remaining = title;
+  while (!remaining.empty()) {
+    size_t sp = remaining.find(' ');
+    if (sp == std::string::npos) {
+      words.push_back(remaining);
+      break;
+    }
+    if (sp > 0) {
+      words.push_back(remaining.substr(0, sp));
+    }
+    remaining = (sp + 1 < remaining.size()) ? remaining.substr(sp + 1) : std::string();
+  }
+  if (words.empty()) {
+    return;
+  }
+
+  const int lh = renderer.getLineHeight(fontId);
+  const int maxLines = std::max(1, (h - 12) / std::max(1, lh));
+  if (static_cast<int>(words.size()) > maxLines) {
+    words.resize(static_cast<size_t>(maxLines));
+  }
+  const int totalTextH = static_cast<int>(words.size()) * lh;
+  int lineY = y + std::max(4, (h - totalTextH) / 2);
+  const int innerPad = 6;
+  const int maxWordW = std::max(8, w - 2 * innerPad);
+
+  for (const auto& word : words) {
+    std::string wshow = word;
+    if (renderer.getTextWidth(fontId, wshow.c_str()) > maxWordW) {
+      wshow = renderer.truncatedText(fontId, wshow.c_str(), maxWordW, EpdFontFamily::REGULAR);
+    }
+    const int tw = renderer.getTextWidth(fontId, wshow.c_str());
+    renderer.drawText(fontId, x + (w - tw) / 2, lineY, wshow.c_str(), true, EpdFontFamily::REGULAR);
+    lineY += lh;
+  }
+}
+
+static std::string epubCachePathForBookPath(const std::string& bookPath) {
+  return "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(bookPath));
+}
+
+/** Same light “gray” as `renderFlow` carousel: sparse ink checker (not `FillTone::Gray`). */
+static void drawFlowCarouselBackdrop(GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  for (int y = ry - 5; y < ry + rh + 10; y += 2) {
+    if (y < 0 || y >= screenH) {
+      continue;
+    }
+    for (int x = rx - 5; x < rx + rw + 10; x += 2) {
+      if (x >= 0 && x < screenW) {
+        renderer.drawPixel(x, y, true);
+      }
+    }
+  }
+}
+
+/** Flow-style dither strictly inside the rectangle (does not bleed into the white bottom pane). */
+static void drawFlowCarouselBackdropInRect(GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
+  if (rw <= 0 || rh <= 0) {
+    return;
+  }
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int x1 = std::max(0, rx);
+  const int y1 = std::max(0, ry);
+  const int x2 = std::min(screenW, rx + rw);
+  const int y2 = std::min(screenH, ry + rh);
+  for (int y = y1; y < y2; y += 2) {
+    for (int x = x1; x < x2; x += 2) {
+      renderer.drawPixel(x, y, true);
+    }
+  }
 }
 
 }  
+
+namespace {
+constexpr int kRecentThumbGap = 20;
+constexpr int kRecentStripSlots = 2;
+
+/** Keep horizontal strip window so `selectorIndex` is one of the two visible slots. */
+inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
+  if (bookCount <= 0) {
+    return;
+  }
+  const int maxH = std::max(0, bookCount - kRecentStripSlots);
+  int h = std::min(maxH, sel);
+  h = std::max(0, std::max(h, sel - (kRecentStripSlots - 1)));
+  hScroll = h;
+}
+}  // namespace
+
+void RecentActivity::noteThumbnailGrayscaleJob(const std::string& cacheDir, int drawX, int drawY, int drawW,
+                                               int drawH) {
+  if (!SETTINGS.readerImageGrayscale || cacheDir.empty() || drawW <= 0 || drawH <= 0) {
+    return;
+  }
+  ThumbnailGrayscaleJob job;
+  job.cacheDir = cacheDir;
+  job.drawX = drawX;
+  job.drawY = drawY;
+  job.drawW = drawW;
+  job.drawH = drawH;
+  thumbnailGrayscaleJobs_.push_back(std::move(job));
+}
+
+void RecentActivity::runThumbnailGrayscalePassIfNeeded() {
+  if (!SETTINGS.readerImageGrayscale || thumbnailGrayscaleJobs_.empty() || !renderer.needsBitmapGrayscale()) {
+    thumbnailGrayscaleJobs_.clear();
+    return;
+  }
+
+  const bool storedBwBuffer = renderer.storeBwBuffer();
+  const BitmapDitherMode dither = bitmapDitherModeFromSetting(SETTINGS.displayImageDither);
+
+  auto drawThumbsForMode = [&](GfxRenderer::RenderMode mode) {
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(mode);
+    BitmapGrayStyleScope grayScope(renderer, displayImageBitmapGrayStyle());
+    for (const ThumbnailGrayscaleJob& job : thumbnailGrayscaleJobs_) {
+      char path[160];
+      snprintf(path, sizeof(path), "%s/thumb.bmp", job.cacheDir.c_str());
+      FsFile file;
+      if (!SdMan.openFileForRead("RECENT", path, file)) {
+        continue;
+      }
+      Bitmap bitmap(file, dither);
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        renderer.drawBitmap(bitmap, job.drawX, job.drawY, job.drawW, job.drawH);
+      }
+      file.close();
+    }
+  };
+
+  drawThumbsForMode(GfxRenderer::GRAYSCALE_LSB);
+  renderer.copyGrayscaleLsbBuffers();
+  drawThumbsForMode(GfxRenderer::GRAYSCALE_MSB);
+  renderer.copyGrayscaleMsbBuffers();
+  renderer.displayGrayBuffer();
+  renderer.setRenderMode(GfxRenderer::BW);
+  if (storedBwBuffer) {
+    renderer.restoreBwBuffer();
+  } else {
+    renderer.cleanupGrayscaleWithFrameBuffer();
+  }
+  thumbnailGrayscaleJobs_.clear();
+}
+
+void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
+                                           const std::string& placeholderTitle, int placeholderFontId) {
+  if (w < 8 || h < 8) {
+    return;
+  }
+  if (cacheDir.empty()) {
+    drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
+    return;
+  }
+  char path[192];
+  snprintf(path, sizeof(path), "%s/thumb.bmp", cacheDir.c_str());
+  FsFile file;
+  if (!SdMan.openFileForRead("RECENT", path, file)) {
+    drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
+    return;
+  }
+  Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+    file.close();
+    drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
+    return;
+  }
+  {
+    BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
+    renderer.drawBitmap(bitmap, x, y, w, h);
+  }
+  file.close();
+  noteThumbnailGrayscaleJob(cacheDir, x, y, w, h);
+}
+
+void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
+  const int sel = selectorIndex;
+  const int n = static_cast<int>(recentBooks.size());
+  if (sel < 0 || sel >= n || screenW < 40) {
+    return;
+  }
+
+  const RecentBook& curBook = recentBooks[static_cast<size_t>(sel)];
+  BookReadingStats stats;
+  const bool hasStats = !curBook.cachePath.empty() && loadBookStats(curBook.cachePath.c_str(), stats);
+
+  const int h = listStatsRecentHScroll;
+  int compareIdx = -1;
+  if (n >= 2 && h >= 0 && h + 1 < n) {
+    if (sel == h) {
+      compareIdx = h + 1;
+    } else if (sel == h + 1) {
+      compareIdx = h;
+    }
+  }
+
+  BookReadingStats secondStats;
+  const bool hasSecond = compareIdx >= 0;
+  const bool hasSecondStats =
+      hasSecond && !recentBooks[static_cast<size_t>(compareIdx)].cachePath.empty() &&
+      loadBookStats(recentBooks[static_cast<size_t>(compareIdx)].cachePath.c_str(), secondStats);
+  const bool showCompare = hasStats && hasSecondStats && n > 1;
+
+  const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int CMP_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int kCmpIconSz = 40;
+  constexpr int kCmpIconY = 2;
+  /** Pixels between the right edge of the compare icon and the “previous” value text. */
+  constexpr int kCmpGapAfterIcon = 14;
+  constexpr int kCmpValY = 8;
+  const int statsX = 30;
+  const int col1X = statsX;
+  const int col2X = screenW / 2;
+  const int rowHeight = 95;
+  char buffer[32];
+  char secBuf[32];
+
+  auto drawComparedUint = [&](int x, int y, const char* primaryText, uint32_t curVal, uint32_t othVal) {
+    renderer.drawText(VALUE_FONT, x, y, primaryText, true, EpdFontFamily::BOLD);
+    if (!showCompare) {
+      return;
+    }
+    const int iconX = x + renderer.getTextWidth(VALUE_FONT, primaryText) + 10;
+    if (curVal > othVal) {
+      renderer.drawIcon(Up, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    } else if (curVal < othVal) {
+      renderer.drawIcon(Down, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    }
+    snprintf(secBuf, sizeof(secBuf), "%u", othVal);
+    renderer.drawText(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
+                      EpdFontFamily::BOLD);
+  };
+
+  auto drawComparedTime = [&](int x, int y, uint32_t curMs, uint32_t othMs) {
+    const std::string curStr = formatTime(curMs);
+    renderer.drawText(VALUE_FONT, x, y, curStr.c_str(), true, EpdFontFamily::BOLD);
+    if (!showCompare) {
+      return;
+    }
+    const int iconX = x + renderer.getTextWidth(VALUE_FONT, curStr.c_str()) + 10;
+    if (curMs > othMs) {
+      renderer.drawIcon(Up, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    } else if (curMs < othMs) {
+      renderer.drawIcon(Down, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    }
+    const std::string othStr = formatTime(othMs);
+    renderer.drawText(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, othStr.c_str(), true,
+                      EpdFontFamily::BOLD);
+  };
+
+  auto drawComparedAvgPage = [&](int x, int y, uint32_t curMs, uint32_t othMs) {
+    if (curMs > 0) {
+      snprintf(buffer, sizeof(buffer), "%u s", curMs / 1000);
+    } else {
+      snprintf(buffer, sizeof(buffer), "-");
+    }
+    renderer.drawText(VALUE_FONT, x, y, buffer, true, EpdFontFamily::BOLD);
+    if (!showCompare) {
+      return;
+    }
+    if (othMs > 0) {
+      snprintf(secBuf, sizeof(secBuf), "%u s", othMs / 1000);
+    } else {
+      snprintf(secBuf, sizeof(secBuf), "-");
+    }
+    const int iconX = x + renderer.getTextWidth(VALUE_FONT, buffer) + 10;
+    if (curMs > othMs) {
+      renderer.drawIcon(Up, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    } else if (curMs < othMs) {
+      renderer.drawIcon(Down, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+    }
+    renderer.drawText(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
+                      EpdFontFamily::BOLD);
+  };
+
+  auto drawComparedProgressPct = [&](int x, int y, float curPct, float othPct) {
+    const bool curOk = curPct >= 0.0f;
+    if (curOk) {
+      snprintf(buffer, sizeof(buffer), "%d%%", static_cast<int>(curPct + 0.5f));
+    } else {
+      snprintf(buffer, sizeof(buffer), "-");
+    }
+    renderer.drawText(VALUE_FONT, x, y, buffer, true, EpdFontFamily::BOLD);
+    if (!showCompare) {
+      return;
+    }
+    const bool othOk = othPct >= 0.0f;
+    if (othOk) {
+      snprintf(secBuf, sizeof(secBuf), "%d%%", static_cast<int>(othPct + 0.5f));
+    } else {
+      snprintf(secBuf, sizeof(secBuf), "-");
+    }
+    const int iconX = x + renderer.getTextWidth(VALUE_FONT, buffer) + 10;
+    const int curInt = curOk ? static_cast<int>(curPct + 0.5f) : -1;
+    const int othInt = othOk ? static_cast<int>(othPct + 0.5f) : -1;
+    if (curInt >= 0 && othInt >= 0) {
+      if (curInt > othInt) {
+        renderer.drawIcon(Up, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+      } else if (curInt < othInt) {
+        renderer.drawIcon(Down, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
+      }
+    }
+    renderer.drawText(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
+                      EpdFontFamily::BOLD);
+  };
+
+  const uint32_t curTime = hasStats ? stats.totalReadingTimeMs : 0;
+  const uint32_t othTime = hasSecondStats ? secondStats.totalReadingTimeMs : 0;
+  drawComparedTime(col1X, gridStartY, curTime, othTime);
+  renderer.drawText(LABEL_FONT, col1X, gridStartY + 40, "Reading Time", true);
+
+  const uint32_t curPages = hasStats ? stats.totalPagesRead : 0;
+  const uint32_t othPages = hasSecondStats ? secondStats.totalPagesRead : 0;
+  snprintf(buffer, sizeof(buffer), "%u", curPages);
+  drawComparedUint(col2X, gridStartY, buffer, curPages, othPages);
+  renderer.drawText(LABEL_FONT, col2X, gridStartY + 40, "Pages", true);
+
+  const int row2Y = gridStartY + rowHeight;
+  const uint32_t curCh = hasStats ? stats.totalChaptersRead : 0;
+  const uint32_t othCh = hasSecondStats ? secondStats.totalChaptersRead : 0;
+  snprintf(buffer, sizeof(buffer), "%u", curCh);
+  drawComparedUint(col1X, row2Y, buffer, curCh, othCh);
+  renderer.drawText(LABEL_FONT, col1X, row2Y + 40, "Chapters", true);
+
+  const uint32_t curAvg = hasStats ? stats.avgPageTimeMs : 0;
+  const uint32_t othAvg = hasSecondStats ? secondStats.avgPageTimeMs : 0;
+  drawComparedAvgPage(col2X, row2Y, curAvg, othAvg);
+  renderer.drawText(LABEL_FONT, col2X, row2Y + 40, "Average / Page", true);
+
+  const int row3Y = gridStartY + rowHeight * 2;
+  const uint32_t curSess = hasStats ? stats.sessionCount : 0;
+  const uint32_t othSess = hasSecondStats ? secondStats.sessionCount : 0;
+  snprintf(buffer, sizeof(buffer), "%u", curSess);
+  drawComparedUint(col1X, row3Y, buffer, curSess, othSess);
+  renderer.drawText(LABEL_FONT, col1X, row3Y + 40, "Session", true);
+
+  const float curProg =
+      hasStats ? stats.progressPercent
+               : ((curBook.progress >= 0.0f && curBook.progress <= 1.0f) ? curBook.progress * 100.0f : -1.0f);
+  const float othProg = hasSecondStats ? secondStats.progressPercent : -1.0f;
+  drawComparedProgressPct(col2X, row3Y, curProg, othProg);
+  renderer.drawText(LABEL_FONT, col2X, row3Y + 40, "Progress", true);
+}
+
+void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int bandH, int hScroll, int count,
+                                        const std::function<std::string(int)>& cacheDirAt,
+                                        const std::function<std::string(int)>& titleAt,
+                                        const std::function<bool(int)>& selectedAt) {
+  if (count <= 0 || bandH < 40) {
+    return;
+  }
+  /** Default list strip: slightly larger than legacy flow side thumbs (189×286). */
+  constexpr int kListStatsThumbW = 210;
+  constexpr int kListStatsThumbH = 318;
+  const int marginInner = 8;
+  const int bandRight = bandX + bandW - marginInner;
+
+  int thumbW = kListStatsThumbW;
+  int thumbH = kListStatsThumbH;
+  if (thumbH > bandH - 16) {
+    thumbH = std::max(100, bandH - 16);
+    thumbW = std::max(60, thumbH * kListStatsThumbW / kListStatsThumbH);
+  }
+  const int rowY = bandY + (bandH - thumbH) / 2;
+
+  const int slots = std::min(kRecentStripSlots, count - hScroll);
+  if (slots <= 0) {
+    return;
+  }
+  const int totalStripW = thumbW * slots + kRecentThumbGap * (slots - 1);
+  int baseX = bandX + marginInner + std::max(0, (bandW - marginInner * 2 - totalStripW) / 2);
+
+  for (int slot = 0; slot < slots; ++slot) {
+    const int bi = hScroll + slot;
+    if (bi >= count) {
+      break;
+    }
+    const int slotX = baseX + slot * (thumbW + kRecentThumbGap);
+    const int visW = std::min(thumbW, bandRight - slotX);
+    if (visW < 8) {
+      break;
+    }
+
+    const bool sel = selectedAt(bi);
+    renderer.fillRect(slotX, rowY, thumbW, thumbH, false);
+
+    const std::string cdir = cacheDirAt(bi);
+    const std::string ttl = titleAt(bi);
+    drawRecentThumbnailAt(slotX, rowY, thumbW, thumbH, cdir, ttl, ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+    if (sel) {
+      renderer.drawRect(slotX - 2, rowY - 2, thumbW + 4, thumbH + 4, true, false);
+      if (thumbW > 6 && thumbH > 6) {
+        renderer.drawRect(slotX, rowY, thumbW, thumbH, true, false);
+      }
+    } else {
+      renderer.drawRect(slotX, rowY, thumbW, thumbH, true, false);
+    }
+  }
+}
 
 /**
  * Calculates the number of rows that can be displayed on screen at once.
@@ -144,6 +547,25 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
     recentBooks.push_back(book);
     addedCount++;
   }
+  rebuildListStatsFavorites();
+}
+
+void RecentActivity::rebuildListStatsFavorites() {
+  listStatsFavoriteOnly_.clear();
+  std::unordered_set<std::string> recentPaths;
+  recentPaths.reserve(recentBooks.size());
+  for (const auto& rb : recentBooks) {
+    recentPaths.insert(rb.path);
+  }
+  for (const auto& fav : BOOK_STATE.getFavoriteBooks()) {
+    if (recentPaths.count(fav.path) != 0) {
+      continue;
+    }
+    if (!SdMan.exists(fav.path.c_str())) {
+      continue;
+    }
+    listStatsFavoriteOnly_.push_back(fav);
+  }
 }
 
 /**
@@ -172,7 +594,7 @@ void RecentActivity::onEnter() {
   }
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 4096, this, 1, &displayTaskHandle);
+    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 8192, this, 1, &displayTaskHandle);
   }
 
   updateRequired = true;
@@ -193,6 +615,7 @@ void RecentActivity::onExit() {
   }
 
   recentBooks.clear();
+  listStatsFavoriteOnly_.clear();
   Activity::onExit();
 }
 
@@ -277,11 +700,13 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
         int drawX = coverAreaX + (containerWidth - scaledW) / 2;
         int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
-        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-        renderer.drawBitmap(bitmap, drawX, drawY, scaledW, scaledH);
+        file.close();
+        drawRecentThumbnailAt(drawX, drawY, scaledW, scaledH, book.cachePath, bookDisplayTitle(book),
+                               ATKINSON_HYPERLEGIBLE_10_FONT_ID);
         coverDrawn = true;
+      } else {
+        file.close();
       }
-      file.close();
     }
   }
 
@@ -327,6 +752,8 @@ void RecentActivity::displayTaskLoop() {
     {
       MutexGuard guard(renderingMutex);
       if (guard.isAcquired() && updateRequired) {
+        renderer.resetBitmapGrayscaleDetection();
+        thumbnailGrayscaleJobs_.clear();
         renderer.clearScreen();
         renderTabBar(renderer);
 
@@ -343,143 +770,15 @@ void RecentActivity::displayTaskLoop() {
                                  labels.btn4);
 
         renderer.displayBuffer();
+        runThumbnailGrayscalePassIfNeeded();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
-          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);
         }
         updateRequired = false;
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));
-  }
-}
-
-/**
- * Renders a single list item with thumbnail and details.
- */
-void RecentActivity::renderListItem(int index, int startY, const RecentBook& book, bool selected, bool next) {
-  const int LIST_ITEM_HEIGHT = (renderer.getScreenHeight() - TAB_BAR_HEIGHT - 85) / 5 + 10;
-  const int LIST_ITEM_WIDTH = renderer.getScreenWidth();
-  const int LIST_START_X = 0;
-  const int ITEM_SPACING = 10;
-
-  int itemY = startY + index * (LIST_ITEM_HEIGHT + ITEM_SPACING);
-
-  if (itemY < 0 || itemY >= renderer.getScreenHeight()) {
-    return;
-  }
-
-  if (selected) {
-    renderer.fillRect(0, itemY - ITEM_SPACING, LIST_ITEM_WIDTH, LIST_ITEM_HEIGHT + ITEM_SPACING,
-                      GfxRenderer::FillTone::Gray);
-  }
-
-  int thumbX = LIST_START_X + 10;
-  int thumbY = itemY + 10;
-  int thumbWidth = 120;
-  int thumbHeight = 132;
-
-  int textX = thumbX + thumbWidth + 15;
-  int textY = itemY + 18;
-  int textWidth = LIST_ITEM_WIDTH - thumbWidth - 60;
-
-  bool coverDrawn = false;
-
-  if (!book.cachePath.empty()) {
-    char smThumbPath[128];
-    snprintf(smThumbPath, sizeof(smThumbPath), "%s/thumb.bmp", book.cachePath.c_str());
-
-    FsFile file;
-    if (SdMan.openFileForRead("RECENT", smThumbPath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bitmapWidth = bitmap.getWidth();
-        int bitmapHeight = bitmap.getHeight();
-        float bitmapRatio = static_cast<float>(bitmapWidth) / bitmapHeight;
-
-        int drawWidth = thumbWidth;
-        int drawHeight = static_cast<int>(drawWidth / bitmapRatio);
-
-        if (drawHeight > thumbHeight) {
-          drawHeight = thumbHeight;
-          drawWidth = static_cast<int>(drawHeight * bitmapRatio);
-        }
-
-        int drawX = thumbX + (thumbWidth - drawWidth) / 2;
-        int drawY = thumbY + (thumbHeight - drawHeight) / 2;
-
-        if (drawX >= 0 && drawX < renderer.getScreenWidth() && drawY >= 0 && drawY < renderer.getScreenHeight()) {
-          renderer.drawRect(drawX, drawY - 12, drawWidth, drawHeight);
-          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-          renderer.drawBitmap(bitmap, drawX, drawY - 12, drawWidth, drawHeight);
-          coverDrawn = true;
-        }
-      }
-      file.close();
-    }
-  }
-
-  if (!coverDrawn && !next) {
-    const int fillX = thumbX + 10;
-    const int fillY = thumbY - 10;
-    if (fillX >= 0 && fillX < renderer.getScreenWidth()) {
-      drawRecentNoCoverPlaceholder(renderer, fillX, fillY, thumbWidth - 20, thumbHeight, bookDisplayTitle(book),
-                                   ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-    }
-  }
-
-  const bool blackInk = !selected;
-  const std::string titleString = bookDisplayTitle(book);
-
-  if (textX >= 0 && textX < renderer.getScreenWidth()) {
-    std::string truncatedTitle =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleString.c_str(), textWidth, EpdFontFamily::BOLD);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, truncatedTitle.c_str(), blackInk,
-                      EpdFontFamily::BOLD);
-  }
-
-  int authorY = textY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
-  if (authorY >= 0 && authorY < renderer.getScreenHeight()) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, authorY, book.author.c_str(), blackInk);
-  }
-
-  if (book.progress >= 0.0f && book.progress <= 1.0f && !next && book.progress < 0.99f) {
-    int progressBarY = itemY + LIST_ITEM_HEIGHT - 40;
-
-    if (progressBarY >= 0 && progressBarY < renderer.getScreenHeight()) {
-      int progressBarX = textX;
-      int progressBarWidth = static_cast<int>(textWidth);
-      int progressBarHeight = 8;
-
-      renderer.fillRect(progressBarX, progressBarY, progressBarWidth, progressBarHeight, false);
-      renderer.drawRect(progressBarX, progressBarY, progressBarWidth, progressBarHeight, true);
-
-      if (book.progress > 0.0f) {
-        int fillWidth = static_cast<int>(progressBarWidth * book.progress + 0.5f);
-        renderer.fillRect(progressBarX, progressBarY, fillWidth, progressBarHeight);
-      }
-      char progressText[8];
-      int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
-      int len = snprintf(progressText, sizeof(progressText), "%d%%", percent);
-      if (len > 0) {
-        int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, progressText);
-        int percentX = progressBarX + progressBarWidth - textW - 5;
-        int percentY = progressBarY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 2;
-        if (percentX >= 0 && percentY >= 0) {
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentX, percentY, progressText, blackInk);
-        }
-      }
-    }
-  } else if (book.progress >= 0.99f && !next) {
-    int completedY = itemY + LIST_ITEM_HEIGHT - 40;
-    if (completedY >= 0 && completedY < renderer.getScreenHeight()) {
-      const char* completedText = "Completed";
-      int textW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedText);
-      int completedX = textX + textWidth - textW - 5;
-      if (completedX >= 0 && completedX < renderer.getScreenWidth()) {
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, completedX, completedY, completedText, blackInk);
-      }
-    }
   }
 }
 
@@ -501,244 +800,68 @@ std::string RecentActivity::formatTime(uint32_t milliseconds) const {
 }
 
 /**
- * Renders the default view with current book stats and iterating through remaining recent books.
+ * List (default) view: two thumbnails in the top band; stats below use the same 2×2 grid as Flow.
  */
 void RecentActivity::renderDefault() {
-  if (recentBooks.empty()) {
+  const int recentCount = static_cast<int>(recentBooks.size());
+  const int favCount = static_cast<int>(listStatsFavoriteOnly_.size());
+  if (recentCount == 0 && favCount == 0) {
     renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, "No recent books");
     return;
   }
 
-  const RecentBook& currentBook = recentBooks[0];
-
-  BookReadingStats stats;
-  bool hasStats = false;
-  if (!currentBook.cachePath.empty()) {
-    hasStats = loadBookStats(currentBook.cachePath.c_str(), stats);
-  }
-
-  BookReadingStats secondStats;
-  bool hasSecondStats = false;
-  if (recentBooks.size() > 1 && !recentBooks[1].cachePath.empty()) {
-    hasSecondStats = loadBookStats(recentBooks[1].cachePath.c_str(), secondStats);
+  if (recentCount > 0) {
+    clampRecentStripHScroll(selectorIndex, recentCount, listStatsRecentHScroll);
   }
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int startY = TAB_BAR_HEIGHT;
-  const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int startY = TAB_BAR_HEIGHT - 6;
+  const int bodyTop = startY + 8;
+  const int bodyBottom = screenH - 28;
+  constexpr int kCarouselH = 340;
+  const int carouselH = std::min(kCarouselH, std::max(120, bodyBottom - bodyTop));
 
-  int availableWidth = screenW - (2 + 1) * GRID_SPACING;
-  int containerWidth = availableWidth / 2 + 18;
-  int containerHeight = 360;
-
-  int coverItemX = GRID_SPACING;
-  int coverItemY = startY + GRID_SPACING;
-  int detailsItemX = GRID_SPACING + containerWidth + 5;
-  int detailsItemY = coverItemY;
-
-  int coverAreaX = coverItemX;
-  int coverAreaY = coverItemY + 45;
-  int coverWidth = containerWidth - 10;
-  int coverHeight = static_cast<int>((containerHeight - 40) * 0.75);
-
-  bool coverDrawn = false;
-
-  int borderX = 0;
-  int borderY = coverItemY - 10;
-  int borderWidth = screenW;
-  int borderHeight = containerHeight + 40;
-
-  for (int x = borderX; x <= borderX + borderWidth; x += 2) {
-    if (x >= 0 && x < renderer.getScreenWidth()) {
-      renderer.drawPixel(x, borderY + borderHeight, true);
-    }
-  }
-
-  if (!currentBook.cachePath.empty()) {
-    char thumbPath[128];
-    snprintf(thumbPath, sizeof(thumbPath), "%s/thumb.bmp", currentBook.cachePath.c_str());
-
-    FsFile file;
-    if (SdMan.openFileForRead("RECENT", thumbPath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        int bw = bitmap.getWidth() > 225 ? 240 : bitmap.getWidth();
-        int bh = bitmap.getHeight() > 340 ? 340 : bitmap.getHeight();
-        int drawX = coverAreaX + (coverWidth - bw) / 2;
-        int drawY = coverAreaY + (coverHeight - bh) / 2;
-        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-        renderer.drawBitmap(bitmap, drawX, drawY, bw, bh);
-        coverDrawn = true;
-      }
-      file.close();
-    }
-  }
-
-  if (!coverDrawn) {
-    const int bookX = coverAreaX - 5;
-    const int bookY = coverAreaY - 40;
-    const int bookWidth = containerWidth - 10;
-    const int bookHeight = static_cast<int>(containerHeight - 30);
-    drawRecentNoCoverPlaceholder(renderer, bookX, bookY, bookWidth, bookHeight, bookDisplayTitle(currentBook),
-                                 ATKINSON_HYPERLEGIBLE_14_FONT_ID);
-  }
-
-  const int textX = coverItemX;
-  const int textWidth = containerWidth - 10;
-
-  const float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
-  if (progress >= 0) {
-    const int barX = textX;
-    const int progLabelY = coverAreaY + coverHeight + 50;
-    const int barY = progLabelY + renderer.getLineHeight(LABEL_FONT) + 6;
-    const int barW = textWidth;
-    const int barH = 5;
-
-    renderer.fillRect(barX, barY, barW, barH, false);
-    renderer.drawRect(barX, barY, barW, barH, true);
-
-    if (progress > 0.0f) {
-      const int fillW = static_cast<int>(barW * (progress / 100.0f));
-      renderer.fillRect(barX, barY, fillW, barH);
-    }
-
-    char pText[8];
-    const int percent =
-        (progress >= 99.5f) ? 100 : std::max(0, std::min(100, static_cast<int>(progress + 0.5f)));
-    snprintf(pText, sizeof(pText), "%d%%", percent);
-    const int pW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pText);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, barX + barW - pW - 2,
-                      barY - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) - 5, pText);
-  }
-
-  int statsX = detailsItemX + 8;
-  int statsY = detailsItemY;
-  int currentY = statsY + renderer.getLineHeight(VALUE_FONT) - 40;
-  char buffer[32];
-
-  uint32_t readingTime = hasStats ? stats.totalReadingTimeMs : 0;
-  std::string timeStr = formatTime(readingTime);
-  renderer.drawText(VALUE_FONT, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
-
-  if (hasStats && hasSecondStats && recentBooks.size() > 1) {
-    int iconX = statsX + renderer.getTextWidth(VALUE_FONT, timeStr.c_str()) + 10;
-    int iconY = currentY;
-    renderer.drawIcon(stats.totalReadingTimeMs > secondStats.totalReadingTimeMs ? Up : Down, iconX, iconY + 10, 40,
-                      40);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15,
-                      formatTime(secondStats.totalReadingTimeMs).c_str(), true, EpdFontFamily::BOLD);
-  }
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Reading Time", true);
-  currentY += 87;
-
-  uint32_t pagesRead = hasStats ? stats.totalPagesRead : 0;
-  snprintf(buffer, sizeof(buffer), "%u", pagesRead);
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-
-  if (hasStats && hasSecondStats && recentBooks.size() > 1) {
-    int iconX = statsX + renderer.getTextWidth(VALUE_FONT, buffer) + 10;
-    int iconY = currentY;
-    renderer.drawIcon(stats.totalPagesRead > secondStats.totalPagesRead ? Up : Down, iconX, iconY + 10, 40, 40);
-    char prevBuffer[32];
-    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalPagesRead);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true, EpdFontFamily::BOLD);
-  }
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Pages", true);
-  currentY += 87;
-
-  uint32_t chaptersRead = hasStats ? stats.totalChaptersRead : 0;
-  snprintf(buffer, sizeof(buffer), "%u", chaptersRead);
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-
-  if (hasStats && hasSecondStats && recentBooks.size() > 1) {
-    int iconX = statsX + renderer.getTextWidth(VALUE_FONT, buffer) + 10;
-    int iconY = currentY;
-    renderer.drawIcon(stats.totalChaptersRead > secondStats.totalChaptersRead ? Up : Down, iconX, iconY + 10, 40,
-                      40);
-    char prevBuffer[32];
-    snprintf(prevBuffer, sizeof(prevBuffer), "%u", secondStats.totalChaptersRead);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true, EpdFontFamily::BOLD);
-  }
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
-  currentY += 87;
-
-  uint32_t avgPageTime = hasStats ? stats.avgPageTimeMs : 0;
-  if (avgPageTime > 0) {
-    snprintf(buffer, sizeof(buffer), "%u s", avgPageTime / 1000);
+  drawFlowCarouselBackdropInRect(renderer, 0, bodyTop, screenW, carouselH);
+  if (recentCount > 0 && carouselH > 40) {
+    drawListStatsStrip(
+        0, bodyTop, screenW, carouselH, listStatsRecentHScroll, recentCount,
+        [&](int bi) -> std::string {
+          const RecentBook& b = recentBooks[static_cast<size_t>(bi)];
+          return b.cachePath.empty() ? epubCachePathForBookPath(b.path) : b.cachePath;
+        },
+        [&](int bi) -> std::string { return bookDisplayTitle(recentBooks[static_cast<size_t>(bi)]); },
+        [&](int bi) { return selectorIndex == bi; });
   } else {
-    snprintf(buffer, sizeof(buffer), "-");
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID,
+                              bodyTop + std::max(8, carouselH / 2 - 8), "No recent books");
   }
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
 
-  if (hasStats && hasSecondStats && recentBooks.size() > 1) {
-    int iconX = statsX + renderer.getTextWidth(VALUE_FONT, buffer) + 10;
-    int iconY = currentY;
-    uint32_t prevAvgPageTime = secondStats.avgPageTimeMs;
-    if (prevAvgPageTime > 0) {
-      char prevBuffer[32];
-      snprintf(prevBuffer, sizeof(prevBuffer), "%u s", prevAvgPageTime / 1000);
-      renderer.drawIcon(avgPageTime > prevAvgPageTime ? Up : Down, iconX, iconY + 10, 40, 40);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, prevBuffer, true,
-                        EpdFontFamily::BOLD);
-    } else if (secondStats.totalPagesRead > 0) {
-      renderer.drawIcon(avgPageTime > 0 ? Up : Down, iconX, iconY + 10, 40, 40);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, iconX + 45, iconY + 15, "-", true, EpdFontFamily::BOLD);
-    }
-  }
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Average / Page", true);
+  const int belowY = bodyTop + carouselH;
+  const int kSepFontCur = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
+  const int kSepFontSlash = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
+  const int kSepFontPrev = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+  const int lhCur = renderer.getLineHeight(kSepFontCur);
+  const int lhPrev = renderer.getLineHeight(kSepFontPrev);
+  constexpr int kSepToGridGap = 22;
+  if (belowY < bodyBottom) {
+    renderer.fillRect(0, belowY, screenW, bodyBottom - belowY, false);
+    renderer.drawLine(0, belowY, screenW, belowY, true);
+    if (recentCount > 0) {
+      const int sepTextY = belowY + 8;
+      int tx = 30;
+      renderer.drawText(kSepFontCur, tx, sepTextY, "Current", true, EpdFontFamily::BOLD);
+      tx += renderer.getTextWidth(kSepFontCur, "Current", EpdFontFamily::BOLD);
+      renderer.drawText(kSepFontSlash, tx, sepTextY, " / ", true, EpdFontFamily::REGULAR);
+      tx += renderer.getTextWidth(kSepFontSlash, " / ", EpdFontFamily::REGULAR);
+      const int prevY = sepTextY + (lhCur - lhPrev) / 2;
+      renderer.drawText(kSepFontPrev, tx, prevY, "Previous", true, EpdFontFamily::BOLD);
 
-  int bottomStartY = coverItemY + containerHeight + 20;
-  int listEndY = screenH - 30;
-  int availableListHeight = listEndY - bottomStartY;
-
-  int itemsToShow = 2;
-  int listIndex = 0;
-
-  const int LIST_ITEM_HEIGHT = (renderer.getScreenHeight() - TAB_BAR_HEIGHT - 85) / 5 + 10;
-  const int ITEM_SPACING = 10;
-
-  int startIndex = 1 + scrollOffsetDefault;
-  int endIndex = std::min(static_cast<int>(recentBooks.size()), startIndex + itemsToShow);
-
-  for (int i = startIndex; i < endIndex; i++) {
-    if (i < static_cast<int>(recentBooks.size())) {
-      int itemIndex = i - startIndex;
-      int itemY = bottomStartY + 20 + itemIndex * (LIST_ITEM_HEIGHT + ITEM_SPACING);
-      if (itemIndex > 0) {
-        int itemBorderY = itemY - 10;
-        for (int x = 0; x < screenW; x += 2) {
-          if (x >= 0 && x < renderer.getScreenWidth()) {
-            renderer.drawPixel(x, itemBorderY, true);
-          }
-        }
+      const int gridY = sepTextY + std::max(lhCur, lhPrev) + kSepToGridGap;
+      if (gridY < bodyBottom) {
+        renderDefaultStatsGrid(gridY, screenW);
       }
-
-      bool isSelected = (selectorIndex == i);
-      renderListItem(itemIndex, bottomStartY + 20, recentBooks[i], isSelected);
-      listIndex++;
     }
-  }
-
-  int totalScrollableItems = static_cast<int>(recentBooks.size()) - 1;
-  int visibleItemsCount = itemsToShow;
-
-  if (totalScrollableItems > visibleItemsCount) {
-    int scrollbarWidth = 4;
-    int scrollbarHeight = availableListHeight - 50;
-    int scrollbarX = screenW - scrollbarWidth - 10;
-    int scrollbarY = bottomStartY + 30;
-    int maxScrollOffset = std::max(0, totalScrollableItems - visibleItemsCount);
-
-    renderer.fillRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, false);
-    renderer.drawRect(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight, true);
-
-    float scrollRatio = static_cast<float>(scrollOffsetDefault) / maxScrollOffset;
-    int thumbHeight = std::max(20, static_cast<int>(scrollbarHeight * visibleItemsCount / totalScrollableItems));
-    int thumbY = scrollbarY + static_cast<int>(scrollRatio * (scrollbarHeight - thumbHeight));
-
-    renderer.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
   }
 }
 
@@ -754,7 +877,7 @@ void RecentActivity::loop() {
   }
 
   const int totalBooks = static_cast<int>(recentBooks.size());
-  bool isDefaultView = (currentViewMode == ViewMode::Default);
+  const bool isDefaultView = (currentViewMode == ViewMode::Default);
 
   bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
@@ -766,32 +889,44 @@ void RecentActivity::loop() {
     if (mappedInput.getHeldTime() >= GO_HOME_MS) {
       return;
     }
-    if (tabSelectorIndex == 0 && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
-      RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
-      loadRecentBooks(false);
-      const int n = static_cast<int>(recentBooks.size());
-      if (n == 0) {
-        selectorIndex = 0;
-        scrollOffset = 0;
-        scrollOffsetDefault = 0;
-        statsSectionSelected = true;
-      } else {
-        if (selectorIndex >= n) {
-          selectorIndex = n - 1;
-        }
-        if (currentViewMode == ViewMode::Default) {
-          const int itemsToShow = 2;
-          const int maxScroll = std::max(0, n - 1 - itemsToShow);
+    if (tabSelectorIndex == 0) {
+      if (isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
+        RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
+        loadRecentBooks(false);
+        const int n = static_cast<int>(recentBooks.size());
+        if (n == 0) {
+          scrollOffset = 0;
+          scrollOffsetDefault = 0;
+          selectorIndex = 0;
+        } else {
+          if (selectorIndex >= n) {
+            selectorIndex = n - 1;
+          }
+          const int maxScroll = std::max(0, n - kRecentStripSlots);
           scrollOffsetDefault = std::max(0, std::min(scrollOffsetDefault, maxScroll));
-          statsSectionSelected = (selectorIndex == 0);
-        } else if (currentViewMode == ViewMode::Grid) {
-          const int visibleRows = getVisibleRows();
-          const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
-          const int maxScroll = std::max(0, totalRows - visibleRows);
-          scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
         }
+        updateRequired = true;
+      } else if (!isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
+        RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
+        loadRecentBooks(false);
+        const int n = static_cast<int>(recentBooks.size());
+        if (n == 0) {
+          selectorIndex = 0;
+          scrollOffset = 0;
+          scrollOffsetDefault = 0;
+        } else {
+          if (selectorIndex >= n) {
+            selectorIndex = n - 1;
+          }
+          if (currentViewMode == ViewMode::Grid) {
+            const int visibleRows = getVisibleRows();
+            const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
+            const int maxScroll = std::max(0, totalRows - visibleRows);
+            scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+          }
+        }
+        updateRequired = true;
       }
-      updateRequired = true;
     }
     return;
   }
@@ -812,7 +947,12 @@ void RecentActivity::loop() {
     return;
   }
 
-  if (totalBooks == 0) return;
+  if (!isDefaultView && totalBooks == 0) {
+    return;
+  }
+  if (isDefaultView && totalBooks == 0) {
+    return;
+  }
 
   if (!isDefaultView) {
     ViewMode newViewMode = ViewMode::Flow;
@@ -836,48 +976,24 @@ void RecentActivity::loop() {
   bool selectorChanged = false;
 
   if (isDefaultView) {
-    int itemsToShow = 2;
-    int maxScrollOffset = std::max(0, totalBooks - 1 - itemsToShow);
-
-    if (scrollOffsetDefault < 0) scrollOffsetDefault = 0;
-    if (scrollOffsetDefault > maxScrollOffset) scrollOffsetDefault = maxScrollOffset;
-
-    if (downPressed) {
-      if (selectorIndex < totalBooks - 1) {
-        selectorIndex++;
-        selectorChanged = true;
-        if (selectorIndex > scrollOffsetDefault + itemsToShow) {
-          scrollOffsetDefault = std::min(maxScrollOffset, scrollOffsetDefault + 1);
-        }
-
-        if (selectorIndex > 0) {
-          statsSectionSelected = false;
-        }
-      }
+    if (downPressed && selectorIndex < totalBooks - 1) {
+      selectorIndex++;
+      selectorChanged = true;
+    }
+    if (upPressed && selectorIndex > 0) {
+      selectorIndex--;
+      selectorChanged = true;
     }
 
-    if (upPressed) {
-      if (selectorIndex > 0) {
-        selectorIndex--;
-        selectorChanged = true;
-        if (selectorIndex < scrollOffsetDefault + 1) {
-          scrollOffsetDefault = std::max(0, scrollOffsetDefault - 1);
-        }
-
-        if (selectorIndex == 0) {
-          statsSectionSelected = true;
-        }
-      }
+    if (selectorChanged) {
+      clampRecentStripHScroll(selectorIndex, totalBooks, listStatsRecentHScroll);
+      updateRequired = true;
     }
 
     if (confirmPressed && selectorIndex >= 0 && selectorIndex < totalBooks) {
       bookSelected = true;
       onSelectBook(recentBooks[selectorIndex].path);
       return;
-    }
-
-    if (selectorChanged) {
-      updateRequired = true;
     }
   } else {
     if (downPressed && selectorIndex < totalBooks - 1) {
@@ -927,7 +1043,6 @@ void RecentActivity::renderFlow() {
   }
 
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
   const int startY = TAB_BAR_HEIGHT + 5;
 
   int currentIndex = selectorIndex;
@@ -938,15 +1053,8 @@ void RecentActivity::renderFlow() {
   int carouselX = 0;
   int carouselY = startY;
 
-  for (int y = carouselY - 5; y < carouselY + carouselH + 10; y += 2) {
-    if (y < 0 || y >= renderer.getScreenHeight()) continue;
-    for (int x = carouselX - 5; x < carouselX + carouselW + 10; x += 2) {
-      if (x >= 0 && x < renderer.getScreenWidth()) {
-        renderer.drawPixel(x, y, true);
-      }
-    }
-  }
-
+  drawFlowCarouselBackdrop(renderer, carouselX, carouselY, carouselW, carouselH);
+  
   int centerW = 210;
   int centerH = 318;
   int centerX = carouselX + (carouselW - centerW) / 2;
@@ -962,71 +1070,20 @@ void RecentActivity::renderFlow() {
   
   if (currentIndex > 0) {
     const RecentBook& leftBook = recentBooks[currentIndex - 1];
-    bool drawn = false;
-    if (!leftBook.cachePath.empty()) {
-      char path[128];
-      snprintf(path, sizeof(path), "%s/thumb.bmp", leftBook.cachePath.c_str());
-      FsFile file;
-      if (SdMan.openFileForRead("RECENT", path, file)) {
-        Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-        if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-          renderer.drawBitmap(bitmap, leftX, sideY, sideW, sideH);
-          drawn = true;
-        }
-        file.close();
-      }
-    }
-    if (!drawn) {
-      drawRecentNoCoverPlaceholder(renderer, leftX, sideY, sideW, sideH, bookDisplayTitle(leftBook),
-                                   ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-    }
+    drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
   }
 
   if (currentIndex + 1 < totalBooks) {
     const RecentBook& rightBook = recentBooks[currentIndex + 1];
-    bool drawn = false;
-    if (!rightBook.cachePath.empty()) {
-      char path[128];
-      snprintf(path, sizeof(path), "%s/thumb.bmp", rightBook.cachePath.c_str());
-      FsFile file;
-      if (SdMan.openFileForRead("RECENT", path, file)) {
-        Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-        if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-          renderer.drawBitmap(bitmap, rightX, sideY, sideW, sideH);
-          drawn = true;
-        }
-        file.close();
-      }
-    }
-    if (!drawn) {
-      drawRecentNoCoverPlaceholder(renderer, rightX, sideY, sideW, sideH, bookDisplayTitle(rightBook),
-                                   ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-    }
+    drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
   }
 
   const RecentBook& currentBook = recentBooks[currentIndex];
-  bool centerDrawn = false;
-  if (!currentBook.cachePath.empty()) {
-    renderer.fillRect(centerX, centerY, centerW, centerH, false);
-    char path[128];
-    snprintf(path, sizeof(path), "%s/thumb.bmp", currentBook.cachePath.c_str());
-    FsFile file;
-    if (SdMan.openFileForRead("RECENT", path, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-        renderer.drawBitmap(bitmap, centerX, centerY, centerW, centerH);
-        centerDrawn = true;
-      }
-      file.close();
-    }
-  }
-  if (!centerDrawn) {
-    drawRecentNoCoverPlaceholder(renderer, centerX, centerY, centerW, centerH, bookDisplayTitle(currentBook),
-                                 ATKINSON_HYPERLEGIBLE_14_FONT_ID);
-  }
+  renderer.fillRect(centerX, centerY, centerW, centerH, false);
+  drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
+                        ATKINSON_HYPERLEGIBLE_14_FONT_ID);
 
   BookReadingStats stats;
   bool hasStats = false;
@@ -1039,7 +1096,7 @@ void RecentActivity::renderFlow() {
 
   int statsX = 30;
   int statsY = carouselY + carouselH + 25;
-
+  renderer.drawLine(0, carouselY + carouselH + 10,  screenW, carouselY + carouselH + 10, true);
   std::string title;
   if (!currentBook.title.empty()) {
     title = currentBook.title;
@@ -1073,7 +1130,6 @@ void RecentActivity::renderFlow() {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
   }
 
-  
   if (hasStats) {
     char buffer[32];
 

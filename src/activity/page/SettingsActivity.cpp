@@ -20,7 +20,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 26;
+constexpr int systemPageSettingsCount = 30;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -28,7 +28,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","List Stats","Flow"},
+    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","Current | Previous","Flow"},
                       GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
@@ -57,7 +57,11 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load", &SystemSetting::refreshOnLoad, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
@@ -65,20 +69,19 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
-
-    
-    SettingInfo::Action("About", GroupType::NONE)};
+    SettingInfo::Action("About", GroupType::DEVICE_ACTIONS)};
 
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
-    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Bookerly","Atkinson Hyperlegible","Literata"},
+    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Literata", "Atkinson Hyperlegible"},
                       GroupType::FONT),
     SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small","Small","Medium","Large","X Large"},
                       GroupType::FONT),
 
     SettingInfo::Separator("Layout", GroupType::LAYOUT),
-    SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight","Normal","Wide"}, GroupType::LAYOUT),
+    SettingInfo::Enum("Line spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide", "Wider", "Loose"},
+                      GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
     SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
                       {"Justify", "Left", "Center", "Right", "Css"},
@@ -259,7 +262,7 @@ void SettingsActivity::swapPanelAndReopen() {
 }
 
 void SettingsActivity::openCurrentPanel() {
-  const char* title = (currentPanel == SettingsPanel::System) ?"System":"Reader";
+  const char* title = (currentPanel == SettingsPanel::System) ? "System settings" : "Reader settings";
   const SettingInfo* list = (currentPanel == SettingsPanel::System) ? systemPageSettings : readerSettings;
   const int count = (currentPanel == SettingsPanel::System) ? systemPageSettingsCount : readerSettingsCount;
 

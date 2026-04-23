@@ -11,6 +11,7 @@
 #include <string>
 
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 
 /**
  * @brief Status bar item types for display sections
@@ -89,7 +90,7 @@ struct BookSettings {
 
   
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
-  uint8_t textAntiAliasing = 1;       ///< Text anti-aliasing enabled
+  uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
 
   
@@ -161,8 +162,18 @@ struct BookSettings {
           size_t offset = 0;
 
           fontFamily = data[offset++];
+          if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
+            /** Legacy enum had Bookerly=0, Atkinson=1, Literata=2; map non-Atkinson to Literata (0). */
+            if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
+              fontFamily = SystemSetting::LITERATA;
+            }
+          }
+          FontManager::clampReaderFontFamilySlot(fontFamily);
           fontSize = data[offset++];
           lineSpacing = data[offset++];
+          if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+            lineSpacing = SystemSetting::NORMAL;
+          }
           extraParagraphSpacing = data[offset++];
           paragraphAlignment = data[offset++];
           hyphenationEnabled = data[offset++];
@@ -215,6 +226,10 @@ struct BookSettings {
    * @return true if save successful
    */
   bool saveToFile(const std::string& bookCachePath) {
+    FontManager::clampReaderFontFamilySlot(fontFamily);
+    if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+      lineSpacing = SystemSetting::NORMAL;
+    }
     std::string settingsPath = bookCachePath + "/settings.bin";
     FsFile f;
     if (SdMan.openFileForWrite("BST", settingsPath.c_str(), f)) {

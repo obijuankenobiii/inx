@@ -2,29 +2,9 @@
 
 /**
  * @file Fonts.h
- * @brief Public interface and types for Fonts.
+ * @brief Built-in bitmap font headers and numeric font IDs.
  */
 
-#include "font/bookerly_10_bold.h"
-#include "font/bookerly_12_bold.h"
-#include "font/bookerly_10_bolditalic.h"
-#include "font/bookerly_12_bolditalic.h"
-#include "font/bookerly_10_italic.h"
-#include "font/bookerly_12_italic.h"
-#include "font/bookerly_10_regular.h"
-#include "font/bookerly_12_regular.h"
-#include "font/bookerly_14_bold.h"
-#include "font/bookerly_14_bolditalic.h"
-#include "font/bookerly_14_italic.h"
-#include "font/bookerly_14_regular.h"
-#include "font/bookerly_16_bold.h"
-#include "font/bookerly_16_bolditalic.h"
-#include "font/bookerly_16_italic.h"
-#include "font/bookerly_16_regular.h"
-#include "font/bookerly_18_bold.h"
-#include "font/bookerly_18_bolditalic.h"
-#include "font/bookerly_18_italic.h"
-#include "font/bookerly_18_regular.h"
 #include "font/atkinson_hyperlegible_8_regular.h"
 #include "font/atkinson_hyperlegible_10_regular.h"
 #include "font/atkinson_hyperlegible_10_bold.h"
@@ -67,13 +47,6 @@
 #include "font/literata_16_bolditalic.h"
 #include "font/literata_18_bolditalic.h"
 
-
-#define BOOKERLY_10_FONT_ID (1000)
-#define BOOKERLY_12_FONT_ID (1001)
-#define BOOKERLY_14_FONT_ID (1002)
-#define BOOKERLY_16_FONT_ID (1003)
-#define BOOKERLY_18_FONT_ID (1004)
-
 #define ATKINSON_HYPERLEGIBLE_8_FONT_ID (2001)
 #define ATKINSON_HYPERLEGIBLE_10_FONT_ID (2002)
 #define ATKINSON_HYPERLEGIBLE_12_FONT_ID (2003)
@@ -81,8 +54,8 @@
 #define ATKINSON_HYPERLEGIBLE_16_FONT_ID (2005)
 #define ATKINSON_HYPERLEGIBLE_18_FONT_ID (2006)
 
-#define LITERATA_10_FONT_ID (3001)  
-#define LITERATA_12_FONT_ID (3002)  
+#define LITERATA_10_FONT_ID (3001)
+#define LITERATA_12_FONT_ID (3002)
 #define LITERATA_14_FONT_ID (3003)
-#define LITERATA_16_FONT_ID (3004)  
-#define LITERATA_18_FONT_ID (3005)  
+#define LITERATA_16_FONT_ID (3004)
+#define LITERATA_18_FONT_ID (3005)

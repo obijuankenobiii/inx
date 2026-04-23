@@ -42,12 +42,7 @@ class MutexGuard {
 
 constexpr int MENU_ITEM_COUNT = 3;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
-const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {
-    "Connect to an existing WiFi network",
-    "Use Calibre wireless device transfers",
-    "Create a WiFi network others can join",
-};
-constexpr int LIST_ITEM_HEIGHT = 80;
+constexpr int LIST_ITEM_HEIGHT = 60;
 }  
 
 /**
@@ -72,7 +67,7 @@ void SyncActivity::onEnter() {
 
   
   render();
-  SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+  SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Sync);
 
   if (displayTaskHandle == nullptr) {
     xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 16384, this, 1, &displayTaskHandle);
@@ -184,19 +179,13 @@ void SyncActivity::render() const {
 
   renderTabBar(renderer);
 
-  const int startY = TAB_BAR_HEIGHT;
+  const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
+  const int headerTextY =
+      headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
 
-  const char* headerText = "File Transfer";
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, startY + 10, headerText, true, EpdFontFamily::BOLD);
-
-  const char* subtitleText = "How would you like to connect?";
-  int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.drawLine(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
@@ -215,23 +204,23 @@ void SyncActivity::render() const {
       constexpr int kIconSize = 40;
       const int textX = 70;
       const int iconX = (textX - kIconSize) / 2;
-      const int titleY = itemY + 10;
-      const int descriptionY = itemY + 42;
+      const int titleY =
+          itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
 
       switch (i) {
         case 0:  
-          renderer.drawIcon(Wifi, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.drawIcon(Wifi, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 1:  
-          renderer.drawIcon(Calibre, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.drawIcon(Calibre, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 2:  
-          renderer.drawIcon(Qr, iconX, itemY + 17, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.drawIcon(Qr, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, descriptionY, MENU_DESCRIPTIONS[i], !isSelected);
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
         renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);

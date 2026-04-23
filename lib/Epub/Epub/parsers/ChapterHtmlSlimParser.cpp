@@ -400,11 +400,13 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
       currentTextBlock->setStyle(style);
+      currentTextBlock->setRespectParagraphIndent(respectCssParagraphIndent);
       return;
     }
     makePages();
   }
-  currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing, hyphenationEnabled));
+  currentTextBlock.reset(
+      new ParsedText(style, extraParagraphSpacing, hyphenationEnabled, respectCssParagraphIndent));
 }
 
 /**
@@ -611,6 +613,84 @@ bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, in
   return ok && (*w > 0) && (*h > 0);
 }
 
+bool ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const char** atts) {
+  std::string src;
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      const std::string attrName = atts[i];
+      if (attrName == "src" || attrName == "href" || attrName == "xlink:href") {
+        src = atts[i + 1];
+        break;
+      }
+    }
+  }
+  if (src.empty()) return true;
+
+  const std::string base = internalPath.empty() ? filepath : internalPath;
+  const std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
+  const std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
+  int w = 0;
+  int h = 0;
+  if (!ensureImageCached(fullInternalPath, cacheImgPath, &w, &h)) {
+    Serial.printf("[EHP] Prefetch failed for image: %s\n", src.c_str());
+    return false;
+  }
+  return true;
+}
+
+void XMLCALL ChapterHtmlSlimParser::prefetchStartElement(void* userData, const XML_Char* name, const XML_Char** atts) {
+  auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+  if (!matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) return;
+  if (!self->prefetchImageFromImgAttributes(const_cast<const char**>(atts))) {
+    self->prefetchFailed_ = true;
+  }
+}
+
+bool ChapterHtmlSlimParser::prefetchChapterImages() {
+  prefetchFailed_ = false;
+  skipImages = false;
+  imageExtractCountForYield_ = 0;
+  cssLoaded = false;
+  cssParser.clear();
+  // Skip loadCssRules: image prefetch only needs src URLs; CSS stays for parseAndBuildPages(). Keeps heap
+  // free for ZIP inflate (~32 KB dictionary) after display paths (e.g. text AA) fragment RAM.
+
+  const XML_Parser parser = XML_ParserCreate(nullptr);
+  if (!parser) return false;
+
+  FsFile file;
+  if (!SdMan.openFileForRead("EHP", filepath, file)) {
+    XML_ParserFree(parser);
+    return false;
+  }
+
+  if (popupFn && file.size() >= MIN_SIZE_FOR_POPUP) popupFn();
+
+  XML_SetUserData(parser, this);
+  XML_SetElementHandler(parser, prefetchStartElement, nullptr);
+
+  int done;
+  do {
+    void* const buf = XML_GetBuffer(parser, 1024);
+    if (!buf) {
+      XML_ParserFree(parser);
+      file.close();
+      return false;
+    }
+    const size_t len = file.read(buf, 1024);
+    done = (len == 0);
+    if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
+      XML_ParserFree(parser);
+      file.close();
+      return false;
+    }
+  } while (!done);
+
+  XML_ParserFree(parser);
+  file.close();
+  return !prefetchFailed_;
+}
+
 /**
  * Adds a single text line to the current page.
  * Handles page breaking when the line exceeds available space.
@@ -683,7 +763,12 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
 
   bool result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
 
-  if (result) return getBmpDimensions(cacheImgPath, w, h);
+  if (result) {
+    if (++imageExtractCountForYield_ % 2u == 0u) {
+      yield();
+    }
+    return getBmpDimensions(cacheImgPath, w, h);
+  }
 
   return false;
 }

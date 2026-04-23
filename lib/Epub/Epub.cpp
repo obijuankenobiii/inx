@@ -12,6 +12,8 @@
 #include <SDCardManager.h>
 #include <ZipFile.h>
 
+#include "FontManager.h"
+
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
@@ -94,7 +96,16 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
 
   Serial.printf("[EBP] Zip Request: %s\n", path.c_str());
 
-  return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
+  auto runZip = [&]() { return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize); };
+
+  if (FontManager::zipExtractHeapScopeActive() && chunkSize >= 2048) {
+    const int restoreFontId = FontManager::zipExtractHeapScopeReaderBodyFontId();
+    bool ok = false;
+    FontManager::withSdFontsReleasedForHeapIntensiveWork(restoreFontId, [&]() { ok = runZip(); });
+    return ok;
+  }
+
+  return runZip();
 }
 
 /**

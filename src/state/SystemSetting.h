@@ -153,13 +153,14 @@ public:
     };
     
     /**
-     * @brief Font family options
+     * @brief Font family options (stored in fontFamily / BookSettings::fontFamily)
+     * @details 0–1 are built-ins; 2+ select SD card folders under /fonts (sorted names), see FontManager.
      */
-    enum FONT_FAMILY { 
-        BOOKERLY = 0,               ///< Bookerly font
-        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible font
-        LITERATA = 2,               ///< Literata font
-        FONT_FAMILY_COUNT 
+    enum FONT_FAMILY {
+        LITERATA = 0,                ///< Literata (default body font)
+        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible
+        FONT_FAMILY_BUILTIN_COUNT,
+        FONT_FAMILY_COUNT = FONT_FAMILY_BUILTIN_COUNT  ///< Built-in count; reader option count includes SD families
     };
     
     /**
@@ -175,13 +176,15 @@ public:
     };
     
     /**
-     * @brief Line spacing compression options
+     * @brief Reader line height (vertical rhythm): scales font advanceY × multiplier when laying out EPUB lines.
      */
-    enum LINE_COMPRESSION { 
-        TIGHT = 0,      ///< Tight line spacing
-        NORMAL = 1,     ///< Normal line spacing
-        WIDE = 2,       ///< Wide line spacing
-        LINE_COMPRESSION_COUNT 
+    enum LINE_COMPRESSION {
+        TIGHT = 0,
+        NORMAL = 1,
+        WIDE = 2,
+        EXTRA_WIDE = 3,
+        LOOSE = 4,
+        LINE_COMPRESSION_COUNT
     };
     
     /**
@@ -314,7 +317,7 @@ public:
     
     
     uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
-    uint8_t textAntiAliasing = 1;                               ///< Text anti-aliasing enabled
+    uint8_t textAntiAliasing = 0;                               ///< Text anti-aliasing enabled
     
     
     uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
@@ -336,7 +339,7 @@ public:
     
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
-    uint8_t lineSpacing = TIGHT;                                ///< Line spacing
+    uint8_t lineSpacing = TIGHT;                                ///< Reader line height (LINE_COMPRESSION)
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
     /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
     uint8_t paragraphCssIndentEnabled = 0;
@@ -359,8 +362,12 @@ public:
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
     uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
-    /** When set, main hub screens run a half refresh once after their first paint (cleans ghosting). */
-    uint8_t refreshOnLoad = 0;
+    /** Half refresh once after first paint on hub screens (ghosting cleanup). */
+    uint8_t refreshOnLoadRecent = 0;
+    uint8_t refreshOnLoadLibrary = 0;
+    uint8_t refreshOnLoadSettings = 0;
+    uint8_t refreshOnLoadSync = 0;
+    uint8_t refreshOnLoadStatistics = 0;
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
     
@@ -398,10 +405,12 @@ public:
         return instance; 
     }
 
+    enum class RefreshOnLoadPage : uint8_t { Recent, Library, Settings, Sync, Statistics };
+
     /**
-     * If `refreshOnLoad` is enabled, performs one HALF_REFRESH (no-op when off).
+     * If the per-page refresh-on-load toggle is on, performs one HALF_REFRESH (no-op when off).
      */
-    void runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const;
+    void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, RefreshOnLoadPage page) const;
 
     /**
      * @brief Gets power button duration in milliseconds
@@ -421,6 +430,11 @@ public:
      * @brief Reader font ID for a given family and size (e.g. settings previews).
      */
     int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
+
+    /**
+     * @brief Font ID for reader **settings UI** previews only (built-in; avoids loading SD streaming fonts in menus).
+     */
+    int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
     
     /**
      * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").

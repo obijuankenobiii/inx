@@ -12,7 +12,9 @@
 #include <Serialization.h>
 
 #include <cstring>
+#include <string>
 
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 
 SystemSetting SystemSetting::instance;
@@ -33,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 14;
-constexpr uint8_t SETTINGS_COUNT = 43;
+constexpr uint8_t SETTINGS_FILE_VERSION = 16;
+constexpr uint8_t SETTINGS_COUNT = 47;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -82,6 +84,12 @@ bool SystemSetting::saveToFile() const {
     return false;
   }
 
+  uint8_t fontFamilyToSave = fontFamily;
+  FontManager::clampReaderFontFamilySlot(fontFamilyToSave);
+  if (fontFamilyToSave != fontFamily) {
+    const_cast<SystemSetting*>(this)->fontFamily = fontFamilyToSave;
+  }
+
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
   serialization::writePod(outputFile, SETTINGS_COUNT);
   serialization::writePod(outputFile, sleepScreen);
@@ -91,7 +99,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, orientation);
   serialization::writePod(outputFile, frontButtonLayout);
   serialization::writePod(outputFile, sideButtonLayout);
-  serialization::writePod(outputFile, fontFamily);
+  serialization::writePod(outputFile, fontFamilyToSave);
   serialization::writePod(outputFile, fontSize);
   serialization::writePod(outputFile, lineSpacing);
   serialization::writePod(outputFile, paragraphAlignment);
@@ -126,7 +134,11 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, displayImageDither);
   serialization::writePod(outputFile, displayImagePresentation);
   serialization::writePod(outputFile, paragraphCssIndentEnabled);
-  serialization::writePod(outputFile, refreshOnLoad);
+  serialization::writePod(outputFile, refreshOnLoadRecent);
+  serialization::writePod(outputFile, refreshOnLoadLibrary);
+  serialization::writePod(outputFile, refreshOnLoadSettings);
+  serialization::writePod(outputFile, refreshOnLoadSync);
+  serialization::writePod(outputFile, refreshOnLoadStatistics);
 
   outputFile.close();
 
@@ -153,9 +165,10 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11 && version != 12 && version != 13) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 13, 12, 11, 10, 9, 8, 7, 6, 3);
+      version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
+      version != 15) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
+                  version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -189,7 +202,17 @@ bool SystemSetting::loadFromFile() {
     readAndValidate(inputFile, sideButtonLayout, SIDE_BUTTON_LAYOUT_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
 
-    readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);
+    {
+      uint8_t rawFontFamily = 0;
+      serialization::readPod(inputFile, rawFontFamily);
+      if (version >= 15) {
+        fontFamily = rawFontFamily;
+        FontManager::clampReaderFontFamilySlot(fontFamily);
+      } else {
+        /** Legacy v14 and older: 0 Bookerly, 1 Atkinson, 2 Literata → Atkinson=1, else Literata (0). */
+        fontFamily = (rawFontFamily == ATKINSON_HYPERLEGIBLE) ? ATKINSON_HYPERLEGIBLE : LITERATA;
+      }
+    }
     if (++settingsRead >= fileSettingsCount) break;
 
     readAndValidate(inputFile, fontSize, FONT_SIZE_COUNT);
@@ -386,23 +409,55 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      serialization::readPod(inputFile, refreshOnLoad);
-      if (refreshOnLoad > 1) {
-        refreshOnLoad = 0;
+      if (version >= 16) {
+        serialization::readPod(inputFile, refreshOnLoadRecent);
+        if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+        ++settingsRead;
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadLibrary);
+          if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadSettings);
+          if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadSync);
+          if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadStatistics);
+          if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
+          ++settingsRead;
+        }
+      } else {
+        uint8_t legacyRefresh = 0;
+        serialization::readPod(inputFile, legacyRefresh);
+        if (legacyRefresh > 1) legacyRefresh = 0;
+        const uint8_t on = legacyRefresh ? 1u : 0u;
+        refreshOnLoadRecent = on;
+        refreshOnLoadLibrary = on;
+        refreshOnLoadSettings = on;
+        refreshOnLoadSync = on;
+        refreshOnLoadStatistics = on;
+        ++settingsRead;
       }
-      ++settingsRead;
     }
 
   } while (false);
 
   inputFile.close();
 
+  FontManager::clampReaderFontFamilySlot(fontFamily);
+
   if (settingsRead < SETTINGS_COUNT) {
     if (settingsRead < SETTINGS_COUNT_V9) {
       displayImageDither = readerImageDither;
     }
     displayImagePresentation = readerImagePresentation;
-    refreshOnLoad = 0;
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
@@ -440,37 +495,53 @@ bool SystemSetting::loadFromFile() {
  * @return Line compression multiplier
  */
 float SystemSetting::getReaderLineCompression() const {
+  if (fontFamily >= FONT_FAMILY_BUILTIN_COUNT) {
+    switch (lineSpacing) {
+      case TIGHT:
+        return 0.95f;
+      case NORMAL:
+        return 1.05f;
+      case WIDE:
+        return 1.15f;
+      case EXTRA_WIDE:
+        return 1.26f;
+      case LOOSE:
+        return 1.38f;
+      default:
+        return 1.05f;
+    }
+  }
   switch (fontFamily) {
-    case BOOKERLY:
-    default:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.95f;
-        case NORMAL:
-        default:
-          return 1.0f;
-        case WIDE:
-          return 1.1f;
-      }
     case ATKINSON_HYPERLEGIBLE:
       switch (lineSpacing) {
         case TIGHT:
           return 0.90f;
         case NORMAL:
-        default:
           return 0.95f;
         case WIDE:
           return 1.0f;
+        case EXTRA_WIDE:
+          return 1.10f;
+        case LOOSE:
+          return 1.22f;
+        default:
+          return 0.95f;
       }
     case LITERATA:
+    default:
       switch (lineSpacing) {
         case TIGHT:
           return 0.95f;
         case NORMAL:
-        default:
           return 1.05f;
         case WIDE:
           return 1.15f;
+        case EXTRA_WIDE:
+          return 1.26f;
+        case LOOSE:
+          return 1.38f;
+        default:
+          return 1.05f;
       }
   }
 }
@@ -515,29 +586,33 @@ int SystemSetting::getRefreshFrequency() const {
   }
 }
 
-int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const {
-  if (family >= FONT_FAMILY_COUNT) {
-    family = BOOKERLY;
+int SystemSetting::getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const {
+  if (familySlot < FONT_FAMILY_BUILTIN_COUNT) {
+    return getReaderFontIdForFamilyAndSize(familySlot, sizeIndex);
   }
+  return getReaderFontIdForFamilyAndSize(ATKINSON_HYPERLEGIBLE, sizeIndex);
+}
+
+int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const {
   if (size >= FONT_SIZE_COUNT) {
     size = MEDIUM;
   }
+  static const int kPtBySize[] = {10, 12, 14, 16, 18};
+  const int preferredPt = kPtBySize[size];
+
+  if (family >= FONT_FAMILY_BUILTIN_COUNT) {
+    const std::string sdName = FontManager::readerFontFamilyLabel(family);
+    if (sdName == "Literata" || sdName == "Atkinson Hyperlegible") {
+      return getReaderFontIdForFamilyAndSize(sdName == "Atkinson Hyperlegible" ? ATKINSON_HYPERLEGIBLE : LITERATA,
+                                             size);
+    }
+    return FontManager::getFontIdNearestPointSize(sdName, preferredPt);
+  }
+
+  if (family >= FONT_FAMILY_COUNT) {
+    family = LITERATA;
+  }
   switch (family) {
-    case BOOKERLY:
-    default:
-      switch (size) {
-        case EXTRA_SMALL:
-          return BOOKERLY_10_FONT_ID;
-        case SMALL:
-          return BOOKERLY_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return BOOKERLY_14_FONT_ID;
-        case LARGE:
-          return BOOKERLY_16_FONT_ID;
-        case EXTRA_LARGE:
-          return BOOKERLY_18_FONT_ID;
-      }
     case ATKINSON_HYPERLEGIBLE:
       switch (size) {
         case EXTRA_SMALL:
@@ -553,6 +628,7 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
           return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
       }
     case LITERATA:
+    default:
       switch (size) {
         case EXTRA_SMALL:
           return LITERATA_10_FONT_ID;
@@ -577,8 +653,26 @@ int SystemSetting::getReaderFontId() const {
   return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
 }
 
-void SystemSetting::runHalfRefreshOnLoadIfEnabled(GfxRenderer& renderer) const {
-  if (refreshOnLoad) {
+void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, const RefreshOnLoadPage page) const {
+  uint8_t on = 0;
+  switch (page) {
+    case RefreshOnLoadPage::Recent:
+      on = refreshOnLoadRecent;
+      break;
+    case RefreshOnLoadPage::Library:
+      on = refreshOnLoadLibrary;
+      break;
+    case RefreshOnLoadPage::Settings:
+      on = refreshOnLoadSettings;
+      break;
+    case RefreshOnLoadPage::Sync:
+      on = refreshOnLoadSync;
+      break;
+    case RefreshOnLoadPage::Statistics:
+      on = refreshOnLoadStatistics;
+      break;
+  }
+  if (on) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 }

@@ -68,6 +68,8 @@ public:
     void loop() override;
 
 private:
+    int currentFontId;
+    int nextFontId;
     bool isToggleClosed = false;
     bool settingsChanged = false;
     bool isBookmarking = false;

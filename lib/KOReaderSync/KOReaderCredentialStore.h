@@ -34,11 +34,12 @@ class KOReaderCredentialStore {
   void obfuscate(std::string& data) const;
 
  public:
-  
+  /** Path on SD for persisted KOReader sync settings (same path used by SdMan). */
+  static constexpr const char* SYSTEM_SETTINGS_PATH = "/.system/koreader.bin";
+
   KOReaderCredentialStore(const KOReaderCredentialStore&) = delete;
   KOReaderCredentialStore& operator=(const KOReaderCredentialStore&) = delete;
 
-  
   static KOReaderCredentialStore& getInstance() { return instance; }
 
   
