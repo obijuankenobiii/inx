@@ -75,6 +75,8 @@ class LocalServer {
   
   void handleRoot() const;
   void handleFontManagerPage() const;
+  void handleInxFontPackJs() const;
+  void handleJsZipMinJs() const;
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;

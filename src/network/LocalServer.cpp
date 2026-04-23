@@ -9,7 +9,6 @@
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <SDCardManager.h>
-#include <SPIFFS.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
@@ -17,6 +16,8 @@
 
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
+#include "html/InxFontPackJs.generated.h"
+#include "html/JsZipMinJs.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "util/StringUtils.h"
@@ -111,6 +112,8 @@ void LocalServer::begin() {
   server->on("/", HTTP_GET, [this] { handleRoot(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
+  server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
+  server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -140,24 +143,10 @@ void LocalServer::begin() {
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
-  if (!SPIFFS.begin(true)) {
-    Serial.println("Failed to mount SPIFFS");
-  } else {
-    if (SPIFFS.exists("/js/jszip.min.js")) {
-      Serial.println("✓ jszip.min.js found in SPIFFS!");
-      File f = SPIFFS.open("/js/jszip.min.js", "r");
-      Serial.printf("  Size: %d bytes\n", f.size());
-      f.close();
-      server->serveStatic("/js", SPIFFS, "/js");
-    }
-    if (SPIFFS.exists("/js/inx_font_pack.js")) {
-      Serial.println("✓ inx_font_pack.js found in SPIFFS (reader font installer)");
-    } else {
-      Serial.println("⚠ inx_font_pack.js missing from SPIFFS — web font installer disabled until uploadfs");
-    }
+  Serial.printf("✓ jszip.min.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(JSZIP_MIN_JS) - 1));
+  Serial.printf("✓ inx_font_pack.js from firmware flash (%u bytes)\n",
+                static_cast<unsigned>(sizeof(INX_FONT_PACK_JS) - 1));
 
-  }
-  
   server->begin();
 
   
@@ -389,6 +378,15 @@ bool LocalServer::isEpubFile(const String& filename) const {
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
 
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
+
+void LocalServer::handleInxFontPackJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_FONT_PACK_JS,
+                  sizeof(INX_FONT_PACK_JS) - 1);
+}
+
+void LocalServer::handleJsZipMinJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), JSZIP_MIN_JS, sizeof(JSZIP_MIN_JS) - 1);
+}
 
 void LocalServer::handleFileListData() const {
   
