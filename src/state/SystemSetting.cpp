@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 15;
-constexpr uint8_t SETTINGS_COUNT = 43;
+constexpr uint8_t SETTINGS_FILE_VERSION = 16;
+constexpr uint8_t SETTINGS_COUNT = 47;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -134,7 +134,11 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, displayImageDither);
   serialization::writePod(outputFile, displayImagePresentation);
   serialization::writePod(outputFile, paragraphCssIndentEnabled);
-  serialization::writePod(outputFile, refreshOnLoad);
+  serialization::writePod(outputFile, refreshOnLoadRecent);
+  serialization::writePod(outputFile, refreshOnLoadLibrary);
+  serialization::writePod(outputFile, refreshOnLoadSettings);
+  serialization::writePod(outputFile, refreshOnLoadSync);
+  serialization::writePod(outputFile, refreshOnLoadStatistics);
 
   outputFile.close();
 
@@ -161,9 +165,10 @@ bool SystemSetting::loadFromFile() {
   serialization::readPod(inputFile, version);
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, or %u)\n", millis(), version,
-                  SETTINGS_FILE_VERSION, 14, 13, 12, 11, 10, 9, 8, 7, 6, 3);
+      version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
+      version != 15) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
+                  version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -404,11 +409,42 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      serialization::readPod(inputFile, refreshOnLoad);
-      if (refreshOnLoad > 1) {
-        refreshOnLoad = 0;
+      if (version >= 16) {
+        serialization::readPod(inputFile, refreshOnLoadRecent);
+        if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+        ++settingsRead;
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadLibrary);
+          if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadSettings);
+          if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadSync);
+          if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
+          ++settingsRead;
+        }
+        if (settingsRead < fileSettingsCount) {
+          serialization::readPod(inputFile, refreshOnLoadStatistics);
+          if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
+          ++settingsRead;
+        }
+      } else {
+        uint8_t legacyRefresh = 0;
+        serialization::readPod(inputFile, legacyRefresh);
+        if (legacyRefresh > 1) legacyRefresh = 0;
+        const uint8_t on = legacyRefresh ? 1u : 0u;
+        refreshOnLoadRecent = on;
+        refreshOnLoadLibrary = on;
+        refreshOnLoadSettings = on;
+        refreshOnLoadSync = on;
+        refreshOnLoadStatistics = on;
+        ++settingsRead;
       }
-      ++settingsRead;
     }
 
   } while (false);
@@ -422,7 +458,6 @@ bool SystemSetting::loadFromFile() {
       displayImageDither = readerImageDither;
     }
     displayImagePresentation = readerImagePresentation;
-    refreshOnLoad = 0;
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
@@ -618,8 +653,26 @@ int SystemSetting::getReaderFontId() const {
   return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
 }
 
-void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer) const {
-  if (refreshOnLoad) {
+void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, const RefreshOnLoadPage page) const {
+  uint8_t on = 0;
+  switch (page) {
+    case RefreshOnLoadPage::Recent:
+      on = refreshOnLoadRecent;
+      break;
+    case RefreshOnLoadPage::Library:
+      on = refreshOnLoadLibrary;
+      break;
+    case RefreshOnLoadPage::Settings:
+      on = refreshOnLoadSettings;
+      break;
+    case RefreshOnLoadPage::Sync:
+      on = refreshOnLoadSync;
+      break;
+    case RefreshOnLoadPage::Statistics:
+      on = refreshOnLoadStatistics;
+      break;
+  }
+  if (on) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 }

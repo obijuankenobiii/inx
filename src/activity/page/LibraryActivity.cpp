@@ -20,6 +20,7 @@
 #include "images/Star.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
+#include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -846,7 +847,7 @@ void LibraryActivity::displayTaskLoop() {
         render();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
-          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Library);
         }
       }
     }

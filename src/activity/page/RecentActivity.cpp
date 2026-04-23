@@ -428,7 +428,7 @@ void RecentActivity::displayTaskLoop() {
         runThumbnailGrayscalePassIfNeeded();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
-          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);
         }
         updateRequired = false;
       }

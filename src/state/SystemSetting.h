@@ -317,7 +317,7 @@ public:
     
     
     uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
-    uint8_t textAntiAliasing = 1;                               ///< Text anti-aliasing enabled
+    uint8_t textAntiAliasing = 0;                               ///< Text anti-aliasing enabled
     
     
     uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
@@ -362,8 +362,12 @@ public:
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
     uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
-    /** When set, main hub screens run a half refresh once after their first paint (cleans ghosting). */
-    uint8_t refreshOnLoad = 0;
+    /** Half refresh once after first paint on hub screens (ghosting cleanup). */
+    uint8_t refreshOnLoadRecent = 0;
+    uint8_t refreshOnLoadLibrary = 0;
+    uint8_t refreshOnLoadSettings = 0;
+    uint8_t refreshOnLoadSync = 0;
+    uint8_t refreshOnLoadStatistics = 0;
     uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
     
     
@@ -401,10 +405,12 @@ public:
         return instance; 
     }
 
+    enum class RefreshOnLoadPage : uint8_t { Recent, Library, Settings, Sync, Statistics };
+
     /**
-     * If `refreshOnLoad` is enabled, performs one HALF_REFRESH (no-op when off).
+     * If the per-page refresh-on-load toggle is on, performs one HALF_REFRESH (no-op when off).
      */
-    void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer) const;
+    void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, RefreshOnLoadPage page) const;
 
     /**
      * @brief Gets power button duration in milliseconds

@@ -396,7 +396,7 @@ void CategorySettingsActivity::displayTaskLoop() {
         render();
         if (!halfRefreshOnLoadApplied_) {
           halfRefreshOnLoadApplied_ = true;
-          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer);
+          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Settings);
         }
         xSemaphoreGive(renderingMutex);
       }
@@ -408,28 +408,21 @@ void CategorySettingsActivity::displayTaskLoop() {
 /**
  * @brief Render the category settings screen
  */
-/**
- * @brief Render the category settings screen
- */
 void CategorySettingsActivity::render() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
 
   renderTabBar(renderer);
 
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  const int headerTextY =
+      headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, categoryName, true, EpdFontFamily::BOLD);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Adjust your preferences.";
-  int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText);
-
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.drawLine(0, dividerY, pageWidth, dividerY);
 
   const int startY = dividerY;
@@ -453,7 +446,7 @@ void CategorySettingsActivity::render() {
         renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
       }
 
-      int textX = 15;
+      int textX = 20;
       int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
@@ -472,7 +465,7 @@ void CategorySettingsActivity::render() {
       renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
-    int textX = 23;
+    int textX = 20;
     int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);

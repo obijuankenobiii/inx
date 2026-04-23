@@ -90,7 +90,7 @@ struct BookSettings {
 
   
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
-  uint8_t textAntiAliasing = 1;       ///< Text anti-aliasing enabled
+  uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
 
   

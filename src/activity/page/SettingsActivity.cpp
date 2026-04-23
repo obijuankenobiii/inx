@@ -20,7 +20,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 26;
+constexpr int systemPageSettingsCount = 30;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -57,7 +57,11 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load", &SystemSetting::refreshOnLoad, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
@@ -260,7 +264,7 @@ void SettingsActivity::swapPanelAndReopen() {
 }
 
 void SettingsActivity::openCurrentPanel() {
-  const char* title = (currentPanel == SettingsPanel::System) ?"System":"Reader";
+  const char* title = (currentPanel == SettingsPanel::System) ? "System settings" : "Reader settings";
   const SettingInfo* list = (currentPanel == SettingsPanel::System) ? systemPageSettings : readerSettings;
   const int count = (currentPanel == SettingsPanel::System) ? systemPageSettingsCount : readerSettingsCount;
 
