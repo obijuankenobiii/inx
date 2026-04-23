@@ -10,6 +10,8 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
+#include <climits>
+
 /**
  * Renders a text line on the screen.
  *
@@ -211,6 +213,46 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  * @param skipImages If true, images are not rendered
  */
+bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, const int yOffset, int16_t& outX,
+                               int16_t& outY, int16_t& outW, int16_t& outH) const {
+  (void)xOffset;  // PageImage::render currently ignores horizontal margin for placement
+  bool found = false;
+  int minX = INT_MAX;
+  int minY = INT_MAX;
+  int maxX = INT_MIN;
+  int maxY = INT_MIN;
+  const int screenW = renderer.getScreenWidth();
+  for (const auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto& img = static_cast<const PageImage&>(*element);
+    int rx = (screenW - img.getWidth()) / 2;
+    int ry = img.yPos + yOffset;
+    if (rx < 0) {
+      rx = 0;
+    }
+    if (ry < 0) {
+      ry = 0;
+    }
+    const int rw = img.getWidth();
+    const int rh = img.getHeight();
+    minX = std::min(minX, rx);
+    minY = std::min(minY, ry);
+    maxX = std::max(maxX, rx + rw);
+    maxY = std::max(maxY, ry + rh);
+    found = true;
+  }
+  if (!found || maxX <= minX || maxY <= minY) {
+    return false;
+  }
+  outX = static_cast<int16_t>(minX);
+  outY = static_cast<int16_t>(minY);
+  outW = static_cast<int16_t>(maxX - minX);
+  outH = static_cast<int16_t>(maxY - minY);
+  return true;
+}
+
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
                   bool skipImages, const BitmapDitherMode imageDitherMode) const {
   for (auto& element : elements) {

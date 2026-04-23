@@ -1357,15 +1357,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   const BitmapDitherMode imageDitherMode = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
-  page->render(
-    renderer, 
-    fontId,
-    headerFontId,
-    orientedMarginLeft, 
-    orientedMarginTop,
-    false,
-    imageDitherMode
-  );
+
+  // BW: text first, then images (same separation as grayscale passes: text AA uses skipImages; image tone uses
+  // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
+  auto drawPageBodyBw = [&]() {
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageDitherMode);
+  };
+  drawPageBodyBw();
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
 
@@ -1374,6 +1373,25 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   const bool textAa = bookSettings.textAntiAliasing != 0;
+
+  /** Crosspoint-style: HALF_REFRESH fixes ink too firmly for grayscale LUT; blank image area + two FAST passes. */
+  auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
+    if (!textAa || !page->hasImages()) {
+      return false;
+    }
+    int16_t ix = 0;
+    int16_t iy = 0;
+    int16_t iw = 0;
+    int16_t ih = 0;
+    if (!page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, ix, iy, iw, ih)) {
+      return false;
+    }
+    renderer.fillRect(ix, iy, iw, ih, false);
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    drawPageBodyBw();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    return true;
+  };
 
   auto runTextAntiAliasPass = [&]() {
     if (!textAa) {
@@ -1398,7 +1416,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   };
 
   if (pagesUntilFullRefresh <= 1) {
-    renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    if (!tryImagePageTextAaDisplayPrep()) {
+      renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    }
     runTextAntiAliasPass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = false;
@@ -1410,7 +1430,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale =
       SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
 
-  renderer.displayBuffer();
+  if (!tryImagePageTextAaDisplayPrep()) {
+    renderer.displayBuffer();
+  }
   runTextAntiAliasPass();
 
   if (needsImageGrayscale) {

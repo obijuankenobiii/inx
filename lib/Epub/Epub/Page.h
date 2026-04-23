@@ -163,6 +163,13 @@ class Page {
                        });
   }
 
+  /**
+   * Union of all image draw rectangles in screen coordinates (matches PageImage::render placement).
+   * @return false if there are no images.
+   */
+  bool getImageBoundingBox(const GfxRenderer& renderer, int xOffset, int yOffset, int16_t& outX, int16_t& outY,
+                           int16_t& outW, int16_t& outH) const;
+
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
               BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
