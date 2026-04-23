@@ -4,8 +4,10 @@
  */
 
 #include "Section.h"
+#include <Arduino.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
+#include "FontManager.h"
 #include "Page.h"
 #include "hyphenation/Hyphenator.h"
 #include "parsers/ChapterHtmlSlimParser.h"
@@ -17,6 +19,14 @@ constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) +
                                  sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) +
                                  sizeof(uint32_t);
 }  
+
+namespace {
+class ZipExtractHeapScope {
+ public:
+  explicit ZipExtractHeapScope(const int readerBodyFontId) { FontManager::enterZipExtractHeapScope(readerBodyFontId); }
+  ~ZipExtractHeapScope() { FontManager::leaveZipExtractHeapScope(); }
+};
+}  // namespace
 
 /**
  * Handles completion of a page during section creation.
@@ -145,6 +155,8 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
 /**
  * Creates a new section file by parsing the HTML content and building pages.
  * Extracts the HTML from the EPUB, runs the parser, and saves the resulting pages.
+ * When building images, runs a prefetch pass (ZIP→cache, SD fonts unloaded) before opening
+ * the section file and laying out pages (fonts loaded, images from cache only).
  * Can optionally skip image processing to only rebuild text layout.
  * 
  * @param fontId Font identifier for text rendering
@@ -175,6 +187,8 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
 
   SdMan.mkdir((epub->getCachePath() + "/sections").c_str());
 
+  const ZipExtractHeapScope zipExtractHeapScope(fontId);
+
   bool success = false;
   for (int attempt = 0; attempt < 3 && !success; attempt++) {
     FsFile tmpHtml;
@@ -185,11 +199,6 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   }
   if (!success) return false;
 
-  if (!SdMan.openFileForWrite("SCT", filePath, file)) return false;
-
-  writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
-                         viewportHeight, hyphenationEnabled, respectCssParagraphIndent);
-  
   std::vector<uint32_t> lut;
 
   ChapterHtmlSlimParser visitor(
@@ -216,8 +225,23 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   visitor.internalPath = localPath;
 
   Hyphenator::setPreferredLanguage(epub->getLanguage());
-  
-  success = visitor.parseAndBuildPages(skipImages);
+
+  if (!skipImages) {
+    bool prefetchOk = true;
+    FontManager::withSdFontsReleasedForHeapIntensiveWork(fontId, [&]() { prefetchOk = visitor.prefetchChapterImages(); });
+    if (!prefetchOk) {
+      SdMan.remove(tmpHtmlPath.c_str());
+      return false;
+    }
+    yield();
+  }
+
+  if (!SdMan.openFileForWrite("SCT", filePath, file)) return false;
+
+  writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
+                         viewportHeight, hyphenationEnabled, respectCssParagraphIndent);
+
+  success = visitor.parseAndBuildPages(true);
 
   SdMan.remove(tmpHtmlPath.c_str());
   

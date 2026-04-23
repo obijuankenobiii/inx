@@ -53,6 +53,19 @@ class FontManager {
   static bool unloadFont(int fontId);
   static void unloadAllSDFonts();
 
+  /**
+   * RAII-style scope for EPUB ZIP reads that need large malloc (inflate dictionary).
+   * While active, readItemContentsToStream (chunk >= 2048) temporarily unloads SD reader fonts.
+   * @param readerBodyFontId Body font id used with ensureReaderLayoutFonts after scope (>= SD_FONT_START_ID to reload SD).
+   */
+  static void enterZipExtractHeapScope(int readerBodyFontId);
+  static void leaveZipExtractHeapScope();
+  static bool zipExtractHeapScopeActive();
+  static int zipExtractHeapScopeReaderBodyFontId();
+
+  /** If any SD font is loaded, unload all, run fn, then reload readerBodyFontId when it is an SD slot. */
+  static void withSdFontsReleasedForHeapIntensiveWork(int readerBodyFontId, const std::function<void()>& fn);
+
   static const FontInfo* getFontInfo(int fontId);
   static std::vector<FontInfo> getAllAvailableFonts();
   static std::vector<FontInfo> getFontsByFamily(const std::string& family);
@@ -101,6 +114,9 @@ class FontManager {
   static int g_maxLoadedFonts;
   static int g_loadedFontCount;
   static bool g_scannedForFonts;
+
+  static int g_zipExtractScopeDepth;
+  static int g_zipExtractScopeReaderBodyFontId;
 
   static void updateFontLRU(int fontId);
   static void cleanupFontData(SDFontEntry* entry);
