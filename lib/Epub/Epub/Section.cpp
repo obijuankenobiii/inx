@@ -193,7 +193,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   for (int attempt = 0; attempt < 3 && !success; attempt++) {
     FsFile tmpHtml;
     if (SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
-      success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+      success = epub->readItemContentsToStream(localPath, tmpHtml, 2048);
       tmpHtml.close();
     }
   }

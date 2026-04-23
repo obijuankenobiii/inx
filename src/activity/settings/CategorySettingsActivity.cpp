@@ -465,7 +465,7 @@ void CategorySettingsActivity::render() {
       renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
     }
 
-    int textX = 20;
+    int textX = 28;
     int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);

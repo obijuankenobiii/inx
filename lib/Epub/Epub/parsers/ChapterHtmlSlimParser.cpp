@@ -651,7 +651,9 @@ bool ChapterHtmlSlimParser::prefetchChapterImages() {
   skipImages = false;
   imageExtractCountForYield_ = 0;
   cssLoaded = false;
-  loadCssRules();
+  cssParser.clear();
+  // Skip loadCssRules: image prefetch only needs src URLs; CSS stays for parseAndBuildPages(). Keeps heap
+  // free for ZIP inflate (~32 KB dictionary) after display paths (e.g. text AA) fragment RAM.
 
   const XML_Parser parser = XML_ParserCreate(nullptr);
   if (!parser) return false;
