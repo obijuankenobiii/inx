@@ -28,7 +28,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","List Stats","Flow"},
+    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","Current | Previous","Flow"},
                       GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),

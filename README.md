@@ -20,7 +20,7 @@ This section lists what the firmware actually implements (navigation, screens, s
 
 ### Recent (home)
 
-- **Recent Library Mode** (system setting): **Grid**, **List Stats**, or **Flow**.
+- **Recent Library Mode** (system setting): **Grid**, **Current | Previous**, or **Flow**.
 - **Tabs from Recent**: **Library** (opens library at `/`), **Statistics**, **Settings**; select a book to open the **Reader** for that file.
 
 ### Library
@@ -51,7 +51,7 @@ Settings are two panels (**System** and **Reader**), each a grouped list. Sectio
 
 | Group | Items |
 |--------|--------|
-| **Display ** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, List Stats, Flow) |
+| **Display ** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, Current | Previous, Flow) |
 | **Buttons** | Front Button Layout (four layouts mapping Back / Confirm / Left / Right); Short Power Button Click (Ignore, Sleep, Page Refresh) |
 | **Device ** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
 | **Actions** | **Index your library**; **KOReader Sync**; **OPDS Browser**; **Clear Cache**; **Check for updates** (opens OTA flow with Wi‑Fi selection) |

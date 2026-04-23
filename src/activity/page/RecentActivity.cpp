@@ -1096,7 +1096,7 @@ void RecentActivity::renderFlow() {
 
   int statsX = 30;
   int statsY = carouselY + carouselH + 25;
-  renderer.drawLine(0, statsY - 25, screenW, statsY - 25, true);
+  renderer.drawLine(0, carouselY + carouselH + 10,  screenW, carouselY + carouselH + 10, true);
   std::string title;
   if (!currentBook.title.empty()) {
     title = currentBook.title;
