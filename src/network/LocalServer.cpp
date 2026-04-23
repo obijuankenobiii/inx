@@ -1110,6 +1110,9 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "lineSpacing") == 0) {
       SETTINGS.lineSpacing = (uint8_t)value;
+      if (SETTINGS.lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+        SETTINGS.lineSpacing = SystemSetting::NORMAL;
+      }
       changed = true;
     }
     else if (strcmp(key, "screenMargin") == 0) {

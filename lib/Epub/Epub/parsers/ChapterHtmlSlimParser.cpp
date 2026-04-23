@@ -400,11 +400,13 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
       currentTextBlock->setStyle(style);
+      currentTextBlock->setRespectParagraphIndent(respectCssParagraphIndent);
       return;
     }
     makePages();
   }
-  currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing, hyphenationEnabled));
+  currentTextBlock.reset(
+      new ParsedText(style, extraParagraphSpacing, hyphenationEnabled, respectCssParagraphIndent));
 }
 
 /**

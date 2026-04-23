@@ -309,8 +309,14 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  
-  
+  if (leftIndentWidth > 0 && leftIndentLineCount > 0) {
+    return;
+  }
+
+  if (!respectParagraphIndent_) {
+    return;
+  }
+
   if (cssTextIndentPx >= 0) {
     if (cssTextIndentPx > 0) {
       static const char em[] = "\xe2\x80\x83";
@@ -329,8 +335,6 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  
-  
   if (extraParagraphSpacing && style != TextBlock::JUSTIFIED) {
     return;
   }

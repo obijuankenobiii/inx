@@ -190,16 +190,16 @@ void SettingsDrawer::setupMenu() {
     MenuEntry lineEntry;
     lineEntry.item = MenuItem::LineSpacing;
     lineEntry.group = GroupType::LAYOUT;
-    lineEntry.name = "Line Spacing";
+    lineEntry.name = "Line spacing";
     lineEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* spacing[] = {"Tight", "Normal", "Wide"};
+      static const char* spacing[] = {"Tight", "Normal", "Wide", "Wider", "Loose"};
       int index = s.lineSpacing;
-      if (index > 2) index = 1;
+      if (index < 0 || index > 4) index = 1;
       return spacing[index];
     };
     lineEntry.change = [](BookSettings& s, int delta) {
       int newVal = s.lineSpacing + delta;
-      if (newVal >= 0 && newVal <= 2) {
+      if (newVal >= 0 && newVal <= 4) {
         s.lineSpacing = newVal;
         s.useCustomSettings = true;
       }

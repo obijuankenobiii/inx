@@ -176,13 +176,15 @@ public:
     };
     
     /**
-     * @brief Line spacing compression options
+     * @brief Reader line height (vertical rhythm): scales font advanceY × multiplier when laying out EPUB lines.
      */
-    enum LINE_COMPRESSION { 
-        TIGHT = 0,      ///< Tight line spacing
-        NORMAL = 1,     ///< Normal line spacing
-        WIDE = 2,       ///< Wide line spacing
-        LINE_COMPRESSION_COUNT 
+    enum LINE_COMPRESSION {
+        TIGHT = 0,
+        NORMAL = 1,
+        WIDE = 2,
+        EXTRA_WIDE = 3,
+        LOOSE = 4,
+        LINE_COMPRESSION_COUNT
     };
     
     /**
@@ -337,7 +339,7 @@ public:
     
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
-    uint8_t lineSpacing = TIGHT;                                ///< Line spacing
+    uint8_t lineSpacing = TIGHT;                                ///< Reader line height (LINE_COMPRESSION)
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
     /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
     uint8_t paragraphCssIndentEnabled = 0;

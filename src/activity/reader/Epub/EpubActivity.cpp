@@ -1373,10 +1373,33 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
+  const bool textAa = bookSettings.textAntiAliasing != 0;
+
+  auto runTextAntiAliasPass = [&]() {
+    if (!textAa) {
+      return;
+    }
+    if (!renderer.storeBwBuffer()) {
+      return;
+    }
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    renderer.copyGrayscaleLsbBuffers();
+
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+    renderer.setRenderMode(GfxRenderer::BW);
+    renderer.restoreBwBuffer();
+  };
+
   if (pagesUntilFullRefresh <= 1) {
-    
-    
     renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    runTextAntiAliasPass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = false;
     return;
@@ -1387,8 +1410,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale =
       SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
 
-  
   renderer.displayBuffer();
+  runTextAntiAliasPass();
 
   if (needsImageGrayscale) {
     const bool storedBwBuffer = renderer.storeBwBuffer();

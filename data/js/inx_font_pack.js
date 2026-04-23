@@ -7,8 +7,38 @@
 
   var MAGIC = 0x45504446;
   var VERSION = 1;
-  /** Reader font steps are treated as pt; use pt here too (px would look ~4/3 smaller). */
+  /**
+   * Reader steps (10–18) use Literata regular advanceY (31…56) as a px baseline, then scaled.
+   * ~0.87 was still ~one reader size larger than built-in Literata; ~0.74 aligns steps with system fonts.
+   */
   var SIZES = [10, 12, 14, 16, 18];
+  var RASTER_CALIBRATION = 0.74;
+  /** Lower → bolder; higher → thinner (only used with binary grayToStored). */
+  var PACK_EDGE_LUM_THRESHOLD = 178;
+
+  function readerStepToCanvasPx(step) {
+    var base;
+    switch (step) {
+      case 10:
+        base = 31;
+        break;
+      case 12:
+        base = 37;
+        break;
+      case 14:
+        base = 43;
+        break;
+      case 16:
+        base = 49;
+        break;
+      case 18:
+        base = 56;
+        break;
+      default:
+        base = (step * 56) / 18;
+    }
+    return Math.max(8, Math.round(base * RASTER_CALIBRATION));
+  }
   /** Codepoint ranges (BMP-focused; device uses uint32 CP search). */
   var CP_RANGES = [
     [0x0020, 0x007e],
@@ -52,11 +82,12 @@
     return t;
   }
 
+  /**
+   * BW renderer treats stored 1 and 2 as full ink (same as 3). Only 0 is paper.
+   * Use binary 0|3 and a luminance cutoff so anti-alias grays do not become fat black.
+   */
   function grayToStored(L) {
-    if (L >= 252) return 0;
-    if (L >= 200) return 1;
-    if (L >= 140) return 2;
-    return 3;
+    return L >= PACK_EDGE_LUM_THRESHOLD ? 0 : 3;
   }
 
   function pack2bitLinear(padW, h, getLum) {
@@ -74,18 +105,19 @@
     return out;
   }
 
-  function fontSpec(family, sizePt) {
-    return sizePt + 'pt "' + family + '"';
+  function fontSpecPx(family, canvasPx) {
+    return canvasPx + 'px "' + family + '"';
   }
 
-  function measureRef(ctx, family, size) {
+  function measureRef(ctx, family, readerStep) {
+    var px = readerStepToCanvasPx(readerStep);
     ctx.textBaseline = 'alphabetic';
-    ctx.font = fontSpec(family, size);
+    ctx.font = fontSpecPx(family, px);
     var m = ctx.measureText('|');
     var asc = m.actualBoundingBoxAscent;
     var desc = m.actualBoundingBoxDescent;
-    if (!isFinite(asc) || asc <= 0) asc = size * 0.72;
-    if (!isFinite(desc) || desc <= 0) desc = size * 0.28;
+    if (!isFinite(asc) || asc <= 0) asc = px * 0.72;
+    if (!isFinite(desc) || desc <= 0) desc = px * 0.28;
     var lh = Math.round(asc + desc);
     return {
       lineHeight: lh,
@@ -94,7 +126,8 @@
     };
   }
 
-  function rasterizeChar(family, size, cp) {
+  function rasterizeChar(family, readerStep, cp) {
+    var px = readerStepToCanvasPx(readerStep);
     var W = 512;
     var H = 512;
     var ox = 200;
@@ -107,16 +140,16 @@
     ctx.fillRect(0, 0, W, H);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#000000';
-    ctx.font = fontSpec(family, size);
+    ctx.font = fontSpecPx(family, px);
     var ch = String.fromCodePoint(cp);
     var m = ctx.measureText(ch);
     var adv = Math.round(m.width);
     if (adv < 1) adv = 1;
     if (adv > MAX_ADVANCE) adv = MAX_ADVANCE;
-    var topRef = Math.round(m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : size * 0.72);
+    var topRef = Math.round(m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : px * 0.72);
 
     if (cp === 0x20 || cp === 0xa0 || ch === '\t') {
-      if (cp === 0x20 || cp === 0xa0) adv = Math.max(adv, Math.round(size * 0.35));
+      if (cp === 0x20 || cp === 0xa0) adv = Math.max(adv, Math.round(px * 0.35));
       return { w: 0, h: 0, left: 0, top: topRef, adv: adv, bits: new Uint8Array(0) };
     }
 
@@ -177,15 +210,15 @@
   /**
    * @param {string} styleName — "Regular" | "Bold" | "Italic" | "BoldItalic" (embedded name + filename stem)
    * @param {string} familyCss — loaded @font-face family string
-   * @param {number} size
+   * @param {number} readerStep — 10|12|14|16|18 (filename suffix; canvas px from readerStepToCanvasPx)
    * @param {number[]} codepoints sorted ascending
    */
-  function buildBin(styleName, familyCss, size, codepoints) {
+  function buildBin(styleName, familyCss, readerStep, codepoints) {
     var refC = document.createElement('canvas');
     refC.width = 256;
     refC.height = 128;
     var rctx = refC.getContext('2d');
-    var ref = measureRef(rctx, familyCss, size);
+    var ref = measureRef(rctx, familyCss, readerStep);
 
     var rows = [];
     var bitmapChunks = [];
@@ -193,7 +226,7 @@
 
     for (var i = 0; i < codepoints.length; i++) {
       var cp = codepoints[i];
-      var g = rasterizeChar(familyCss, size, cp);
+      var g = rasterizeChar(familyCss, readerStep, cp);
       if (g === null) continue;
       var dlen = g.bits.length;
       if (g.w > MAX_SIDE || g.h > MAX_SIDE) continue;
@@ -216,7 +249,7 @@
     }
 
     if (!rows.length) {
-      throw new Error('No glyphs generated for ' + styleName + ' at ' + size + 'pt');
+      throw new Error('No glyphs generated for ' + styleName + ' at reader step ' + readerStep);
     }
 
     var enc = new TextEncoder();
@@ -308,7 +341,8 @@
           var sz = SIZES[si];
           step++;
           onProgress(step, totalSteps, job.key, sz);
-          await document.fonts.load(sz + 'pt "' + fam + '"');
+          var loadPx = readerStepToCanvasPx(sz);
+          await document.fonts.load(loadPx + 'px "' + fam + '"');
           var bytes = buildBin(job.key, fam, sz, cps);
           var fn = job.key + '_' + sz + '.bin';
           outBins.push({ filename: fn, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
@@ -331,6 +365,7 @@
   global.InxFontPack = {
     MAGIC: MAGIC,
     SIZES: SIZES,
+    readerStepToCanvasPx: readerStepToCanvasPx,
     sanitizeFamilyName: sanitizeFamilyName,
     buildAllBins: buildAllBins,
   };

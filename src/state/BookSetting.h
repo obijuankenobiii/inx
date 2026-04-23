@@ -171,6 +171,9 @@ struct BookSettings {
           FontManager::clampReaderFontFamilySlot(fontFamily);
           fontSize = data[offset++];
           lineSpacing = data[offset++];
+          if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+            lineSpacing = SystemSetting::NORMAL;
+          }
           extraParagraphSpacing = data[offset++];
           paragraphAlignment = data[offset++];
           hyphenationEnabled = data[offset++];
@@ -224,6 +227,9 @@ struct BookSettings {
    */
   bool saveToFile(const std::string& bookCachePath) {
     FontManager::clampReaderFontFamilySlot(fontFamily);
+    if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+      lineSpacing = SystemSetting::NORMAL;
+    }
     std::string settingsPath = bookCachePath + "/settings.bin";
     FsFile f;
     if (SdMan.openFileForWrite("BST", settingsPath.c_str(), f)) {

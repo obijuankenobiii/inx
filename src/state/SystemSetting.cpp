@@ -465,10 +465,15 @@ float SystemSetting::getReaderLineCompression() const {
       case TIGHT:
         return 0.95f;
       case NORMAL:
-      default:
         return 1.05f;
       case WIDE:
         return 1.15f;
+      case EXTRA_WIDE:
+        return 1.26f;
+      case LOOSE:
+        return 1.38f;
+      default:
+        return 1.05f;
     }
   }
   switch (fontFamily) {
@@ -477,10 +482,15 @@ float SystemSetting::getReaderLineCompression() const {
         case TIGHT:
           return 0.90f;
         case NORMAL:
-        default:
           return 0.95f;
         case WIDE:
           return 1.0f;
+        case EXTRA_WIDE:
+          return 1.10f;
+        case LOOSE:
+          return 1.22f;
+        default:
+          return 0.95f;
       }
     case LITERATA:
     default:
@@ -488,10 +498,15 @@ float SystemSetting::getReaderLineCompression() const {
         case TIGHT:
           return 0.95f;
         case NORMAL:
-        default:
           return 1.05f;
         case WIDE:
           return 1.15f;
+        case EXTRA_WIDE:
+          return 1.26f;
+        case LOOSE:
+          return 1.38f;
+        default:
+          return 1.05f;
       }
   }
 }

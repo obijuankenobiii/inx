@@ -13,6 +13,8 @@
 
 #include "blocks/TextBlock.h"
 
+class GfxRenderer;
+
 enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
   TAG_PageHeader = 2,
@@ -160,7 +162,7 @@ class Page {
                          return element->getTag() == TAG_PageImage;
                        });
   }
-  
+
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
               BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,

@@ -78,7 +78,8 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       GroupType::FONT),
 
     SettingInfo::Separator("Layout", GroupType::LAYOUT),
-    SettingInfo::Enum("Line Spacing", &SystemSetting::lineSpacing, {"Tight","Normal","Wide"}, GroupType::LAYOUT),
+    SettingInfo::Enum("Line spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide", "Wider", "Loose"},
+                      GroupType::LAYOUT),
     SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
     SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
                       {"Justify", "Left", "Center", "Right", "Css"},

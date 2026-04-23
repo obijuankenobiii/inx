@@ -49,7 +49,6 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 }
 
 /**
-/**
  * Renders a header on the screen.
  * Uses the stored headerFontId for rendering.
  *
