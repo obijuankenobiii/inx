@@ -23,7 +23,7 @@ class RecentActivity final : public Activity, public Menu {
   static constexpr int MAX_RECENT_BOOKS = 8;
   static constexpr int GRID_COLS = 2;
 
-  static constexpr int COVER_WIDTH = 200;
+  static constexpr int COVER_WIDTH = 170;
   static constexpr int COVER_HEIGHT = 250;
 
   static constexpr int GRID_SPACING = 20;
@@ -42,7 +42,8 @@ class RecentActivity final : public Activity, public Menu {
   enum class ViewMode {
     Default,
     Grid,  /**< Display books in a grid with covers */
-    Flow   /**< Display books in a list with thumbnails */
+    Flow,  /**< Flow carousel */
+    SimpleUi /**< Recent cover on gray band, favorites list below */
   };
 
  private:
@@ -57,6 +58,9 @@ class RecentActivity final : public Activity, public Menu {
   int listStatsRecentHScroll = 0;
   int listStatsFavHScroll = 0;
   std::vector<BookState::Book> listStatsFavoriteOnly_;
+
+  std::vector<BookState::Book> simpleUiFavorites_;
+  int simpleUiFavScroll_ = 0;
 
   std::vector<RecentBook> recentBooks;
 
@@ -77,6 +81,7 @@ class RecentActivity final : public Activity, public Menu {
    */
   void loadRecentBooks(bool resetScroll = true);
   void rebuildListStatsFavorites();
+  void rebuildSimpleUiFavorites();
 
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
@@ -111,6 +116,8 @@ class RecentActivity final : public Activity, public Menu {
    * @param startY Starting Y coordinate for the grid
    */
   void renderFlow();
+
+  void renderSimpleUi();
 
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId);
@@ -175,4 +182,6 @@ class RecentActivity final : public Activity, public Menu {
 
   RecentBook randomFavoriteBook;
   bool hasRandomFavorite;
+
+  void clampSimpleUiFavoriteScroll(int maxVisibleFavs);
 };

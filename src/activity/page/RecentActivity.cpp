@@ -28,6 +28,8 @@
 #include "system/MappedInputManager.h"
 #include "util/StringUtils.h"
 
+#include "images/Star.h"
+
 namespace {
 
 /**
@@ -164,6 +166,64 @@ static void drawFlowCarouselBackdropInRect(GfxRenderer& renderer, int rx, int ry
 namespace {
 constexpr int kRecentThumbGap = 20;
 constexpr int kRecentStripSlots = 2;
+
+/** Simple UI favorites: at most this many titles; list scrolls when more than visible rows. */
+constexpr int kSimpleUiFavoritesMaxCount = 10;
+constexpr int kSimpleUiFavoritesVisibleMax = 5;
+constexpr int kFavHeaderPadTop = 10;
+constexpr int kFavHeaderPadBottom = 8;
+
+struct SimpleUiMetrics {
+  int bodyTop = 0;
+  int bodyBottom = 0;
+  int marginL = 0;
+  int thumbW = 0;
+  int thumbH = 0;
+  int topBandH = 0;
+  int favTop = 0;
+  /** Height from favTop through the "Favorites" header and its separator line (list starts below). */
+  int favHeaderBlockH = 0;
+  int favListTop = 0;
+  int rowH = 0;
+  int maxVis = 0;
+};
+
+/** Matches `renderSimpleUi` geometry for input clamping. */
+inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
+  constexpr int kTabBarH = 65;  
+  SimpleUiMetrics m;
+  m.bodyTop = kTabBarH - 6 + 8;
+  constexpr int kHintReserve = 52;
+  m.bodyBottom = renderer.getScreenHeight() - kHintReserve;
+  m.marginL = RecentActivity::GRID_SPACING;
+
+  constexpr int kThumbPadV = 28;
+  const int favFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int lh = renderer.getLineHeight(favFont);
+  constexpr int kPadY = 20;
+  m.rowH = lh + kPadY * 2;
+  m.favHeaderBlockH = kFavHeaderPadTop + lh + kFavHeaderPadBottom + 1;
+  // Shrink the top (recent) band so the pane below always fits the header + 5 favorite rows.
+  const int minFavoritesPaneH = m.favHeaderBlockH + kSimpleUiFavoritesVisibleMax * m.rowH;
+  const int bodySpan = m.bodyBottom - m.bodyTop;
+  const int maxTopH = std::max(100, bodySpan - minFavoritesPaneH);
+
+  m.thumbW = RecentActivity::COVER_WIDTH;
+  m.thumbH = RecentActivity::COVER_HEIGHT;
+  m.topBandH = m.thumbH + kThumbPadV;
+  if (m.topBandH > maxTopH) {
+    m.topBandH = maxTopH;
+    m.thumbH = std::max(100, m.topBandH - kThumbPadV);
+    m.thumbW = m.thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT;
+  }
+  m.favTop = m.bodyTop + m.topBandH;
+  m.favListTop = m.favTop + m.favHeaderBlockH;
+  // Rows occupy [rowY, rowY + rowH); last pixel rowY + rowH - 1 must stay within bodyBottom.
+  m.maxVis = std::min(
+      kSimpleUiFavoritesVisibleMax,
+      std::max(1, (m.bodyBottom - m.favListTop) / std::max(1, m.rowH)));
+  return m;
+}
 
 /** Keep horizontal strip window so `selectorIndex` is one of the two visible slots. */
 inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
@@ -467,6 +527,42 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
     addedCount++;
   }
   rebuildListStatsFavorites();
+  rebuildSimpleUiFavorites();
+}
+
+void RecentActivity::rebuildSimpleUiFavorites() {
+  simpleUiFavorites_.clear();
+  int added = 0;
+  for (const auto& fb : BOOK_STATE.getFavoriteBooks()) {
+    if (!SdMan.exists(fb.path.c_str())) {
+      continue;
+    }
+    simpleUiFavorites_.push_back(fb);
+    if (++added >= kSimpleUiFavoritesMaxCount) {
+      break;
+    }
+  }
+}
+
+void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
+  const int recentSlots = recentBooks.empty() ? 0 : 1;
+  const int fc = static_cast<int>(simpleUiFavorites_.size());
+  if (fc <= maxVisibleFavs) {
+    simpleUiFavScroll_ = 0;
+    return;
+  }
+  if (selectorIndex < recentSlots) {
+    return;
+  }
+  const int fi = selectorIndex - recentSlots;
+  if (fi < simpleUiFavScroll_) {
+    simpleUiFavScroll_ = fi;
+  }
+  if (fi >= simpleUiFavScroll_ + maxVisibleFavs) {
+    simpleUiFavScroll_ = fi - maxVisibleFavs + 1;
+  }
+  const int maxScroll = std::max(0, fc - maxVisibleFavs);
+  simpleUiFavScroll_ = std::max(0, std::min(simpleUiFavScroll_, maxScroll));
 }
 
 void RecentActivity::rebuildListStatsFavorites() {
@@ -505,6 +601,12 @@ void RecentActivity::onEnter() {
     currentViewMode = ViewMode::Default;
   }
 
+  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
+    currentViewMode = ViewMode::SimpleUi;
+    selectorIndex = 0;
+    simpleUiFavScroll_ = 0;
+  }
+
   updateRequired = true;
 }
 
@@ -514,6 +616,7 @@ void RecentActivity::onEnter() {
 void RecentActivity::onExit() {
   recentBooks.clear();
   listStatsFavoriteOnly_.clear();
+  simpleUiFavorites_.clear();
   Activity::onExit();
 }
 
@@ -653,6 +756,8 @@ void RecentActivity::pumpDisplayFromLoop() {
     renderDefault();
   } else if (currentViewMode == ViewMode::Grid) {
     renderGrid(TAB_BAR_HEIGHT - 29);
+  } else if (currentViewMode == ViewMode::SimpleUi) {
+    renderSimpleUi();
   } else {
     renderFlow();
   }
@@ -768,6 +873,7 @@ void RecentActivity::loop() {
 
   const int totalBooks = static_cast<int>(recentBooks.size());
   const bool isDefaultView = (currentViewMode == ViewMode::Default);
+  const bool isSimpleUi = (currentViewMode == ViewMode::SimpleUi);
 
   bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
@@ -780,7 +886,8 @@ void RecentActivity::loop() {
       return;
     }
     if (tabSelectorIndex == 0) {
-      if (isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
+      if ((isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) ||
+          (isSimpleUi && totalBooks > 0 && selectorIndex == 0)) {
         RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
         loadRecentBooks(false);
         const int n = static_cast<int>(recentBooks.size());
@@ -795,8 +902,9 @@ void RecentActivity::loop() {
           const int maxScroll = std::max(0, n - kRecentStripSlots);
           scrollOffsetDefault = std::max(0, std::min(scrollOffsetDefault, maxScroll));
         }
+        simpleUiFavScroll_ = 0;
         updateRequired = true;
-      } else if (!isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
+      } else if (!isDefaultView && !isSimpleUi && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
         RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
         loadRecentBooks(false);
         const int n = static_cast<int>(recentBooks.size());
@@ -837,33 +945,81 @@ void RecentActivity::loop() {
     return;
   }
 
-  if (!isDefaultView && totalBooks == 0) {
+  if (!isDefaultView && !isSimpleUi && totalBooks == 0) {
     return;
   }
   if (isDefaultView && totalBooks == 0) {
     return;
   }
 
-  if (!isDefaultView) {
-    ViewMode newViewMode = ViewMode::Flow;
+  {
+    ViewMode expectedMode = ViewMode::Flow;
     if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) {
-      newViewMode = ViewMode::Grid;
+      expectedMode = ViewMode::Grid;
+    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
+      expectedMode = ViewMode::Default;
+    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
+      expectedMode = ViewMode::SimpleUi;
+    } else {
+      expectedMode = ViewMode::Flow;
     }
-
-    if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
-      newViewMode = ViewMode::Default;
-    }
-
-    if (newViewMode != currentViewMode) {
-      currentViewMode = newViewMode;
+    if (expectedMode != currentViewMode) {
+      currentViewMode = expectedMode;
       scrollOffset = 0;
       selectorIndex = 0;
+      simpleUiFavScroll_ = 0;
+      listStatsRecentHScroll = 0;
       updateRequired = true;
       return;
     }
   }
 
   bool selectorChanged = false;
+
+  if (isSimpleUi) {
+    const int recentSlots = totalBooks > 0 ? 1 : 0;
+    const int favCount = static_cast<int>(simpleUiFavorites_.size());
+    const int totalSel = recentSlots + favCount;
+    if (totalSel == 0) {
+      return;
+    }
+    if (selectorIndex >= totalSel) {
+      selectorIndex = totalSel - 1;
+    }
+    if (selectorIndex < 0) {
+      selectorIndex = 0;
+    }
+
+    const SimpleUiMetrics su = computeSimpleUiMetrics(renderer);
+    const int maxVis = su.maxVis;
+
+    if (upPressed && selectorIndex > 0) {
+      selectorIndex--;
+      selectorChanged = true;
+    }
+    if (downPressed && selectorIndex < totalSel - 1) {
+      selectorIndex++;
+      selectorChanged = true;
+    }
+    if (selectorChanged) {
+      clampSimpleUiFavoriteScroll(maxVis);
+      updateRequired = true;
+    }
+    if (confirmPressed) {
+      if (recentSlots == 1 && selectorIndex == 0) {
+        bookSelected = true;
+        onSelectBook(recentBooks[0].path);
+        return;
+      }
+      const int fi = selectorIndex - recentSlots;
+      if (fi >= 0 && fi < favCount) {
+        bookSelected = true;
+        onSelectBook(simpleUiFavorites_[static_cast<size_t>(fi)].path);
+        return;
+      }
+    }
+    return;
+  }
 
   if (isDefaultView) {
     if (downPressed && selectorIndex < totalBooks - 1) {
@@ -1050,5 +1206,103 @@ void RecentActivity::renderFlow() {
     }
     renderer.drawText(VALUE_FONT, col2X, row2Y, buffer, true, EpdFontFamily::BOLD);
     renderer.drawText(LABEL_FONT, col2X, row2Y + 40, "Average / Page", true);
+  }
+}
+
+void RecentActivity::renderSimpleUi() {
+  const int screenW = renderer.getScreenWidth();
+  const SimpleUiMetrics m = computeSimpleUiMetrics(renderer);
+
+  drawFlowCarouselBackdropInRect(renderer, 0, m.bodyTop, screenW, m.topBandH);
+
+  const int recentSlots = recentBooks.empty() ? 0 : 1;
+  if (recentSlots != 0) {
+    const RecentBook& b = recentBooks[0];
+    const int rx = m.marginL;
+    const int ry = m.bodyTop + (m.topBandH - m.thumbH) / 2;
+    const bool sel = (selectorIndex == 0);
+    renderer.fillRect(rx, ry, m.thumbW, m.thumbH, false);
+    const std::string cdir = b.cachePath.empty() ? epubCachePathForBookPath(b.path) : b.cachePath;
+    drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+    if (sel) {
+      renderer.drawRect(rx - 2, ry - 2, m.thumbW + 4, m.thumbH + 4, true, false);
+    } else {
+      renderer.drawRect(rx, ry, m.thumbW, m.thumbH, true, false);
+    }
+
+    const int titleFont = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+    const int authorFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    std::string titleStr = b.title.empty() ? formatTitle(getBaseFilename(b.path)) : b.title;
+    const int textX = rx + m.thumbW + 18;
+    const int maxTextW = std::max(40, screenW - textX - m.marginL);
+    const std::string titleDraw =
+        renderer.truncatedText(titleFont, titleStr.c_str(), maxTextW, EpdFontFamily::BOLD);
+    const int lhTitle = renderer.getLineHeight(titleFont);
+    const int lhAuthor = renderer.getLineHeight(authorFont);
+    const int authorGap = 10;
+    const int blockH = lhTitle + authorGap + lhAuthor;
+    const int textY = m.bodyTop + (m.topBandH - blockH) / 2;
+    renderer.drawText(titleFont, textX, textY, titleDraw.c_str(), true, EpdFontFamily::BOLD);
+    const std::string auth = b.author.empty() ? std::string() : b.author;
+    const std::string authDraw = renderer.truncatedText(authorFont, auth.c_str(), maxTextW);
+    renderer.drawText(authorFont, textX, textY + lhTitle + authorGap, authDraw.c_str(), true);
+  } else {
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, m.bodyTop + std::max(20, m.topBandH / 2 - 16),
+                              "No recent books", true);
+  }
+
+  if (m.favTop < m.bodyBottom) {
+    renderer.fillRect(0, m.favTop, screenW, m.bodyBottom - m.favTop, false);
+    renderer.drawLine(0, m.favTop, screenW, m.favTop, true);
+    const int favHdrFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    renderer.drawText(favHdrFont, m.marginL, m.favTop + kFavHeaderPadTop, "Favorites", true,
+                        EpdFontFamily::BOLD);
+    const int hdrSepY = m.favListTop - 1;
+    if (hdrSepY > m.favTop) {
+      renderer.drawLine(0, hdrSepY, screenW, hdrSepY, true);
+    }
+  }
+
+  const int favFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int lh = renderer.getLineHeight(favFont);
+  constexpr int kPadY = 20;
+  clampSimpleUiFavoriteScroll(m.maxVis);
+
+  const int fc = static_cast<int>(simpleUiFavorites_.size());
+
+  if (fc == 0) {
+    const int subFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const char* line1 = "No favorites yet.";
+    const char* line2 = "Star a book in the Library to add it here.";
+    const int w1 = renderer.getTextWidth(favFont, line1);
+    const int w2 = renderer.getTextWidth(subFont, line2);
+    const int lh2 = renderer.getLineHeight(subFont);
+    const int block = lh + 12 + lh2;
+    const int paneH = m.bodyBottom - m.favListTop;
+    const int y0 = m.favListTop + std::max(4, (paneH - block) / 2);
+    renderer.drawText(favFont, (screenW - w1) / 2, y0, line1, true);
+    renderer.drawText(subFont, (screenW - w2) / 2, y0 + lh + 12, line2, true);
+    return;
+  }
+
+  int rowY = m.favListTop;
+  const int endVi = std::min(fc, simpleUiFavScroll_ + m.maxVis);
+  const int starX = m.marginL;
+  const int titleX = starX + 34;
+  for (int i = simpleUiFavScroll_; i < endVi; ++i) {
+    const auto& fb = simpleUiFavorites_[static_cast<size_t>(i)];
+    const int rowSelIndex = recentSlots + i;
+    const bool rowSel = (selectorIndex == rowSelIndex);
+    if (rowSel) {
+      renderer.fillRect(0, rowY, screenW, m.rowH, GfxRenderer::FillTone::Ink);
+    }
+    const int textY = rowY + kPadY;
+    const int maxTitleW = std::max(40, screenW - titleX - m.marginL);
+    std::string disp = fb.title.empty() ? formatTitle(getBaseFilename(fb.path)) : fb.title;
+    const std::string trunc = renderer.truncatedText(favFont, disp.c_str(), maxTitleW);
+    renderer.drawIcon(Star, starX, textY + 2, 24, 24, GfxRenderer::None, rowSel);
+    renderer.drawText(favFont, titleX , textY, trunc.c_str(), !rowSel);
+    rowY += m.rowH;
+    renderer.drawLine(0, rowY, screenW, rowY, true);
   }
 }

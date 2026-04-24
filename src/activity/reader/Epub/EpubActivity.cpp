@@ -530,6 +530,7 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
   renderer.clearScreen(0xff);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadCurrentSection();
 }
 
@@ -914,6 +915,7 @@ void EpubActivity::toggleMenuDrawer() {
   menuDrawerVisible = !menuDrawerVisible;
 
   if (menuDrawerVisible) {
+    menuDrawer->setReaderSpineIndex(currentSpineIndex);
     menuDrawer->setBookTitle(epub->getTitle());
     menuDrawer->show();
   } else {
@@ -1319,6 +1321,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   const BitmapDitherMode imageDitherMode = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
+  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && page->hasImages();
+  const bool textAa = bookSettings.textAntiAliasing != 0;
 
   // BW: text first, then images (same separation as grayscale passes: text AA uses skipImages; image tone uses
   // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
@@ -1334,11 +1338,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
-  const bool textAa = bookSettings.textAntiAliasing != 0;
-
-  /** Crosspoint-style: HALF_REFRESH fixes ink too firmly for grayscale LUT; blank image area + two FAST passes. */
+  /** Crosspoint-style: HALF_REFRESH fixes ink too firmly for grayscale LUT; blank image area + two FAST passes.
+   * Skipped when image grayscale is also on: the prep fill uses image bounds that can overlap body text, and the
+   * combined grayscale passes already handle image+text without this intermediate full redraw. */
   auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
-    if (!textAa || !page->hasImages()) {
+    if (!textAa || !page->hasImages() || needsImageGrayscale) {
       return false;
     }
     int16_t ix = 0;
@@ -1388,8 +1392,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   pagesUntilFullRefresh--;
-
-  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && page->hasImages();
 
   if (!tryImagePageTextAaDisplayPrep()) {
     renderer.displayBuffer();

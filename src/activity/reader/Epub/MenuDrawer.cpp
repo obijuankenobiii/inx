@@ -370,9 +370,9 @@ void MenuDrawer::renderToc() {
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
-  int footerY = tocDrawerY + tocDrawerHeight - 35;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + (panelW - pageStrWidth) / 2, footerY, pageStr, true);
+  constexpr int kTocFooterAboveHints = 92;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   
   drawDrawerHintRow("« Back", "Select", "«", "»");
@@ -400,10 +400,16 @@ void MenuDrawer::renderBookmarks() {
   renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
-    const int msgY = dividerY + 40;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY, "No bookmarks yet", true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY + 22, "Long-press Confirm", true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY + 44, "while reading to add", true);
+    const char* line1 = "No bookmarks yet";
+    const char* line2 = "Long press confirm to bookmark";
+    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int msgY = dividerY + 48;
+    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int x1 = tocDrawerX + (panelW - w1) / 2;
+    const int x2 = tocDrawerX + (panelW - w2) / 2;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawDrawerHintRow("« Back", "", "", "");
     return;
   }
@@ -439,9 +445,9 @@ void MenuDrawer::renderBookmarks() {
   const int currentPageNum = (bookmarkSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  const int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
-  const int footerY = tocDrawerY + tocDrawerHeight - 35;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + (panelW - pageStrWidth) / 2, footerY, pageStr, true);
+  constexpr int kBookmarkFooterAboveHints = 92;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   if (mappedInputForHints != nullptr) {
     const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
@@ -644,8 +650,14 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
-        tocSelectedIndex = 0;
         tocScrollOffset = 0;
+        tocSelectedIndex = 0;
+        if (epub && readerSpineIndex_ >= 0) {
+          const int ti = epub->getTocIndexForSpineIndex(readerSpineIndex_);
+          if (ti >= 0) {
+            tocSelectedIndex = ti;
+          }
+        }
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {

@@ -182,8 +182,9 @@ void TableOfContentsActivity::renderScreen() {
     const int currentPageNum = (selectorIndex / pageItems) + 1;
     char pageStr[24];
     snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-    int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, (screenWidth - pageStrWidth) / 2, renderer.getScreenHeight() - 75, pageStr);
+    constexpr int kTocPageStrAboveHints = 122;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20,
+                      std::max(20, renderer.getScreenHeight() - kTocPageStrAboveHints), pageStr);
 
     if (renderer.getOrientation() != GfxRenderer::LandscapeClockwise) {
         const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");

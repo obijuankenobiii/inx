@@ -74,6 +74,26 @@ void WifiSelectionActivity::onExit() {
 
   WiFi.scanDelete();
 
+  networks.clear();
+  networks.shrink_to_fit();
+  selectedSSID.clear();
+  selectedSSID.shrink_to_fit();
+  connectedIP.clear();
+  connectedIP.shrink_to_fit();
+  connectionError.clear();
+  connectionError.shrink_to_fit();
+  enteredPassword.clear();
+  enteredPassword.shrink_to_fit();
+  cachedMacAddress.clear();
+  cachedMacAddress.shrink_to_fit();
+
+  const bool keepStaForParent =
+      (WiFi.status() == WL_CONNECTED) && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+  if (!keepStaForParent) {
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+  }
+
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
   if (displayTaskHandle) {
