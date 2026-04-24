@@ -165,11 +165,10 @@ class GfxRenderer {
                        const int maxHeight = 0) const;
 
 
-void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0, 
-                         uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
-void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
-                             uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
-
+  void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0,
+                            uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
+  void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
+                                uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
 };
 
 /**

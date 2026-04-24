@@ -12,6 +12,7 @@
 #include <Arduino.h>
 
 #include <FsHelpers.h>
+#include <FontManager.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -82,6 +83,80 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
 /**
  * Loads all CSS rules from the EPUB cache using CssParser
  */
+void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
+  depth = 0;
+  skipUntilDepth = INT_MAX;
+  boldUntilDepth = INT_MAX;
+  italicUntilDepth = INT_MAX;
+  inHeader = false;
+  inDropCap = false;
+  dropCapDepth = INT_MAX;
+  partWordBufferIndex = 0;
+  currentTextBlock.reset();
+  currentPage.reset();
+  currentPageNextY = 0;
+}
+
+void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
+  std::string src;
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      std::string attrName = atts[i];
+      if (attrName == "src" || attrName == "href" || attrName == "xlink:href") {
+        src = atts[i + 1];
+        break;
+      }
+    }
+  }
+  if (src.empty()) {
+    return;
+  }
+  const std::string& base = internalPath.empty() ? filepath : internalPath;
+  const std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
+  const std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
+  int w = 0;
+  int h = 0;
+  ensureImageCached(fullInternalPath, cacheImgPath, &w, &h);
+}
+
+bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) {
+  const XML_Parser parser = XML_ParserCreate(nullptr);
+  if (!parser) {
+    return false;
+  }
+
+  FsFile file;
+  if (!SdMan.openFileForRead("EHP", filepath, file)) {
+    XML_ParserFree(parser);
+    return false;
+  }
+
+  if (callProgressPopup && popupFn && file.size() >= MIN_SIZE_FOR_POPUP) {
+    popupFn();
+  }
+
+  XML_SetUserData(parser, this);
+  XML_SetElementHandler(parser, startElement, endElement);
+  XML_SetCharacterDataHandler(parser, characterData);
+
+  int done = 0;
+  do {
+    void* const buf = XML_GetBuffer(parser, 1024);
+    if (!buf) {
+      break;
+    }
+    const size_t len = file.read(buf, 1024);
+    done = (len == 0);
+    if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
+      break;
+    }
+  } while (!done);
+
+  XML_ParserFree(parser);
+  file.close();
+  return true;
+}
+
 void ChapterHtmlSlimParser::loadCssRules() {
   if (cssLoaded) return;
 
@@ -422,7 +497,23 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
-  
+  if (self->imagePrefetchPassOnly_) {
+    if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
+      self->prefetchImageFromImgAttributes(atts);
+      self->depth += 1;
+      return;
+    }
+    if (self->skipUntilDepth < self->depth) {
+      self->depth += 1;
+      return;
+    }
+    if (matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
+      self->skipUntilDepth = self->depth;
+    }
+    self->depth += 1;
+    return;
+  }
+
   if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
@@ -520,6 +611,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
  */
 void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+  if (self->imagePrefetchPassOnly_) {
+    return;
+  }
   if (self->skipUntilDepth < self->depth) return;
 
   for (int i = 0; i < len; i++) {
@@ -563,6 +657,15 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
  */
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+
+  if (self->imagePrefetchPassOnly_) {
+    (void)name;
+    self->depth -= 1;
+    if (self->skipUntilDepth == self->depth) {
+      self->skipUntilDepth = INT_MAX;
+    }
+    return;
+  }
 
   if (self->partWordBufferIndex > 0) {
     if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
@@ -777,9 +880,24 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
  */
 bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
+  imageExtractCountForYield_ = 0;
+
+  if (!skipImageProcessing) {
+    FontManager::unloadAllSDFonts();
+    imagePrefetchPassOnly_ = true;
+    resetStructuralStateForParsePass();
+    if (!parseHtmlThroughExpat(false)) {
+      imagePrefetchPassOnly_ = false;
+      return false;
+    }
+    imagePrefetchPassOnly_ = false;
+    FontManager::ensureReaderLayoutFonts(fontId, renderer);
+  }
+
+  skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
-  cssLoaded = false;  
+  cssLoaded = false;
 
   loadCssRules();
 
@@ -790,32 +908,10 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
     initialBlockStyle = static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment("", "", "", "body"));
   }
   startNewTextBlock(initialBlockStyle);
-  const XML_Parser parser = XML_ParserCreate(nullptr);
-  if (!parser) return false;
 
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", filepath, file)) {
-    XML_ParserFree(parser);
+  if (!parseHtmlThroughExpat(true)) {
     return false;
   }
-
-  if (popupFn && file.size() >= MIN_SIZE_FOR_POPUP) popupFn();
-
-  XML_SetUserData(parser, this);
-  XML_SetElementHandler(parser, startElement, endElement);
-  XML_SetCharacterDataHandler(parser, characterData);
-
-  int done;
-  do {
-    void* const buf = XML_GetBuffer(parser, 1024);
-    if (!buf) break;
-    const size_t len = file.read(buf, 1024);
-    done = (len == 0);
-    if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) break;
-  } while (!done);
-
-  XML_ParserFree(parser);
-  file.close();
 
   flushPartWordBuffer();
 

@@ -125,7 +125,7 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
     return false;
   }
 
-  bool extracted = readItemContentsToStream(itemHref, tempFile, 2048);
+  bool extracted = readItemContentsToStream(itemHref, tempFile, 4096);
   tempFile.flush();
   tempFile.sync();
   tempFile.close();

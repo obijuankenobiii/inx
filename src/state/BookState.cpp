@@ -4,15 +4,19 @@
  */
 
 #include "state/BookState.h"
+
+#include <Arduino.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 #include <algorithm>
+#include <cstdint>
 
 namespace {
-constexpr uint8_t BOOKS_FILE_VERSION = 1;
+constexpr uint8_t BOOKS_FILE_VERSION = 2;
+constexpr uint8_t BOOKS_FILE_VERSION_V1 = 1;
 constexpr char BOOKS_FILE[] = "/.metadata/books.bin";
-}
+}  
 
 BookState BookState::instance;
 
@@ -113,10 +117,11 @@ bool BookState::saveToFile() const {
 
   serialization::writePod(outputFile, BOOKS_FILE_VERSION);
   serialization::writePod(outputFile, nextId);
-  
-  uint16_t count = static_cast<uint16_t>(books.size());
+
+  const uint32_t count = static_cast<uint32_t>(books.size());
   serialization::writePod(outputFile, count);
 
+  uint32_t written = 0;
   for (const auto& book : books) {
     serialization::writeString(outputFile, book.path);
     serialization::writeString(outputFile, book.title);
@@ -128,6 +133,9 @@ bool BookState::saveToFile() const {
     if (book.isReading) flags |= 0x02;
     if (book.isFinished) flags |= 0x04;
     serialization::writePod(outputFile, flags);
+    if ((++written % 256u) == 0u) {
+      yield();
+    }
   }
 
   outputFile.close();
@@ -142,34 +150,47 @@ bool BookState::loadFromFile() {
 
   uint8_t version;
   serialization::readPod(inputFile, version);
-  
-  if (version != BOOKS_FILE_VERSION) {
+
+  if (version != BOOKS_FILE_VERSION && version != BOOKS_FILE_VERSION_V1) {
     inputFile.close();
     return false;
   }
 
   serialization::readPod(inputFile, nextId);
-  
-  uint16_t count;
-  serialization::readPod(inputFile, count);
+
+  size_t count = 0;
+  if (version == BOOKS_FILE_VERSION_V1) {
+    uint16_t count16;
+    serialization::readPod(inputFile, count16);
+    count = count16;
+  } else {
+    uint32_t count32;
+    serialization::readPod(inputFile, count32);
+    count = static_cast<size_t>(count32);
+  }
 
   books.clear();
-  books.reserve(count);
+  if (count != 0) {
+    books.reserve(count);
+  }
 
-  for (uint16_t i = 0; i < count; i++) {
+  for (size_t i = 0; i < count; i++) {
     Book book;
     serialization::readString(inputFile, book.path);
     serialization::readString(inputFile, book.title);
     serialization::readString(inputFile, book.author);
     serialization::readPod(inputFile, book.id);
-    
+
     uint8_t flags;
     serialization::readPod(inputFile, flags);
     book.isFavorite = (flags & 0x01) != 0;
     book.isReading = (flags & 0x02) != 0;
     book.isFinished = (flags & 0x04) != 0;
-    
+
     books.push_back(book);
+    if ((i % 256u) == 255u) {
+      yield();
+    }
   }
 
   inputFile.close();

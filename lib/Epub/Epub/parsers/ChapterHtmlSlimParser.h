@@ -83,6 +83,15 @@ class ChapterHtmlSlimParser {
   CssParser cssParser;
   bool cssLoaded;
 
+  /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
+  bool imagePrefetchPassOnly_ = false;
+
+  void resetStructuralStateForParsePass();
+
+  void prefetchImageFromImgAttributes(const XML_Char** atts);
+
+  bool parseHtmlThroughExpat(bool callProgressPopup);
+
   /**
    * Creates a new text block with the specified style.
    */
@@ -174,7 +183,10 @@ class ChapterHtmlSlimParser {
 
   /**
    * Parses the HTML file and builds pages.
-   * When skipImageProcessing is true, only uses images already on disk; new ZIP→BMP work is skipped.
+   * When skipImageProcessing is false: unloads SD streaming fonts, runs a lightweight first pass that only
+   * extracts & caches images (ZIP/inflate without SD font heap), restores reader fonts via ensureReaderLayoutFonts,
+   * then runs the full layout pass (cached BMPs, text, CSS).
+   * When skipImageProcessing is true, only one pass runs and new ZIP→BMP work is skipped.
    */
   bool parseAndBuildPages(bool skipImageProcessing = false);
 };

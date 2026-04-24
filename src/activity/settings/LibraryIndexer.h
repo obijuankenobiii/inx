@@ -18,7 +18,7 @@ class LibraryIndexer {
   static bool deleteIndex() { return SdMan.remove("/.metadata/library/library.idx"); }
 
   static int countBooks(FsFile& dir, int depth = 0) {
-    if (depth > 10) return 0;
+    if (depth > 32) return 0;
     int count = 0;
     dir.rewindDirectory();
     char name[256];
@@ -34,7 +34,7 @@ class LibraryIndexer {
       } else {
         const char* ext = strrchr(name, '.');
         if (ext && (strcasecmp(ext, ".epub") == 0 || strcasecmp(ext, ".txt") == 0 || strcasecmp(ext, ".md") == 0 ||
-                    strcasecmp(ext, ".xtc") == 0)) {
+                    strcasecmp(ext, ".xtc") == 0 || strcasecmp(ext, ".xtch") == 0)) {
           count++;
         }
       }
@@ -86,7 +86,7 @@ class LibraryIndexer {
   static void indexDirectory(FsFile& dir, FsFile& idxFile, int& currentBook, int totalBooks,
                              std::function<void(int, int, const char*)> progressCallback,
                              const std::string& currentPath, int depth) {
-    if (depth > 10) return;
+    if (depth > 32) return;
 
     dir.rewindDirectory();
     char name[256];

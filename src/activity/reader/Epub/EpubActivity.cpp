@@ -5,6 +5,7 @@
 
 #include "EpubActivity.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 
@@ -215,8 +216,6 @@ ViewportInfo EpubActivity::calculateViewport() {
  */
 bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool showProgress, bool skipImages) {
   if (!epub) return false;
-
-  isDoingSomethingHeavy = true;
   std::string cachePath = epub->getCachePath();
   std::string sectionPath = cachePath + "/" + std::to_string(spineIndex) + ".sec";
 
@@ -252,8 +251,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     renderer.clearScreen();
     renderer.displayBuffer();
   }
-
-  isDoingSomethingHeavy = false;
 
   return success;
 }
@@ -443,12 +440,12 @@ void EpubActivity::loadCurrentSection() {
 
   if (newSection) {
     section = std::move(newSection);
-    if (nextPageNumber == UINT16_MAX) {
-      section->currentPage = section->pageCount - 1;
+    if (nextPageNumber == static_cast<int>(UINT16_MAX)) {
+      section->currentPage = (section->pageCount > 0) ? (section->pageCount - 1) : 0;
     } else {
-      section->currentPage = nextPageNumber;
+      section->currentPage =
+          (nextPageNumber >= 0 && nextPageNumber < section->pageCount) ? nextPageNumber : 0;
     }
-    if (section->currentPage >= section->pageCount) section->currentPage = 0;
 
     if (cachedChapterTotalPageCount > 0 && currentSpineIndex == cachedSpineIndex &&
         section->pageCount != cachedChapterTotalPageCount) {
@@ -517,7 +514,7 @@ void EpubActivity::fastPath() {
  */
 void EpubActivity::slowPath() {
   displayCoverOrTitle();
-  loadingProgress = 10;
+  loadingProgress = 30;
   drawLoadingScreen();
   vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -528,15 +525,12 @@ void EpubActivity::slowPath() {
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
 
   preloadChapters();
-  loadingProgress = 50;
-  drawLoadingScreen();
-
-  loadCurrentSection();
-
   loadingProgress = 100;
   drawLoadingScreen();
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
+  renderer.clearScreen(0xff);
+  loadCurrentSection();
 }
 
 /**
@@ -624,15 +618,11 @@ void EpubActivity::onExit() {
  */
 void EpubActivity::loop() {
   
-  
   if (subActivity) {
     subActivity->loop();
     return;
   }
 
-  if (isDoingSomethingHeavy) {
-    return;
-  }
 
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
@@ -751,8 +741,6 @@ void EpubActivity::loop() {
       }
     }
 
-    // Do not return when we did not change spine (e.g. last chapter / first chapter): fall through to pageTurn
-    // so end-of-chapter page advance and "book finished" still work on the same release.
     if (spineAdvanced) {
       startPageTimer();
       lastAutoPageTurnTime = millis();
@@ -790,7 +778,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy) {
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
@@ -817,14 +805,12 @@ void EpubActivity::loop() {
   }
 
   if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
-    if (mappedInput.getHeldTime() >= 300) {
-      vTaskDelay(pdMS_TO_TICKS(100));
-      onGoBack();
-    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+    onGoBack();
     return;
   }
 
-  if (updateRequired && !isDoingSomethingHeavy) {
+  if (updateRequired) {
     updateRequired = false;
     renderScreen();
   }
@@ -1265,7 +1251,6 @@ void EpubActivity::renderScreen() {
   if (!section) {
     section = loadSection(currentSpineIndex, info);
     if (!section) {
-      updateRequired = true;
       return;
     }
 
