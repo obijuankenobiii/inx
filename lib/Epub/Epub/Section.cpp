@@ -238,6 +238,16 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
     return false;
   }
 
+  for (const uint32_t& pos : lut) {
+    if (pos == 0) {
+      Serial.printf("[%lu] [SCT] createSectionFile: invalid LUT entry (page offset 0) spine=%d — discarding section\n",
+                    millis(), spineIndex);
+      file.close();
+      SdMan.remove(filePath.c_str());
+      return false;
+    }
+  }
+
   const uint32_t lutOffset = file.position();
   for (const uint32_t& pos : lut) {
     serialization::writePod(file, pos);

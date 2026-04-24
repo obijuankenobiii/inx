@@ -138,23 +138,31 @@ bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) 
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, characterData);
+  // XHTML uses entities (e.g. &nbsp;) outside a declared XML subset; expanded default text must reach layout.
+  XML_SetDefaultHandlerExpand(parser, defaultHandlerExpand);
 
+  bool parseOk = true;
   int done = 0;
   do {
     void* const buf = XML_GetBuffer(parser, 1024);
     if (!buf) {
+      parseOk = false;
       break;
     }
     const size_t len = file.read(buf, 1024);
     done = (len == 0);
     if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
+      parseOk = false;
       break;
     }
   } while (!done);
 
   XML_ParserFree(parser);
   file.close();
-  return true;
+  if (!parseOk) {
+    Serial.printf("[%lu] [SCT] parseHtmlThroughExpat failed chapter=%s\n", millis(), filepath.c_str());
+  }
+  return parseOk;
 }
 
 void ChapterHtmlSlimParser::loadCssRules() {
@@ -609,7 +617,14 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
  * @param s Character data
  * @param len Length of character data
  */
-void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char* s, const int len) {
+void XMLCALL ChapterHtmlSlimParser::defaultHandlerExpand(void* userData, const XML_Char* s, int len) {
+  if (s == nullptr || len <= 0) {
+    return;
+  }
+  characterData(userData, s, len);
+}
+
+void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char* s, int len) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
   if (self->imagePrefetchPassOnly_) {
     return;
