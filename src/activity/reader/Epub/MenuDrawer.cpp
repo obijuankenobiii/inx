@@ -370,7 +370,7 @@ void MenuDrawer::renderToc() {
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  constexpr int kTocFooterAboveHints = 92;
+  constexpr int kTocFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
@@ -445,7 +445,7 @@ void MenuDrawer::renderBookmarks() {
   const int currentPageNum = (bookmarkSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  constexpr int kBookmarkFooterAboveHints = 92;
+  constexpr int kBookmarkFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
