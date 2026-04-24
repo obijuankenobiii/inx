@@ -143,6 +143,8 @@ class ChapterHtmlSlimParser {
 
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
+  /** Expanded default text / entities (e.g. &nbsp;) — forwards to characterData (Crosspoint-style). */
+  static void XMLCALL defaultHandlerExpand(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
 
  public:

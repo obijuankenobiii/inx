@@ -216,11 +216,15 @@ ViewportInfo EpubActivity::calculateViewport() {
  */
 bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool showProgress, bool skipImages) {
   if (!epub) return false;
-  std::string cachePath = epub->getCachePath();
-  std::string sectionPath = cachePath + "/" + std::to_string(spineIndex) + ".sec";
-
-  if (SdMan.exists(sectionPath.c_str())) {
-    SdMan.remove(sectionPath.c_str());
+  const std::string cachePath = epub->getCachePath();
+  // Section files live under sections/*.bin (see Section ctor). Legacy .sec at cache root was never used here.
+  const std::string sectionBinPath = cachePath + "/sections/" + std::to_string(spineIndex) + ".bin";
+  const std::string legacySecPath = cachePath + "/" + std::to_string(spineIndex) + ".sec";
+  if (SdMan.exists(legacySecPath.c_str())) {
+    SdMan.remove(legacySecPath.c_str());
+  }
+  if (SdMan.exists(sectionBinPath.c_str())) {
+    SdMan.remove(sectionBinPath.c_str());
   }
 
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
@@ -1286,6 +1290,8 @@ void EpubActivity::renderScreen() {
 
   auto page = section->loadPageFromSectionFile();
   if (!page) {
+    // Crosspoint: bad LUT / truncated file — drop section cache so next frame rebuilds instead of looping on garbage.
+    section->clearCache();
     section.reset();
     updateRequired = true;
     return;
