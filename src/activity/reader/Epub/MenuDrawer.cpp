@@ -24,45 +24,47 @@ bool isLandscapeReader(const GfxRenderer& gfx) {
   return o == GfxRenderer::LandscapeClockwise || o == GfxRenderer::LandscapeCounterClockwise;
 }
 
-/** In landscape side drawer, list moves with Right/Left (matches on-screen list vs device); still accept Up/Down. */
+/**
+ * List line movement: use wasPressed like SettingsDrawer so one physical tap advances one row with a fast main loop
+ * (wasReleased is easy to miss or double-count across frames).
+ */
 bool readDrawerListPrev(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
-    return in.wasReleased(MappedInputManager::Button::Right) || in.wasReleased(MappedInputManager::Button::Up);
+    return in.wasPressed(MappedInputManager::Button::Right) || in.wasPressed(MappedInputManager::Button::Up);
   }
   if (SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
-    return in.wasReleased(MappedInputManager::Button::Up) || in.wasReleased(MappedInputManager::Button::Left);
+    return in.wasPressed(MappedInputManager::Button::Up) || in.wasPressed(MappedInputManager::Button::Left);
   }
   switch (SETTINGS.readerDirectionMapping) {
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_RIGHT_LEFT:
-      return in.wasReleased(MappedInputManager::Button::Right);
+      return in.wasPressed(MappedInputManager::Button::Right);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_UP_DOWN:
-      return in.wasReleased(MappedInputManager::Button::Up);
+      return in.wasPressed(MappedInputManager::Button::Up);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_DOWN_UP:
-      return in.wasReleased(MappedInputManager::Button::Down);
+      return in.wasPressed(MappedInputManager::Button::Down);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_LEFT_RIGHT:
     default:
-      return in.wasReleased(MappedInputManager::Button::Left);
+      return in.wasPressed(MappedInputManager::Button::Left);
   }
 }
 
 bool readDrawerListNext(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
-    return in.wasReleased(MappedInputManager::Button::Left) ||
-           in.wasReleased(MappedInputManager::Button::Down);
+    return in.wasPressed(MappedInputManager::Button::Left) || in.wasPressed(MappedInputManager::Button::Down);
   }
   if (SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
-    return in.wasReleased(MappedInputManager::Button::Down) || in.wasReleased(MappedInputManager::Button::Right);
+    return in.wasPressed(MappedInputManager::Button::Down) || in.wasPressed(MappedInputManager::Button::Right);
   }
   switch (SETTINGS.readerDirectionMapping) {
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_RIGHT_LEFT:
-      return in.wasReleased(MappedInputManager::Button::Left);
+      return in.wasPressed(MappedInputManager::Button::Left);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_UP_DOWN:
-      return in.wasReleased(MappedInputManager::Button::Down);
+      return in.wasPressed(MappedInputManager::Button::Down);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_DOWN_UP:
-      return in.wasReleased(MappedInputManager::Button::Up);
+      return in.wasPressed(MappedInputManager::Button::Up);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_LEFT_RIGHT:
     default:
-      return in.wasReleased(MappedInputManager::Button::Right);
+      return in.wasPressed(MappedInputManager::Button::Right);
   }
 }
 
@@ -71,14 +73,14 @@ bool readBookmarkLinePrev(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
     return readDrawerListPrev(in, r);
   }
-  return in.wasReleased(MappedInputManager::Button::Up);
+  return in.wasPressed(MappedInputManager::Button::Up);
 }
 
 bool readBookmarkLineNext(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
-    return in.wasReleased(MappedInputManager::Button::Left);
+    return readDrawerListNext(in, r);
   }
-  return in.wasReleased(MappedInputManager::Button::Down);
+  return in.wasPressed(MappedInputManager::Button::Down);
 }
 
 }  
@@ -368,9 +370,9 @@ void MenuDrawer::renderToc() {
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
-  int footerY = tocDrawerY + tocDrawerHeight - 35;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + (panelW - pageStrWidth) / 2, footerY, pageStr, true);
+  constexpr int kTocFooterAboveHints = 75;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   
   drawDrawerHintRow("« Back", "Select", "«", "»");
@@ -398,10 +400,16 @@ void MenuDrawer::renderBookmarks() {
   renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
-    const int msgY = dividerY + 40;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY, "No bookmarks yet", true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY + 22, "Long-press Confirm", true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 10, msgY + 44, "while reading to add", true);
+    const char* line1 = "No bookmarks yet";
+    const char* line2 = "Long press confirm to bookmark";
+    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int msgY = dividerY + 48;
+    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int x1 = tocDrawerX + (panelW - w1) / 2;
+    const int x2 = tocDrawerX + (panelW - w2) / 2;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawDrawerHintRow("« Back", "", "", "");
     return;
   }
@@ -437,9 +445,9 @@ void MenuDrawer::renderBookmarks() {
   const int currentPageNum = (bookmarkSelectedIndex / pageItems) + 1;
   char pageStr[24];
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  const int pageStrWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageStr);
-  const int footerY = tocDrawerY + tocDrawerHeight - 35;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + (panelW - pageStrWidth) / 2, footerY, pageStr, true);
+  constexpr int kBookmarkFooterAboveHints = 75;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   if (mappedInputForHints != nullptr) {
     const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
@@ -456,11 +464,6 @@ void MenuDrawer::renderBookmarks() {
 void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   if (!epub) return;
 
-  uint32_t currentTime = xTaskGetTickCount();
-  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
-    return;
-  }
-
   const int totalItems = epub->getTocItemsCount();
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
@@ -468,9 +471,37 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   if (totalItems == 0) {
     if (input.wasReleased(MappedInputManager::Button::Back)) {
       exitToc();
-      lastInputTime = currentTime;
+      lastInputTime = xTaskGetTickCount();
       renderWithRefresh();
     }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
+      const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
+
+      showingToc = false;
+      visible = false;
+
+      if (tocSelectionCallback) {
+        tocSelectionCallback(newSpineIndex);
+      }
+
+      lastInputTime = xTaskGetTickCount();
+    }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitToc();
+    lastInputTime = xTaskGetTickCount();
+    renderWithRefresh();
+    return;
+  }
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
     return;
   }
 
@@ -488,23 +519,6 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
     } else {
       tocSelectedIndex = (tocSelectedIndex + 1) % totalItems;
     }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
-      const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
-
-      showingToc = false;
-      visible = false;
-
-      if (tocSelectionCallback) {
-        tocSelectionCallback(newSpineIndex);
-      }
-
-      lastInputTime = currentTime;
-    }
-  } else if (input.wasReleased(MappedInputManager::Button::Back)) {
-    exitToc();
     lastInputTime = currentTime;
     renderWithRefresh();
   }
@@ -538,11 +552,6 @@ void MenuDrawer::refreshBookmarkEntriesFromProvider() {
 }
 
 void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
-  uint32_t currentTime = xTaskGetTickCount();
-  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
-    return;
-  }
-
   const int totalItems = static_cast<int>(bookmarkEntries.size());
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
@@ -550,9 +559,44 @@ void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
   if (totalItems == 0) {
     if (input.wasReleased(MappedInputManager::Button::Back)) {
       exitBookmarks();
-      lastInputTime = currentTime;
+      lastInputTime = xTaskGetTickCount();
       renderWithRefresh();
     }
+    return;
+  }
+
+  if ((!isLandscapeReader(renderer) && input.wasReleased(MappedInputManager::Button::Right)) ||
+      (isLandscapeReader(renderer) && input.wasReleased(MappedInputManager::Button::Down))) {
+    if (bookmarkDeleteCallback && bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems) {
+      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
+      bookmarkDeleteCallback(storageIndex);
+      refreshBookmarkEntriesFromProvider();
+      lastInputTime = xTaskGetTickCount();
+      renderWithRefresh();
+    }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems && bookmarkSelectCallback) {
+      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
+      showingBookmarks = false;
+      visible = false;
+      bookmarkSelectCallback(storageIndex);
+    }
+    lastInputTime = xTaskGetTickCount();
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitBookmarks();
+    lastInputTime = xTaskGetTickCount();
+    renderWithRefresh();
+    return;
+  }
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
     return;
   }
 
@@ -571,27 +615,6 @@ void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
     } else {
       bookmarkSelectedIndex = (bookmarkSelectedIndex + 1) % totalItems;
     }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  } else if ((!isLandscapeReader(renderer) && input.wasReleased(MappedInputManager::Button::Right)) ||
-             (isLandscapeReader(renderer) && input.wasReleased(MappedInputManager::Button::Down))) {
-    if (bookmarkDeleteCallback && bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems) {
-      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
-      bookmarkDeleteCallback(storageIndex);
-      refreshBookmarkEntriesFromProvider();
-      lastInputTime = currentTime;
-      renderWithRefresh();
-    }
-  } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (bookmarkSelectedIndex >= 0 && bookmarkSelectedIndex < totalItems && bookmarkSelectCallback) {
-      const int storageIndex = bookmarkEntries[static_cast<size_t>(bookmarkSelectedIndex)].storageIndex;
-      showingBookmarks = false;
-      visible = false;
-      bookmarkSelectCallback(storageIndex);
-    }
-    lastInputTime = currentTime;
-  } else if (input.wasReleased(MappedInputManager::Button::Back)) {
-    exitBookmarks();
     lastInputTime = currentTime;
     renderWithRefresh();
   }
@@ -614,37 +637,28 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     return;
   }
 
-  uint32_t currentTime = xTaskGetTickCount();
-  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    hide();
+    if (onDismiss) {
+      onDismiss();
+    }
+    lastInputTime = xTaskGetTickCount();
     return;
   }
 
-  if (readDrawerListPrev(input, renderer)) {
-    if (selectedIndex > 0) {
-      selectedIndex--;
-      if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
-      lastInputTime = currentTime;
-      renderWithRefresh();
-    }
-  }
-  if (readDrawerListNext(input, renderer)) {
-    if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
-      selectedIndex++;
-      int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
-        scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
-      }
-      lastInputTime = currentTime;
-      renderWithRefresh();
-    }
-  }
   if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
-        tocSelectedIndex = 0;
         tocScrollOffset = 0;
-        lastInputTime = currentTime;
+        tocSelectedIndex = 0;
+        if (epub && readerSpineIndex_ >= 0) {
+          const int ti = epub->getTocIndexForSpineIndex(readerSpineIndex_);
+          if (ti >= 0) {
+            tocSelectedIndex = ti;
+          }
+        }
+        lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {
         if (bookmarkListProvider) {
@@ -660,28 +674,44 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
           }
         }
         showingBookmarks = true;
-        lastInputTime = currentTime;
+        lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else {
         hide();
         if (onDismiss) {
           onDismiss();
         }
-        lastInputTime = currentTime;
+        lastInputTime = xTaskGetTickCount();
 
         if (onAction) {
           onAction(menuItems[selectedIndex].action);
         }
-        renderWithRefresh();
       }
     }
+    return;
   }
-  if (input.wasReleased(MappedInputManager::Button::Back)) {
-    hide();
-    if (onDismiss) {
-      onDismiss();
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  if (readDrawerListPrev(input, renderer)) {
+    if (selectedIndex > 0) {
+      selectedIndex--;
+      if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
+      lastInputTime = currentTime;
+      renderWithRefresh();
     }
-    lastInputTime = currentTime;
-    renderWithRefresh();
+  } else if (readDrawerListNext(input, renderer)) {
+    if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
+      selectedIndex++;
+      int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
+      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+        scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+      }
+      lastInputTime = currentTime;
+      renderWithRefresh();
+    }
   }
 }

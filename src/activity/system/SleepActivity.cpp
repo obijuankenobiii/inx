@@ -277,7 +277,6 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const bool hasGreyscale = SETTINGS.sleepScreenCoverGrayscale && bitmap.hasGreyscale() &&
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
-  renderer.resetBitmapGrayscaleDetection();
   renderer.drawBitmap(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
@@ -287,7 +286,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-  if (hasGreyscale && renderer.needsBitmapGrayscale()) {
+  if (hasGreyscale) {
     renderGreyscale(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
   }
 }

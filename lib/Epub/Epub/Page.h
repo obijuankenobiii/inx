@@ -164,7 +164,8 @@ class Page {
   }
 
   /**
-   * Union of all image draw rectangles in screen coordinates (matches PageImage::render placement).
+   * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap
+   * scaling, matching PageImage::render). Used for partial clears (e.g. text AA prep on image pages).
    * @return false if there are no images.
    */
   bool getImageBoundingBox(const GfxRenderer& renderer, int xOffset, int yOffset, int16_t& outX, int16_t& outY,

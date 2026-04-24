@@ -9,8 +9,6 @@
 #include <Serialization.h>
 #include <ZipFile.h>
 
-#include "FontManager.h"
-
 #include <vector>
 #include <algorithm>
 #include <cstring>
@@ -674,10 +672,7 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
             std::string tempCssPath = cachePath + "/.css.tmp";
             FsFile cssTempFile;
             if (SdMan.openFileForWrite("BMC", tempCssPath, cssTempFile)) {
-              bool cssStreamOk = false;
-              FontManager::withSdFontsReleasedForHeapIntensiveWork(0, [&]() {
-                cssStreamOk = zip.readFileToStream(fullCssPath.c_str(), cssTempFile, 1024);
-              });
+              const bool cssStreamOk = zip.readFileToStream(fullCssPath.c_str(), cssTempFile, 1024);
               if (cssStreamOk) {
                 cssTempFile.close();
                 

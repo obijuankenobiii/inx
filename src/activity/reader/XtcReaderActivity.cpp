@@ -329,9 +329,7 @@ void XtcReaderActivity::renderPage() {
     }
     Serial.printf("[%lu] [XTR] Pixel distribution: White=%lu, DarkGrey=%lu, LightGrey=%lu, Black=%lu\n", millis(),
                   pixelCounts[0], pixelCounts[1], pixelCounts[2], pixelCounts[3]);
-    const bool hasActualGrayscale = (pixelCounts[1] > 0 || pixelCounts[2] > 0);
 
-    
     for (uint16_t y = 0; y < pageHeight; y++) {
       for (uint16_t x = 0; x < pageWidth; x++) {
         if (getPixelValue(x, y) >= 1) {
@@ -349,48 +347,39 @@ void XtcReaderActivity::renderPage() {
       pagesUntilFullRefresh--;
     }
 
-    if (hasActualGrayscale) {
-      
-      
-      renderer.clearScreen(0x00);
-      for (uint16_t y = 0; y < pageHeight; y++) {
-        for (uint16_t x = 0; x < pageWidth; x++) {
-          if (getPixelValue(x, y) == 1) {  
-            renderer.drawPixel(x, y, false);
-          }
+    renderer.clearScreen(0x00);
+    for (uint16_t y = 0; y < pageHeight; y++) {
+      for (uint16_t x = 0; x < pageWidth; x++) {
+        if (getPixelValue(x, y) == 1) {
+          renderer.drawPixel(x, y, false);
         }
       }
-      renderer.copyGrayscaleLsbBuffers();
-
-      
-      
-      renderer.clearScreen(0x00);
-      for (uint16_t y = 0; y < pageHeight; y++) {
-        for (uint16_t x = 0; x < pageWidth; x++) {
-          const uint8_t pv = getPixelValue(x, y);
-          if (pv == 1 || pv == 2) {  
-            renderer.drawPixel(x, y, false);
-          }
-        }
-      }
-      renderer.copyGrayscaleMsbBuffers();
-
-      
-      renderer.displayGrayBuffer();
-
-      
-      renderer.clearScreen();
-      for (uint16_t y = 0; y < pageHeight; y++) {
-        for (uint16_t x = 0; x < pageWidth; x++) {
-          if (getPixelValue(x, y) >= 1) {
-            renderer.drawPixel(x, y, true);
-          }
-        }
-      }
-
-      
-      renderer.cleanupGrayscaleWithFrameBuffer();
     }
+    renderer.copyGrayscaleLsbBuffers();
+
+    renderer.clearScreen(0x00);
+    for (uint16_t y = 0; y < pageHeight; y++) {
+      for (uint16_t x = 0; x < pageWidth; x++) {
+        const uint8_t pv = getPixelValue(x, y);
+        if (pv == 1 || pv == 2) {
+          renderer.drawPixel(x, y, false);
+        }
+      }
+    }
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+
+    renderer.clearScreen();
+    for (uint16_t y = 0; y < pageHeight; y++) {
+      for (uint16_t x = 0; x < pageWidth; x++) {
+        if (getPixelValue(x, y) >= 1) {
+          renderer.drawPixel(x, y, true);
+        }
+      }
+    }
+
+    renderer.cleanupGrayscaleWithFrameBuffer();
 
     free(pageBuffer);
 

@@ -5,14 +5,14 @@
 
 #include "Epub.h"
 
+#include <Arduino.h>
+
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
 #include <PngToBmpConverter.h>
 #include <SDCardManager.h>
 #include <ZipFile.h>
-
-#include "FontManager.h"
 
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
@@ -96,16 +96,7 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
 
   Serial.printf("[EBP] Zip Request: %s\n", path.c_str());
 
-  auto runZip = [&]() { return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize); };
-
-  if (FontManager::zipExtractHeapScopeActive() && chunkSize >= 2048) {
-    const int restoreFontId = FontManager::zipExtractHeapScopeReaderBodyFontId();
-    bool ok = false;
-    FontManager::withSdFontsReleasedForHeapIntensiveWork(restoreFontId, [&]() { ok = runZip(); });
-    return ok;
-  }
-
-  return runZip();
+  return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
 }
 
 /**
@@ -123,35 +114,49 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
  */
 bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                   int targetH) const {
+  Serial.printf("[%lu] [EBP-IMG] extract start href=%s out=%s\n", static_cast<unsigned long>(millis()), itemHref.c_str(),
+                outBmpPath.c_str());
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
-  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) return false;
+  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
+    Serial.printf("[%lu] [EBP-IMG] open temp write fail: %s\n", static_cast<unsigned long>(millis()), tempPath.c_str());
+    return false;
+  }
 
-  bool extracted = readItemContentsToStream(itemHref, tempFile, 2048);
+  bool extracted = readItemContentsToStream(itemHref, tempFile, 4096);
   tempFile.flush();
   tempFile.sync();
   tempFile.close();
 
   if (!extracted) {
-    Serial.printf("[EBP] Failed to extract: %s\n", itemHref.c_str());
+    Serial.printf("[%lu] [EBP-IMG] zip read failed href=%s\n", static_cast<unsigned long>(millis()),
+                  itemHref.c_str());
     SdMan.remove(tempPath.c_str());
     return false;
   }
 
   FsFile sourceFile, destFile;
-  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) return false;
+  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
+    Serial.printf("[%lu] [EBP-IMG] open temp read fail: %s\n", static_cast<unsigned long>(millis()), tempPath.c_str());
+    SdMan.remove(tempPath.c_str());
+    return false;
+  }
 
   sourceFile.seek(0);
   if (!SdMan.openFileForWrite("EBP", outBmpPath, destFile)) {
+    Serial.printf("[%lu] [EBP-IMG] open out bmp write fail: %s\n", static_cast<unsigned long>(millis()),
+                  outBmpPath.c_str());
     sourceFile.close();
+    SdMan.remove(tempPath.c_str());
     return false;
   }
 
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    Serial.printf("[EBP] Source is already BMP, copying directly: %s\n", itemHref.c_str());
+    Serial.printf("[%lu] [EBP-IMG] BMP copy: %s\n", static_cast<unsigned long>(millis()), itemHref.c_str());
     uint8_t buf[2048];
     while (sourceFile.available()) {
       size_t r = sourceFile.read(buf, sizeof(buf));
@@ -161,18 +166,34 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
   } else if (isPngFile(itemHref)) {
     (void)targetW;
     (void)targetH;
-    Serial.printf("[EBP] Converting PNG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    Serial.printf("[%lu] [EBP-IMG] PNG convert: %s\n", static_cast<unsigned long>(millis()), itemHref.c_str());
     success = PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
+    if (!success) {
+      Serial.printf("[%lu] [EBP-IMG] PNG pipeline failed: %s\n", static_cast<unsigned long>(millis()),
+                    itemHref.c_str());
+    }
   } else {
     (void)targetW;
     (void)targetH;
-    Serial.printf("[EBP] Converting JPEG (EPUB web 2-bit): %s\n", itemHref.c_str());
+    Serial.printf("[%lu] [EBP-IMG] JPEG convert: %s\n", static_cast<unsigned long>(millis()), itemHref.c_str());
     success = JpegToBmpConverter::jpegFileToEpubWebStyle2BitBmpStream(sourceFile, destFile);
+    if (!success) {
+      Serial.printf("[%lu] [EBP-IMG] JPEG pipeline failed: %s\n", static_cast<unsigned long>(millis()),
+                    itemHref.c_str());
+    }
   }
 
   sourceFile.close();
   destFile.close();
   SdMan.remove(tempPath.c_str());
+
+  if (success) {
+    Serial.printf("[%lu] [EBP-IMG] extract ok -> %s\n", static_cast<unsigned long>(millis()), outBmpPath.c_str());
+  } else {
+    Serial.printf("[%lu] [EBP-IMG] extract failed (after convert) href=%s\n", static_cast<unsigned long>(millis()),
+                  itemHref.c_str());
+    SdMan.remove(outBmpPath.c_str());
+  }
 
   return success;
 }

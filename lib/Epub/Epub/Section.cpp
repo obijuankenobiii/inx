@@ -7,7 +7,6 @@
 #include <Arduino.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
-#include "FontManager.h"
 #include "Page.h"
 #include "hyphenation/Hyphenator.h"
 #include "parsers/ChapterHtmlSlimParser.h"
@@ -18,15 +17,7 @@ constexpr uint8_t SECTION_FILE_VERSION = 11;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
                                  sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) +
                                  sizeof(uint32_t);
-}  
-
-namespace {
-class ZipExtractHeapScope {
- public:
-  explicit ZipExtractHeapScope(const int readerBodyFontId) { FontManager::enterZipExtractHeapScope(readerBodyFontId); }
-  ~ZipExtractHeapScope() { FontManager::leaveZipExtractHeapScope(); }
-};
-}  // namespace
+}
 
 /**
  * Handles completion of a page during section creation.
@@ -154,12 +145,8 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
 
 /**
  * Creates a new section file by parsing the HTML content and building pages.
- * Extracts the HTML from the EPUB, runs the parser, and saves the resulting pages.
- * When building images, runs a prefetch pass (ZIP→cache, SD fonts unloaded) before opening
- * the section file and laying out pages (fonts loaded, images from cache only).
- * ZIP extract heap scope applies only to the initial HTML unzip retries (not parse), so SD fonts
- * are not unloaded/reloaded on every embedded ZIP read during layout.
- * Can optionally skip image processing to only rebuild text layout.
+ * Streams chapter HTML from the EPUB to a temp file (same retry/chunk pattern as Crosspoint),
+ * then parses once: images are converted during layout unless skipImages is true.
  * 
  * @param fontId Font identifier for text rendering
  * @param headerFontId Font identifier for header rendering
@@ -190,17 +177,22 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   SdMan.mkdir((epub->getCachePath() + "/sections").c_str());
 
   bool success = false;
-  {
-    const ZipExtractHeapScope zipExtractHeapScope(fontId);
-    FontManager::withSdFontsReleasedForHeapIntensiveWork(fontId, [&]() {
-      for (int attempt = 0; attempt < 3 && !success; attempt++) {
-        FsFile tmpHtml;
-        if (SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
-          success = epub->readItemContentsToStream(localPath, tmpHtml, 2048);
-          tmpHtml.close();
-        }
-      }
-    });
+  for (int attempt = 0; attempt < 3 && !success; attempt++) {
+    if (attempt > 0) {
+      delay(50);
+    }
+    if (SdMan.exists(tmpHtmlPath.c_str())) {
+      SdMan.remove(tmpHtmlPath.c_str());
+    }
+    FsFile tmpHtml;
+    if (!SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+      continue;
+    }
+    success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    tmpHtml.close();
+    if (!success && SdMan.exists(tmpHtmlPath.c_str())) {
+      SdMan.remove(tmpHtmlPath.c_str());
+    }
   }
   if (!success) return false;
 
@@ -231,22 +223,12 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
 
   Hyphenator::setPreferredLanguage(epub->getLanguage());
 
-  if (!skipImages) {
-    bool prefetchOk = true;
-    FontManager::withSdFontsReleasedForHeapIntensiveWork(fontId, [&]() { prefetchOk = visitor.prefetchChapterImages(); });
-    if (!prefetchOk) {
-      SdMan.remove(tmpHtmlPath.c_str());
-      return false;
-    }
-    yield();
-  }
-
   if (!SdMan.openFileForWrite("SCT", filePath, file)) return false;
 
   writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
                          viewportHeight, hyphenationEnabled, respectCssParagraphIndent);
 
-  success = visitor.parseAndBuildPages(true);
+  success = visitor.parseAndBuildPages(skipImages);
 
   SdMan.remove(tmpHtmlPath.c_str());
   

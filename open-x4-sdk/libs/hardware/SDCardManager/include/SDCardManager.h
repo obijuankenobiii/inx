@@ -15,7 +15,7 @@ class SDCardManager {
   SDCardManager();
   bool begin();
   bool ready() const;
-  std::vector<String> listFiles(const char* path = "/", int maxFiles = 200);
+  std::vector<String> listFiles(const char* path = "/", int maxFiles = 10000);
   
   String readFile(const char* path);
   

@@ -80,12 +80,17 @@ class ChapterHtmlSlimParser {
   /** After cold image extract, yield occasionally so heap can consolidate (ZIP + converters). */
   unsigned imageExtractCountForYield_ = 0;
 
-  /** Set during prefetchChapterImages if any extract failed. */
-  bool prefetchFailed_ = false;
-
-  
   CssParser cssParser;
   bool cssLoaded;
+
+  /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
+  bool imagePrefetchPassOnly_ = false;
+
+  void resetStructuralStateForParsePass();
+
+  void prefetchImageFromImgAttributes(const XML_Char** atts);
+
+  bool parseHtmlThroughExpat(bool callProgressPopup);
 
   /**
    * Creates a new text block with the specified style.
@@ -136,12 +141,6 @@ class ChapterHtmlSlimParser {
    */
   void processImageElement(const char** atts);
 
-  /** Extract one image to cache; returns false if conversion failed. Empty src counts as success. */
-  bool prefetchImageFromImgAttributes(const char** atts);
-
-  static void XMLCALL prefetchStartElement(void* userData, const XML_Char* name, const XML_Char** atts);
-
-  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
@@ -183,14 +182,11 @@ class ChapterHtmlSlimParser {
   ~ChapterHtmlSlimParser() = default;
 
   /**
-   * Parses only <img> tags and runs ZIP→BMP extraction for each (no layout, no renderer metrics).
-   * Caller should run with SD fonts unloaded (e.g. FontManager::withSdFontsReleasedForHeapIntensiveWork).
-   */
-  bool prefetchChapterImages();
-
-  /**
    * Parses the HTML file and builds pages.
-   * After prefetchChapterImages(), pass skipImageProcessing=true so images are read from cache only.
+   * When skipImageProcessing is false: unloads SD streaming fonts, runs a lightweight first pass that only
+   * extracts & caches images (ZIP/inflate without SD font heap), restores reader fonts via ensureReaderLayoutFonts,
+   * then runs the full layout pass (cached BMPs, text, CSS).
+   * When skipImageProcessing is true, only one pass runs and new ZIP→BMP work is skipped.
    */
   bool parseAndBuildPages(bool skipImageProcessing = false);
 };

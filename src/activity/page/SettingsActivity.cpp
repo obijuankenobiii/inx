@@ -5,6 +5,9 @@
 
 #include"SettingsActivity.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -28,7 +31,8 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid","Current | Previous","Flow"},
+    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
+                      {"Grid","Current | Previous","Flow","Simple"},
                       GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
@@ -136,36 +140,9 @@ const SettingInfo readerSettings[readerSettingsCount] = {
 }  
 
 /**
- * @brief Static trampoline function for FreeRTOS task creation.
- *
- * @param param Pointer to the SettingsActivity instance
- */
-void SettingsActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<SettingsActivity*>(param);
-  self->displayTaskLoop();
-}
-
-/**
- * @brief Main loop for the display rendering task.
- *
- * Periodically checks if a UI update is required and performs rendering
- * when conditions are met (no sub-activity active and not indexing).
- */
-void SettingsActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
-      updateRequired = false;
-      openCurrentPanel();
-    }
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
-}
-
-/**
  * @brief Initializes the settings activity when it becomes active.
  *
- * Creates the rendering mutex, sets initial navigation state, and starts
- * the display rendering task.
+ * Sets initial navigation state and opens the category panel (same pattern as Recent/Library: no display worker task).
  */
 void SettingsActivity::onEnter() {
   Activity::onEnter();
@@ -180,14 +157,10 @@ void SettingsActivity::onEnter() {
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
 
   openCurrentPanel();
-
-  xTaskCreate(&SettingsActivity::taskTrampoline,"SettingsActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 /**
  * @brief Cleans up resources when exiting the settings activity.
- *
- * Deletes the display task and rendering mutex to prevent resource leaks.
  */
 void SettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
@@ -195,11 +168,6 @@ void SettingsActivity::onExit() {
   if (aboutPage) {
     delete aboutPage;
     aboutPage = nullptr;
-  }
-
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
   }
 }
 
@@ -227,6 +195,12 @@ void SettingsActivity::loop() {
   if (isIndexing) {
     showIndexingProgress();
     vTaskDelay(pdMS_TO_TICKS(100));
+    return;
+  }
+
+  if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
+    updateRequired = false;
+    openCurrentPanel();
     return;
   }
 

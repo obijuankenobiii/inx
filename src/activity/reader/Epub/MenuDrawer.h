@@ -100,6 +100,9 @@ public:
      * @param epub Pointer to the EPUB reader
      */
     void setEpub(Epub* epub) { this->epub = epub; }
+
+    /** Current spine while reading; used to pre-select the TOC row when opening the chapter list. */
+    void setReaderSpineIndex(int spineIndex) { readerSpineIndex_ = spineIndex; }
     
     /**
      * @brief Sets the callback for TOC chapter selection
@@ -187,6 +190,7 @@ private:
 
     std::string bookTitle;
     Epub* epub = nullptr;
+    int readerSpineIndex_ = -1;
     
     struct MenuItem {
         std::string label;

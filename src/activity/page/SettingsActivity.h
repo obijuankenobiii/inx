@@ -5,10 +5,6 @@
  * @brief Public interface and types for SettingsActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 #include <string>
 #include <vector>
@@ -23,9 +19,6 @@ struct SettingInfo;
 enum class SettingsPanel : uint8_t { System, Reader };
 
 class SettingsActivity final : public ActivityWithSubactivity, public Menu {
-  TaskHandle_t displayTaskHandle = nullptr;
-  SemaphoreHandle_t renderingMutex = nullptr;
-
   bool updateRequired = false;
   SettingsPanel currentPanel = SettingsPanel::System;
 
@@ -35,9 +28,6 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   char currentIndexingPath[256] = {0};
   bool showingAbout = false;
   int selectedAboutIndex = 0;
-
-  static void taskTrampoline(void* param);
-  [[noreturn]] void displayTaskLoop();
 
   void openCurrentPanel();
   void swapPanelAndReopen();

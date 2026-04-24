@@ -99,6 +99,8 @@ void TxtReaderActivity::onExit() {
   pageOffsets.clear();
   currentPageLines.clear();
   txt.reset();
+
+  FontManager::unloadAllSDFonts();
 }
 
 void TxtReaderActivity::loop() {

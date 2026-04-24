@@ -46,8 +46,6 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
-  /** Set true if any drawBitmap in this page pass had enough mid-gray pixels to warrant the e-ink grayscale pass. */
-  mutable bool anyBitmapImageWantsGrayscale = false;
   mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
   std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
@@ -151,8 +149,6 @@ class GfxRenderer {
   bool storeBwBuffer();    
   void restoreBwBuffer();  
   void cleanupGrayscaleWithFrameBuffer() const;
-  void resetBitmapGrayscaleDetection() const { anyBitmapImageWantsGrayscale = false; }
-  bool needsBitmapGrayscale() const;
 
   
   uint8_t* getFrameBuffer() const;
@@ -169,11 +165,10 @@ class GfxRenderer {
                        const int maxHeight = 0) const;
 
 
-void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0, 
-                         uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
-void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
-                             uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
-
+  void drawTransparentImage(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0,
+                            uint8_t transparentColor = 1, ImageOrientation imgOrientation = None) const;
+  void drawTransparentImage2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
+                                uint8_t alphaThreshold, ImageOrientation imgOrientation = None) const;
 };
 
 /**

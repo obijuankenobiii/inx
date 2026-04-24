@@ -5,6 +5,7 @@
 
 #include "LibraryActivity.h"
 
+#include <Arduino.h>
 #include <Bitmap.h>
 #include <Epub.h>
 #include <GfxRenderer.h>
@@ -500,6 +501,7 @@ void LibraryActivity::loadAllBooksRecursive() {
 void LibraryActivity::loadBooksRecursiveScan() {
   std::vector<TempBookEntry> tempBooks;
 
+  size_t booksCollected = 0;
   std::function<void(const std::string&)> collectBooks = [&](const std::string& path) {
     auto dir = SdMan.open(path.c_str());
     if (!dir || !dir.isDirectory()) {
@@ -533,6 +535,9 @@ void LibraryActivity::loadBooksRecursiveScan() {
       if (isValidBookFile(filename)) {
         TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, path);
         tempBooks.push_back(tempEntry);
+        if ((++booksCollected % 48u) == 0u) {
+          yield();
+        }
       }
       file.close();
     }
@@ -550,6 +555,7 @@ void LibraryActivity::loadBooksRecursiveScan() {
 void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
+  size_t scanYieldCount = 0;
 
   auto root = SdMan.open(basepath.c_str());
   if (root && root.isDirectory()) {
@@ -572,6 +578,9 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
       if (file.isDirectory()) {
         if (directoryHasBooks(fullPath + "/")) {
           tempFolders.push_back(createFolderItem(name, fullPath + "/"));
+          if ((++scanYieldCount % 48u) == 0u) {
+            yield();
+          }
         }
         file.close();
         continue;
@@ -596,6 +605,9 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
           if (fullPath.back() != '/') fullPath += "/";
           TempBookEntry tempEntry = createTempBookEntry(fullPath + filename, filename, basepath);
           tempBooks.push_back(tempEntry);
+          if ((++scanYieldCount % 48u) == 0u) {
+            yield();
+          }
         }
       }
       file.close();
@@ -1589,6 +1601,7 @@ void LibraryActivity::loadLibraryFromIndex() {
  */
 void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<TempBookEntry> tempBooks;
+  size_t indexEntries = 0;
 
   while (idxFile.available()) {
     uint8_t marker;
@@ -1601,6 +1614,9 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
       if (tempEntry.path.find(cleanBase) == 0) {
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
+        if ((++indexEntries % 64u) == 0u) {
+          yield();
+        }
       }
     } else if (marker == 0xFF) {
       skipDirectoryMarker(idxFile);
@@ -1619,6 +1635,7 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
 void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
+  size_t indexEntries = 0;
 
   while (idxFile.available()) {
     uint8_t marker;
@@ -1634,12 +1651,18 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
       if (bookParent == cleanBase) {
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
+        if ((++indexEntries % 64u) == 0u) {
+          yield();
+        }
       }
     } else if (marker == 0xFF) {  
       LibraryItem folderItem = readDirectoryEntryFromIndex(idxFile);
 
       if (shouldIncludeFolder(folderItem.path, cleanBase)) {
         tempFolders.push_back(folderItem);
+        if ((++indexEntries % 64u) == 0u) {
+          yield();
+        }
       }
     }
   }
