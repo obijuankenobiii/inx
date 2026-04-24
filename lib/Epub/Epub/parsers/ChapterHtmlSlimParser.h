@@ -80,10 +80,6 @@ class ChapterHtmlSlimParser {
   /** After cold image extract, yield occasionally so heap can consolidate (ZIP + converters). */
   unsigned imageExtractCountForYield_ = 0;
 
-  /** Set during prefetchChapterImages if any extract failed. */
-  bool prefetchFailed_ = false;
-
-  
   CssParser cssParser;
   bool cssLoaded;
 
@@ -136,12 +132,6 @@ class ChapterHtmlSlimParser {
    */
   void processImageElement(const char** atts);
 
-  /** Extract one image to cache; returns false if conversion failed. Empty src counts as success. */
-  bool prefetchImageFromImgAttributes(const char** atts);
-
-  static void XMLCALL prefetchStartElement(void* userData, const XML_Char* name, const XML_Char** atts);
-
-  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
@@ -183,14 +173,8 @@ class ChapterHtmlSlimParser {
   ~ChapterHtmlSlimParser() = default;
 
   /**
-   * Parses only <img> tags and runs ZIP→BMP extraction for each (no layout, no renderer metrics).
-   * Caller should run with SD fonts unloaded (e.g. FontManager::withSdFontsReleasedForHeapIntensiveWork).
-   */
-  bool prefetchChapterImages();
-
-  /**
    * Parses the HTML file and builds pages.
-   * After prefetchChapterImages(), pass skipImageProcessing=true so images are read from cache only.
+   * When skipImageProcessing is true, only uses images already on disk; new ZIP→BMP work is skipped.
    */
   bool parseAndBuildPages(bool skipImageProcessing = false);
 };

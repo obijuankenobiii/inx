@@ -7,9 +7,6 @@
 
 #include <Epub.h>
 #include <Epub/Section.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
 #include <vector>
 #include <memory>
 #include <string>
@@ -66,6 +63,8 @@ public:
     void onEnter() override;
     void onExit() override;
     void loop() override;
+    /** Match Crosspoint-style reader: pump display from loop (no separate FreeRTOS render task). */
+    bool skipLoopDelay() override { return true; }
 
 private:
     int currentFontId;
@@ -78,18 +77,12 @@ private:
     std::unique_ptr<Section> section = nullptr;
     std::unique_ptr<BookProgress> bookProgress = nullptr;
     std::unique_ptr<StatusBar> statusBar = nullptr;
-    TaskHandle_t displayTaskHandle = nullptr;
     int currentSpineIndex = 0;
     int nextPageNumber = 0;
     int pagesUntilFullRefresh = 0;
     int cachedSpineIndex = 0;
     int cachedChapterTotalPageCount = 0;
     bool updateRequired = false;
-    /** When true, displayTaskLoop only yields until cleared (exclusive SPI/framebuffer for main-task rebuild). */
-    volatile bool pauseDisplayTaskForRebuild = false;
-    volatile bool displayRebuildPausedAck = false;
-    /** True while displayTaskLoop is inside renderScreen (incl. grayscale); main loop must not touch section / page. */
-    volatile bool epubScreenRenderBusy = false;
     bool bookmarkLongPressProcessed = false;
     bool leftLongPressProcessed = false;
     int loadingProgress = 0;
@@ -119,12 +112,7 @@ private:
     uint32_t pageStartTime;
     uint32_t lastSaveTime;
     
-    static void taskTrampoline(void* param);
-    [[noreturn]] void displayTaskLoop();
     void renderScreen();
-
-    void beginExclusiveRebuildWithDisplayTask();
-    void endExclusiveRebuildWithDisplayTask();
     
     /**
      * Handles page turning logic for forward/backward navigation.

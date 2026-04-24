@@ -46,8 +46,6 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
-  /** Set true if any drawBitmap in this page pass had enough mid-gray pixels to warrant the e-ink grayscale pass. */
-  mutable bool anyBitmapImageWantsGrayscale = false;
   mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
   std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
@@ -151,8 +149,6 @@ class GfxRenderer {
   bool storeBwBuffer();    
   void restoreBwBuffer();  
   void cleanupGrayscaleWithFrameBuffer() const;
-  void resetBitmapGrayscaleDetection() const { anyBitmapImageWantsGrayscale = false; }
-  bool needsBitmapGrayscale() const;
 
   
   uint8_t* getFrameBuffer() const;

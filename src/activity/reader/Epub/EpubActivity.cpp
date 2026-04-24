@@ -129,11 +129,6 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
  * @brief Static trampoline function for the display task
  * @param param Pointer to the EpubActivity instance
  */
-void EpubActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<EpubActivity*>(param);
-  self->displayTaskLoop();
-}
-
 /**
  * @brief Draws the loading screen with progress bar
  */
@@ -515,8 +510,6 @@ void EpubActivity::fastPath() {
 
   loadCurrentSection();
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
-
-  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -544,8 +537,6 @@ void EpubActivity::slowPath() {
   drawLoadingScreen();
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
-
-  xTaskCreate(&EpubActivity::taskTrampoline, "EpubActivityTask", 16384, this, 1, &displayTaskHandle);
 }
 
 /**
@@ -596,15 +587,6 @@ void EpubActivity::onExit() {
     settingsDrawer = nullptr;
   }
 
-  if (displayTaskHandle) {
-    pauseDisplayTaskForRebuild = false;
-    displayRebuildPausedAck = false;
-    epubScreenRenderBusy = false;
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
-
   if (pageStartTime > 0) {
     endPageTimer();
   }
@@ -632,6 +614,8 @@ void EpubActivity::onExit() {
   statusBar.reset();
   epub.reset();
 
+  FontManager::unloadAllSDFonts();
+
   ActivityWithSubactivity::onExit();
 }
 
@@ -646,7 +630,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (isDoingSomethingHeavy || epubScreenRenderBusy) {
+  if (isDoingSomethingHeavy) {
     return;
   }
 
@@ -798,8 +782,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy &&
-      !epubScreenRenderBusy) {
+  if (bookSettings.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible && !isDoingSomethingHeavy) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
@@ -830,6 +813,11 @@ void EpubActivity::loop() {
       onGoBack();
     }
     return;
+  }
+
+  if (updateRequired && !isDoingSomethingHeavy) {
+    updateRequired = false;
+    renderScreen();
   }
 }
 
@@ -935,6 +923,7 @@ void EpubActivity::toggleMenuDrawer() {
   } else {
     menuDrawer->hide();
   }
+  updateRequired = true;
 }
 
 /**
@@ -951,6 +940,7 @@ void EpubActivity::toggleSettingsDrawer() {
     syncOrientationFromGlobalIfNeeded();
     
     settingsDrawer->show();
+    updateRequired = true;
     return;
   }
 }
@@ -1236,46 +1226,10 @@ void EpubActivity::pageTurn(bool forward) {
 }
 
 /**
- * @brief Main display task loop running on separate thread
- */
-[[noreturn]] void EpubActivity::displayTaskLoop() {
-  while (true) {
-    if (pauseDisplayTaskForRebuild) {
-      displayRebuildPausedAck = true;
-      while (pauseDisplayTaskForRebuild) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-      }
-      displayRebuildPausedAck = false;
-      continue;
-    }
-    if (updateRequired) {
-      if (subActivity) {
-        
-        updateRequired = false;
-      } else {
-        updateRequired = false;
-        renderScreen();
-      }
-    }
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-  }
-}
-
-/**
  * @brief Renders the current screen content
  */
 void EpubActivity::renderScreen() {
-  struct EpubScreenRenderGuard {
-    volatile bool* flag;
-    explicit EpubScreenRenderGuard(volatile bool* f) : flag(f) { *f = true; }
-    ~EpubScreenRenderGuard() { *flag = false; }
-    EpubScreenRenderGuard(const EpubScreenRenderGuard&) = delete;
-    EpubScreenRenderGuard& operator=(const EpubScreenRenderGuard&) = delete;
-  } renderBusyGuard(&epubScreenRenderBusy);
-
   if (!epub) return;
-
-  renderer.clearScreen(0xFF);
 
   int totalSpine = epub->getSpineItemsCount();
   if (totalSpine <= 0) {
@@ -1283,6 +1237,7 @@ void EpubActivity::renderScreen() {
   }
 
   if (currentSpineIndex >= totalSpine) {
+    renderer.clearScreen(0xFF);
     displayBookStats();
     BOOK_STATE.setFinished(epub->getPath(), true);
     return;
@@ -1296,11 +1251,10 @@ void EpubActivity::renderScreen() {
 
   ViewportInfo info = calculateViewport();
 
+  // Crosspoint EpubReaderActivity::render: resolve section (cache load or createSectionFile) before clearScreen.
   if (!section) {
     section = loadSection(currentSpineIndex, info);
     if (!section) {
-      renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Error loading chapter", true,
-                                EpdFontFamily::BOLD);
       updateRequired = true;
       return;
     }
@@ -1311,11 +1265,14 @@ void EpubActivity::renderScreen() {
 
     if (cachedChapterTotalPageCount > 0 && currentSpineIndex == cachedSpineIndex &&
         section->pageCount != cachedChapterTotalPageCount) {
-      float progress = (float)section->currentPage / cachedChapterTotalPageCount;
-      section->currentPage = std::min((int)(progress * section->pageCount), section->pageCount - 1);
+      const float progress =
+          static_cast<float>(section->currentPage) / static_cast<float>(cachedChapterTotalPageCount);
+      section->currentPage = std::min(static_cast<int>(progress * section->pageCount), section->pageCount - 1);
       cachedChapterTotalPageCount = 0;
     }
   }
+
+  renderer.clearScreen(0xFF);
 
   if (section->pageCount == 0) {
     section.reset();
@@ -1359,7 +1316,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
   [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
-  renderer.resetBitmapGrayscaleDetection();
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
@@ -1438,8 +1394,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   pagesUntilFullRefresh--;
 
-  const bool needsImageGrayscale =
-      SETTINGS.readerImageGrayscale && page->hasImages() && renderer.needsBitmapGrayscale();
+  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && page->hasImages();
 
   if (!tryImagePageTextAaDisplayPrep()) {
     renderer.displayBuffer();
@@ -1689,23 +1644,6 @@ void EpubActivity::saveBookSettings() {
   bookSettings.saveToFile(cachePath);
 }
 
-void EpubActivity::beginExclusiveRebuildWithDisplayTask() {
-  if (!displayTaskHandle) {
-    return;
-  }
-  displayRebuildPausedAck = false;
-  pauseDisplayTaskForRebuild = true;
-  const uint32_t start = millis();
-  while (!displayRebuildPausedAck) {
-    vTaskDelay(pdMS_TO_TICKS(1));
-    if (millis() - start > 3000U) {
-      break;
-    }
-  }
-}
-
-void EpubActivity::endExclusiveRebuildWithDisplayTask() { pauseDisplayTaskForRebuild = false; }
-
 /**
  * @brief Applies current book settings and rebuilds affected sections
  */
@@ -1736,14 +1674,6 @@ void EpubActivity::applyBookSettings() {
   if (totalSpineItems <= 0) {
     return;
   }
-
-  struct ExclusiveRebuildScope {
-    EpubActivity* self;
-    explicit ExclusiveRebuildScope(EpubActivity* s) : self(s) { self->beginExclusiveRebuildWithDisplayTask(); }
-    ~ExclusiveRebuildScope() { self->endExclusiveRebuildWithDisplayTask(); }
-    ExclusiveRebuildScope(const ExclusiveRebuildScope&) = delete;
-    ExclusiveRebuildScope& operator=(const ExclusiveRebuildScope&) = delete;
-  } exclusiveRebuild(this);
 
   int startSpine = std::max(0, currentSpine - 5);
   int endSpine = std::min(totalSpineItems - 1, currentSpine + 5);

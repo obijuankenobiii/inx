@@ -44,31 +44,6 @@ inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGray
   return st < 3u;
 }
 
-/**
- * True when a single bitmap has enough mid-gray (2bpp 1/2) to justify the grayscale refresh pass.
- * When most pixels are white (3), require a much larger gray area so JPEG/dither noise in margins
- * does not force a full-screen grayscale cycle.
- */
-bool bitmapStatsWarrantGrayscale(const uint32_t checked, const uint32_t grayPixels, const uint32_t whitePixels) {
-  if (checked == 0) {
-    return false;
-  }
-  const uint32_t whiteRatioX1000 = (whitePixels * 1000U) / checked;
-
-  if (whiteRatioX1000 >= 820U) {
-    const uint32_t minGray = std::max<uint32_t>((checked * 35U) / 1000U, 1200U);
-    return grayPixels >= minGray;
-  }
-  if (whiteRatioX1000 >= 720U) {
-    const uint32_t minGray = std::max<uint32_t>((checked * 20U) / 1000U, 512U);
-    return grayPixels >= minGray;
-  }
-
-  const uint32_t thresholdByRatio = (checked * 80U) / 1000U;  
-  const uint32_t threshold = std::max<uint32_t>(256U, thresholdByRatio);
-  return grayPixels >= threshold;
-}
-
 /** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
 bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int height, const int sx, const int sy) {
   if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
@@ -401,9 +376,6 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   }
 
   const BitmapGrayRenderStyle grayStyle = bitmapGrayRenderStyle;
-  uint32_t localChecked = 0;
-  uint32_t localGray = 0;
-  uint32_t localWhite = 0;
 
   auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
     return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
@@ -411,12 +383,6 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
   auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
     if (renderMode == BW) {
-      localChecked++;
-      if (val == 1 || val == 2) {
-        localGray++;
-      } else if (val == 3) {
-        localWhite++;
-      }
       if (bwShouldInk2bpp(val, grayStyle)) {
         drawBwFrom2bppStage(screenX, screenY, val);
       }
@@ -496,10 +462,6 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     }
   }
 
-  if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
-    anyBitmapImageWantsGrayscale = true;
-  }
-
   free(outputRow);
   free(rowBytes);
 }
@@ -534,9 +496,6 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
   }
 
   const BitmapGrayRenderStyle grayStyle = bitmapGrayRenderStyle;
-  uint32_t localChecked = 0;
-  uint32_t localGray = 0;
-  uint32_t localWhite = 0;
 
   auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
     return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
@@ -544,12 +503,6 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
 
   auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
     if (renderMode == BW) {
-      localChecked++;
-      if (val == 1 || val == 2) {
-        localGray++;
-      } else if (val == 3) {
-        localWhite++;
-      }
       if (bwShouldInk2bpp(val, grayStyle)) {
         drawBwFrom2bppStage(screenX, screenY, val);
       }
@@ -615,15 +568,9 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     }
   }
 
-  if (renderMode == BW && bitmapStatsWarrantGrayscale(localChecked, localGray, localWhite)) {
-    anyBitmapImageWantsGrayscale = true;
-  }
-
   free(outputRow);
   free(rowBytes);
 }
-
-bool GfxRenderer::needsBitmapGrayscale() const { return anyBitmapImageWantsGrayscale; }
 
 void GfxRenderer::fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state) const {
   if (numPoints < 3) return;

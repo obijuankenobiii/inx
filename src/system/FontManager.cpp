@@ -27,9 +27,6 @@ int FontManager::g_maxLoadedFonts = 8;  // SD (family,size) slots; glyph tables 
 int FontManager::g_loadedFontCount = 0;
 bool FontManager::g_scannedForFonts = false;
 
-int FontManager::g_zipExtractScopeDepth = 0;
-int FontManager::g_zipExtractScopeReaderBodyFontId = 0;
-
 namespace {
 std::vector<std::string> g_sdFamiliesSorted;
 }  // namespace
@@ -601,29 +598,6 @@ bool FontManager::unloadFont(int fontId) {
 
   return false;
 }
-
-/**
- * @brief Unloads all SD card fonts and frees memory
- */
-void FontManager::enterZipExtractHeapScope(const int readerBodyFontId) {
-  if (g_zipExtractScopeDepth == 0) {
-    g_zipExtractScopeReaderBodyFontId = readerBodyFontId;
-  }
-  ++g_zipExtractScopeDepth;
-}
-
-void FontManager::leaveZipExtractHeapScope() {
-  if (g_zipExtractScopeDepth > 0) {
-    --g_zipExtractScopeDepth;
-    if (g_zipExtractScopeDepth == 0) {
-      g_zipExtractScopeReaderBodyFontId = 0;
-    }
-  }
-}
-
-bool FontManager::zipExtractHeapScopeActive() { return g_zipExtractScopeDepth > 0; }
-
-int FontManager::zipExtractHeapScopeReaderBodyFontId() { return g_zipExtractScopeReaderBodyFontId; }
 
 void FontManager::withSdFontsReleasedForHeapIntensiveWork(const int readerBodyFontId, const std::function<void()>& fn) {
   bool hadSdLoaded = false;
