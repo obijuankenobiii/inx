@@ -5,10 +5,6 @@
  * @brief Public interface and types for RecentActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 #include <string>
 #include <vector>
@@ -38,6 +34,8 @@ class RecentActivity final : public Activity, public Menu {
 
   static constexpr int LIST_VISIBLE_ITEMS = 5;
 
+  bool skipLoopDelay() override { return true; }
+
   /**
    * View mode enumeration for displaying recent books.
    */
@@ -48,9 +46,6 @@ class RecentActivity final : public Activity, public Menu {
   };
 
  private:
-  TaskHandle_t displayTaskHandle = nullptr;
-  SemaphoreHandle_t renderingMutex = nullptr;
-  bool taskRunning = false;
   bool halfRefreshOnLoadApplied_ = false;
 
   int selectorIndex = 0;
@@ -83,18 +78,8 @@ class RecentActivity final : public Activity, public Menu {
   void loadRecentBooks(bool resetScroll = true);
   void rebuildListStatsFavorites();
 
-  /**
-   * Static trampoline function for FreeRTOS task creation.
-   * 
-   * @param param Pointer to RecentActivity instance
-   */
-  static void taskTrampoline(void* param);
-
-  /**
-   * Display task loop that runs in a separate FreeRTOS task.
-   * Monitors for state changes and triggers rendering when needed.
-   */
-  void displayTaskLoop();
+  /** Full redraw when updateRequired; clears flag (same work as former display task). */
+  void pumpDisplayFromLoop();
 
   /**
    * Renders a single grid item with cover, title, author and progress.

@@ -728,29 +728,37 @@ void EpubActivity::loop() {
     }
   }
 
-  const bool skipChapter = mappedInput.getHeldTime() >= skipChapterMs;
+  const bool skipChapter =
+      (bookSettings.longPressChapterSkip != 0) && (mappedInput.getHeldTime() >= skipChapterMs);
 
   if (skipChapter && (prev || next)) {
     endPageTimer();
 
+    bool spineAdvanced = false;
     if (next) {
       if (currentSpineIndex < epub->getSpineItemsCount() - 1) {
         currentSpineIndex++;
         nextPageNumber = 0;
         section.reset();
+        spineAdvanced = true;
       }
     } else if (prev) {
       if (currentSpineIndex > 0) {
         currentSpineIndex--;
         nextPageNumber = 0;
         section.reset();
+        spineAdvanced = true;
       }
     }
 
-    startPageTimer();
-    lastAutoPageTurnTime = millis();
-    updateRequired = true;
-    return;
+    // Do not return when we did not change spine (e.g. last chapter / first chapter): fall through to pageTurn
+    // so end-of-chapter page advance and "book finished" still work on the same release.
+    if (spineAdvanced) {
+      startPageTimer();
+      lastAutoPageTurnTime = millis();
+      updateRequired = true;
+      return;
+    }
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
@@ -800,6 +808,7 @@ void EpubActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
     endPageTimer();
     toggleMenuDrawer();
+    return;
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= bookmarkHoldMs) {
@@ -885,6 +894,7 @@ void EpubActivity::toggleMenuDrawer() {
           }
         },
         [this]() {
+          menuDrawerVisible = false;
           updateRequired = true;
           startPageTimer();
         });
@@ -1388,7 +1398,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
     runTextAntiAliasPass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = false;
+    lastPageHadImages = page->hasImages();
     return;
   }
 

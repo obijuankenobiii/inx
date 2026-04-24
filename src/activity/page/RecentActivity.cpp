@@ -69,30 +69,6 @@ static std::string bookDisplayTitle(const RecentBook& book) {
   return formatTitle(getBaseFilename(book.path));
 }
 
-/**
- * RAII wrapper for mutex operations with timeout.
- */
-class MutexGuard {
- private:
-  SemaphoreHandle_t& mutex;
-  bool acquired;
-
- public:
-  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-    if (mutex) {
-      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
-    }
-  }
-
-  ~MutexGuard() {
-    if (acquired && mutex) {
-      xSemaphoreGive(mutex);
-    }
-  }
-
-  bool isAcquired() const { return acquired; }
-};
-
 constexpr unsigned long GO_HOME_MS = 1000;
 
 /** No-cover: stats-style double frame + title one word per line, each line centered (see StatisticActivity::renderCover). */
@@ -512,18 +488,11 @@ void RecentActivity::rebuildListStatsFavorites() {
 }
 
 /**
- * Static trampoline function for FreeRTOS task creation.
- */
-void RecentActivity::taskTrampoline(void* param) { static_cast<RecentActivity*>(param)->displayTaskLoop(); }
-
-/**
  * Initializes the recent activity when entered.
  */
 void RecentActivity::onEnter() {
   Activity::onEnter();
 
-  renderingMutex = xSemaphoreCreateMutex();
-  if (!renderingMutex) return;
   halfRefreshOnLoadApplied_ = false;
   renderer.clearScreen(0xff);
   loadRecentBooks();
@@ -536,10 +505,6 @@ void RecentActivity::onEnter() {
     currentViewMode = ViewMode::Default;
   }
 
-  if (displayTaskHandle == nullptr) {
-    xTaskCreate(&RecentActivity::taskTrampoline, "RecentTask", 8192, this, 1, &displayTaskHandle);
-  }
-
   updateRequired = true;
 }
 
@@ -547,16 +512,6 @@ void RecentActivity::onEnter() {
  * Cleans up resources when exiting the recent activity.
  */
 void RecentActivity::onExit() {
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
-
   recentBooks.clear();
   listStatsFavoriteOnly_.clear();
   Activity::onExit();
@@ -687,39 +642,30 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   }
 }
 
-/**
- * Display task loop that runs in a separate FreeRTOS task.
- */
-void RecentActivity::displayTaskLoop() {
-  while (true) {
-    {
-      MutexGuard guard(renderingMutex);
-      if (guard.isAcquired() && updateRequired) {
-        renderer.clearScreen();
-        renderTabBar(renderer);
-
-        if (currentViewMode == ViewMode::Default) {
-          renderDefault();
-        } else if (currentViewMode == ViewMode::Grid) {
-          renderGrid(TAB_BAR_HEIGHT - 29);
-        } else {
-          renderFlow();
-        }
-
-        const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
-        renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
-                                 labels.btn4);
-
-        renderer.displayBuffer();
-        if (!halfRefreshOnLoadApplied_) {
-          halfRefreshOnLoadApplied_ = true;
-          SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);
-        }
-        updateRequired = false;
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(20));
+void RecentActivity::pumpDisplayFromLoop() {
+  if (!updateRequired) {
+    return;
   }
+  renderer.clearScreen();
+  renderTabBar(renderer);
+
+  if (currentViewMode == ViewMode::Default) {
+    renderDefault();
+  } else if (currentViewMode == ViewMode::Grid) {
+    renderGrid(TAB_BAR_HEIGHT - 29);
+  } else {
+    renderFlow();
+  }
+
+  const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
+  renderer.displayBuffer();
+  if (!halfRefreshOnLoadApplied_) {
+    halfRefreshOnLoadApplied_ = true;
+    SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);
+  }
+  updateRequired = false;
 }
 
 /**
@@ -814,6 +760,10 @@ void RecentActivity::loop() {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     updateRequired = true;
     return;
+  }
+
+  if (updateRequired) {
+    pumpDisplayFromLoop();
   }
 
   const int totalBooks = static_cast<int>(recentBooks.size());

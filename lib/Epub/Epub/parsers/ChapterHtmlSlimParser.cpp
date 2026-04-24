@@ -323,6 +323,10 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
     addImageToPage(cacheImgPath, imgWidth, imgHeight);
+  } else {
+    Serial.printf("[%lu] [EBP-IMG] <img> not placed src=%s resolved=%s cache=%s skipImages=%d\n",
+                  static_cast<unsigned long>(millis()), src.c_str(), fullInternalPath.c_str(), cacheImgPath.c_str(),
+                  skipImages ? 1 : 0);
   }
 }
 
@@ -676,12 +680,19 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
                                               int* h) {
   if (SdMan.exists(cacheImgPath.c_str())) {
     if (getBmpDimensions(cacheImgPath, w, h)) {
+      Serial.printf("[%lu] [EBP-IMG] cache hit %s\n", static_cast<unsigned long>(millis()), cacheImgPath.c_str());
       return true;
     }
+    Serial.printf("[%lu] [EBP-IMG] stale cache removed (bad BMP): %s\n", static_cast<unsigned long>(millis()),
+                  cacheImgPath.c_str());
     SdMan.remove(cacheImgPath.c_str());
   }
 
-  if (skipImages) return false;
+  if (skipImages) {
+    Serial.printf("[%lu] [EBP-IMG] skip extract (skipImages) href=%s\n", static_cast<unsigned long>(millis()),
+                  internalPath.c_str());
+    return false;
+  }
 
   bool result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
 
@@ -689,9 +700,16 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
     if (++imageExtractCountForYield_ % 2u == 0u) {
       yield();
     }
-    return getBmpDimensions(cacheImgPath, w, h);
+    if (getBmpDimensions(cacheImgPath, w, h)) {
+      return true;
+    }
+    Serial.printf("[%lu] [EBP-IMG] post-extract BMP unreadable: %s\n", static_cast<unsigned long>(millis()),
+                  cacheImgPath.c_str());
+    return false;
   }
 
+  Serial.printf("[%lu] [EBP-IMG] ensureImageCached failed href=%s\n", static_cast<unsigned long>(millis()),
+                internalPath.c_str());
   return false;
 }
 
