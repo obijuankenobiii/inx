@@ -12,7 +12,6 @@
 #include <Arduino.h>
 
 #include <FsHelpers.h>
-#include <FontManager.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -910,7 +909,6 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   imageExtractCountForYield_ = 0;
 
   if (!skipImageProcessing) {
-    FontManager::unloadAllSDFonts();
     imagePrefetchPassOnly_ = true;
     resetStructuralStateForParsePass();
     if (!parseHtmlThroughExpat(false)) {
@@ -918,7 +916,6 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
       return false;
     }
     imagePrefetchPassOnly_ = false;
-    FontManager::ensureReaderLayoutFonts(fontId, renderer);
   }
 
   skipImages = skipImageProcessing;

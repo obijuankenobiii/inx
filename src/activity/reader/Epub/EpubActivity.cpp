@@ -520,7 +520,7 @@ void EpubActivity::loadCurrentSection() {
 void EpubActivity::preloadChapters() {
   ViewportInfo info = calculateViewport();
   int totalSpineItems = epub->getSpineItemsCount();
-  int chaptersToCache = std::min(8, totalSpineItems);
+  int chaptersToCache = std::min(4, totalSpineItems);
 
   for (int i = 1; i < chaptersToCache; i++) {
     esp_task_wdt_reset();
@@ -576,7 +576,7 @@ void EpubActivity::slowPath() {
   vTaskDelay(pdMS_TO_TICKS(50));
 
   ensureThumbnailExists();
-  currentSpineIndex = epub->getSpineIndexForInitialOpen();
+  currentSpineIndex = epub->getSpineIndexForInitialOpen() != 0 ?  epub->getSpineIndexForInitialOpen(): 1;
   nextPageNumber = 0;
 
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
@@ -587,7 +587,7 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
   renderer.clearScreen(0xff);
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  renderer.displayBuffer();
   loadCurrentSection();
 }
 
