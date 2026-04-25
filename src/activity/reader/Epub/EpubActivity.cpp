@@ -231,22 +231,19 @@ void EpubActivity::drawLoadingScreen() {
 
 void EpubActivity::dismissMenuDrawerForBlockingWork() {
   bool closed = false;
-  if (menuDrawerVisible && menuDrawer) {
+  if (menuDrawer) {
     menuDrawerVisible = false;
     menuDrawer->hide();
     closed = true;
   }
-  if (settingsDrawerVisible && settingsDrawer) {
+  
+  if (settingsDrawer) {
     settingsDrawerVisible = false;
     settingsDrawer->hide();
     closed = true;
   }
-  if (!closed) {
-    return;
-  }
-  updateRequired = true;
+
   renderScreen();
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
 void EpubActivity::readerPopup(const char* message) {
@@ -552,6 +549,8 @@ void EpubActivity::updateExternalState() {
  * @brief Fast path for books that were opened before
  */
 void EpubActivity::fastPath() {
+  renderer.clearScreen(0xff);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadProgress();
 
   int totalSpineItems = epub->getSpineItemsCount();
@@ -587,7 +586,7 @@ void EpubActivity::slowPath() {
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
   renderer.clearScreen(0xff);
-  renderer.displayBuffer();
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadCurrentSection();
 }
 
@@ -1397,7 +1396,6 @@ void EpubActivity::renderScreen() {
 
   ViewportInfo info = calculateViewport();
 
-  // Crosspoint EpubReaderActivity::render: resolve section (cache load or createSectionFile) before clearScreen.
   if (!section) {
     section = loadSection(currentSpineIndex, info);
     if (!section) {
@@ -1434,7 +1432,6 @@ void EpubActivity::renderScreen() {
 
   auto page = section->loadPageFromSectionFile();
   if (!page) {
-    // Crosspoint: bad LUT / truncated file — drop section cache so next frame rebuilds instead of looping on garbage.
     section->clearCache();
     section.reset();
     updateRequired = true;
@@ -1817,15 +1814,15 @@ void EpubActivity::applyBookSettings() {
   setupOrientation();
 
   ViewportInfo info = calculateViewport();
-  FontManager::ensureReaderLayoutFonts(info.fontId, renderer);
+  FontManager::ensureFontReady(info.fontId, renderer);
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {
     return;
   }
 
-  int startSpine = std::max(0, currentSpine - 5);
-  int endSpine = std::min(totalSpineItems - 1, currentSpine + 5);
+  int startSpine = std::max(0, currentSpine - 1);
+  int endSpine = std::min(totalSpineItems - 1, currentSpine + 1);
 
   int total = endSpine - startSpine + 1;
   int rebuilt = 0;

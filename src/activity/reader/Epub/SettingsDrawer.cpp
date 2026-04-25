@@ -823,17 +823,16 @@ void SettingsDrawer::applyChange(int delta) {
   selected.change(settings, delta);
 
   switch (selected.item) {
-    case MenuItem::FontFamily:
     case MenuItem::FontSize:
     case MenuItem::LineSpacing:
     case MenuItem::ScreenMargin:
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:
     case MenuItem::ParagraphCssIndent:
-    case MenuItem::ReadingOrientation:
+    case MenuItem::FontFamily:
       settingsUpdated = true;
       break;
-
+    case MenuItem::ReadingOrientation:
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
