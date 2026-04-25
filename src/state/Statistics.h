@@ -123,6 +123,9 @@ bool loadGlobalStats(GlobalReadingStats& stats);
  */
 void saveGlobalStats(const GlobalReadingStats& stats);
 
+/** Aggregates global totals from an already-built list of per-book stats (no SD rescan). */
+GlobalReadingStats aggregateGlobalStatsFromBooks(const std::vector<BookReadingStats>& books);
+
 /**
  * Recomputes global totals by scanning all per-book statistics files.
  */

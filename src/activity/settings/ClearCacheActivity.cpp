@@ -9,6 +9,11 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 
+#include "state/BookState.h"
+#include "state/NetworkCredential.h"
+#include "state/RecentBooks.h"
+#include "state/Session.h"
+#include "state/SystemSetting.h"
 #include "system/MappedInputManager.h"
 #include "system/Fonts.h"
 
@@ -61,31 +66,30 @@ void ClearCacheActivity::render() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Clear Cache", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Reset device", true, EpdFontFamily::BOLD);
 
   if (state == WARNING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 60, "This will clear all cached book data.", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 30, "All reading progress will be lost!", true,
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 60, "This removes /.system and /.metadata", true);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 30, "from the SD card (settings, Wi-Fi,", true);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "book caches, library index, recent list).", true);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 30, "Reading progress in book caches is lost.", true,
                               EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, "Books will need to be re-indexed", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 30, "when opened again.", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 60, "App state will also be reset.", true,
-                              EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 60, "In‑memory state reloads after reset.", true);
 
-    const auto labels = mappedInput.mapLabels("« Cancel", "Clear", "", "");
+    const auto labels = mappedInput.mapLabels("« Cancel", "Reset", "", "");
     renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == CLEARING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "Clearing cache...", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "Resetting...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Cache Cleared", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset complete", true, EpdFontFamily::BOLD);
     String resultText = String(clearedCount) + " items removed";
     if (failedCount > 0) {
       resultText += ", " + String(failedCount) + " failed";
@@ -99,7 +103,7 @@ void ClearCacheActivity::render() {
   }
 
   if (state == FAILED) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Failed to clear cache", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset failed", true, EpdFontFamily::BOLD);
     renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, "Check serial output for details");
 
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
@@ -110,41 +114,42 @@ void ClearCacheActivity::render() {
 }
 
 void ClearCacheActivity::clearCache() {
-  Serial.printf("[%lu] [CLEAR_CACHE] Clearing cache...\n", millis());
+  Serial.printf("[%lu] [RESET_DEVICE] Removing /.system and /.metadata...\n", millis());
 
   clearedCount = 0;
   failedCount = 0;
 
-  
-  if (SdMan.exists("/.system")) {
-    Serial.printf("[%lu] [CLEAR_CACHE] Removing /.metadata directory\n", millis());
-    if (SdMan.removeDir("/.system")) {
+  const auto tryRemoveTree = [&](const char* path) {
+    if (!SdMan.exists(path)) {
+      Serial.printf("[%lu] [RESET_DEVICE] %s not present\n", millis(), path);
+      return;
+    }
+    Serial.printf("[%lu] [RESET_DEVICE] Removing %s\n", millis(), path);
+    if (SdMan.removeDir(path)) {
       clearedCount++;
-      Serial.printf("[%lu] [CLEAR_CACHE] Successfully removed /.metadata\n", millis());
+      Serial.printf("[%lu] [RESET_DEVICE] Removed %s\n", millis(), path);
     } else {
       failedCount++;
-      Serial.printf("[%lu] [CLEAR_CACHE] Failed to remove /.metadata\n", millis());
+      Serial.printf("[%lu] [RESET_DEVICE] Failed to remove %s\n", millis(), path);
     }
-  } else {
-    Serial.printf("[%lu] [CLEAR_CACHE] /.metadata directory not found\n", millis());
+  };
+
+  tryRemoveTree("/.system");
+  tryRemoveTree("/.metadata");
+
+  Serial.printf("[%lu] [RESET_DEVICE] Done: %d removed, %d failed\n", millis(), clearedCount, failedCount);
+
+  if (failedCount > 0 && clearedCount == 0) {
+    state = FAILED;
+    updateRequired = true;
+    return;
   }
 
-  
-  if (SdMan.exists("/.metadata")) {
-    Serial.printf("[%lu] [CLEAR_CACHE] Removing /.metadata directory\n", millis());
-    if (SdMan.rmdir("/.metadata")) {
-      clearedCount++;
-      Serial.printf("[%lu] [CLEAR_CACHE] Successfully removed /.metadata\n", millis());
-    } else {
-      failedCount++;
-      Serial.printf("[%lu] [CLEAR_CACHE] Failed to remove /.metadata\n", millis());
-    }
-  } else {
-    Serial.printf("[%lu] [CLEAR_CACHE] /.metadata directory not found\n", millis());
-  }
-
-
-  Serial.printf("[%lu] [CLEAR_CACHE] Cache cleared: %d removed, %d failed\n", millis(), clearedCount, failedCount);
+  (void)SETTINGS.loadFromFile();
+  (void)RECENT_BOOKS.loadFromFile();
+  (void)BOOK_STATE.loadFromFile();
+  (void)APP_STATE.loadFromFile();
+  (void)WIFI_STORE.loadFromFile();
 
   state = SUCCESS;
   updateRequired = true;
@@ -153,7 +158,7 @@ void ClearCacheActivity::clearCache() {
 void ClearCacheActivity::loop() {
   if (state == WARNING) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      Serial.printf("[%lu] [CLEAR_CACHE] User confirmed, starting cache clear\n", millis());
+      Serial.printf("[%lu] [RESET_DEVICE] User confirmed\n", millis());
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = CLEARING;
       xSemaphoreGive(renderingMutex);
@@ -164,7 +169,7 @@ void ClearCacheActivity::loop() {
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      Serial.printf("[%lu] [CLEAR_CACHE] User cancelled\n", millis());
+      Serial.printf("[%lu] [RESET_DEVICE] User cancelled\n", millis());
       goBack();
     }
     return;

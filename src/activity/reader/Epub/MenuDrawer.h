@@ -22,6 +22,7 @@ class MenuDrawer {
 public:
     enum class MenuAction {
         SHOW_BOOKMARKS,
+        SHOW_FOOTNOTES,
         SELECT_CHAPTER,
         KOREADER_SYNC,
         GO_HOME,
@@ -45,6 +46,8 @@ public:
     using BookmarkListProvider = std::function<std::vector<BookmarkNavItem>()>;
     using BookmarkSelectCallback = std::function<void(int storageIndex)>;
     using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
+    using FootnoteListProvider = std::function<std::vector<BookmarkNavItem>()>;
+    using FootnoteSelectCallback = std::function<void(int storageIndex)>;
 
     /**
      * @brief Constructs a new MenuDrawer
@@ -116,6 +119,10 @@ public:
 
     void setBookmarkDeleteCallback(BookmarkDeleteCallback callback) { bookmarkDeleteCallback = std::move(callback); }
 
+    void setFootnoteListProvider(FootnoteListProvider provider) { footnoteListProvider = std::move(provider); }
+
+    void setFootnoteSelectCallback(FootnoteSelectCallback callback) { footnoteSelectCallback = std::move(callback); }
+
     /** Used for layout-aware bookmark drawer button labels (Up / Del). */
     void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
 
@@ -151,6 +158,8 @@ private:
 
     void renderBookmarks();
 
+    void renderFootnotes();
+
     /**
      * @brief Draws the TOC background with drawer effect
      */
@@ -164,12 +173,16 @@ private:
 
     void handleBookmarksInput(const MappedInputManager& input);
 
+    void handleFootnotesInput(const MappedInputManager& input);
+
     /**
      * @brief Exits TOC view and returns to main menu
      */
     void exitToc();
 
     void exitBookmarks();
+
+    void exitFootnotes();
 
     void refreshBookmarkEntriesFromProvider();
 
@@ -186,6 +199,8 @@ private:
     BookmarkListProvider bookmarkListProvider;
     BookmarkSelectCallback bookmarkSelectCallback;
     BookmarkDeleteCallback bookmarkDeleteCallback;
+    FootnoteListProvider footnoteListProvider;
+    FootnoteSelectCallback footnoteSelectCallback;
     MappedInputManager* mappedInputForHints = nullptr;
 
     std::string bookTitle;
@@ -217,6 +232,7 @@ private:
     
     bool showingToc = false;
     bool showingBookmarks = false;
+    bool showingFootnotes = false;
     bool isFromToc = false;
     int tocSelectedIndex = 0;
     int tocScrollOffset = 0;
@@ -228,4 +244,7 @@ private:
 
     std::vector<BookmarkNavItem> bookmarkEntries;
     int bookmarkSelectedIndex = 0;
+
+    std::vector<BookmarkNavItem> footnoteEntries;
+    int footnoteSelectedIndex = 0;
 };

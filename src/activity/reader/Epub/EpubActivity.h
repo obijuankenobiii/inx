@@ -18,6 +18,7 @@
 #include "state/BookProgress.h"
 #include "SettingsDrawer.h"
 #include "state/Statistics.h"
+#include "system/ScreenComponents.h"
 
 struct ViewportInfo;
 
@@ -98,6 +99,10 @@ private:
     bool showBookmarkIndicator = false;
     int lastPreloadedSpineIndex = -1;
     bool lastPageHadImages = false;
+
+    int lastGoodSpineIndex_ = 0;
+    int lastGoodPageNumber_ = 0;
+    bool chapterRecoveryAttempted_ = false;
 
     SettingsDrawer* settingsDrawer = nullptr;
     bool settingsDrawerVisible = false;
@@ -181,6 +186,9 @@ private:
 
     /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
     void onBookmarkDrawerSelected(int storageIndex);
+
+    /** User picked a footnote line from the reader menu drawer. */
+    void onFootnoteDrawerSelected(int storageIndex);
     
     /**
      * Deletes the book cache.
@@ -214,6 +222,18 @@ private:
     void displayBookTitle();
     void drawLoadingScreen();
     void preloadNextSection();
+
+    /** Hides reader menu and settings drawers (if open). Optionally repaints the reader (skip during error popups). */
+    void dismissMenuDrawerForBlockingWork(bool repaintReaderScreen = true);
+
+    /** Close drawers (if open), then show a centered popup message. */
+    void readerPopup(const char* message);
+
+    /** After a failed chapter load: popup, revert once to last good chapter, then clear cache and exit if still broken. */
+    void handleChapterLoadFailure();
+
+    /** Close drawers (if open), then show the bottom loading progress panel. */
+    ScreenComponents::LoadingProgressLayout loadingProgressShow(const char* message, int progressPercent0to100);
     
     void loadBookmarks();
     void saveBookmarks();

@@ -259,9 +259,10 @@ public:
      */
     enum RECENT_LIBRARY_MODE {
         RECENT_GRID = 0,    ///< Grid view
-        RECENT_LIST = 1,    ///< List view
+        RECENT_LIST = 1,    ///< Current / previous (stats + carousel strip)
         RECENT_FLOW = 2,    ///< Flow carousel
         RECENT_SIMPLE = 3,  ///< Simple: recent cover on top, favorites list below
+        RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
         RECENT_LIBRARY_MODE_COUNT
     };
 

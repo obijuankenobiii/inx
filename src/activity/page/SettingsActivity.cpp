@@ -32,7 +32,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid","Current | Previous","Flow","Simple"},
+                      {"Grid","Current | Previous","Flow","Simple","List"},
                       GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
@@ -71,7 +71,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("About", GroupType::DEVICE_ACTIONS)};
 
