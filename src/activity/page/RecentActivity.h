@@ -15,7 +15,7 @@
 #include "state/RecentBooks.h"
 
 /**
- * Activity that displays recently opened books in either grid or list view.
+ * Activity that displays recently opened books in grid, flow, stats strip, simple, or book-list layouts.
  * Shows book covers, titles, authors, and reading progress.
  */
 class RecentActivity final : public Activity, public Menu {
@@ -43,7 +43,8 @@ class RecentActivity final : public Activity, public Menu {
     Default,
     Grid,  /**< Display books in a grid with covers */
     Flow,  /**< Flow carousel */
-    SimpleUi /**< Recent cover on gray band, favorites list below */
+    SimpleUi, /**< Recent cover on gray band, favorites list below */
+    List /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
   };
 
  private:
@@ -118,6 +119,9 @@ class RecentActivity final : public Activity, public Menu {
   void renderFlow();
 
   void renderSimpleUi();
+
+  /** Book list: five rows, vertical scroll when more than five recents. */
+  void renderList(int startY);
 
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId);

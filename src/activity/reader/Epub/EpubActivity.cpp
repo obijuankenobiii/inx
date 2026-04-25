@@ -229,31 +229,53 @@ void EpubActivity::drawLoadingScreen() {
   renderer.displayBuffer();
 }
 
-void EpubActivity::dismissMenuDrawerForBlockingWork() {
-  bool closed = false;
+void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
   if (menuDrawer) {
     menuDrawerVisible = false;
     menuDrawer->hide();
-    closed = true;
   }
   
   if (settingsDrawer) {
     settingsDrawerVisible = false;
     settingsDrawer->hide();
-    closed = true;
   }
 
-  renderScreen();
+  if (repaintReaderScreen) {
+    renderScreen();
+  }
 }
 
 void EpubActivity::readerPopup(const char* message) {
-  dismissMenuDrawerForBlockingWork();
+  dismissMenuDrawerForBlockingWork(false);
   ScreenComponents::drawPopup(renderer, message);
+}
+
+void EpubActivity::handleChapterLoadFailure() {
+  readerPopup("Error loading chapter");
+
+  if (!chapterRecoveryAttempted_) {
+    chapterRecoveryAttempted_ = true;
+    currentSpineIndex = lastGoodSpineIndex_;
+    nextPageNumber = lastGoodPageNumber_;
+    section.reset();
+    updateRequired = true;
+    return;
+  }
+
+  chapterRecoveryAttempted_ = false;
+  section.reset();
+  if (epub) {
+    epub->clearCache();
+  }
+  if (bookProgress) {
+    bookProgress->remove();
+  }
+  onGoBack();
 }
 
 ScreenComponents::LoadingProgressLayout EpubActivity::loadingProgressShow(const char* message,
                                                                             const int progressPercent0to100) {
-  dismissMenuDrawerForBlockingWork();
+  dismissMenuDrawerForBlockingWork(false);
   return ScreenComponents::LoadingProgress::show(renderer, message, progressPercent0to100);
 }
 
@@ -281,10 +303,11 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
   auto tempSection = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
 
-  std::function<void()> progressCallback = nullptr;
-  if (showProgress) {
-    progressCallback = [this]() { readerPopup("Loading Chapter..."); };
-    renderer.displayBuffer();
+  ScreenComponents::LoadingProgressLayout chapterLoadBar{};
+  const bool useChapterLoadBar = showProgress;
+  if (useChapterLoadBar) {
+    dismissMenuDrawerForBlockingWork(false);
+    chapterLoadBar = ScreenComponents::LoadingProgress::show(renderer, "Loading chapter...", 12);
   }
 
   bool success =
@@ -299,10 +322,11 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         info.height,
         bookSettings.hyphenationEnabled,
         bookSettings.paragraphCssIndentEnabled != 0,
-        progressCallback,
+        nullptr,
         skipImages);
 
-  if (showProgress) {
+  if (useChapterLoadBar) {
+    ScreenComponents::LoadingProgress::setProgress(renderer, chapterLoadBar, 100);
     renderer.clearScreen();
     renderer.displayBuffer();
   }
@@ -621,6 +645,10 @@ void EpubActivity::onEnter() {
   updateRequired = true;
   lastAutoPageTurnTime = millis();
   bookLayoutAppliedOrientation_ = bookSettings.orientation;
+
+  lastGoodSpineIndex_ = currentSpineIndex;
+  lastGoodPageNumber_ = nextPageNumber;
+  chapterRecoveryAttempted_ = false;
 }
 
 /**
@@ -1399,6 +1427,7 @@ void EpubActivity::renderScreen() {
   if (!section) {
     section = loadSection(currentSpineIndex, info);
     if (!section) {
+      handleChapterLoadFailure();
       return;
     }
 
@@ -1419,10 +1448,7 @@ void EpubActivity::renderScreen() {
 
   if (section->pageCount == 0) {
     section.reset();
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 280, "This chapter could not be built.", true,
-                              EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "Try less memory use (e.g. builtin font) or reopen the book.", true);
-    updateRequired = true;
+    handleChapterLoadFailure();
     return;
   }
 
@@ -1434,7 +1460,7 @@ void EpubActivity::renderScreen() {
   if (!page) {
     section->clearCache();
     section.reset();
-    updateRequired = true;
+    handleChapterLoadFailure();
     return;
   }
 
@@ -1445,6 +1471,9 @@ void EpubActivity::renderScreen() {
   if (menuDrawerVisible && menuDrawer) menuDrawer->render();
 
   saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+  lastGoodSpineIndex_ = currentSpineIndex;
+  lastGoodPageNumber_ = section->currentPage;
+  chapterRecoveryAttempted_ = false;
 }
 
 /**

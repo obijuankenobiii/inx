@@ -473,10 +473,21 @@ void StatisticActivity::loadStats() {
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
   ScreenComponents::LoadingProgress::setProgress(renderer, layout, 65);
-  globalStats = generateGlobalStats();
+  globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
   ScreenComponents::LoadingProgress::setProgress(renderer, layout, 90);
   viewIndex = 0;
-  ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 100);
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 100);
+  saveGlobalStats(globalStats);
+}
+
+void StatisticActivity::hydrateFromStorage() {
+  allBooksStats = getAllBooksStats();
+  std::sort(allBooksStats.begin(), allBooksStats.end(),
+            [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
+  if (!loadGlobalStats(globalStats)) {
+    globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
+    saveGlobalStats(globalStats);
+  }
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -607,7 +618,8 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
 void StatisticActivity::onEnter() {
   Activity::onEnter();
 
-  loadStats();
+  hydrateFromStorage();
+  viewIndex = 0;
 
   renderingMutex = xSemaphoreCreateMutex();
   if (!renderingMutex) return;
@@ -842,7 +854,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   renderer.drawCenteredText(FONT_SANS_SM, contentBottom - 5, footer);
 }
 
-void StatisticActivity::render() const {
+void StatisticActivity::render() {
   renderer.clearScreen();
   renderTabBar(renderer);
 
@@ -873,6 +885,9 @@ void StatisticActivity::render() const {
   } else {
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);
   }
+
+  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }
@@ -914,8 +929,7 @@ void StatisticActivity::loop() {
   }
 
   if (confirmPressed) {
-    globalStats = generateGlobalStats();
-    saveGlobalStats(globalStats);
+    loadStats();
     updateRequired = true;
     return;
   }

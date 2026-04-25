@@ -100,6 +100,10 @@ private:
     int lastPreloadedSpineIndex = -1;
     bool lastPageHadImages = false;
 
+    int lastGoodSpineIndex_ = 0;
+    int lastGoodPageNumber_ = 0;
+    bool chapterRecoveryAttempted_ = false;
+
     SettingsDrawer* settingsDrawer = nullptr;
     bool settingsDrawerVisible = false;
     MenuDrawer* menuDrawer = nullptr;
@@ -219,11 +223,14 @@ private:
     void drawLoadingScreen();
     void preloadNextSection();
 
-    /** Hides reader menu and settings drawers (if open) and repaints before blocking UI (popups, long work). */
-    void dismissMenuDrawerForBlockingWork();
+    /** Hides reader menu and settings drawers (if open). Optionally repaints the reader (skip during error popups). */
+    void dismissMenuDrawerForBlockingWork(bool repaintReaderScreen = true);
 
     /** Close drawers (if open), then show a centered popup message. */
     void readerPopup(const char* message);
+
+    /** After a failed chapter load: popup, revert once to last good chapter, then clear cache and exit if still broken. */
+    void handleChapterLoadFailure();
 
     /** Close drawers (if open), then show the bottom loading progress panel. */
     ScreenComponents::LoadingProgressLayout loadingProgressShow(const char* message, int progressPercent0to100);

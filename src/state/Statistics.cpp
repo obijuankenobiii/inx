@@ -10,8 +10,8 @@
 #include <vector>
 #include <Arduino.h>
 
-static const char* STATS_DIR = ".system/";
-static const char* statistics_FILE = ".system/statistics.bin";
+static const char* STATS_DIR = "/.system";
+static const char* statistics_FILE = "/.system/statistics.bin";
 
 constexpr uint32_t STATS_FILE_VERSION = 2;  
 constexpr uint32_t STATS_MAGIC_NUMBER = 0x53544154; 
@@ -258,20 +258,30 @@ bool getBookStats(const char* bookPath, BookReadingStats& stats) {
  * @return true if statistics were successfully loaded, false otherwise
  */
 bool loadGlobalStats(GlobalReadingStats& stats) {
-    
     memset(&stats, 0, sizeof(GlobalReadingStats));
-    
-    FsFile file;
-    FileGuard guard(file);  
-    
-    if (!SdMan.openFileForRead("STATS", statistics_FILE, file)) {
-        return false;  
+    static const char* const kLegacyGlobalPath = ".system/statistics.bin";
+    {
+        FsFile file;
+        FileGuard guard(file);
+        if (SdMan.openFileForRead("STATS", statistics_FILE, file)) {
+            const size_t n = file.read(&stats, sizeof(GlobalReadingStats));
+            return n == sizeof(GlobalReadingStats);
+        }
     }
-    
-    size_t bytesRead = file.read(&stats, sizeof(GlobalReadingStats));
-    
-    
-    return bytesRead == sizeof(GlobalReadingStats);
+    {
+        FsFile file;
+        FileGuard guard(file);
+        if (!SdMan.openFileForRead("STATS", kLegacyGlobalPath, file)) {
+            return false;
+        }
+        const size_t n = file.read(&stats, sizeof(GlobalReadingStats));
+        if (n != sizeof(GlobalReadingStats)) {
+            return false;
+        }
+    }
+    saveGlobalStats(stats);
+    SdMan.remove(kLegacyGlobalPath);
+    return true;
 }
 
 /**
@@ -282,21 +292,22 @@ bool loadGlobalStats(GlobalReadingStats& stats) {
  * @param stats Global statistics to save
  */
 void saveGlobalStats(const GlobalReadingStats& stats) {
-    SdMan.mkdir(STATS_DIR);
-    std::string tempPath = std::string(statistics_FILE) + ".tmp";
-    
-    FsFile file;
-    FileGuard guard(file);  
-    
-    if (SdMan.openFileForWrite("STATS", tempPath.c_str(), file)) {
-        file.write(&stats, sizeof(GlobalReadingStats));
-        
+    SdMan.mkdir(STATS_DIR);  // same root as settings.bin, wifi.bin, etc.
+    const std::string tempPath = std::string(statistics_FILE) + ".tmp";
+    bool writeOk = false;
+    {
+        FsFile file;
+        FileGuard guard(file);
+        if (SdMan.openFileForWrite("STATS", tempPath.c_str(), file)) {
+            const size_t n = file.write(&stats, sizeof(GlobalReadingStats));
+            writeOk = (n == sizeof(GlobalReadingStats));
+        }
     }
-    
-    
-    if (file) {  
+    if (writeOk) {
         SdMan.remove(statistics_FILE);
-        SdMan.rename(tempPath.c_str(), statistics_FILE);
+        if (!SdMan.rename(tempPath.c_str(), statistics_FILE)) {
+            SdMan.remove(tempPath.c_str());
+        }
     } else {
         SdMan.remove(tempPath.c_str());
     }
@@ -308,19 +319,22 @@ void saveGlobalStats(const GlobalReadingStats& stats) {
  * 
  * @return Aggregated global reading statistics
  */
-GlobalReadingStats generateGlobalStats() {
+GlobalReadingStats aggregateGlobalStatsFromBooks(const std::vector<BookReadingStats>& allBooks) {
     GlobalReadingStats global;
     memset(&global, 0, sizeof(GlobalReadingStats));
-    
-    std::vector<BookReadingStats> allBooks = getAllBooksStats();
-    
     for (const auto& book : allBooks) {
         global.totalBooksStarted++;
         global.totalReadingTimeMs += book.totalReadingTimeMs;
         global.totalPagesRead += book.totalPagesRead;
         global.totalChaptersRead += book.totalChaptersRead;
         global.totalSessions += book.sessionCount;
-        if (book.progressPercent >= 99.0f) global.totalBooksFinished++;
+        if (book.progressPercent >= 99.0f) {
+            global.totalBooksFinished++;
+        }
     }
     return global;
+}
+
+GlobalReadingStats generateGlobalStats() {
+    return aggregateGlobalStatsFromBooks(getAllBooksStats());
 }

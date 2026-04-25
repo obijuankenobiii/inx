@@ -514,6 +514,9 @@ int RecentActivity::getVisibleRows() const {
     int availableHeight = screenHeight - TAB_BAR_HEIGHT - 20;
     return (availableHeight > 0) ? availableHeight / GRID_ITEM_HEIGHT : 1;
   }
+  if (currentViewMode == ViewMode::List) {
+    return LIST_VISIBLE_ITEMS;
+  }
   return LIST_VISIBLE_ITEMS;
 }
 
@@ -618,6 +621,12 @@ void RecentActivity::onEnter() {
     currentViewMode = ViewMode::SimpleUi;
     selectorIndex = 0;
     simpleUiFavScroll_ = 0;
+  }
+
+  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
+    currentViewMode = ViewMode::List;
+    selectorIndex = 0;
+    scrollOffset = 0;
   }
 
   updateRequired = true;
@@ -760,6 +769,91 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   }
 }
 
+void RecentActivity::renderList(int startY) {
+  const int totalBooks = static_cast<int>(recentBooks.size());
+  if (totalBooks == 0) {
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
+    return;
+  }
+
+  constexpr int kHintReserve = 54;
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int contentBottom = screenH - kHintReserve;
+  const int contentH = std::max(1, contentBottom - startY);
+  const int rowH = std::max(56, contentH / LIST_VISIBLE_ITEMS);
+  constexpr int padX = 10;
+  const int thumbH = std::max(48, rowH - 10);
+  const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
+
+  for (int slot = 0; slot < LIST_VISIBLE_ITEMS; ++slot) {
+    const int bi = scrollOffset + slot;
+    if (bi >= totalBooks) {
+      break;
+    }
+    const int y = startY + slot * rowH;
+    const RecentBook& book = recentBooks[static_cast<size_t>(bi)];
+    const bool selected = (selectorIndex == bi);
+
+    if (selected) {
+      renderer.drawRect(padX - 3, y + 1, screenW - 2 * (padX - 3), rowH - 2, true, false);
+    }
+
+    const int ty = y + (rowH - thumbH) / 2;
+    const int tx = padX;
+    const std::string cacheDir =
+        book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+    drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+
+    const int textX = tx + thumbW + 14;
+    const int textRight = screenW - padX;
+    const int textW = std::max(40, textRight - textX);
+
+    const int fontTitle = LITERATA_14_FONT_ID;
+    const int fontAuthor = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int lhT = renderer.getLineHeight(fontTitle);
+    const int lhA = renderer.getLineHeight(fontAuthor);
+    const int tyT = y + 8;
+    const std::string dispTitle = bookDisplayTitle(book);
+    const std::string titleLine =
+        renderer.truncatedText(fontTitle, dispTitle.c_str(), textW, EpdFontFamily::ITALIC);
+    renderer.drawText(fontTitle, textX, tyT, titleLine.c_str(), true, EpdFontFamily::ITALIC);
+    int lastTextBottom = tyT + lhT;
+    int tyA = tyT + lhT + 4;
+    if (!book.author.empty()) {
+      const std::string auth = renderer.truncatedText(fontAuthor, book.author.c_str(), textW);
+      renderer.drawText(fontAuthor, textX, tyA, auth.c_str());
+      lastTextBottom = tyA + lhA;
+    }
+
+    float prog = book.progress;
+    if (prog < 0.f || prog > 1.f) {
+      prog = 0.f;
+    }
+    char pctBuf[12];
+    snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", static_cast<double>(prog * 100.f));
+    const int fontPct = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int pctW = renderer.getTextWidth(fontPct, pctBuf);
+    constexpr int barH = 8;
+    int barY = lastTextBottom + 8;
+    barY = std::max(barY, tyT + lhT + 4);
+    barY = std::min(barY, y + rowH - barH - 4);
+    if (barY < tyT + lhT) {
+      barY = y + rowH - barH - 4;
+    }
+    const int barX = textX;
+    const int barW = std::max(24, textRight - pctW - 10 - barX);
+
+    renderer.fillRect(barX, barY, barW, barH, false);
+    renderer.drawRect(barX, barY, barW, barH, true);
+    const int fillW = static_cast<int>(static_cast<float>(barW) * prog + 0.5f);
+    if (fillW > 0) {
+      renderer.fillRect(barX, barY, fillW, barH, true);
+    }
+    renderer.drawText(fontPct, barX + barW + 6, barY - 1, pctBuf, false);
+  }
+}
+
 void RecentActivity::pumpDisplayFromLoop() {
   if (!updateRequired) {
     return;
@@ -773,6 +867,8 @@ void RecentActivity::pumpDisplayFromLoop() {
     renderGrid(TAB_BAR_HEIGHT - 29);
   } else if (currentViewMode == ViewMode::SimpleUi) {
     renderSimpleUi();
+  } else if (currentViewMode == ViewMode::List) {
+    renderList(TAB_BAR_HEIGHT);
   } else {
     renderFlow();
   }
@@ -889,6 +985,7 @@ void RecentActivity::loop() {
   const int totalBooks = static_cast<int>(recentBooks.size());
   const bool isDefaultView = (currentViewMode == ViewMode::Default);
   const bool isSimpleUi = (currentViewMode == ViewMode::SimpleUi);
+  const bool isListView = (currentViewMode == ViewMode::List);
 
   bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
   bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
@@ -936,6 +1033,10 @@ void RecentActivity::loop() {
             const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
             const int maxScroll = std::max(0, totalRows - visibleRows);
             scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+          } else if (currentViewMode == ViewMode::List) {
+            const int visibleItems = LIST_VISIBLE_ITEMS;
+            const int maxScroll = std::max(0, n - visibleItems);
+            scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
           }
         }
         updateRequired = true;
@@ -973,8 +1074,10 @@ void RecentActivity::loop() {
       expectedMode = ViewMode::Grid;
     } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
       expectedMode = ViewMode::Default;
-    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
+    } else     if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
       expectedMode = ViewMode::SimpleUi;
+    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
+      expectedMode = ViewMode::List;
     } else {
       expectedMode = ViewMode::Flow;
     }
@@ -1056,6 +1159,33 @@ void RecentActivity::loop() {
       onSelectBook(recentBooks[selectorIndex].path);
       return;
     }
+  } else if (isListView) {
+    if (downPressed && selectorIndex < totalBooks - 1) {
+      selectorIndex++;
+      selectorChanged = true;
+    }
+    if (upPressed && selectorIndex > 0) {
+      selectorIndex--;
+      selectorChanged = true;
+    }
+
+    if (selectorChanged) {
+      const int visibleItems = LIST_VISIBLE_ITEMS;
+      if (selectorIndex < scrollOffset) {
+        scrollOffset = selectorIndex;
+      } else if (selectorIndex >= scrollOffset + visibleItems) {
+        scrollOffset = selectorIndex - visibleItems + 1;
+      }
+      const int maxOffset = std::max(0, totalBooks - visibleItems);
+      scrollOffset = std::max(0, std::min(scrollOffset, maxOffset));
+      updateRequired = true;
+    }
+
+    if (confirmPressed && selectorIndex >= 0 && selectorIndex < totalBooks) {
+      bookSelected = true;
+      onSelectBook(recentBooks[selectorIndex].path);
+      return;
+    }
   } else {
     if (downPressed && selectorIndex < totalBooks - 1) {
       selectorIndex++;
@@ -1066,27 +1196,16 @@ void RecentActivity::loop() {
     }
 
     if (selectorChanged) {
-      if (currentViewMode == ViewMode::Default) {
-        int visibleItems = LIST_VISIBLE_ITEMS;
-        if (selectorIndex < scrollOffset) {
-          scrollOffset = selectorIndex;
-        } else if (selectorIndex >= scrollOffset + visibleItems) {
-          scrollOffset = selectorIndex - visibleItems + 1;
-        }
-        int maxOffset = std::max(0, totalBooks - visibleItems);
-        scrollOffset = std::max(0, std::min(scrollOffset, maxOffset));
-      } else {
-        int currentRow = selectorIndex / GRID_COLS;
-        int visibleRows = getVisibleRows();
-        if (currentRow < scrollOffset) {
-          scrollOffset = currentRow;
-        } else if (currentRow >= scrollOffset + visibleRows) {
-          scrollOffset = currentRow - visibleRows + 1;
-        }
-        int totalRows = (totalBooks + GRID_COLS - 1) / GRID_COLS;
-        int maxOffset = std::max(0, totalRows - visibleRows);
-        scrollOffset = std::max(0, std::min(scrollOffset, maxOffset));
+      int currentRow = selectorIndex / GRID_COLS;
+      int visibleRows = getVisibleRows();
+      if (currentRow < scrollOffset) {
+        scrollOffset = currentRow;
+      } else if (currentRow >= scrollOffset + visibleRows) {
+        scrollOffset = currentRow - visibleRows + 1;
       }
+      int totalRows = (totalBooks + GRID_COLS - 1) / GRID_COLS;
+      int maxOffset = std::max(0, totalRows - visibleRows);
+      scrollOffset = std::max(0, std::min(scrollOffset, maxOffset));
       updateRequired = true;
     }
 
