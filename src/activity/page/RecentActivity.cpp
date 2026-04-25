@@ -261,7 +261,20 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   }
   {
     BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-    renderer.drawBitmap(bitmap, x, y, w, h);
+    const float iw = static_cast<float>(bitmap.getWidth());
+    const float ih = static_cast<float>(bitmap.getHeight());
+    float cropX = 0.f;
+    float cropY = 0.f;
+    if (iw > 0.f && ih > 0.f) {
+      const float ir = iw / ih;
+      const float tr = static_cast<float>(w) / static_cast<float>(h);
+      if (ir > tr) {
+        cropX = 1.0f - (tr / ir);
+      } else if (ir < tr) {
+        cropY = 1.0f - (ir / tr);
+      }
+    }
+    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY);
   }
   file.close();
 }
@@ -617,6 +630,8 @@ void RecentActivity::onExit() {
   recentBooks.clear();
   listStatsFavoriteOnly_.clear();
   simpleUiFavorites_.clear();
+  renderer.setRenderMode(GfxRenderer::BW);
+  renderer.cleanupGrayscaleWithFrameBuffer();
   Activity::onExit();
 }
 
@@ -1240,12 +1255,26 @@ void RecentActivity::renderSimpleUi() {
     const int lhTitle = renderer.getLineHeight(titleFont);
     const int lhAuthor = renderer.getLineHeight(authorFont);
     const int authorGap = 10;
-    const int blockH = lhTitle + authorGap + lhAuthor;
+    constexpr int kSimpleProgressBarH = 10;
+    constexpr int kSimpleProgressBarGap = 10;
+    const bool showProg = b.progress >= 0.0f && b.progress <= 1.0f;
+    const int blockH =
+        lhTitle + authorGap + lhAuthor + (showProg ? (kSimpleProgressBarGap + kSimpleProgressBarH) : 0);
     const int textY = m.bodyTop + (m.topBandH - blockH) / 2;
     renderer.drawText(titleFont, textX, textY, titleDraw.c_str(), true, EpdFontFamily::BOLD);
     const std::string auth = b.author.empty() ? std::string() : b.author;
     const std::string authDraw = renderer.truncatedText(authorFont, auth.c_str(), maxTextW);
     renderer.drawText(authorFont, textX, textY + lhTitle + authorGap, authDraw.c_str(), true);
+    if (showProg) {
+      const int barY = textY + lhTitle + authorGap + lhAuthor + kSimpleProgressBarGap;
+      const int barW = maxTextW;
+      renderer.fillRect(textX, barY, barW, kSimpleProgressBarH, false);
+      renderer.drawRect(textX, barY, barW, kSimpleProgressBarH, true);
+      if (b.progress > 0.0f) {
+        const int fillW = static_cast<int>(static_cast<float>(barW) * b.progress + 0.5f);
+        renderer.fillRect(textX, barY, fillW, kSimpleProgressBarH);
+      }
+    }
   } else {
     renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, m.bodyTop + std::max(20, m.topBandH / 2 - 16),
                               "No recent books", true);

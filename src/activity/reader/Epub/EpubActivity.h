@@ -18,6 +18,7 @@
 #include "state/BookProgress.h"
 #include "SettingsDrawer.h"
 #include "state/Statistics.h"
+#include "system/ScreenComponents.h"
 
 struct ViewportInfo;
 
@@ -181,6 +182,9 @@ private:
 
     /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
     void onBookmarkDrawerSelected(int storageIndex);
+
+    /** User picked a footnote line from the reader menu drawer. */
+    void onFootnoteDrawerSelected(int storageIndex);
     
     /**
      * Deletes the book cache.
@@ -214,6 +218,15 @@ private:
     void displayBookTitle();
     void drawLoadingScreen();
     void preloadNextSection();
+
+    /** Hides reader menu and settings drawers (if open) and repaints before blocking UI (popups, long work). */
+    void dismissMenuDrawerForBlockingWork();
+
+    /** Close drawers (if open), then show a centered popup message. */
+    void readerPopup(const char* message);
+
+    /** Close drawers (if open), then show the bottom loading progress panel. */
+    ScreenComponents::LoadingProgressLayout loadingProgressShow(const char* message, int progressPercent0to100);
     
     void loadBookmarks();
     void saveBookmarks();

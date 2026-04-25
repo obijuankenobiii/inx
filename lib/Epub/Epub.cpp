@@ -19,6 +19,43 @@
 #include "Epub/parsers/TocNavParser.h"
 #include "Epub/parsers/TocNcxParser.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+
+namespace {
+
+bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
+  if (href.empty()) {
+    return false;
+  }
+  std::string h = href;
+  const size_t hash = h.find('#');
+  if (hash != std::string::npos) {
+    h = h.substr(0, hash);
+  }
+  for (char& c : h) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  static const char* kImageExt[] = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp"};
+  for (const char* ext : kImageExt) {
+    const size_t n = std::strlen(ext);
+    if (h.size() >= n && std::memcmp(h.c_str() + h.size() - n, ext, n) == 0) {
+      return false;
+    }
+  }
+  static const char* kHtmlExt[] = {".xhtml", ".html", ".htm", ".xht"};
+  for (const char* ext : kHtmlExt) {
+    const size_t n = std::strlen(ext);
+    if (h.size() >= n && std::memcmp(h.c_str() + h.size() - n, ext, n) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  
+
 /**
  * @brief Checks file type.
  */
@@ -787,6 +824,41 @@ int Epub::getSpineIndexForTextReference() const {
   for (int i = 0; i < getSpineItemsCount(); i++) {
     if (getSpineItem(i).href == ref) return i;
   }
+  return 0;
+}
+
+int Epub::getSpineIndexForInitialOpen() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded() || getSpineItemsCount() <= 0) {
+    return 0;
+  }
+
+  const std::string& ref = bookMetadataCache->coreMetadata.textReferenceHref;
+  if (!ref.empty()) {
+    const int tr = getSpineIndexForTextReference();
+    if (tr >= 0 && tr < getSpineItemsCount()) {
+      const std::string& sh = getSpineItem(tr).href;
+      if (spineHrefLooksLikeRenderableHtml(sh)) {
+        return tr;
+      }
+    }
+  }
+
+  for (int ti = 0; ti < getTocItemsCount(); ++ti) {
+    const int sp = getTocItem(ti).spineIndex;
+    if (sp < 0 || sp >= getSpineItemsCount()) {
+      continue;
+    }
+    if (spineHrefLooksLikeRenderableHtml(getSpineItem(sp).href)) {
+      return sp;
+    }
+  }
+
+  for (int i = 0; i < getSpineItemsCount(); ++i) {
+    if (spineHrefLooksLikeRenderableHtml(getSpineItem(i).href)) {
+      return i;
+    }
+  }
+
   return 0;
 }
 

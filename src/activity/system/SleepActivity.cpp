@@ -7,18 +7,28 @@
 
 #include <Bitmap.h>
 #include <Epub.h>
+#include <Epub/Page.h>
+#include <Epub/Section.h>
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <SDCardManager.h>
 #include <Txt.h>
 #include <Xtc.h>
+#include <esp_task_wdt.h>
 
+#include "../reader/Epub/StatusBar.h"
 #include "images/CorgiSleep.h"
+#include "state/BookProgress.h"
+#include "state/BookSetting.h"
+#include "state/RecentBooks.h"
 #include "state/Session.h"
 #include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
+#include <memory>
 
 namespace {
 std::string pathForFixedSleepBmp() {
@@ -73,110 +83,50 @@ std::string pickSleepBmpPath() {
   }
   return "";
 }
-}  
 
-/**
- * @brief Initializes and renders the sleep screen when activity becomes active.
- * 
- * Selects and renders the appropriate sleep screen based on the current
- * sleep screen mode setting (transparent, blank, custom, cover, or default).
- */
-void SleepActivity::onEnter() {
-  Activity::onEnter();
-
-  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT)
-  {
-    renderer.clearScreen();
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-  }
-
-  switch (SETTINGS.sleepScreen) {
-    case SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT:
-      renderTransparentSleepScreen();
+void applyBookOrientationToRenderer(GfxRenderer& r, const uint8_t orientationByte) {
+  using O = SystemSetting::ORIENTATION;
+  switch (orientationByte) {
+    case O::PORTRAIT:
+      r.setOrientation(GfxRenderer::Orientation::Portrait);
       break;
-    case SystemSetting::SLEEP_SCREEN_MODE::BLANK:
-      renderBlankSleepScreen();
+    case O::LANDSCAPE_CW:
+      r.setOrientation(GfxRenderer::Orientation::LandscapeClockwise);
       break;
-    case SystemSetting::SLEEP_SCREEN_MODE::CUSTOM:
-      renderCustomSleepScreen();
+    case O::INVERTED:
+      r.setOrientation(GfxRenderer::Orientation::PortraitInverted);
       break;
-    case SystemSetting::SLEEP_SCREEN_MODE::COVER:
-      renderCoverSleepScreen();
+    case O::LANDSCAPE_CCW:
+      r.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
       break;
     default:
-      renderDefaultSleepScreen();
       break;
   }
 }
 
-/**
- * @brief Renders a custom sleep screen from user-provided images.
- * 
- * Uses a fixed BMP from settings when set; otherwise picks randomly from /sleep/
- * and /sleep.bmp. Falls back to default sleep screen if no images are found.
- */
-void SleepActivity::renderCustomSleepScreen() const {
-  const std::string imagePath = pickSleepBmpPath();
-  if (!imagePath.empty()) {
-    FsFile file;
-    if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
-      APP_STATE.saveToFile();
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap);
-        return;
-      }
+void applyLastReadBookOrientationToRenderer(GfxRenderer& r, const std::string& lastReadPath) {
+  if (lastReadPath.empty()) {
+    applyBookOrientationToRenderer(r, SETTINGS.orientation);
+    return;
+  }
+  if (StringUtils::checkFileExtension(lastReadPath, ".epub")) {
+    Epub book(lastReadPath, "/.metadata/epub");
+    if (book.load()) {
+      BookSettings bs;
+      bs.loadFromFile(book.getCachePath());
+      applyBookOrientationToRenderer(r, bs.orientation);
+      return;
     }
   }
-
-  renderDefaultSleepScreen();
+  applyBookOrientationToRenderer(r, SETTINGS.orientation);
 }
 
-/**
- * @brief Renders a transparent overlay sleep screen.
- * 
- * Displays a semi-transparent image overlay on top of the current screen content.
- */
-void SleepActivity::renderTransparentSleepScreen() const {
-  const std::string imagePath = pickSleepBmpPath();
-  if (!imagePath.empty()) {
-    FsFile file;
-    if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
-      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
-      APP_STATE.saveToFile();
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
-        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-        return;
-      }
-    }
-  }
-
-  renderDefaultSleepScreen();
-}
-
-/**
- * @brief Renders the cover of the last opened book as sleep screen.
- * 
- * Extracts and displays the cover image from the most recently opened book
- * (EPUB, XTC, or TXT format). Applies cropping or scaling based on settings.
- */
-void SleepActivity::renderCoverSleepScreen() const {
-  if (APP_STATE.lastRead.empty()) {
-    return renderCustomSleepScreen();
-  }
-
+std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   std::string coverPath;
-  
-  const std::string& path = APP_STATE.lastRead;
 
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      
-      
       coverPath = book.getCoverBmpPath(true);
       if (!SdMan.exists(coverPath.c_str())) {
         book.generateCoverBmp(true);
@@ -211,8 +161,296 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   if (StringUtils::checkFileExtension(path, ".txt")) {
     Txt book(path, "/.system");
-    if (book.load() && book.generateCoverBmp()) coverPath = book.getCoverBmpPath();
+    if (book.load() && book.generateCoverBmp()) {
+      coverPath = book.getCoverBmpPath();
+    }
   }
+
+  return coverPath;
+}
+
+struct SleepReaderViewport {
+  int totalMarginTop = 0;
+  int totalMarginBottom = 0;
+  int totalMarginLeft = 0;
+  int totalMarginRight = 0;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  int fontId = 0;
+  float lineCompression = 1.f;
+};
+
+SleepReaderViewport computeSleepReaderViewport(GfxRenderer& gfx, const BookSettings& bookSettings) {
+  SleepReaderViewport info;
+  int oT = 0;
+  int oR = 0;
+  int oB = 0;
+  int oL = 0;
+  gfx.getOrientedViewableTRBL(&oT, &oR, &oB, &oL);
+
+  constexpr int statusBarMargin = 19;
+  constexpr int progressBarMarginTop = 10;
+
+  info.totalMarginTop = oT + bookSettings.screenMargin;
+  info.totalMarginBottom = oB + bookSettings.screenMargin;
+  info.totalMarginLeft = oL + bookSettings.screenMargin;
+  info.totalMarginRight = oR + bookSettings.screenMargin;
+
+  const bool hasStatusBar = (bookSettings.statusBarLeft.item != StatusBarItem::NONE ||
+                             bookSettings.statusBarMiddle.item != StatusBarItem::NONE ||
+                             bookSettings.statusBarRight.item != StatusBarItem::NONE);
+
+  const bool showProgressBar = (bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR ||
+                                bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR_WITH_PERCENT);
+
+  if (hasStatusBar) {
+    info.totalMarginBottom +=
+        statusBarMargin - bookSettings.screenMargin +
+        (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
+  }
+
+  int w = gfx.getScreenWidth() - info.totalMarginLeft - info.totalMarginRight;
+  int h = gfx.getScreenHeight() - info.totalMarginTop - info.totalMarginBottom;
+  constexpr int kMinViewport = 8;
+  if (w < kMinViewport) {
+    w = kMinViewport;
+  }
+  if (h < kMinViewport) {
+    h = kMinViewport;
+  }
+  info.width = static_cast<uint16_t>(w);
+  info.height = static_cast<uint16_t>(h);
+  info.fontId = bookSettings.getReaderFontId();
+  info.lineCompression = bookSettings.getReaderLineCompression();
+  return info;
+}
+
+/**
+ * Renders the last-saved EPUB reading page into the framebuffer (no displayBuffer).
+ * Used for transparent sleep so the overlay sits on the real page, not the cover.
+ */
+bool tryRenderEpubLastReadReadingPage(GfxRenderer& renderer, const std::string& epubPath) {
+  std::unique_ptr<Epub> epub(new Epub(epubPath, "/.metadata/epub"));
+  if (!epub->load()) {
+    return false;
+  }
+  std::shared_ptr<Epub> epubShared(epub.get(), [](Epub*) {});
+
+  BookSettings bookSettings;
+  bookSettings.loadFromFile(epub->getCachePath());
+  if (!bookSettings.useCustomSettings) {
+    bookSettings.orientation = SETTINGS.orientation;
+    bookSettings.paragraphCssIndentEnabled = SETTINGS.paragraphCssIndentEnabled;
+  }
+  applyBookOrientationToRenderer(renderer, bookSettings.orientation);
+
+  const int spines = epub->getSpineItemsCount();
+  if (spines <= 0) {
+    return false;
+  }
+
+  BookProgress bp(epub->getCachePath());
+  BookProgress::Data prog{};
+  int spineIndex = epub->getSpineIndexForInitialOpen();
+  int pageNum = 0;
+  if (bp.load(prog) && bp.validate(prog, spines)) {
+    bp.sanitize(prog, spines);
+    spineIndex = static_cast<int>(prog.spineIndex);
+    pageNum = static_cast<int>(prog.pageNumber);
+  }
+
+  const SleepReaderViewport vp = computeSleepReaderViewport(renderer, bookSettings);
+  FontManager::ensureReaderLayoutFonts(vp.fontId, renderer);
+
+  Section sec(epubShared, spineIndex, renderer);
+  bool loaded = sec.loadSectionFile(vp.fontId, vp.lineCompression, bookSettings.extraParagraphSpacing,
+                                    bookSettings.paragraphAlignment, vp.width, vp.height, bookSettings.hyphenationEnabled,
+                                    bookSettings.paragraphCssIndentEnabled != 0);
+  if (!loaded) {
+    esp_task_wdt_reset();
+    if (!sec.createSectionFile(vp.fontId, FontManager::getNextFont(vp.fontId), FontManager::getMaxFontId(vp.fontId),
+                               vp.lineCompression, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment,
+                               vp.width, vp.height, bookSettings.hyphenationEnabled,
+                               bookSettings.paragraphCssIndentEnabled != 0, nullptr, false)) {
+      return false;
+    }
+    loaded = sec.loadSectionFile(vp.fontId, vp.lineCompression, bookSettings.extraParagraphSpacing,
+                                 bookSettings.paragraphAlignment, vp.width, vp.height, bookSettings.hyphenationEnabled,
+                                 bookSettings.paragraphCssIndentEnabled != 0);
+    if (!loaded) {
+      return false;
+    }
+  }
+
+  if (sec.pageCount == 0) {
+    return false;
+  }
+  if (pageNum < 0 || pageNum >= static_cast<int>(sec.pageCount)) {
+    pageNum = 0;
+  }
+  sec.currentPage = pageNum;
+  std::unique_ptr<Page> page = sec.loadPageFromSectionFile();
+  if (!page) {
+    return false;
+  }
+
+  BitmapGrayStyleScope bitmapStyle(renderer, readerImageBitmapGrayStyle());
+  renderer.clearScreen(0xFF);
+  const int fontId = bookSettings.getReaderFontId();
+  const int headerFontId = FontManager::getNextFont(fontId);
+  const BitmapDitherMode imageDither = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
+  page->render(renderer, fontId, headerFontId, vp.totalMarginLeft, vp.totalMarginTop, true, imageDither);
+  page->renderImages(renderer, fontId, vp.totalMarginLeft, vp.totalMarginTop, imageDither);
+
+  StatusBar statusBar(renderer, *epub, bookSettings);
+  statusBar.render(&sec, spineIndex, vp.totalMarginRight, vp.totalMarginBottom, vp.totalMarginLeft);
+  return true;
+}
+}  
+
+/**
+ * @brief Initializes and renders the sleep screen when activity becomes active.
+ * 
+ * Selects and renders the appropriate sleep screen based on the current
+ * sleep screen mode setting (transparent, blank, custom, cover, or default).
+ */
+void SleepActivity::onEnter() {
+  Activity::onEnter();
+
+  const GfxRenderer::Orientation orientationBeforeSleep = renderer.getOrientation();
+
+  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT)
+  {
+    renderer.clearScreen();
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+
+  switch (SETTINGS.sleepScreen) {
+    case SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT:
+      renderTransparentSleepScreen();
+      break;
+    case SystemSetting::SLEEP_SCREEN_MODE::BLANK:
+      renderBlankSleepScreen();
+      break;
+    case SystemSetting::SLEEP_SCREEN_MODE::CUSTOM:
+      renderCustomSleepScreen();
+      break;
+    case SystemSetting::SLEEP_SCREEN_MODE::COVER:
+      renderCoverSleepScreen();
+      break;
+    default:
+      renderDefaultSleepScreen();
+      break;
+  }
+
+  renderer.setOrientation(orientationBeforeSleep);
+}
+
+/**
+ * @brief Renders a custom sleep screen from user-provided images.
+ * 
+ * Uses a fixed BMP from settings when set; otherwise picks randomly from /sleep/
+ * and /sleep.bmp. Falls back to default sleep screen if no images are found.
+ */
+void SleepActivity::renderCustomSleepScreen() const {
+  const std::string imagePath = pickSleepBmpPath();
+  if (!imagePath.empty()) {
+    FsFile file;
+    if (SdMan.openFileForRead("SLP", imagePath, file)) {
+      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        renderBitmapSleepScreen(bitmap);
+        return;
+      }
+    }
+  }
+
+  renderDefaultSleepScreen();
+}
+
+/**
+ * @brief Renders a transparent overlay sleep screen.
+ * 
+ * Displays a semi-transparent image overlay on top of the current screen content.
+ */
+void SleepActivity::renderTransparentSleepScreen() const {
+  std::string pathForBook = APP_STATE.lastRead;
+  if (pathForBook.empty()) {
+    (void)RECENT_BOOKS.loadFromFile();
+    if (RECENT_BOOKS.getCount() > 0) {
+      pathForBook = RECENT_BOOKS.getBooks()[0].path;
+    }
+  }
+
+  applyLastReadBookOrientationToRenderer(renderer, pathForBook);
+
+  bool epubPageInBufferNeedsFlush = false;
+  bool coverAlreadyDisplayed = false;
+  if (!pathForBook.empty()) {
+    if (StringUtils::checkFileExtension(pathForBook, ".epub")) {
+      Epub book(pathForBook, "/.metadata/epub");
+      if (book.load()) {
+        APP_STATE.lastRead = pathForBook;
+        APP_STATE.saveToFile();
+      }
+      epubPageInBufferNeedsFlush = tryRenderEpubLastReadReadingPage(renderer, pathForBook);
+    }
+    if (!epubPageInBufferNeedsFlush) {
+      const std::string coverPath = resolveLastReadCoverPathForSleep(pathForBook);
+      if (!coverPath.empty()) {
+        FsFile coverFile;
+        if (SdMan.openFileForRead("SLP", coverPath, coverFile)) {
+          Bitmap coverBitmap(coverFile, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+          if (coverBitmap.parseHeaders() == BmpReaderError::Ok) {
+            renderBitmapSleepScreen(coverBitmap);
+            coverAlreadyDisplayed = true;
+          }
+          coverFile.close();
+        }
+      }
+    }
+  }
+
+  const std::string imagePath = pickSleepBmpPath();
+  if (!imagePath.empty()) {
+    FsFile file;
+    if (SdMan.openFileForRead("SLP", imagePath, file)) {
+      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
+        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        return;
+      }
+    }
+  }
+
+  if (epubPageInBufferNeedsFlush) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    return;
+  }
+  if (coverAlreadyDisplayed) {
+    return;
+  }
+
+  renderDefaultSleepScreen();
+}
+
+/**
+ * @brief Renders the cover of the last opened book as sleep screen.
+ * 
+ * Extracts and displays the cover image from the most recently opened book
+ * (EPUB, XTC, or TXT format). Applies cropping or scaling based on settings.
+ */
+void SleepActivity::renderCoverSleepScreen() const {
+  if (APP_STATE.lastRead.empty()) {
+    return renderCustomSleepScreen();
+  }
+
+  const std::string coverPath = resolveLastReadCoverPathForSleep(APP_STATE.lastRead);
 
   FsFile file;
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {

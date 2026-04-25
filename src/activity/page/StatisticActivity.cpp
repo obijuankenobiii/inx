@@ -20,6 +20,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/ScreenComponents.h"
 namespace {
 
 class MutexGuard {
@@ -42,6 +43,27 @@ class MutexGuard {
 
   bool isAcquired() const { return acquired; }
 };
+
+/** Scale/crop so the bitmap fills [x,y,w,h] without letterboxing (matches Recent thumbnails). */
+void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int y, int w, int h) {
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+  const float iw = static_cast<float>(bitmap.getWidth());
+  const float ih = static_cast<float>(bitmap.getHeight());
+  float cropX = 0.f;
+  float cropY = 0.f;
+  if (iw > 0.f && ih > 0.f) {
+    const float ir = iw / ih;
+    const float tr = static_cast<float>(w) / static_cast<float>(h);
+    if (ir > tr) {
+      cropX = 1.0f - (tr / ir);
+    } else if (ir < tr) {
+      cropY = 1.0f - (ir / tr);
+    }
+  }
+  renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY);
+}
 
 constexpr unsigned long GO_HOME_MS = 1000;
 
@@ -444,11 +466,17 @@ void StatisticActivity::displayTaskLoop() {
 }
 
 void StatisticActivity::loadStats() {
+  ScreenComponents::LoadingProgressLayout layout =
+      ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 12);
   allBooksStats = getAllBooksStats();
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 40);
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 65);
   globalStats = generateGlobalStats();
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 90);
   viewIndex = 0;
+  ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 100);
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -463,7 +491,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
       const int maxW = std::max(1, width - 4);
       const int maxH = std::max(1, height - 4);
       BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-      renderer.drawBitmap(bitmap, x + 2, y + 2, maxW, maxH);
+      drawStatsThumbnailInRect(renderer, bitmap, x + 2, y + 2, maxW, maxH);
       coverDrawn = true;
     }
     file.close();
@@ -545,17 +573,8 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
       const int bw = bitmap.getWidth();
       const int bh = bitmap.getHeight();
       if (bw > 0 && bh > 0) {
-        const float br = static_cast<float>(bw) / static_cast<float>(bh);
-        int drawW = availW;
-        int drawH = static_cast<int>(static_cast<float>(drawW) / br + 0.5f);
-        if (drawH > availH) {
-          drawH = availH;
-          drawW = static_cast<int>(static_cast<float>(drawH) * br + 0.5f);
-        }
-        drawW = std::max(1, drawW);
-        drawH = std::max(1, drawH);
-        const int coverW = drawW + 4;
-        const int coverH = drawH + 4;
+        const int coverW = availW + 4;
+        const int coverH = availH + 4;
         const int frameW = coverW + 2 * kOuterPad;
         const int frameH = coverH + 2 * kOuterPad;
         const int innerX = boxX + kOuterPad;
@@ -564,7 +583,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
         renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
         {
           BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-          renderer.drawBitmap(bitmap, innerX + 2, innerY + 2, drawW, drawH);
+          drawStatsThumbnailInRect(renderer, bitmap, innerX + 2, innerY + 2, availW, availH);
         }
         file.close();
         return {frameW, frameH};

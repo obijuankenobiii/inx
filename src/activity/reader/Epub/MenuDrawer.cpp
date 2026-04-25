@@ -105,6 +105,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
 
   menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
                {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
+               {"Show Footnotes", MenuAction::SHOW_FOOTNOTES},
                {"KOReader Sync", MenuAction::KOREADER_SYNC},
                {"Delete Cache", MenuAction::DELETE_CACHE},
                {"Delete Progress", MenuAction::DELETE_PROGRESS},
@@ -155,6 +156,8 @@ MenuDrawer::~MenuDrawer() {
   bookmarkListProvider = nullptr;
   bookmarkSelectCallback = nullptr;
   bookmarkDeleteCallback = nullptr;
+  footnoteListProvider = nullptr;
+  footnoteSelectCallback = nullptr;
   mappedInputForHints = nullptr;
   epub = nullptr;
 }
@@ -169,12 +172,15 @@ void MenuDrawer::show() {
   dismissed = false;
   showingToc = false;
   showingBookmarks = false;
+  showingFootnotes = false;
   selectedIndex = 0;
   scrollOffset = 0;
   tocSelectedIndex = 0;
   tocScrollOffset = 0;
   bookmarkSelectedIndex = 0;
   bookmarkEntries.clear();
+  footnoteSelectedIndex = 0;
+  footnoteEntries.clear();
   renderWithRefresh();
 }
 
@@ -186,6 +192,7 @@ void MenuDrawer::hide() {
   dismissed = true;
   showingToc = false;
   showingBookmarks = false;
+  showingFootnotes = false;
 }
 
 /**
@@ -204,7 +211,9 @@ void MenuDrawer::renderWithRefresh() {
   if (!visible) return;
   syncLayoutFromRenderer();
 
-  if (showingBookmarks) {
+  if (showingFootnotes) {
+    renderFootnotes();
+  } else if (showingBookmarks) {
     renderBookmarks();
   } else if (showingToc) {
     renderToc();
@@ -457,6 +466,77 @@ void MenuDrawer::renderBookmarks() {
   }
 }
 
+void MenuDrawer::renderFootnotes() {
+  const int panelW = tocDrawerWidth;
+  const int totalItems = static_cast<int>(footnoteEntries.size());
+  const int pageItems = getTocPageItems();
+
+  drawTocBackground();
+
+  const int headerY = tocDrawerY + 10;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Footnotes", true, EpdFontFamily::BOLD);
+
+  const char* subtitleText = "Select a footnote to read it";
+  int subtitleY = headerY + 30;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+
+  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+
+  if (totalItems == 0) {
+    const char* line1 = "No footnotes in this chapter";
+    const char* line2 = "Rebuild cache if the book was updated";
+    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int msgY = dividerY + 48;
+    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int x1 = tocDrawerX + (panelW - w1) / 2;
+    const int x2 = tocDrawerX + (panelW - w2) / 2;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    drawDrawerHintRow("« Back", "", "", "");
+    return;
+  }
+
+  const int pageStartIndex = (footnoteSelectedIndex / pageItems) * pageItems;
+  int drawY = dividerY + 2;
+
+  for (int i = 0; i < pageItems; i++) {
+    const int itemIndex = pageStartIndex + i;
+    if (itemIndex >= totalItems) {
+      break;
+    }
+
+    const int itemY = drawY + (i * LIST_ITEM_HEIGHT);
+    const bool isSelected = (itemIndex == footnoteSelectedIndex);
+    const auto& row = footnoteEntries[static_cast<size_t>(itemIndex)];
+
+    if (isSelected) {
+      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+    }
+
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int kIndent = tocDrawerX + 20;
+    const std::string truncated =
+        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
+                      true);
+  }
+
+  const int totalPages = (totalItems + pageItems - 1) / pageItems;
+  const int currentPageNum = (footnoteSelectedIndex / pageItems) + 1;
+  char pageStr[24];
+  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
+  constexpr int kFootnoteFooterAboveHints = 75;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kFootnoteFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+
+  drawDrawerHintRow("« Back", "Select", "", "");
+}
+
 /**
  * @brief Handles input when TOC is shown
  * @param input Reference to the input manager
@@ -536,6 +616,13 @@ void MenuDrawer::exitToc() {
 void MenuDrawer::exitBookmarks() {
   showingBookmarks = false;
   bookmarkSelectedIndex = 0;
+  selectedIndex = 0;
+  scrollOffset = 0;
+}
+
+void MenuDrawer::exitFootnotes() {
+  showingFootnotes = false;
+  footnoteSelectedIndex = 0;
   selectedIndex = 0;
   scrollOffset = 0;
 }
@@ -620,12 +707,74 @@ void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
   }
 }
 
+void MenuDrawer::handleFootnotesInput(const MappedInputManager& input) {
+  const int totalItems = static_cast<int>(footnoteEntries.size());
+  const int pageItems = getTocPageItems();
+  const bool skipPage = input.getHeldTime() > 700;
+
+  if (totalItems == 0) {
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      exitFootnotes();
+      lastInputTime = xTaskGetTickCount();
+      renderWithRefresh();
+    }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (footnoteSelectedIndex >= 0 && footnoteSelectedIndex < totalItems && footnoteSelectCallback) {
+      const int storageIndex = footnoteEntries[static_cast<size_t>(footnoteSelectedIndex)].storageIndex;
+      showingFootnotes = false;
+      visible = false;
+      footnoteSelectCallback(storageIndex);
+    }
+    lastInputTime = xTaskGetTickCount();
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitFootnotes();
+    lastInputTime = xTaskGetTickCount();
+    renderWithRefresh();
+    return;
+  }
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  if (readBookmarkLinePrev(input, renderer)) {
+    if (skipPage) {
+      footnoteSelectedIndex = (footnoteSelectedIndex < pageItems) ? 0 : footnoteSelectedIndex - pageItems;
+    } else {
+      footnoteSelectedIndex = (footnoteSelectedIndex + totalItems - 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  } else if (readBookmarkLineNext(input, renderer)) {
+    if (skipPage) {
+      footnoteSelectedIndex =
+          (footnoteSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : footnoteSelectedIndex + pageItems;
+    } else {
+      footnoteSelectedIndex = (footnoteSelectedIndex + 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  }
+}
+
 /**
  * @brief Handles input for the menu drawer
  * @param input Reference to the input manager
  */
 void MenuDrawer::handleInput(MappedInputManager& input) {
   if (!visible) return;
+
+  if (showingFootnotes) {
+    handleFootnotesInput(input);
+    return;
+  }
 
   if (showingBookmarks) {
     handleBookmarksInput(input);
@@ -674,6 +823,16 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
           }
         }
         showingBookmarks = true;
+        lastInputTime = xTaskGetTickCount();
+        renderWithRefresh();
+      } else if (menuItems[selectedIndex].action == MenuAction::SHOW_FOOTNOTES) {
+        if (footnoteListProvider) {
+          footnoteEntries = footnoteListProvider();
+        } else {
+          footnoteEntries.clear();
+        }
+        footnoteSelectedIndex = 0;
+        showingFootnotes = true;
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else {

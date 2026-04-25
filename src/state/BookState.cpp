@@ -145,6 +145,8 @@ bool BookState::saveToFile() const {
 bool BookState::loadFromFile() {
   FsFile inputFile;
   if (!SdMan.openFileForRead("BKS", BOOKS_FILE, inputFile)) {
+    books.clear();
+    nextId = 1;
     return false;
   }
 

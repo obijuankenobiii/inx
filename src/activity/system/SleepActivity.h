@@ -80,8 +80,9 @@ class SleepActivity final : public Activity {
   
   /**
    * @brief Renders a transparent overlay sleep screen.
-   * 
-   * Displays a semi-transparent image overlay on top of the current screen content.
+   *
+   * For the last-read EPUB, draws the saved reading page (progress) as the base layer, then the
+   * semi-transparent sleep BMP on top when configured. Non-EPUB books still use the cover bitmap as the base.
    */
   void renderTransparentSleepScreen() const;
   
