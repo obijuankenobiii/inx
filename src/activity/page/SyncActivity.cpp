@@ -13,6 +13,7 @@
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
+#include "images/Star.h"
 #include "state/SystemSetting.h"
 
 namespace {
@@ -40,8 +41,9 @@ class MutexGuard {
   bool isAcquired() const { return acquired; }
 };
 
-constexpr int MENU_ITEM_COUNT = 3;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
+constexpr int MENU_ITEM_COUNT = 4;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot",
+                                           "Bluetooth remote"};
 constexpr int LIST_ITEM_HEIGHT = 60;
 }  
 
@@ -116,12 +118,19 @@ void SyncActivity::loop() {
   }
 
   if (confirmPressed) {
-     NetworkMode mode = NetworkMode::JOIN_NETWORK;
+    if (selectedIndex == 3) {
+      if (onBleRemoteSetup) {
+        onBleRemoteSetup();
+      }
+      return;
+    }
+
+    NetworkMode mode = NetworkMode::JOIN_NETWORK;
 
     if (selectedIndex == 1) {
       mode = NetworkMode::CONNECT_CALIBRE;
-    }  
-    
+    }
+
     if (selectedIndex == 2) {
       mode = NetworkMode::CREATE_HOTSPOT;
     }
@@ -217,6 +226,9 @@ void SyncActivity::render() const {
           break;
         case 2:  
           renderer.drawIcon(Qr, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          break;
+        case 3:
+          renderer.drawIcon(Star, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       

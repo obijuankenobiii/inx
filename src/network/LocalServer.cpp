@@ -1149,7 +1149,9 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "longPressChapterSkip") == 0) {
-      SETTINGS.longPressChapterSkip = (uint8_t)value;
+      const int v = static_cast<int>(value);
+      SETTINGS.longPressChapterSkip =
+          (v < 0) ? 0 : (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? SystemSetting::LONG_PRESS_PAGE_SKIP_5 : (uint8_t)v);
       changed = true;
     }
     else if (strcmp(key, "readerShortPwrBtn") == 0) {

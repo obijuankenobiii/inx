@@ -251,6 +251,9 @@ bool SystemSetting::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, longPressChapterSkip);
+    if (longPressChapterSkip > LONG_PRESS_PAGE_SKIP_5) {
+      longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
+    }
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, hyphenationEnabled);

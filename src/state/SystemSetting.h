@@ -362,7 +362,11 @@ public:
     char opdsPassword[64] = "";                                 ///< OPDS password
     
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
-    uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
+    /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only. */
+    static constexpr uint8_t LONG_PRESS_OFF = 0;
+    static constexpr uint8_t LONG_PRESS_CHAPTER_SKIP = 1;
+    static constexpr uint8_t LONG_PRESS_PAGE_SKIP_5 = 2;
+    uint8_t longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
     /** Half refresh once after first paint on hub screens (ghosting cleanup). */
     uint8_t refreshOnLoadRecent = 0;

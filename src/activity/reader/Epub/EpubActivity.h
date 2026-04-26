@@ -14,6 +14,7 @@
 #include "MenuDrawer.h"
 #include "StatusBar.h"
 #include "activity/ActivityWithSubactivity.h"
+#include "state/BleRemoteStore.h"
 #include "state/BookSetting.h"
 #include "state/BookProgress.h"
 #include "SettingsDrawer.h"
@@ -116,6 +117,12 @@ private:
     BookReadingStats bookStats;
     uint32_t pageStartTime;
     uint32_t lastSaveTime;
+
+    void* bleHidClient_ = nullptr;
+    bool bleStackHeld_ = false;
+    bool blePaired_ = false;
+    uint8_t bleAddr_[6]{};
+    BleRemoteBindings bleBindings_{};
     
     void renderScreen();
     
@@ -289,6 +296,8 @@ private:
     void syncOrientationFromGlobalIfNeeded();
     /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
     void onBookSettingsLiveLayoutSync();
+    void bleReaderShutdown();
+    void onBleRemoteFromSettings();
     void ensureThumbnailExists();
     void displayCoverOrTitle();
     void loadCurrentSection();

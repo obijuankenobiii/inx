@@ -159,7 +159,7 @@ void XtcReaderActivity::loop() {
   }
 
   
-  const bool usePressForPageTurn = !SETTINGS.longPressChapterSkip;
+  const bool usePressForPageTurn = SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
   const bool prevTriggered = usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
                                                     mappedInput.wasPressed(MappedInputManager::Button::Left))
                                                  : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
@@ -190,8 +190,11 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool skipPages = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipPageMs;
-  const int skipAmount = skipPages ? 10 : 1;
+  const bool skipPages =
+      SETTINGS.longPressChapterSkip != SystemSetting::LONG_PRESS_OFF && mappedInput.getHeldTime() > skipPageMs;
+  const int skipAmount =
+      !skipPages ? 1
+                  : (SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? 5 : 10);
 
   if (prevTriggered) {
     endPageTimer();

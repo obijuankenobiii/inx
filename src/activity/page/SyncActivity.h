@@ -22,13 +22,15 @@ class SyncActivity final : public ActivityWithSubactivity, public Menu {
                const std::function<void(NetworkMode)>& onModeSelected,
                const std::function<void()>& onRecentOpen = nullptr,
                const std::function<void()>& onStatisticsOpen = nullptr,
-               const std::function<void()>& onSettingsOpen = nullptr)
+               const std::function<void()>& onSettingsOpen = nullptr,
+               const std::function<void()>& onBleRemoteSetup = nullptr)
       : ActivityWithSubactivity("Network Settings", renderer, mappedInput),
         Menu(),
         onModeSelected(onModeSelected),
         onRecentOpen(onRecentOpen),
         onStatisticsOpen(onStatisticsOpen),
-        onSettingsOpen(onSettingsOpen) {
+        onSettingsOpen(onSettingsOpen),
+        onBleRemoteSetup(onBleRemoteSetup) {
     tabSelectorIndex = 3;
   };
 
@@ -46,6 +48,7 @@ class SyncActivity final : public ActivityWithSubactivity, public Menu {
   const std::function<void()> onRecentOpen;
   const std::function<void()> onStatisticsOpen;
   const std::function<void()> onSettingsOpen;
+  const std::function<void()> onBleRemoteSetup;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();

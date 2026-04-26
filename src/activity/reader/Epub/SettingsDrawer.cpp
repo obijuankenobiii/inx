@@ -63,10 +63,12 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
  * @param settings Reference to book settings to modify
  * @param onSettingsChanged Callback triggered when settings are changed
  */
-SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, std::function<void()> onSettingsChanged)
+SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, std::function<void()> onSettingsChanged,
+                               std::function<void()> onBleRemoteRow)
     : renderer(renderer),
       settings(settings),
       onSettingsChanged(onSettingsChanged),
+      onBleRemoteRow_(std::move(onBleRemoteRow)),
       lastInputTime(0),
       settingsUpdated(false) {
   itemHeight = LIST_ITEM_HEIGHT;
@@ -429,12 +431,23 @@ void SettingsDrawer::setupMenu() {
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
     chapterEntry.group = GroupType::CONTROLS;
-    chapterEntry.name = "Long-press Chapter Skip";
+    chapterEntry.name = "Long press";
     chapterEntry.getValueText = [](const BookSettings& s) -> const char* {
-      return s.longPressChapterSkip ? "On" : "Off";
+      static const char* kLabels[] = {"Off", "Chapter skip", "Skip 5 pages"};
+      const unsigned idx = s.longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5
+                                 ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
+                                 : s.longPressChapterSkip;
+      return kLabels[idx];
     };
-    chapterEntry.change = [](BookSettings& s, int) {
-      s.longPressChapterSkip = !s.longPressChapterSkip;
+    chapterEntry.change = [](BookSettings& s, int delta) {
+      int v = static_cast<int>(s.longPressChapterSkip) + delta;
+      if (v < SystemSetting::LONG_PRESS_OFF) {
+        v = SystemSetting::LONG_PRESS_PAGE_SKIP_5;
+      }
+      if (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+        v = SystemSetting::LONG_PRESS_OFF;
+      }
+      s.longPressChapterSkip = static_cast<uint8_t>(v);
       s.useCustomSettings = true;
     };
     menuItems.push_back(chapterEntry);
@@ -521,6 +534,16 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(statusRightEntry);
+  }
+
+  if (onBleRemoteRow_) {
+    MenuEntry bleEntry;
+    bleEntry.item = MenuItem::BleRemoteRow;
+    bleEntry.group = GroupType::CONTROLS;
+    bleEntry.name = "Bluetooth remote";
+    bleEntry.getValueText = [](const BookSettings&) -> const char* { return "Connect"; };
+    bleEntry.change = [](BookSettings&, int) {};
+    menuItems.push_back(bleEntry);
   }
 }
 
@@ -649,7 +672,10 @@ void SettingsDrawer::drawMenuItems() {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
     const int valueColumnRight = drawerX + drawerWidth - 24;
-    if (entry.item == MenuItem::FontFamily) {
+    if (entry.item == MenuItem::BleRemoteRow) {
+      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "\xC2\xBB",
+                        isSelected ? 0 : 1);
+    } else if (entry.item == MenuItem::FontFamily) {
       const char* val = entry.getValueText(settings);
       if (val && val[0] != '\0') {
         ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
@@ -689,8 +715,7 @@ void SettingsDrawer::drawMenuItems() {
           checked = settings.textAntiAliasing != 0;
           break;
         case MenuItem::ChapterSkip:
-          checkbox = true;
-          checked = settings.longPressChapterSkip != 0;
+          checkbox = false;
           break;
         default:
           break;
@@ -798,6 +823,9 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
         needRedraw = true;
+      } else if (selected.item == MenuItem::BleRemoteRow && onBleRemoteRow_) {
+        onBleRemoteRow_();
+        needRedraw = true;
       }
     }
   }
@@ -847,6 +875,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::NavigationLock:
     case MenuItem::Separator:
     case MenuItem::StatusBarSeparator:
+    case MenuItem::BleRemoteRow:
       break;
   }
 

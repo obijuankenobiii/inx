@@ -23,6 +23,8 @@
 #include "KOReaderSyncActivity.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
+#include "state/BleRemoteStore.h"
+#include "state/SystemSetting.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "state/ImageBitmapGrayMaps.h"
@@ -33,6 +35,7 @@
 #include "state/Statistics.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
+#include "system/BleHidRemote.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
@@ -248,6 +251,53 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
 void EpubActivity::readerPopup(const char* message) {
   dismissMenuDrawerForBlockingWork(false);
   ScreenComponents::drawPopup(renderer, message);
+}
+
+void EpubActivity::bleReaderShutdown() {
+  if (bleHidClient_) {
+    bleRemoteDisconnectClient(bleHidClient_);
+    bleHidClient_ = nullptr;
+  }
+  if (bleStackHeld_) {
+    bleRemoteStackRelease();
+    bleStackHeld_ = false;
+  }
+}
+
+void EpubActivity::onBleRemoteFromSettings() {
+  if (!bleRemoteHasSaved()) {
+    readerPopup("No device");
+    return;
+  }
+  uint8_t addr[6]{};
+  BleRemoteBindings b{};
+  if (!bleRemoteLoad(addr, b) || b.nextLen == 0 || b.prevLen == 0) {
+    readerPopup("No device");
+    return;
+  }
+  memcpy(bleAddr_, addr, 6);
+  bleBindings_ = b;
+  blePaired_ = false;
+  bleReaderShutdown();
+  if (!bleRemoteStackAcquire()) {
+    readerPopup("Bluetooth init failed");
+    return;
+  }
+  bleStackHeld_ = true;
+  std::string mac;
+  if (!bleRemoteAddrBytesToAscii(bleAddr_, mac)) {
+    readerPopup("Bad address");
+    bleReaderShutdown();
+    return;
+  }
+  std::string err;
+  bleHidClient_ = bleRemoteConnectHid(mac, BleRemoteReportHandler{}, err);
+  if (!bleHidClient_) {
+    readerPopup("Connect failed");
+    bleReaderShutdown();
+    return;
+  }
+  blePaired_ = true;
 }
 
 void EpubActivity::handleChapterLoadFailure() {
@@ -655,6 +705,11 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
+  bleReaderShutdown();
+  blePaired_ = false;
+  memset(bleAddr_, 0, sizeof(bleAddr_));
+  bleBindings_ = {};
+
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;
@@ -803,34 +858,66 @@ void EpubActivity::loop() {
     }
   }
 
-  const bool skipChapter =
-      (bookSettings.longPressChapterSkip != 0) && (mappedInput.getHeldTime() >= skipChapterMs);
-
-  if (skipChapter && (prev || next)) {
-    endPageTimer();
-
-    bool spineAdvanced = false;
-    if (next) {
-      if (currentSpineIndex < epub->getSpineItemsCount() - 1) {
-        currentSpineIndex++;
-        nextPageNumber = 0;
-        section.reset();
-        spineAdvanced = true;
-      }
-    } else if (prev) {
-      if (currentSpineIndex > 0) {
-        currentSpineIndex--;
-        nextPageNumber = 0;
-        section.reset();
-        spineAdvanced = true;
+  if (blePaired_ && bleHidClient_) {
+    uint8_t rbuf[16]{};
+    size_t rlen = 0;
+    while (bleRemotePopReport(rbuf, rlen)) {
+      bool blePrev = false;
+      bool bleNext = false;
+      bleRemoteMatchReport(rbuf, rlen, bleBindings_, blePrev, bleNext);
+      if (bleNext) {
+        next = true;
+      } else if (blePrev) {
+        prev = true;
       }
     }
+  }
 
-    if (spineAdvanced) {
+  const uint8_t longPressMode = bookSettings.longPressChapterSkip;
+  const bool longPressActive =
+      (longPressMode != SystemSetting::LONG_PRESS_OFF) && (mappedInput.getHeldTime() >= skipChapterMs);
+
+  if (longPressActive && (prev || next)) {
+    endPageTimer();
+
+    if (longPressMode == SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+      for (int i = 0; i < 5; ++i) {
+        if (next) {
+          pageTurn(true);
+        } else {
+          pageTurn(false);
+        }
+      }
       startPageTimer();
       lastAutoPageTurnTime = millis();
       updateRequired = true;
       return;
+    }
+
+    if (longPressMode == SystemSetting::LONG_PRESS_CHAPTER_SKIP) {
+      bool spineAdvanced = false;
+      if (next) {
+        if (currentSpineIndex < epub->getSpineItemsCount() - 1) {
+          currentSpineIndex++;
+          nextPageNumber = 0;
+          section.reset();
+          spineAdvanced = true;
+        }
+      } else if (prev) {
+        if (currentSpineIndex > 0) {
+          currentSpineIndex--;
+          nextPageNumber = 0;
+          section.reset();
+          spineAdvanced = true;
+        }
+      }
+
+      if (spineAdvanced) {
+        startPageTimer();
+        lastAutoPageTurnTime = millis();
+        updateRequired = true;
+        return;
+      }
     }
   }
 
@@ -1095,7 +1182,8 @@ void EpubActivity::toggleMenuDrawer() {
  */
 void EpubActivity::toggleSettingsDrawer() {
   if (!settingsDrawer) {
-    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
+    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); },
+                                        [this]() { onBleRemoteFromSettings(); });
   }
 
   settingsDrawerVisible = !settingsDrawerVisible;
@@ -1174,7 +1262,7 @@ void EpubActivity::deleteProgress() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  int newSpineIndex = epub->getSpineIndexForInitialOpen();
+  int newSpineIndex = 1;
 
   if (currentSpine != newSpineIndex || currentPage != 0) {
     currentSpineIndex = newSpineIndex;

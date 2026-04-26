@@ -782,7 +782,7 @@ void RecentActivity::renderList(int startY) {
   const int contentBottom = screenH - kHintReserve;
   const int contentH = std::max(1, contentBottom - startY);
   const int rowH = std::max(56, contentH / LIST_VISIBLE_ITEMS);
-  constexpr int padX = 10;
+  constexpr int padX = 30;
   const int thumbH = std::max(48, rowH - 10);
   const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
 
@@ -796,7 +796,7 @@ void RecentActivity::renderList(int startY) {
     const bool selected = (selectorIndex == bi);
 
     if (selected) {
-      renderer.drawRect(padX - 3, y + 1, screenW - 2 * (padX - 3), rowH - 2, true, false);
+      renderer.drawRect(padX / 2, y + 1, screenW - padX, rowH, true, true);
     }
 
     const int ty = y + (rowH - thumbH) / 2;
@@ -809,15 +809,15 @@ void RecentActivity::renderList(int startY) {
     const int textRight = screenW - padX;
     const int textW = std::max(40, textRight - textX);
 
-    const int fontTitle = LITERATA_14_FONT_ID;
+    const int fontTitle = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
     const int fontAuthor = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
     const int lhT = renderer.getLineHeight(fontTitle);
     const int lhA = renderer.getLineHeight(fontAuthor);
-    const int tyT = y + 8;
+    const int tyT = y + 20;
     const std::string dispTitle = bookDisplayTitle(book);
     const std::string titleLine =
-        renderer.truncatedText(fontTitle, dispTitle.c_str(), textW, EpdFontFamily::ITALIC);
-    renderer.drawText(fontTitle, textX, tyT, titleLine.c_str(), true, EpdFontFamily::ITALIC);
+        renderer.truncatedText(fontTitle, dispTitle.c_str(), textW, EpdFontFamily::REGULAR);
+    renderer.drawText(fontTitle, textX, tyT, titleLine.c_str(), true, EpdFontFamily::REGULAR);
     int lastTextBottom = tyT + lhT;
     int tyA = tyT + lhT + 4;
     if (!book.author.empty()) {
@@ -835,7 +835,7 @@ void RecentActivity::renderList(int startY) {
     const int fontPct = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
     const int pctW = renderer.getTextWidth(fontPct, pctBuf);
     constexpr int barH = 8;
-    int barY = lastTextBottom + 8;
+    int barY = lastTextBottom + 20;
     barY = std::max(barY, tyT + lhT + 4);
     barY = std::min(barY, y + rowH - barH - 4);
     if (barY < tyT + lhT) {
@@ -868,7 +868,7 @@ void RecentActivity::pumpDisplayFromLoop() {
   } else if (currentViewMode == ViewMode::SimpleUi) {
     renderSimpleUi();
   } else if (currentViewMode == ViewMode::List) {
-    renderList(TAB_BAR_HEIGHT);
+    renderList(TAB_BAR_HEIGHT + 15);
   } else {
     renderFlow();
   }
