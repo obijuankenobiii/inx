@@ -1,16 +1,38 @@
 /**
  * @file BleHidRemote.cpp
  * @brief BLE HID central: scan, connect, subscribe to HID reports (NimBLE).
+ *
+ * Set INX_BLE_REMOTE=0 and use PlatformIO env `no_ble_remote` (lib_ignore NimBLE-Arduino)
+ * for firmware with no Bluetooth stack in RAM/flash. Default is INX_BLE_REMOTE=1.
  */
 
 #include "BleHidRemote.h"
 
-#include <NimBLEDevice.h>
+#ifndef INX_BLE_REMOTE
+#define INX_BLE_REMOTE 1
+#endif
 
 #include <cstring>
-#include <unordered_set>
 
+#if INX_BLE_REMOTE
+#include <NimBLEDevice.h>
+#endif
+
+#if defined(ARDUINO_ARCH_ESP32)
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#if INX_BLE_REMOTE
+#include <esp_heap_caps.h>
+#endif
+#endif
+
+#if INX_BLE_REMOTE
+#include <unordered_set>
+#endif
+
+#if INX_BLE_REMOTE
 static int g_stackUsers = 0;
+#endif
 
 static portMUX_TYPE g_reportMux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t g_reportBuf[16]{};
@@ -54,6 +76,37 @@ static bool reportMatchesPrefix(const uint8_t* data, size_t len, const uint8_t* 
   return memcmp(data, pat, patLen) == 0;
 }
 
+void bleRemoteMatchReport(const uint8_t* data, const size_t len, const BleRemoteBindings& bindings, bool& outPrev,
+                          bool& outNext) {
+  outPrev = false;
+  outNext = false;
+  if (bindings.nextLen > 0 && reportMatchesPrefix(data, len, bindings.nextPat, bindings.nextLen)) {
+    outNext = true;
+  } else if (bindings.prevLen > 0 && reportMatchesPrefix(data, len, bindings.prevPat, bindings.prevLen)) {
+    outPrev = true;
+  }
+}
+
+#if !INX_BLE_REMOTE
+
+bool bleRemoteStackAcquire() { return false; }
+
+void bleRemoteStackRelease() {}
+
+bool bleRemoteScanForDevices(const uint32_t /*durationMs*/, std::vector<BleScannedRow>& out) {
+  out.clear();
+  return false;
+}
+
+void* bleRemoteConnectHid(const std::string&, const BleRemoteReportHandler&, std::string& errMsg) {
+  errMsg = "Bluetooth remote not in this build (use default env for BLE)";
+  return nullptr;
+}
+
+void bleRemoteDisconnectClient(void* /*clientOpaque*/) {}
+
+#else
+
 static bool subscribeHidNotifications(NimBLEClient* client, const BleRemoteReportHandler& onReport, std::string& err) {
   if (!client->discoverAttributes()) {
     err = "Discover failed";
@@ -86,14 +139,26 @@ static bool subscribeHidNotifications(NimBLEClient* client, const BleRemoteRepor
 }
 
 bool bleRemoteStackAcquire() {
-  if (g_stackUsers++ == 0) {
-    if (!NimBLEDevice::init("InxBLE")) {
-      g_stackUsers = 0;
-      return false;
-    }
-    NimBLEDevice::setPower(3);
-    NimBLEDevice::setSecurityAuth(true, false, true);
+  if (g_stackUsers > 0) {
+    ++g_stackUsers;
+    return true;
   }
+
+#if defined(ARDUINO_ARCH_ESP32)
+  const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t free8 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (largest < (28 * 1024) || free8 < (70 * 1024)) {
+    return false;
+  }
+  vTaskDelay(pdMS_TO_TICKS(20));
+#endif
+
+  if (!NimBLEDevice::init("InxBLE")) {
+    return false;
+  }
+  NimBLEDevice::setPower(3);
+  NimBLEDevice::setSecurityAuth(false, false, false);
+  g_stackUsers = 1;
   return true;
 }
 
@@ -170,14 +235,4 @@ void bleRemoteDisconnectClient(void* clientOpaque) {
   NimBLEDevice::deleteClient(c);
 }
 
-void bleRemoteMatchReport(const uint8_t* data, const size_t len, const BleRemoteBindings& bindings, bool& outPrev,
-                          bool& outNext) {
-  outPrev = false;
-  outNext = false;
-  // Prefer "next" when both patterns match (shared HID prefix); otherwise prev wins in the reader loop.
-  if (bindings.nextLen > 0 && reportMatchesPrefix(data, len, bindings.nextPat, bindings.nextLen)) {
-    outNext = true;
-  } else if (bindings.prevLen > 0 && reportMatchesPrefix(data, len, bindings.prevPat, bindings.prevLen)) {
-    outPrev = true;
-  }
-}
+#endif

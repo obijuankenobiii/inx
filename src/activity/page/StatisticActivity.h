@@ -5,10 +5,6 @@
  * @brief Public interface and types for StatisticActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 #include <string>
 #include <utility>
@@ -29,9 +25,6 @@ class Bitmap;
  */
 class StatisticActivity final : public Activity, public Menu {
 private:
-    TaskHandle_t displayTaskHandle = nullptr;
-    SemaphoreHandle_t renderingMutex = nullptr;
-
     /** 0 = aggregated global overview; 1..N = one book (index N-1 in allBooksStats). */
     int viewIndex = 0;
     bool updateRequired = false;
@@ -60,19 +53,6 @@ private:
     std::pair<int, int> drawGlobalRecentThumbBlock(int x, int y, const std::string& bookPath,
                                                    const std::string& title) const;
 
-    /**
-     * Static task trampoline for the display update task.
-     */
-    static void taskTrampoline(void* param);
-
-    /**
-     * Background task loop that handles display updates.
-     */
-    void displayTaskLoop();
-
-    /**
-     * Renders the complete statistics view.
-     */
     void render();
 
     void renderSingleBookView(int bookIdx, int contentTop, int contentBottom) const;

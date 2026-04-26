@@ -23,27 +23,6 @@
 #include "system/ScreenComponents.h"
 namespace {
 
-class MutexGuard {
- private:
-  SemaphoreHandle_t& mutex;
-  bool acquired;
-
- public:
-  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-    if (mutex) {
-      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
-    }
-  }
-
-  ~MutexGuard() {
-    if (acquired && mutex) {
-      xSemaphoreGive(mutex);
-    }
-  }
-
-  bool isAcquired() const { return acquired; }
-};
-
 /** Scale/crop so the bitmap fills [x,y,w,h] without letterboxing (matches Recent thumbnails). */
 void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int y, int w, int h) {
   if (w <= 0 || h <= 0) {
@@ -448,21 +427,6 @@ int drawFourColumnStats2x2(const GfxRenderer& renderer, int innerLeft, int y, in
   return drawFourColumnStatsNx2(renderer, innerLeft, y, innerW, vals, labs, 2, cellH, row0LiftPx, 0);
 }
 
-}  
-
-void StatisticActivity::taskTrampoline(void* param) { static_cast<StatisticActivity*>(param)->displayTaskLoop(); }
-
-void StatisticActivity::displayTaskLoop() {
-  while (true) {
-    {
-      MutexGuard guard(renderingMutex);
-      if (guard.isAcquired() && updateRequired) {
-        updateRequired = false;
-        render();
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
 }
 
 void StatisticActivity::loadStats() {
@@ -621,31 +585,14 @@ void StatisticActivity::onEnter() {
   hydrateFromStorage();
   viewIndex = 0;
 
-  renderingMutex = xSemaphoreCreateMutex();
-  if (!renderingMutex) return;
-
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   render();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Statistics);
-
-  if (displayTaskHandle == nullptr) {
-    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
-  }
 }
 
 void StatisticActivity::onExit() {
   Activity::onExit();
-
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
 
   allBooksStats.clear();
   allBooksStats.shrink_to_fit();
@@ -893,6 +840,11 @@ void StatisticActivity::render() {
 }
 
 void StatisticActivity::loop() {
+  if (tabSelectorIndex == 4 && updateRequired) {
+    updateRequired = false;
+    render();
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);

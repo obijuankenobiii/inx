@@ -28,7 +28,6 @@
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "state/ImageBitmapGrayMaps.h"
-#include "state/SystemSetting.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
@@ -265,39 +264,79 @@ void EpubActivity::bleReaderShutdown() {
 }
 
 void EpubActivity::onBleRemoteFromSettings() {
+  saveBookSettings();
+  if (settingsDrawer) {
+    settingsDrawer->hide();
+  }
+  settingsDrawerVisible = false;
+  isToggleClosed = true;
+  updateRequired = true;
+
+  auto paintReaderThenDisplay = [this]() {
+    renderScreen();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  };
+
   if (!bleRemoteHasSaved()) {
+    paintReaderThenDisplay();
     readerPopup("No device");
     return;
   }
   uint8_t addr[6]{};
   BleRemoteBindings b{};
   if (!bleRemoteLoad(addr, b) || b.nextLen == 0 || b.prevLen == 0) {
+    paintReaderThenDisplay();
     readerPopup("No device");
     return;
   }
   memcpy(bleAddr_, addr, 6);
   bleBindings_ = b;
   blePaired_ = false;
-  bleReaderShutdown();
-  if (!bleRemoteStackAcquire()) {
-    readerPopup("Bluetooth init failed");
-    return;
+
+  const ViewportInfo vp = calculateViewport();
+
+  paintReaderThenDisplay();
+  ScreenComponents::drawPopup(renderer, "Connecting bt device...");
+
+  if (bleHidClient_) {
+    bleRemoteDisconnectClient(bleHidClient_);
+    bleHidClient_ = nullptr;
   }
-  bleStackHeld_ = true;
-  std::string mac;
-  if (!bleRemoteAddrBytesToAscii(bleAddr_, mac)) {
-    readerPopup("Bad address");
-    bleReaderShutdown();
-    return;
-  }
-  std::string err;
-  bleHidClient_ = bleRemoteConnectHid(mac, BleRemoteReportHandler{}, err);
-  if (!bleHidClient_) {
-    readerPopup("Connect failed");
-    bleReaderShutdown();
+
+  bool connectOk = false;
+  std::string failMsg;
+  FontManager::withSdFontsReleasedForHeapIntensiveWork(vp.fontId, [&]() {
+    if (!bleStackHeld_) {
+      if (!bleRemoteStackAcquire()) {
+        failMsg = "Bluetooth init failed (low memory)";
+        return;
+      }
+      bleStackHeld_ = true;
+    }
+    std::string mac;
+    if (!bleRemoteAddrBytesToAscii(bleAddr_, mac)) {
+      failMsg = "Bad address";
+      return;
+    }
+    esp_task_wdt_reset();
+    std::string err;
+    bleHidClient_ = bleRemoteConnectHid(mac, BleRemoteReportHandler{}, err);
+    esp_task_wdt_reset();
+    connectOk = (bleHidClient_ != nullptr);
+    if (!connectOk) {
+      failMsg = err.empty() ? "Connect failed" : err;
+    }
+  });
+  FontManager::ensureReaderLayoutFonts(vp.fontId, renderer);
+
+  if (!connectOk) {
+    paintReaderThenDisplay();
+    const char* msg = failMsg.empty() ? "Connect failed" : failMsg.c_str();
+    readerPopup(failMsg.size() > 80 ? "Connect failed" : msg);
     return;
   }
   blePaired_ = true;
+  paintReaderThenDisplay();
 }
 
 void EpubActivity::handleChapterLoadFailure() {

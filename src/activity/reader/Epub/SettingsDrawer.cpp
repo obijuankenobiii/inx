@@ -602,6 +602,9 @@ void SettingsDrawer::render() {
  * @param mode Display refresh mode to use
  */
 void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
+  if (!visible) {
+    return;
+  }
   syncLayoutFromRenderer();
   drawBackground();
   drawMenuItems();
@@ -825,7 +828,8 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
         needRedraw = true;
       } else if (selected.item == MenuItem::BleRemoteRow && onBleRemoteRow_) {
         onBleRemoteRow_();
-        needRedraw = true;
+        hide();
+        needRedraw = false;
       }
     }
   }

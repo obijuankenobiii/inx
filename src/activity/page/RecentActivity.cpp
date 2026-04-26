@@ -786,17 +786,15 @@ void RecentActivity::renderList(int startY) {
   const int thumbH = std::max(48, rowH - 10);
   const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
 
-  for (int slot = 0; slot < LIST_VISIBLE_ITEMS; ++slot) {
+  const int visibleCount = std::min(LIST_VISIBLE_ITEMS, totalBooks - scrollOffset);
+  for (int slot = 0; slot < visibleCount; ++slot) {
     const int bi = scrollOffset + slot;
-    if (bi >= totalBooks) {
-      break;
-    }
     const int y = startY + slot * rowH;
     const RecentBook& book = recentBooks[static_cast<size_t>(bi)];
     const bool selected = (selectorIndex == bi);
 
     if (selected) {
-      renderer.drawRect(padX / 2, y + 1, screenW - padX, rowH, true, true);
+      renderer.drawRect(padX / 2, y + 1, screenW - padX, rowH, true, false);
     }
 
     const int ty = y + (rowH - thumbH) / 2;
@@ -851,6 +849,16 @@ void RecentActivity::renderList(int startY) {
       renderer.fillRect(barX, barY, fillW, barH, true);
     }
     renderer.drawText(fontPct, barX + barW + 6, barY - 1, pctBuf, false);
+
+    const bool isLastVisibleRow = (slot == visibleCount - 1);
+    if (!isLastVisibleRow) {
+      const int lineY = y + rowH - 1;
+      const int x0 = padX / 2;
+      const int x1 = screenW - padX / 2;
+      for (int px = x0; px < x1; px += 3) {
+        renderer.drawPixel(px, lineY, true);
+      }
+    }
   }
 }
 

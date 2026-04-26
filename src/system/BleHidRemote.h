@@ -13,7 +13,10 @@ struct BleScannedRow {
   std::string addrHex;
 };
 
-/** NimBLE init refcount; call Release when leaving reader or setup. */
+/**
+ * NimBLE init refcount; call Release when leaving reader or setup.
+ * For zero BLE RAM/flash use PlatformIO env `no_ble_remote` (INX_BLE_REMOTE=0, NimBLE not linked).
+ */
 bool bleRemoteStackAcquire();
 void bleRemoteStackRelease();
 

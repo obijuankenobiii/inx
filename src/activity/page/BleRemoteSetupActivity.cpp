@@ -12,6 +12,8 @@
 
 #include <GfxRenderer.h>
 
+#include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -114,7 +116,7 @@ void BleRemoteSetupActivity::onEnter() {
   statusLine_[0] = '\0';
 
   if (!bleRemoteStackAcquire()) {
-    setStatus("Bluetooth init failed");
+    setStatus("Bluetooth init failed (low memory?)");
   }
   render();
 }
@@ -197,12 +199,16 @@ void BleRemoteSetupActivity::render() const {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 16, y, "Press the button you use for", true);
     y += 22;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 16, y, "NEXT page on the remote.", true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 16, sh - 52,
+                      "Bluetooth can be slow - wait a few seconds after tapping.", true);
   } else if (phase_ == Phase::LearnPrev) {
     renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 16, y, "Map: previous page", true, EpdFontFamily::BOLD);
     y += 36;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 16, y, "Press the button you use for", true);
     y += 22;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 16, y, "PREVIOUS page (different key).", true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 16, sh - 52,
+                      "Bluetooth can be slow - wait a few seconds after tapping.", true);
   }
 
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "", "Select", "", "Back");
@@ -239,10 +245,11 @@ void BleRemoteSetupActivity::loop() {
     }
     if (ok) {
       if (menuIndex_ == 0) {
-        setStatus("Scanning...");
+        setStatus("Scanning... (Bluetooth can take a few seconds)");
         render();
         scanRows_.clear();
-        bleRemoteScanForDevices(3000, scanRows_);
+        FontManager::withSdFontsReleasedForHeapIntensiveWork(SystemSetting::getInstance().getReaderFontId(),
+                                                            [&]() { bleRemoteScanForDevices(3000, scanRows_); });
         if (scanRows_.empty()) {
           setStatus("No devices found");
           phase_ = Phase::MainMenu;

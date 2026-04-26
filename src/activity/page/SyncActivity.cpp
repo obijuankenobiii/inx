@@ -13,67 +13,26 @@
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
-#include "images/Star.h"
+#include "images/Sync.h"
 #include "state/SystemSetting.h"
 
 namespace {
-/**
- * Thread-safe mutex operations wrapper
- */
-class MutexGuard {
- private:
-  SemaphoreHandle_t& mutex;
-  bool acquired;
-
- public:
-  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-    if (mutex) {
-      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
-    }
-  }
-
-  ~MutexGuard() {
-    if (acquired && mutex) {
-      xSemaphoreGive(mutex);
-    }
-  }
-
-  bool isAcquired() const { return acquired; }
-};
-
 constexpr int MENU_ITEM_COUNT = 4;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot",
                                            "Bluetooth remote"};
 constexpr int LIST_ITEM_HEIGHT = 60;
-}  
-
-/**
- * Static task trampoline that forwards to the displayTaskLoop member function.
- */
-void SyncActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<SyncActivity*>(param);
-  self->displayTaskLoop();
 }
 
 /**
  * Lifecycle hook called when entering the activity.
- * Initializes rendering resources and starts the display task.
  */
 void SyncActivity::onEnter() {
   Activity::onEnter();
 
-  renderingMutex = xSemaphoreCreateMutex();
-  if (!renderingMutex) return;
-
   selectedIndex = 0;
 
-  
   render();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Sync);
-
-  if (displayTaskHandle == nullptr) {
-    xTaskCreate(&SyncActivity::taskTrampoline, "SyncTask", 16384, this, 1, &displayTaskHandle);
-  }
 }
 
 /**
@@ -81,6 +40,11 @@ void SyncActivity::onEnter() {
  * Processes button presses for menu navigation and tab switching.
  */
 void SyncActivity::loop() {
+  if (tabSelectorIndex == 3 && updateRequired) {
+    updateRequired = false;
+    render();
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -92,11 +56,9 @@ void SyncActivity::loop() {
   const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-    if (renderingMutex != nullptr && mappedInput.getHeldTime() >= 300) {
-      if (xSemaphoreTake(renderingMutex, portMAX_DELAY) == pdTRUE) {
-        vTaskDelay(pdMS_TO_TICKS(300));
-        onRecentOpen();
-      }
+    if (mappedInput.getHeldTime() >= 300 && onRecentOpen) {
+      vTaskDelay(pdMS_TO_TICKS(300));
+      onRecentOpen();
     }
     return;
   }
@@ -159,26 +121,6 @@ void SyncActivity::loop() {
 }
 
 /**
- * Background task loop that periodically checks if a display update is required.
- * Renders the display when updateRequired is true.
- */
-void SyncActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired) {
-      MutexGuard guard(renderingMutex);
-      if (guard.isAcquired()) {
-        updateRequired = false;
-        render();
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
-}
-
-/**
- * Renders the complete sync activity view including menu items and tab bar.
- */
-/**
  * Renders the complete sync activity view including menu items and tab bar.
  */
 void SyncActivity::render() const {
@@ -228,7 +170,7 @@ void SyncActivity::render() const {
           renderer.drawIcon(Qr, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
         case 3:
-          renderer.drawIcon(Star, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.drawIcon(Sync, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       
@@ -246,20 +188,6 @@ void SyncActivity::render() const {
   renderer.displayBuffer();
 }
 
-/**
- * Lifecycle hook called when exiting the activity.
- * Cleans up rendering resources and stops the display task.
- */
 void SyncActivity::onExit() {
   Activity::onExit();
-
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
 }
