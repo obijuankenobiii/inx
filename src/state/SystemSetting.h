@@ -400,7 +400,7 @@ public:
     uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
     /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
     uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
-    /** When set, hub thumbnails pass `roundedCornerClip` to `GfxRenderer::drawBitmap` (mask in renderer, not per screen). */
+    /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats: paper). */
     uint8_t bitmapRoundedCorners = 0;
 
     ~SystemSetting() = default;

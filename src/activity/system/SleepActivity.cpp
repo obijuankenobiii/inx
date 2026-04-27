@@ -106,6 +106,58 @@ void applyBookOrientationToRenderer(GfxRenderer& r, const uint8_t orientationByt
   }
 }
 
+/**
+ * Pixel span of `GfxRenderer::drawBitmap` / `drawBitmap1Bit` for the given bounds and crop (must stay in sync
+ * with GfxRenderer.cpp) so sleep can center the painted image on the panel.
+ */
+void sleepBitmapDrawnExtent(const Bitmap& bitmap, const int maxW, const int maxH, const float cropX, const float cropY,
+                            int* drawnW, int* drawnH) {
+  constexpr float kScaleEps = 1e-5f;
+  constexpr float kHuge = 1e9f;
+  if (bitmap.is1Bit() && cropX == 0.f && cropY == 0.f) {
+    const int bw = bitmap.getWidth();
+    const int bh = bitmap.getHeight();
+    float scale = 1.f;
+    const bool hasW = maxW > 0;
+    const bool hasH = maxH > 0;
+    if (hasW || hasH) {
+      const float fitW = hasW ? static_cast<float>(maxW) / static_cast<float>(bw) : kHuge;
+      const float fitH = hasH ? static_cast<float>(maxH) / static_cast<float>(bh) : kHuge;
+      const float fitScale = (hasW && hasH) ? std::min(fitW, fitH) : (hasW ? fitW : fitH);
+      if (std::abs(fitScale - 1.0f) > kScaleEps) {
+        scale = fitScale;
+      }
+    }
+    *drawnW = std::max(0, static_cast<int>(std::floor(static_cast<float>(bw) * scale)));
+    *drawnH = std::max(0, static_cast<int>(std::floor(static_cast<float>(bh) * scale)));
+    return;
+  }
+
+  const int cropPixX = static_cast<int>(std::floor(bitmap.getWidth() * cropX / 2.0f));
+  const int cropPixY = static_cast<int>(std::floor(bitmap.getHeight() * cropY / 2.0f));
+  const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
+  const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
+  bool hasTargetBounds = false;
+  float fitScale = 1.0f;
+  if (maxW > 0 && croppedWidth > 0.0f) {
+    fitScale = static_cast<float>(maxW) / croppedWidth;
+    hasTargetBounds = true;
+  }
+  if (maxH > 0 && croppedHeight > 0.0f) {
+    const float heightScale = static_cast<float>(maxH) / croppedHeight;
+    fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
+    hasTargetBounds = true;
+  }
+  float scale = 1.0f;
+  if (hasTargetBounds && std::abs(fitScale - 1.0f) > kScaleEps) {
+    scale = fitScale;
+  }
+  const int contentW = bitmap.getWidth() - 2 * cropPixX;
+  const int contentH = bitmap.getHeight() - 2 * cropPixY;
+  *drawnW = std::max(0, static_cast<int>(std::floor(static_cast<float>(contentW) * scale)));
+  *drawnH = std::max(0, static_cast<int>(std::floor(static_cast<float>(contentH) * scale)));
+}
+
 void applyLastReadBookOrientationToRenderer(GfxRenderer& r, const std::string& lastReadPath) {
   if (lastReadPath.empty()) {
     applyBookOrientationToRenderer(r, SETTINGS.orientation);
@@ -465,8 +517,9 @@ void SleepActivity::renderCoverSleepScreen() const {
 /**
  * @brief Renders a bitmap image as the sleep screen with proper positioning.
  * 
- * Fill: scale to screen width × height with aspect crop (same idea as Recent thumbnails).
- * EPUB + Crop: uses pre-generated cropped cover bitmap — draw full screen, no extra crop math.
+ * Fill: scale to screen with aspect crop (same idea as Recent thumbnails), then center the painted
+ * rectangle horizontally and vertically (covers rounding and “contain” edge cases).
+ * EPUB + Crop: pre-cropped asset uses crop 0; still centered if the scaled output is smaller than the panel.
  */
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preCroppedEpubCover) const {
   BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
@@ -474,14 +527,11 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
   float cropY = 0.0f;
-  int x = (pageWidth - bitmap.getWidth()) / 2;
-  int y = (pageHeight - bitmap.getHeight()) / 2;
 
-  if (SETTINGS.sleepScreenCoverMode != SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
+  if (!preCroppedEpubCover &&
+      SETTINGS.sleepScreenCoverMode != SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
     const float iw = static_cast<float>(bitmap.getWidth());
     const float ih = static_cast<float>(bitmap.getHeight());
-    x = 0;
-    y = 0;
     if (iw > 0.f && ih > 0.f) {
       const float ir = iw / ih;
       const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
@@ -492,6 +542,12 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
       }
     }
   }
+
+  int drawnW = 0;
+  int drawnH = 0;
+  sleepBitmapDrawnExtent(bitmap, pageWidth, pageHeight, cropX, cropY, &drawnW, &drawnH);
+  const int x = (pageWidth - drawnW) / 2;
+  const int y = (pageHeight - drawnH) / 2;
 
   renderer.clearScreen();
 

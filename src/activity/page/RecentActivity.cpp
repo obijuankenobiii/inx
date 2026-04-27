@@ -79,10 +79,13 @@ static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, in
   if (w <= 1 || h <= 1) {
     return;
   }
-  renderer.fillRect(x, y, w, h, false);
-  renderer.drawRect(x, y, w, h, true, false);
-  if (w > 6 && h > 6) {
-    renderer.drawRect(x + 2, y + 2, w - 4, h - 4, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(x, y, w, h, false, rr);
+  if (!rr) {
+    renderer.drawRect(x, y, w, h, true, false);
+    if (w > 6 && h > 6) {
+      renderer.drawRect(x + 2, y + 2, w - 4, h - 4, true, false);
+    }
   }
 
   std::vector<std::string> words;
@@ -274,7 +277,9 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
         cropY = 1.0f - (ir / tr);
       }
     }
-    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, SETTINGS.bitmapRoundedCorners != 0);
+    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
+                        SETTINGS.bitmapRoundedCorners != 0 ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
+                                                           : GfxRenderer::BitmapRoundedCornerOutside::None);
   }
   file.close();
 }
@@ -489,17 +494,18 @@ void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int ban
     }
 
     const bool sel = selectedAt(bi);
-    renderer.fillRect(slotX, rowY, thumbW, thumbH, false);
+    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+    renderer.fillRect(slotX, rowY, thumbW, thumbH, false, rr);
 
     const std::string cdir = cacheDirAt(bi);
     const std::string ttl = titleAt(bi);
     drawRecentThumbnailAt(slotX, rowY, thumbW, thumbH, cdir, ttl, ATKINSON_HYPERLEGIBLE_12_FONT_ID);
     if (sel) {
-      renderer.drawRect(slotX - 2, rowY - 2, thumbW + 4, thumbH + 4, true, false);
-      if (thumbW > 6 && thumbH > 6) {
+      renderer.drawRect(slotX - 2, rowY - 2, thumbW + 4, thumbH + 4, true, rr);
+      if (!rr && thumbW > 6 && thumbH > 6) {
         renderer.drawRect(slotX, rowY, thumbW, thumbH, true, false);
       }
-    } else {
+    } else if (!rr) {
       renderer.drawRect(slotX, rowY, thumbW, thumbH, true, false);
     }
   }
@@ -726,6 +732,10 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
         int drawX = coverAreaX + (containerWidth - scaledW) / 2;
         int drawY = coverAreaY + (coverHeight - scaledH) / 2 + GRID_SPACING;
         file.close();
+        const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+        if (rr) {
+          renderer.fillRect(drawX, drawY, scaledW, scaledH, false, true);
+        }
         drawRecentThumbnailAt(drawX, drawY, scaledW, scaledH, book.cachePath, bookDisplayTitle(book),
                                ATKINSON_HYPERLEGIBLE_10_FONT_ID);
         coverDrawn = true;
@@ -785,6 +795,7 @@ void RecentActivity::renderList(int startY) {
   constexpr int padX = 30;
   const int thumbH = std::max(48, rowH - 10);
   const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
+  const bool thumbRound = SETTINGS.bitmapRoundedCorners != 0;
 
   const int visibleCount = std::min(LIST_VISIBLE_ITEMS, totalBooks - scrollOffset);
   for (int slot = 0; slot < visibleCount; ++slot) {
@@ -801,6 +812,9 @@ void RecentActivity::renderList(int startY) {
     const int tx = padX;
     const std::string cacheDir =
         book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+    if (thumbRound) {
+      renderer.fillRect(tx, ty, thumbW, thumbH, false, true);
+    }
     drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID);
 
     const int textX = tx + thumbW + 14;
@@ -1242,7 +1256,9 @@ void RecentActivity::renderFlow() {
   int carouselY = startY;
 
   drawFlowCarouselBackdrop(renderer, carouselX, carouselY, carouselW, carouselH);
-  
+
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+
   int centerW = 210;
   int centerH = 318;
   int centerX = carouselX + (carouselW - centerW) / 2;
@@ -1258,18 +1274,24 @@ void RecentActivity::renderFlow() {
   
   if (currentIndex > 0) {
     const RecentBook& leftBook = recentBooks[currentIndex - 1];
+    if (rr) {
+      renderer.fillRect(leftX, sideY, sideW, sideH, false, true);
+    }
     drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
                           ATKINSON_HYPERLEGIBLE_10_FONT_ID);
   }
 
   if (currentIndex + 1 < totalBooks) {
     const RecentBook& rightBook = recentBooks[currentIndex + 1];
+    if (rr) {
+      renderer.fillRect(rightX, sideY, sideW, sideH, false, true);
+    }
     drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
                           ATKINSON_HYPERLEGIBLE_10_FONT_ID);
   }
 
   const RecentBook& currentBook = recentBooks[currentIndex];
-  renderer.fillRect(centerX, centerY, centerW, centerH, false);
+  renderer.fillRect(centerX, centerY, centerW, centerH, false, rr);
   drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
                         ATKINSON_HYPERLEGIBLE_14_FONT_ID);
 
@@ -1363,12 +1385,13 @@ void RecentActivity::renderSimpleUi() {
     const int rx = m.marginL;
     const int ry = m.bodyTop + (m.topBandH - m.thumbH) / 2;
     const bool sel = (selectorIndex == 0);
-    renderer.fillRect(rx, ry, m.thumbW, m.thumbH, false);
+    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+    renderer.fillRect(rx, ry, m.thumbW, m.thumbH, false, rr);
     const std::string cdir = b.cachePath.empty() ? epubCachePathForBookPath(b.path) : b.cachePath;
     drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID);
     if (sel) {
-      renderer.drawRect(rx - 2, ry - 2, m.thumbW + 4, m.thumbH + 4, true, false);
-    } else {
+      renderer.drawRect(rx - 2, ry - 2, m.thumbW + 4, m.thumbH + 4, true, rr);
+    } else if (!rr) {
       renderer.drawRect(rx, ry, m.thumbW, m.thumbH, true, false);
     }
 

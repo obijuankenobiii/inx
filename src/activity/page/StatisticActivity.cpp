@@ -41,7 +41,9 @@ void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int 
       cropY = 1.0f - (ir / tr);
     }
   }
-  renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, SETTINGS.bitmapRoundedCorners != 0);
+  renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
+                      SETTINGS.bitmapRoundedCorners != 0 ? GfxRenderer::BitmapRoundedCornerOutside::PaperOutside
+                                                         : GfxRenderer::BitmapRoundedCornerOutside::None);
 }
 
 constexpr unsigned long GO_HOME_MS = 1000;
@@ -476,7 +478,11 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
     return;
   }
 
-  renderer.drawRect(x, y, width, height, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(x, y, width, height, false, rr);
+  if (!rr) {
+    renderer.drawRect(x, y, width, height, true, false);
+  }
 
   if (!title.empty()) {
     int lineY = y + 18;
@@ -554,8 +560,11 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
         const int frameH = coverH + 2 * kOuterPad;
         const int innerX = boxX + kOuterPad;
         const int innerY = yTop + kOuterPad;
-        renderer.fillRect(boxX, yTop, frameW, frameH, false, false);
-        renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+        const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+        renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+        if (!rr) {
+          renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+        }
         {
           BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
           drawStatsThumbnailInRect(renderer, bitmap, innerX + 2, innerY + 2, availW, availH);
@@ -573,8 +582,11 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
   const int coverH = kFallbackH + 4;
   const int frameW = coverW + 2 * kOuterPad;
   const int frameH = coverH + 2 * kOuterPad;
-  renderer.fillRect(boxX, yTop, frameW, frameH, false, false);
-  renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+  if (!rr) {
+    renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+  }
   renderCover(bookPath, boxX + kOuterPad, yTop + kOuterPad, coverW, coverH, title, "");
   return {frameW, frameH};
 }
@@ -757,8 +769,11 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const float prog =
       (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
   const int boxX = innerLeft;
-  renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, false);
-  renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, rr);
+  if (!rr) {
+    renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
+  }
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 
   const int rowHeight = std::max(coverH, 2 * kBookDonutR + 4);
