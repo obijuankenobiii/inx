@@ -134,11 +134,12 @@ static std::string epubCachePathForBookPath(const std::string& bookPath) {
 static void drawFlowCarouselBackdrop(GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  for (int y = ry - 5; y < ry + rh + 10; y += 2) {
+  // Same even-even 1/4 ink lattice as GfxRenderer corner mask (SparseInkAlignedOutside) for seamless edges.
+  for (int y = (ry - 5 + 1) & ~1; y < ry + rh + 10; y += 2) {
     if (y < 0 || y >= screenH) {
       continue;
     }
-    for (int x = rx - 5; x < rx + rw + 10; x += 2) {
+    for (int x = ((rx - 5) + 1) & ~1; x < rx + rw + 10; x += 2) {
       if (x >= 0 && x < screenW) {
         renderer.drawPixel(x, y, true);
       }
@@ -157,8 +158,8 @@ static void drawFlowCarouselBackdropInRect(GfxRenderer& renderer, int rx, int ry
   const int y1 = std::max(0, ry);
   const int x2 = std::min(screenW, rx + rw);
   const int y2 = std::min(screenH, ry + rh);
-  for (int y = y1; y < y2; y += 2) {
-    for (int x = x1; x < x2; x += 2) {
+  for (int y = (y1 + 1) & ~1; y < y2; y += 2) {
+    for (int x = (x1 + 1) & ~1; x < x2; x += 2) {
       renderer.drawPixel(x, y, true);
     }
   }

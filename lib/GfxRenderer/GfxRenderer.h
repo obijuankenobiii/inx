@@ -108,7 +108,8 @@ class GfxRenderer {
   enum class BitmapRoundedCornerOutside : uint8_t {
     None = 0,
     PaperOutside = 1,             
-    SparseInkAlignedOutside = 2,  
+    /** ~25% ink on screen even/even pixels outside rounded corners (matches Recent carousel dither). */
+    SparseInkAlignedOutside = 2,
   };
 
   void drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0,

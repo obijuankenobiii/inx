@@ -52,9 +52,6 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
   const int sw = gfx.getScreenWidth();
   const int sh = gfx.getScreenHeight();
 
-  const int ax = x & ~1;
-  const int ay = y & ~1;
-
   auto applyCorner = [&](const int px, const int py) {
     if (px < 0 || px >= sw || py < 0 || py >= sh) {
       return;
@@ -62,7 +59,9 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
     if (style == GfxRenderer::BitmapRoundedCornerOutside::PaperOutside) {
       gfx.drawPixel(px, py, false);
     } else {
-      const bool ink = (((px - ax) & 1) == 0) && (((py - ay) & 1) == 0);
+      // Screen-fixed 1/4 tone so corner touch-up matches carousel/list dithers that use the same lattice
+      // (see RecentActivity drawFlowCarouselBackdrop*), independent of bitmap (x,y).
+      const bool ink = ((px & 1) == 0) && ((py & 1) == 0);
       gfx.drawPixel(px, py, ink);
     }
   };
@@ -532,8 +531,10 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   if (roundedOutside != BitmapRoundedCornerOutside::None && contentW > 0 && contentH > 0) {
     const int drawnW = static_cast<int>(std::floor(static_cast<float>(contentW) * scale));
     const int drawnH = static_cast<int>(std::floor(static_cast<float>(contentH) * scale));
-    if (drawnW > 0 && drawnH > 0) {
-      maskBitmapCornersOutsideRounded(*this, x, y, drawnW, drawnH, roundedOutside);
+    const int maskW = maxWidth > 0 ? maxWidth : drawnW;
+    const int maskH = maxHeight > 0 ? maxHeight : drawnH;
+    if (maskW > 0 && maskH > 0) {
+      maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
     }
   }
 
@@ -646,8 +647,10 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
   if (roundedOutside != BitmapRoundedCornerOutside::None) {
     const int drawnW = static_cast<int>(std::floor(static_cast<float>(bw) * scale));
     const int drawnH = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * scale));
-    if (drawnW > 0 && drawnH > 0) {
-      maskBitmapCornersOutsideRounded(*this, x, y, drawnW, drawnH, roundedOutside);
+    const int maskW = maxWidth > 0 ? maxWidth : drawnW;
+    const int maskH = maxHeight > 0 ? maxHeight : drawnH;
+    if (maskW > 0 && maskH > 0) {
+      maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
     }
   }
 
