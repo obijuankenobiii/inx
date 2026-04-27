@@ -57,41 +57,6 @@ void setupDisplayAndFonts();
 void onNetworkModeSelected(NetworkMode mode);
 void openReaderFromCallback(const std::string& path);
 
-#include <esp_heap_caps.h>
-
-void printMemoryInfo() {
-  Serial.println("=== MEMORY INFO ===");
-
-  
-  Serial.printf("Free heap: %d bytes (%d KB)\n", ESP.getFreeHeap(), ESP.getFreeHeap() / 1024);
-
-  
-  Serial.printf("Total heap: %d bytes (%d KB)\n", ESP.getHeapSize(), ESP.getHeapSize() / 1024);
-
-  
-  Serial.printf("Min free heap (since boot): %d bytes (%d KB)\n", ESP.getMinFreeHeap(), ESP.getMinFreeHeap() / 1024);
-
-  
-  Serial.printf("Largest free block: %d bytes (%d KB)\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
-                heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024);
-
-  
-  if (ESP.getPsramSize() > 0) {
-    Serial.printf("Free PSRAM: %d bytes (%d KB)\n", ESP.getFreePsram(), ESP.getFreePsram() / 1024);
-    Serial.printf("Total PSRAM: %d bytes (%d KB)\n", ESP.getPsramSize(), ESP.getPsramSize() / 1024);
-  }
-
-  
-  int largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-  int totalFree = ESP.getFreeHeap();
-  int fragmentation = 100 - (largestBlock * 100 / totalFree);
-  Serial.printf("Fragmentation: %d%%\n", fragmentation);
-
-  
-  Serial.printf("Stack free: %d bytes\n", uxTaskGetStackHighWaterMark(NULL) * 4);
-
-  Serial.println("==================");
-}
 /**
  * @brief Switches the current activity using standard heap allocation.
  * * This uses 'new' and 'delete' which allows the ReaderActivity to utilize
@@ -105,10 +70,7 @@ void switchTo(Args&&... args) {
     currentActivity = nullptr;
   }
   
-  delay(10);
   currentActivity = new T(std::forward<Args>(args)...);
-  printMemoryInfo();
-
   currentActivity->onEnter();
 }
 
