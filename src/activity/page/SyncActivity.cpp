@@ -13,13 +13,11 @@
 #include "images/Wifi.h"
 #include "images/Qr.h"
 #include "images/Calibre.h"
-#include "images/Sync.h"
 #include "state/SystemSetting.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 4;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot",
-                                           "Bluetooth remote"};
+constexpr int MENU_ITEM_COUNT = 3;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
 constexpr int LIST_ITEM_HEIGHT = 60;
 }
 
@@ -80,13 +78,6 @@ void SyncActivity::loop() {
   }
 
   if (confirmPressed) {
-    if (selectedIndex == 3) {
-      if (onBleRemoteSetup) {
-        onBleRemoteSetup();
-      }
-      return;
-    }
-
     NetworkMode mode = NetworkMode::JOIN_NETWORK;
 
     if (selectedIndex == 1) {
@@ -166,11 +157,8 @@ void SyncActivity::render() const {
         case 1:  
           renderer.drawIcon(Calibre, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
-        case 2:  
+        case 2:
           renderer.drawIcon(Qr, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
-          break;
-        case 3:
-          renderer.drawIcon(Sync, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
           break;
       }
       

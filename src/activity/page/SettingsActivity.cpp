@@ -37,7 +37,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
     SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode,
-                      {"Fill","Crop"},
+                      {"Fill", "Crop"},
                       GroupType::IMAGE),
     SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),

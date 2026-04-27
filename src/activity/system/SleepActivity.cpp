@@ -28,9 +28,15 @@
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
+#include <cmath>
 #include <memory>
 
 namespace {
+bool sleepUsesPreCroppedEpubCover(const std::string& bookPath) {
+  return SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP &&
+         StringUtils::checkFileExtension(bookPath, ".epub");
+}
+
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
     return "";
@@ -127,15 +133,10 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      coverPath = book.getCoverBmpPath(true);
+      const bool cropped = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
+      coverPath = book.getCoverBmpPath(cropped);
       if (!SdMan.exists(coverPath.c_str())) {
-        book.generateCoverBmp(true);
-      }
-      if (!SdMan.exists(coverPath.c_str())) {
-        coverPath = book.getCoverBmpPath(false);
-        if (!SdMan.exists(coverPath.c_str())) {
-          book.generateCoverBmp(false);
-        }
+        book.generateCoverBmp(cropped);
       }
       if (!SdMan.exists(coverPath.c_str())) {
         coverPath.clear();
@@ -404,7 +405,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
         if (SdMan.openFileForRead("SLP", coverPath, coverFile)) {
           Bitmap coverBitmap(coverFile, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
           if (coverBitmap.parseHeaders() == BmpReaderError::Ok) {
-            renderBitmapSleepScreen(coverBitmap);
+            renderBitmapSleepScreen(coverBitmap, sleepUsesPreCroppedEpubCover(pathForBook));
             coverAlreadyDisplayed = true;
           }
           coverFile.close();
@@ -456,7 +457,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap);
+      renderBitmapSleepScreen(bitmap, sleepUsesPreCroppedEpubCover(APP_STATE.lastRead));
     }
     file.close();
     return;
@@ -468,46 +469,30 @@ void SleepActivity::renderCoverSleepScreen() const {
 /**
  * @brief Renders a bitmap image as the sleep screen with proper positioning.
  * 
- * Handles image scaling, centering, cropping, and grayscale rendering based
- * on screen dimensions and user settings.
- * 
- * @param bitmap The bitmap image to render (custom /sleep image or book cover)
+ * Fill: scale to screen width × height with aspect crop (same idea as Recent thumbnails).
+ * EPUB + Crop: uses pre-generated cropped cover bitmap — draw full screen, no extra crop math.
  */
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preCroppedEpubCover) const {
   BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
-  float cropX = 0, cropY = 0;
-  int x = 0;
-  int y = 0;
-  int targetWidth = pageWidth;
-  int targetHeight = pageHeight;
-  const float imageWidth = static_cast<float>(bitmap.getWidth());
-  const float imageHeight = static_cast<float>(bitmap.getHeight());
-  const float imageRatio = imageWidth / imageHeight;
-  const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
-  const bool fitMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-  const bool cropMode = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  float cropX = 0.0f;
+  float cropY = 0.0f;
+  constexpr int x = 0;
+  constexpr int y = 0;
 
-  if (fitMode) {
-    
-    if (imageRatio > screenRatio) {
-      cropX = 1.0f - (screenRatio / imageRatio);
-    } else if (imageRatio < screenRatio) {
-      cropY = 1.0f - (imageRatio / screenRatio);
+  if (!preCroppedEpubCover) {
+    const float iw = static_cast<float>(bitmap.getWidth());
+    const float ih = static_cast<float>(bitmap.getHeight());
+    if (iw > 0.f && ih > 0.f) {
+      const float ir = iw / ih;
+      const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
+      if (ir > tr) {
+        cropX = 1.0f - (tr / ir);
+      } else if (ir < tr) {
+        cropY = 1.0f - (ir / tr);
+      }
     }
-  } else if (cropMode) {
-    
-    const float scaleW = static_cast<float>(pageWidth) / imageWidth;
-    const float scaleH = static_cast<float>(pageHeight) / imageHeight;
-    float containScale = std::min(scaleW, scaleH);
-    if (containScale > 1.0f) {
-      containScale = 1.0f;
-    }
-    targetWidth = std::max(1, static_cast<int>(std::round(imageWidth * containScale)));
-    targetHeight = std::max(1, static_cast<int>(std::round(imageHeight * containScale)));
-    x = (pageWidth - targetWidth) / 2;
-    y = (pageHeight - targetHeight) / 2;
   }
 
   renderer.clearScreen();
@@ -515,17 +500,16 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   const bool hasGreyscale = SETTINGS.sleepScreenCoverGrayscale && bitmap.hasGreyscale() &&
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
-  renderer.drawBitmap(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
+  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
   }
 
-  
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   if (hasGreyscale) {
-    renderGreyscale(bitmap, x, y, targetWidth, targetHeight, cropX, cropY);
+    renderGreyscale(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
   }
 }
 

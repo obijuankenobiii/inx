@@ -28,8 +28,7 @@ public:
      * @param settings Reference to book settings to modify
      * @param onSettingsChanged Callback triggered when settings are changed
      */
-    SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, std::function<void()> onSettingsChanged,
-                   std::function<void()> onBleRemoteRow = nullptr);
+    SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, std::function<void()> onSettingsChanged);
     
     /**
      * @brief Destructor
@@ -126,8 +125,7 @@ private:
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
         ReaderImagePresentation,  ///< Global: Low / Medium / High bitmap contrast
-        PageAutoTurn,
-        BleRemoteRow
+        PageAutoTurn
     };
     
     /**
@@ -145,7 +143,6 @@ private:
     GfxRenderer& renderer;                    ///< Graphics renderer reference
     BookSettings& settings;                    ///< Book settings reference
     std::function<void()> onSettingsChanged;   ///< Settings change callback
-    std::function<void()> onBleRemoteRow_;     ///< Optional: Bluetooth remote row (EPUB reader)
 
     bool visible = false;                      ///< Drawer visibility state
     bool dismissed = false;                    ///< Drawer dismissed state

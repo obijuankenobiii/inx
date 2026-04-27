@@ -357,7 +357,6 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     hasTargetBounds = true;
   }
 
-  
   constexpr float kScaleEps = 1e-5f;
   if (hasTargetBounds && std::abs(fitScale - 1.0f) > kScaleEps) {
     scale = fitScale;

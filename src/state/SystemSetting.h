@@ -38,10 +38,10 @@ public:
     /**
      * @brief Sleep screen cover scaling modes
      */
-    enum SLEEP_SCREEN_COVER_MODE { 
-        FIT = 0,            ///< Fill screen; preserve aspect (center crop / cover)
-        CROP = 1,           ///< Show full image in screen (letterbox / contain, no upscale)
-        SLEEP_SCREEN_COVER_MODE_COUNT 
+    enum SLEEP_SCREEN_COVER_MODE {
+        FIT = 0,   ///< Fill: scale to screen with aspect crop (full uncropped EPUB cover)
+        CROP = 1,  ///< EPUB: use pre-cropped cover asset; draw full screen (no extra crop)
+        SLEEP_SCREEN_COVER_MODE_COUNT
     };
     
     /**

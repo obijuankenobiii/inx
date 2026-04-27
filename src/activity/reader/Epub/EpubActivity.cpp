@@ -23,7 +23,6 @@
 #include "KOReaderSyncActivity.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
-#include "state/BleRemoteStore.h"
 #include "state/SystemSetting.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
@@ -34,7 +33,6 @@
 #include "state/Statistics.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
-#include "system/BleHidRemote.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
@@ -95,6 +93,22 @@ void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orie
     if (!next) next = rightReleased;
   }
 }
+
+bool pageImageFootprintAtLeastHalfScreen(const Page& page, GfxRenderer& renderer, int marginLeft, int marginTop) {
+  if (!page.hasImages()) {
+    return false;
+  }
+  int16_t ix = 0;
+  int16_t iy = 0;
+  int16_t iw = 0;
+  int16_t ih = 0;
+  if (!page.getImageBoundingBox(renderer, marginLeft, marginTop, ix, iy, iw, ih)) {
+    return false;
+  }
+  const int halfW = renderer.getScreenWidth() / 2;
+  const int halfH = renderer.getScreenHeight() / 2;
+  return iw >= halfW && ih >= halfH;
+}
 }  
 
 /**
@@ -137,6 +151,7 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       showBookmarkIndicator(false),
       lastPreloadedSpineIndex(-1),
       lastPageHadImages(false),
+      lastPageHadLargeImage(false),
       bookmarkLongPressProcessed(false),
       settingsDrawer(nullptr),
       settingsDrawerVisible(false),
@@ -250,93 +265,6 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
 void EpubActivity::readerPopup(const char* message) {
   dismissMenuDrawerForBlockingWork(false);
   ScreenComponents::drawPopup(renderer, message);
-}
-
-void EpubActivity::bleReaderShutdown() {
-  if (bleHidClient_) {
-    bleRemoteDisconnectClient(bleHidClient_);
-    bleHidClient_ = nullptr;
-  }
-  if (bleStackHeld_) {
-    bleRemoteStackRelease();
-    bleStackHeld_ = false;
-  }
-}
-
-void EpubActivity::onBleRemoteFromSettings() {
-  saveBookSettings();
-  if (settingsDrawer) {
-    settingsDrawer->hide();
-  }
-  settingsDrawerVisible = false;
-  isToggleClosed = true;
-  updateRequired = true;
-
-  auto paintReaderThenDisplay = [this]() {
-    renderScreen();
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-  };
-
-  if (!bleRemoteHasSaved()) {
-    paintReaderThenDisplay();
-    readerPopup("No device");
-    return;
-  }
-  uint8_t addr[6]{};
-  BleRemoteBindings b{};
-  if (!bleRemoteLoad(addr, b) || b.nextLen == 0 || b.prevLen == 0) {
-    paintReaderThenDisplay();
-    readerPopup("No device");
-    return;
-  }
-  memcpy(bleAddr_, addr, 6);
-  bleBindings_ = b;
-  blePaired_ = false;
-
-  const ViewportInfo vp = calculateViewport();
-
-  paintReaderThenDisplay();
-  ScreenComponents::drawPopup(renderer, "Connecting bt device...");
-
-  if (bleHidClient_) {
-    bleRemoteDisconnectClient(bleHidClient_);
-    bleHidClient_ = nullptr;
-  }
-
-  bool connectOk = false;
-  std::string failMsg;
-  FontManager::withSdFontsReleasedForHeapIntensiveWork(vp.fontId, [&]() {
-    if (!bleStackHeld_) {
-      if (!bleRemoteStackAcquire()) {
-        failMsg = "Bluetooth init failed (low memory)";
-        return;
-      }
-      bleStackHeld_ = true;
-    }
-    std::string mac;
-    if (!bleRemoteAddrBytesToAscii(bleAddr_, mac)) {
-      failMsg = "Bad address";
-      return;
-    }
-    esp_task_wdt_reset();
-    std::string err;
-    bleHidClient_ = bleRemoteConnectHid(mac, BleRemoteReportHandler{}, err);
-    esp_task_wdt_reset();
-    connectOk = (bleHidClient_ != nullptr);
-    if (!connectOk) {
-      failMsg = err.empty() ? "Connect failed" : err;
-    }
-  });
-  FontManager::ensureReaderLayoutFonts(vp.fontId, renderer);
-
-  if (!connectOk) {
-    paintReaderThenDisplay();
-    const char* msg = failMsg.empty() ? "Connect failed" : failMsg.c_str();
-    readerPopup(failMsg.size() > 80 ? "Connect failed" : msg);
-    return;
-  }
-  blePaired_ = true;
-  paintReaderThenDisplay();
 }
 
 void EpubActivity::handleChapterLoadFailure() {
@@ -744,11 +672,6 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
-  bleReaderShutdown();
-  blePaired_ = false;
-  memset(bleAddr_, 0, sizeof(bleAddr_));
-  bleBindings_ = {};
-
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;
@@ -893,21 +816,6 @@ void EpubActivity::loop() {
           prev = mappedInput.wasReleased(MappedInputManager::Button::Left);
           next = mappedInput.wasReleased(MappedInputManager::Button::Right);
           break;
-      }
-    }
-  }
-
-  if (blePaired_ && bleHidClient_) {
-    uint8_t rbuf[16]{};
-    size_t rlen = 0;
-    while (bleRemotePopReport(rbuf, rlen)) {
-      bool blePrev = false;
-      bool bleNext = false;
-      bleRemoteMatchReport(rbuf, rlen, bleBindings_, blePrev, bleNext);
-      if (bleNext) {
-        next = true;
-      } else if (blePrev) {
-        prev = true;
       }
     }
   }
@@ -1221,8 +1129,7 @@ void EpubActivity::toggleMenuDrawer() {
  */
 void EpubActivity::toggleSettingsDrawer() {
   if (!settingsDrawer) {
-    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); },
-                                        [this]() { onBleRemoteFromSettings(); });
+    settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
   }
 
   settingsDrawerVisible = !settingsDrawerVisible;
@@ -1619,7 +1526,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
-  if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && !isBookmarking) {
+  if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && lastPageHadLargeImage &&
+      !isBookmarking) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
@@ -1691,6 +1599,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     runTextAntiAliasPass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
     lastPageHadImages = page->hasImages();
+    lastPageHadLargeImage =
+        pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
     return;
   }
 
@@ -1724,6 +1634,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   lastPageHadImages = page->hasImages();
+  lastPageHadLargeImage = pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
 }
 
 /**

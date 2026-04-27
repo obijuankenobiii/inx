@@ -22,7 +22,6 @@
 #include "activity/page/RecentActivity.h"
 #include "activity/page/SettingsActivity.h"
 #include "activity/page/StatisticActivity.h"
-#include "activity/page/BleRemoteSetupActivity.h"
 #include "activity/page/SyncActivity.h"
 #include "activity/reader/ReaderActivity.h"
 #include "activity/system/BootActivity.h"
@@ -52,7 +51,6 @@ void onSelectBook(const std::string& path);
 void onGoToRecent();
 void onGoToStatistics();
 void onGoToFileTransfer();
-void onGoToBleRemoteSetup();
 void onGoToSettings();
 void onGoToLibrary(const std::string& path = "/");
 void setupDisplayAndFonts();
@@ -169,11 +167,8 @@ void onNetworkModeSelected(NetworkMode mode) {
 /**
  * @brief Navigates to the file transfer/sync activity.
  */
-void onGoToBleRemoteSetup() { switchTo<BleRemoteSetupActivity>(render, input, onGoToFileTransfer); }
-
 void onGoToFileTransfer() {
-  switchTo<SyncActivity>(render, input, onNetworkModeSelected, onGoToRecent, onGoToStatistics, onGoToSettings,
-                         onGoToBleRemoteSetup);
+  switchTo<SyncActivity>(render, input, onNetworkModeSelected, onGoToRecent, onGoToStatistics, onGoToSettings);
 }
 
 /**
