@@ -32,10 +32,6 @@
 #include <memory>
 
 namespace {
-bool sleepUsesPreCroppedEpubCover(const std::string& bookPath) {
-  return SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP &&
-         StringUtils::checkFileExtension(bookPath, ".epub");
-}
 
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
@@ -133,8 +129,8 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   if (StringUtils::checkFileExtension(path, ".epub")) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
-      const bool cropped = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP;
-      coverPath = book.getCoverBmpPath(cropped);
+      const bool cropped = false;
+       coverPath = book.getCoverBmpPath(cropped);
       if (!SdMan.exists(coverPath.c_str())) {
         book.generateCoverBmp(cropped);
       }
@@ -299,7 +295,7 @@ bool tryRenderEpubLastReadReadingPage(GfxRenderer& renderer, const std::string& 
   renderer.clearScreen(0xFF);
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
-  const BitmapDitherMode imageDither = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
+    const BitmapDitherMode imageDither = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
   page->render(renderer, fontId, headerFontId, vp.totalMarginLeft, vp.totalMarginTop, true, imageDither);
   page->renderImages(renderer, fontId, vp.totalMarginLeft, vp.totalMarginTop, imageDither);
 
@@ -358,7 +354,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+      Bitmap bitmap(file);
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -403,9 +399,9 @@ void SleepActivity::renderTransparentSleepScreen() const {
       if (!coverPath.empty()) {
         FsFile coverFile;
         if (SdMan.openFileForRead("SLP", coverPath, coverFile)) {
-          Bitmap coverBitmap(coverFile, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+          Bitmap coverBitmap(coverFile);
           if (coverBitmap.parseHeaders() == BmpReaderError::Ok) {
-            renderBitmapSleepScreen(coverBitmap, sleepUsesPreCroppedEpubCover(pathForBook));
+            renderBitmapSleepScreen(coverBitmap);
             coverAlreadyDisplayed = true;
           }
           coverFile.close();
@@ -418,7 +414,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
   if (!imagePath.empty()) {
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+      Bitmap bitmap(file);
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -455,9 +451,9 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   FsFile file;
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
-    Bitmap bitmap(file, bitmapDitherModeFromSetting(SETTINGS.displayImageDither));
+        Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap, sleepUsesPreCroppedEpubCover(APP_STATE.lastRead));
+      renderBitmapSleepScreen(bitmap);
     }
     file.close();
     return;
@@ -478,12 +474,14 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
   float cropY = 0.0f;
-  constexpr int x = 0;
-  constexpr int y = 0;
+  int x = (pageWidth - bitmap.getWidth()) / 2;
+  int y = (pageHeight - bitmap.getHeight()) / 2;
 
-  if (!preCroppedEpubCover) {
+  if (SETTINGS.sleepScreenCoverMode != SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
     const float iw = static_cast<float>(bitmap.getWidth());
     const float ih = static_cast<float>(bitmap.getHeight());
+    x = 0;
+    y = 0;
     if (iw > 0.f && ih > 0.f) {
       const float ir = iw / ih;
       const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
@@ -535,7 +533,6 @@ void SleepActivity::renderGreyscale(const Bitmap& bitmap, int x, int y, int w, i
     renderer.drawBitmap(bitmap, x, y, w, h, cx, cy);
     renderer.copyGrayscaleLsbBuffers();
 
-    bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
     renderer.drawBitmap(bitmap, x, y, w, h, cx, cy);

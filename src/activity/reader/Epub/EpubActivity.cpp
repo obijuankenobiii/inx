@@ -53,34 +53,6 @@ struct ReaderBitmapStyleGuard {
   explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
 };
 
-/** Full-bleed cover: crop-to-fill when larger than the panel; centered at native size when smaller. */
-void drawCoverBitmapFullScreen(GfxRenderer& renderer, Bitmap& coverBmp) {
-  const int sw = renderer.getScreenWidth();
-  const int sh = renderer.getScreenHeight();
-  const int bw = coverBmp.getWidth();
-  const int bh = coverBmp.getHeight();
-  if (bw <= 0 || bh <= 0) {
-    return;
-  }
-  renderer.clearScreen();
-  if (bw <= sw && bh <= sh) {
-    const int x = (sw - bw) / 2;
-    const int y = (sh - bh) / 2;
-    renderer.drawBitmap(coverBmp, x, y, bw, bh, 0.f, 0.f);
-    return;
-  }
-  const float ir = static_cast<float>(bw) / static_cast<float>(bh);
-  const float tr = static_cast<float>(sw) / static_cast<float>(sh);
-  float cropX = 0.f;
-  float cropY = 0.f;
-  if (ir > tr) {
-    cropX = 1.0f - (tr / ir);
-  } else if (ir < tr) {
-    cropY = 1.0f - (ir / tr);
-  }
-  renderer.drawBitmap(coverBmp, 0, 0, sw, sh, cropX, cropY);
-}
-
 void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orientation,
                                             const MappedInputManager& mappedInput, bool& prev, bool& next) {
   const bool leftReleased = mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -501,24 +473,44 @@ void EpubActivity::ensureThumbnailExists() {
  */
 void EpubActivity::displayCoverOrTitle() {
   
-  std::string coverPath = epub->getCoverBmpPath(true);
+  std::string coverPath = epub->getCoverBmpPath(false);
   if (!SdMan.exists(coverPath.c_str())) {
-    epub->generateCoverBmp(true);
-  }
-  if (!SdMan.exists(coverPath.c_str())) {
-    coverPath = epub->getCoverBmpPath(false);
-    if (!SdMan.exists(coverPath.c_str())) {
-      epub->generateCoverBmp(false);
-    }
+    epub->generateCoverBmp(false);
   }
 
   FsFile coverFile;
   if (SdMan.openFileForRead("EBP", coverPath, coverFile)) {
-    Bitmap coverBmp(coverFile, bitmapDitherModeFromSetting(SETTINGS.readerImageDither));
+    Bitmap coverBmp(coverFile);
     if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
       [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
-      drawCoverBitmapFullScreen(renderer, coverBmp);
-      renderer.displayBuffer();
+  BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  float cropX = 0.0f;
+  float cropY = 0.0f;
+  constexpr int x = 0;
+  constexpr int y = 0;
+
+
+    const float iw = static_cast<float>(coverBmp.getWidth());
+    const float ih = static_cast<float>(coverBmp.getHeight());
+    if (iw > 0.f && ih > 0.f) {
+      const float ir = iw / ih;
+      const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
+      if (ir > tr) {
+        cropX = 1.0f - (tr / ir);
+      } else if (ir < tr) {
+        cropY = 1.0f - (ir / tr);
+      }
+    }
+
+  renderer.clearScreen();
+
+
+  renderer.drawBitmap(coverBmp, x, y, pageWidth, pageHeight, cropX, cropY);
+
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+
     }
     coverFile.close();
   } else {
@@ -557,21 +549,8 @@ void EpubActivity::loadCurrentSection() {
  */
 void EpubActivity::preloadChapters() {
   ViewportInfo info = calculateViewport();
-  int totalSpineItems = epub->getSpineItemsCount();
-  int chaptersToCache = std::min(4, totalSpineItems);
-
-  for (int i = 1; i < chaptersToCache; i++) {
-    esp_task_wdt_reset();
-    buildSection(i, info, false, false);
-    vTaskDelay(pdMS_TO_TICKS(30));
-  }
-
-  int nextChapterIndex = currentSpineIndex + 1;
-  if (nextChapterIndex < epub->getSpineItemsCount()) {
-    esp_task_wdt_reset();
-    buildSection(nextChapterIndex, info, false, false);
-    vTaskDelay(pdMS_TO_TICKS(30));
-  }
+  buildSection(currentSpineIndex, info, false, false);
+  buildSection(currentSpineIndex + 1, info, false, false);
 }
 
 /**
@@ -590,8 +569,6 @@ void EpubActivity::updateExternalState() {
  * @brief Fast path for books that were opened before
  */
 void EpubActivity::fastPath() {
-  renderer.clearScreen(0xff);
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadProgress();
 
   int totalSpineItems = epub->getSpineItemsCount();
@@ -637,28 +614,31 @@ void EpubActivity::slowPath() {
 void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
   epub->setupCacheDir();
-  renderer.clearScreen(0xff);
-  renderer.displayBuffer();
+  
+  bookProgress.reset(new BookProgress(epub->getCachePath()));
+  
+  const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
+  bool hasProgress = bookProgress->exists();
+
+  if (book && hasProgress) {
+    fastPath();
+  } else {
+    renderer.clearScreen(0xff);
+    renderer.displayBuffer();
+    ScreenComponents::drawPopup(renderer, "Preparing book...");
+    renderer.displayBuffer();
+    slowPath();
+  }
 
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
 
-  bookProgress.reset(new BookProgress(epub->getCachePath()));
-  bool hasProgress = bookProgress->exists();
-  const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
   updateExternalState();
   loadBookmarks();
   initStats();
 
-  if (book && hasProgress) {
-    fastPath();
-  } else {
-    ScreenComponents::drawPopup(renderer, "Preparing book...");
-    renderer.displayBuffer();
-    slowPath();
-  }
   updateRequired = true;
   lastAutoPageTurnTime = millis();
   bookLayoutAppliedOrientation_ = bookSettings.orientation;

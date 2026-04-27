@@ -31,32 +31,6 @@ BootActivity::BootActivity(GfxRenderer& renderer, MappedInputManager& inputManag
     : Activity("BootActivity", renderer, inputManager) {}
 
 /**
- * @brief Draws the boot progress bar on the screen.
- *
- * Renders a horizontal progress bar centered on the screen, with the fill width
- * determined by the current bootProgress value (0-100). The bar is drawn with
- * a border and filled portion based on completion percentage.
- */
-void BootActivity::drawProgressBar() {
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
-
-  const int barWidth = 150;
-  const int barHeight = 10;
-  const int barX = (pageWidth - barWidth) / 2;
-  const int barY = (pageHeight - 200) / 2 + 200 + 30;
-
-  renderer.fillRect(barX + 2, barY + 2, barWidth - 4, barHeight - 4, false);
-
-  int fillWidth = barWidth * bootProgress / 100;
-  if (fillWidth > 4) {
-    renderer.fillRect(barX + 2, barY + 2, fillWidth - 4, barHeight - 4, true);
-  }
-
-  renderer.displayBuffer();
-}
-
-/**
  * @brief Initializes the boot activity when it becomes active.
  *
  * Clears the screen, displays the Corgi logo centered on the screen, draws
@@ -67,27 +41,6 @@ void BootActivity::drawProgressBar() {
 void BootActivity::onEnter() {
   Activity::onEnter();
 
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
-
-  renderer.clearScreen(0xFF);
-  renderer.drawIcon(CorgiWhite, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
-
-  const int barWidth = 150;
-  const int barHeight = 10;
-  const int barX = (pageWidth - barWidth) / 2;
-  const int barY = (pageHeight - 200) / 2 + 200 + 30;
-
-  renderer.drawRect(barX, barY, barWidth, barHeight, true);
-
-  renderer.fillRect(barX + 2, barY + 2, barWidth - 4, barHeight - 4, false);
-
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, (renderer.getScreenWidth() / 2) - (renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, INX_VERSION) / 2), renderer.getScreenHeight() - 30, INX_VERSION);
-  renderer.displayBuffer();
-
-  bootProgress = 0;
-  bootComplete = false;
-
   SETTINGS.loadFromFile();
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
@@ -97,8 +50,6 @@ void BootActivity::onEnter() {
     (void)KOREADER_STORE.loadFromFile();
   }
 
-  bootProgress = 100;
-  drawProgressBar();
 
   FontManager::scanSDFonts("/fonts");
   FontManager::printFontStats();
