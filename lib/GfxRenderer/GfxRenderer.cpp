@@ -36,6 +36,71 @@ int cornerSpanFromRy(const int r, const int ry) {
   return static_cast<int>(std::sqrt(static_cast<double>(inner)));
 }
 
+/** Pixels outside the rounded rect (same geometry as `fillRect` with `rounded`) become paper. */
+void maskBitmapCornersToPaper(const GfxRenderer& gfx, const int x, const int y, const int drawnW, const int drawnH) {
+  if (drawnW < 3 || drawnH < 3) {
+    return;
+  }
+  const int r = roundedRectCornerRadius(drawnW, drawnH);
+  if (r < 1) {
+    return;
+  }
+  const int sw = gfx.getScreenWidth();
+  const int sh = gfx.getScreenHeight();
+
+  for (int cy = 0; cy < r; ++cy) {
+    const int py = y + cy;
+    if (py < 0 || py >= sh) {
+      continue;
+    }
+    const int span = cornerSpanFromRy(r, r - cy);
+    for (int px = x; px < x + r - span; ++px) {
+      if (px >= 0 && px < sw) {
+        gfx.drawPixel(px, py, false);
+      }
+    }
+  }
+
+  for (int cy = 0; cy < r; ++cy) {
+    const int py = y + cy;
+    if (py < 0 || py >= sh) {
+      continue;
+    }
+    const int span = cornerSpanFromRy(r, r - cy);
+    for (int px = x + drawnW - r + span; px < x + drawnW; ++px) {
+      if (px >= 0 && px < sw) {
+        gfx.drawPixel(px, py, false);
+      }
+    }
+  }
+
+  for (int cy = 0; cy < r; ++cy) {
+    const int py = y + drawnH - 1 - cy;
+    if (py < 0 || py >= sh) {
+      continue;
+    }
+    const int span = cornerSpanFromRy(r, r - cy);
+    for (int px = x; px < x + r - span; ++px) {
+      if (px >= 0 && px < sw) {
+        gfx.drawPixel(px, py, false);
+      }
+    }
+  }
+
+  for (int cy = 0; cy < r; ++cy) {
+    const int py = y + drawnH - 1 - cy;
+    if (py < 0 || py >= sh) {
+      continue;
+    }
+    const int span = cornerSpanFromRy(r, r - cy);
+    for (int px = x + drawnW - r + span; px < x + drawnW; ++px) {
+      if (px >= 0 && px < sw) {
+        gfx.drawPixel(px, py, false);
+      }
+    }
+  }
+}
+
 inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
   const uint8_t st = stage03 & 3u;
   if (gs == GfxRenderer::BitmapGrayRenderStyle::Balanced) {
@@ -331,9 +396,9 @@ void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t 
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
-                             const float cropX, const float cropY) const {
+                             const float cropX, const float cropY, const bool roundedCornerClip) const {
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
-    drawBitmap1Bit(bitmap, x, y, maxWidth, maxHeight);
+    drawBitmap1Bit(bitmap, x, y, maxWidth, maxHeight, roundedCornerClip);
     return;
   }
 
@@ -364,6 +429,9 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   }
   const bool replicateUpscale = isScaled && scale > 1.0f + kScaleEps;
   const int tFirstY = -cropPixY + (bitmap.isTopDown() ? cropPixY : bitmap.getHeight() - 1 - cropPixY);
+
+  const int contentW = bitmap.getWidth() - 2 * cropPixX;
+  const int contentH = bitmap.getHeight() - 2 * cropPixY;
 
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
@@ -461,12 +529,20 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     }
   }
 
+  if (roundedCornerClip && contentW > 0 && contentH > 0) {
+    const int drawnW = static_cast<int>(std::floor(static_cast<float>(contentW) * scale));
+    const int drawnH = static_cast<int>(std::floor(static_cast<float>(contentH) * scale));
+    if (drawnW > 0 && drawnH > 0) {
+      maskBitmapCornersToPaper(*this, x, y, drawnW, drawnH);
+    }
+  }
+
   free(outputRow);
   free(rowBytes);
 }
 
 void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
-                                 const int maxHeight) const {
+                                 const int maxHeight, const bool roundedCornerClip) const {
   constexpr float kScaleEps = 1e-5f;
   constexpr float kHuge = 1e9f;
   float scale = 1.0f;
@@ -564,6 +640,14 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
         const uint8_t val = pixel2bpp(outputRow, bmpX);
         emitPixel1(screenX, screenY, val);
       }
+    }
+  }
+
+  if (roundedCornerClip) {
+    const int drawnW = static_cast<int>(std::floor(static_cast<float>(bw) * scale));
+    const int drawnH = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * scale));
+    if (drawnW > 0 && drawnH > 0) {
+      maskBitmapCornersToPaper(*this, x, y, drawnW, drawnH);
     }
   }
 

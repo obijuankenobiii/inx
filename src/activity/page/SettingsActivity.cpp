@@ -23,7 +23,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 30;
+constexpr int systemPageSettingsCount = 31;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -47,6 +47,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
         "Contrast", &SystemSetting::displayImagePresentation,
         {"Low","Medium","High"},
         GroupType::IMAGE),
+    SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum(

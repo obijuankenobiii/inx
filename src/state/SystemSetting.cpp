@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 16;
-constexpr uint8_t SETTINGS_COUNT = 47;
+constexpr uint8_t SETTINGS_FILE_VERSION = 17;
+constexpr uint8_t SETTINGS_COUNT = 48;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -139,6 +139,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, refreshOnLoadSettings);
   serialization::writePod(outputFile, refreshOnLoadSync);
   serialization::writePod(outputFile, refreshOnLoadStatistics);
+  serialization::writePod(outputFile, bitmapRoundedCorners);
 
   outputFile.close();
 
@@ -166,7 +167,7 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15) {
+      version != 15 && version != 16) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -448,6 +449,13 @@ bool SystemSetting::loadFromFile() {
         refreshOnLoadStatistics = on;
         ++settingsRead;
       }
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, bitmapRoundedCorners);
+      if (bitmapRoundedCorners > 1) {
+        bitmapRoundedCorners = 0;
+      }
+      ++settingsRead;
     }
 
   } while (false);

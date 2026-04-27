@@ -274,7 +274,7 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
         cropY = 1.0f - (ir / tr);
       }
     }
-    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY);
+    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, SETTINGS.bitmapRoundedCorners != 0);
   }
   file.close();
 }
