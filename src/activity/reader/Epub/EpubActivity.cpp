@@ -292,11 +292,12 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
   auto tempSection = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
 
-  ScreenComponents::LoadingProgressLayout chapterLoadBar{};
+  ScreenComponents::PopupLayout chapterLoadPopup{};
   const bool useChapterLoadBar = showProgress;
   if (useChapterLoadBar) {
     dismissMenuDrawerForBlockingWork(false);
-    chapterLoadBar = ScreenComponents::LoadingProgress::show(renderer, "Loading chapter...", 12);
+    chapterLoadPopup = ScreenComponents::drawPopup(renderer, "Loading chapter...");
+    ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 12);
   }
 
   bool success =
@@ -315,7 +316,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         skipImages);
 
   if (useChapterLoadBar) {
-    ScreenComponents::LoadingProgress::setProgress(renderer, chapterLoadBar, 100);
+    ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
     renderer.clearScreen();
     renderer.displayBuffer();
   }
@@ -902,7 +903,8 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (mappedInput.isPressed(MappedInputManager::Button::Back) && !menuDrawerVisible && !isToggleClosed) {
+  if (mappedInput.isPressed(MappedInputManager::Button::Back) && !menuDrawerVisible && !settingsDrawerVisible &&
+      !isToggleClosed) {
     vTaskDelay(pdMS_TO_TICKS(100));
     onGoBack();
     return;
