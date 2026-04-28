@@ -22,7 +22,8 @@ class GfxRenderer {
   enum class BitmapGrayRenderStyle : uint8_t {
     Balanced,  ///< Legacy: only dark gray + black ink (light gray omitted)
     FullGray,  ///< "Balance" contrast: ink both gray stages (former full-gray behavior)
-    Dark       ///< Stronger ink / tighter snap than FullGray
+    Dark,      ///< Stronger ink / tighter snap than FullGray
+    VeryDark   ///< Maximum ink / strongest stage mapping
   };
 
   

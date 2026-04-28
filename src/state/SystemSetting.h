@@ -280,8 +280,9 @@ public:
      */
     enum READER_IMAGE_PRESENTATION {
         IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
-        IMAGE_PRESENTATION_MEDIUM = 1, ///< Default: full-gray halftone (former “Balance”)
-        IMAGE_PRESENTATION_HIGH = 2,   ///< Strongest: tighter snap + more ink (former “Dark”)
+        IMAGE_PRESENTATION_MEDIUM = 1,  ///< Default: full-gray halftone (former “Balance”)
+        IMAGE_PRESENTATION_HIGH = 2,    ///< Strong: tighter snap + more ink
+        IMAGE_PRESENTATION_VERY_HIGH = 3,  ///< Strongest: maximum ink weight / edge emphasis
         READER_IMAGE_PRESENTATION_COUNT
     };
 

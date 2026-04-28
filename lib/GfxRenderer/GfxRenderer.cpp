@@ -101,8 +101,11 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
 inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
   const uint8_t st = stage03 & 3u;
+  if (gs == GfxRenderer::BitmapGrayRenderStyle::VeryDark) {
+    return st < 3u;
+  }
   if (gs == GfxRenderer::BitmapGrayRenderStyle::Balanced) {
-    return st <= 1u;
+    return st <= 1u;  // skip light-gray stage in low mode
   }
   return st < 3u;
 }
@@ -381,16 +384,15 @@ void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t 
   static const uint8_t kBayer2[4] = {0, 2, 3, 1};
   const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
   const uint8_t tScaled = (t * 16) / 4;  
-  const bool dark = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::Dark);
+  const bool veryDark = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::VeryDark);
+  const bool dark = (bitmapGrayRenderStyle == BitmapGrayRenderStyle::Dark) || veryDark;
 
   if (v == 1u) {
-    
-    drawPixel(px, py, tScaled < (dark ? 13u : 12u));
+    drawPixel(px, py, tScaled < (veryDark ? 14u : (dark ? 13u : 12u)));
     return;
   }
 
-  
-  drawPixel(px, py, tScaled < (dark ? 9u : 6u));
+  drawPixel(px, py, tScaled < (veryDark ? 11u : (dark ? 9u : 6u)));
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,

@@ -7,12 +7,15 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../Activity.h"
 #include "../Menu.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
+#include "state/Statistics.h"
 
 /**
  * Activity that displays recently opened books in grid, flow, stats strip, simple, or book-list layouts.
@@ -64,6 +67,10 @@ class RecentActivity final : public Activity, public Menu {
   int simpleUiFavScroll_ = 0;
 
   std::vector<RecentBook> recentBooks;
+  /** Cache stats by cachePath to avoid SD reads every repaint. */
+  std::unordered_map<std::string, BookReadingStats> statsCache_;
+  /** Cache cacheDirs where thumb.bmp is missing/unreadable; cleared on list refresh. */
+  std::unordered_set<std::string> missingThumbCacheDirs_;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -81,6 +88,7 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
+  bool getBookStatsCached(const std::string& cachePath, BookReadingStats& outStats);
   void rebuildListStatsFavorites();
   void rebuildSimpleUiFavorites();
 

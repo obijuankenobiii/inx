@@ -347,6 +347,8 @@ void SettingsDrawer::setupMenu() {
       switch (SETTINGS.readerImagePresentation) {
         case SystemSetting::IMAGE_PRESENTATION_LOW:
           return "Low";
+        case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
+          return "Very high";
         case SystemSetting::IMAGE_PRESENTATION_HIGH:
           return "High";
         default:

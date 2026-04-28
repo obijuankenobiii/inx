@@ -45,7 +45,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::displayImagePresentation,
-        {"Low","Medium","High"},
+        {"Low","Medium","High","Very high"},
         GroupType::IMAGE),
     SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 
@@ -118,7 +118,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::readerImagePresentation,
-        {"Low","Medium","High"},
+        {"Low","Medium","High","Very high"},
         GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
