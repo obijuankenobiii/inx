@@ -615,6 +615,10 @@ void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
   epub->setupCacheDir();
   
+  syncOrientationFromGlobalIfNeeded();
+  setupOrientation();
+
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
@@ -629,11 +633,6 @@ void EpubActivity::onEnter() {
     renderer.displayBuffer();
     slowPath();
   }
-
-  syncOrientationFromGlobalIfNeeded();
-  setupOrientation();
-
-  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
 
   updateExternalState();
   loadBookmarks();
@@ -903,7 +902,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
+  if (mappedInput.isPressed(MappedInputManager::Button::Back) && !menuDrawerVisible && !isToggleClosed) {
     vTaskDelay(pdMS_TO_TICKS(100));
     onGoBack();
     return;
