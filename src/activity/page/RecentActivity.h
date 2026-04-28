@@ -47,7 +47,8 @@ class RecentActivity final : public Activity, public Menu {
     Grid,  /**< Display books in a grid with covers */
     Flow,  /**< Flow carousel */
     SimpleUi, /**< Recent cover on gray band, favorites list below */
-    List /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
+    List, /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
+    Icons /**< 2x4 icon cards like statistics recent thumbnail */
   };
 
  private:
@@ -130,6 +131,7 @@ class RecentActivity final : public Activity, public Menu {
 
   /** Book list: five rows, vertical scroll when more than five recents. */
   void renderList(int startY);
+  void renderIcons(int startY);
 
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId);

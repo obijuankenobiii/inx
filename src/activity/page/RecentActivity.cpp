@@ -286,8 +286,9 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
       }
     }
     renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
-                        SETTINGS.bitmapRoundedCorners != 0 ? GfxRenderer::BitmapRoundedCornerOutside::PaperOutside
-                                                           : GfxRenderer::BitmapRoundedCornerOutside::None);
+                        SETTINGS.bitmapRoundedCorners != 0
+                            ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
+                            : GfxRenderer::BitmapRoundedCornerOutside::None);
   }
   file.close();
 }
@@ -540,6 +541,9 @@ void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int ban
  * Calculates the number of rows that can be displayed on screen at once.
  */
 int RecentActivity::getVisibleRows() const {
+  if (currentViewMode == ViewMode::Icons) {
+    return 4;
+  }
   if (currentViewMode == ViewMode::Grid) {
     int screenHeight = renderer.getScreenHeight();
     int availableHeight = screenHeight - TAB_BAR_HEIGHT - 20;
@@ -661,6 +665,11 @@ void RecentActivity::onEnter() {
     selectorIndex = 0;
     scrollOffset = 0;
   }
+  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_ICONS) {
+    currentViewMode = ViewMode::Icons;
+    selectorIndex = 0;
+    scrollOffset = 0;
+  }
 
   updateRequired = true;
 }
@@ -702,6 +711,52 @@ void RecentActivity::renderGrid(int startY) {
       bool isSelected = (selectorIndex == bookIdx);
       renderGridItem(col, row - startRow, startY, recentBooks[bookIdx], isSelected);
     }
+  }
+}
+
+void RecentActivity::renderIcons(int startY) {
+  const int totalBooks = static_cast<int>(recentBooks.size());
+  if (totalBooks == 0) {
+    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
+    return;
+  }
+
+  constexpr int kCols = 2;
+  constexpr int kRows = 4;
+  constexpr int kGapX = 14;
+  constexpr int kGapY = 12;
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight() - 30;
+  const int availW = std::max(1, screenW - GRID_SPACING * 2 - kGapX * (kCols - 1));
+  const int availH = std::max(1, screenH - startY - GRID_SPACING - kGapY * (kRows - 1));
+  const int cellW = availW / kCols;
+  const int cellH = availH / kRows;
+
+  const int visibleItems = std::min(totalBooks, kCols * kRows);
+  for (int i = 0; i < visibleItems; ++i) {
+    const int row = i / kCols;
+    const int col = i % kCols;
+    const int boxX = GRID_SPACING + col * (cellW + kGapX);
+    const int boxY = startY + GRID_SPACING + row * (cellH + kGapY);
+    const int frameW = std::max(80, cellW);
+    const int frameH = std::max(92, cellH);
+    const bool selected = (selectorIndex == i);
+    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+
+    renderer.fillRect(boxX, boxY, frameW, frameH, false, rr);
+    if (selected) {
+      renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
+    } else if (!rr) {
+      renderer.drawRect(boxX, boxY, frameW, frameH, true, false);
+    }
+
+    const int innerX = boxX + 4;
+    const int innerY = boxY + 4;
+    const int innerW = std::max(8, frameW - 8);
+    const int innerH = std::max(8, frameH - 8);
+    const RecentBook& b = recentBooks[static_cast<size_t>(i)];
+    drawRecentThumbnailAt(innerX, innerY, innerW, innerH, b.cachePath, bookDisplayTitle(b),
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
   }
 }
 
@@ -874,6 +929,8 @@ void RecentActivity::pumpDisplayFromLoop() {
     renderDefault();
   } else if (currentViewMode == ViewMode::Grid) {
     renderGrid(TAB_BAR_HEIGHT - 29);
+  } else if (currentViewMode == ViewMode::Icons) {
+    renderIcons(TAB_BAR_HEIGHT - 29);
   } else if (currentViewMode == ViewMode::SimpleUi) {
     renderSimpleUi();
   } else if (currentViewMode == ViewMode::List) {
@@ -1087,6 +1144,8 @@ void RecentActivity::loop() {
       expectedMode = ViewMode::SimpleUi;
     } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
       expectedMode = ViewMode::List;
+    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_ICONS) {
+      expectedMode = ViewMode::Icons;
     } else {
       expectedMode = ViewMode::Flow;
     }

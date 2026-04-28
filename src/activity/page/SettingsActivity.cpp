@@ -32,7 +32,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid","Current | Previous","Flow","Simple","List"},
+                      {"Grid","Current | Previous","Flow","Simple","List","Icons"},
                       GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),

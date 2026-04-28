@@ -392,7 +392,8 @@ void GfxRenderer::drawBwFrom2bppStage(const int px, const int py, const uint8_t 
     return;
   }
 
-  drawPixel(px, py, tScaled < (veryDark ? 11u : (dark ? 9u : 6u)));
+  // Keep light-gray looking solid-ish like dark gray in higher contrast modes.
+  drawPixel(px, py, tScaled < (veryDark ? 14u : (dark ? 13u : 6u)));
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
