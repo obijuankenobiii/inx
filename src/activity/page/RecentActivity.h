@@ -19,6 +19,13 @@
 /**
  * Activity that displays recently opened books in grid, flow, stats strip, simple, or book-list layouts.
  * Shows book covers, titles, authors, and reading progress.
+ *
+ * Complexity contract:
+ * - Loops over `recentBooks` are O(1) in total library size: at most MAX_RECENT_BOOKS entries (fixed bound).
+ * - Per-call work that touches favorites scales with the global favorite list (SD exists checks), not with
+ *   recent count; “is this path in recents?” is O(MAX_RECENT_BOOKS) string compares (constant bound, no heap).
+ * - Mapping settings → ViewMode and layout engine sync are O(1) (bounded enum / switch).
+ * - Painting remains O(pixels drawn); unavoidable for full-frame updates.
  */
 class RecentActivity final : public Activity, public Menu {
  public:

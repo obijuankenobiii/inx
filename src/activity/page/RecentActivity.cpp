@@ -15,7 +15,6 @@
 #include <functional>
 #include <memory>
 #include <sstream>
-#include <unordered_set>
 #include <vector>
 
 #include "images/Down.h"
@@ -72,6 +71,36 @@ static std::string bookDisplayTitle(const RecentBook& book) {
 }
 
 constexpr unsigned long GO_HOME_MS = 1000;
+
+/** O(1): bounded switch on RECENT_LIBRARY_MODE (fixed enum cardinality). */
+static RecentActivity::ViewMode viewModeForLibrarySetting(uint8_t mode) {
+  using SM = SystemSetting;
+  switch (mode) {
+    case SM::RECENT_GRID:
+      return RecentActivity::ViewMode::Grid;
+    case SM::RECENT_LIST:
+      return RecentActivity::ViewMode::Default;
+    case SM::RECENT_SIMPLE:
+      return RecentActivity::ViewMode::SimpleUi;
+    case SM::RECENT_BOOK_LIST:
+      return RecentActivity::ViewMode::List;
+    case SM::RECENT_ICONS:
+      return RecentActivity::ViewMode::Icons;
+    case SM::RECENT_FLOW:
+    default:
+      return RecentActivity::ViewMode::Flow;
+  }
+}
+
+/** O(1) vs library size: at most RecentActivity::MAX_RECENT_BOOKS path compares. */
+static bool recentBooksContainPath(const std::vector<RecentBook>& books, const std::string& path) {
+  for (const auto& b : books) {
+    if (b.path == path) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /** No-cover: stats-style double frame + title one word per line, each line centered (see StatisticActivity::renderCover). */
 static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, int w, int h, const std::string& title,
@@ -594,16 +623,14 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
   simpleUiFavScroll_ = std::max(0, std::min(simpleUiFavScroll_, maxScroll));
 }
 
-/** O(|recentBooks| + |favorites|): one hash set pass, then linear over favorites (recent list is capped). */
+/**
+ * Favorites not already on the recent strip. Recent membership per favorite is O(MAX_RECENT_BOOKS) (constant);
+ * total cost is O(|favorites|) SD exists checks — unavoidable without incremental BookState hooks.
+ */
 void RecentActivity::rebuildListStatsFavorites() {
   listStatsFavoriteOnly_.clear();
-  std::unordered_set<std::string> recentPaths;
-  recentPaths.reserve(recentBooks.size());
-  for (const auto& rb : recentBooks) {
-    recentPaths.insert(rb.path);
-  }
   for (const auto& fav : BOOK_STATE.getFavoriteBooks()) {
-    if (recentPaths.count(fav.path) != 0) {
+    if (recentBooksContainPath(recentBooks, fav.path)) {
       continue;
     }
     if (!SdMan.exists(fav.path.c_str())) {
@@ -625,27 +652,11 @@ void RecentActivity::onEnter() {
   renderer.clearScreen(0xff);
   loadRecentBooks();
 
-  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) {
-    currentViewMode = ViewMode::Grid;
-  }
-
-  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
-    currentViewMode = ViewMode::Default;
-  }
-
-  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
-    currentViewMode = ViewMode::SimpleUi;
+  currentViewMode = viewModeForLibrarySetting(SETTINGS.recentLibraryMode);
+  if (currentViewMode == ViewMode::SimpleUi) {
     selectorIndex = 0;
     simpleUiFavScroll_ = 0;
-  }
-
-  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
-    currentViewMode = ViewMode::List;
-    selectorIndex = 0;
-    scrollOffset = 0;
-  }
-  if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_ICONS) {
-    currentViewMode = ViewMode::Icons;
+  } else if (currentViewMode == ViewMode::List || currentViewMode == ViewMode::Icons) {
     selectorIndex = 0;
     scrollOffset = 0;
   }
@@ -1165,20 +1176,7 @@ void RecentActivity::loop() {
   }
 
   {
-    ViewMode expectedMode;
-    if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) {
-      expectedMode = ViewMode::Grid;
-    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
-      expectedMode = ViewMode::Default;
-    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
-      expectedMode = ViewMode::SimpleUi;
-    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
-      expectedMode = ViewMode::List;
-    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_ICONS) {
-      expectedMode = ViewMode::Icons;
-    } else {
-      expectedMode = ViewMode::Flow;
-    }
+    const ViewMode expectedMode = viewModeForLibrarySetting(SETTINGS.recentLibraryMode);
     if (expectedMode != currentViewMode) {
       currentViewMode = expectedMode;
       scrollOffset = 0;
