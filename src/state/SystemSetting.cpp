@@ -620,9 +620,6 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
     return FontManager::getFontIdNearestPointSize(sdName, preferredPt);
   }
 
-  if (family >= FONT_FAMILY_COUNT) {
-    family = LITERATA;
-  }
   switch (family) {
     case ATKINSON_HYPERLEGIBLE:
       switch (size) {

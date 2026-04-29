@@ -131,7 +131,7 @@ static std::string epubCachePathForBookPath(const std::string& bookPath) {
 }
 
 /** Same light “gray” as `renderFlow` carousel: sparse ink checker (not `FillTone::Gray`). */
-static void drawFlowCarouselBackdrop(GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
+static void drawFlowCarouselBackdrop(const GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
   // Same even-even 1/4 ink lattice as GfxRenderer corner mask (SparseInkAlignedOutside) for seamless edges.
@@ -148,7 +148,7 @@ static void drawFlowCarouselBackdrop(GfxRenderer& renderer, int rx, int ry, int 
 }
 
 /** Flow-style dither strictly inside the rectangle (does not bleed into the white bottom pane). */
-static void drawFlowCarouselBackdropInRect(GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
+static void drawFlowCarouselBackdropInRect(const GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
   if (rw <= 0 || rh <= 0) {
     return;
   }
@@ -594,6 +594,7 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
   simpleUiFavScroll_ = std::max(0, std::min(simpleUiFavScroll_, maxScroll));
 }
 
+/** O(|recentBooks| + |favorites|): one hash set pass, then linear over favorites (recent list is capped). */
 void RecentActivity::rebuildListStatsFavorites() {
   listStatsFavoriteOnly_.clear();
   std::unordered_set<std::string> recentPaths;
@@ -618,6 +619,8 @@ void RecentActivity::rebuildListStatsFavorites() {
 void RecentActivity::onEnter() {
   Activity::onEnter();
 
+  layoutEngine_.reset();
+  layoutEngineBoundMode_ = ViewMode::Flow;
   halfRefreshOnLoadApplied_ = false;
   renderer.clearScreen(0xff);
   loadRecentBooks();
@@ -654,6 +657,8 @@ void RecentActivity::onEnter() {
  * Cleans up resources when exiting the recent activity.
  */
 void RecentActivity::onExit() {
+  layoutEngine_.reset();
+  layoutEngineBoundMode_ = ViewMode::Flow;
   recentBooks.clear();
   listStatsFavoriteOnly_.clear();
   simpleUiFavorites_.clear();
@@ -774,7 +779,6 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
   int coverAreaX = itemX;
   int coverAreaY = itemY;
-  int coverHeight = static_cast<int>((containerHeight));
 
   const int drawX = coverAreaX;
   const int drawY = coverAreaY + GRID_SPACING;
@@ -906,6 +910,55 @@ void RecentActivity::renderList(int startY) {
   }
 }
 
+void RecentActivity::syncLayoutEngineForViewMode() {
+  if (!layoutEngine_ || layoutEngineBoundMode_ != currentViewMode) {
+    layoutEngine_ = makeLayoutEngine(currentViewMode);
+    layoutEngineBoundMode_ = currentViewMode;
+  }
+}
+
+std::unique_ptr<RecentActivity::LayoutEngine> RecentActivity::makeLayoutEngine(ViewMode mode) {
+  switch (mode) {
+    case ViewMode::Default:
+      return std::unique_ptr<LayoutEngine>(new DefaultViewLayout());
+    case ViewMode::Grid:
+      return std::unique_ptr<LayoutEngine>(new GridViewLayout());
+    case ViewMode::Icons:
+      return std::unique_ptr<LayoutEngine>(new IconsViewLayout());
+    case ViewMode::SimpleUi:
+      return std::unique_ptr<LayoutEngine>(new SimpleUiViewLayout());
+    case ViewMode::List:
+      return std::unique_ptr<LayoutEngine>(new ListViewLayout());
+    case ViewMode::Flow:
+    default:
+      return std::unique_ptr<LayoutEngine>(new FlowViewLayout());
+  }
+}
+
+void RecentActivity::DefaultViewLayout::paint(RecentActivity& self) {
+  self.renderDefault();
+}
+
+void RecentActivity::GridViewLayout::paint(RecentActivity& self) {
+  self.renderGrid(self.recentGridPaintStartY());
+}
+
+void RecentActivity::IconsViewLayout::paint(RecentActivity& self) {
+  self.renderIcons(self.recentIconsPaintStartY());
+}
+
+void RecentActivity::SimpleUiViewLayout::paint(RecentActivity& self) {
+  self.renderSimpleUi();
+}
+
+void RecentActivity::ListViewLayout::paint(RecentActivity& self) {
+  self.renderList(self.recentListPaintStartY());
+}
+
+void RecentActivity::FlowViewLayout::paint(RecentActivity& self) {
+  self.renderFlow();
+}
+
 void RecentActivity::pumpDisplayFromLoop() {
   if (!updateRequired) {
     return;
@@ -913,19 +966,8 @@ void RecentActivity::pumpDisplayFromLoop() {
   renderer.clearScreen();
   renderTabBar(renderer);
 
-  if (currentViewMode == ViewMode::Default) {
-    renderDefault();
-  } else if (currentViewMode == ViewMode::Grid) {
-    renderGrid(TAB_BAR_HEIGHT - 29);
-  } else if (currentViewMode == ViewMode::Icons) {
-    renderIcons(TAB_BAR_HEIGHT + 6);
-  } else if (currentViewMode == ViewMode::SimpleUi) {
-    renderSimpleUi();
-  } else if (currentViewMode == ViewMode::List) {
-    renderList(TAB_BAR_HEIGHT + 15);
-  } else {
-    renderFlow();
-  }
+  syncLayoutEngineForViewMode();
+  layoutEngine_->paint(*this);
 
   const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -1123,12 +1165,12 @@ void RecentActivity::loop() {
   }
 
   {
-    ViewMode expectedMode = ViewMode::Flow;
+    ViewMode expectedMode;
     if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_GRID) {
       expectedMode = ViewMode::Grid;
     } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_LIST) {
       expectedMode = ViewMode::Default;
-    } else     if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
+    } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_SIMPLE) {
       expectedMode = ViewMode::SimpleUi;
     } else if (SETTINGS.recentLibraryMode == SystemSetting::RECENT_BOOK_LIST) {
       expectedMode = ViewMode::List;

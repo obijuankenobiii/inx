@@ -555,10 +555,10 @@ void LibraryActivity::loadBooksRecursiveScan() {
 void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
-  size_t scanYieldCount = 0;
 
   auto root = SdMan.open(basepath.c_str());
   if (root && root.isDirectory()) {
+    size_t scanYieldCount = 0;
     root.rewindDirectory();
     char name[500];
 

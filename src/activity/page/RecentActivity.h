@@ -6,6 +6,7 @@
  */
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -131,6 +132,43 @@ class RecentActivity final : public Activity, public Menu {
                              int placeholderFontId, bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
   void renderDefaultStatsGrid(int gridStartY, int screenW);
+
+  /** Tab-relative Y where each Recent view paints its body (keeps constants out of layout engine defs). */
+  int recentGridPaintStartY() const { return TAB_BAR_HEIGHT - 29; }
+  int recentIconsPaintStartY() const { return TAB_BAR_HEIGHT + 6; }
+  int recentListPaintStartY() const { return TAB_BAR_HEIGHT + 15; }
+
+  /**
+   * View-mode paint strategy: one implementation per `ViewMode`, created by `makeLayoutEngine`.
+   * Nested here so `paint` can call private render helpers without friending external types.
+   */
+  struct LayoutEngine {
+    virtual ~LayoutEngine() = default;
+    virtual void paint(RecentActivity& self) = 0;
+  };
+  struct DefaultViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct GridViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct IconsViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct SimpleUiViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct ListViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct FlowViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+
+  static std::unique_ptr<LayoutEngine> makeLayoutEngine(ViewMode mode);
+  void syncLayoutEngineForViewMode();
+  std::unique_ptr<LayoutEngine> layoutEngine_;
+  ViewMode layoutEngineBoundMode_ = ViewMode::Flow;
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.

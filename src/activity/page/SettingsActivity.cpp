@@ -200,7 +200,7 @@ void SettingsActivity::loop() {
     return;
   }
 
-  if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
+  if (updateRequired && !isIndexing && !showingAbout) {
     updateRequired = false;
     openCurrentPanel();
     return;

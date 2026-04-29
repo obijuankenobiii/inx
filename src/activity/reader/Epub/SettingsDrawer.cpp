@@ -194,7 +194,7 @@ void SettingsDrawer::setupMenu() {
     lineEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* spacing[] = {"Tight", "Normal", "Wide", "Wider", "Loose"};
       int index = s.lineSpacing;
-      if (index < 0 || index > 4) index = 1;
+      if (index > 4) index = 1;
       return spacing[index];
     };
     lineEntry.change = [](BookSettings& s, int delta) {

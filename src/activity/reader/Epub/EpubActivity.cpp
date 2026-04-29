@@ -66,7 +66,7 @@ void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orie
   }
 }
 
-bool pageImageFootprintAtLeastHalfScreen(const Page& page, GfxRenderer& renderer, int marginLeft, int marginTop) {
+bool pageImageFootprintAtLeastHalfScreen(const Page& page, const GfxRenderer& renderer, int marginLeft, int marginTop) {
   if (!page.hasImages()) {
     return false;
   }
