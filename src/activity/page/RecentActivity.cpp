@@ -723,8 +723,8 @@ void RecentActivity::renderIcons(int startY) {
 
   constexpr int kCols = 2;
   constexpr int kRows = 6;
-  constexpr int kGapX = 14;
-  constexpr int kGapY = 30;
+  constexpr int kGapX = 10;
+  constexpr int kGapY = 220;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight() - 30;
   const int availW = std::max(1, screenW - GRID_SPACING * 2 - kGapX * (kCols - 1));
@@ -732,18 +732,21 @@ void RecentActivity::renderIcons(int startY) {
   const int cellW = availW / kCols;
   const int cellH = availH / kRows;
 
+
   const int visibleItems = std::min(totalBooks, kCols * kRows);
   for (int i = 0; i < visibleItems; ++i) {
     const int row = i / kCols;
     const int col = i % kCols;
-    const int boxX = GRID_SPACING + col * (cellW + kGapX);
+    const int boxX = GRID_SPACING + col * (cellW + kGapX) + 6;
     const int boxY = startY + GRID_SPACING + row * (cellH + kGapY);
     const int frameW = 200;
     const int frameH = 200;
     const bool selected = (selectorIndex == i);
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
 
-    renderer.fillRect(boxX, boxY, frameW, frameH, false, rr);
+    if (selected) {
+      renderer.drawRect(boxX - 1, boxY - 1, frameW + 5, frameH + 5, true, rr);
+    }
     renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
 
     const int innerX = boxX + 4;

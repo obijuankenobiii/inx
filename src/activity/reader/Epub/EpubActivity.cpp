@@ -731,7 +731,7 @@ void EpubActivity::loop() {
     settingsDrawer->handleInput(mappedInput);
     if (settingsDrawer->isDismissed()) {
       saveBookSettings();
-      settingsDrawerVisible = false;
+      toggleSettingsDrawer();
       vTaskDelay(pdMS_TO_TICKS(100));
       isToggleClosed = true;
       updateRequired = true;
@@ -903,8 +903,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (mappedInput.isPressed(MappedInputManager::Button::Back) && !menuDrawerVisible && !settingsDrawerVisible &&
-      !isToggleClosed) {
+  if (mappedInput.isPressed(MappedInputManager::Button::Back) && !settingsDrawer) {
     vTaskDelay(pdMS_TO_TICKS(100));
     onGoBack();
     return;
@@ -1121,7 +1120,11 @@ void EpubActivity::toggleSettingsDrawer() {
     settingsDrawer->show();
     updateRequired = true;
     return;
+  } else {
+    delete settingsDrawer;
+    settingsDrawer = nullptr;
   }
+
 }
 
 /**
