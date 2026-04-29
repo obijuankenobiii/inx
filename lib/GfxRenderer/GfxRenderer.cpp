@@ -36,41 +36,60 @@ int cornerSpanFromRy(const int r, const int ry) {
   return static_cast<int>(std::sqrt(static_cast<double>(inner)));
 }
 
-/** True if (px,py) lies in one of the four axis-box corners outside the rounded arc (same set `maskBitmapCornersOutsideRounded` paints). */
-bool pixelInRoundedOutsideCorner(const int px, const int py, const int x, const int y, const int w, const int h) {
-  if (w < 3 || h < 3) {
-    return false;
-  }
-  const int r = roundedRectCornerRadius(w, h);
-  if (r < 1) {
-    return false;
-  }
+/** Same interior as `fillRect(..., rounded=true)` — single source of truth for clip / cleanup (must match fillRect). */
+bool pixelInRoundedRectFillShape(const int px, const int py, const int x, const int y, const int w, const int h) {
   if (px < x || px >= x + w || py < y || py >= y + h) {
     return false;
   }
-  // Top band
-  const int fromTop = py - y;
-  if (fromTop < r) {
-    const int span = cornerSpanFromRy(r, r - fromTop);
-    if (px < x + r - span) {
-      return true;
-    }
-    if (px >= x + w - r + span) {
-      return true;
-    }
+  if (w < 3 || h < 3) {
+    return true;
   }
-  // Bottom band
-  const int fromBottom = (y + h - 1) - py;
-  if (fromBottom < r) {
-    const int span = cornerSpanFromRy(r, r - fromBottom);
-    if (px < x + r - span) {
+  const int radius = roundedRectCornerRadius(w, h);
+  if (py >= y + radius && py < y + h - radius) {
+    return true;
+  }
+  for (int cornerY = 0; cornerY < radius; ++cornerY) {
+    const int cornerSpan = static_cast<int>(
+        std::sqrt(static_cast<double>(radius * radius - (radius - cornerY) * (radius - cornerY))));
+    const int topY = y + cornerY;
+    if (py == topY && px >= x + radius - cornerSpan && px < x + w - radius + cornerSpan) {
       return true;
     }
-    if (px >= x + w - r + span) {
+    const int bottomY = y + h - 1 - cornerY;
+    if (py == bottomY && px >= x + radius - cornerSpan && px < x + w - radius + cornerSpan) {
       return true;
     }
   }
   return false;
+}
+
+/** Paper ink in the bitmap box that lies outside the rounded fill (dither/scale halos). Only scans an edge band. */
+void paperOutsideRoundedFillShape(const GfxRenderer& gfx, const int x, const int y, const int w, const int h) {
+  if (w < 1 || h < 1) {
+    return;
+  }
+  const int sw = gfx.getScreenWidth();
+  const int sh = gfx.getScreenHeight();
+  const int x1 = std::max(0, x);
+  const int y1 = std::max(0, y);
+  const int x2 = std::min(sw, x + w);
+  const int y2 = std::min(sh, y + h);
+  int band = 6;
+  if (w >= 3 && h >= 3) {
+    const int r = roundedRectCornerRadius(w, h);
+    band = std::min(std::max(w, h), std::max(8, r + 6));
+  }
+  for (int py = y1; py < y2; ++py) {
+    const bool rowNear = (py < y + band) || (py >= y + h - band);
+    for (int px = x1; px < x2; ++px) {
+      if (!rowNear && px >= x + band && px < x + w - band) {
+        continue;
+      }
+      if (!pixelInRoundedRectFillShape(px, py, x, y, w, h)) {
+        gfx.drawPixel(px, py, false);
+      }
+    }
+  }
 }
 
 /** Pixels outside the rounded rect (same geometry as `fillRect` with `rounded`). */
@@ -340,20 +359,20 @@ void GfxRenderer::drawRect(const int x, const int y, const int width, const int 
   } else {
     
     const int radius = roundedRectCornerRadius(width, height);
-    
-    
-    drawLine(x + radius, y, x + width - radius - 1, y, state);
-    
-    
-    drawLine(x + radius, y + height - 1, x + width - radius - 1, y + height - 1, state);
-    
-    
-    drawLine(x, y + radius, x, y + height - radius - 1, state);
-    
-    
-    drawLine(x + width - 1, y + radius, x + width - 1, y + height - radius - 1, state);
+    // Flat segments omit endpoints where quarter-circle outlines already draw ink (avoids doubled/tall edges).
+    const int left = x + radius;
+    const int right = x + width - radius - 1;
+    if (right > left) {
+      drawLine(left + 1, y, right - 1, y, state);
+      drawLine(left + 1, y + height - 1, right - 1, y + height - 1, state);
+    }
+    const int top = y + radius;
+    const int bottom = y + height - radius - 1;
+    if (bottom > top) {
+      drawLine(x, top + 1, x, bottom - 1, state);
+      drawLine(x + width - 1, top + 1, x + width - 1, bottom - 1, state);
+    }
 
-    
     drawRoundedRectCornerOutlines(*this, x, y, width, height, radius, state);
   }
 }
@@ -496,7 +515,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
   auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
     if (roundedOutside == GfxRenderer::BitmapRoundedCornerOutside::PaperOutside && maskW > 0 && maskH > 0) {
-      if (pixelInRoundedOutsideCorner(screenX, screenY, x, y, maskW, maskH)) {
+      if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }
     }
@@ -583,6 +602,9 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   if (roundedOutside != BitmapRoundedCornerOutside::None && contentW > 0 && contentH > 0 && maskW > 0 &&
       maskH > 0) {
     maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
+    if (roundedOutside == BitmapRoundedCornerOutside::PaperOutside) {
+      paperOutsideRoundedFillShape(*this, x, y, maskW, maskH);
+    }
   }
 
   free(outputRow);
@@ -631,7 +653,7 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
 
   auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
     if (roundedOutside == GfxRenderer::BitmapRoundedCornerOutside::PaperOutside && maskW > 0 && maskH > 0) {
-      if (pixelInRoundedOutsideCorner(screenX, screenY, x, y, maskW, maskH)) {
+      if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }
     }
@@ -703,6 +725,9 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
 
   if (roundedOutside != BitmapRoundedCornerOutside::None && maskW > 0 && maskH > 0) {
     maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
+    if (roundedOutside == BitmapRoundedCornerOutside::PaperOutside) {
+      paperOutsideRoundedFillShape(*this, x, y, maskW, maskH);
+    }
   }
 
   free(outputRow);
