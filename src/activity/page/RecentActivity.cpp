@@ -543,7 +543,7 @@ void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int ban
  */
 int RecentActivity::getVisibleRows() const {
   if (currentViewMode == ViewMode::Icons) {
-    return 4;
+    return 6;
   }
   if (currentViewMode == ViewMode::Grid) {
     int screenHeight = renderer.getScreenHeight();
@@ -733,7 +733,7 @@ void RecentActivity::renderIcons(int startY) {
   const int cellH = availH / kRows;
 
 
-  const int visibleItems = std::min(totalBooks, kCols * kRows);
+  const int visibleItems = 6;
   for (int i = 0; i < visibleItems; ++i) {
     const int row = i / kCols;
     const int col = i % kCols;
@@ -746,9 +746,9 @@ void RecentActivity::renderIcons(int startY) {
 
     if (selected) {
       renderer.drawRect(boxX - 1, boxY - 1, frameW + 5, frameH + 5, true, rr);
+      renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
     }
-    renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
-
+    
     const int innerX = boxX + 4;
     const int innerY = boxY + 4;
     const int innerW = std::max(8, frameW - 8);
