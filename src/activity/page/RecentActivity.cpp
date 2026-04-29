@@ -584,14 +584,15 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
     recentBooks.push_back(book);
     addedCount++;
   }
-  rebuildListStatsFavorites();
-  rebuildSimpleUiFavorites();
+  const std::vector<BookState::Book> favorites = BOOK_STATE.getFavoriteBooks();
+  rebuildListStatsFavorites(favorites);
+  rebuildSimpleUiFavorites(favorites);
 }
 
-void RecentActivity::rebuildSimpleUiFavorites() {
+void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {
   simpleUiFavorites_.clear();
   int added = 0;
-  for (const auto& fb : BOOK_STATE.getFavoriteBooks()) {
+  for (const auto& fb : favorites) {
     if (!SdMan.exists(fb.path.c_str())) {
       continue;
     }
@@ -627,9 +628,9 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
  * Favorites not already on the recent strip. Recent membership per favorite is O(MAX_RECENT_BOOKS) (constant);
  * total cost is O(|favorites|) SD exists checks — unavoidable without incremental BookState hooks.
  */
-void RecentActivity::rebuildListStatsFavorites() {
+void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites) {
   listStatsFavoriteOnly_.clear();
-  for (const auto& fav : BOOK_STATE.getFavoriteBooks()) {
+  for (const auto& fav : favorites) {
     if (recentBooksContainPath(recentBooks, fav.path)) {
       continue;
     }

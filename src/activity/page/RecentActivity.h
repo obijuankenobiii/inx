@@ -91,8 +91,8 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
-  void rebuildListStatsFavorites();
-  void rebuildSimpleUiFavorites();
+  void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
+  void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
 
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();

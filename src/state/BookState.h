@@ -6,6 +6,7 @@
  */
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <algorithm>
 
@@ -29,6 +30,9 @@ public:
 private:
   static BookState instance;
   uint32_t nextId = 1;
+  /** path string → index in `books` for O(1) lookup (rebuilt on load). */
+  std::unordered_map<std::string, size_t> pathIndex_;
+  void rebuildPathIndex();
 
 public:
   std::vector<Book> books;
