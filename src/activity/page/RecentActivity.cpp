@@ -722,9 +722,9 @@ void RecentActivity::renderIcons(int startY) {
   }
 
   constexpr int kCols = 2;
-  constexpr int kRows = 4;
+  constexpr int kRows = 6;
   constexpr int kGapX = 14;
-  constexpr int kGapY = 12;
+  constexpr int kGapY = 30;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight() - 30;
   const int availW = std::max(1, screenW - GRID_SPACING * 2 - kGapX * (kCols - 1));
@@ -738,17 +738,13 @@ void RecentActivity::renderIcons(int startY) {
     const int col = i % kCols;
     const int boxX = GRID_SPACING + col * (cellW + kGapX);
     const int boxY = startY + GRID_SPACING + row * (cellH + kGapY);
-    const int frameW = std::max(80, cellW);
-    const int frameH = std::max(92, cellH);
+    const int frameW = 200;
+    const int frameH = 200;
     const bool selected = (selectorIndex == i);
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
 
     renderer.fillRect(boxX, boxY, frameW, frameH, false, rr);
-    if (selected) {
-      renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
-    } else if (!rr) {
-      renderer.drawRect(boxX, boxY, frameW, frameH, true, false);
-    }
+    renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
 
     const int innerX = boxX + 4;
     const int innerY = boxY + 4;
@@ -930,7 +926,7 @@ void RecentActivity::pumpDisplayFromLoop() {
   } else if (currentViewMode == ViewMode::Grid) {
     renderGrid(TAB_BAR_HEIGHT - 29);
   } else if (currentViewMode == ViewMode::Icons) {
-    renderIcons(TAB_BAR_HEIGHT - 29);
+    renderIcons(TAB_BAR_HEIGHT + 6);
   } else if (currentViewMode == ViewMode::SimpleUi) {
     renderSimpleUi();
   } else if (currentViewMode == ViewMode::List) {
