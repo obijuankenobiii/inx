@@ -242,7 +242,8 @@ inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
 }  // namespace
 
 void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
-                                           const std::string& placeholderTitle, int placeholderFontId) {
+                                           const std::string& placeholderTitle, int placeholderFontId,
+                                           const bool roundedCornerBackdropIsDither) {
   if (w < 8 || h < 8) {
     return;
   }
@@ -683,8 +684,7 @@ void RecentActivity::onExit() {
   missingThumbCacheDirs_.clear();
   listStatsFavoriteOnly_.clear();
   simpleUiFavorites_.clear();
-  renderer.setRenderMode(GfxRenderer::BW);
-  renderer.cleanupGrayscaleWithFrameBuffer();
+  renderer.resetTransientReaderState();
   Activity::onExit();
 }
 
@@ -755,7 +755,7 @@ void RecentActivity::renderIcons(int startY) {
     const int innerH = std::max(8, frameH - 8);
     const RecentBook& b = recentBooks[static_cast<size_t>(i)];
     drawRecentThumbnailAt(innerX, innerY, innerW, innerH, b.cachePath, bookDisplayTitle(b),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, false);
   }
 }
 
@@ -793,7 +793,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   const int drawW = containerWidth;
   const int drawH = static_cast<int>(containerHeight);
   drawRecentThumbnailAt(drawX, drawY, drawW, drawH, book.cachePath, bookDisplayTitle(book),
-                        ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                        ATKINSON_HYPERLEGIBLE_10_FONT_ID, selected);
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
     int barX = coverAreaX + 15;
@@ -856,7 +856,8 @@ void RecentActivity::renderList(int startY) {
     if (thumbRound) {
       renderer.fillRect(tx, ty, thumbW, thumbH, false, true);
     }
-    drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                            false);
 
     const int textX = tx + thumbW + 14;
     const int textRight = screenW - padX;
@@ -1323,7 +1324,7 @@ void RecentActivity::renderFlow() {
       renderer.fillRect(leftX, sideY, sideW, sideH, false, true);
     }
     drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
   }
 
   if (currentIndex + 1 < totalBooks) {
@@ -1332,13 +1333,13 @@ void RecentActivity::renderFlow() {
       renderer.fillRect(rightX, sideY, sideW, sideH, false, true);
     }
     drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
   }
 
   const RecentBook& currentBook = recentBooks[currentIndex];
   renderer.fillRect(centerX, centerY, centerW, centerH, false, rr);
   drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
-                        ATKINSON_HYPERLEGIBLE_14_FONT_ID);
+                        ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);
 
   BookReadingStats stats;
   bool hasStats = getBookStatsCached(currentBook.cachePath, stats);
@@ -1430,7 +1431,7 @@ void RecentActivity::renderSimpleUi() {
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
     renderer.fillRect(rx, ry, m.thumbW, m.thumbH, false, rr);
     const std::string cdir = b.cachePath.empty() ? epubCachePathForBookPath(b.path) : b.cachePath;
-    drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+    drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID, true);
     if (sel) {
       renderer.drawRect(rx - 2, ry - 2, m.thumbW + 4, m.thumbH + 4, true, rr);
     } else if (!rr) {

@@ -159,6 +159,8 @@ class GfxRenderer {
   bool storeBwBuffer();    
   void restoreBwBuffer();  
   void cleanupGrayscaleWithFrameBuffer() const;
+  /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
+  void resetTransientReaderState();
 
   
   uint8_t* getFrameBuffer() const;

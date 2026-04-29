@@ -133,8 +133,9 @@ class RecentActivity final : public Activity, public Menu {
   void renderList(int startY);
   void renderIcons(int startY);
 
+  /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use paper corners. */
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
-                             int placeholderFontId);
+                             int placeholderFontId, bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
   void renderDefaultStatsGrid(int gridStartY, int screenW);
 

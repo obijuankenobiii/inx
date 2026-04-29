@@ -1131,6 +1131,12 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   }
 }
 
+void GfxRenderer::resetTransientReaderState() {
+  freeBwBufferChunks();
+  renderMode = BW;
+  cleanupGrayscaleWithFrameBuffer();
+}
+
 void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, int* x, const int* y,
                              const bool pixelState, const EpdFontFamily::Style style) const {
   EpdGlyph glyphStorage;

@@ -100,6 +100,8 @@ void TxtReaderActivity::onExit() {
   currentPageLines.clear();
   txt.reset();
 
+  renderer.resetTransientReaderState();
+
   FontManager::unloadAllSDFonts();
 }
 

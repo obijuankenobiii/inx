@@ -683,12 +683,16 @@ void EpubActivity::onExit() {
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   mappedInput.setInvertDirectionalAxes180(false);
 
-  APP_STATE.lastRead = epub->getPath();
+  if (epub) {
+    APP_STATE.lastRead = epub->getPath();
+  }
   APP_STATE.saveToFile();
   section.reset();
   bookProgress.reset();
   statusBar.reset();
   epub.reset();
+
+  renderer.resetTransientReaderState();
 
   FontManager::unloadAllSDFonts();
 
