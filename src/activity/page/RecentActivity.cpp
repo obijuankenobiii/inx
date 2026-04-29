@@ -545,7 +545,7 @@ void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int ban
  */
 int RecentActivity::getVisibleRows() const {
   if (currentViewMode == ViewMode::Icons) {
-    return 6;
+    return 4;  // 2×4 icon grid
   }
   if (currentViewMode == ViewMode::Grid) {
     int screenHeight = renderer.getScreenHeight();
@@ -724,40 +724,52 @@ void RecentActivity::renderIcons(int startY) {
   }
 
   constexpr int kCols = 2;
-  constexpr int kRows = 6;
-  constexpr int kGapX = 10;
-  constexpr int kGapY = 220;
+  constexpr int kRowsVisible = 4;
+  constexpr int kGapX = 14;
+  constexpr int kGapY = 12;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight() - 30;
   const int availW = std::max(1, screenW - GRID_SPACING * 2 - kGapX * (kCols - 1));
-  const int availH = std::max(1, screenH - startY - GRID_SPACING - kGapY * (kRows - 1));
-  const int cellW = availW / kCols;
-  const int cellH = availH / kRows;
+  const int availH = std::max(1, screenH - startY - GRID_SPACING * 2);
+  const int cellW = std::max(1, (availW - (kCols - 1) * kGapX) / kCols);
+  const int cellH = std::max(1, (availH - (kRowsVisible - 1) * kGapY) / kRowsVisible);
+  const int frameW = std::max(80, std::min(200, cellW));
+  const int frameH = std::max(92, std::min(220, cellH));
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
 
+  const int startRow = scrollOffset;
+  const int endRow = std::min(startRow + kRowsVisible, (totalBooks + kCols - 1) / kCols);
 
-  const int visibleItems = 6;
-  for (int i = 0; i < visibleItems; ++i) {
-    const int row = i / kCols;
-    const int col = i % kCols;
-    const int boxX = GRID_SPACING + col * (cellW + kGapX) + 6;
-    const int boxY = startY + GRID_SPACING + row * (cellH + kGapY);
-    const int frameW = 200;
-    const int frameH = 200;
-    const bool selected = (selectorIndex == i);
-    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  for (int row = startRow; row < endRow; ++row) {
+    for (int col = 0; col < kCols; ++col) {
+      const int bookIdx = row * kCols + col;
+      if (bookIdx >= totalBooks) {
+        break;
+      }
+      const int visualRow = row - startRow;
+      const int slotX = GRID_SPACING + col * (cellW + kGapX);
+      const int slotY = startY + GRID_SPACING + visualRow * (cellH + kGapY);
+      const int boxX = slotX + std::max(0, (cellW - frameW) / 2);
+      const int boxY = slotY + std::max(0, (cellH - frameH) / 2);
+      const bool selected = (selectorIndex == bookIdx);
 
-    if (selected) {
-      renderer.drawRect(boxX - 1, boxY - 1, frameW + 5, frameH + 5, true, rr);
-      renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
+      if (rr) {
+        renderer.fillRect(boxX, boxY, frameW, frameH, false, rr);
+      }
+      if (selected) {
+        renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
+      } else if (!rr) {
+        renderer.drawRect(boxX, boxY, frameW, frameH, true, false);
+      }
+
+      const int innerX = boxX + 4;
+      const int innerY = boxY + 4;
+      const int innerW = std::max(8, frameW - 8);
+      const int innerH = std::max(8, frameH - 8);
+      const RecentBook& b = recentBooks[static_cast<size_t>(bookIdx)];
+      drawRecentThumbnailAt(innerX, innerY, innerW, innerH, b.cachePath, bookDisplayTitle(b),
+                            ATKINSON_HYPERLEGIBLE_10_FONT_ID, false);
     }
-    
-    const int innerX = boxX + 4;
-    const int innerY = boxY + 4;
-    const int innerW = std::max(8, frameW - 8);
-    const int innerH = std::max(8, frameH - 8);
-    const RecentBook& b = recentBooks[static_cast<size_t>(i)];
-    drawRecentThumbnailAt(innerX, innerY, innerW, innerH, b.cachePath, bookDisplayTitle(b),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, false);
   }
 }
 
@@ -1096,7 +1108,7 @@ void RecentActivity::loop() {
           if (selectorIndex >= n) {
             selectorIndex = n - 1;
           }
-          if (currentViewMode == ViewMode::Grid) {
+          if (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons) {
             const int visibleRows = getVisibleRows();
             const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
             const int maxScroll = std::max(0, totalRows - visibleRows);
