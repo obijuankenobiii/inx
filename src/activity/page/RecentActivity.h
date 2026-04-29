@@ -48,7 +48,7 @@ class RecentActivity final : public Activity, public Menu {
     Flow,  /**< Flow carousel */
     SimpleUi, /**< Recent cover on gray band, favorites list below */
     List, /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
-    Icons /**< 2x4 icon cards like statistics recent thumbnail */
+    Icons /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
   };
 
  private:

@@ -545,7 +545,7 @@ void RecentActivity::drawListStatsStrip(int bandX, int bandY, int bandW, int ban
  */
 int RecentActivity::getVisibleRows() const {
   if (currentViewMode == ViewMode::Icons) {
-    return 4;  // 2×4 icon grid
+    return 3;  // 2×3 icon grid (scroll for more)
   }
   if (currentViewMode == ViewMode::Grid) {
     int screenHeight = renderer.getScreenHeight();
@@ -724,17 +724,22 @@ void RecentActivity::renderIcons(int startY) {
   }
 
   constexpr int kCols = 2;
-  constexpr int kRowsVisible = 4;
-  constexpr int kGapX = 14;
-  constexpr int kGapY = 12;
+  constexpr int kRowsVisible = 3;
+  constexpr int kFrameW = 200;
+  constexpr int kFrameH = 200;
+  constexpr int kGapX = 10;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight() - 30;
-  const int availW = std::max(1, screenW - GRID_SPACING * 2 - kGapX * (kCols - 1));
+  const int availW = std::max(1, screenW - GRID_SPACING * 2);
   const int availH = std::max(1, screenH - startY - GRID_SPACING * 2);
-  const int cellW = std::max(1, (availW - (kCols - 1) * kGapX) / kCols);
-  const int cellH = std::max(1, (availH - (kRowsVisible - 1) * kGapY) / kRowsVisible);
-  const int frameW = std::max(80, std::min(200, cellW));
-  const int frameH = std::max(92, std::min(220, cellH));
+
+  const int kGapY =
+      (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
+  const int blockH = kRowsVisible * kFrameH + (kRowsVisible - 1) * kGapY;
+  const int blockTop = startY + GRID_SPACING + std::max(0, (availH - blockH) / 2);
+
+  const int twoW = kCols * kFrameW + (kCols - 1) * kGapX;
+  const int row0X = GRID_SPACING + std::max(0, (availW - twoW) / 2);
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
 
   const int startRow = scrollOffset;
@@ -747,25 +752,23 @@ void RecentActivity::renderIcons(int startY) {
         break;
       }
       const int visualRow = row - startRow;
-      const int slotX = GRID_SPACING + col * (cellW + kGapX);
-      const int slotY = startY + GRID_SPACING + visualRow * (cellH + kGapY);
-      const int boxX = slotX + std::max(0, (cellW - frameW) / 2);
-      const int boxY = slotY + std::max(0, (cellH - frameH) / 2);
+      const int boxX = row0X + col * (kFrameW + kGapX);
+      const int boxY = blockTop + visualRow * (kFrameH + kGapY);
       const bool selected = (selectorIndex == bookIdx);
 
       if (rr) {
-        renderer.fillRect(boxX, boxY, frameW, frameH, false, rr);
+        renderer.fillRect(boxX, boxY, kFrameW, kFrameH, false, rr);
       }
       if (selected) {
-        renderer.drawRect(boxX - 2, boxY - 2, frameW + 4, frameH + 4, true, rr);
+        renderer.drawRect(boxX - 2, boxY - 2, kFrameW + 4, kFrameH + 4, true, rr);
       } else if (!rr) {
-        renderer.drawRect(boxX, boxY, frameW, frameH, true, false);
+        renderer.drawRect(boxX, boxY, kFrameW, kFrameH, true, false);
       }
 
       const int innerX = boxX + 4;
       const int innerY = boxY + 4;
-      const int innerW = std::max(8, frameW - 8);
-      const int innerH = std::max(8, frameH - 8);
+      const int innerW = std::max(8, kFrameW - 8);
+      const int innerH = std::max(8, kFrameH - 8);
       const RecentBook& b = recentBooks[static_cast<size_t>(bookIdx)];
       drawRecentThumbnailAt(innerX, innerY, innerW, innerH, b.cachePath, bookDisplayTitle(b),
                             ATKINSON_HYPERLEGIBLE_10_FONT_ID, false);

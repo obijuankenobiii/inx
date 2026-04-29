@@ -263,7 +263,7 @@ public:
         RECENT_FLOW = 2,    ///< Flow carousel
         RECENT_SIMPLE = 3,  ///< Simple: recent cover on top, favorites list below
         RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
-        RECENT_ICONS = 5,   ///< 2x4 icon grid with thumbnail cards
+        RECENT_ICONS = 5,   ///< 2×3 icon grid (200×200); scroll for more books
         RECENT_LIBRARY_MODE_COUNT
     };
 
