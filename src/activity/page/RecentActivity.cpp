@@ -286,10 +286,12 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
         cropY = 1.0f - (ir / tr);
       }
     }
-    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
-                        SETTINGS.bitmapRoundedCorners != 0
-                            ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
-                            : GfxRenderer::BitmapRoundedCornerOutside::None);
+    const GfxRenderer::BitmapRoundedCornerOutside roundedOutside =
+        SETTINGS.bitmapRoundedCorners == 0
+            ? GfxRenderer::BitmapRoundedCornerOutside::None
+            : (roundedCornerBackdropIsDither ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
+                                              : GfxRenderer::BitmapRoundedCornerOutside::PaperOutside);
+    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, roundedOutside);
   }
   file.close();
 }
