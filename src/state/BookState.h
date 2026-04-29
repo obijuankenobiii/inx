@@ -32,7 +32,10 @@ private:
   uint32_t nextId = 1;
   /** path string → index in `books` for O(1) lookup (rebuilt on load). */
   std::unordered_map<std::string, size_t> pathIndex_;
+  /** Indices into `books` with `isFavorite`, sorted by id descending (same order as legacy getFavoriteBooks). */
+  std::vector<size_t> favoriteIndices_;
   void rebuildPathIndex();
+  void rebuildFavoriteIndices();
 
 public:
   std::vector<Book> books;

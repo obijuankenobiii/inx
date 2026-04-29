@@ -28,6 +28,17 @@ void BookState::rebuildPathIndex() {
   }
 }
 
+void BookState::rebuildFavoriteIndices() {
+  favoriteIndices_.clear();
+  for (size_t i = 0; i < books.size(); ++i) {
+    if (books[i].isFavorite) {
+      favoriteIndices_.push_back(i);
+    }
+  }
+  std::sort(favoriteIndices_.begin(), favoriteIndices_.end(),
+            [this](size_t ia, size_t ib) { return books[ia].id > books[ib].id; });
+}
+
 void BookState::addOrUpdateBook(const std::string& path, 
                                 const std::string& title,
                                 const std::string& author) {
@@ -92,6 +103,7 @@ void BookState::toggleFavorite(const std::string& path) {
   Book* b = findBookByPath(path);
   if (b != nullptr) {
     b->isFavorite = !b->isFavorite;
+    rebuildFavoriteIndices();
     saveToFile();
   }
 }
@@ -153,6 +165,7 @@ bool BookState::loadFromFile() {
   if (!SdMan.openFileForRead("BKS", BOOKS_FILE, inputFile)) {
     books.clear();
     pathIndex_.clear();
+    favoriteIndices_.clear();
     nextId = 1;
     return false;
   }
@@ -180,6 +193,7 @@ bool BookState::loadFromFile() {
 
   books.clear();
   pathIndex_.clear();
+  favoriteIndices_.clear();
   if (count != 0) {
     books.reserve(count);
   }
@@ -205,5 +219,6 @@ bool BookState::loadFromFile() {
 
   inputFile.close();
   rebuildPathIndex();
+  rebuildFavoriteIndices();
   return true;
 }
