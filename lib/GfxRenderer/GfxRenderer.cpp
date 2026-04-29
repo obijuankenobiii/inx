@@ -36,6 +36,43 @@ int cornerSpanFromRy(const int r, const int ry) {
   return static_cast<int>(std::sqrt(static_cast<double>(inner)));
 }
 
+/** True if (px,py) lies in one of the four axis-box corners outside the rounded arc (same set `maskBitmapCornersOutsideRounded` paints). */
+bool pixelInRoundedOutsideCorner(const int px, const int py, const int x, const int y, const int w, const int h) {
+  if (w < 3 || h < 3) {
+    return false;
+  }
+  const int r = roundedRectCornerRadius(w, h);
+  if (r < 1) {
+    return false;
+  }
+  if (px < x || px >= x + w || py < y || py >= y + h) {
+    return false;
+  }
+  // Top band
+  const int fromTop = py - y;
+  if (fromTop < r) {
+    const int span = cornerSpanFromRy(r, r - fromTop);
+    if (px < x + r - span) {
+      return true;
+    }
+    if (px >= x + w - r + span) {
+      return true;
+    }
+  }
+  // Bottom band
+  const int fromBottom = (y + h - 1) - py;
+  if (fromBottom < r) {
+    const int span = cornerSpanFromRy(r, r - fromBottom);
+    if (px < x + r - span) {
+      return true;
+    }
+    if (px >= x + w - r + span) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Pixels outside the rounded rect (same geometry as `fillRect` with `rounded`). */
 void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const int y, const int drawnW,
                                      const int drawnH, const GfxRenderer::BitmapRoundedCornerOutside style) {
@@ -435,6 +472,13 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   const int contentW = bitmap.getWidth() - 2 * cropPixX;
   const int contentH = bitmap.getHeight() - 2 * cropPixY;
 
+  const int drawnW =
+      contentW > 0 ? static_cast<int>(std::floor(static_cast<float>(contentW) * scale)) : 0;
+  const int drawnH =
+      contentH > 0 ? static_cast<int>(std::floor(static_cast<float>(contentH) * scale)) : 0;
+  const int maskW = maxWidth > 0 ? maxWidth : drawnW;
+  const int maskH = maxHeight > 0 ? maxHeight : drawnH;
+
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
@@ -451,6 +495,11 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   };
 
   auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
+    if (roundedOutside == GfxRenderer::BitmapRoundedCornerOutside::PaperOutside && maskW > 0 && maskH > 0) {
+      if (pixelInRoundedOutsideCorner(screenX, screenY, x, y, maskW, maskH)) {
+        return;
+      }
+    }
     if (renderMode == BW) {
       if (bwShouldInk2bpp(val, grayStyle)) {
         drawBwFrom2bppStage(screenX, screenY, val);
@@ -531,14 +580,9 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
     }
   }
 
-  if (roundedOutside != BitmapRoundedCornerOutside::None && contentW > 0 && contentH > 0) {
-    const int drawnW = static_cast<int>(std::floor(static_cast<float>(contentW) * scale));
-    const int drawnH = static_cast<int>(std::floor(static_cast<float>(contentH) * scale));
-    const int maskW = maxWidth > 0 ? maxWidth : drawnW;
-    const int maskH = maxHeight > 0 ? maxHeight : drawnH;
-    if (maskW > 0 && maskH > 0) {
-      maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
-    }
+  if (roundedOutside != BitmapRoundedCornerOutside::None && contentW > 0 && contentH > 0 && maskW > 0 &&
+      maskH > 0) {
+    maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
   }
 
   free(outputRow);
@@ -565,6 +609,11 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
   }
   const bool replicateUpscale = isScaled && scale > 1.0f + kScaleEps;
 
+  const int drawnW = static_cast<int>(std::floor(static_cast<float>(bw) * scale));
+  const int drawnH = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * scale));
+  const int maskW = maxWidth > 0 ? maxWidth : drawnW;
+  const int maskH = maxHeight > 0 ? maxHeight : drawnH;
+
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
@@ -581,6 +630,11 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
   };
 
   auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
+    if (roundedOutside == GfxRenderer::BitmapRoundedCornerOutside::PaperOutside && maskW > 0 && maskH > 0) {
+      if (pixelInRoundedOutsideCorner(screenX, screenY, x, y, maskW, maskH)) {
+        return;
+      }
+    }
     if (renderMode == BW) {
       if (bwShouldInk2bpp(val, grayStyle)) {
         drawBwFrom2bppStage(screenX, screenY, val);
@@ -647,14 +701,8 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     }
   }
 
-  if (roundedOutside != BitmapRoundedCornerOutside::None) {
-    const int drawnW = static_cast<int>(std::floor(static_cast<float>(bw) * scale));
-    const int drawnH = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * scale));
-    const int maskW = maxWidth > 0 ? maxWidth : drawnW;
-    const int maskH = maxHeight > 0 ? maxHeight : drawnH;
-    if (maskW > 0 && maskH > 0) {
-      maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
-    }
+  if (roundedOutside != BitmapRoundedCornerOutside::None && maskW > 0 && maskH > 0) {
+    maskBitmapCornersOutsideRounded(*this, x, y, maskW, maskH, roundedOutside);
   }
 
   free(outputRow);
