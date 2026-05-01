@@ -2005,7 +2005,8 @@ static void drawBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const i
 }  
 
 void GfxRenderer::drawSleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
-                                  const int maxHeight, const float cropX, const float cropY) const {
+                                  const int maxHeight, const float cropX, const float cropY,
+                                  const bool coverFill) const {
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     sleep_screen_bitmap::drawBitmap1Bit(*this, bitmap, x, y, maxWidth, maxHeight);
     return;
@@ -2018,24 +2019,38 @@ void GfxRenderer::drawSleepScreen(const Bitmap& bitmap, const int x, const int y
 
   const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
   const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
-  bool hasTargetBounds = false;
+
+  const float widthScale =
+      (maxWidth > 0 && croppedWidth > 0.0f) ? static_cast<float>(maxWidth) / croppedWidth : 0.0f;
+  const float heightScale =
+      (maxHeight > 0 && croppedHeight > 0.0f) ? static_cast<float>(maxHeight) / croppedHeight : 0.0f;
+
+  const bool hasW = maxWidth > 0 && croppedWidth > 0.0f;
+  const bool hasH = maxHeight > 0 && croppedHeight > 0.0f;
   float fitScale = 1.0f;
-
-  if (maxWidth > 0 && croppedWidth > 0.0f) {
-    fitScale = static_cast<float>(maxWidth) / croppedWidth;
-    hasTargetBounds = true;
+  if (hasW && hasH) {
+    fitScale = coverFill ? std::max(widthScale, heightScale) : std::min(widthScale, heightScale);
+  } else if (hasW) {
+    fitScale = widthScale;
+  } else if (hasH) {
+    fitScale = heightScale;
   }
 
-  if (maxHeight > 0 && croppedHeight > 0.0f) {
-    const float heightScale = static_cast<float>(maxHeight) / croppedHeight;
-    fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
-    hasTargetBounds = true;
+  constexpr float kEps = 1e-5f;
+  const bool hasTargetBounds = hasW || hasH;
+  if (hasTargetBounds) {
+    if (coverFill) {
+      if (std::fabs(fitScale - 1.0f) > kEps) {
+        scale = fitScale;
+        isScaled = true;
+      }
+    } else if (fitScale < 1.0f - kEps) {
+      scale = fitScale;
+      isScaled = true;
+    }
   }
 
-  if (hasTargetBounds && fitScale < 1.0f) {
-    scale = fitScale;
-    isScaled = true;
-  }
+  const bool upscale = isScaled && scale > 1.0f + kEps;
 
   const int outputRowSize = (bitmap.getWidth() + 3) / 4;
   auto* outputRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outputRowSize)));
@@ -2046,51 +2061,93 @@ void GfxRenderer::drawSleepScreen(const Bitmap& bitmap, const int x, const int y
     return;
   }
 
-  for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
-    int screenY = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
-    if (isScaled) {
-      screenY = static_cast<int>(std::floor(static_cast<float>(screenY) * scale));
-    }
-    screenY += y;
-    if (screenY >= getScreenHeight()) {
-      break;
-    }
+  const int screenW = getScreenWidth();
+  const int screenH = getScreenHeight();
 
+  auto plotSleepPixel = [this](const int sx, const int sy, const uint8_t val) {
+    if (renderMode == BW && val < 3) {
+      drawPixel(sx, sy);
+    } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+      drawPixel(sx, sy, false);
+    } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+      drawPixel(sx, sy, false);
+    }
+  };
+
+  for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
     if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
       free(outputRow);
       free(rowBytes);
       return;
     }
 
-    if (screenY < 0) {
-      continue;
-    }
-
     if (bmpY < cropPixY) {
       continue;
     }
 
-    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
-      int screenX = bmpX - cropPixX;
-      if (isScaled) {
-        screenX = static_cast<int>(std::floor(static_cast<float>(screenX) * scale));
-      }
-      screenX += x;
-      if (screenX >= getScreenWidth()) {
-        break;
-      }
-      if (screenX < 0) {
-        continue;
-      }
+    const float ly =
+        static_cast<float>(-cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY));
+    float lyEnd = ly;
+    if ((bmpY + 1) < (bitmap.getHeight() - cropPixY)) {
+      lyEnd = static_cast<float>(-cropPixY +
+                                 (bitmap.isTopDown() ? (bmpY + 1) : bitmap.getHeight() - 1 - (bmpY + 1)));
+    } else {
+      lyEnd = ly + (bitmap.isTopDown() ? 1.f : -1.f);
+    }
 
+    int syLo = static_cast<int>(std::floor(ly * scale));
+    int syHi = static_cast<int>(std::floor(lyEnd * scale));
+    if (syLo > syHi) {
+      std::swap(syLo, syHi);
+    }
+    syLo += y;
+    syHi += y;
+    const int yEnd = std::min(screenH, std::max(syLo + 1, syHi));
+
+    if (syLo >= screenH) {
+      break;
+    }
+    if (yEnd <= 0) {
+      continue;
+    }
+
+    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
+      const int relX = bmpX - cropPixX;
       const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
-      if (renderMode == BW && val < 3) {
-        drawPixel(screenX, screenY);
-      } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-        drawPixel(screenX, screenY, false);
-      } else if (renderMode == GRAYSCALE_LSB && val == 1) {
-        drawPixel(screenX, screenY, false);
+      if (!isScaled) {
+        const int sx = relX + x;
+        if (sx >= screenW) {
+          break;
+        }
+        if (sx < 0) {
+          continue;
+        }
+        for (int sy = std::max(0, syLo); sy < yEnd; sy++) {
+          plotSleepPixel(sx, sy, val);
+        }
+      } else if (!upscale) {
+        const int screenX =
+            static_cast<int>(std::floor(static_cast<float>(relX) * scale)) + x;
+        if (screenX >= screenW) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
+        for (int sy = std::max(0, syLo); sy < yEnd; sy++) {
+          plotSleepPixel(screenX, sy, val);
+        }
+      } else {
+        const int sx0 = static_cast<int>(std::floor(static_cast<float>(relX) * scale)) + x;
+        const int sx1 = static_cast<int>(std::floor(static_cast<float>(relX + 1) * scale)) + x;
+        const int xa = std::max(0, std::min(sx0, sx1));
+        const int xb = std::min(screenW, std::max(sx0, sx1));
+        for (int sx = xa; sx < xb; sx++) {
+          for (int sy = std::max(0, syLo); sy < yEnd; sy++) {
+            plotSleepPixel(sx, sy, val);
+          }
+        }
       }
     }
   }

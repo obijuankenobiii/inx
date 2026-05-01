@@ -106,7 +106,7 @@ class GfxRenderer {
                 bool invert = false) const;
 
   void drawSleepScreen(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0.f,
-                       float cropY = 0.f) const;
+                       float cropY = 0.f, bool coverFill = false) const;
 
   /** Pixels outside the rounded clip after `drawBitmap` (same geometry as rounded `fillRect`). */
   enum class BitmapRoundedCornerOutside : uint8_t {
