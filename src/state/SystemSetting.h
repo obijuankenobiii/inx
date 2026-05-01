@@ -380,8 +380,13 @@ public:
     
     
     uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
-    
-    
+    /** How many recent books to show on the Recent hub (1–8). */
+    uint8_t recentVisibleCount = 8;
+    /** Library: 0 = folders and books A–Z only; 1 = use librarySortMode (favorites / groups / reading). */
+    uint8_t librarySortEnabled = 1;
+    /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
+    uint8_t librarySortMode = 0;
+
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 
     /**

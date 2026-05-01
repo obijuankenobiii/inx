@@ -568,6 +568,8 @@ int RecentActivity::getVisibleRows() const {
 void RecentActivity::loadRecentBooks(const bool resetScroll) {
   recentBooks.clear();
   recentBooks.reserve(MAX_RECENT_BOOKS);
+  const int maxShow =
+      std::min(MAX_RECENT_BOOKS, std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
   if (resetScroll) {
     scrollOffset = 0;
     scrollOffsetDefault = 0;
@@ -576,7 +578,7 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
   const auto& allBooks = RECENT_BOOKS.getBooks();
   size_t addedCount = 0;
 
-  for (size_t i = 0; i < allBooks.size() && addedCount < MAX_RECENT_BOOKS; ++i) {
+  for (size_t i = 0; i < allBooks.size() && addedCount < maxShow; ++i) {
     const auto& book = allBooks[i];
     if (!SdMan.exists(book.path.c_str())) {
       continue;

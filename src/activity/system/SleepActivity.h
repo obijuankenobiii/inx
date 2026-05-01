@@ -86,20 +86,4 @@ class SleepActivity final : public Activity {
    * semi-transparent sleep BMP on top when configured. Non-EPUB books still use the cover bitmap as the base.
    */
   void renderTransparentSleepScreen() const;
-  
-  /**
-   * @brief Renders a bitmap with grayscale processing.
-   * 
-   * Performs two-pass rendering for grayscale images (LSB and MSB) to achieve
-   * proper grayscale display on e-ink screens.
-   * 
-   * @param bitmap The bitmap image to render
-   * @param x X-coordinate for image placement
-   * @param y Y-coordinate for image placement
-   * @param w Target width for rendering
-   * @param h Target height for rendering
-   * @param cx Horizontal crop factor (0-1)
-   * @param cy Vertical crop factor (0-1)
-   */
-  void renderGreyscale(const Bitmap& bitmap, int x, int y, int w, int h, float cx, float cy) const;
 };

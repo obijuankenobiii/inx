@@ -23,7 +23,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 31;
+constexpr int systemPageSettingsCount = 33;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -34,6 +34,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
                       {"Grid","Current | Previous","Flow","Simple","List","Icons"},
                       GroupType::DEVICE_DISPLAY),
+    SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 8, 1}, GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
     SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode,
@@ -61,6 +62,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min","5 min","10 min","15 min","30 min"},
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),

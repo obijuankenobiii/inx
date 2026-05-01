@@ -80,6 +80,7 @@ class LocalServer {
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;
+  void handleEpubPage() const;
   void handleFileListData() const;
   void handleDownload() const;
   void handleUpload() const;

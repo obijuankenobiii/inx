@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 17;
-constexpr uint8_t SETTINGS_COUNT = 48;
+constexpr uint8_t SETTINGS_FILE_VERSION = 18;
+constexpr uint8_t SETTINGS_COUNT = 51;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -90,6 +90,13 @@ bool SystemSetting::saveToFile() const {
     const_cast<SystemSetting*>(this)->fontFamily = fontFamilyToSave;
   }
 
+  {
+    SystemSetting* mut = const_cast<SystemSetting*>(this);
+    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
+    if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
+    if (mut->librarySortMode > 5) mut->librarySortMode = 0;
+  }
+
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
   serialization::writePod(outputFile, SETTINGS_COUNT);
   serialization::writePod(outputFile, sleepScreen);
@@ -140,6 +147,9 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, refreshOnLoadSync);
   serialization::writePod(outputFile, refreshOnLoadStatistics);
   serialization::writePod(outputFile, bitmapRoundedCorners);
+  serialization::writePod(outputFile, recentVisibleCount);
+  serialization::writePod(outputFile, librarySortEnabled);
+  serialization::writePod(outputFile, librarySortMode);
 
   outputFile.close();
 
@@ -457,12 +467,43 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, recentVisibleCount);
+      if (recentVisibleCount < 1 || recentVisibleCount > 8) {
+        recentVisibleCount = 8;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, librarySortEnabled);
+      if (librarySortEnabled > 1) {
+        librarySortEnabled = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, librarySortMode);
+      if (librarySortMode > 5) {
+        librarySortMode = 0;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
   inputFile.close();
 
   FontManager::clampReaderFontFamilySlot(fontFamily);
+
+  if (recentVisibleCount < 1 || recentVisibleCount > 8) {
+    recentVisibleCount = 8;
+  }
+  if (librarySortEnabled > 1) {
+    librarySortEnabled = 1;
+  }
+  if (librarySortMode > 5) {
+    librarySortMode = 0;
+  }
 
   if (settingsRead < SETTINGS_COUNT) {
     if (settingsRead < SETTINGS_COUNT_V9) {
