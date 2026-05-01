@@ -105,6 +105,9 @@ class GfxRenderer {
   void drawIcon(const uint8_t bitmap[], int x, int y, int width, int height, ImageOrientation imgOrientation = None,
                 bool invert = false) const;
 
+  void drawSleepScreen(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0.f,
+                       float cropY = 0.f) const;
+
   /** Pixels outside the rounded clip after `drawBitmap` (same geometry as rounded `fillRect`). */
   enum class BitmapRoundedCornerOutside : uint8_t {
     None = 0,

@@ -1940,3 +1940,161 @@ void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
   fontMap.erase(fontId);
   fontMap.emplace(fontId, updatedFamily);
 }
+
+namespace sleep_screen_bitmap {
+
+static void drawBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const int x, const int y,
+                           const int maxWidth, const int maxHeight) {
+  float scale = 1.0f;
+  bool isScaled = false;
+  if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
+    scale = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
+    isScaled = true;
+  }
+  if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
+    scale = std::min(scale, static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()));
+    isScaled = true;
+  }
+
+  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outputRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outputRowSize)));
+  auto* rowBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
+  if (!outputRow || !rowBytes) {
+    free(outputRow);
+    free(rowBytes);
+    return;
+  }
+
+  for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
+    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+      free(outputRow);
+      free(rowBytes);
+      return;
+    }
+
+    const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
+    int screenY = y + (isScaled ? static_cast<int>(std::floor(static_cast<float>(bmpYOffset) * scale)) : bmpYOffset);
+    if (screenY >= gfx.getScreenHeight()) {
+      continue;
+    }
+    if (screenY < 0) {
+      continue;
+    }
+
+    for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
+      int screenX = x + (isScaled ? static_cast<int>(std::floor(static_cast<float>(bmpX) * scale)) : bmpX);
+      if (screenX >= gfx.getScreenWidth()) {
+        break;
+      }
+      if (screenX < 0) {
+        continue;
+      }
+
+      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+
+      if (val < 3) {
+        gfx.drawPixel(screenX, screenY, true);
+      }
+    }
+  }
+
+  free(outputRow);
+  free(rowBytes);
+}
+
+}  
+
+void GfxRenderer::drawSleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
+                                  const int maxHeight, const float cropX, const float cropY) const {
+  if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
+    sleep_screen_bitmap::drawBitmap1Bit(*this, bitmap, x, y, maxWidth, maxHeight);
+    return;
+  }
+
+  float scale = 1.0f;
+  bool isScaled = false;
+  const int cropPixX = static_cast<int>(std::floor(static_cast<float>(bitmap.getWidth()) * cropX / 2.0f));
+  const int cropPixY = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * cropY / 2.0f));
+
+  const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
+  const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
+  bool hasTargetBounds = false;
+  float fitScale = 1.0f;
+
+  if (maxWidth > 0 && croppedWidth > 0.0f) {
+    fitScale = static_cast<float>(maxWidth) / croppedWidth;
+    hasTargetBounds = true;
+  }
+
+  if (maxHeight > 0 && croppedHeight > 0.0f) {
+    const float heightScale = static_cast<float>(maxHeight) / croppedHeight;
+    fitScale = hasTargetBounds ? std::min(fitScale, heightScale) : heightScale;
+    hasTargetBounds = true;
+  }
+
+  if (hasTargetBounds && fitScale < 1.0f) {
+    scale = fitScale;
+    isScaled = true;
+  }
+
+  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outputRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outputRowSize)));
+  auto* rowBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
+  if (!outputRow || !rowBytes) {
+    free(outputRow);
+    free(rowBytes);
+    return;
+  }
+
+  for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
+    int screenY = -cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY);
+    if (isScaled) {
+      screenY = static_cast<int>(std::floor(static_cast<float>(screenY) * scale));
+    }
+    screenY += y;
+    if (screenY >= getScreenHeight()) {
+      break;
+    }
+
+    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+      free(outputRow);
+      free(rowBytes);
+      return;
+    }
+
+    if (screenY < 0) {
+      continue;
+    }
+
+    if (bmpY < cropPixY) {
+      continue;
+    }
+
+    for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
+      int screenX = bmpX - cropPixX;
+      if (isScaled) {
+        screenX = static_cast<int>(std::floor(static_cast<float>(screenX) * scale));
+      }
+      screenX += x;
+      if (screenX >= getScreenWidth()) {
+        break;
+      }
+      if (screenX < 0) {
+        continue;
+      }
+
+      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+
+      if (renderMode == BW && val < 3) {
+        drawPixel(screenX, screenY);
+      } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
+        drawPixel(screenX, screenY, false);
+      } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+        drawPixel(screenX, screenY, false);
+      }
+    }
+  }
+
+  free(outputRow);
+  free(rowBytes);
+}
