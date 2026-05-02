@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 16;
-constexpr uint8_t SETTINGS_COUNT = 47;
+constexpr uint8_t SETTINGS_FILE_VERSION = 18;
+constexpr uint8_t SETTINGS_COUNT = 51;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
@@ -90,6 +90,13 @@ bool SystemSetting::saveToFile() const {
     const_cast<SystemSetting*>(this)->fontFamily = fontFamilyToSave;
   }
 
+  {
+    SystemSetting* mut = const_cast<SystemSetting*>(this);
+    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
+    if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
+    if (mut->librarySortMode > 5) mut->librarySortMode = 0;
+  }
+
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
   serialization::writePod(outputFile, SETTINGS_COUNT);
   serialization::writePod(outputFile, sleepScreen);
@@ -139,6 +146,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, refreshOnLoadSettings);
   serialization::writePod(outputFile, refreshOnLoadSync);
   serialization::writePod(outputFile, refreshOnLoadStatistics);
+  serialization::writePod(outputFile, bitmapRoundedCorners);
+  serialization::writePod(outputFile, recentVisibleCount);
+  serialization::writePod(outputFile, librarySortEnabled);
+  serialization::writePod(outputFile, librarySortMode);
 
   outputFile.close();
 
@@ -166,7 +177,7 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15) {
+      version != 15 && version != 16) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -251,6 +262,9 @@ bool SystemSetting::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, longPressChapterSkip);
+    if (longPressChapterSkip > LONG_PRESS_PAGE_SKIP_5) {
+      longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
+    }
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, hyphenationEnabled);
@@ -446,12 +460,50 @@ bool SystemSetting::loadFromFile() {
         ++settingsRead;
       }
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, bitmapRoundedCorners);
+      if (bitmapRoundedCorners > 1) {
+        bitmapRoundedCorners = 0;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, recentVisibleCount);
+      if (recentVisibleCount < 1 || recentVisibleCount > 8) {
+        recentVisibleCount = 8;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, librarySortEnabled);
+      if (librarySortEnabled > 1) {
+        librarySortEnabled = 1;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, librarySortMode);
+      if (librarySortMode > 5) {
+        librarySortMode = 0;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
   inputFile.close();
 
   FontManager::clampReaderFontFamilySlot(fontFamily);
+
+  if (recentVisibleCount < 1 || recentVisibleCount > 8) {
+    recentVisibleCount = 8;
+  }
+  if (librarySortEnabled > 1) {
+    librarySortEnabled = 1;
+  }
+  if (librarySortMode > 5) {
+    librarySortMode = 0;
+  }
 
   if (settingsRead < SETTINGS_COUNT) {
     if (settingsRead < SETTINGS_COUNT_V9) {
@@ -609,9 +661,6 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
     return FontManager::getFontIdNearestPointSize(sdName, preferredPt);
   }
 
-  if (family >= FONT_FAMILY_COUNT) {
-    family = LITERATA;
-  }
   switch (family) {
     case ATKINSON_HYPERLEGIBLE:
       switch (size) {

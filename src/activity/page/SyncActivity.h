@@ -5,10 +5,6 @@
  * @brief Public interface and types for SyncActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 
 #include "../ActivityWithSubactivity.h"
@@ -37,8 +33,6 @@ class SyncActivity final : public ActivityWithSubactivity, public Menu {
   void loop() override;
 
  private:
-  TaskHandle_t displayTaskHandle = nullptr;
-  SemaphoreHandle_t renderingMutex = nullptr;
   int selectedIndex = 0;
   bool updateRequired = false;
 
@@ -47,8 +41,6 @@ class SyncActivity final : public ActivityWithSubactivity, public Menu {
   const std::function<void()> onStatisticsOpen;
   const std::function<void()> onSettingsOpen;
 
-  static void taskTrampoline(void* param);
-  [[noreturn]] void displayTaskLoop();
   void render() const;
 
   void navigateToSelectedMenu() override {

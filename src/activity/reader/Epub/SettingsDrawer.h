@@ -124,7 +124,7 @@ private:
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
-        ReaderImagePresentation,  ///< Global: Low / Medium / High bitmap contrast
+        ReaderImagePresentation,  ///< Global: Low / Medium / High / Very high bitmap contrast
         PageAutoTurn
     };
     
@@ -143,7 +143,7 @@ private:
     GfxRenderer& renderer;                    ///< Graphics renderer reference
     BookSettings& settings;                    ///< Book settings reference
     std::function<void()> onSettingsChanged;   ///< Settings change callback
-    
+
     bool visible = false;                      ///< Drawer visibility state
     bool dismissed = false;                    ///< Drawer dismissed state
     int selectedIndex = 0;                      ///< Currently selected menu index

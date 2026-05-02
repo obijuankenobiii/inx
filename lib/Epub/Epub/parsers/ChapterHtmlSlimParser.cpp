@@ -12,7 +12,6 @@
 #include <Arduino.h>
 
 #include <FsHelpers.h>
-#include <FontManager.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -20,6 +19,7 @@
 #include <expat.h>
 
 #include "../Page.h"
+#include "../../../KOReaderSync/htmlEntities.h"
 #include "JpegToBmpConverter.h"
 
 const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
@@ -138,7 +138,6 @@ bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) 
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, characterData);
-  // XHTML uses entities (e.g. &nbsp;) outside a declared XML subset; expanded default text must reach layout.
   XML_SetDefaultHandlerExpand(parser, defaultHandlerExpand);
 
   bool parseOk = true;
@@ -612,18 +611,30 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 }
 
 /**
- * XML parser callback for character data.
- * @param userData Pointer to the parser instance
- * @param s Character data
- * @param len Length of character data
+ * Expat default-handler runs for entity references and other non–CDATA segments.
+ * Only known `&...;` entities are expanded into layout text; everything else is ignored so markup/DOCTYPE noise
+ * and unknown entity spellings do not appear on the page.
  */
 void XMLCALL ChapterHtmlSlimParser::defaultHandlerExpand(void* userData, const XML_Char* s, int len) {
   if (s == nullptr || len <= 0) {
     return;
   }
-  characterData(userData, s, len);
+  if (len >= 3 && s[0] == static_cast<XML_Char>('&') && s[len - 1] == static_cast<XML_Char>(';')) {
+    const char* const entity = reinterpret_cast<const char*>(s);
+    const char* const utf8 = lookupHtmlEntity(entity, static_cast<size_t>(len));
+    if (utf8 != nullptr) {
+      characterData(userData, reinterpret_cast<const XML_Char*>(utf8), static_cast<int>(strlen(utf8)));
+    }
+    return;
+  }
 }
 
+/**
+ * XML parser callback for character data.
+ * @param userData Pointer to the parser instance
+ * @param s Character data
+ * @param len Length of character data
+ */
 void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char* s, int len) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
   if (self->imagePrefetchPassOnly_) {
@@ -898,7 +909,6 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   imageExtractCountForYield_ = 0;
 
   if (!skipImageProcessing) {
-    FontManager::unloadAllSDFonts();
     imagePrefetchPassOnly_ = true;
     resetStructuralStateForParsePass();
     if (!parseHtmlThroughExpat(false)) {
@@ -906,7 +916,6 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
       return false;
     }
     imagePrefetchPassOnly_ = false;
-    FontManager::ensureReaderLayoutFonts(fontId, renderer);
   }
 
   skipImages = skipImageProcessing;

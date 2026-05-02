@@ -70,8 +70,9 @@ class Epub {
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
   int getSpineIndexForTextReference() const;
-  
-  
+  /** First spine suitable for reading when opening a book (guide text ref, else TOC, else first HTML spine). */
+  int getSpineIndexForInitialOpen() const;
+
   int getCssItemsCount() const;
   BookMetadataCache::CssEntry getCssItem(int cssIndex) const;
   std::string getCssContent(const std::string& cssPath) const;

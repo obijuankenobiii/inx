@@ -66,6 +66,7 @@ bool WifiCredentialStore::saveToFile() const {
 bool WifiCredentialStore::loadFromFile() {
   FsFile file;
   if (!SdMan.openFileForRead("WCS", WIFI_FILE, file)) {
+    credentials.clear();
     return false;
   }
 

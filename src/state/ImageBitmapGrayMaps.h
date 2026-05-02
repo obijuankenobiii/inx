@@ -12,6 +12,8 @@
 /** Reader image contrast (Low / Medium / High) → scaled bitmap gray style. */
 inline GfxRenderer::BitmapGrayRenderStyle readerImageBitmapGrayStyle() {
   switch (SETTINGS.readerImagePresentation) {
+    case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
+      return GfxRenderer::BitmapGrayRenderStyle::VeryDark;
     case SystemSetting::IMAGE_PRESENTATION_HIGH:
       return GfxRenderer::BitmapGrayRenderStyle::Dark;
     case SystemSetting::IMAGE_PRESENTATION_MEDIUM:
@@ -24,6 +26,8 @@ inline GfxRenderer::BitmapGrayRenderStyle readerImageBitmapGrayStyle() {
 /** System/library/sleep/stats image contrast → same mapping as reader. */
 inline GfxRenderer::BitmapGrayRenderStyle displayImageBitmapGrayStyle() {
   switch (SETTINGS.displayImagePresentation) {
+    case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
+      return GfxRenderer::BitmapGrayRenderStyle::VeryDark;
     case SystemSetting::IMAGE_PRESENTATION_HIGH:
       return GfxRenderer::BitmapGrayRenderStyle::Dark;
     case SystemSetting::IMAGE_PRESENTATION_MEDIUM:

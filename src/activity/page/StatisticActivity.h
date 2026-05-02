@@ -5,10 +5,6 @@
  * @brief Public interface and types for StatisticActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 #include <string>
 #include <utility>
@@ -24,13 +20,11 @@ class Bitmap;
 /**
  * Activity for displaying reading statistics.
  * First view is a global reading-stats summary; Up/Down steps through one book at a time.
- * Confirm saves recomputed global totals to the statistics file.
+ * On enter, per-book stats are scanned from SD and global totals load from `/.system/statistics.bin`
+ * when present. Confirm (Refresh) rescans, recomputes aggregates, and writes that snapshot.
  */
 class StatisticActivity final : public Activity, public Menu {
 private:
-    TaskHandle_t displayTaskHandle = nullptr;
-    SemaphoreHandle_t renderingMutex = nullptr;
-
     /** 0 = aggregated global overview; 1..N = one book (index N-1 in allBooksStats). */
     int viewIndex = 0;
     bool updateRequired = false;
@@ -43,8 +37,12 @@ private:
 
     /**
      * Loads and sorts reading statistics for all books by most recently read.
+     * Refreshes aggregates from disk, updates the global snapshot file, and redraws progress UI.
      */
     void loadStats();
+
+    /** SD scan for per-book stats + load saved global totals (or aggregate if no snapshot yet). */
+    void hydrateFromStorage();
 
     /**
      * Renders a book cover or placeholder at the specified position.
@@ -55,20 +53,7 @@ private:
     std::pair<int, int> drawGlobalRecentThumbBlock(int x, int y, const std::string& bookPath,
                                                    const std::string& title) const;
 
-    /**
-     * Static task trampoline for the display update task.
-     */
-    static void taskTrampoline(void* param);
-
-    /**
-     * Background task loop that handles display updates.
-     */
-    void displayTaskLoop();
-
-    /**
-     * Renders the complete statistics view.
-     */
-    void render() const;
+    void render();
 
     void renderSingleBookView(int bookIdx, int contentTop, int contentBottom) const;
 

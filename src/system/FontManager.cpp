@@ -952,10 +952,6 @@ void FontManager::clampReaderFontFamilySlot(uint8_t& slot) {
     return;
   }
   const uint32_t n = readerFontFamilyOptionCount();
-  if (n == 0u) {
-    slot = 0;
-    return;
-  }
   if (static_cast<uint32_t>(slot) >= n) {
     slot = 0;
   }

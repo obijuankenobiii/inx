@@ -23,6 +23,8 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+#include <EpdFontFamily.h>
+
 /**
  * @brief Static trampoline function for task creation
  */
@@ -147,6 +149,13 @@ void CategorySettingsActivity::setupMenu() {
         entry.valueRange = setting.valueRange;
         entry.group = setting.group;
 
+        if (setting.type == SettingType::INFO) {
+          const SettingInfo infoRow = setting;
+          entry.getValueText = [infoRow]() -> const char* {
+            return infoRow.enumValues.empty() ? "" : infoRow.enumValues[0].c_str();
+          };
+          entry.change = [](int) {};
+        }
         if (setting.type == SettingType::TOGGLE) {
           entry.getValueText = [this, setting]() -> const char* {
             return (SETTINGS.*(setting.valuePtr)) ? "ON" : "OFF";
@@ -246,7 +255,7 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Clear Cache") == 0) {
+            if (strcmp(setting.name, "Reset device") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -372,6 +381,7 @@ void CategorySettingsActivity::loop() {
       } else if (selected.type == SettingType::ACTION) {
         selected.change(0);
         needRedraw = true;
+      } else if (selected.type == SettingType::INFO) {
       } else {
         applyChange(1);
         needRedraw = true;
@@ -502,6 +512,19 @@ void CategorySettingsActivity::render() {
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();
     int thumbY = startY + (scrollOffset * listHeight) / menuItems.size();
     renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
+  }
+
+  {
+    const GfxRenderer::Orientation orientationBeforeHints = renderer.getOrientation();
+    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    const int pageHeight = renderer.getScreenHeight();
+    constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int lineH = renderer.getLineHeight(fontId);
+    constexpr int kHintBarInsetFromBottom = 40;
+    constexpr int kGapAboveHints = 8;
+    const int versionRowTop = pageHeight - kHintBarInsetFromBottom - kGapAboveHints - lineH;
+    renderer.drawCenteredText(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
+    renderer.setOrientation(orientationBeforeHints);
   }
 
   const char* backLbl = backButtonLabel ? backButtonLabel : "\xC2\xAB Back";

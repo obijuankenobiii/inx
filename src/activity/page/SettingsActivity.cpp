@@ -23,7 +23,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 30;
+constexpr int systemPageSettingsCount = 33;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -32,12 +32,13 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid","Current | Previous","Flow","Simple"},
+                      {"Grid","Current | Previous","Flow","Simple","List","Icons"},
                       GroupType::DEVICE_DISPLAY),
+    SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 8, 1}, GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
     SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode,
-                      {"Fill","Crop"},
+                      {"Fill", "Crop"},
                       GroupType::IMAGE),
     SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
@@ -45,8 +46,9 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::displayImagePresentation,
-        {"Low","Medium","High"},
+        {"Low","Medium","High","Very high"},
         GroupType::IMAGE),
+    SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum(
@@ -60,6 +62,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min","5 min","10 min","15 min","30 min"},
                       GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books","Home Page"}, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),
@@ -71,7 +74,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Clear Cache", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("About", GroupType::DEVICE_ACTIONS)};
 
@@ -101,7 +104,8 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"Left/Right","Right/Left","Up/Down","Down/Up","None"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
                       {"Up","Down","Left","Right","Confirm"}, GroupType::READER_CONTROLS),
-    SettingInfo::Toggle("Long-press Chapter Skip", &SystemSetting::longPressChapterSkip, GroupType::READER_CONTROLS),
+    SettingInfo::Enum("Long press", &SystemSetting::longPressChapterSkip,
+                      {"Off", "Chapter skip", "Skip 5 pages"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn, {"Page Turn","Page Refresh"},
                       GroupType::READER_CONTROLS),
     SettingInfo::Value("Page Auto Turn", &SystemSetting::pageAutoTurnSeconds, {0, 180, 10}, GroupType::READER_CONTROLS),
@@ -116,7 +120,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
     SettingInfo::Enum(
         "Contrast", &SystemSetting::readerImagePresentation,
-        {"Low","Medium","High"},
+        {"Low","Medium","High","Very high"},
         GroupType::IMAGE),
 
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
@@ -198,7 +202,7 @@ void SettingsActivity::loop() {
     return;
   }
 
-  if (updateRequired && !subActivity && !isIndexing && !showingAbout) {
+  if (updateRequired && !isIndexing && !showingAbout) {
     updateRequired = false;
     openCurrentPanel();
     return;

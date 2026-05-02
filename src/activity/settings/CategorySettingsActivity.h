@@ -20,7 +20,7 @@
 
 class SystemSetting;
 
-enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, SEPARATOR };
+enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, SEPARATOR, INFO };
 
 enum class GroupType {
     NONE,
@@ -110,6 +110,17 @@ struct SettingInfo {
         info.name = name;
         info.type = SettingType::SEPARATOR;
         info.valueRange = ValueRange();
+        info.group = group;
+        return info;
+    }
+
+    /** Read-only row; `value` is shown on the right (e.g. firmware version). */
+    static SettingInfo Info(const char* name, const char* value, GroupType group = GroupType::NONE) {
+        SettingInfo info;
+        info.name = name;
+        info.type = SettingType::INFO;
+        info.valuePtr = nullptr;
+        info.enumValues = {std::string(value ? value : "")};
         info.group = group;
         return info;
     }

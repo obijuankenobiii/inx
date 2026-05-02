@@ -20,28 +20,31 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/ScreenComponents.h"
 namespace {
 
-class MutexGuard {
- private:
-  SemaphoreHandle_t& mutex;
-  bool acquired;
-
- public:
-  explicit MutexGuard(SemaphoreHandle_t& m) : mutex(m), acquired(false) {
-    if (mutex) {
-      acquired = (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE);
+/** Scale/crop so the bitmap fills [x,y,w,h] without letterboxing (matches Recent thumbnails). */
+void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int y, int w, int h) {
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+  const float iw = static_cast<float>(bitmap.getWidth());
+  const float ih = static_cast<float>(bitmap.getHeight());
+  float cropX = 0.f;
+  float cropY = 0.f;
+  if (iw > 0.f && ih > 0.f) {
+    const float ir = iw / ih;
+    const float tr = static_cast<float>(w) / static_cast<float>(h);
+    if (ir > tr) {
+      cropX = 1.0f - (tr / ir);
+    } else if (ir < tr) {
+      cropY = 1.0f - (ir / tr);
     }
   }
-
-  ~MutexGuard() {
-    if (acquired && mutex) {
-      xSemaphoreGive(mutex);
-    }
-  }
-
-  bool isAcquired() const { return acquired; }
-};
+  renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
+                      SETTINGS.bitmapRoundedCorners != 0 ? GfxRenderer::BitmapRoundedCornerOutside::PaperOutside
+                                                         : GfxRenderer::BitmapRoundedCornerOutside::None);
+}
 
 constexpr unsigned long GO_HOME_MS = 1000;
 
@@ -426,29 +429,31 @@ int drawFourColumnStats2x2(const GfxRenderer& renderer, int innerLeft, int y, in
   return drawFourColumnStatsNx2(renderer, innerLeft, y, innerW, vals, labs, 2, cellH, row0LiftPx, 0);
 }
 
-}  
-
-void StatisticActivity::taskTrampoline(void* param) { static_cast<StatisticActivity*>(param)->displayTaskLoop(); }
-
-void StatisticActivity::displayTaskLoop() {
-  while (true) {
-    {
-      MutexGuard guard(renderingMutex);
-      if (guard.isAcquired() && updateRequired) {
-        updateRequired = false;
-        render();
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
 }
 
 void StatisticActivity::loadStats() {
+  ScreenComponents::LoadingProgressLayout layout =
+      ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 12);
+  allBooksStats = getAllBooksStats();
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 40);
+  std::sort(allBooksStats.begin(), allBooksStats.end(),
+            [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 65);
+  globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 90);
+  viewIndex = 0;
+  ScreenComponents::LoadingProgress::setProgress(renderer, layout, 100);
+  saveGlobalStats(globalStats);
+}
+
+void StatisticActivity::hydrateFromStorage() {
   allBooksStats = getAllBooksStats();
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
-  globalStats = generateGlobalStats();
-  viewIndex = 0;
+  if (!loadGlobalStats(globalStats)) {
+    globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
+    saveGlobalStats(globalStats);
+  }
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -463,7 +468,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
       const int maxW = std::max(1, width - 4);
       const int maxH = std::max(1, height - 4);
       BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-      renderer.drawBitmap(bitmap, x + 2, y + 2, maxW, maxH);
+      drawStatsThumbnailInRect(renderer, bitmap, x + 2, y + 2, maxW, maxH);
       coverDrawn = true;
     }
     file.close();
@@ -473,7 +478,11 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
     return;
   }
 
-  renderer.drawRect(x, y, width, height, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(x, y, width, height, false, rr);
+  if (!rr) {
+    renderer.drawRect(x, y, width, height, true, false);
+  }
 
   if (!title.empty()) {
     int lineY = y + 18;
@@ -545,26 +554,20 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
       const int bw = bitmap.getWidth();
       const int bh = bitmap.getHeight();
       if (bw > 0 && bh > 0) {
-        const float br = static_cast<float>(bw) / static_cast<float>(bh);
-        int drawW = availW;
-        int drawH = static_cast<int>(static_cast<float>(drawW) / br + 0.5f);
-        if (drawH > availH) {
-          drawH = availH;
-          drawW = static_cast<int>(static_cast<float>(drawH) * br + 0.5f);
-        }
-        drawW = std::max(1, drawW);
-        drawH = std::max(1, drawH);
-        const int coverW = drawW + 4;
-        const int coverH = drawH + 4;
+        const int coverW = availW + 4;
+        const int coverH = availH + 4;
         const int frameW = coverW + 2 * kOuterPad;
         const int frameH = coverH + 2 * kOuterPad;
         const int innerX = boxX + kOuterPad;
         const int innerY = yTop + kOuterPad;
-        renderer.fillRect(boxX, yTop, frameW, frameH, false, false);
-        renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+        const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+        renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+        if (!rr) {
+          renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+        }
         {
           BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-          renderer.drawBitmap(bitmap, innerX + 2, innerY + 2, drawW, drawH);
+          drawStatsThumbnailInRect(renderer, bitmap, innerX + 2, innerY + 2, availW, availH);
         }
         file.close();
         return {frameW, frameH};
@@ -579,8 +582,11 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
   const int coverH = kFallbackH + 4;
   const int frameW = coverW + 2 * kOuterPad;
   const int frameH = coverH + 2 * kOuterPad;
-  renderer.fillRect(boxX, yTop, frameW, frameH, false, false);
-  renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+  if (!rr) {
+    renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+  }
   renderCover(bookPath, boxX + kOuterPad, yTop + kOuterPad, coverW, coverH, title, "");
   return {frameW, frameH};
 }
@@ -588,33 +594,17 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
 void StatisticActivity::onEnter() {
   Activity::onEnter();
 
-  loadStats();
-
-  renderingMutex = xSemaphoreCreateMutex();
-  if (!renderingMutex) return;
+  hydrateFromStorage();
+  viewIndex = 0;
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   render();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Statistics);
-
-  if (displayTaskHandle == nullptr) {
-    xTaskCreate(&StatisticActivity::taskTrampoline, "StatisticTask", 4096, this, 1, &displayTaskHandle);
-  }
 }
 
 void StatisticActivity::onExit() {
   Activity::onExit();
-
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-  }
 
   allBooksStats.clear();
   allBooksStats.shrink_to_fit();
@@ -779,8 +769,11 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const float prog =
       (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
   const int boxX = innerLeft;
-  renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, false);
-  renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
+  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+  renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, rr);
+  if (!rr) {
+    renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
+  }
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 
   const int rowHeight = std::max(coverH, 2 * kBookDonutR + 4);
@@ -823,7 +816,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   renderer.drawCenteredText(FONT_SANS_SM, contentBottom - 5, footer);
 }
 
-void StatisticActivity::render() const {
+void StatisticActivity::render() {
   renderer.clearScreen();
   renderTabBar(renderer);
 
@@ -855,10 +848,18 @@ void StatisticActivity::render() const {
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);
   }
 
+  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
+  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
   renderer.displayBuffer();
 }
 
 void StatisticActivity::loop() {
+  if (tabSelectorIndex == 4 && updateRequired) {
+    updateRequired = false;
+    render();
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -895,8 +896,7 @@ void StatisticActivity::loop() {
   }
 
   if (confirmPressed) {
-    globalStats = generateGlobalStats();
-    saveGlobalStats(globalStats);
+    loadStats();
     updateRequired = true;
     return;
   }

@@ -6,6 +6,7 @@
  */
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -13,10 +14,18 @@
 #include "../Menu.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
+#include "state/Statistics.h"
 
 /**
- * Activity that displays recently opened books in either grid or list view.
+ * Activity that displays recently opened books in grid, flow, stats strip, simple, or book-list layouts.
  * Shows book covers, titles, authors, and reading progress.
+ *
+ * Complexity contract:
+ * - Loops over `recentBooks` are O(1) in total library size: at most min(MAX_RECENT_BOOKS, recentVisibleCount).
+ * - Per-call work that touches favorites scales with the global favorite list (SD exists checks), not with
+ *   recent count; “is this path in recents?” is O(8) string compares (constant bound, no heap).
+ * - Mapping settings → ViewMode and layout engine sync are O(1) (bounded enum / switch).
+ * - Painting remains O(pixels drawn); unavoidable for full-frame updates.
  */
 class RecentActivity final : public Activity, public Menu {
  public:
@@ -43,7 +52,9 @@ class RecentActivity final : public Activity, public Menu {
     Default,
     Grid,  /**< Display books in a grid with covers */
     Flow,  /**< Flow carousel */
-    SimpleUi /**< Recent cover on gray band, favorites list below */
+    SimpleUi, /**< Recent cover on gray band, favorites list below */
+    List, /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
+    Icons /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
   };
 
  private:
@@ -80,8 +91,8 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
-  void rebuildListStatsFavorites();
-  void rebuildSimpleUiFavorites();
+  void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
+  void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
 
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
@@ -119,10 +130,52 @@ class RecentActivity final : public Activity, public Menu {
 
   void renderSimpleUi();
 
+  /** Book list: five rows, vertical scroll when more than five recents. */
+  void renderList(int startY);
+  void renderIcons(int startY);
+
+  /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use paper corners. */
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
-                             int placeholderFontId);
+                             int placeholderFontId, bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
   void renderDefaultStatsGrid(int gridStartY, int screenW);
+
+  /** Tab-relative Y where each Recent view paints its body (keeps constants out of layout engine defs). */
+  int recentGridPaintStartY() const { return TAB_BAR_HEIGHT - 29; }
+  int recentIconsPaintStartY() const { return TAB_BAR_HEIGHT + 6; }
+  int recentListPaintStartY() const { return TAB_BAR_HEIGHT + 15; }
+
+  /**
+   * View-mode paint strategy: one implementation per `ViewMode`, created by `makeLayoutEngine`.
+   * Nested here so `paint` can call private render helpers without friending external types.
+   */
+  struct LayoutEngine {
+    virtual ~LayoutEngine() = default;
+    virtual void paint(RecentActivity& self) = 0;
+  };
+  struct DefaultViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct GridViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct IconsViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct SimpleUiViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct ListViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct FlowViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+
+  static std::unique_ptr<LayoutEngine> makeLayoutEngine(ViewMode mode);
+  void syncLayoutEngineForViewMode();
+  std::unique_ptr<LayoutEngine> layoutEngine_;
+  ViewMode layoutEngineBoundMode_ = ViewMode::Flow;
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.

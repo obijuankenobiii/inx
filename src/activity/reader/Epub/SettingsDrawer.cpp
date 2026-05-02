@@ -194,7 +194,7 @@ void SettingsDrawer::setupMenu() {
     lineEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* spacing[] = {"Tight", "Normal", "Wide", "Wider", "Loose"};
       int index = s.lineSpacing;
-      if (index < 0 || index > 4) index = 1;
+      if (index > 4) index = 1;
       return spacing[index];
     };
     lineEntry.change = [](BookSettings& s, int delta) {
@@ -347,6 +347,8 @@ void SettingsDrawer::setupMenu() {
       switch (SETTINGS.readerImagePresentation) {
         case SystemSetting::IMAGE_PRESENTATION_LOW:
           return "Low";
+        case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
+          return "Very high";
         case SystemSetting::IMAGE_PRESENTATION_HIGH:
           return "High";
         default:
@@ -429,12 +431,23 @@ void SettingsDrawer::setupMenu() {
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
     chapterEntry.group = GroupType::CONTROLS;
-    chapterEntry.name = "Long-press Chapter Skip";
+    chapterEntry.name = "Long press";
     chapterEntry.getValueText = [](const BookSettings& s) -> const char* {
-      return s.longPressChapterSkip ? "On" : "Off";
+      static const char* kLabels[] = {"Off", "Chapter skip", "Skip 5 pages"};
+      const unsigned idx = s.longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5
+                                 ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
+                                 : s.longPressChapterSkip;
+      return kLabels[idx];
     };
-    chapterEntry.change = [](BookSettings& s, int) {
-      s.longPressChapterSkip = !s.longPressChapterSkip;
+    chapterEntry.change = [](BookSettings& s, int delta) {
+      int v = static_cast<int>(s.longPressChapterSkip) + delta;
+      if (v < SystemSetting::LONG_PRESS_OFF) {
+        v = SystemSetting::LONG_PRESS_PAGE_SKIP_5;
+      }
+      if (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+        v = SystemSetting::LONG_PRESS_OFF;
+      }
+      s.longPressChapterSkip = static_cast<uint8_t>(v);
       s.useCustomSettings = true;
     };
     menuItems.push_back(chapterEntry);
@@ -522,6 +535,7 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(statusRightEntry);
   }
+
 }
 
 /**
@@ -579,6 +593,9 @@ void SettingsDrawer::render() {
  * @param mode Display refresh mode to use
  */
 void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
+  if (!visible) {
+    return;
+  }
   syncLayoutFromRenderer();
   drawBackground();
   drawMenuItems();
@@ -689,8 +706,7 @@ void SettingsDrawer::drawMenuItems() {
           checked = settings.textAntiAliasing != 0;
           break;
         case MenuItem::ChapterSkip:
-          checkbox = true;
-          checked = settings.longPressChapterSkip != 0;
+          checkbox = false;
           break;
         default:
           break;
@@ -823,17 +839,16 @@ void SettingsDrawer::applyChange(int delta) {
   selected.change(settings, delta);
 
   switch (selected.item) {
-    case MenuItem::FontFamily:
     case MenuItem::FontSize:
     case MenuItem::LineSpacing:
     case MenuItem::ScreenMargin:
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:
     case MenuItem::ParagraphCssIndent:
-    case MenuItem::ReadingOrientation:
+    case MenuItem::FontFamily:
       settingsUpdated = true;
       break;
-
+    case MenuItem::ReadingOrientation:
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:

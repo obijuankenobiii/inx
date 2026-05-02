@@ -100,7 +100,8 @@ struct BookSettings {
   uint8_t orientation = SystemSetting::PORTRAIT;  ///< Screen orientation
 
   
-  uint8_t longPressChapterSkip = 1;  ///< Long press chapter skip enabled
+  /** Same values as SystemSetting::LONG_PRESS_* (0=off, 1=chapter skip, 2=skip 5 pages). */
+  uint8_t longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
 
   
   uint8_t refreshFrequency = 15;  ///< Screen refresh frequency in pages
@@ -180,6 +181,9 @@ struct BookSettings {
           screenMargin = data[offset++];
           refreshFrequency = data[offset++];
           longPressChapterSkip = data[offset++];
+          if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+            longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
+          }
           textAntiAliasing = data[offset++];
           orientation = data[offset++];
 

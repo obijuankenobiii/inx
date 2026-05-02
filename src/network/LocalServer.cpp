@@ -14,6 +14,7 @@
 
 #include <algorithm>
 
+#include "html/EpubPageHtml.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
@@ -111,6 +112,7 @@ void LocalServer::begin() {
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
   server->on("/", HTTP_GET, [this] { handleRoot(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
+  server->on("/epub", HTTP_GET, [this] { handleEpubPage(); });
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
@@ -376,6 +378,8 @@ bool LocalServer::isEpubFile(const String& filename) const {
 }
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
+
+void LocalServer::handleEpubPage() const { server->send(200, "text/html", EpubPageHtml); }
 
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
@@ -996,8 +1000,10 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
-  
-  
+  doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
+  doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
+  doc["librarySortMode"] = SETTINGS.librarySortMode;
+
   doc["fontFamily"] = SETTINGS.fontFamily;
   doc["fontSize"] = SETTINGS.fontSize;
   
@@ -1098,6 +1104,24 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.recentLibraryMode = (uint8_t)value;
       changed = true;
     }
+    else if (strcmp(key, "recentVisibleCount") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 1) v = 1;
+      if (v > 8) v = 8;
+      SETTINGS.recentVisibleCount = static_cast<uint8_t>(v);
+      changed = true;
+    }
+    else if (strcmp(key, "librarySortEnabled") == 0) {
+      SETTINGS.librarySortEnabled = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "librarySortMode") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 0) v = 0;
+      if (v > 5) v = 0;
+      SETTINGS.librarySortMode = static_cast<uint8_t>(v);
+      changed = true;
+    }
     else if (strcmp(key, "fontFamily") == 0) {
       SETTINGS.fontFamily = (uint8_t)value;
       changed = true;
@@ -1149,7 +1173,9 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "longPressChapterSkip") == 0) {
-      SETTINGS.longPressChapterSkip = (uint8_t)value;
+      const int v = static_cast<int>(value);
+      SETTINGS.longPressChapterSkip =
+          (v < 0) ? 0 : (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? SystemSetting::LONG_PRESS_PAGE_SKIP_5 : (uint8_t)v);
       changed = true;
     }
     else if (strcmp(key, "readerShortPwrBtn") == 0) {

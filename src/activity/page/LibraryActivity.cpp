@@ -44,6 +44,15 @@ using SortMode = LibraryActivity::SortMode;
 
 namespace {
 
+uint8_t sortModeToStorage(SortMode m) { return static_cast<uint8_t>(m); }
+
+SortMode storageToSortMode(uint8_t v) {
+  if (v > static_cast<uint8_t>(SortMode::READING_ZA)) {
+    return SortMode::TITLE_AZ;
+  }
+  return static_cast<SortMode>(v);
+}
+
 /**
  * @brief RAII mutex guard for automatic mutex management
  */
@@ -555,10 +564,10 @@ void LibraryActivity::loadBooksRecursiveScan() {
 void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
-  size_t scanYieldCount = 0;
 
   auto root = SdMan.open(basepath.c_str());
   if (root && root.isDirectory()) {
+    size_t scanYieldCount = 0;
     root.rewindDirectory();
     char name[500];
 
@@ -665,6 +674,9 @@ void LibraryActivity::sortTempBooks(std::vector<TempBookEntry>& tempBooks) {
  * @return Comparator function for TempBookEntry
  */
 std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity::getBookComparator() const {
+  if (SETTINGS.librarySortEnabled == 0) {
+    return [](const TempBookEntry& a, const TempBookEntry& b) { return a.sortKey < b.sortKey; };
+  }
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
       return [this](const TempBookEntry& a, const TempBookEntry& b) {
@@ -781,6 +793,18 @@ void LibraryActivity::sortFoldersAndBooks(std::vector<LibraryItem>& tempFolders,
  * @return Comparator function for LibraryItem folders
  */
 std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::getFolderComparator() const {
+  if (SETTINGS.librarySortEnabled == 0) {
+    return [](const LibraryItem& a, const LibraryItem& b) {
+      std::string aName = a.displayName;
+      std::string bName = b.displayName;
+      std::transform(aName.begin(), aName.end(), aName.begin(), ::tolower);
+      std::transform(bName.begin(), bName.end(), bName.begin(), ::tolower);
+      if (aName != bName) {
+        return aName < bName;
+      }
+      return a.path < b.path;
+    };
+  }
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
     case SortMode::GROUP_AZ:
@@ -988,6 +1012,7 @@ void LibraryActivity::onEnter() {
   currentViewMode = ViewMode::FOLDER_VIEW;
   resetNavigation();
   tabSelectorIndex = 1;
+  currentSortMode = storageToSortMode(SETTINGS.librarySortMode);
 
   loadAllBooksRecursive();
 
@@ -1001,6 +1026,9 @@ void LibraryActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void LibraryActivity::onExit() {
+  SETTINGS.librarySortMode = sortModeToStorage(currentSortMode);
+  SETTINGS.saveToFile();
+
   Activity::onExit();
 
   if (displayTaskHandle) {
@@ -1368,6 +1396,9 @@ void LibraryActivity::handleBackNavigation() {
  * @brief Cycle through sort modes
  */
 void LibraryActivity::cycleSortMode() {
+  if (SETTINGS.librarySortEnabled == 0) {
+    return;
+  }
   favoritesPromoted = false;
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
@@ -1416,6 +1447,9 @@ void LibraryActivity::resetLibraryView() {
  * @return Sort button text
  */
 std::string LibraryActivity::getSortButtonText() const {
+  if (SETTINGS.librarySortEnabled == 0) {
+    return "A-Z";
+  }
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
       return "Title A-Z";

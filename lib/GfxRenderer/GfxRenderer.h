@@ -22,7 +22,8 @@ class GfxRenderer {
   enum class BitmapGrayRenderStyle : uint8_t {
     Balanced,  ///< Legacy: only dark gray + black ink (light gray omitted)
     FullGray,  ///< "Balance" contrast: ink both gray stages (former full-gray behavior)
-    Dark       ///< Stronger ink / tighter snap than FullGray
+    Dark,      ///< Stronger ink / tighter snap than FullGray
+    VeryDark   ///< Maximum ink / strongest stage mapping
   };
 
   
@@ -104,9 +105,21 @@ class GfxRenderer {
   void drawIcon(const uint8_t bitmap[], int x, int y, int width, int height, ImageOrientation imgOrientation = None,
                 bool invert = false) const;
 
+  void drawSleepScreen(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0.f,
+                       float cropY = 0.f, bool coverFill = false) const;
+
+  /** Pixels outside the rounded clip after `drawBitmap` (same geometry as rounded `fillRect`). */
+  enum class BitmapRoundedCornerOutside : uint8_t {
+    None = 0,
+    PaperOutside = 1,             
+    /** ~25% ink on screen even/even pixels outside rounded corners (matches Recent carousel dither). */
+    SparseInkAlignedOutside = 2,
+  };
+
   void drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0,
-                  float cropY = 0) const;
-  void drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight) const;
+                  float cropY = 0, BitmapRoundedCornerOutside roundedOutside = BitmapRoundedCornerOutside::None) const;
+  void drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
+                      BitmapRoundedCornerOutside roundedOutside = BitmapRoundedCornerOutside::None) const;
 
   void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
   BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
@@ -149,6 +162,8 @@ class GfxRenderer {
   bool storeBwBuffer();    
   void restoreBwBuffer();  
   void cleanupGrayscaleWithFrameBuffer() const;
+  /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
+  void resetTransientReaderState();
 
   
   uint8_t* getFrameBuffer() const;

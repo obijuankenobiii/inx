@@ -20,17 +20,35 @@ constexpr char BOOKS_FILE[] = "/.metadata/books.bin";
 
 BookState BookState::instance;
 
+void BookState::rebuildPathIndex() {
+  pathIndex_.clear();
+  pathIndex_.reserve(books.size());
+  for (size_t i = 0; i < books.size(); ++i) {
+    pathIndex_[books[i].path] = i;
+  }
+}
+
+void BookState::rebuildFavoriteIndices() {
+  favoriteIndices_.clear();
+  for (size_t i = 0; i < books.size(); ++i) {
+    if (books[i].isFavorite) {
+      favoriteIndices_.push_back(i);
+    }
+  }
+  std::sort(favoriteIndices_.begin(), favoriteIndices_.end(),
+            [this](size_t ia, size_t ib) { return books[ia].id > books[ib].id; });
+}
+
 void BookState::addOrUpdateBook(const std::string& path, 
                                 const std::string& title,
                                 const std::string& author) {
-  auto it = std::find_if(books.begin(), books.end(), 
-                         [&](const Book& book) { return book.path == path; });
-  
-  if (it != books.end()) {
-    it->title = title;
-    it->author = author;
+  const auto mapIt = pathIndex_.find(path);
+  if (mapIt != pathIndex_.end()) {
+    books[mapIt->second].title = title;
+    books[mapIt->second].author = author;
   } else {
     books.push_back({path, title, author, nextId++});
+    pathIndex_[path] = books.size() - 1;
   }
 
   saveToFile();
@@ -74,35 +92,35 @@ std::vector<BookState::Book> BookState::getRecentlyAdded(int limit) const {
 }
 
 BookState::Book* BookState::findBookByPath(const std::string& path) {
-  auto it = std::find_if(books.begin(), books.end(), 
-                         [&](const Book& book) { return book.path == path; });
-  return (it != books.end()) ? &(*it) : nullptr;
+  const auto mapIt = pathIndex_.find(path);
+  if (mapIt == pathIndex_.end()) {
+    return nullptr;
+  }
+  return &books[mapIt->second];
 }
 
 void BookState::toggleFavorite(const std::string& path) {
-  auto it = std::find_if(books.begin(), books.end(), 
-                         [&](const Book& book) { return book.path == path; });
-  if (it != books.end()) {
-    it->isFavorite = !it->isFavorite;
+  Book* b = findBookByPath(path);
+  if (b != nullptr) {
+    b->isFavorite = !b->isFavorite;
+    rebuildFavoriteIndices();
     saveToFile();
   }
 }
 
 void BookState::setReading(const std::string& path, bool reading) {
-  auto it = std::find_if(books.begin(), books.end(), 
-                         [&](const Book& book) { return book.path == path; });
-  if (it != books.end()) {
-    it->isReading = reading;
+  Book* b = findBookByPath(path);
+  if (b != nullptr) {
+    b->isReading = reading;
     saveToFile();
   }
 }
 
 void BookState::setFinished(const std::string& path, bool finished) {
-  auto it = std::find_if(books.begin(), books.end(), 
-                         [&](const Book& book) { return book.path == path; });
-  if (it != books.end()) {
-    it->isFinished = finished;
-    if (finished) it->isReading = false;
+  Book* b = findBookByPath(path);
+  if (b != nullptr) {
+    b->isFinished = finished;
+    if (finished) b->isReading = false;
     saveToFile();
   }
 }
@@ -145,6 +163,10 @@ bool BookState::saveToFile() const {
 bool BookState::loadFromFile() {
   FsFile inputFile;
   if (!SdMan.openFileForRead("BKS", BOOKS_FILE, inputFile)) {
+    books.clear();
+    pathIndex_.clear();
+    favoriteIndices_.clear();
+    nextId = 1;
     return false;
   }
 
@@ -170,6 +192,8 @@ bool BookState::loadFromFile() {
   }
 
   books.clear();
+  pathIndex_.clear();
+  favoriteIndices_.clear();
   if (count != 0) {
     books.reserve(count);
   }
@@ -194,5 +218,7 @@ bool BookState::loadFromFile() {
   }
 
   inputFile.close();
+  rebuildPathIndex();
+  rebuildFavoriteIndices();
   return true;
 }

@@ -6,7 +6,10 @@
 #include "system/ScreenComponents.h"
 
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 
+#include <algorithm>
+#include <cstdio>
 #include <cstdint>
 #include <string>
 
@@ -73,10 +76,102 @@ void ScreenComponents::fillPopupProgress(const GfxRenderer& renderer, const Popu
   const int barX = layout.x + (layout.width - barWidth) / 2;
   const int barY = layout.y + layout.height - 10;
 
-  int fillWidth = barWidth * progress / 100;
+  const int clamped = std::max(0, std::min(100, progress));
+  int fillWidth = barWidth * clamped / 100;
 
   renderer.fillRect(barX, barY, fillWidth, barHeight, true);
 
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+}
+
+namespace {
+
+constexpr int kLoadProgBottomY = 312;
+constexpr int kLoadProgSideMargin = 20;
+constexpr int kLoadProgInnerPad = 12;
+constexpr int kLoadProgBarH = 10;
+constexpr int kLoadProgGapLabelToBar = 10;
+constexpr int kLoadProgGapBarToPct = 8;
+
+void paintLoadingProgressBarRow(const GfxRenderer& renderer, const ScreenComponents::LoadingProgressLayout& L,
+                                  const int progressPercent0to100) {
+  const int clamped = std::max(0, std::min(100, progressPercent0to100));
+  const int innerW = std::max(1, L.barW - 2);
+  const int fillW = innerW * clamped / 100;
+
+  renderer.fillRect(L.barX + 1, L.barY + 1, innerW, L.barH - 2, false);
+  if (fillW > 0) {
+    renderer.fillRect(L.barX + 1, L.barY + 1, fillW, L.barH - 2, true);
+  }
+  renderer.drawRect(L.barX, L.barY, L.barW, L.barH, true);
+
+  char pctBuf[16];
+  snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
+  renderer.drawText(L.pctFontId, L.pctX, L.pctY, pctBuf, false);
+}
+
+}  
+
+ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(const GfxRenderer& renderer,
+                                                                                const char* message,
+                                                                                const int progressPercent0to100) {
+  const int clamped = std::max(0, std::min(100, progressPercent0to100));
+  const int screenW = renderer.getScreenWidth();
+  constexpr int labelFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  constexpr int pctFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int lhLabel = renderer.getLineHeight(labelFontId);
+  const int lhPct = renderer.getLineHeight(pctFontId);
+
+  char pctBuf[16];
+  snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
+  const int pctW = renderer.getTextWidth(pctFontId, pctBuf);
+
+  constexpr int kMinBarW = 40;
+  const int labelMaxForMeasure = std::max(8, screenW - 2 * kLoadProgSideMargin - 2 * kLoadProgInnerPad);
+  const std::string msgShown = renderer.truncatedText(labelFontId, message ? message : "", labelMaxForMeasure);
+  const int labelW = renderer.getTextWidth(labelFontId, msgShown.c_str());
+
+  const int rowInnerW = kMinBarW + kLoadProgGapBarToPct + pctW;
+  const int innerContentW = std::max(labelW, rowInnerW);
+  const int panelW = std::min(screenW - 4, innerContentW + 2 * kLoadProgInnerPad);
+  const int panelX = (screenW - panelW) / 2;
+  const int innerW = panelW - 2 * kLoadProgInnerPad;
+  const int barW = std::max(kMinBarW, innerW - kLoadProgGapBarToPct - pctW);
+  const int pctX = panelX + kLoadProgInnerPad + barW + kLoadProgGapBarToPct;
+  const int panelH = kLoadProgInnerPad + lhLabel + kLoadProgGapLabelToBar + kLoadProgBarH + kLoadProgInnerPad;
+  const int panelY = kLoadProgBottomY - panelH;
+  const int labelX = panelX + (panelW - labelW) / 2;
+  const int labelY = panelY + kLoadProgInnerPad;
+  const int barX = panelX + kLoadProgInnerPad;
+  const int barY = labelY + lhLabel + kLoadProgGapLabelToBar;
+  const int pctY = barY + (kLoadProgBarH - lhPct) / 2;
+
+  renderer.fillRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true, true);
+  renderer.fillRect(panelX, panelY, panelW, panelH, true, true);
+  renderer.drawText(labelFontId, labelX, labelY, msgShown.c_str(), false);
+
+  LoadingProgressLayout L;
+  L.panelX = panelX;
+  L.panelY = panelY;
+  L.panelW = panelW;
+  L.panelH = panelH;
+  L.barX = barX;
+  L.barY = barY;
+  L.barW = barW;
+  L.barH = kLoadProgBarH;
+  L.pctX = pctX;
+  L.pctY = pctY;
+  L.pctFontId = pctFontId;
+
+  paintLoadingProgressBarRow(renderer, L, clamped);
+  renderer.displayBuffer();
+
+  return L;
+}
+
+void ScreenComponents::LoadingProgress::setProgress(const GfxRenderer& renderer, const LoadingProgressLayout& layout,
+                                                    const int progressPercent0to100) {
+  paintLoadingProgressBarRow(renderer, layout, progressPercent0to100);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 

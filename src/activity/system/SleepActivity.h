@@ -68,8 +68,12 @@ class SleepActivity final : public Activity {
    * on screen dimensions and user settings.
    *
    * @param bitmap The bitmap image to render
+   * @param preCroppedEpubCover When true (EPUB + Crop mode), bitmap is the pre-cropped cover; draw at full screen with no aspect crop.
    */
-  void renderBitmapSleepScreen(const Bitmap& bitmap) const;
+  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preCroppedEpubCover = false) const;
+
+  /** Fill mode: aspect crop + `drawBitmap` (same scaling as reader / CrossPoint-style covers). */
+  void renderFill(const Bitmap& bitmap) const;
   
   /**
    * @brief Renders a completely blank sleep screen.
@@ -80,24 +84,9 @@ class SleepActivity final : public Activity {
   
   /**
    * @brief Renders a transparent overlay sleep screen.
-   * 
-   * Displays a semi-transparent image overlay on top of the current screen content.
+   *
+   * For the last-read EPUB, draws the saved reading page (progress) as the base layer, then the
+   * semi-transparent sleep BMP on top when configured. Non-EPUB books still use the cover bitmap as the base.
    */
   void renderTransparentSleepScreen() const;
-  
-  /**
-   * @brief Renders a bitmap with grayscale processing.
-   * 
-   * Performs two-pass rendering for grayscale images (LSB and MSB) to achieve
-   * proper grayscale display on e-ink screens.
-   * 
-   * @param bitmap The bitmap image to render
-   * @param x X-coordinate for image placement
-   * @param y Y-coordinate for image placement
-   * @param w Target width for rendering
-   * @param h Target height for rendering
-   * @param cx Horizontal crop factor (0-1)
-   * @param cy Vertical crop factor (0-1)
-   */
-  void renderGreyscale(const Bitmap& bitmap, int x, int y, int w, int h, float cx, float cy) const;
 };

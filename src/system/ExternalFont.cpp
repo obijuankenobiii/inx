@@ -35,18 +35,18 @@ bool ExternalFont::load(const char* path) {
   if (!m_file) return false;
 
   uint32_t magic, version;
-  m_file.read((uint8_t*)&magic, 4);
-  m_file.read((uint8_t*)&version, 4);
+  m_file.read(reinterpret_cast<uint8_t*>(&magic), 4);
+  m_file.read(reinterpret_cast<uint8_t*>(&version), 4);
 
   uint16_t nameLen;
-  m_file.read((uint8_t*)&nameLen, 2);
+  m_file.read(reinterpret_cast<uint8_t*>(&nameLen), 2);
   m_file.seek(m_file.position() + nameLen);
 
   m_fontData = new EpdFontData();
   int16_t lineHeight, ascender, descender;
-  m_file.read((uint8_t*)&lineHeight, 2);
-  m_file.read((uint8_t*)&ascender, 2);
-  m_file.read((uint8_t*)&descender, 2);
+  m_file.read(reinterpret_cast<uint8_t*>(&lineHeight), 2);
+  m_file.read(reinterpret_cast<uint8_t*>(&ascender), 2);
+  m_file.read(reinterpret_cast<uint8_t*>(&descender), 2);
   uint8_t is2Bit;
   m_file.read(&is2Bit, 1);
 
@@ -63,10 +63,10 @@ bool ExternalFont::load(const char* path) {
   m_fontData->intervalCount = 0;
 
   uint16_t intervalCount;
-  m_file.read((uint8_t*)&intervalCount, 2);
+  m_file.read(reinterpret_cast<uint8_t*>(&intervalCount), 2);
   m_file.seek(m_file.position() + (intervalCount * 12));
 
-  m_file.read((uint8_t*)&m_glyphCount, 4);
+  m_file.read(reinterpret_cast<uint8_t*>(&m_glyphCount), 4);
   m_glyphTableStart = m_file.position();
 
   const uint32_t tableBytes = m_glyphCount * 24u;

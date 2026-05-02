@@ -38,10 +38,10 @@ public:
     /**
      * @brief Sleep screen cover scaling modes
      */
-    enum SLEEP_SCREEN_COVER_MODE { 
-        FIT = 0,            ///< Fill screen; preserve aspect (center crop / cover)
-        CROP = 1,           ///< Show full image in screen (letterbox / contain, no upscale)
-        SLEEP_SCREEN_COVER_MODE_COUNT 
+    enum SLEEP_SCREEN_COVER_MODE {
+        FIT = 0,   ///< Fill: scale to screen with aspect crop (full uncropped EPUB cover)
+        CROP = 1,  ///< EPUB: use pre-cropped cover asset; draw full screen (no extra crop)
+        SLEEP_SCREEN_COVER_MODE_COUNT
     };
     
     /**
@@ -259,9 +259,11 @@ public:
      */
     enum RECENT_LIBRARY_MODE {
         RECENT_GRID = 0,    ///< Grid view
-        RECENT_LIST = 1,    ///< List view
+        RECENT_LIST = 1,    ///< Current / previous (stats + carousel strip)
         RECENT_FLOW = 2,    ///< Flow carousel
         RECENT_SIMPLE = 3,  ///< Simple: recent cover on top, favorites list below
+        RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
+        RECENT_ICONS = 5,   ///< 2×3 icon grid (200×200); scroll for more books
         RECENT_LIBRARY_MODE_COUNT
     };
 
@@ -279,8 +281,9 @@ public:
      */
     enum READER_IMAGE_PRESENTATION {
         IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
-        IMAGE_PRESENTATION_MEDIUM = 1, ///< Default: full-gray halftone (former “Balance”)
-        IMAGE_PRESENTATION_HIGH = 2,   ///< Strongest: tighter snap + more ink (former “Dark”)
+        IMAGE_PRESENTATION_MEDIUM = 1,  ///< Default: full-gray halftone (former “Balance”)
+        IMAGE_PRESENTATION_HIGH = 2,    ///< Strong: tighter snap + more ink
+        IMAGE_PRESENTATION_VERY_HIGH = 3,  ///< Strongest: maximum ink weight / edge emphasis
         READER_IMAGE_PRESENTATION_COUNT
     };
 
@@ -361,7 +364,11 @@ public:
     char opdsPassword[64] = "";                                 ///< OPDS password
     
     uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
-    uint8_t longPressChapterSkip = 1;                           ///< Long press chapter skip enabled
+    /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only. */
+    static constexpr uint8_t LONG_PRESS_OFF = 0;
+    static constexpr uint8_t LONG_PRESS_CHAPTER_SKIP = 1;
+    static constexpr uint8_t LONG_PRESS_PAGE_SKIP_5 = 2;
+    uint8_t longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
     uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
     /** Half refresh once after first paint on hub screens (ghosting cleanup). */
     uint8_t refreshOnLoadRecent = 0;
@@ -373,8 +380,13 @@ public:
     
     
     uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
-    
-    
+    /** How many recent books to show on the Recent hub (1–8). */
+    uint8_t recentVisibleCount = 8;
+    /** Library: 0 = folders and books A–Z only; 1 = use librarySortMode (favorites / groups / reading). */
+    uint8_t librarySortEnabled = 1;
+    /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
+    uint8_t librarySortMode = 0;
+
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 
     /**
@@ -395,6 +407,8 @@ public:
     uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
     /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
     uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
+    /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats: paper). */
+    uint8_t bitmapRoundedCorners = 0;
 
     ~SystemSetting() = default;
 
