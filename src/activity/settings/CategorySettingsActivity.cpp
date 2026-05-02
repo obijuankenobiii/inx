@@ -147,6 +147,13 @@ void CategorySettingsActivity::setupMenu() {
         entry.valueRange = setting.valueRange;
         entry.group = setting.group;
 
+        if (setting.type == SettingType::INFO) {
+          const SettingInfo infoRow = setting;
+          entry.getValueText = [infoRow]() -> const char* {
+            return infoRow.enumValues.empty() ? "" : infoRow.enumValues[0].c_str();
+          };
+          entry.change = [](int) {};
+        }
         if (setting.type == SettingType::TOGGLE) {
           entry.getValueText = [this, setting]() -> const char* {
             return (SETTINGS.*(setting.valuePtr)) ? "ON" : "OFF";
@@ -372,6 +379,7 @@ void CategorySettingsActivity::loop() {
       } else if (selected.type == SettingType::ACTION) {
         selected.change(0);
         needRedraw = true;
+      } else if (selected.type == SettingType::INFO) {
       } else {
         applyChange(1);
         needRedraw = true;

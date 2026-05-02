@@ -35,6 +35,11 @@
 
 namespace {
 
+struct ReaderBitmapStyleGuard {
+  BitmapGrayStyleScope scope;
+  explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
+};
+
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
     return "";
@@ -409,15 +414,70 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   FsFile file;
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
-        Bitmap bitmap(file);
+    Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderBitmapSleepScreen(bitmap);
+      renderLastReadBookCoverSleepScreen(bitmap);
     }
     file.close();
     return;
   }
 
   renderCustomSleepScreen();
+}
+
+void SleepActivity::renderLastReadBookCoverSleepScreen(const Bitmap& bitmap) const {
+  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+  BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
+
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  float cropX = 0.0f;
+  float cropY = 0.0f;
+  constexpr int x = 0;
+  constexpr int y = 0;
+
+  const float iw = static_cast<float>(bitmap.getWidth());
+  const float ih = static_cast<float>(bitmap.getHeight());
+  if (iw > 0.f && ih > 0.f) {
+    const float ir = iw / ih;
+    const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
+    if (ir > tr) {
+      cropX = 1.0f - (tr / ir);
+    } else if (ir < tr) {
+      cropY = 1.0f - (ir / tr);
+    }
+  }
+
+  renderer.clearScreen();
+
+  const bool hasGreyscale = bitmap.hasGreyscale() &&
+                            SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER &&
+                            SETTINGS.sleepScreenCoverGrayscale != 0;
+
+  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+
+  if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
+    renderer.invertScreen();
+  }
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+
+  if (hasGreyscale) {
+    bitmap.rewindToData();
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    renderer.copyGrayscaleLsbBuffers();
+
+    bitmap.rewindToData();
+    renderer.clearScreen(0x00);
+    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer();
+    renderer.setRenderMode(GfxRenderer::BW);
+  }
 }
 
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preCroppedEpubCover) const {

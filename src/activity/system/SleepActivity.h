@@ -71,6 +71,9 @@ class SleepActivity final : public Activity {
    * @param preCroppedEpubCover When true (EPUB + Crop mode), bitmap is the pre-cropped cover; draw at full screen with no aspect crop.
    */
   void renderBitmapSleepScreen(const Bitmap& bitmap, bool preCroppedEpubCover = false) const;
+
+  /** Last-read book cover: same crop + `drawBitmap` pipeline as `EpubActivity::displayCoverOrTitle`. */
+  void renderLastReadBookCoverSleepScreen(const Bitmap& bitmap) const;
   
   /**
    * @brief Renders a completely blank sleep screen.
