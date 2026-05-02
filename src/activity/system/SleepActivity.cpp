@@ -361,7 +361,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
-          renderSleepCoverCrosspointFill(bitmap);
+          renderFill(bitmap);
         } else {
           renderBitmapSleepScreen(bitmap);
         }
@@ -416,7 +416,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
-        renderSleepCoverCrosspointFill(bitmap);
+        renderFill(bitmap);
       } else {
         renderBitmapSleepScreen(bitmap);
       }
@@ -428,7 +428,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   renderCustomSleepScreen();
 }
 
-void SleepActivity::renderSleepCoverCrosspointFill(const Bitmap& bitmap) const {
+void SleepActivity::renderFill(const Bitmap& bitmap) const {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
