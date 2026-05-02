@@ -360,7 +360,11 @@ void SleepActivity::renderCustomSleepScreen() const {
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap);
+        if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
+          renderSleepCoverCrosspointFill(bitmap);
+        } else {
+          renderBitmapSleepScreen(bitmap);
+        }
         return;
       }
     }
@@ -411,7 +415,11 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      renderLastReadBookCoverSleepScreen(bitmap);
+      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
+        renderSleepCoverCrosspointFill(bitmap);
+      } else {
+        renderBitmapSleepScreen(bitmap);
+      }
     }
     file.close();
     return;
@@ -420,7 +428,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   renderCustomSleepScreen();
 }
 
-void SleepActivity::renderLastReadBookCoverSleepScreen(const Bitmap& bitmap) const {
+void SleepActivity::renderSleepCoverCrosspointFill(const Bitmap& bitmap) const {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
@@ -488,7 +496,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
 
     Serial.printf("[SLP] bitmap ratio: %f, screen ratio: %f\n", ratio, screenRatio);
     if (ratio > screenRatio) {
-      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
+      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
         cropX = 1.0f - (screenRatio / ratio);
         Serial.printf("[SLP] Cropping bitmap x: %f\n", cropX);
         ratio = (1.0f - cropX) * static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
@@ -497,7 +505,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
       y = static_cast<int>(std::round((static_cast<float>(pageHeight) - static_cast<float>(pageWidth) / ratio) / 2));
       Serial.printf("[SLP] Centering with ratio %f to y=%d\n", ratio, y);
     } else {
-      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
+      if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::CROP) {
         cropY = 1.0f - (ratio / screenRatio);
         Serial.printf("[SLP] Cropping bitmap y: %f\n", cropY);
         ratio = static_cast<float>(bitmap.getWidth()) / ((1.0f - cropY) * static_cast<float>(bitmap.getHeight()));
@@ -507,18 +515,8 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
       Serial.printf("[SLP] Centering with ratio %f to x=%d\n", ratio, x);
     }
   } else {
-    if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
-      const float s =
-          std::max(static_cast<float>(pageWidth) / static_cast<float>(bitmap.getWidth()),
-                   static_cast<float>(pageHeight) / static_cast<float>(bitmap.getHeight()));
-      const int scaledW = static_cast<int>(std::floor(static_cast<float>(bitmap.getWidth()) * s));
-      const int scaledH = static_cast<int>(std::floor(static_cast<float>(bitmap.getHeight()) * s));
-      x = (pageWidth - scaledW) / 2;
-      y = (pageHeight - scaledH) / 2;
-    } else {
-      x = (pageWidth - bitmap.getWidth()) / 2;
-      y = (pageHeight - bitmap.getHeight()) / 2;
-    }
+    x = (pageWidth - bitmap.getWidth()) / 2;
+    y = (pageHeight - bitmap.getHeight()) / 2;
   }
 
   Serial.printf("[SLP] drawing to %d x %d\n", x, y);

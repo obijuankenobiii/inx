@@ -72,8 +72,8 @@ class SleepActivity final : public Activity {
    */
   void renderBitmapSleepScreen(const Bitmap& bitmap, bool preCroppedEpubCover = false) const;
 
-  /** Last-read book cover: same crop + `drawBitmap` pipeline as `EpubActivity::displayCoverOrTitle`. */
-  void renderLastReadBookCoverSleepScreen(const Bitmap& bitmap) const;
+  /** Fill mode: aspect crop + `drawBitmap` (same scaling as reader / CrossPoint-style covers). */
+  void renderSleepCoverCrosspointFill(const Bitmap& bitmap) const;
   
   /**
    * @brief Renders a completely blank sleep screen.

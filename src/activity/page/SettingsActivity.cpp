@@ -23,7 +23,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 34;
+constexpr int systemPageSettingsCount = 33;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -69,7 +69,6 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Info("Firmware", INX_VERSION, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),

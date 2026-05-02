@@ -23,6 +23,8 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+#include <EpdFontFamily.h>
+
 /**
  * @brief Static trampoline function for task creation
  */
@@ -510,6 +512,19 @@ void CategorySettingsActivity::render() {
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();
     int thumbY = startY + (scrollOffset * listHeight) / menuItems.size();
     renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
+  }
+
+  {
+    const GfxRenderer::Orientation orientationBeforeHints = renderer.getOrientation();
+    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    const int pageHeight = renderer.getScreenHeight();
+    constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int lineH = renderer.getLineHeight(fontId);
+    constexpr int kHintBarInsetFromBottom = 40;
+    constexpr int kGapAboveHints = 8;
+    const int versionRowTop = pageHeight - kHintBarInsetFromBottom - kGapAboveHints - lineH;
+    renderer.drawCenteredText(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
+    renderer.setOrientation(orientationBeforeHints);
   }
 
   const char* backLbl = backButtonLabel ? backButtonLabel : "\xC2\xAB Back";
