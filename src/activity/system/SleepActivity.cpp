@@ -35,11 +35,6 @@
 
 namespace {
 
-struct ReaderBitmapStyleGuard {
-  BitmapGrayStyleScope scope;
-  explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
-};
-
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
     return "";
@@ -426,9 +421,6 @@ void SleepActivity::renderCoverSleepScreen() const {
 }
 
 void SleepActivity::renderLastReadBookCoverSleepScreen(const Bitmap& bitmap) const {
-  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
-  BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
