@@ -76,6 +76,9 @@ public:
     /** Recompute drawer geometry and menu rows after renderer orientation or screen size changes. */
     void relayoutForRendererChange();
 
+    /** Enables Navigation → Button Layout for bottom hint row (see MappedInputManager::mapLabels). */
+    void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints_ = input; }
+
 private:
     /**
      * @enum GroupType
@@ -143,6 +146,7 @@ private:
     GfxRenderer& renderer;                    ///< Graphics renderer reference
     BookSettings& settings;                    ///< Book settings reference
     std::function<void()> onSettingsChanged;   ///< Settings change callback
+    MappedInputManager* mappedInputForHints_ = nullptr;
 
     bool visible = false;                      ///< Drawer visibility state
     bool dismissed = false;                    ///< Drawer dismissed state

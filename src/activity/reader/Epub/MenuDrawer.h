@@ -241,6 +241,10 @@ private:
 
     void syncLayoutFromRenderer();
     void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
+    /** Maps back/confirm/left/right semantics via Navigation → Button Layout (see MappedInputManager::mapLabels). */
+    void drawMappedButtonHints(const char* back, const char* confirm, const char* previous, const char* next);
+    /** Same as drawMappedButtonHints plus Next & Previous Mapping + drawer orientation (TOC / footnotes lists). */
+    void drawMappedReaderNavHints(const char* back, const char* confirm, const char* prevSym, const char* nextSym);
 
     std::vector<BookmarkNavItem> bookmarkEntries;
     int bookmarkSelectedIndex = 0;

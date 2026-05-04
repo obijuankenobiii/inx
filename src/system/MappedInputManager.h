@@ -42,6 +42,13 @@ class MappedInputManager {
   unsigned long getHeldTime() const;
   Labels mapLabels(const char* back, const char* confirm, const char* previous, const char* next) const;
 
+  /**
+   * Like mapLabels, but Left/Right slot text follows Settings → Next & Previous Mapping and drawer
+   * orientation (portrait vs landscape list uses different prev/next buttons). Used for TOC / footnote lists.
+   */
+  Labels mapLabelsWithReaderNav(const char* back, const char* confirm, const char* prevSym, const char* nextSym,
+                                bool landscapeDrawer) const;
+
   /** « / » order follows which GPIO is wired as page-back vs page-forward (see Side Button Layout). */
   SideLabels mapSideLabels() const;
 

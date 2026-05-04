@@ -1117,6 +1117,7 @@ void EpubActivity::toggleMenuDrawer() {
 void EpubActivity::toggleSettingsDrawer() {
   if (!settingsDrawer) {
     settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
+    settingsDrawer->setMappedInputForHints(&mappedInput);
   }
 
   settingsDrawerVisible = !settingsDrawerVisible;

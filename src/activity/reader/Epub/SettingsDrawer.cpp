@@ -601,7 +601,14 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   drawMenuItems();
   drawScrollIndicator();
   if (!isLandscapeReader(renderer)) {
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+    if (mappedInputForHints_ != nullptr) {
+      const auto labels =
+          mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
+                               labels.btn4);
+    } else {
+      renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+    }
   }
   renderer.displayBuffer();
 }

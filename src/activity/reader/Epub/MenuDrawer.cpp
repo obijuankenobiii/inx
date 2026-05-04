@@ -149,6 +149,27 @@ void MenuDrawer::drawDrawerHintRow(const char* btn1, const char* btn2, const cha
   renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
 }
 
+void MenuDrawer::drawMappedButtonHints(const char* back, const char* confirm, const char* previous,
+                                       const char* next) {
+  if (mappedInputForHints != nullptr) {
+    const auto labels = mappedInputForHints->mapLabels(back, confirm, previous, next);
+    drawDrawerHintRow(labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else {
+    drawDrawerHintRow(back, confirm, previous, next);
+  }
+}
+
+void MenuDrawer::drawMappedReaderNavHints(const char* back, const char* confirm, const char* prevSym,
+                                          const char* nextSym) {
+  if (mappedInputForHints != nullptr) {
+    const auto labels = mappedInputForHints->mapLabelsWithReaderNav(back, confirm, prevSym, nextSym,
+                                                                   isLandscapeReader(renderer));
+    drawDrawerHintRow(labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else {
+    drawMappedButtonHints(back, confirm, prevSym, nextSym);
+  }
+}
+
 MenuDrawer::~MenuDrawer() {
   onAction = nullptr;
   onDismiss = nullptr;
@@ -221,7 +242,7 @@ void MenuDrawer::renderWithRefresh() {
     drawBackground();
     drawMenuItems();
     drawScrollIndicator();
-    drawDrawerHintRow("« Back", "Select", "", "");
+    drawMappedButtonHints("\xC2\xAB Back", "Select", "", "");
   }
   renderer.displayBuffer();
 }
@@ -384,7 +405,7 @@ void MenuDrawer::renderToc() {
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   
-  drawDrawerHintRow("« Back", "Select", "«", "»");
+  drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
 }
 
 
@@ -419,7 +440,7 @@ void MenuDrawer::renderBookmarks() {
     const int x2 = tocDrawerX + (panelW - w2) / 2;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
-    drawDrawerHintRow("« Back", "", "", "");
+    drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
 
@@ -458,12 +479,7 @@ void MenuDrawer::renderBookmarks() {
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
-  if (mappedInputForHints != nullptr) {
-    const auto labels = mappedInputForHints->mapLabels("« Back", "Select", "Up", "Del");
-    drawDrawerHintRow(labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  } else {
-    drawDrawerHintRow("« Back", "Select", "", "Del");
-  }
+  drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "Del");
 }
 
 void MenuDrawer::renderFootnotes() {
@@ -494,7 +510,7 @@ void MenuDrawer::renderFootnotes() {
     const int x2 = tocDrawerX + (panelW - w2) / 2;
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
     renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
-    drawDrawerHintRow("« Back", "", "", "");
+    drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
 
@@ -534,7 +550,7 @@ void MenuDrawer::renderFootnotes() {
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kFootnoteFooterAboveHints);
   renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
-  drawDrawerHintRow("« Back", "Select", "", "");
+  drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
 }
 
 /**
