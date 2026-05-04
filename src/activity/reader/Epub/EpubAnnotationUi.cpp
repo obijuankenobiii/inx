@@ -11,6 +11,7 @@ static_assert(8000U * 6U == HalDisplay::BUFFER_SIZE, "Capture chunk layout must 
 #include <HalGPIO.h>
 #include <ctime>
 
+#include <climits>
 #include <cstring>
 #include <new>
 #include <algorithm>
@@ -26,6 +27,9 @@ constexpr unsigned long kChordHoldMs = 600;
 constexpr int kHighlightLatticeStepPx = 2;
 /** ADC/button bounce can deliver two wasPressed edges ~ms apart; loop has no delay — suppress 2nd edge. */
 constexpr unsigned long kNavEdgeDebounceMs = 130;
+/** After initial edge, repeat nav while held (long-press highlight extension). */
+constexpr unsigned long kNavRepeatInitialMs = 420;
+constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 struct ReaderBitmapStyleGuard {
   BitmapGrayStyleScope scope;
@@ -46,6 +50,11 @@ void EpubAnnotationUi::setWordIndexCache(const int spine, const int page, const 
 
 void EpubAnnotationUi::clearWordIndexCache() {
   wordIndexCacheSpine_ = -1;
+  wordIndexCachePage_ = -1;
+  wordIndexCacheFontId_ = -1;
+  wordIndexCacheHeaderFontId_ = -1;
+  wordIndexCacheMarginL_ = INT_MIN;
+  wordIndexCacheMarginT_ = INT_MIN;
 }
 
 void EpubAnnotationUi::clearSessionAndCapture() {
@@ -155,19 +164,20 @@ void EpubAnnotationUi::enter(EpubActivity& act) {
   selectingStarted_ = false;
   pendingSpans_.clear();
   annLastNavEdgeDir_ = -1;
+  annNavRepeatDir_ = -1;
   anchor_ = 0;
   focus_ = 0;
-  // Capture before prepareWordGeometry: loading the page for word index allocates heavily and can make a
-  // contiguous 48k heap block fail; the panel image is still the last rendered frame.
-  captureFramebuffer(act);
-  if (!captureValid_) {
-    act.readerPopup("Could not capture page");
-    exit(act);
-    return;
-  }
+  // Build word index first, then capture the framebuffer. Allocating the 48k capture before the word index
+  // (many strings + PageWordHit) spikes heap usage and can abort() on OOM on ESP32.
   prepareWordGeometry(act);
   if (words_.empty()) {
     act.readerPopup("No text to highlight");
+    exit(act);
+    return;
+  }
+  captureFramebuffer(act);
+  if (!captureValid_) {
+    act.readerPopup("Could not capture page");
     exit(act);
     return;
   }
@@ -185,6 +195,7 @@ void EpubAnnotationUi::exit(EpubActivity& act) {
   lineFirst_.shrink_to_fit();
   clearWordIndexCache();
   annLastNavEdgeDir_ = -1;
+  annNavRepeatDir_ = -1;
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
@@ -198,12 +209,15 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
   MappedInputManager& m = act.mappedInput;
   const unsigned long now = millis();
 
-  // Edge-only (wasPressed). Do not use isPressed here — same physical press can satisfy both and caused double steps.
+  // Initial edge: one step only (debounced). Schedules timed repeats while held — do not use raw isPressed on the same
+  // path as wasPressed in one check, or the first frame double-counts.
   if (m.wasPressed(Btn::Left)) {
     if (isDuplicateNavEdge(0, now)) {
       return true;
     }
     moveFocusWord(-1);
+    annNavRepeatDir_ = 0;
+    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
     act.startPageTimer();
     return true;
@@ -213,6 +227,8 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
       return true;
     }
     moveFocusWord(1);
+    annNavRepeatDir_ = 1;
+    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
     act.startPageTimer();
     return true;
@@ -222,6 +238,8 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
       return true;
     }
     moveFocusLine(-1);
+    annNavRepeatDir_ = 2;
+    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
     act.startPageTimer();
     return true;
@@ -231,9 +249,45 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
       return true;
     }
     moveFocusLine(1);
+    annNavRepeatDir_ = 3;
+    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
     act.startPageTimer();
     return true;
+  }
+
+  // Long-hold: repeat after initial delay, then at fixed interval (held button only; avoids first-frame double step).
+  if (annNavRepeatDir_ == 0 && m.isPressed(Btn::Left) && now >= annNavRepeatNextMs_) {
+    moveFocusWord(-1);
+    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
+    act.updateRequired = true;
+    act.startPageTimer();
+    return true;
+  }
+  if (annNavRepeatDir_ == 1 && m.isPressed(Btn::Right) && now >= annNavRepeatNextMs_) {
+    moveFocusWord(1);
+    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
+    act.updateRequired = true;
+    act.startPageTimer();
+    return true;
+  }
+  if (annNavRepeatDir_ == 2 && m.isPressed(Btn::Up) && now >= annNavRepeatNextMs_) {
+    moveFocusLine(-1);
+    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
+    act.updateRequired = true;
+    act.startPageTimer();
+    return true;
+  }
+  if (annNavRepeatDir_ == 3 && m.isPressed(Btn::Down) && now >= annNavRepeatNextMs_) {
+    moveFocusLine(1);
+    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
+    act.updateRequired = true;
+    act.startPageTimer();
+    return true;
+  }
+
+  if (!m.isPressed(Btn::Left) && !m.isPressed(Btn::Right) && !m.isPressed(Btn::Up) && !m.isPressed(Btn::Down)) {
+    annNavRepeatDir_ = -1;
   }
   return false;
 }

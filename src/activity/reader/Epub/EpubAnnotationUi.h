@@ -111,6 +111,9 @@ class EpubAnnotationUi {
   /** Suppress duplicate wasPressed edges (ADC bounce) for the same direction. */
   unsigned long annLastNavEdgeMs_ = 0;
   int annLastNavEdgeDir_ = -1;  // 0 L, 1 R, 2 U, 3 D; -1 = none
+  /** D-pad hold-repeat: -1 = none; else same encoding as annLastNavEdgeDir_. */
+  int annNavRepeatDir_ = -1;
+  unsigned long annNavRepeatNextMs_ = 0;
 
   EpubAnnotations annotations_;
   std::vector<std::pair<size_t, size_t>> storedRanges_;
