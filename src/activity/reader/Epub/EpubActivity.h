@@ -118,6 +118,9 @@ private:
     BookReadingStats bookStats;
     uint32_t pageStartTime;
     uint32_t lastSaveTime;
+    /** Wall time from onEnter; session count increments only after ~45s in the reader. */
+    uint32_t readerSessionStartMs_ = 0;
+    bool readingSessionCountCommitted_ = false;
 
     void renderScreen();
     
@@ -255,6 +258,7 @@ private:
     void loadBookSettings();
     
     void initStats();
+    void maybeCommitReadingSessionCount();
     void startPageTimer();
     void endPageTimer();
     void saveBookStats();

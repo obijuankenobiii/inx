@@ -43,6 +43,8 @@ constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
+/** Minimum time in the reader before this visit counts as a reading session (avoids flip-through bumps). */
+constexpr uint32_t READING_SESSION_COUNT_MIN_MS = 45000;
 
 /**
  * MAP_NONE adds L/R to Up/Down for paging. In landscape CCW, physical left = next page and right = previous;
@@ -703,7 +705,8 @@ void EpubActivity::onExit() {
  * @brief Main loop function called repeatedly while activity is active
  */
 void EpubActivity::loop() {
-  
+  maybeCommitReadingSessionCount();
+
   if (subActivity) {
     subActivity->loop();
     return;
@@ -1916,8 +1919,11 @@ void EpubActivity::applyBookSettings() {
 void EpubActivity::initStats() {
   if (!epub) return;
 
+  readerSessionStartMs_ = millis();
+  readingSessionCountCommitted_ = false;
+
   if (loadBookStats(epub->getCachePath().c_str(), bookStats)) {
-    bookStats.sessionCount++;
+    // Session count increments in maybeCommitReadingSessionCount() after READING_SESSION_COUNT_MIN_MS.
   } else {
     bookStats.path = epub->getCachePath();
     bookStats.title = epub->getTitle();
@@ -1930,12 +1936,24 @@ void EpubActivity::initStats() {
     bookStats.lastSpineIndex = currentSpineIndex;
     bookStats.lastPageNumber = section ? section->currentPage : 0;
     bookStats.avgPageTimeMs = 0;
-    bookStats.sessionCount = 1;
+    bookStats.sessionCount = 0;
   }
 
   bookStats.lastReadTimeMs = millis();
   pageStartTime = millis();
   lastSaveTime = millis();
+}
+
+void EpubActivity::maybeCommitReadingSessionCount() {
+  if (!epub || readingSessionCountCommitted_) {
+    return;
+  }
+  uint32_t now = millis();
+  if (now - readerSessionStartMs_ >= READING_SESSION_COUNT_MIN_MS) {
+    bookStats.sessionCount++;
+    readingSessionCountCommitted_ = true;
+    saveBookStats();
+  }
 }
 
 /**
