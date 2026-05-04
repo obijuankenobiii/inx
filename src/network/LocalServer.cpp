@@ -1044,6 +1044,14 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepTimeout"] = SETTINGS.sleepTimeout;
   doc["useLibraryIndex"] = SETTINGS.useLibraryIndex;
   doc["bootSetting"] = SETTINGS.bootSetting;
+
+  doc["refreshOnLoadRecent"] = SETTINGS.refreshOnLoadRecent;
+  doc["refreshOnLoadLibrary"] = SETTINGS.refreshOnLoadLibrary;
+  doc["refreshOnLoadSettings"] = SETTINGS.refreshOnLoadSettings;
+  doc["refreshOnLoadSync"] = SETTINGS.refreshOnLoadSync;
+  doc["refreshOnLoadStatistics"] = SETTINGS.refreshOnLoadStatistics;
+  doc["pageAutoTurnSeconds"] = SETTINGS.pageAutoTurnSeconds;
+  doc["bitmapRoundedCorners"] = SETTINGS.bitmapRoundedCorners;
   
   String json;
   serializeJson(doc, json);
@@ -1169,7 +1177,11 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "readerMenuButton") == 0) {
-      SETTINGS.readerMenuButton = (uint8_t)value;
+      uint8_t v = (uint8_t)value;
+      if (v >= SystemSetting::READER_MENU_BUTTON_COUNT) {
+        v = SystemSetting::MENU_UP;
+      }
+      SETTINGS.readerMenuButton = v;
       changed = true;
     }
     else if (strcmp(key, "longPressChapterSkip") == 0) {
@@ -1256,6 +1268,38 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "bootSetting") == 0) {
       SETTINGS.bootSetting = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadRecent") == 0) {
+      SETTINGS.refreshOnLoadRecent = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadLibrary") == 0) {
+      SETTINGS.refreshOnLoadLibrary = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadSettings") == 0) {
+      SETTINGS.refreshOnLoadSettings = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadSync") == 0) {
+      SETTINGS.refreshOnLoadSync = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadStatistics") == 0) {
+      SETTINGS.refreshOnLoadStatistics = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "pageAutoTurnSeconds") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 0) v = 0;
+      if (v > 180) v = 180;
+      v = (v / 10) * 10;
+      SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
+      changed = true;
+    }
+    else if (strcmp(key, "bitmapRoundedCorners") == 0) {
+      SETTINGS.bitmapRoundedCorners = (uint8_t)value ? 1 : 0;
       changed = true;
     }
   }

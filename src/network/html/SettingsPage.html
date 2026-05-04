@@ -1,1 +1,692 @@
-<!doctypehtml><html lang=en><meta charset=UTF-8><meta content="width=device-width,initial-scale=1,viewport-fit=cover"name=viewport><link rel=preconnect href=https://fonts.googleapis.com><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel=stylesheet><title>Inx — Settings</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}.container{max-width:720px;margin:0 auto;padding:28px 18px}.header{text-align:center;margin-bottom:22px}.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}.header .subtitle{font-size:13px;font-weight:400;color:#777;display:none}.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}.nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}.nav-btn:hover{background:#eee;color:#111}.nav-btn.active{background:#111;color:#fff}.tabs{display:flex;justify-content:center;gap:8px;margin-bottom:32px}.tab-btn{padding:10px 28px;background:#e8e8ed;border:none;border-radius:980px;font-size:16px;font-weight:510;cursor:pointer;transition:all .2s ease;color:#1d1d1f}.tab-btn.active{background:#111;color:#fff}.tab-btn:hover:not(.active){background:#dcdce0}.tab-content{display:none}.tab-content.active{display:block}.settings-section{background:rgba(255,255,255,.9);backdrop-filter:blur(18px);border-radius:22px;margin-bottom:24px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.02),0 1px 2px rgba(0,0,0,.04);border:.5px solid rgba(0,0,0,.05)}.section-header{padding:20px 24px 8px 24px}.section-header h3{font-size:17px;font-weight:590;color:#1d1d1f}.setting-item{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;border-bottom:.5px solid rgba(0,0,0,.04);transition:background .2s ease}.setting-item:hover{background:rgba(0,0,0,.02)}.setting-item:last-child{border-bottom:none}.setting-label{font-size:15px;font-weight:500;color:#1d1d1f}.setting-description{display:none}.setting-control{width:260px;text-align:right}.setting-control input,.setting-control select{width:100%;padding:8px 14px;border:1px solid rgba(0,0,0,.1);border-radius:12px;font-size:14px;background:#fff;color:#1d1d1f;cursor:pointer;transition:all .2s ease;font-family:inherit}.setting-control input[type=checkbox]{width:auto}.toggle-switch{position:relative;display:inline-block;width:46px;height:26px}.toggle-switch input{opacity:0;width:0;height:0}.toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#c6c6c8;transition:.3s ease;border-radius:26px}.toggle-slider:before{position:absolute;content:"";height:22px;width:22px;left:2px;bottom:2px;background-color:#fff;transition:.3s ease;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.12)}input:checked+.toggle-slider{background-color:#34c759}input:checked+.toggle-slider:before{transform:translateX(20px)}.wifi-list{width:100%;margin-top:8px}.wifi-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.04)}.wifi-item:last-child{border-bottom:none}.wifi-ssid{font-size:14px;font-weight:500}.wifi-actions{display:flex;gap:8px}.wifi-actions button{padding:4px 12px;font-size:12px;border-radius:980px;border:none;cursor:pointer}.btn-remove{background:#ff3b30;color:#fff}.btn-remove:hover{background:#e6352a}.btn-add{background:#111;color:#fff;margin-top:12px;width:100%;padding:10px;border-radius:980px;border:none;cursor:pointer;font-size:14px;font-weight:500}.btn-add:hover{background:#333}.wifi-form{display:none;margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.06)}.wifi-form.show{display:block}.wifi-form input{width:100%;margin-bottom:8px;padding:10px 14px;border:1px solid rgba(0,0,0,.1);border-radius:12px;font-size:14px}.wifi-form-buttons{display:flex;gap:8px;margin-top:8px}.wifi-form-buttons button{flex:1;padding:10px;border-radius:980px;border:none;cursor:pointer;font-size:14px;font-weight:500}.action-buttons{display:flex;gap:12px;justify-content:flex-end;margin-top:32px}.action-btn{padding:10px 24px;border-radius:980px;font-size:15px;font-weight:510;cursor:pointer;transition:all .2s ease;border:none}.btn-primary{background:#111;color:#fff}.btn-primary:hover{background:#333;transform:scale(1.02);box-shadow:0 8px 20px rgba(0,113,227,.25)}.btn-secondary{background:#e8e8ed;color:#111}.btn-secondary:hover{background:#dcdce0}.toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:10px 20px;border-radius:980px;font-size:13px;opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:1000}.toast.show{opacity:1}@media (max-width:768px){.container{padding:28px 16px}.header h1{font-size:22px}.header .subtitle{font-size:15px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.setting-item{flex-direction:column;align-items:flex-start;gap:12px}.setting-control{width:100%}.action-buttons{flex-direction:column}.action-btn{width:100%;text-align:center}}::selection{background:#111;color:#fff}</style><div class=container><div class=header><h1>Settings</h1></div><div class=nav-links><a class=nav-btn href=/ >Dashboard</a> <a class=nav-btn href=/files>Files</a> <a class=nav-btn href=/epub>Epub</a> <a class=nav-btn href=/font-manager>Fonts</a> <a class="active nav-btn"href=/settings>Settings</a></div><div class=tabs><button class="active tab-btn"onclick='switchTab("reader")'>Reader</button> <button class=tab-btn onclick='switchTab("system")'>System</button></div><div class="active tab-content"id=reader-tab><div class=settings-section><div class=section-header><h3>Font</h3></div><div class=setting-item><div><div class=setting-label>Font Family</div><div class=setting-description>Choose your preferred typeface</div></div><div class=setting-control><select id=fontFamily></select></div></div><div class=setting-item><div><div class=setting-label>Font Size</div><div class=setting-description>Adjust text size for comfort</div></div><div class=setting-control><select id=fontSize></select></div></div></div><div class=settings-section><div class=section-header><h3>Layout</h3></div><div class=setting-item><div><div class=setting-label>Line Spacing</div><div class=setting-description>Space between lines</div></div><div class=setting-control><select id=lineSpacing></select></div></div><div class=setting-item><div><div class=setting-label>Screen Margin</div><div class=setting-description>Page margins (multiples of 5)</div></div><div class=setting-control><select id=screenMargin></select></div></div><div class=setting-item><div><div class=setting-label>Paragraph Alignment</div><div class=setting-description>Text alignment in paragraphs</div></div><div class=setting-control><select id=paragraphAlignment></select></div></div><div class=setting-item><div><div class=setting-label>Extra Paragraph Spacing</div><div class=setting-description>Add space between paragraphs</div></div><div class=setting-control><label class=toggle-switch><input id=extraParagraphSpacing type=checkbox><span class=toggle-slider></span></label></div></div><div class=setting-item><div><div class=setting-label>Reading Orientation</div><div class=setting-description>Screen rotation</div></div><div class=setting-control><select id=orientation></select></div></div><div class=setting-item><div><div class=setting-label>Hyphenation</div><div class=setting-description>Enable word hyphenation</div></div><div class=setting-control><label class=toggle-switch><input id=hyphenationEnabled type=checkbox><span class=toggle-slider></span></label></div></div></div><div class=settings-section><div class=section-header><h3>Navigation</h3></div><div class=setting-item><div><div class=setting-label>Next/Previous Mapping</div><div class=setting-description>Button direction for page turns</div></div><div class=setting-control><select id=readerDirectionMapping></select></div></div><div class=setting-item><div><div class=setting-label>Menu Button</div><div class=setting-description>Button to open reader menu</div></div><div class=setting-control><select id=readerMenuButton></select></div></div><div class=setting-item><div><div class=setting-label>Long-press Chapter Skip</div><div class=setting-description>Skip chapters on long press</div></div><div class=setting-control><label class=toggle-switch><input id=longPressChapterSkip type=checkbox><span class=toggle-slider></span></label></div></div><div class=setting-item><div><div class=setting-label>Short Power Button</div><div class=setting-description>Power button action while reading</div></div><div class=setting-control><select id=readerShortPwrBtn></select></div></div></div><div class=settings-section><div class=section-header><h3>Status Bar</h3></div><div class=setting-item><div><div class=setting-label>Status Bar Mode</div><div class=setting-description>Overall status bar style</div></div><div class=setting-control><select id=statusBar></select></div></div><div class=setting-item><div><div class=setting-label>Left Section</div><div class=setting-description>Content on left side</div></div><div class=setting-control><select id=statusBarLeft></select></div></div><div class=setting-item><div><div class=setting-label>Middle Section</div><div class=setting-description>Content in center</div></div><div class=setting-control><select id=statusBarMiddle></select></div></div><div class=setting-item><div><div class=setting-label>Right Section</div><div class=setting-description>Content on right side</div></div><div class=setting-control><select id=statusBarRight></select></div></div><div class=setting-item><div><div class=setting-label>Text Anti-Aliasing</div><div class=setting-description>Smoother text rendering</div></div><div class=setting-control><label class=toggle-switch><input id=textAntiAliasing type=checkbox><span class=toggle-slider></span></label></div></div><div class=setting-item><div><div class=setting-label>Refresh Frequency</div><div class=setting-description>Full screen refresh interval</div></div><div class=setting-control><select id=refreshFrequency></select></div></div></div></div><div class=tab-content id=system-tab><div class=settings-section><div class=section-header><h3>Sleep & Display</h3></div><div class=setting-item><div><div class=setting-label>Sleep Screen</div><div class=setting-description>What to show when asleep</div></div><div class=setting-control><select id=sleepScreen></select></div></div><div class=setting-item><div><div class=setting-label>Cover Mode</div><div class=setting-description>How covers are displayed</div></div><div class=setting-control><select id=sleepScreenCoverMode></select></div></div><div class=setting-item><div><div class=setting-label>Cover Filter</div><div class=setting-description>Visual effect on covers</div></div><div class=setting-control><select id=sleepScreenCoverFilter></select></div></div><div class=setting-item><div><div class=setting-label>Cover Grayscale</div><div class=setting-description>Extra grayscale pass on 2bpp covers (when filter is None)</div></div><div class=setting-control><label class=toggle-switch><input id=sleepScreenCoverGrayscale type=checkbox><span class=toggle-slider></span></label></div></div><div class=setting-item><div><div class=setting-label>Hide Battery %</div><div class=setting-description>When to hide battery percentage</div></div><div class=setting-control><select id=hideBatteryPercentage></select></div></div><div class=setting-item><div><div class=setting-label>Library Mode</div><div class=setting-description>Grid or list view</div></div><div class=setting-control><select id=recentLibraryMode></select></div></div><div class=setting-item><div><div class=setting-label>Sleep Timeout</div><div class=setting-description>Time until auto-sleep</div></div><div class=setting-control><select id=sleepTimeout></select></div></div></div><div class=settings-section><div class=section-header><h3>WiFi Networks</h3></div><div class=wifi-list id=wifiList><div class=setting-item><div><div class=setting-label>Loading...</div></div></div></div><button class=btn-add onclick=showAddWifiForm()>+ Add WiFi Network</button><div class=wifi-form id=addWifiForm><input id=newWifiSSID placeholder="Network Name (SSID)"autocomplete=off> <input id=newWifiPassword type=password placeholder=Password><div class=wifi-form-buttons><button class=btn-primary onclick=saveWifiNetwork()>Save</button> <button class=btn-secondary onclick=hideAddWifiForm()>Cancel</button></div></div></div><div class=settings-section><div class=section-header><h3>KOReader Sync</h3></div><div class=setting-item><div><div class=setting-label>Username</div><div class=setting-description>KOReader sync account</div></div><div class=setting-control><input id=koreaderUsername placeholder=Username></div></div><div class=setting-item><div><div class=setting-label>Password</div><div class=setting-description>KOReader sync password</div></div><div class=setting-control><input id=koreaderPassword type=password placeholder=Password></div></div><div class=setting-item><div><div class=setting-label>Server URL</div><div class=setting-description>Custom sync server (optional)</div></div><div class=setting-control><input id=koreaderServerUrl placeholder=https://sync.koreader.rocks></div></div><div class=setting-item><div><div class=setting-label>Document Match Method</div><div class=setting-description>How to match books across devices</div></div><div class=setting-control><select id=koreaderMatchMethod><option value=0>Filename<option value=1>Binary (MD5)</select></div></div></div><div class=settings-section><div class=section-header><h3>Controls</h3></div><div class=setting-item><div><div class=setting-label>Front Button Layout</div><div class=setting-description>Button order mapping</div></div><div class=setting-control><select id=frontButtonLayout></select></div></div><div class=setting-item><div><div class=setting-label>Short Power Button</div><div class=setting-description>Power button action (global)</div></div><div class=setting-control><select id=shortPwrBtn></select></div></div></div><div class=settings-section><div class=section-header><h3>System</h3></div><div class=setting-item><div><div class=setting-label>Use Library Index</div><div class=setting-description>Enable faster library scanning</div></div><div class=setting-control><label class=toggle-switch><input id=useLibraryIndex type=checkbox><span class=toggle-slider></span></label></div></div><div class=setting-item><div><div class=setting-label>Boot Mode</div><div class=setting-description>Where to go on startup</div></div><div class=setting-control><select id=bootSetting></select></div></div></div></div><div class=action-buttons><button class="action-btn btn-secondary"onclick=location.reload()>Reset</button> <button class="action-btn btn-primary"onclick=saveAllSettings()>Save All</button></div><div class=toast id=toast></div></div><script>let settingsData={},pendingChanges={},wifiNetworks=[];const options={sleepScreen:["Dark","Light","Custom","Recent Book","Transparent Cover","None"],sleepScreenCoverMode:["Fit","Crop"],sleepScreenCoverFilter:["None","Contrast","Inverted"],hideBatteryPercentage:["Never","In Reader","Always"],recentLibraryMode:["Grid","List"],fontFamily:["Bookerly","Atkinson Hyperlegible","Literata"],fontSize:["Extra Small","Small","Medium","Large","X Large"],lineSpacing:["Tight","Normal","Wide"],paragraphAlignment:["Justify","Left","Center","Right"],orientation:["Portrait","Landscape CW","Inverted","Landscape CCW"],readerDirectionMapping:["Left/Right","Right/Left","Up/Down","Down/Up","None"],readerMenuButton:["Up","Down","Left","Right","Confirm"],readerShortPwrBtn:["Page Turn","Page Refresh"],refreshFrequency:["1 page","5 pages","10 pages","15 pages","30 pages"],statusBar:["None","No Progress","Full w/ Percentage","Full w/ Progress Bar","Progress Bar","Battery %","Percentage","Page Bars"],statusBarLeft:["None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %","Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"],statusBarMiddle:["None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %","Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"],statusBarRight:["None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %","Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"],frontButtonLayout:["Bck, Cnfrm, Lft, Rght","Lft, Rght, Bck, Cnfrm","Lft, Bck, Cnfrm, Rght","Bck, Cnfrm, Rght, Lft"],shortPwrBtn:["Ignore","Sleep","Page Refresh"],sleepTimeout:["1 min","5 min","10 min","15 min","30 min"],bootSetting:["Recent Books","Home Page"]},boolSettings=["extraParagraphSpacing","hyphenationEnabled","longPressChapterSkip","textAntiAliasing","useLibraryIndex","sleepScreenCoverGrayscale"],numberSettings=[],marginOptions=[5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80];function switchTab(e){document.querySelectorAll(".tab-content").forEach(e=>e.classList.remove("active")),document.querySelectorAll(".tab-btn").forEach(e=>e.classList.remove("active")),document.getElementById(`${e}-tab`).classList.add("active"),event.target.classList.add("active")}function showToast(e,t=!1){const n=document.getElementById("toast");n.textContent=e,n.style.background=t?"#ff3b30":"#1d1d1f",n.classList.add("show"),setTimeout(()=>n.classList.remove("show"),2e3)}async function loadSettings(){try{const e=await fetch("/api/settings");settingsData=await e.json(),await loadWifiNetworks(),await loadKOReaderSettings();try{const t=await fetch("/api/status");if(t.ok){const e=await t.json(),n=document.getElementById("firmwareVersion");n&&(n.textContent=e.version||"—")}}catch(e){}populateSettings()}catch(e){showToast("Failed to load settings",!0)}}async function loadWifiNetworks(){try{const e=await fetch("/api/wifi");wifiNetworks=await e.json(),renderWifiList()}catch(e){console.error("Failed to load WiFi networks",e),renderWifiList([])}}async function loadKOReaderSettings(){try{const t=await fetch("/api/koreader");var e=await t.json();const n=document.getElementById("koreaderUsername"),a=document.getElementById("koreaderPassword"),o=document.getElementById("koreaderServerUrl"),s=document.getElementById("koreaderMatchMethod");n&&(n.value=e.username||""),a&&(a.value=""),o&&(o.value=e.serverUrl||""),s&&(s.value=e.matchMethod||0)}catch(e){console.error("Failed to load KOReader settings",e)}}function renderWifiList(){const n=document.getElementById("wifiList");n&&(wifiNetworks.length?(n.innerHTML="",wifiNetworks.forEach(e=>{const t=document.createElement("div");t.className="wifi-item",t.innerHTML=`<span class=wifi-ssid>${escapeHtml(e.ssid)}</span><div class=wifi-actions><button class="btn-remove" onclick="removeWifiNetwork('${escapeHtml(e.ssid)}')">Remove</button></div>`,n.appendChild(t)})):n.innerHTML="<div class=setting-item><div><div class=setting-label>No saved networks</div><div class=setting-description>Add a WiFi network above</div></div></div>")}function escapeHtml(e){return e?e.replace(/[&<>]/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[e]):""}function showAddWifiForm(){document.getElementById("addWifiForm").classList.add("show")}function hideAddWifiForm(){document.getElementById("addWifiForm").classList.remove("show"),document.getElementById("newWifiSSID").value="",document.getElementById("newWifiPassword").value=""}async function saveWifiNetwork(){var e=document.getElementById("newWifiSSID").value.trim(),t=document.getElementById("newWifiPassword").value;if(e)try{(await fetch("/api/wifi",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ssid:e,password:t})})).ok?(showToast(`Saved ${e}`),hideAddWifiForm(),await loadWifiNetworks()):showToast("Failed to save network",!0)}catch(e){showToast("Error saving network",!0)}else showToast("Enter network name",!0)}async function removeWifiNetwork(e){if(confirm(`Remove "${e}"?`))try{(await fetch(`/api/wifi/${encodeURIComponent(e)}`,{method:"DELETE"})).ok?(showToast(`Removed ${e}`),await loadWifiNetworks()):showToast("Failed to remove network",!0)}catch(e){showToast("Error removing network",!0)}}async function saveKOReaderSettings(){var e=document.getElementById("koreaderUsername")?.value||"",t=document.getElementById("koreaderPassword")?.value||"";const n={username:e,serverUrl:document.getElementById("koreaderServerUrl")?.value||"",matchMethod:parseInt(document.getElementById("koreaderMatchMethod")?.value||0)};t&&(n.password=t);try{return(await fetch("/api/koreader",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(n)})).ok}catch(e){return!1}}function populateSettings(){for(const[a,e]of Object.entries(options)){const o=document.getElementById(a);o&&void 0!==settingsData[a]&&(o.innerHTML="",e.forEach((e,t)=>{const n=document.createElement("option");n.value=t,n.textContent=e,settingsData[a]==t&&(n.selected=!0),o.appendChild(n)}),o.onchange=()=>{pendingChanges[a]=parseInt(o.value),markChanged(o)})}const n=document.getElementById("screenMargin");n&&void 0!==settingsData.screenMargin&&(n.innerHTML="",marginOptions.forEach(e=>{const t=document.createElement("option");t.value=e,t.textContent=`${e}px`,settingsData.screenMargin===e&&(t.selected=!0),n.appendChild(t)}),n.onchange=()=>{pendingChanges.screenMargin=parseInt(n.value),markChanged(n)});for(const t of boolSettings){const s=document.getElementById(t);s&&void 0!==settingsData[t]&&(s.checked=1===settingsData[t],s.onchange=()=>{pendingChanges[t]=s.checked?1:0,markChanged(s)})}}function markChanged(e){const t=e.closest(".setting-item");t&&(t.style.background="rgba(255,149,0,.08)")}async function saveSetting(e,t){try{if((await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[e]:t})})).ok){settingsData[e]=t;const n=document.getElementById(e)?.closest(".setting-item");return n&&(n.style.background=""),!0}return!1}catch(e){return!1}}async function saveAllSettings(){var e=Object.keys(pendingChanges);let t=0;showToast(`Saving ${e.length} setting(s)...`);for(const a of e)await saveSetting(a,pendingChanges[a])&&t++;var n=await saveKOReaderSettings();t===e.length&&n?(showToast(`Saved ${t} setting(s)`),pendingChanges={}):showToast(`Saved ${t}/${e.length} settings`,!0)}loadSettings()</script>
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<title>Inx — Settings</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Atkinson Hyperlegible", system-ui, sans-serif; background: #fafafa; color: #1a1a1a; line-height: 1.45; letter-spacing: 0; }
+  .container { max-width: 720px; margin: 0 auto; padding: 28px 18px; }
+  .header { text-align: center; margin-bottom: 22px; }
+  .header h1 { font-size: 26px; font-weight: 700; color: #111; letter-spacing: -0.03em; margin-bottom: 2px; }
+  .nav-links { display: flex; justify-content: center; gap: 2px; margin-bottom: 22px; padding-bottom: 8px; border-bottom: 1px solid #ebebeb; flex-wrap: wrap; }
+  .nav-btn { padding: 6px 12px; background: transparent; color: #555; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+  .nav-btn:hover { background: #eee; color: #111; }
+  .nav-btn.active { background: #111; color: #fff; }
+  .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 32px; }
+  .tab-btn { padding: 10px 28px; background: #e8e8ed; border: none; border-radius: 980px; font-size: 16px; font-weight: 510; cursor: pointer; transition: all 0.2s ease; color: #1d1d1f; }
+  .tab-btn.active { background: #111; color: #fff; }
+  .tab-btn:hover:not(.active) { background: #dcdce0; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .settings-section { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(18px); border-radius: 22px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04); border: 0.5px solid rgba(0, 0, 0, 0.05); }
+  .section-header { padding: 20px 24px 8px 24px; }
+  .section-header h3 { font-size: 17px; font-weight: 590; color: #1d1d1f; }
+  .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 0.5px solid rgba(0, 0, 0, 0.04); transition: background 0.2s ease; }
+  .setting-item:hover { background: rgba(0, 0, 0, 0.02); }
+  .setting-item:last-child { border-bottom: none; }
+  .setting-label { font-size: 15px; font-weight: 500; color: #1d1d1f; }
+  .setting-description { display: none; }
+  .setting-control { width: 260px; text-align: right; }
+  .setting-control input, .setting-control select { width: 100%; padding: 8px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; background: #fff; color: #1d1d1f; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
+  .setting-control input[type="checkbox"] { width: auto; }
+  .toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #c6c6c8; transition: 0.3s ease; border-radius: 26px; }
+  .toggle-slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 2px; bottom: 2px; background-color: #fff; transition: 0.3s ease; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+  input:checked + .toggle-slider { background-color: #34c759; }
+  input:checked + .toggle-slider:before { transform: translateX(20px); }
+  .wifi-list { width: 100%; margin-top: 8px; }
+  .wifi-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 0.5px solid rgba(0, 0, 0, 0.04); }
+  .wifi-item:last-child { border-bottom: none; }
+  .wifi-ssid { font-size: 14px; font-weight: 500; }
+  .wifi-actions { display: flex; gap: 8px; }
+  .wifi-actions button { padding: 4px 12px; font-size: 12px; border-radius: 980px; border: none; cursor: pointer; }
+  .btn-remove { background: #ff3b30; color: #fff; }
+  .btn-remove:hover { background: #e6352a; }
+  .btn-add { background: #111; color: #fff; margin-top: 12px; width: 100%; padding: 10px; border-radius: 980px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .btn-add:hover { background: #333; }
+  .wifi-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid rgba(0, 0, 0, 0.06); }
+  .wifi-form.show { display: block; }
+  .wifi-form input { width: 100%; margin-bottom: 8px; padding: 10px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; }
+  .wifi-form-buttons { display: flex; gap: 8px; margin-top: 8px; }
+  .wifi-form-buttons button { flex: 1; padding: 10px; border-radius: 980px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .action-buttons { display: flex; gap: 12px; justify-content: flex-end; margin-top: 32px; }
+  .action-btn { padding: 10px 24px; border-radius: 980px; font-size: 15px; font-weight: 510; cursor: pointer; transition: all 0.2s ease; border: none; }
+  .btn-primary { background: #111; color: #fff; }
+  .btn-primary:hover { background: #333; transform: scale(1.02); box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25); }
+  .btn-secondary { background: #e8e8ed; color: #111; }
+  .btn-secondary:hover { background: #dcdce0; }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1d1d1f; color: #fff; padding: 10px 20px; border-radius: 980px; font-size: 13px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 1000; }
+  .toast.show { opacity: 1; }
+  .hint { font-size: 12px; color: #888; padding: 12px 24px 20px; line-height: 1.4; }
+  @media (max-width: 768px) {
+    .container { padding: 28px 16px; }
+    .header h1 { font-size: 22px; }
+    .setting-item { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .setting-control { width: 100%; }
+    .action-buttons { flex-direction: column; }
+    .action-btn { width: 100%; text-align: center; }
+  }
+  ::selection { background: #111; color: #fff; }
+</style>
+<div class="container">
+  <div class="header"><h1>Settings</h1></div>
+  <div class="nav-links">
+    <a class="nav-btn" href="/">Dashboard</a>
+    <a class="nav-btn" href="/files">Files</a>
+    <a class="nav-btn" href="/epub">Epub</a>
+    <a class="nav-btn" href="/font-manager">Fonts</a>
+    <a class="nav-btn active" href="/settings">Settings</a>
+  </div>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" onclick='switchTab("system", this)'>System</button>
+    <button type="button" class="tab-btn" onclick='switchTab("reader", this)'>Reader</button>
+  </div>
+
+  <!-- System (matches SettingsActivity systemPageSettings) -->
+  <div class="tab-content active" id="system-tab">
+    <div class="settings-section">
+      <div class="section-header"><h3>Display</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Sleep Screen</div></div>
+        <div class="setting-control"><select id="sleepScreen"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Choose sleep image</div></div>
+        <div class="setting-control"><input id="sleepCustomBmp" placeholder="Basename or empty for random" autocomplete="off"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Hide Battery %</div></div>
+        <div class="setting-control"><select id="hideBatteryPercentage"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Recent Library Mode</div></div>
+        <div class="setting-control"><select id="recentLibraryMode"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Recent books shown</div></div>
+        <div class="setting-control"><select id="recentVisibleCount"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Image</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Cover Mode</div></div>
+        <div class="setting-control"><select id="sleepScreenCoverMode"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Cover Filter</div></div>
+        <div class="setting-control"><select id="sleepScreenCoverFilter"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Cover Grayscale</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="sleepScreenCoverGrayscale" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Contrast</div></div>
+        <div class="setting-control"><select id="displayImagePresentation"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Rounded thumbnails</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="bitmapRoundedCorners" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Buttons</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Front Button</div></div>
+        <div class="setting-control"><select id="frontButtonLayout"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Short Power Button Click</div></div>
+        <div class="setting-control"><select id="shortPwrBtn"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Device</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Time to Sleep</div></div>
+        <div class="setting-control"><select id="sleepTimeout"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Use Index for Library</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="useLibraryIndex" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Library custom sort</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="librarySortEnabled" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Boot Mode</div></div>
+        <div class="setting-control"><select id="bootSetting"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh on load (Recent)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadRecent" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh on load (Library)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadLibrary" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh on load (Settings)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadSettings" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh on load (Sync)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadSync" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh on load (Stats)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadStatistics" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+    </div>
+    <p class="hint">Actions such as Index library, KOReader Sync, OPDS, reset, updates, and About are available on the device.</p>
+
+    <div class="settings-section">
+      <div class="section-header"><h3>WiFi Networks</h3></div>
+      <div class="wifi-list" id="wifiList"><div class="setting-item"><div><div class="setting-label">Loading...</div></div></div></div>
+      <button class="btn-add" onclick="showAddWifiForm()">+ Add WiFi Network</button>
+      <div class="wifi-form" id="addWifiForm">
+        <input id="newWifiSSID" placeholder="Network Name (SSID)" autocomplete="off">
+        <input id="newWifiPassword" type="password" placeholder="Password">
+        <div class="wifi-form-buttons">
+          <button class="btn-primary" onclick="saveWifiNetwork()">Save</button>
+          <button class="btn-secondary" onclick="hideAddWifiForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>KOReader Sync</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Username</div></div>
+        <div class="setting-control"><input id="koreaderUsername" placeholder="Username"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Password</div></div>
+        <div class="setting-control"><input id="koreaderPassword" type="password" placeholder="Password"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Server URL</div></div>
+        <div class="setting-control"><input id="koreaderServerUrl" placeholder="https://sync.koreader.rocks"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Document Match Method</div></div>
+        <div class="setting-control">
+          <select id="koreaderMatchMethod">
+            <option value="0">Filename</option>
+            <option value="1">Binary (MD5)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reader (matches SettingsActivity readerSettings) -->
+  <div class="tab-content" id="reader-tab">
+    <div class="settings-section">
+      <div class="section-header"><h3>Font</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Font Family</div></div>
+        <div class="setting-control"><select id="fontFamily"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Font Size</div></div>
+        <div class="setting-control"><select id="fontSize"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Layout</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Line spacing</div></div>
+        <div class="setting-control"><select id="lineSpacing"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Screen Margin</div></div>
+        <div class="setting-control"><select id="screenMargin"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Paragraph Alignment</div></div>
+        <div class="setting-control"><select id="paragraphAlignment"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Extra Paragraph Spacing</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="extraParagraphSpacing" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Indent</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="paragraphCssIndentEnabled" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Reading Orientation</div></div>
+        <div class="setting-control"><select id="orientation"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Hyphenation</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="hyphenationEnabled" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Buttons</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Next &amp; Previous Mapping</div></div>
+        <div class="setting-control"><select id="readerDirectionMapping"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Book Settings Toggle</div></div>
+        <div class="setting-control"><select id="readerMenuButton"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Long press</div></div>
+        <div class="setting-control"><select id="longPressChapterSkip"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Short Power Button</div></div>
+        <div class="setting-control"><select id="readerShortPwrBtn"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Page Auto Turn</div></div>
+        <div class="setting-control"><select id="pageAutoTurnSeconds"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>System</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Text Anti-Aliasing</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="textAntiAliasing" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Refresh Frequency</div></div>
+        <div class="setting-control"><select id="refreshFrequency"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Image</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Image Grayscale</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="readerImageGrayscale" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Smart Refresh (Images)</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="readerSmartRefreshOnImages" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Contrast</div></div>
+        <div class="setting-control"><select id="readerImagePresentation"></select></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>Status Bar</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Status Bar Mode</div></div>
+        <div class="setting-control"><select id="statusBar"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Left Section</div></div>
+        <div class="setting-control"><select id="statusBarLeft"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Middle Section</div></div>
+        <div class="setting-control"><select id="statusBarMiddle"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Right Section</div></div>
+        <div class="setting-control"><select id="statusBarRight"></select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button type="button" class="action-btn btn-secondary" onclick="location.reload()">Reset</button>
+    <button type="button" class="action-btn btn-primary" onclick="saveAllSettings()">Save All</button>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+<script>
+let settingsData = {}, pendingChanges = {}, wifiNetworks = [];
+const options = {
+  sleepScreen: ["Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"],
+  sleepScreenCoverMode: ["Fill", "Crop"],
+  sleepScreenCoverFilter: ["None", "Contrast", "Inverted"],
+  hideBatteryPercentage: ["Never", "In Reader", "Always"],
+  recentLibraryMode: ["Grid", "Current | Previous", "Flow", "Simple", "List", "Icons"],
+  displayImagePresentation: ["Low", "Medium", "High", "Very high"],
+  readerImagePresentation: ["Low", "Medium", "High", "Very high"],
+  frontButtonLayout: ["Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right", "Back, Confirm, Right, Left"],
+  shortPwrBtn: ["Ignore", "Sleep", "Page Refresh"],
+  sleepTimeout: ["1 min", "5 min", "10 min", "15 min", "30 min"],
+  bootSetting: ["Recent Books", "Home Page"],
+  fontSize: ["Extra Small", "Small", "Medium", "Large", "X Large"],
+  lineSpacing: ["Tight", "Normal", "Wide", "Wider", "Loose"],
+  paragraphAlignment: ["Justify", "Left", "Center", "Right", "Css"],
+  orientation: ["Portrait", "Landscape CW", "Inverted", "Landscape CCW"],
+  readerDirectionMapping: ["Left/Right", "Right/Left", "Up/Down", "Down/Up", "None"],
+  readerMenuButton: ["Up", "Down", "Left", "Right", "Confirm"],
+  longPressChapterSkip: ["Off", "Chapter skip", "Skip 5 pages"],
+  readerShortPwrBtn: ["Page Turn", "Page Refresh"],
+  refreshFrequency: ["1 page", "5 pages", "10 pages", "15 pages", "30 pages"],
+  statusBar: ["None", "No Progress", "Full w/ Percentage", "Full w/ Progress Bar", "Progress Bar", "Battery %", "Percentage", "Page Bars"],
+  statusBarLeft: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"],
+  statusBarMiddle: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"],
+  statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
+};
+const boolSettings = [
+  "sleepScreenCoverGrayscale", "bitmapRoundedCorners", "useLibraryIndex", "librarySortEnabled",
+  "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
+  "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled",
+  "textAntiAliasing", "readerImageGrayscale", "readerSmartRefreshOnImages"
+];
+const marginOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
+const fontFamilyBuiltin = ["Literata", "Atkinson Hyperlegible"];
+
+function switchTab(id, btn) {
+  document.querySelectorAll(".tab-content").forEach(function (el) { el.classList.remove("active"); });
+  document.querySelectorAll(".tab-btn").forEach(function (el) { el.classList.remove("active"); });
+  document.getElementById(id + "-tab").classList.add("active");
+  if (btn) btn.classList.add("active");
+}
+
+function showToast(msg, err) {
+  const n = document.getElementById("toast");
+  n.textContent = msg;
+  n.style.background = err ? "#ff3b30" : "#1d1d1f";
+  n.classList.add("show");
+  setTimeout(function () { n.classList.remove("show"); }, 2000);
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch("/api/settings");
+    settingsData = await r.json();
+    await loadWifiNetworks();
+    await loadKOReaderSettings();
+    populateSettings();
+  } catch (e) {
+    showToast("Failed to load settings", true);
+  }
+}
+
+async function loadWifiNetworks() {
+  try {
+    const r = await fetch("/api/wifi");
+    wifiNetworks = await r.json();
+    renderWifiList();
+  } catch (e) {
+    console.error(e);
+    renderWifiList();
+  }
+}
+
+async function loadKOReaderSettings() {
+  try {
+    const r = await fetch("/api/koreader");
+    const d = await r.json();
+    const u = document.getElementById("koreaderUsername");
+    const p = document.getElementById("koreaderPassword");
+    const s = document.getElementById("koreaderServerUrl");
+    const m = document.getElementById("koreaderMatchMethod");
+    if (u) u.value = d.username || "";
+    if (p) p.value = "";
+    if (s) s.value = d.serverUrl || "";
+    if (m) m.value = d.matchMethod || 0;
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderWifiList() {
+  const n = document.getElementById("wifiList");
+  if (!n) return;
+  if (wifiNetworks.length) {
+    n.innerHTML = "";
+    wifiNetworks.forEach(function (e) {
+      const t = document.createElement("div");
+      t.className = "wifi-item";
+      t.innerHTML = '<span class="wifi-ssid">' + escapeHtml(e.ssid) + '</span><div class="wifi-actions"><button type="button" class="btn-remove" onclick="removeWifiNetwork(\'' + escapeHtml(e.ssid).replace(/'/g, "\\'") + '\')">Remove</button></div>';
+      n.appendChild(t);
+    });
+  } else {
+    n.innerHTML = '<div class="setting-item"><div><div class="setting-label">No saved networks</div></div></div>';
+  }
+}
+
+function escapeHtml(s) {
+  return s ? s.replace(/[&<>]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }) : "";
+}
+
+function showAddWifiForm() {
+  document.getElementById("addWifiForm").classList.add("show");
+}
+
+function hideAddWifiForm() {
+  document.getElementById("addWifiForm").classList.remove("show");
+  document.getElementById("newWifiSSID").value = "";
+  document.getElementById("newWifiPassword").value = "";
+}
+
+async function saveWifiNetwork() {
+  const ssid = document.getElementById("newWifiSSID").value.trim();
+  const password = document.getElementById("newWifiPassword").value;
+  if (!ssid) {
+    showToast("Enter network name", true);
+    return;
+  }
+  try {
+    const ok = (await fetch("/api/wifi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ssid: ssid, password: password })
+    })).ok;
+    if (ok) {
+      showToast("Saved " + ssid);
+      hideAddWifiForm();
+      await loadWifiNetworks();
+    } else showToast("Failed to save network", true);
+  } catch (e) {
+    showToast("Error saving network", true);
+  }
+}
+
+async function removeWifiNetwork(ssid) {
+  if (!confirm('Remove "' + ssid + '"?')) return;
+  try {
+    const ok = (await fetch("/api/wifi/" + encodeURIComponent(ssid), { method: "DELETE" })).ok;
+    if (ok) {
+      showToast("Removed " + ssid);
+      await loadWifiNetworks();
+    } else showToast("Failed to remove network", true);
+  } catch (e) {
+    showToast("Error removing network", true);
+  }
+}
+
+async function saveKOReaderSettings() {
+  const username = document.getElementById("koreaderUsername") ? document.getElementById("koreaderUsername").value || "" : "";
+  const password = document.getElementById("koreaderPassword") ? document.getElementById("koreaderPassword").value || "" : "";
+  const body = {
+    username: username,
+    serverUrl: document.getElementById("koreaderServerUrl") ? document.getElementById("koreaderServerUrl").value || "" : "",
+    matchMethod: parseInt(document.getElementById("koreaderMatchMethod") ? document.getElementById("koreaderMatchMethod").value || "0" : "0", 10)
+  };
+  if (password) body.password = password;
+  try {
+    return (await fetch("/api/koreader", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })).ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function populateFontFamily() {
+  const sel = document.getElementById("fontFamily");
+  if (!sel || settingsData.fontFamily === undefined) return;
+  sel.innerHTML = "";
+  const v = Number(settingsData.fontFamily);
+  fontFamilyBuiltin.forEach(function (label, i) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = label;
+    if (v === i) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (v > 1) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = "SD font slot " + v;
+    opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.onchange = function () {
+    pendingChanges.fontFamily = parseInt(sel.value, 10);
+    markChanged(sel);
+  };
+}
+
+function populateRecentVisibleCount() {
+  const sel = document.getElementById("recentVisibleCount");
+  if (!sel || settingsData.recentVisibleCount === undefined) return;
+  sel.innerHTML = "";
+  for (let i = 1; i <= 8; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = String(i);
+    if (Number(settingsData.recentVisibleCount) === i) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.onchange = function () {
+    pendingChanges.recentVisibleCount = parseInt(sel.value, 10);
+    markChanged(sel);
+  };
+}
+
+function populatePageAutoTurn() {
+  const sel = document.getElementById("pageAutoTurnSeconds");
+  if (!sel || settingsData.pageAutoTurnSeconds === undefined) return;
+  sel.innerHTML = "";
+  const cur = Number(settingsData.pageAutoTurnSeconds);
+  for (let sec = 0; sec <= 180; sec += 10) {
+    const opt = document.createElement("option");
+    opt.value = sec;
+    opt.textContent = sec === 0 ? "Off" : sec + " s";
+    if (cur === sec) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.onchange = function () {
+    pendingChanges.pageAutoTurnSeconds = parseInt(sel.value, 10);
+    markChanged(sel);
+  };
+}
+
+function populateSleepCustomBmp() {
+  const inp = document.getElementById("sleepCustomBmp");
+  if (!inp || settingsData.sleepCustomBmp === undefined) return;
+  inp.value = settingsData.sleepCustomBmp || "";
+  inp.oninput = function () {
+    pendingChanges.sleepCustomBmp = inp.value;
+    markChanged(inp);
+  };
+}
+
+function populateSettings() {
+  for (const key of Object.keys(options)) {
+    const el = document.getElementById(key);
+    if (!el || settingsData[key] === undefined) continue;
+    const labels = options[key];
+    el.innerHTML = "";
+    labels.forEach(function (label, idx) {
+      const opt = document.createElement("option");
+      opt.value = idx;
+      opt.textContent = label;
+      if (Number(settingsData[key]) === idx) opt.selected = true;
+      el.appendChild(opt);
+    });
+    el.onchange = function () {
+      pendingChanges[key] = parseInt(el.value, 10);
+      markChanged(el);
+    };
+  }
+
+  const sm = document.getElementById("screenMargin");
+  if (sm && settingsData.screenMargin !== undefined) {
+    sm.innerHTML = "";
+    marginOptions.forEach(function (px) {
+      const opt = document.createElement("option");
+      opt.value = px;
+      opt.textContent = px + "px";
+      if (Number(settingsData.screenMargin) === px) opt.selected = true;
+      sm.appendChild(opt);
+    });
+    sm.onchange = function () {
+      pendingChanges.screenMargin = parseInt(sm.value, 10);
+      markChanged(sm);
+    };
+  }
+
+  boolSettings.forEach(function (id) {
+    const cb = document.getElementById(id);
+    if (!cb || settingsData[id] === undefined) return;
+    cb.checked = Number(settingsData[id]) === 1;
+    cb.onchange = function () {
+      pendingChanges[id] = cb.checked ? 1 : 0;
+      markChanged(cb);
+    };
+  });
+
+  populateFontFamily();
+  populateRecentVisibleCount();
+  populatePageAutoTurn();
+  populateSleepCustomBmp();
+}
+
+function markChanged(el) {
+  const row = el.closest(".setting-item");
+  if (row) row.style.background = "rgba(255, 149, 0, 0.08)";
+}
+
+async function saveSetting(key, val) {
+  try {
+    const payload = {};
+    payload[key] = val;
+    const ok = (await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })).ok;
+    if (ok) {
+      settingsData[key] = val;
+      const node = document.getElementById(key);
+      const row = node ? node.closest(".setting-item") : null;
+      if (row) row.style.background = "";
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function saveAllSettings() {
+  const keys = Object.keys(pendingChanges);
+  showToast("Saving " + keys.length + " setting(s)...");
+  let okCount = 0;
+  for (const k of keys) {
+    if (await saveSetting(k, pendingChanges[k])) okCount++;
+  }
+  const kr = await saveKOReaderSettings();
+  if (okCount === keys.length && kr) {
+    showToast("Saved " + okCount + " setting(s)");
+    pendingChanges = {};
+  } else {
+    showToast("Saved " + okCount + "/" + keys.length + " settings", true);
+  }
+}
+
+loadSettings();
+</script>
