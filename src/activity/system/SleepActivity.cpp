@@ -454,7 +454,10 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER &&
                             SETTINGS.sleepScreenCoverGrayscale != 0;
 
-  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+  // Use drawSleepScreen (not drawBitmap) so "Cover Grayscale" off matches Crop mode: sleep uses a
+  // stricter BW map; drawBitmap would still dither 2bpp and look grey when Fill is selected.
+  constexpr bool kCoverFill = true;
+  renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
@@ -466,13 +469,13 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
