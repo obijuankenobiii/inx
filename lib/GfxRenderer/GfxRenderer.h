@@ -93,6 +93,11 @@ class GfxRenderer {
   void drawLine(int x1, int y1, int x2, int y2, bool state = true) const;
   void drawRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
+  /** Dashed outline only (no fill); coordinates match drawText / logical framebuffer. */
+  void drawDottedRect(const int x, const int y, const int width, const int height, const bool state = true) const;
+  /** ~25% ink at step 2 (carousel); larger @p latticeStep (e.g. 4) draws fewer pixels for highlights. */
+  void fillSparseInkLatticeInRect(const int x, const int y, const int width, const int height,
+                                    const int latticeStep = 2) const;
   void fillRect(const int x, const int y, const int width, const int height, FillTone tone, bool rounded = false) const;
   void fillRect(const int x, const int y, const int width, const int height, const bool state = true,
                 const bool rounded = false) const;
@@ -143,7 +148,8 @@ class GfxRenderer {
 
   
   void drawButtonHints(int fontId, const char* btn1, const char* btn2, const char* btn3, const char* btn4);
-  void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
+  /** Optional powerBtn: when non-empty, drawn above up/down, same x (right column). Pass nullptr for up/down only. */
+  void drawSideButtonHints(int fontId, const char* powerBtn, const char* topBtn, const char* bottomBtn) const;
 
  private:
   /** BW mode: map 2bpp palette stage (0–3) to screen using halftones so levels 1 and 2 are not solid black. */

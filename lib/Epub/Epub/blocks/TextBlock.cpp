@@ -8,6 +8,29 @@
 #include <GfxRenderer.h>
 #include <Serialization.h>
 
+#include <iterator>
+
+std::string TextBlock::getWordAt(size_t index) const {
+  if (index >= words.size()) return {};
+  auto it = words.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
+uint16_t TextBlock::getWordXAt(size_t index) const {
+  if (index >= wordXpos.size()) return 0;
+  auto it = wordXpos.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
+EpdFontFamily::Style TextBlock::getWordStyleAt(size_t index) const {
+  if (index >= wordStyles.size()) return EpdFontFamily::REGULAR;
+  auto it = wordStyles.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
 /**
  * Renders the text block at the specified position.
  * 

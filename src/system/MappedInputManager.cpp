@@ -102,6 +102,10 @@ bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); 
 
 unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
 
+bool MappedInputManager::rawHalIsPressed(const uint8_t halButtonIndex) const {
+  return gpio.isPressed(halButtonIndex);
+}
+
 MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
   const auto sideLayout = static_cast<SystemSetting::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
   

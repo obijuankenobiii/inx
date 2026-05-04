@@ -346,6 +346,97 @@ void GfxRenderer::drawRect(const int x, const int y, const int width, const int 
   }
 }
 
+void GfxRenderer::drawDottedRect(const int x, const int y, const int width, const int height, const bool state) const {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  constexpr int kDash = 2;
+  constexpr int kGap = 2;
+  const int x1 = x;
+  const int y1 = y;
+  const int x2 = x + width - 1;
+  const int y2 = y + height - 1;
+  const int sw = getScreenWidth();
+  const int sh = getScreenHeight();
+
+  auto hSeg = [&](const int cy, int xa, int xb) {
+    if (cy < 0 || cy >= sh) {
+      return;
+    }
+    if (xa > xb) {
+      std::swap(xa, xb);
+    }
+    int xi = xa;
+    while (xi <= xb) {
+      for (int d = 0; d < kDash && xi <= xb; d++, xi++) {
+        if (xi >= 0 && xi < sw) {
+          drawPixel(xi, cy, state);
+        }
+      }
+      xi += kGap;
+    }
+  };
+  auto vSeg = [&](const int cx, int ya, int yb) {
+    if (cx < 0 || cx >= sw) {
+      return;
+    }
+    if (ya > yb) {
+      std::swap(ya, yb);
+    }
+    int yi = ya;
+    while (yi <= yb) {
+      for (int d = 0; d < kDash && yi <= yb; d++, yi++) {
+        if (yi >= 0 && yi < sh) {
+          drawPixel(cx, yi, state);
+        }
+      }
+      yi += kGap;
+    }
+  };
+
+  hSeg(y1, x1, x2);
+  if (y2 != y1) {
+    hSeg(y2, x1, x2);
+  }
+  vSeg(x1, y1, y2);
+  if (x2 != x1) {
+    vSeg(x2, y1, y2);
+  }
+}
+
+void GfxRenderer::fillSparseInkLatticeInRect(const int x, const int y, const int width, const int height,
+                                             const int latticeStep) const {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  int step = latticeStep;
+  if (step < 2) {
+    step = 2;
+  }
+  // Power-of-two step uses aligned grid (step 4 → ~6% ink vs step 2 ~25%).
+  const bool pow2 = (step & (step - 1)) == 0;
+  const int sw = getScreenWidth();
+  const int sh = getScreenHeight();
+  const int x1 = std::max(0, x);
+  const int y1 = std::max(0, y);
+  const int x2 = std::min(sw, x + width);
+  const int y2 = std::min(sh, y + height);
+  if (pow2) {
+    const int mask = step - 1;
+    for (int py = (y1 + step - 1) & ~mask; py < y2; py += step) {
+      for (int px = (x1 + step - 1) & ~mask; px < x2; px += step) {
+        drawPixel(px, py, true);
+      }
+    }
+    return;
+  }
+  for (int py = y1; py < y2; py += step) {
+    for (int px = x1; px < x2; px += step) {
+      drawPixel(px, py, true);
+    }
+  }
+}
+
 void GfxRenderer::fillRect(const int x, const int y, const int width, const int height, const FillTone tone,
                            const bool rounded) const {
   if (tone == FillTone::Gray) {
@@ -905,52 +996,56 @@ void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char
   setOrientation(orig_orientation);
 }
 
-void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, const char* bottomBtn) const {
+void GfxRenderer::drawSideButtonHints(const int fontId, const char* powerBtn, const char* topBtn,
+                                     const char* bottomBtn) const {
   const int screenWidth = getScreenWidth();
-  constexpr int buttonWidth = 40;   
-  constexpr int buttonHeight = 80;  
-  constexpr int buttonX = 5;        
-  
-  constexpr int topButtonY = 345;  
+  constexpr int sideW = 32;
+  constexpr int upDownH = 80;
+  constexpr int powerH = 80;
+  constexpr int buttonX = 5;
+  constexpr int gapYPowerAboveUp = 100;
+  constexpr int topButtonY = 345;
 
+  const int x = screenWidth - buttonX - sideW;
+  const bool hasPower = powerBtn != nullptr && powerBtn[0] != '\0';
   const char* labels[] = {topBtn, bottomBtn};
 
-  
-  const int x = screenWidth - buttonX - buttonWidth;
+  if (hasPower) {
+    const int powerY = 120;
+    drawLine(x, powerY, x, powerY + powerH - 1);
+    drawLine(x + sideW - 1, powerY, x + sideW - 1, powerY + powerH - 1);
+    drawLine(x, powerY, x + sideW - 1, powerY);
+    drawLine(x, powerY + powerH - 1, x + sideW - 1, powerY + powerH - 1);
+    const int ptw = getTextWidth(fontId, powerBtn);
+    const int pth = getTextHeight(fontId);
+    const int ptextX = x + (sideW - pth) / 2;
+    const int ptextY = powerY + (powerH + ptw) / 2;
+    drawTextRotated90CW(fontId, ptextX, ptextY, powerBtn);
+  }
 
-  
   if (topBtn != nullptr && topBtn[0] != '\0') {
-    drawLine(x, topButtonY, x + buttonWidth - 1, topButtonY);                                       
-    drawLine(x, topButtonY, x, topButtonY + buttonHeight - 1);                                      
-    drawLine(x + buttonWidth - 1, topButtonY, x + buttonWidth - 1, topButtonY + buttonHeight - 1);  
+    drawLine(x, topButtonY, x + sideW - 1, topButtonY);
+    drawLine(x, topButtonY, x, topButtonY + upDownH - 1);
+    drawLine(x + sideW - 1, topButtonY, x + sideW - 1, topButtonY + upDownH - 1);
   }
 
-  
   if ((topBtn != nullptr && topBtn[0] != '\0') || (bottomBtn != nullptr && bottomBtn[0] != '\0')) {
-    drawLine(x, topButtonY + buttonHeight, x + buttonWidth - 1, topButtonY + buttonHeight);  
+    drawLine(x, topButtonY + upDownH, x + sideW - 1, topButtonY + upDownH);
   }
 
-  
   if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-    drawLine(x, topButtonY + buttonHeight, x, topButtonY + 2 * buttonHeight - 1);  
-    drawLine(x + buttonWidth - 1, topButtonY + buttonHeight, x + buttonWidth - 1,
-             topButtonY + 2 * buttonHeight - 1);                                                             
-    drawLine(x, topButtonY + 2 * buttonHeight - 1, x + buttonWidth - 1, topButtonY + 2 * buttonHeight - 1);  
+    drawLine(x, topButtonY + upDownH, x, topButtonY + 2 * upDownH - 1);
+    drawLine(x + sideW - 1, topButtonY + upDownH, x + sideW - 1, topButtonY + 2 * upDownH - 1);
+    drawLine(x, topButtonY + 2 * upDownH - 1, x + sideW - 1, topButtonY + 2 * upDownH - 1);
   }
 
-  
   for (int i = 0; i < 2; i++) {
     if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int y = topButtonY + i * buttonHeight;
-
-      
+      const int y = topButtonY + i * upDownH;
       const int textWidth = getTextWidth(fontId, labels[i]);
       const int textHeight = getTextHeight(fontId);
-
-      
-      const int textX = x + (buttonWidth - textHeight) / 2;
-      const int textY = y + (buttonHeight + textWidth) / 2;
-
+      const int textX = x + (sideW - textHeight) / 2;
+      const int textY = y + (upDownH + textWidth) / 2;
       drawTextRotated90CW(fontId, textX, textY, labels[i]);
     }
   }

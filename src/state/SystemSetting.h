@@ -241,6 +241,7 @@ public:
     enum READER_SHORT_PWRBTN {
         READER_PAGE_TURN = 0,       ///< Turn page
         READER_PAGE_REFRESH = 1,    ///< Refresh screen
+        READER_ANNOTATE = 2,        ///< Enter EPUB highlight / annotation mode
         READER_SHORT_PWRBTN_COUNT
     };
     

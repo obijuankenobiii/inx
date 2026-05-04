@@ -69,6 +69,11 @@ class TextBlock final : public Block {
    * @return true if empty
    */
   bool isEmpty() override { return words.empty(); }
+
+  size_t getWordCount() const { return words.size(); }
+  std::string getWordAt(size_t index) const;
+  uint16_t getWordXAt(size_t index) const;
+  EpdFontFamily::Style getWordStyleAt(size_t index) const;
   
   /**
    * Layout is pre-calculated during parsing.

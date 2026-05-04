@@ -75,6 +75,8 @@ class PageLine final : public PageElement {
   PageLine(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), block(std::move(block)) {}
 
+  const TextBlock& getTextBlock() const { return *block; }
+
   PageElementTag getTag() const override { return TAG_PageLine; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
               BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
@@ -93,6 +95,9 @@ class PageHeader final : public PageElement {
  public:
   PageHeader(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos, int fontId)
       : PageElement(xPos, yPos), block(std::move(block)), headerFontId(fontId) {}
+
+  const TextBlock& getTextBlock() const { return *block; }
+  int getHeaderFontId() const { return headerFontId; }
 
   PageElementTag getTag() const override { return TAG_PageHeader; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
@@ -117,6 +122,9 @@ class PageDropCap final : public PageElement {
    */
   PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId)
       : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId) {}
+
+  const std::string& getDropCapText() const { return text; }
+  int getDropCapFontId() const { return dropCapFontId; }
 
   PageElementTag getTag() const override { return TAG_PageDropCap; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,

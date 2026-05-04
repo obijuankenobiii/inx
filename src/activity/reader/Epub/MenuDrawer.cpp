@@ -105,6 +105,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
 
   menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
                {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
+               {"Annotations", MenuAction::SHOW_ANNOTATIONS},
                {"Show Footnotes", MenuAction::SHOW_FOOTNOTES},
                {"KOReader Sync", MenuAction::KOREADER_SYNC},
                {"Delete Cache", MenuAction::DELETE_CACHE},
@@ -179,6 +180,8 @@ MenuDrawer::~MenuDrawer() {
   bookmarkDeleteCallback = nullptr;
   footnoteListProvider = nullptr;
   footnoteSelectCallback = nullptr;
+  annotationListProvider = nullptr;
+  annotationSelectCallback = nullptr;
   mappedInputForHints = nullptr;
   epub = nullptr;
 }
@@ -194,6 +197,7 @@ void MenuDrawer::show() {
   showingToc = false;
   showingBookmarks = false;
   showingFootnotes = false;
+  showingAnnotations = false;
   selectedIndex = 0;
   scrollOffset = 0;
   tocSelectedIndex = 0;
@@ -202,6 +206,8 @@ void MenuDrawer::show() {
   bookmarkEntries.clear();
   footnoteSelectedIndex = 0;
   footnoteEntries.clear();
+  annotationSelectedIndex = 0;
+  annotationEntries.clear();
   renderWithRefresh();
 }
 
@@ -214,6 +220,7 @@ void MenuDrawer::hide() {
   showingToc = false;
   showingBookmarks = false;
   showingFootnotes = false;
+  showingAnnotations = false;
 }
 
 /**
@@ -236,6 +243,8 @@ void MenuDrawer::renderWithRefresh() {
     renderFootnotes();
   } else if (showingBookmarks) {
     renderBookmarks();
+  } else if (showingAnnotations) {
+    renderAnnotations();
   } else if (showingToc) {
     renderToc();
   } else {
@@ -482,6 +491,76 @@ void MenuDrawer::renderBookmarks() {
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "Del");
 }
 
+void MenuDrawer::renderAnnotations() {
+  const int panelW = tocDrawerWidth;
+  const int totalItems = static_cast<int>(annotationEntries.size());
+  const int pageItems = getTocPageItems();
+
+  drawTocBackground();
+
+  const int headerY = tocDrawerY + 10;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true, EpdFontFamily::BOLD);
+
+  const char* subtitleText = "Select a page with highlights";
+  int subtitleY = headerY + 30;
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+
+  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+
+  if (totalItems == 0) {
+    const char* line1 = "No highlights yet";
+    const char* line2 = "Add highlights in annotation mode";
+    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int msgY = dividerY + 48;
+    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int x1 = tocDrawerX + (panelW - w1) / 2;
+    const int x2 = tocDrawerX + (panelW - w2) / 2;
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    drawMappedButtonHints("\xC2\xAB Back", "", "", "");
+    return;
+  }
+
+  const int pageStartIndex = (annotationSelectedIndex / pageItems) * pageItems;
+  int drawY = dividerY + 2;
+
+  for (int i = 0; i < pageItems; i++) {
+    const int itemIndex = pageStartIndex + i;
+    if (itemIndex >= totalItems) {
+      break;
+    }
+
+    const int itemY = drawY + (i * LIST_ITEM_HEIGHT);
+    const bool isSelected = (itemIndex == annotationSelectedIndex);
+    const auto& row = annotationEntries[static_cast<size_t>(itemIndex)];
+
+    if (isSelected) {
+      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+    }
+
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int kIndent = tocDrawerX + 20;
+    const std::string truncated =
+        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
+  }
+
+  const int totalPages = (totalItems + pageItems - 1) / pageItems;
+  const int currentPageNum = (annotationSelectedIndex / pageItems) + 1;
+  char pageStr[24];
+  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
+  constexpr int kAnnotationFooterAboveHints = 75;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kAnnotationFooterAboveHints);
+  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+
+  drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "");
+}
+
 void MenuDrawer::renderFootnotes() {
   const int panelW = tocDrawerWidth;
   const int totalItems = static_cast<int>(footnoteEntries.size());
@@ -643,6 +722,13 @@ void MenuDrawer::exitFootnotes() {
   scrollOffset = 0;
 }
 
+void MenuDrawer::exitAnnotations() {
+  showingAnnotations = false;
+  annotationSelectedIndex = 0;
+  selectedIndex = 0;
+  scrollOffset = 0;
+}
+
 void MenuDrawer::refreshBookmarkEntriesFromProvider() {
   if (bookmarkListProvider) {
     bookmarkEntries = bookmarkListProvider();
@@ -651,6 +737,63 @@ void MenuDrawer::refreshBookmarkEntriesFromProvider() {
   }
   if (bookmarkSelectedIndex >= static_cast<int>(bookmarkEntries.size())) {
     bookmarkSelectedIndex = std::max(0, static_cast<int>(bookmarkEntries.size()) - 1);
+  }
+}
+
+void MenuDrawer::handleAnnotationsInput(const MappedInputManager& input) {
+  const int totalItems = static_cast<int>(annotationEntries.size());
+  const int pageItems = getTocPageItems();
+  const bool skipPage = input.getHeldTime() > 700;
+
+  if (totalItems == 0) {
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      exitAnnotations();
+      lastInputTime = xTaskGetTickCount();
+      renderWithRefresh();
+    }
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (annotationSelectedIndex >= 0 && annotationSelectedIndex < totalItems && annotationSelectCallback) {
+      const int storageIndex = annotationEntries[static_cast<size_t>(annotationSelectedIndex)].storageIndex;
+      showingAnnotations = false;
+      visible = false;
+      annotationSelectCallback(storageIndex);
+    }
+    lastInputTime = xTaskGetTickCount();
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitAnnotations();
+    lastInputTime = xTaskGetTickCount();
+    renderWithRefresh();
+    return;
+  }
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  if (readBookmarkLinePrev(input, renderer)) {
+    if (skipPage) {
+      annotationSelectedIndex = (annotationSelectedIndex < pageItems) ? 0 : annotationSelectedIndex - pageItems;
+    } else {
+      annotationSelectedIndex = (annotationSelectedIndex + totalItems - 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  } else if (readBookmarkLineNext(input, renderer)) {
+    if (skipPage) {
+      annotationSelectedIndex =
+          (annotationSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : annotationSelectedIndex + pageItems;
+    } else {
+      annotationSelectedIndex = (annotationSelectedIndex + 1) % totalItems;
+    }
+    lastInputTime = currentTime;
+    renderWithRefresh();
   }
 }
 
@@ -797,6 +940,11 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     return;
   }
 
+  if (showingAnnotations) {
+    handleAnnotationsInput(input);
+    return;
+  }
+
   if (showingToc) {
     handleTocInput(input);
     return;
@@ -839,6 +987,22 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
           }
         }
         showingBookmarks = true;
+        lastInputTime = xTaskGetTickCount();
+        renderWithRefresh();
+      } else if (menuItems[selectedIndex].action == MenuAction::SHOW_ANNOTATIONS) {
+        if (annotationListProvider) {
+          annotationEntries = annotationListProvider();
+        } else {
+          annotationEntries.clear();
+        }
+        annotationSelectedIndex = 0;
+        for (int i = 0; i < static_cast<int>(annotationEntries.size()); ++i) {
+          if (annotationEntries[static_cast<size_t>(i)].isCurrentPosition) {
+            annotationSelectedIndex = i;
+            break;
+          }
+        }
+        showingAnnotations = true;
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_FOOTNOTES) {

@@ -7,9 +7,10 @@
 
 #include <Epub.h>
 #include <Epub/Section.h>
-#include <vector>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "MenuDrawer.h"
 #include "StatusBar.h"
@@ -20,13 +21,26 @@
 #include "state/Statistics.h"
 #include "system/ScreenComponents.h"
 
-struct ViewportInfo;
+#include "EpubAnnotationUi.h"
+
+struct ViewportInfo {
+  int totalMarginTop;
+  int totalMarginBottom;
+  int totalMarginLeft;
+  int totalMarginRight;
+  uint16_t width;
+  uint16_t height;
+  int fontId;
+  float lineCompression;
+};
 
 /**
  * Main activity for reading EPUB books.
  * Handles page navigation, bookmarks, settings, and reading statistics.
  */
 class EpubActivity final : public ActivityWithSubactivity {
+  friend class EpubAnnotationUi;
+
 public:
     /**
      * Represents a bookmark in the book.
@@ -122,7 +136,8 @@ private:
     uint32_t readerSessionStartMs_ = 0;
     bool readingSessionCountCommitted_ = false;
 
-    void renderScreen();
+    /** @param clearFramebuffer When false, skips clearScreen before compositing (same-page annotation overlay refresh). */
+    void renderScreen(bool clearFramebuffer = true);
     
     /**
      * Handles page turning logic for forward/backward navigation.
@@ -194,6 +209,11 @@ private:
 
     /** User picked a footnote line from the reader menu drawer. */
     void onFootnoteDrawerSelected(int storageIndex);
+
+    /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
+    void onAnnotationDrawerSelected(int storageIndex);
+
+    void goToAnnotationPage(int spineIndex, int pageNumber);
     
     /**
      * Deletes the book cache.
@@ -248,6 +268,8 @@ private:
     void goToBookmark(int index);
     std::string getCurrentChapterTitle() const;
     void drawBookmarkIndicator();
+
+    EpubAnnotationUi annUi_;
     
     /**
      * Applies current book settings and rebuilds affected sections.

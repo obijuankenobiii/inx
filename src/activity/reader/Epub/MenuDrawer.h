@@ -22,6 +22,7 @@ class MenuDrawer {
 public:
     enum class MenuAction {
         SHOW_BOOKMARKS,
+        SHOW_ANNOTATIONS,
         SHOW_FOOTNOTES,
         SELECT_CHAPTER,
         KOREADER_SYNC,
@@ -48,6 +49,8 @@ public:
     using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
     using FootnoteListProvider = std::function<std::vector<BookmarkNavItem>()>;
     using FootnoteSelectCallback = std::function<void(int storageIndex)>;
+    using AnnotationListProvider = std::function<std::vector<BookmarkNavItem>()>;
+    using AnnotationSelectCallback = std::function<void(int storageIndex)>;
 
     /**
      * @brief Constructs a new MenuDrawer
@@ -123,6 +126,10 @@ public:
 
     void setFootnoteSelectCallback(FootnoteSelectCallback callback) { footnoteSelectCallback = std::move(callback); }
 
+    void setAnnotationListProvider(AnnotationListProvider provider) { annotationListProvider = std::move(provider); }
+
+    void setAnnotationSelectCallback(AnnotationSelectCallback callback) { annotationSelectCallback = std::move(callback); }
+
     /** Used for layout-aware bookmark drawer button labels (Up / Del). */
     void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
 
@@ -160,6 +167,8 @@ private:
 
     void renderFootnotes();
 
+    void renderAnnotations();
+
     /**
      * @brief Draws the TOC background with drawer effect
      */
@@ -175,6 +184,8 @@ private:
 
     void handleFootnotesInput(const MappedInputManager& input);
 
+    void handleAnnotationsInput(const MappedInputManager& input);
+
     /**
      * @brief Exits TOC view and returns to main menu
      */
@@ -183,6 +194,8 @@ private:
     void exitBookmarks();
 
     void exitFootnotes();
+
+    void exitAnnotations();
 
     void refreshBookmarkEntriesFromProvider();
 
@@ -201,6 +214,8 @@ private:
     BookmarkDeleteCallback bookmarkDeleteCallback;
     FootnoteListProvider footnoteListProvider;
     FootnoteSelectCallback footnoteSelectCallback;
+    AnnotationListProvider annotationListProvider;
+    AnnotationSelectCallback annotationSelectCallback;
     MappedInputManager* mappedInputForHints = nullptr;
 
     std::string bookTitle;
@@ -233,6 +248,7 @@ private:
     bool showingToc = false;
     bool showingBookmarks = false;
     bool showingFootnotes = false;
+    bool showingAnnotations = false;
     bool isFromToc = false;
     int tocSelectedIndex = 0;
     int tocScrollOffset = 0;
@@ -251,4 +267,7 @@ private:
 
     std::vector<BookmarkNavItem> footnoteEntries;
     int footnoteSelectedIndex = 0;
+
+    std::vector<BookmarkNavItem> annotationEntries;
+    int annotationSelectedIndex = 0;
 };

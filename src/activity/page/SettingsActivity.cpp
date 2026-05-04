@@ -106,7 +106,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"Up","Down","Left","Right","Confirm"}, GroupType::READER_CONTROLS),
     SettingInfo::Enum("Long press", &SystemSetting::longPressChapterSkip,
                       {"Off", "Chapter skip", "Skip 5 pages"}, GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn, {"Page Turn","Page Refresh"},
+    SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn, {"Page Turn", "Page Refresh", "Annotate"},
                       GroupType::READER_CONTROLS),
     SettingInfo::Value("Page Auto Turn", &SystemSetting::pageAutoTurnSeconds, {0, 180, 10}, GroupType::READER_CONTROLS),
 

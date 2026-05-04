@@ -4,14 +4,21 @@
  */
 
 #include "EpubActivity.h"
+#include "EpubAnnotations.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <functional>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include <Bitmap.h>
 #include <Epub/Page.h>
+#include <Epub/PageWordIndex.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
@@ -35,6 +42,22 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+
+namespace {
+/** Encodes spine and page for MenuDrawer::BookmarkNavItem::storageIndex (page < 100000). */
+constexpr int kAnnotationNavPack = 100000;
+
+static std::string chapterTitleForSpine(Epub* epub, int spineIndex) {
+  if (!epub) {
+    return "";
+  }
+  const int tocIndex = epub->getTocIndexForSpineIndex(spineIndex);
+  if (tocIndex != -1) {
+    return epub->getTocItem(tocIndex).title;
+  }
+  return "Chapter " + std::to_string(spineIndex + 1);
+}
+}  // namespace
 
 namespace {
 constexpr unsigned long skipChapterMs = 700;
@@ -83,21 +106,7 @@ bool pageImageFootprintAtLeastHalfScreen(const Page& page, const GfxRenderer& re
   const int halfH = renderer.getScreenHeight() / 2;
   return iw >= halfW && ih >= halfH;
 }
-}  
-
-/**
- * @brief Structure containing viewport calculation results.
- */
-struct ViewportInfo {
-  int totalMarginTop;
-  int totalMarginBottom;
-  int totalMarginLeft;
-  int totalMarginRight;
-  uint16_t width;
-  uint16_t height;
-  int fontId;
-  float lineCompression;
-};
+}  // namespace
 
 /**
  * @brief Constructs a new EpubActivity
@@ -648,6 +657,8 @@ void EpubActivity::onEnter() {
   lastGoodSpineIndex_ = currentSpineIndex;
   lastGoodPageNumber_ = nextPageNumber;
   chapterRecoveryAttempted_ = false;
+
+  annUi_.clearSessionAndCapture();
 }
 
 /**
@@ -712,6 +723,18 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (annUi_.isActive()) {
+    annUi_.handleInput(*this);
+    if (updateRequired && annUi_.isActive()) {
+      updateRequired = false;
+      annUi_.repaint(*this);
+    } else if (updateRequired) {
+      // handleInput may have called exit() (Save/Back): repaint() no-ops when inactive; must full compose reader.
+      updateRequired = false;
+      renderScreen(true);
+    }
+    return;
+  }
 
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
@@ -764,6 +787,10 @@ void EpubActivity::loop() {
     }
     startPageTimer();
     return;
+  }
+
+  if (section && epub && !menuDrawerVisible && !settingsDrawerVisible) {
+    annUi_.tryChordEnter(*this);
   }
 
   if (mappedInput.isPressed(menuBtn) && mappedInput.getHeldTime() >= 500) {
@@ -870,6 +897,13 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE) {
+    endPageTimer();
+    annUi_.enter(*this);
+    return;
+  }
+
   if (prev) {
     endPageTimer();
     pageTurn(false);
@@ -942,6 +976,27 @@ void EpubActivity::onBookmarkDrawerSelected(int storageIndex) {
   startPageTimer();
 }
 
+void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
+  toggleMenuDrawer();
+  const int spine = storageIndex / kAnnotationNavPack;
+  const int page = storageIndex % kAnnotationNavPack;
+  goToAnnotationPage(spine, page);
+  startPageTimer();
+}
+
+void EpubActivity::goToAnnotationPage(int spine, int page) {
+  if (currentSpineIndex != spine) {
+    currentSpineIndex = spine;
+    nextPageNumber = page;
+    section.reset();
+  } else if (section) {
+    section->currentPage = page;
+  } else {
+    nextPageNumber = page;
+  }
+  updateRequired = true;
+}
+
 void EpubActivity::onFootnoteDrawerSelected(int storageIndex) {
   toggleMenuDrawer();
   if (!epub || storageIndex < 0) {
@@ -996,6 +1051,8 @@ void EpubActivity::toggleMenuDrawer() {
         [this](MenuDrawer::MenuAction action) {
           switch (action) {
             case MenuDrawer::MenuAction::SHOW_BOOKMARKS:
+              break;
+            case MenuDrawer::MenuAction::SHOW_ANNOTATIONS:
               break;
             case MenuDrawer::MenuAction::SHOW_FOOTNOTES:
               break;
@@ -1096,6 +1153,49 @@ void EpubActivity::toggleMenuDrawer() {
         return rows;
       });
       menuDrawer->setFootnoteSelectCallback([this](const int storageIndex) { onFootnoteDrawerSelected(storageIndex); });
+      menuDrawer->setAnnotationListProvider([this]() {
+        std::vector<MenuDrawer::BookmarkNavItem> rows;
+        if (!epub) {
+          return rows;
+        }
+        const std::string annDir = epub->getCachePath() + "/ann";
+        if (!SdMan.exists(annDir.c_str())) {
+          return rows;
+        }
+        std::vector<String> files = SdMan.listFiles(annDir.c_str());
+        std::vector<std::pair<int, int>> pairs;
+        pairs.reserve(files.size());
+        for (const String& f : files) {
+          int s = 0;
+          int p = 0;
+          if (std::sscanf(f.c_str(), "s_%d_p_%d.bin", &s, &p) != 2) {
+            continue;
+          }
+          pairs.emplace_back(s, p);
+        }
+        std::sort(pairs.begin(), pairs.end());
+        pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+        rows.reserve(pairs.size());
+        for (const auto& pr : pairs) {
+          const int spine = pr.first;
+          const int page = pr.second;
+          std::string t = chapterTitleForSpine(epub.get(), spine);
+          if (t.size() > 48) {
+            t.replace(45, std::string::npos, "...");
+          }
+          char line[160];
+          std::snprintf(line, sizeof(line), "%s (%d)", t.c_str(), page + 1);
+          MenuDrawer::BookmarkNavItem row;
+          row.label = line;
+          row.storageIndex = spine * kAnnotationNavPack + page;
+          const int curPage = section ? section->currentPage : nextPageNumber;
+          row.isCurrentPosition = (spine == currentSpineIndex) && (page == curPage);
+          rows.push_back(std::move(row));
+        }
+        return rows;
+      });
+      menuDrawer->setAnnotationSelectCallback(
+          [this](const int storageIndex) { onAnnotationDrawerSelected(storageIndex); });
     }
   }
 
@@ -1424,7 +1524,7 @@ void EpubActivity::pageTurn(bool forward) {
 /**
  * @brief Renders the current screen content
  */
-void EpubActivity::renderScreen() {
+void EpubActivity::renderScreen(const bool clearFramebuffer) {
   if (!epub) return;
 
   int totalSpine = epub->getSpineItemsCount();
@@ -1467,7 +1567,9 @@ void EpubActivity::renderScreen() {
     }
   }
 
-  renderer.clearScreen(0xFF);
+  if (clearFramebuffer) {
+    renderer.clearScreen(0xFF);
+  }
 
   if (section->pageCount == 0) {
     section.reset();
@@ -1515,8 +1617,74 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
+  annUi_.ensureDiskListLoaded(*this);
+
+  bool needAnnotationGeometry = annUi_.isActive();
+  if (!annUi_.isActive() && !annUi_.annotations().records().empty()) {
+    for (const EpubAnnotationRecord& rec : annUi_.annotations().records()) {
+      if (section && EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage)) {
+        needAnnotationGeometry = true;
+        break;
+      }
+    }
+  }
+
+  bool omitStoredWordStrings = false;
+  if (needAnnotationGeometry && !annUi_.isActive()) {
+    omitStoredWordStrings = true;
+    for (const EpubAnnotationRecord& rec : annUi_.annotations().records()) {
+      if (!section || !EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage)) {
+        continue;
+      }
+      if (rec.pageWordLo == EpubAnnotations::kWildcard) {
+        omitStoredWordStrings = false;
+        break;
+      }
+    }
+  }
+
+  const bool wordIndexCacheHit =
+      needAnnotationGeometry && section != nullptr &&
+      annUi_.wordIndexCacheSpine() == currentSpineIndex && annUi_.wordIndexCachePage() == section->currentPage &&
+      annUi_.wordIndexCacheFontId() == fontId && annUi_.wordIndexCacheHeaderFontId() == headerFontId &&
+      annUi_.wordIndexCacheMarginL() == orientedMarginLeft && annUi_.wordIndexCacheMarginT() == orientedMarginTop;
+
+  if (!needAnnotationGeometry) {
+    annUi_.words().clear();
+    annUi_.words().shrink_to_fit();
+    annUi_.lineFirst().clear();
+    annUi_.lineFirst().shrink_to_fit();
+    annUi_.storedRanges().clear();
+    annUi_.storedRanges().shrink_to_fit();
+    annUi_.clearWordIndexCache();
+  } else if (wordIndexCacheHit) {
+    if (annUi_.isActive()) {
+      annUi_.storedRanges().clear();
+      annUi_.clampSelectionToValidWords();
+    } else if (!annUi_.annotations().records().empty()) {
+      annUi_.updateStoredRangesForPage(*this);
+    } else {
+      annUi_.storedRanges().clear();
+    }
+  } else {
+    buildPageWordIndex(*page, renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, annUi_.words(),
+                       &annUi_.lineFirst(), omitStoredWordStrings);
+    if (section != nullptr) {
+      annUi_.setWordIndexCache(currentSpineIndex, section->currentPage, fontId, headerFontId, orientedMarginLeft,
+                               orientedMarginTop);
+    }
+    if (annUi_.isActive()) {
+      annUi_.storedRanges().clear();
+      annUi_.clampSelectionToValidWords();
+    } else if (!annUi_.annotations().records().empty()) {
+      annUi_.updateStoredRangesForPage(*this);
+    } else {
+      annUi_.storedRanges().clear();
+    }
+  }
+
   if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && lastPageHadLargeImage &&
-      !isBookmarking) {
+      !isBookmarking && !annUi_.isActive()) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
@@ -1542,6 +1710,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
    * Skipped when image grayscale is also on: the prep fill uses image bounds that can overlap body text, and the
    * combined grayscale passes already handle image+text without this intermediate full redraw. */
   auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
+    // Avoid 2 extra FAST refreshes while navigating highlights (major flicker source).
+    if (annUi_.isActive()) {
+      return false;
+    }
     if (!textAa || !page->hasImages() || needsImageGrayscale) {
       return false;
     }
@@ -1581,26 +1753,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.restoreBwBuffer();
   };
 
-  if (pagesUntilFullRefresh <= 1) {
-    if (!tryImagePageTextAaDisplayPrep()) {
-      renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+  auto runImageGrayscalePass = [&]() {
+    if (!needsImageGrayscale) {
+      return;
     }
-    runTextAntiAliasPass();
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = page->hasImages();
-    lastPageHadLargeImage =
-        pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
-    return;
-  }
-
-  pagesUntilFullRefresh--;
-
-  if (!tryImagePageTextAaDisplayPrep()) {
-    renderer.displayBuffer();
-  }
-  runTextAntiAliasPass();
-
-  if (needsImageGrayscale) {
     const bool storedBwBuffer = renderer.storeBwBuffer();
 
     renderer.clearScreen(0x00);
@@ -1620,10 +1776,47 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     } else {
       renderer.cleanupGrayscaleWithFrameBuffer();
     }
+  };
+
+  if (pagesUntilFullRefresh <= 1) {
+    if (!tryImagePageTextAaDisplayPrep()) {
+      // With AA on, skip pushing BW to the panel before the grayscale pass — saves one full flash per frame
+      // while moving the highlight (annotation mode) or reading with AA.
+      if (!(annUi_.isActive() && textAa)) {
+        renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+      }
+    }
+    runTextAntiAliasPass();
+    runImageGrayscalePass();
+    pagesUntilFullRefresh = bookSettings.refreshFrequency;
+    lastPageHadImages = page->hasImages();
+    lastPageHadLargeImage =
+        pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
+    if (annUi_.isActive()) {
+      annUi_.drawUiOverlay(*this);
+    } else if (!annUi_.storedRanges().empty()) {
+      annUi_.drawStoredOverlay(*this);
+    }
+    return;
   }
+
+  pagesUntilFullRefresh--;
+
+  if (!tryImagePageTextAaDisplayPrep()) {
+    if (!(annUi_.isActive() && textAa)) {
+      renderer.displayBuffer();
+    }
+  }
+  runTextAntiAliasPass();
+  runImageGrayscalePass();
 
   lastPageHadImages = page->hasImages();
   lastPageHadLargeImage = pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
+  if (annUi_.isActive()) {
+    annUi_.drawUiOverlay(*this);
+  } else if (!annUi_.storedRanges().empty()) {
+    annUi_.drawStoredOverlay(*this);
+  }
 }
 
 /**

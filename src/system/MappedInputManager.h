@@ -40,6 +40,10 @@ class MappedInputManager {
   bool wasAnyPressed() const;
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
+
+  /** Raw GPIO read (layout + invert still apply to HalGPIO indices). For fixed chords use HalGPIO::BTN_* ). */
+  bool rawHalIsPressed(uint8_t halButtonIndex) const;
+
   Labels mapLabels(const char* back, const char* confirm, const char* previous, const char* next) const;
 
   /**
