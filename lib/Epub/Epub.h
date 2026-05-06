@@ -40,6 +40,7 @@ class Epub {
   void setupCacheDir() const;
   
   std::string getCacheImgPath(const std::string& internalHref) const;
+  bool extractItemToPath(const std::string& itemHref, const std::string& outPath, size_t chunkSize = 2048) const;
   bool extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                         int targetH, bool cropToFill) const;
   bool extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, 
@@ -53,6 +54,8 @@ class Epub {
   std::string& getBasePath() { return contentBasePath; }
 
   std::string getCoverBmpPath(bool cropped = false) const;
+  std::string getCoverItemHref() const;
+  bool extractCoverItemToPath(const std::string& outPath) const;
   bool generateCoverBmp(bool cropped = false) const;
   std::string getThumbBmpPath() const;
   std::string getSmallThumbBmpPath() const;

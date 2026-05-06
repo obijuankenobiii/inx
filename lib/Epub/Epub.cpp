@@ -109,12 +109,32 @@ std::string Epub::getCacheImgPath(const std::string& internalHref) const {
   size_t lastSlash = internalHref.find_last_of('/');
   std::string fileName = (lastSlash == std::string::npos) ? internalHref : internalHref.substr(lastSlash + 1);
 
+  std::string ext;
+  const size_t dotExt = fileName.find_last_of('.');
+  if (dotExt != std::string::npos) {
+    ext = fileName.substr(dotExt);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  }
+
   size_t dot = fileName.find_last_of('.');
   if (dot != std::string::npos) {
     fileName = fileName.substr(0, dot);
   }
-
+  if (ext == ".jpg" || ext == ".jpeg") {
+    return cachePath + "/images/" + fileName + ".jpg";
+  }
   return cachePath + "/images/" + fileName + ".bmp";
+}
+
+bool Epub::extractItemToPath(const std::string& itemHref, const std::string& outPath, const size_t chunkSize) const {
+  FsFile out;
+  if (!SdMan.openFileForWrite("EBP", outPath, out)) {
+    return false;
+  }
+  const bool ok = readItemContentsToStream(itemHref, out, chunkSize);
+  out.sync();
+  out.close();
+  return ok;
 }
 
 /**
@@ -656,6 +676,31 @@ const std::string& Epub::getLanguage() const {
  */
 std::string Epub::getCoverBmpPath(bool cropped) const {
   return cachePath + (cropped ? "/cover_crop.bmp" : "/cover.bmp");
+}
+
+std::string Epub::getCoverItemHref() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    return "";
+  }
+  return bookMetadataCache->coreMetadata.coverItemHref;
+}
+
+bool Epub::extractCoverItemToPath(const std::string& outPath) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    return false;
+  }
+  const std::string& href = bookMetadataCache->coreMetadata.coverItemHref;
+  if (href.empty()) {
+    return false;
+  }
+  FsFile out;
+  if (!SdMan.openFileForWrite("EBP", outPath, out)) {
+    return false;
+  }
+  const bool ok = readItemContentsToStream(href, out, 2048);
+  out.sync();
+  out.close();
+  return ok;
 }
 
 /**

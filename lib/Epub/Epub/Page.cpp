@@ -8,6 +8,7 @@
 #include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <JpegRenderer.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
@@ -19,6 +20,16 @@ namespace {
 
 constexpr float kImgScaleEps = 1e-5f;
 constexpr float kImgHuge = 1e9f;
+
+bool hasJpegExt(const std::string& path) {
+  const size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos) {
+    return false;
+  }
+  std::string ext = path.substr(dot);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return ext == ".jpg" || ext == ".jpeg";
+}
 
 /**
  * Tight pixel bounds for how PageImage::render + GfxRenderer::drawBitmap place the bitmap (fit within layout w/h).
@@ -230,6 +241,22 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                        const BitmapDitherMode imageDitherMode) {
   (void)xOffset;  
+  const bool isJpeg = hasJpegExt(cachePath);
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  if (isJpeg) {
+    JpegRenderer jpeg(renderer);
+    (void)fontId;
+    if (!jpeg.drawJpegFromPath(cachePath, renderX, renderY, width, height, false)) {
+      Serial.printf("[PAGEIMG] Failed to draw JPEG: %s\n", cachePath.c_str());
+    }
+    return;
+  }
+
   FsFile file;
   if (!SdMan.openFileForRead("EHP", cachePath, file)) {
     Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
@@ -238,13 +265,6 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
 
   Bitmap bitmap(file, imageDitherMode);
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-    const int screenW = renderer.getScreenWidth();
-    int renderX = (screenW - width) / 2;
-    int renderY = yPos + yOffset;
-
-    if (renderX < 0) renderX = 0;
-    if (renderY < 0) renderY = 0;
-    
     renderer.drawBitmap(bitmap, renderX, renderY, width, height);
   }
 

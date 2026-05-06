@@ -14,6 +14,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <JpegRenderer.h>
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
@@ -28,6 +29,16 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
 namespace {
+
+bool hasJpegExt(const std::string& path) {
+  const size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos) {
+    return false;
+  }
+  std::string ext = path.substr(dot);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return ext == ".jpg" || ext == ".jpeg";
+}
 
 int countUtf8Codepoints(const char* s, int byteLen) {
   const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
@@ -729,9 +740,13 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
  * @param h Output parameter for height
  * @return true if dimensions were successfully read
  */
-bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, int* h) {
+bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, int* h) {
   *w = 0;
   *h = 0;
+  const bool isJpeg = hasJpegExt(path);
+  if (isJpeg) {
+    return JpegRenderer::getDimensions(path, w, h);
+  }
   FsFile file;
   if (!SdMan.openFileForRead("EHP", path, file)) return false;
 
@@ -807,8 +822,9 @@ void ChapterHtmlSlimParser::makePages() {
  */
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
+  const bool cacheIsJpeg = hasJpegExt(cacheImgPath);
   if (SdMan.exists(cacheImgPath.c_str())) {
-    if (getBmpDimensions(cacheImgPath, w, h)) {
+    if (getImageDimensions(cacheImgPath, w, h)) {
       Serial.printf("[%lu] [EBP-IMG] cache hit %s\n", static_cast<unsigned long>(millis()), cacheImgPath.c_str());
       return true;
     }
@@ -823,13 +839,18 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
     return false;
   }
 
-  bool result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  bool result = false;
+  if (cacheIsJpeg) {
+    result = epub.extractItemToPath(internalPath, cacheImgPath, 4096);
+  } else {
+    result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  }
 
   if (result) {
     if (++imageExtractCountForYield_ % 2u == 0u) {
       yield();
     }
-    if (getBmpDimensions(cacheImgPath, w, h)) {
+    if (getImageDimensions(cacheImgPath, w, h)) {
       return true;
     }
     Serial.printf("[%lu] [EBP-IMG] post-extract BMP unreadable: %s\n", static_cast<unsigned long>(millis()),
