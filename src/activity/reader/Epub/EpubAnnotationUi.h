@@ -96,10 +96,12 @@ class EpubAnnotationUi {
   size_t anchor_ = 0;
   size_t focus_ = 0;
 
-  /** 8000 x 6 = 48k; small allocs match GfxRenderer::storeBwBuffer and survive fragmented heap. */
+  /** 8000 x 6 = 48k; chunked first (same as GfxRenderer::storeBwBuffer); monolithic fallback if heap shape differs. */
   static constexpr size_t kCaptureChunkBytes = 8000;
   static constexpr size_t kCaptureChunkCount = 6;
   std::array<std::unique_ptr<uint8_t[]>, kCaptureChunkCount> captureChunks_{};
+  std::unique_ptr<uint8_t[]> captureMonolithic_{};
+  bool captureUsesMonolithic_ = false;
   size_t captureBytes_ = 0;
   bool captureValid_ = false;
 

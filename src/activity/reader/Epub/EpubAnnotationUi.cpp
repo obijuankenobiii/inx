@@ -63,6 +63,8 @@ void EpubAnnotationUi::clearSessionAndCapture() {
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  captureMonolithic_.reset();
+  captureUsesMonolithic_ = false;
   captureBytes_ = 0;
   captureValid_ = false;
   clearWordIndexCache();
@@ -175,6 +177,8 @@ void EpubAnnotationUi::enter(EpubActivity& act) {
     exit(act);
     return;
   }
+  words_.shrink_to_fit();
+  lineFirst_.shrink_to_fit();
   captureFramebuffer(act);
   if (!captureValid_) {
     act.readerPopup("Could not capture page");
@@ -199,6 +203,8 @@ void EpubAnnotationUi::exit(EpubActivity& act) {
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  captureMonolithic_.reset();
+  captureUsesMonolithic_ = false;
   captureBytes_ = 0;
   captureValid_ = false;
   act.updateRequired = true;
@@ -433,8 +439,14 @@ void EpubAnnotationUi::captureFramebuffer(EpubActivity& act) {
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  captureMonolithic_.reset();
+  captureUsesMonolithic_ = false;
   captureBytes_ = 0;
   captureValid_ = false;
+
+  // Free GfxRenderer's grayscale/BW-shadow chunks (~48KB) if a prior path left them allocated — otherwise capture often
+  // fails trying to duplicate the framebuffer while heap is still holding that copy.
+  act.renderer.resetTransientReaderState();
 
   uint8_t* fb = act.renderer.getFrameBuffer();
   const size_t n = act.renderer.getBufferSize();
@@ -442,17 +454,32 @@ void EpubAnnotationUi::captureFramebuffer(EpubActivity& act) {
     return;
   }
 
+  bool chunkedOk = true;
   for (size_t i = 0; i < kCaptureChunkCount; ++i) {
     uint8_t* const buf = new (std::nothrow) uint8_t[kCaptureChunkBytes];
     if (!buf) {
+      chunkedOk = false;
       for (size_t j = 0; j < i; ++j) {
         captureChunks_[j].reset();
       }
-      return;
+      break;
     }
     memcpy(buf, fb + i * kCaptureChunkBytes, kCaptureChunkBytes);
     captureChunks_[i].reset(buf);
   }
+
+  if (chunkedOk) {
+    captureBytes_ = n;
+    captureValid_ = true;
+    return;
+  }
+
+  captureMonolithic_.reset(new (std::nothrow) uint8_t[n]);
+  if (!captureMonolithic_) {
+    return;
+  }
+  memcpy(captureMonolithic_.get(), fb, n);
+  captureUsesMonolithic_ = true;
   captureBytes_ = n;
   captureValid_ = true;
 }
@@ -472,12 +499,20 @@ void EpubAnnotationUi::repaint(EpubActivity& act) {
     return;
   }
   act.renderer.setRenderMode(GfxRenderer::BW);
-  for (size_t i = 0; i < kCaptureChunkCount; ++i) {
-    if (!captureChunks_[i]) {
+  if (captureUsesMonolithic_) {
+    if (!captureMonolithic_) {
       act.renderScreen(true);
       return;
     }
-    memcpy(fb + i * kCaptureChunkBytes, captureChunks_[i].get(), kCaptureChunkBytes);
+    memcpy(fb, captureMonolithic_.get(), n);
+  } else {
+    for (size_t i = 0; i < kCaptureChunkCount; ++i) {
+      if (!captureChunks_[i]) {
+        act.renderScreen(true);
+        return;
+      }
+      memcpy(fb + i * kCaptureChunkBytes, captureChunks_[i].get(), kCaptureChunkBytes);
+    }
   }
   drawUiOverlay(act);
 }
