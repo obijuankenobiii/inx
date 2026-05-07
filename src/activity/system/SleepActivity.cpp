@@ -12,7 +12,7 @@
 #include <Epub/Page.h>
 #include <Epub/Section.h>
 #include <GfxRenderer.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <HalDisplay.h>
 #include <SDCardManager.h>
 #include <Txt.h>
@@ -372,7 +372,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
         APP_STATE.saveToFile();
         renderer.clearScreen();
-        JpegRenderer jpegRenderer(renderer);
+        JpegRender jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
         if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
           renderer.displayBuffer();
@@ -412,7 +412,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
       if (SdMan.openFileForRead("SLP", imagePath, jpegFile)) {
         APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
         APP_STATE.saveToFile();
-        JpegRenderer jpegRenderer(renderer);
+        JpegRender jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
         if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
           renderer.displayBuffer();
@@ -454,7 +454,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     FsFile jpegFile;
     if (SdMan.openFileForRead("SLP", coverPath, jpegFile)) {
       renderer.clearScreen();
-      JpegRenderer jpegRenderer(renderer);
+      JpegRender jpegRenderer(renderer);
       const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
         if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {

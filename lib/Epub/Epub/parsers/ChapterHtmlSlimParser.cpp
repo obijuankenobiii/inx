@@ -14,7 +14,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
@@ -745,7 +745,7 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
   *h = 0;
   const bool isJpeg = hasJpegExt(path);
   if (isJpeg) {
-    return JpegRenderer::getDimensions(path, w, h);
+    return JpegRender::getDimensions(path, w, h);
   }
   FsFile file;
   if (!SdMan.openFileForRead("EHP", path, file)) return false;

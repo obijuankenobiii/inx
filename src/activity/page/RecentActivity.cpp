@@ -8,7 +8,7 @@
 #include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <Xtc.h>
 
@@ -287,7 +287,7 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   snprintf(jpegPath, sizeof(jpegPath), "%s/thumb.jpg", cacheDir.c_str());
 
   if (SdMan.exists(jpegPath)) {
-    JpegRenderer jpeg(renderer);
+    JpegRender jpeg(renderer);
     if (jpeg.fromPath(jpegPath, x, y, w, h, true)) {
       return;
     }

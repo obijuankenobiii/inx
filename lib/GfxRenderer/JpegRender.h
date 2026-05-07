@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file JpegRenderer.h
+ * @file JpegRender.h
  * @brief Direct JPEG rendering helpers for page images.
  */
 
@@ -10,9 +10,9 @@
 class FsFile;
 class GfxRenderer;
 
-class JpegRenderer {
+class JpegRender {
  public:
-  explicit JpegRenderer(GfxRenderer& renderer) : renderer_(renderer) {}
+  explicit JpegRender(GfxRenderer& renderer) : renderer_(renderer) {}
 
   bool render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false) const;
   bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,

@@ -8,7 +8,7 @@
 #include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
@@ -249,7 +249,7 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
   if (renderY < 0) renderY = 0;
 
   if (isJpeg) {
-    JpegRenderer jpeg(renderer);
+    JpegRender jpeg(renderer);
     (void)fontId;
     if (!jpeg.fromPath(cachePath, renderX, renderY, width, height, false)) {
       Serial.printf("[PAGEIMG] Failed to draw JPEG: %s\n", cachePath.c_str());

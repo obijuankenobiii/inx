@@ -41,10 +41,5 @@ class BitmapRender {
  private:
   void oneBit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
                 RoundedOutside roundedOutside = RoundedOutside::None) const;
-  void smallClean(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0) const;
-  void smallAdaptive(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0) const;
-  void small(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0) const;
-  void blendTransparent2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
-                            uint8_t alphaThreshold, Orientation orientation = Orientation::None) const;
   GfxRenderer& gfx;
 };

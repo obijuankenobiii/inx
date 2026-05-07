@@ -22,7 +22,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <esp_task_wdt.h>
 #include <time.h>
@@ -496,7 +496,7 @@ void EpubActivity::displayCoverOrTitle() {
     const int pageWidth = renderer.getScreenWidth();
     const int pageHeight = renderer.getScreenHeight();
     renderer.clearScreen();
-    JpegRenderer jpeg(renderer);
+    JpegRender jpeg(renderer);
     if (jpeg.fromPath(coverJpegPath, 0, 0, pageWidth, pageHeight, true)) {
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       return;

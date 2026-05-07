@@ -8,11 +8,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <vector>
 
 namespace {
 /** Corner radius for rounded fillRect/drawRect: subtle, not pill-shaped (was min/4). */
-int RoundedRectCornerRadius(const int width, const int height) {
+int roundedRectCornerRadius(const int width, const int height) {
   const int m = std::min(width, height);
   if (m < 5) {
     return 1;
@@ -27,7 +26,7 @@ int RoundedRectCornerRadius(const int width, const int height) {
   return std::max(1, r);
 }
 
-int CornerSpanFromRy(const int r, const int ry) {
+int cornerSpanFromRy(const int r, const int ry) {
   const int inner = r * r - ry * ry;
   if (inner <= 0) {
     return 0;
@@ -36,32 +35,32 @@ int CornerSpanFromRy(const int r, const int ry) {
 }
 
 /** Same interior as `fillRect(..., rounded=true)` — O(1) per pixel (must match fillRect scanlines). */
-bool PixelInRoundedRectFillShape(const int px, const int py, const int x, const int y, const int w, const int h) {
+bool pixelInRoundedRectFillShape(const int px, const int py, const int x, const int y, const int w, const int h) {
   if (px < x || px >= x + w || py < y || py >= y + h) {
     return false;
   }
   if (w < 3 || h < 3) {
     return true;
   }
-  const int radius = RoundedRectCornerRadius(w, h);
+  const int radius = roundedRectCornerRadius(w, h);
   if (py >= y + radius && py < y + h - radius) {
     return true;
   }
   const int fromTop = py - y;
   if (fromTop < radius) {
-    const int span = CornerSpanFromRy(radius, radius - fromTop);
+    const int span = cornerSpanFromRy(radius, radius - fromTop);
     return px >= x + radius - span && px < x + w - radius + span;
   }
   const int fromBottom = (y + h - 1) - py;
   if (fromBottom < radius) {
-    const int span = CornerSpanFromRy(radius, radius - fromBottom);
+    const int span = cornerSpanFromRy(radius, radius - fromBottom);
     return px >= x + radius - span && px < x + w - radius + span;
   }
   return true;
 }
 
 /** Pixels outside the rounded rect (same geometry as `fillRect` with `rounded`). */
-void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const int y, const int drawnW,
+void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const int y, const int drawnW,
                                      const int drawnH, const BitmapRender::RoundedOutside style) {
   if (style == BitmapRender::RoundedOutside::None) {
     return;
@@ -69,7 +68,7 @@ void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
   if (drawnW < 3 || drawnH < 3) {
     return;
   }
-  const int r = RoundedRectCornerRadius(drawnW, drawnH);
+  const int r = roundedRectCornerRadius(drawnW, drawnH);
   if (r < 1) {
     return;
   }
@@ -92,7 +91,7 @@ void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
   for (int cy = 0; cy < r; ++cy) {
     const int py = y + cy;
-    const int span = CornerSpanFromRy(r, r - cy);
+    const int span = cornerSpanFromRy(r, r - cy);
     for (int px = x; px < x + r - span; ++px) {
       applyCorner(px, py);
     }
@@ -100,7 +99,7 @@ void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
   for (int cy = 0; cy < r; ++cy) {
     const int py = y + cy;
-    const int span = CornerSpanFromRy(r, r - cy);
+    const int span = cornerSpanFromRy(r, r - cy);
     for (int px = x + drawnW - r + span; px < x + drawnW; ++px) {
       applyCorner(px, py);
     }
@@ -108,7 +107,7 @@ void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
   for (int cy = 0; cy < r; ++cy) {
     const int py = y + drawnH - 1 - cy;
-    const int span = CornerSpanFromRy(r, r - cy);
+    const int span = cornerSpanFromRy(r, r - cy);
     for (int px = x; px < x + r - span; ++px) {
       applyCorner(px, py);
     }
@@ -116,25 +115,25 @@ void MaskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
   for (int cy = 0; cy < r; ++cy) {
     const int py = y + drawnH - 1 - cy;
-    const int span = CornerSpanFromRy(r, r - cy);
+    const int span = cornerSpanFromRy(r, r - cy);
     for (int px = x + drawnW - r + span; px < x + drawnW; ++px) {
       applyCorner(px, py);
     }
   }
 }
 
-inline bool BwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
+inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
   const uint8_t st = stage03 & 3u;
   if (gs == GfxRenderer::BitmapGrayRenderStyle::VeryDark) {
     return st < 3u;
   }
   if (gs == GfxRenderer::BitmapGrayRenderStyle::Balanced) {
-    return st <= 1u;  // skip light-gray stage in low mode
+    return st <= 1u;
   }
   return st < 3u;
 }
 
-void DrawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
+void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
   const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
   if (v == 3u) return;
   if (v == 0u) {
@@ -155,7 +154,7 @@ void DrawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, con
 }
 
 /** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
-bool ReadIconBitMsbFirst(const uint8_t* bitmap, const int width, const int height, const int sx, const int sy) {
+bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int height, const int sx, const int sy) {
   if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
     return false;
   }
@@ -211,12 +210,12 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   const int maskW = maxWidth > 0 ? maxWidth : drawnW;
   const int maskH = maxHeight > 0 ? maxHeight : drawnH;
 
-  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-  auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-  auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
-  if (!outputRow || !rowBytes) {
-    free(outputRow);
-    free(rowBytes);
+  const int outRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outRow = static_cast<uint8_t*>(malloc(outRowSize));
+  auto* rowBufBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
+  if (!outRow || !rowBufBytes) {
+    free(outRow);
+    free(rowBufBytes);
     return;
   }
 
@@ -228,13 +227,13 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
 
   auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
     if (roundedOutside == BitmapRender::RoundedOutside::PaperOutside && maskW > 0 && maskH > 0) {
-      if (!PixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
+      if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }
     }
     if (gfx.renderMode == GfxRenderer::BW) {
-      if (BwShouldInk2bpp(val, grayStyle)) {
-        DrawBwFrom2bppStage(gfx, screenX, screenY, val);
+      if (bwShouldInk2bpp(val, grayStyle)) {
+        drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
       gfx.drawPixel(screenX, screenY, false);
@@ -244,9 +243,9 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   };
 
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      free(outputRow);
-      free(rowBytes);
+    if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+      free(outRow);
+      free(rowBufBytes);
       return;
     }
 
@@ -271,7 +270,7 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
           const int srcCol = bmpX - cropPixX;
           const int x0 = x + static_cast<int>(std::floor(static_cast<float>(srcCol) * scale));
           const int x1 = x + static_cast<int>(std::floor(static_cast<float>(srcCol + 1) * scale));
-          const uint8_t val = pixel2bpp(outputRow, bmpX);
+          const uint8_t val = pixel2bpp(outRow, bmpX);
           for (int sx = x0; sx < x1 && sx < gfx.getScreenWidth(); ++sx) {
             if (sx < 0) {
               continue;
@@ -306,7 +305,7 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
           continue;
         }
 
-        const uint8_t val = pixel2bpp(outputRow, bmpX);
+        const uint8_t val = pixel2bpp(outRow, bmpX);
         emitPixel(screenX, screenY, val);
       }
     }
@@ -314,11 +313,11 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
 
   if (roundedOutside != BitmapRender::RoundedOutside::None && contentW > 0 && contentH > 0 && maskW > 0 &&
       maskH > 0) {
-    MaskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
+    maskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
   }
 
-  free(outputRow);
-  free(rowBytes);
+  free(outRow);
+  free(rowBufBytes);
 }
 
 void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
@@ -346,12 +345,12 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
   const int maskW = maxWidth > 0 ? maxWidth : drawnW;
   const int maskH = maxHeight > 0 ? maxHeight : drawnH;
 
-  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-  auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-  auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
-  if (!outputRow || !rowBytes) {
-    free(outputRow);
-    free(rowBytes);
+  const int outRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outRow = static_cast<uint8_t*>(malloc(outRowSize));
+  auto* rowBufBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
+  if (!outRow || !rowBufBytes) {
+    free(outRow);
+    free(rowBufBytes);
     return;
   }
 
@@ -363,13 +362,13 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
 
   auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
     if (roundedOutside == BitmapRender::RoundedOutside::PaperOutside && maskW > 0 && maskH > 0) {
-      if (!PixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
+      if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }
     }
     if (gfx.renderMode == GfxRenderer::BW) {
-      if (BwShouldInk2bpp(val, grayStyle)) {
-        DrawBwFrom2bppStage(gfx, screenX, screenY, val);
+      if (bwShouldInk2bpp(val, grayStyle)) {
+        drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
       gfx.drawPixel(screenX, screenY, false);
@@ -379,9 +378,9 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
   };
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      free(outputRow);
-      free(rowBytes);
+    if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+      free(outRow);
+      free(rowBufBytes);
       return;
     }
 
@@ -400,7 +399,7 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
         for (int bmpX = 0; bmpX < bw; bmpX++) {
           const int x0 = x + static_cast<int>(std::floor(static_cast<float>(bmpX) * scale));
           const int x1 = x + static_cast<int>(std::floor(static_cast<float>(bmpX + 1) * scale));
-          const uint8_t val = pixel2bpp(outputRow, bmpX);
+          const uint8_t val = pixel2bpp(outRow, bmpX);
           for (int sx = x0; sx < x1 && sx < gfx.getScreenWidth(); ++sx) {
             if (sx < 0) {
               continue;
@@ -427,340 +426,18 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
           continue;
         }
 
-        const uint8_t val = pixel2bpp(outputRow, bmpX);
+        const uint8_t val = pixel2bpp(outRow, bmpX);
         emitPixel1(screenX, screenY, val);
       }
     }
   }
 
   if (roundedOutside != BitmapRender::RoundedOutside::None && maskW > 0 && maskH > 0) {
-    MaskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
+    maskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
   }
 
-  free(outputRow);
-  free(rowBytes);
-}
-
-void BitmapRender::smallClean(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight) const {
-    
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
-    bool needsScaling = false;
-    
-    if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
-        scaleX = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
-        needsScaling = true;
-    }
-    if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
-        scaleY = static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight());
-        needsScaling = true;
-    }
-    
-    
-    if (needsScaling) {
-        float scale = std::min(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-    }
-    
-    
-    const int outputRowSize = (bitmap.getWidth() + 3) / 4; 
-    const int rowBytes = bitmap.getRowBytes();
-    
-    auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-    auto* rowBytesBuffer = static_cast<uint8_t*>(malloc(rowBytes));
-    
-    if (!outputRow || !rowBytesBuffer) {
-        Serial.printf("[%lu] [GFX] !! Failed to allocate bitmap row buffers\n", millis());
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    
-    Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
-    if (nonConstBitmap->rewindToData() != BmpReaderError::Ok) {
-        Serial.printf("[%lu] [GFX] Failed to rewind bitmap\n", millis());
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    
-    bool isPure1Bit = (bitmap.getBpp() == 1);
-    
-    
-    bool isGrayscaleMode =
-        (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB || gfx.renderMode == GfxRenderer::GRAYSCALE_MSB);
-    const GfxRenderer::BitmapGrayRenderStyle grayStyle = gfx.bitmapGrayRenderStyle;
-
-    for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-        
-        if (nonConstBitmap->readNextRow(outputRow, rowBytesBuffer) != BmpReaderError::Ok) {
-            Serial.printf("[%lu] [GFX] Failed to read row %d from bitmap\n", millis(), bmpY);
-            free(outputRow);
-            free(rowBytesBuffer);
-            return;
-        }
-        
-        
-        int srcY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-        
-        
-        int destY = y + static_cast<int>(srcY * scaleY);
-        
-        
-        if (destY >= gfx.getScreenHeight() || destY < 0) continue;
-        
-        
-        for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-            
-            uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
-            
-            
-            int destX = x + static_cast<int>(bmpX * scaleX);
-            
-            
-            if (destX < 0 || destX >= gfx.getScreenWidth()) continue;
-            
-            if (isGrayscaleMode) {
-                
-                
-                
-                if (val > 0) { 
-                    gfx.drawPixel(destX, destY, val);
-                }
-            } else {
-                
-                bool pixelSet;
-                
-                if (isPure1Bit) {
-                    
-                    pixelSet = (val == 0);
-                } else {
-                    pixelSet = BwShouldInk2bpp(val, grayStyle);
-                }
-
-                if (pixelSet) {
-                    if (isPure1Bit) {
-                        gfx.drawPixel(destX, destY, true);
-                    } else {
-                        DrawBwFrom2bppStage(gfx, destX, destY, val);
-                    }
-                }
-                
-            }
-        }
-    }
-    
-    free(outputRow);
-    free(rowBytesBuffer);
-}
-
-void BitmapRender::smallAdaptive(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight) const {
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
-    bool needsScaling = false;
-    
-    if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
-        scaleX = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
-        needsScaling = true;
-    }
-    if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
-        scaleY = static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight());
-        needsScaling = true;
-    }
-    
-    if (needsScaling) {
-        float scale = std::min(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-    }
-    
-    const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-    const int rowBytes = bitmap.getRowBytes();
-    
-    auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-    auto* rowBytesBuffer = static_cast<uint8_t*>(malloc(rowBytes));
-    
-    if (!outputRow || !rowBytesBuffer) {
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
-    nonConstBitmap->rewindToData();
-    
-    
-    std::vector<uint8_t> sampleValues;
-    sampleValues.reserve(100); 
-    
-    
-    for (int bmpY = 0; bmpY < std::min(10, bitmap.getHeight()); bmpY++) {
-        nonConstBitmap->readNextRow(outputRow, rowBytesBuffer);
-        for (int bmpX = 0; bmpX < std::min(10, bitmap.getWidth()); bmpX++) {
-            uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
-            sampleValues.push_back(val);
-        }
-    }
-    
-    
-    int threshold = 1; 
-    bool hasWhite = false;
-    bool hasBlack = false;
-    
-    for (uint8_t val : sampleValues) {
-        if (val >= 2) hasWhite = true;
-        if (val <= 1) hasBlack = true;
-    }
-    
-    if (hasWhite && hasBlack) {
-        
-        threshold = 1;
-    } else if (!hasWhite) {
-        
-        threshold = 3;
-    } else {
-        
-        threshold = -1;
-    }
-    
-    
-    nonConstBitmap->rewindToData();
-    
-    for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-        if (nonConstBitmap->readNextRow(outputRow, rowBytesBuffer) != BmpReaderError::Ok) {
-            free(outputRow);
-            free(rowBytesBuffer);
-            return;
-        }
-        
-        int srcY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-        int destY = y + static_cast<int>(srcY * scaleY);
-        
-        if (destY >= gfx.getScreenHeight() || destY < 0) continue;
-        
-        for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-            uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
-            
-            
-            bool pixelSet = (static_cast<int>(val) <= threshold);
-            
-            if (pixelSet) {
-                int destX = x + static_cast<int>(bmpX * scaleX);
-                if (destX >= 0 && destX < gfx.getScreenWidth()) {
-                    gfx.drawPixel(destX, destY, true);
-                }
-            }
-        }
-    }
-    
-    free(outputRow);
-    free(rowBytesBuffer);
-}
-
-void BitmapRender::small(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight) const {
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
-    bool needsScaling = false;
-    
-    if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
-        scaleX = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
-        needsScaling = true;
-    }
-    if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
-        scaleY = static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight());
-        needsScaling = true;
-    }
-    
-    if (needsScaling) {
-        float scale = std::min(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-    }
-    
-    const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-    const int rowBytes = bitmap.getRowBytes();
-    
-    auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-    auto* rowBytesBuffer = static_cast<uint8_t*>(malloc(rowBytes));
-    
-    if (!outputRow || !rowBytesBuffer) {
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
-    nonConstBitmap->rewindToData();
-    
-    
-    
-    
-    for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-        if (nonConstBitmap->readNextRow(outputRow, rowBytesBuffer) != BmpReaderError::Ok) {
-            free(outputRow);
-            free(rowBytesBuffer);
-            return;
-        }
-        
-        int srcY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-        int destY = y + static_cast<int>(srcY * scaleY);
-        
-        if (destY >= gfx.getScreenHeight() || destY < 0) continue;
-        
-        
-        for (int outX = 0; outX < static_cast<int>(bitmap.getWidth() * scaleX); outX++) {
-            int srcX = static_cast<int>(outX / scaleX);
-            if (srcX >= bitmap.getWidth()) continue;
-            
-            uint8_t val = (outputRow[srcX / 4] >> (6 - ((srcX * 2) % 8))) & 0x03;
-            
-            
-            
-            
-            
-            
-            bool isBlack = (val < 2);  
-            
-            
-            if (!isBlack && scaleX > 0.5f) {
-                
-                int neighborCount = 0;
-                int whiteNeighbors = 0;
-                
-                
-                for (int ny = -1; ny <= 1; ny++) {
-                    for (int nx = -1; nx <= 1; nx++) {
-                        if (ny == 0 && nx == 0) continue;
-                        
-                        int checkY = bmpY + ny;
-                        int checkX = srcX + nx;
-                        
-                        if (checkY >= 0 && checkY < bitmap.getHeight() && 
-                            checkX >= 0 && checkX < bitmap.getWidth()) {
-                            neighborCount++;
-                            
-                            
-                            
-                        }
-                    }
-                }
-            }
-            
-            int destX = x + outX;
-            if (destX >= 0 && destX < gfx.getScreenWidth()) {
-                if (isBlack) {
-                    gfx.drawPixel(destX, destY, true);  
-                }
-                
-            }
-        }
-    }
-    
-    free(outputRow);
-    free(rowBytesBuffer);
+  free(outRow);
+  free(rowBufBytes);
 }
 
 void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int height,
@@ -802,8 +479,8 @@ void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int hei
           sy = width - 1 - dy;
           break;
       }
-      
-      const bool ink = !ReadIconBitMsbFirst(bitmap, width, height, sx, sy);
+
+      const bool ink = !readIconBitMsbFirst(bitmap, width, height, sx, sy);
       const bool black = ink ^ invert;
       gfx.drawPixel(x + dx, y + dy, black);
     }
@@ -811,169 +488,86 @@ void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int hei
 }
 
 void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
-                                        uint8_t transparentColor,
-                                        Orientation orientation) const {
-    
-    float scaleX = 1.0f;
-    float scaleY = 1.0f;
-    
-    int targetWidth = bitmap.getWidth();
-    int targetHeight = bitmap.getHeight();
-    
-    if (maxWidth > 0 && targetWidth > maxWidth) {
-        scaleX = static_cast<float>(maxWidth) / static_cast<float>(targetWidth);
-    }
-    if (maxHeight > 0 && targetHeight > maxHeight) {
-        scaleY = static_cast<float>(maxHeight) / static_cast<float>(targetHeight);
-    }
-    
-    
-    float scale = std::min(scaleX, scaleY);
-    
-    
-    const int outputRowSize = (targetWidth + 3) / 4;
-    const int rowBytes = bitmap.getRowBytes();
-    
-    auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
-    auto* rowBytesBuffer = static_cast<uint8_t*>(malloc(rowBytes));
-    
-    if (!outputRow || !rowBytesBuffer) {
-        Serial.printf("[%lu] [GFX] !! Failed to allocate bitmap row buffers\n", millis());
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    
-    Bitmap* nonConstBitmap = const_cast<Bitmap*>(&bitmap);
-    if (nonConstBitmap->rewindToData() != BmpReaderError::Ok) {
-        Serial.printf("[%lu] [GFX] Failed to rewind bitmap\n", millis());
-        free(outputRow);
-        free(rowBytesBuffer);
-        return;
-    }
-    
-    
-    for (int bmpY = 0; bmpY < targetHeight; bmpY++) {
-        if (nonConstBitmap->readNextRow(outputRow, rowBytesBuffer) != BmpReaderError::Ok) {
-            Serial.printf("[%lu] [GFX] Failed to read row %d\n", millis(), bmpY);
-            break;
-        }
-        
-        int srcY = bitmap.isTopDown() ? bmpY : targetHeight - 1 - bmpY;
-        int destY = y + static_cast<int>(srcY * scale);
-        
-        if (destY < 0 || destY >= gfx.getScreenHeight()) continue;
-        
-        for (int bmpX = 0; bmpX < targetWidth; bmpX++) {
-            
-            uint8_t val = (outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
-            
-            int destX = x + static_cast<int>(bmpX * scale);
-            if (destX < 0 || destX >= gfx.getScreenWidth()) continue;
-            
-            
-            
-            bool shouldDraw;
-            if (transparentColor == 1) {
-                
-                shouldDraw = (val < 3);
-            } else {
-                
-                shouldDraw = (val == 3);
-            }
-            
-            if (shouldDraw) {
-                if (gfx.renderMode == GfxRenderer::BW) {
-                    if (BwShouldInk2bpp(val, gfx.bitmapGrayRenderStyle)) {
-                      DrawBwFrom2bppStage(gfx, destX, destY, val);
-                    }
-                } else {
-                    gfx.drawPixel(destX, destY, true);
-                }
-            }
-        }
-    }
-    
-    free(outputRow);
-    free(rowBytesBuffer);
-}
+                    uint8_t transparentStage,
+                    Orientation orientation) const {
 
-void BitmapRender::blendTransparent2Bit(const uint8_t bitmap[], int x, int y, int width, int height,
-                                              uint8_t alphaThreshold,
-                                              Orientation orientation) const {
-  int targetX = x;
-  int targetY = y;
-  int targetW = width;
-  int targetH = height;
+  float scaleX = 1.0f;
+  float scaleY = 1.0f;
 
-  
-  if (orientation != BitmapRender::Orientation::None) {
-    Serial.printf("[%lu] [GFX] 2-bit transparent image rotation not yet implemented\n", millis());
+  int tgtW = bitmap.getWidth();
+  int tgtH = bitmap.getHeight();
+
+  if (maxWidth > 0 && tgtW > maxWidth) {
+    scaleX = static_cast<float>(maxWidth) / static_cast<float>(tgtW);
+  }
+  if (maxHeight > 0 && tgtH > maxHeight) {
+    scaleY = static_cast<float>(maxHeight) / static_cast<float>(tgtH);
+  }
+
+  float scale = std::min(scaleX, scaleY);
+
+  const int outRowSize = (tgtW + 3) / 4;
+  const int rowBufBytes = bitmap.getRowBytes();
+
+  auto* outRow = static_cast<uint8_t*>(malloc(outRowSize));
+  auto* rowBuf = static_cast<uint8_t*>(malloc(rowBufBytes));
+
+  if (!outRow || !rowBuf) {
+    Serial.printf("[%lu] [GFX] !! Failed to allocate bitmap row buffers\n", millis());
+    free(outRow);
+    free(rowBuf);
     return;
   }
 
-  int rotatedX = 0, rotatedY = 0;
-  gfx.rotateCoordinates(targetX, targetY, &rotatedX, &rotatedY);
-
-  switch (gfx.orientation) {
-    case GfxRenderer::Portrait:
-      rotatedY -= targetH;
-      break;
-    case GfxRenderer::PortraitInverted:
-      rotatedX -= targetW;
-      break;
-    case GfxRenderer::LandscapeClockwise:
-      rotatedY -= targetH;
-      rotatedX -= targetW;
-      break;
-    case GfxRenderer::LandscapeCounterClockwise:
-      break;
-  }
-
-  uint8_t* frameBuffer = gfx.display.getFrameBuffer();
-  if (!frameBuffer) {
-    Serial.printf("[%lu] [GFX] !! No framebuffer\n", millis());
+  Bitmap* bmp = const_cast<Bitmap*>(&bitmap);
+  if (bmp->rewindToData() != BmpReaderError::Ok) {
+    Serial.printf("[%lu] [GFX] Failed to rewind bitmap\n", millis());
+    free(outRow);
+    free(rowBuf);
     return;
   }
 
-  const int stride = HalDisplay::DISPLAY_WIDTH_BYTES;
-  const int bytesPerRow = (width + 3) / 4; 
-  
-  for (int row = 0; row < height; row++) {
-    int screenY = rotatedY + row;
-    if (screenY < 0 || screenY >= HalDisplay::DISPLAY_HEIGHT) continue;
-    
-    const uint8_t* srcRow = &bitmap[row * bytesPerRow];
-    uint8_t* destRow = &frameBuffer[screenY * stride];
-    
-    for (int pixelX = 0; pixelX < width; pixelX++) {
-      int screenX = rotatedX + pixelX;
-      if (screenX < 0 || screenX >= HalDisplay::DISPLAY_WIDTH) continue;
-      
-      
-      const int byteIdx = pixelX / 4;
-      const int bitShift = 6 - ((pixelX & 3) << 1);
-      const uint8_t pixelValue = (srcRow[byteIdx] >> bitShift) & 0x03;
-      
-      
-      
-      if (pixelValue >= alphaThreshold) {
-        const uint16_t byteIndex = screenY * stride + (screenX / 8);
-        const uint8_t bitPosition = 7 - (screenX % 8);
-        
-        
-        
-        bool drawBlack = (pixelValue < 2); 
-        
-        if (drawBlack) {
-          frameBuffer[byteIndex] &= ~(1 << bitPosition);  
+  for (int bmpY = 0; bmpY < tgtH; bmpY++) {
+    if (bmp->readNextRow(outRow, rowBuf) != BmpReaderError::Ok) {
+      Serial.printf("[%lu] [GFX] Failed to read row %d\n", millis(), bmpY);
+      break;
+    }
+
+    int srcY = bitmap.isTopDown() ? bmpY : tgtH - 1 - bmpY;
+    int destY = y + static_cast<int>(srcY * scale);
+
+    if (destY < 0 || destY >= gfx.getScreenHeight()) continue;
+
+    for (int bmpX = 0; bmpX < tgtW; bmpX++) {
+
+      uint8_t val = (outRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
+
+      int destX = x + static_cast<int>(bmpX * scale);
+      if (destX < 0 || destX >= gfx.getScreenWidth()) continue;
+
+      bool shouldDraw;
+      if (transparentStage == 1) {
+
+        shouldDraw = (val < 3);
+      } else {
+
+        shouldDraw = (val == 3);
+      }
+
+      if (shouldDraw) {
+        if (gfx.renderMode == GfxRenderer::BW) {
+          if (bwShouldInk2bpp(val, gfx.bitmapGrayRenderStyle)) {
+                      drawBwFrom2bppStage(gfx, destX, destY, val);
+          }
         } else {
-          frameBuffer[byteIndex] |= 1 << bitPosition;   
+          gfx.drawPixel(destX, destY, true);
         }
       }
     }
   }
+
+  free(outRow);
+  free(rowBuf);
 }
 
 namespace SleepScreenBitmap {
@@ -991,19 +585,19 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
     isScaled = true;
   }
 
-  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-  auto* outputRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outputRowSize)));
-  auto* rowBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
-  if (!outputRow || !rowBytes) {
-    free(outputRow);
-    free(rowBytes);
+  const int outRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outRowSize)));
+  auto* rowBufBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
+  if (!outRow || !rowBufBytes) {
+    free(outRow);
+    free(rowBufBytes);
     return;
   }
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      free(outputRow);
-      free(rowBytes);
+    if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+      free(outRow);
+      free(rowBufBytes);
       return;
     }
 
@@ -1025,7 +619,7 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
         continue;
       }
 
-      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+      const uint8_t val = outRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
       if (val < 3) {
         gfx.drawPixel(screenX, screenY, true);
@@ -1033,11 +627,11 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
     }
   }
 
-  free(outputRow);
-  free(rowBytes);
+  free(outRow);
+  free(rowBufBytes);
 }
 
-}  
+}
 
 void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
                                   const int maxHeight, const float cropX, const float cropY,
@@ -1087,12 +681,12 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
 
   const bool upscale = isScaled && scale > 1.0f + kEps;
 
-  const int outputRowSize = (bitmap.getWidth() + 3) / 4;
-  auto* outputRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outputRowSize)));
-  auto* rowBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
-  if (!outputRow || !rowBytes) {
-    free(outputRow);
-    free(rowBytes);
+  const int outRowSize = (bitmap.getWidth() + 3) / 4;
+  auto* outRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outRowSize)));
+  auto* rowBufBytes = static_cast<uint8_t*>(malloc(static_cast<size_t>(bitmap.getRowBytes())));
+  if (!outRow || !rowBufBytes) {
+    free(outRow);
+    free(rowBufBytes);
     return;
   }
 
@@ -1110,9 +704,9 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
   };
 
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      free(outputRow);
-      free(rowBytes);
+    if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+      free(outRow);
+      free(rowBufBytes);
       return;
     }
 
@@ -1148,7 +742,7 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
 
     for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; bmpX++) {
       const int relX = bmpX - cropPixX;
-      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+      const uint8_t val = outRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
       if (!isScaled) {
         const int sx = relX + x;
@@ -1187,6 +781,6 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
     }
   }
 
-  free(outputRow);
-  free(rowBytes);
+  free(outRow);
+  free(rowBufBytes);
 }

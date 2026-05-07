@@ -7,7 +7,7 @@
 
 #include <Bitmap.h>
 #include <GfxRenderer.h>
-#include <JpegRenderer.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -464,7 +464,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   bool coverDrawn = false;
 
   if (SdMan.exists(coverJpegPath.c_str())) {
-    JpegRenderer jpeg(renderer);
+    JpegRender jpeg(renderer);
     coverDrawn = jpeg.fromPath(coverJpegPath, x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), true);
   }
   FsFile file;
@@ -567,7 +567,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     if (!rr) {
       renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
-    JpegRenderer jpeg(renderer);
+    JpegRender jpeg(renderer);
     if (jpeg.fromPath(coverJpegPath, innerX + 2, innerY + 2, availW, availH, true)) {
       return {frameW, frameH};
     }

@@ -1,9 +1,9 @@
 /**
- * @file JpegRenderer.cpp
- * @brief Definitions for JpegRenderer.
+ * @file JpegRender.cpp
+ * @brief Definitions for JpegRender.
  */
 
-#include "JpegRenderer.h"
+#include "JpegRender.h"
 
 #include "GfxRenderer.h"
 #include <SDCardManager.h>
@@ -85,7 +85,7 @@ constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
 
 }  // namespace
 
-bool JpegRenderer::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
+bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -222,7 +222,7 @@ bool JpegRenderer::render(FsFile& jpegFile, int x, int y, int targetWidth, int t
   return currentOutY > 0;
 }
 
-bool JpegRenderer::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
+bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
                                     bool cropToFill) const {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
@@ -233,7 +233,7 @@ bool JpegRenderer::fromPath(const std::string& path, int x, int y, int targetWid
   return ok;
 }
 
-bool JpegRenderer::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
+bool JpegRender::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
   if (!outW || !outH || !jpegFile) {
     return false;
   }
@@ -252,7 +252,7 @@ bool JpegRenderer::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
   return ok && *outW > 0 && *outH > 0;
 }
 
-bool JpegRenderer::getDimensions(const std::string& path, int* outW, int* outH) {
+bool JpegRender::getDimensions(const std::string& path, int* outW, int* outH) {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
