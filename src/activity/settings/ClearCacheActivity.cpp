@@ -66,48 +66,48 @@ void ClearCacheActivity::render() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Reset device", true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Reset device", true, EpdFontFamily::BOLD);
 
   if (state == WARNING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 60, "This removes /.system and /.metadata", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 30, "from the SD card (settings, Wi-Fi,", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "book caches, library index, recent list).", true);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 30, "Reading progress in book caches is lost.", true,
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 60, "This removes /.system and /.metadata", true);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 30, "from the SD card (settings, Wi-Fi,", true);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "book caches, library index, recent list).", true);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 30, "Reading progress in book caches is lost.", true,
                               EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 60, "In‑memory state reloads after reset.", true);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 60, "In‑memory state reloads after reset.", true);
 
     const auto labels = mappedInput.mapLabels("« Cancel", "Reset", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == CLEARING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "Resetting...", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "Resetting...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset complete", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset complete", true, EpdFontFamily::BOLD);
     String resultText = String(clearedCount) + " items removed";
     if (failedCount > 0) {
       resultText += ", " + String(failedCount) + " failed";
     }
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, resultText.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, resultText.c_str());
 
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset failed", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, "Check serial output for details");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Reset failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, "Check serial output for details");
 
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }

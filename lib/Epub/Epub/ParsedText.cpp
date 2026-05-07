@@ -39,7 +39,7 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
                           const EpdFontFamily::Style style, const bool appendHyphen = false) {
   const bool hasSoftHyphen = containsSoftHyphen(word);
   if (!hasSoftHyphen && !appendHyphen) {
-    return renderer.getTextWidth(fontId, word.c_str(), style);
+    return renderer.text.getWidth(fontId, word.c_str(), style);
   }
 
   std::string sanitized = word;
@@ -49,7 +49,7 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
   if (appendHyphen) {
     sanitized.push_back('-');
   }
-  return renderer.getTextWidth(fontId, sanitized.c_str(), style);
+  return renderer.text.getWidth(fontId, sanitized.c_str(), style);
 }
 
 /**
@@ -117,7 +117,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   applyParagraphIndent(renderer, fontId);
 
   const int pageWidth = viewportWidth;
-  const int spaceWidth = renderer.getSpaceWidth(fontId);
+  const int spaceWidth = renderer.text.getSpaceWidth(fontId);
   auto wordWidths = calculateWordWidths(renderer, fontId);
   std::vector<size_t> lineBreakIndices;
   const int dropW = static_cast<int>(leftIndentWidth);
@@ -321,7 +321,7 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     if (cssTextIndentPx > 0) {
       static const char em[] = "\xe2\x80\x83";
       const EpdFontFamily::Style emStyle = wordStyles.empty() ? EpdFontFamily::REGULAR : wordStyles.front();
-      const int emw = renderer.getTextWidth(fontId, em, emStyle);
+      const int emw = renderer.text.getWidth(fontId, em, emStyle);
       if (emw > 0) {
         const int n = std::min(80, (cssTextIndentPx + emw - 1) / emw);
         std::string pad;

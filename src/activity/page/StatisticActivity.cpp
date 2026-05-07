@@ -42,9 +42,9 @@ void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int 
       cropY = 1.0f - (ir / tr);
     }
   }
-  renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY,
-                      SETTINGS.bitmapRoundedCorners != 0 ? GfxRenderer::BitmapRoundedCornerOutside::PaperOutside
-                                                         : GfxRenderer::BitmapRoundedCornerOutside::None);
+  renderer.bitmap.render(bitmap, x, y, w, h, cropX, cropY,
+                      SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
+                                                         : BitmapRender::RoundedOutside::None);
 }
 
 constexpr unsigned long GO_HOME_MS = 1000;
@@ -69,13 +69,13 @@ void drawThinProgressBar(const GfxRenderer& renderer, int x, int y, int w, int h
   if (w <= 0 || h <= 0) {
     return;
   }
-  renderer.fillRect(x, y, w, h, GfxRenderer::FillTone::Gray, false);
+  renderer.rectangle.fill(x, y, w, h, static_cast<int>(GfxRenderer::FillTone::Gray), false);
   const float p = std::min(1.f, std::max(0.f, pct01));
   const int fillW = static_cast<int>(static_cast<float>(w) * p + 0.5f);
   if (fillW > 0) {
-    renderer.fillRect(x, y, fillW, h, GfxRenderer::FillTone::Ink, false);
+    renderer.rectangle.fill(x, y, fillW, h, static_cast<int>(GfxRenderer::FillTone::Ink), false);
   }
-  renderer.drawRect(x, y, w, h, true);
+  renderer.rectangle.render(x, y, w, h, true);
 }
 
 /** Circle outline via pixels (GfxRenderer::drawLine does not draw diagonals). */
@@ -188,7 +188,7 @@ void fillAnnulusToneScanlines(const GfxRenderer& renderer, int cx, int cy, int r
       xa = std::max(0, xa);
       xb = std::min(scrW - 1, xb);
       if (xa <= xb) {
-        renderer.fillRect(xa, y, xb - xa + 1, 1, tone, false);
+        renderer.rectangle.fill(xa, y, xb - xa + 1, 1, static_cast<int>(tone), false);
       }
     };
     if (ady >= ri) {
@@ -235,14 +235,14 @@ void drawFullDonutGauge(const GfxRenderer& renderer, int cx, int cy, int rOut, i
   drawCircleOutlinePixels(renderer, cx, cy, rOut);
   drawCircleOutlinePixels(renderer, cx, cy, rIn);
 
-  const int tw = renderer.getTextWidth(FONT_SERIF_MD, centerPct);
-  const int lhMd = renderer.getLineHeight(FONT_SERIF_MD);
-  renderer.drawText(FONT_SERIF_MD, cx - tw / 2, cy - lhMd / 2, centerPct);
+  const int tw = renderer.text.getWidth(FONT_SERIF_MD, centerPct);
+  const int lhMd = renderer.text.getLineHeight(FONT_SERIF_MD);
+  renderer.text.render(FONT_SERIF_MD, cx - tw / 2, cy - lhMd / 2, centerPct);
 }
 
 void drawVertRule(const GfxRenderer& renderer, int x, int y, int h) {
   if (h > 0) {
-    renderer.drawLine(x, y, x, y + h, true);
+    renderer.line.render(x, y, x, y + h, true);
   }
 }
 
@@ -257,9 +257,9 @@ struct GlobalAllItemsGeom {
 };
 
 static GlobalAllItemsGeom computeGlobalAllItemsGeom(const GfxRenderer& renderer) {
-  const int lhSans = renderer.getLineHeight(FONT_SANS);
-  const int lhSm = renderer.getLineHeight(FONT_SANS_SM);
-  const int lhNum = renderer.getLineHeight(FONT_SERIF_LG);
+  const int lhSans = renderer.text.getLineHeight(FONT_SANS);
+  const int lhSm = renderer.text.getLineHeight(FONT_SANS_SM);
+  const int lhNum = renderer.text.getLineHeight(FONT_SERIF_LG);
   const int kCaptionStackH = lhSans * 2 + 6;
   constexpr int kMetricsPadT = 8;
   const int kMetricsH = kMetricsPadT + lhNum + 4 + lhSm;
@@ -284,10 +284,10 @@ static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLef
   const int xText = cx + kGlobalAllItemsDonutR + kGlobalAllItemsDonutTextGap;
   const int textW = std::max(0, innerRight - xText - 8);
   const int yText0 = y + (g.rowH - g.kCaptionStackH) / 2;
-  const std::string cap1 = renderer.truncatedText(FONT_SANS, line1, textW);
-  const std::string cap2 = renderer.truncatedText(FONT_SANS, line2, textW);
-  renderer.drawText(FONT_SANS, xText, yText0, cap1.c_str());
-  renderer.drawText(FONT_SANS, xText, yText0 + g.lhSans, cap2.c_str());
+  const std::string cap1 = renderer.text.truncate(FONT_SANS, line1, textW);
+  const std::string cap2 = renderer.text.truncate(FONT_SANS, line2, textW);
+  renderer.text.render(FONT_SANS, xText, yText0, cap1.c_str());
+  renderer.text.render(FONT_SANS, xText, yText0 + g.lhSans, cap2.c_str());
 }
 
 /**
@@ -303,28 +303,28 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax, which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
   int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 20;
-  renderer.drawLine(innerLeft, yRule, innerRight, yRule, true);
+  renderer.line.render(innerLeft, yRule, innerRight, yRule, true);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);
 
   char buf[32];
   snprintf(buf, sizeof(buf), "%u", booksFinished);
   const int leftCx = innerLeft + (midX - innerLeft) / 2;
-  const int twFin = renderer.getTextWidth(FONT_SERIF_LG, buf);
+  const int twFin = renderer.text.getWidth(FONT_SERIF_LG, buf);
   const int yNum = yRule + g.kMetricsPadT;
-  renderer.drawText(FONT_SERIF_LG, leftCx - twFin / 2, yNum, buf);
+  renderer.text.render(FONT_SERIF_LG, leftCx - twFin / 2, yNum, buf);
   const char* labFin = "Books finished";
-  const int twLabF = renderer.getTextWidth(FONT_SANS_SM, labFin);
+  const int twLabF = renderer.text.getWidth(FONT_SANS_SM, labFin);
   const int yLabFin = yNum + g.lhNum + 4;
-  renderer.drawText(FONT_SANS_SM, leftCx - twLabF / 2, yLabFin, labFin);
+  renderer.text.render(FONT_SANS_SM, leftCx - twLabF / 2, yLabFin, labFin);
 
   snprintf(buf, sizeof(buf), "%u", booksOpened);
   const int rightCx = midX + (innerRight - midX) / 2;
-  const int twH = renderer.getTextWidth(FONT_SERIF_LG, buf);
-  renderer.drawText(FONT_SERIF_LG, rightCx - twH / 2, yNum, buf);
+  const int twH = renderer.text.getWidth(FONT_SERIF_LG, buf);
+  renderer.text.render(FONT_SERIF_LG, rightCx - twH / 2, yNum, buf);
   const char* labH = "Books opened";
-  const int twLabH = renderer.getTextWidth(FONT_SANS_SM, labH);
-  renderer.drawText(FONT_SANS_SM, rightCx - twLabH / 2, yLabFin, labH);
+  const int twLabH = renderer.text.getWidth(FONT_SANS_SM, labH);
+  renderer.text.render(FONT_SANS_SM, rightCx - twLabH / 2, yLabFin, labH);
 
   return yRule + g.kMetricsH;
 }
@@ -382,12 +382,12 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
   const int wRight = std::max(20, (innerLeft + innerW) - midX - kEdgePad - kMidGutter);
   drawVertRule(renderer, midX, y, blockH);
   for (int r = 1; r < numRows; ++r) {
-    renderer.drawLine(innerLeft, yBound[static_cast<size_t>(r)], innerLeft + innerW, yBound[static_cast<size_t>(r)],
+    renderer.line.render(innerLeft, yBound[static_cast<size_t>(r)], innerLeft + innerW, yBound[static_cast<size_t>(r)],
                       true);
   }
 
-  const int lhVal = renderer.getLineHeight(FONT_SERIF_LG);
-  const int lhLab = renderer.getLineHeight(FONT_SANS_SM);
+  const int lhVal = renderer.text.getLineHeight(FONT_SERIF_LG);
+  const int lhLab = renderer.text.getLineHeight(FONT_SANS_SM);
   constexpr int kValLabGap = 4;
   const int stackH = lhVal + kValLabGap + lhLab;
 
@@ -410,10 +410,10 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
     } else {
       rowTop = (stackH <= innerBand) ? bandTop : std::max(bandTop, bandBottom - stackH);
     }
-    const std::string valT = renderer.truncatedText(FONT_SERIF_LG, val, cw);
-    const std::string labT = renderer.truncatedText(FONT_SANS_SM, lab, cw);
-    renderer.drawText(FONT_SERIF_LG, cellLeft, rowTop, valT.c_str());
-    renderer.drawText(FONT_SANS_SM, cellLeft, rowTop + lhVal + kValLabGap, labT.c_str());
+    const std::string valT = renderer.text.truncate(FONT_SERIF_LG, val, cw);
+    const std::string labT = renderer.text.truncate(FONT_SANS_SM, lab, cw);
+    renderer.text.render(FONT_SERIF_LG, cellLeft, rowTop, valT.c_str());
+    renderer.text.render(FONT_SANS_SM, cellLeft, rowTop + lhVal + kValLabGap, labT.c_str());
   };
   for (int row = 0; row < numRows; ++row) {
     cell(0, row, vals[row * 2], labs[row * 2]);
@@ -465,7 +465,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
 
   if (SdMan.exists(coverJpegPath.c_str())) {
     JpegRenderer jpeg(renderer);
-    coverDrawn = jpeg.drawJpegFromPath(coverJpegPath, x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), true);
+    coverDrawn = jpeg.fromPath(coverJpegPath, x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), true);
   }
   FsFile file;
   if (!coverDrawn && SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
@@ -485,15 +485,15 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   }
 
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-  renderer.fillRect(x, y, width, height, false, rr);
+  renderer.rectangle.fill(x, y, width, height, false, rr);
   if (!rr) {
-    renderer.drawRect(x, y, width, height, true, false);
+    renderer.rectangle.render(x, y, width, height, true, false);
   }
 
   if (!title.empty()) {
     int lineY = y + 18;
     int maxWidth = width - 24;
-    int lineHeight = renderer.getLineHeight(FONT_SERIF_SM);
+    int lineHeight = renderer.text.getLineHeight(FONT_SERIF_SM);
 
     std::string remaining = title;
     int lineCount = 0;
@@ -506,7 +506,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
         size_t spacePos = remaining.find(' ');
         std::string word = (spacePos != std::string::npos) ? remaining.substr(0, spacePos) : remaining;
 
-        int wordWidth = renderer.getTextWidth(FONT_SERIF_SM, word.c_str(), EpdFontFamily::REGULAR);
+        int wordWidth = renderer.text.getWidth(FONT_SERIF_SM, word.c_str(), EpdFontFamily::REGULAR);
 
         if (lineWidth + wordWidth <= maxWidth) {
           if (!line.empty()) line += " ";
@@ -527,9 +527,9 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
         break;
       }
 
-      int textWidth = renderer.getTextWidth(FONT_SERIF_SM, line.c_str(), EpdFontFamily::REGULAR);
+      int textWidth = renderer.text.getWidth(FONT_SERIF_SM, line.c_str(), EpdFontFamily::REGULAR);
       int textX = x + (width - textWidth) / 2;
-      renderer.drawText(FONT_SERIF_SM, textX, lineY, line.c_str(), true, EpdFontFamily::REGULAR);
+      renderer.text.render(FONT_SERIF_SM, textX, lineY, line.c_str(), true, EpdFontFamily::REGULAR);
       lineY += lineHeight;
       lineCount++;
     }
@@ -537,10 +537,10 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
 
   if (!author.empty()) {
     std::string authorText = author;
-    int authorWidth = renderer.getTextWidth(FONT_SANS, authorText.c_str());
+    int authorWidth = renderer.text.getWidth(FONT_SANS, authorText.c_str());
     int authorX = x + (width - authorWidth) / 2;
     int authorY = y + height - 22;
-    renderer.drawText(FONT_SANS, authorX, authorY, authorText.c_str());
+    renderer.text.render(FONT_SANS, authorX, authorY, authorText.c_str());
   }
 }
 
@@ -563,12 +563,12 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     const int innerX = boxX + kOuterPad;
     const int innerY = yTop + kOuterPad;
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-    renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+    renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
     if (!rr) {
-      renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+      renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
     JpegRenderer jpeg(renderer);
-    if (jpeg.drawJpegFromPath(coverJpegPath, innerX + 2, innerY + 2, availW, availH, true)) {
+    if (jpeg.fromPath(coverJpegPath, innerX + 2, innerY + 2, availW, availH, true)) {
       return {frameW, frameH};
     }
   }
@@ -582,9 +582,9 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     const int innerX = boxX + kOuterPad;
     const int innerY = yTop + kOuterPad;
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-    renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+    renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
     if (!rr) {
-      renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+      renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
     Bitmap bitmap(file, BitmapDitherMode::None);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -609,9 +609,9 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
   const int frameW = coverW + 2 * kOuterPad;
   const int frameH = coverH + 2 * kOuterPad;
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-  renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+  renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
   if (!rr) {
-    renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+    renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
   }
   renderCover(bookPath, boxX + kOuterPad, yTop + kOuterPad, coverW, coverH, title, "");
   return {frameW, frameH};
@@ -638,11 +638,11 @@ void StatisticActivity::onExit() {
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {
   (void)innerRight;
-  const int lhLG = renderer.getLineHeight(FONT_SERIF_LG);
+  const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
   const char* screenTitle = "Reading stats";
   const int maxTitleW = std::max(8, innerW - Margin * 2);
-  const std::string titleShown = renderer.truncatedText(FONT_SERIF_LG, screenTitle, maxTitleW);
-  renderer.drawText(FONT_SERIF_LG, innerLeft, y, titleShown.c_str());
+  const std::string titleShown = renderer.text.truncate(FONT_SERIF_LG, screenTitle, maxTitleW);
+  renderer.text.render(FONT_SERIF_LG, innerLeft, y, titleShown.c_str());
   return y + lhLG + Margin;
 }
 
@@ -652,9 +652,9 @@ int StatisticActivity::renderRecent(int y, int innerLeft, int innerRight, int in
   constexpr int g8 = 8;
   constexpr int g10 = 10;
 
-  const int lhSerif = renderer.getLineHeight(FONT_SERIF);
-  const int lhSans = renderer.getLineHeight(FONT_SANS);
-  const int lhSm = renderer.getLineHeight(FONT_SANS_SM);
+  const int lhSerif = renderer.text.getLineHeight(FONT_SERIF);
+  const int lhSans = renderer.text.getLineHeight(FONT_SANS);
+  const int lhSm = renderer.text.getLineHeight(FONT_SANS_SM);
   const int yCoverTop = y;
 
   std::pair<int, int> tf;
@@ -670,25 +670,25 @@ int StatisticActivity::renderRecent(int y, int innerLeft, int innerRight, int in
 
     const int yTitle = yCoverTop + kGlobalThumbOuterPad;
     std::string titleLine =
-        renderer.truncatedText(FONT_SERIF, cur.title.c_str(), textColW, EpdFontFamily::ITALIC);
-    renderer.drawText(FONT_SERIF, textX, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
+        renderer.text.truncate(FONT_SERIF, cur.title.c_str(), textColW, EpdFontFamily::ITALIC);
+    renderer.text.render(FONT_SERIF, textX, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
     const int yAuthor = yTitle + lhSerif + g8;
     if (!cur.author.empty()) {
-      std::string auth = renderer.truncatedText(FONT_SANS, cur.author.c_str(), textColW);
-      renderer.drawText(FONT_SANS, textX, yAuthor, auth.c_str());
+      std::string auth = renderer.text.truncate(FONT_SANS, cur.author.c_str(), textColW);
+      renderer.text.render(FONT_SANS, textX, yAuthor, auth.c_str());
     }
     const int yProg = yAuthor + lhSans + g10;
     char progLabel[48];
     snprintf(progLabel, sizeof(progLabel), "Book progress: %.0f%%", prog * 100.f);
-    renderer.drawText(FONT_SANS_SM, textX, yProg, progLabel);
+    renderer.text.render(FONT_SANS_SM, textX, yProg, progLabel);
     const int yBar = yProg + lhSm + g8;
     drawThinProgressBar(renderer, textX, yBar, textColW, 8, prog);
     yThumbBottom = yBar + 8;
   } else {
     tf = drawGlobalRecentThumbBlock(innerLeft, yCoverTop, "", "");
-    const int nw = renderer.getTextWidth(FONT_SANS, "No recent book");
+    const int nw = renderer.text.getWidth(FONT_SANS, "No recent book");
     const int yEmpty = yCoverTop + (tf.second - lhSans) / 2;
-    renderer.drawText(FONT_SANS, innerLeft + (tf.first - nw) / 2, yEmpty, "No recent book");
+    renderer.text.render(FONT_SANS, innerLeft + (tf.first - nw) / 2, yEmpty, "No recent book");
     yThumbBottom = yCoverTop + tf.second;
   }
 
@@ -754,9 +754,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int y0 = contentTop + 4;
   const int yEnd = contentBottom - 24;
 
-  const int lhLG = renderer.getLineHeight(FONT_SERIF_LG);
-  const int lhSerif = renderer.getLineHeight(FONT_SERIF);
-  const int lhSans = renderer.getLineHeight(FONT_SANS);
+  const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
+  const int lhSerif = renderer.text.getLineHeight(FONT_SERIF);
+  const int lhSans = renderer.text.getLineHeight(FONT_SANS);
   /** Title and author below cover row; sessions/chapters are in the bottom stats grid (same style as hours). */
   const int metaSpan = lhSerif + g8 + lhSans + g10;
   constexpr int gapCoverTitle = 6;
@@ -769,8 +769,8 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   constexpr int kTitlePad = 10;
   const char* screenTitle = "Reading stats";
   const int maxTitleW = std::max(8, innerW - kTitlePad * 2);
-  const std::string titleShown = renderer.truncatedText(FONT_SERIF_LG, screenTitle, maxTitleW);
-  renderer.drawText(FONT_SERIF_LG, innerLeft, y0, titleShown.c_str());
+  const std::string titleShown = renderer.text.truncate(FONT_SERIF_LG, screenTitle, maxTitleW);
+  renderer.text.render(FONT_SERIF_LG, innerLeft, y0, titleShown.c_str());
   int y = y0 + lhLG + 4;
   y += g8;
   const int yCoverTop = y;
@@ -796,9 +796,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
       (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
   const int boxX = innerLeft;
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-  renderer.fillRect(boxX, yCoverTop, coverW, coverH, false, rr);
+  renderer.rectangle.fill(boxX, yCoverTop, coverW, coverH, false, rr);
   if (!rr) {
-    renderer.drawRect(boxX, yCoverTop, coverW, coverH, true, false);
+    renderer.rectangle.render(boxX, yCoverTop, coverW, coverH, true, false);
   }
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 
@@ -809,13 +809,13 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   drawFullDonutGauge(renderer, cxGauge, cyGauge, kBookDonutR, kBookDonutThick, prog, pctStr);
 
   const int textMaxW = innerW;
-  std::string titleLine = renderer.truncatedText(FONT_SERIF, b.title.c_str(), textMaxW, EpdFontFamily::ITALIC);
+  std::string titleLine = renderer.text.truncate(FONT_SERIF, b.title.c_str(), textMaxW, EpdFontFamily::ITALIC);
   const int yTitle = yCoverTop + rowHeight + gapCoverTitle;
-  renderer.drawText(FONT_SERIF, innerLeft, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
+  renderer.text.render(FONT_SERIF, innerLeft, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
   const int yAuthor = yTitle + lhSerif + g8;
   if (!b.author.empty()) {
-    std::string auth = renderer.truncatedText(FONT_SANS, b.author.c_str(), textMaxW);
-    renderer.drawText(FONT_SANS, innerLeft, yAuthor, auth.c_str());
+    std::string auth = renderer.text.truncate(FONT_SANS, b.author.c_str(), textMaxW);
+    renderer.text.render(FONT_SANS, innerLeft, yAuthor, auth.c_str());
   }
 
   char v0[20], v1[20], v2[20], v3[20], vSess[16], vChap[16];
@@ -839,7 +839,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
 
   char footer[24];
   snprintf(footer, sizeof(footer), "%d/%zu", bookIdx + 1, allBooksStats.size());
-  renderer.drawCenteredText(FONT_SANS_SM, contentBottom - 5, footer);
+  renderer.text.centered(FONT_SANS_SM, contentBottom - 5, footer);
 }
 
 void StatisticActivity::render() {
@@ -875,7 +875,7 @@ void StatisticActivity::render() {
   }
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

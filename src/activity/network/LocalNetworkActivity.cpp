@@ -39,16 +39,16 @@ constexpr int BOTTOM_AREA_HEIGHT = 80;
 void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
     const int headerHeight = TAB_BAR_HEIGHT;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                     startY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
+                     startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
                      title, true, EpdFontFamily::BOLD);
     
     if (subtitle) {
         int subtitleY = startY + SUBTITLE_Y_OFFSET;
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
         
-        int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-        renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+        int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
+        renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
     }
 }
 
@@ -259,25 +259,25 @@ void LocalNetworkActivity::render() const {
         renderActivityHeader(renderer, startY, "File Transfer", "Starting server...");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
     } else if (state == LocalNetworkState::ERROR) {
         renderActivityHeader(renderer, startY, "File Transfer", "Connection Failed");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
     }
 
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 
                             labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     
     renderer.displayBuffer();
@@ -293,49 +293,49 @@ void LocalNetworkActivity::renderServerRunning() const {
     renderActivityHeader(renderer, startY, "File Transfer", "Local Network");
     
     int currentY = startY + SUBTITLE_Y_OFFSET + 
-                   renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                   renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                    DIVIDER_PADDING + SECTION_SPACING - 10;
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
     std::string ssidInfo = "WiFi: " + connectedSSID;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, 
                      truncateString(ssidInfo, 34).c_str());
     currentY += LINE_SPACING;
     
     std::string ipInfo = "IP: " + connectedIP;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      ipInfo.c_str());
     currentY += LINE_SPACING * 2;
 
-    renderer.drawLine(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
+    renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
     currentY += SECTION_SPACING;
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Web Access", true, EpdFontFamily::BOLD);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Web Access", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      "Open this URL in your browser:");
     currentY += SMALL_SPACING;
     
     std::string ipUrl = "http://" + connectedIP + "/";
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      ipUrl.c_str(), true, EpdFontFamily::BOLD);
     currentY += SMALL_SPACING;
     
     std::string hostnameUrl = std::string("or http://") + AP_HOSTNAME + ".local/";
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
                      hostnameUrl.c_str());
     currentY += SMALL_SPACING + 10;
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
                      "Use this address to transfer files");
     currentY += SMALL_SPACING;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
                      "from Calibre or web browser");
 }

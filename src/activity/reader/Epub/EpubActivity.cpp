@@ -205,26 +205,26 @@ void EpubActivity::drawLoadingScreen() {
   const int barX = 0;
   const int barY = renderer.getScreenHeight() - barHeight;
 
-  renderer.fillRect(barX, barY, barWidth, barHeight, false);
-  renderer.drawRect(barX, barY, barWidth, barHeight, true);
+  renderer.rectangle.fill(barX, barY, barWidth, barHeight, false);
+  renderer.rectangle.render(barX, barY, barWidth, barHeight, true);
 
   if (loadingProgress > 0) {
     int fillWidth = barWidth * loadingProgress / 100;
     if (fillWidth > 0) {
-      renderer.fillRect(barX + 2, barY + 2, fillWidth - 4, barHeight - 4, true);
+      renderer.rectangle.fill(barX + 2, barY + 2, fillWidth - 4, barHeight - 4, true);
     }
   }
 
   char percentStr[8];
   snprintf(percentStr, sizeof(percentStr), "%d%%", loadingProgress);
-  int percentWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentStr);
+  int percentWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentStr);
   int percentX = barX + (barWidth - percentWidth) / 2;
-  int percentY = barY + (barHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  int percentY = barY + (barHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
   if (loadingProgress > 50) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, false);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, false);
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, true);
   }
 
   renderer.displayBuffer();
@@ -497,7 +497,7 @@ void EpubActivity::displayCoverOrTitle() {
     const int pageHeight = renderer.getScreenHeight();
     renderer.clearScreen();
     JpegRenderer jpeg(renderer);
-    if (jpeg.drawJpegFromPath(coverJpegPath, 0, 0, pageWidth, pageHeight, true)) {
+    if (jpeg.fromPath(coverJpegPath, 0, 0, pageWidth, pageHeight, true)) {
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       return;
     }
@@ -532,7 +532,7 @@ void EpubActivity::displayCoverOrTitle() {
   renderer.clearScreen();
 
 
-  renderer.drawBitmap(coverBmp, x, y, pageWidth, pageHeight, cropX, cropY);
+  renderer.bitmap.render(coverBmp, x, y, pageWidth, pageHeight, cropX, cropY);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
@@ -1049,7 +1049,7 @@ void EpubActivity::onFootnoteDrawerSelected(int storageIndex) {
   const std::string body = (tab != std::string::npos) ? full.substr(tab + 1) : full;
   const int maxW = std::max(60, renderer.getScreenWidth() - 40);
   const std::string shown =
-      renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, body.c_str(), maxW);
+      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, body.c_str(), maxW);
   readerPopup(shown.c_str());
   startPageTimer();
 }
@@ -1739,7 +1739,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     if (!page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, ix, iy, iw, ih)) {
       return false;
     }
-    renderer.fillRect(ix, iy, iw, ih, false);
+    renderer.rectangle.fill(ix, iy, iw, ih, false);
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     drawPageBodyBw();
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
@@ -1857,13 +1857,13 @@ void EpubActivity::displayBookTitle() {
 
   int maxWidth = renderer.getScreenWidth() * 0.6;
 
-  int titleWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str());
+  int titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str());
 
   if (titleWidth > maxWidth) {
-    bookTitle = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str(), maxWidth);
+    bookTitle = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str(), maxWidth);
   }
 
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, bookTitle.c_str(), true,
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, bookTitle.c_str(), true,
                             EpdFontFamily::BOLD);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
@@ -2023,7 +2023,7 @@ void EpubActivity::drawBookmarkIndicator() {
   const int yPoints[5] = {bookmarkY, bookmarkY, bookmarkY + bookmarkHeight, bookmarkY + bookmarkHeight - notchDepth,
                           bookmarkY + bookmarkHeight};
 
-  renderer.fillPolygon(xPoints, yPoints, 5, true);
+  renderer.polygon.render(xPoints, yPoints, 5, true, true);
 }
 
 /**
@@ -2238,24 +2238,24 @@ void EpubActivity::displayBookStats() {
   int currentY = statsY;
   char buffer[32];
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   uint32_t readingTime = stats.totalReadingTimeMs;
   std::string timeStr = formatTime(readingTime);
-  renderer.drawText(VALUE_FONT, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Reading Time", true);
+  renderer.text.render(VALUE_FONT, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
+  renderer.text.render(LABEL_FONT, statsX, currentY + 45, "Reading Time", true);
   currentY += 87;
 
   uint32_t pagesRead = stats.totalPagesRead;
   snprintf(buffer, sizeof(buffer), "%u", pagesRead);
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Pages", true);
+  renderer.text.render(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
+  renderer.text.render(LABEL_FONT, statsX, currentY + 45, "Pages", true);
   currentY += 87;
 
   uint32_t chaptersRead = stats.totalChaptersRead;
   snprintf(buffer, sizeof(buffer), "%u", chaptersRead);
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
+  renderer.text.render(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
+  renderer.text.render(LABEL_FONT, statsX, currentY + 45, "Chapters", true);
   currentY += 87;
 
   uint32_t avgPageTime = stats.avgPageTimeMs;
@@ -2264,13 +2264,13 @@ void EpubActivity::displayBookStats() {
   } else {
     snprintf(buffer, sizeof(buffer), "-");
   }
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Average / Page", true);
+  renderer.text.render(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
+  renderer.text.render(LABEL_FONT, statsX, currentY + 45, "Average / Page", true);
 
   currentY += 87;
   snprintf(buffer, sizeof(buffer), "%u", stats.sessionCount);
-  renderer.drawText(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, statsX, currentY + 45, "Reading Sessions", true);
+  renderer.text.render(VALUE_FONT, statsX, currentY, buffer, true, EpdFontFamily::BOLD);
+  renderer.text.render(LABEL_FONT, statsX, currentY + 45, "Reading Sessions", true);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

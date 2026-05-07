@@ -5,7 +5,7 @@
 
 #include "JpegRenderer.h"
 
-#include <GfxRenderer.h>
+#include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <picojpeg.h>
 
@@ -85,7 +85,7 @@ constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
 
 }  // namespace
 
-bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
+bool JpegRenderer::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -222,13 +222,13 @@ bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int
   return currentOutY > 0;
 }
 
-bool JpegRenderer::drawJpegFromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
+bool JpegRenderer::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
                                     bool cropToFill) const {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  const bool ok = drawJpeg(file, x, y, targetWidth, targetHeight, cropToFill);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill);
   file.close();
   return ok;
 }
@@ -261,4 +261,3 @@ bool JpegRenderer::getDimensions(const std::string& path, int* outW, int* outH) 
   file.close();
   return ok;
 }
-

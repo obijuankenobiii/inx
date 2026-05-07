@@ -176,36 +176,36 @@ void OpdsBookBrowserActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
 
   if (state == BrowserState::CHECK_WIFI) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::LOADING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::ERROR) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Error:");
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, errorMessage.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Error:");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, errorMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "Retry", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::DOWNLOADING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 40, "Downloading...");
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 40, "Downloading...");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
     if (downloadTotal > 0) {
       const int barWidth = pageWidth - 100;
       constexpr int barHeight = 20;
@@ -224,16 +224,16 @@ void OpdsBookBrowserActivity::render() const {
     confirmLabel = "Download";
   }
   const auto labels = mappedInput.mapLabels("« Back", confirmLabel, "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (entries.empty()) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "No entries found");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "No entries found");
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-  renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30, GfxRenderer::FillTone::Ink);
+  renderer.rectangle.fill(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30, static_cast<int>(GfxRenderer::FillTone::Ink));
 
   for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + PAGE_ITEMS); i++) {
     const auto& entry = entries[i];
@@ -250,8 +250,8 @@ void OpdsBookBrowserActivity::render() const {
       }
     }
 
-    auto item = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
+    auto item = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
                       i != static_cast<size_t>(selectorIndex));
   }
 

@@ -14,8 +14,8 @@ class JpegRenderer {
  public:
   explicit JpegRenderer(GfxRenderer& renderer) : renderer_(renderer) {}
 
-  bool drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false) const;
-  bool drawJpegFromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
+  bool render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false) const;
+  bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
                         bool cropToFill = false) const;
 
   static bool getDimensions(FsFile& jpegFile, int* outW, int* outH);
@@ -24,4 +24,3 @@ class JpegRenderer {
  private:
   GfxRenderer& renderer_;
 };
-

@@ -194,7 +194,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                          BitmapDitherMode ) {
-  renderer.drawText(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
+  renderer.text.render(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
 /**
@@ -251,7 +251,7 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
   if (isJpeg) {
     JpegRenderer jpeg(renderer);
     (void)fontId;
-    if (!jpeg.drawJpegFromPath(cachePath, renderX, renderY, width, height, false)) {
+    if (!jpeg.fromPath(cachePath, renderX, renderY, width, height, false)) {
       Serial.printf("[PAGEIMG] Failed to draw JPEG: %s\n", cachePath.c_str());
     }
     return;
@@ -265,7 +265,7 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
 
   Bitmap bitmap(file, imageDitherMode);
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-    renderer.drawBitmap(bitmap, renderX, renderY, width, height);
+    renderer.bitmap.render(bitmap, renderX, renderY, width, height);
   }
 
   file.close();

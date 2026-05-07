@@ -124,11 +124,11 @@ void SyncActivity::render() const {
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY =
-      headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
+      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
   const int visibleAreaHeight = screenHeight - listStartY - 80;
@@ -140,38 +140,38 @@ void SyncActivity::render() const {
       const bool isSelected = (i == selectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       constexpr int kIconSize = 40;
       const int textX = 70;
       const int iconX = (textX - kIconSize) / 2;
       const int titleY =
-          itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+          itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
 
       switch (i) {
         case 0:  
-          renderer.drawIcon(Wifi, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.bitmap.icon(Wifi, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
         case 1:  
-          renderer.drawIcon(Calibre, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
         case 2:
-          renderer.drawIcon(Qr, iconX, iconY, kIconSize, kIconSize, GfxRenderer::None, isSelected);
+          renderer.bitmap.icon(Qr, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
       }
       
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
-        renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
       }
     }
   }
 
   const auto labels = mappedInput.mapLabels("« Recent", "Select", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

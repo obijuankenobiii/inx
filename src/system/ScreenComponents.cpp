@@ -21,7 +21,7 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
   
   const uint16_t percentage = battery.readPercentage();
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
 
   
   constexpr int batteryWidth = 15;
@@ -30,16 +30,16 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
   const int y = top + 6;
 
   
-  renderer.drawLine(x + 1, y, x + batteryWidth - 3, y);
+  renderer.line.render(x + 1, y, x + batteryWidth - 3, y);
   
-  renderer.drawLine(x + 1, y + batteryHeight - 1, x + batteryWidth - 3, y + batteryHeight - 1);
+  renderer.line.render(x + 1, y + batteryHeight - 1, x + batteryWidth - 3, y + batteryHeight - 1);
   
-  renderer.drawLine(x, y + 1, x, y + batteryHeight - 2);
+  renderer.line.render(x, y + 1, x, y + batteryHeight - 2);
   
-  renderer.drawLine(x + batteryWidth - 2, y + 1, x + batteryWidth - 2, y + batteryHeight - 2);
+  renderer.line.render(x + batteryWidth - 2, y + 1, x + batteryWidth - 2, y + batteryHeight - 2);
   renderer.drawPixel(x + batteryWidth - 1, y + 3);
   renderer.drawPixel(x + batteryWidth - 1, y + batteryHeight - 4);
-  renderer.drawLine(x + batteryWidth - 0, y + 4, x + batteryWidth - 0, y + batteryHeight - 5);
+  renderer.line.render(x + batteryWidth - 0, y + 4, x + batteryWidth - 0, y + batteryHeight - 5);
 
   
   int filledWidth = percentage * (batteryWidth - 5) / 100 + 1;
@@ -47,25 +47,25 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
     filledWidth = batteryWidth - 5;  
   }
 
-  renderer.fillRect(x + 2, y + 2, filledWidth, batteryHeight - 4);
+  renderer.rectangle.fill(x + 2, y + 2, filledWidth, batteryHeight - 4);
 }
 
 ScreenComponents::PopupLayout ScreenComponents::drawPopup(const GfxRenderer& renderer, const char* message) {
   constexpr int margin = 15;
 
-  const int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, message);
-  const int textHeight = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+  const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, message);
+  const int textHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
   const int w = textWidth + margin * 2;
   const int h = textHeight + margin * 2;
   constexpr int y = 330;
   const int x = (renderer.getScreenWidth() - w) / 2;
 
-  renderer.fillRect(x - 2, y - 2, w + 4, h + 4, true, true);
-  renderer.fillRect(x, y, w, h, true, true);
+  renderer.rectangle.fill(x - 2, y - 2, w + 4, h + 4, true, true);
+  renderer.rectangle.fill(x, y, w, h, true, true);
 
   const int textX = x + (w - textWidth) / 2;
   const int textY = y + margin - 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, message, false);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, message, false);
   renderer.displayBuffer();
   return {x, y, w, h};
 }
@@ -79,7 +79,7 @@ void ScreenComponents::fillPopupProgress(const GfxRenderer& renderer, const Popu
   const int clamped = std::max(0, std::min(100, progress));
   int fillWidth = barWidth * clamped / 100;
 
-  renderer.fillRect(barX, barY, fillWidth, barHeight, true);
+  renderer.rectangle.fill(barX, barY, fillWidth, barHeight, true);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
@@ -99,15 +99,15 @@ void paintLoadingProgressBarRow(const GfxRenderer& renderer, const ScreenCompone
   const int innerW = std::max(1, L.barW - 2);
   const int fillW = innerW * clamped / 100;
 
-  renderer.fillRect(L.barX + 1, L.barY + 1, innerW, L.barH - 2, false);
+  renderer.rectangle.fill(L.barX + 1, L.barY + 1, innerW, L.barH - 2, false);
   if (fillW > 0) {
-    renderer.fillRect(L.barX + 1, L.barY + 1, fillW, L.barH - 2, true);
+    renderer.rectangle.fill(L.barX + 1, L.barY + 1, fillW, L.barH - 2, true);
   }
-  renderer.drawRect(L.barX, L.barY, L.barW, L.barH, true);
+  renderer.rectangle.render(L.barX, L.barY, L.barW, L.barH, true);
 
   char pctBuf[16];
   snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
-  renderer.drawText(L.pctFontId, L.pctX, L.pctY, pctBuf, false);
+  renderer.text.render(L.pctFontId, L.pctX, L.pctY, pctBuf, false);
 }
 
 }  
@@ -119,17 +119,17 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   const int screenW = renderer.getScreenWidth();
   constexpr int labelFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
   constexpr int pctFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-  const int lhLabel = renderer.getLineHeight(labelFontId);
-  const int lhPct = renderer.getLineHeight(pctFontId);
+  const int lhLabel = renderer.text.getLineHeight(labelFontId);
+  const int lhPct = renderer.text.getLineHeight(pctFontId);
 
   char pctBuf[16];
   snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
-  const int pctW = renderer.getTextWidth(pctFontId, pctBuf);
+  const int pctW = renderer.text.getWidth(pctFontId, pctBuf);
 
   constexpr int kMinBarW = 40;
   const int labelMaxForMeasure = std::max(8, screenW - 2 * kLoadProgSideMargin - 2 * kLoadProgInnerPad);
-  const std::string msgShown = renderer.truncatedText(labelFontId, message ? message : "", labelMaxForMeasure);
-  const int labelW = renderer.getTextWidth(labelFontId, msgShown.c_str());
+  const std::string msgShown = renderer.text.truncate(labelFontId, message ? message : "", labelMaxForMeasure);
+  const int labelW = renderer.text.getWidth(labelFontId, msgShown.c_str());
 
   const int rowInnerW = kMinBarW + kLoadProgGapBarToPct + pctW;
   const int innerContentW = std::max(labelW, rowInnerW);
@@ -146,9 +146,9 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   const int barY = labelY + lhLabel + kLoadProgGapLabelToBar;
   const int pctY = barY + (kLoadProgBarH - lhPct) / 2;
 
-  renderer.fillRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true, true);
-  renderer.fillRect(panelX, panelY, panelW, panelH, true, true);
-  renderer.drawText(labelFontId, labelX, labelY, msgShown.c_str(), false);
+  renderer.rectangle.fill(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true, true);
+  renderer.rectangle.fill(panelX, panelY, panelW, panelH, true, true);
+  renderer.text.render(labelFontId, labelX, labelY, msgShown.c_str(), false);
 
   LoadingProgressLayout L;
   L.panelX = panelX;
@@ -183,7 +183,7 @@ void ScreenComponents::drawBookProgressBar(const GfxRenderer& renderer, const si
   const int progressBarMaxWidth = renderer.getScreenWidth() - vieweableMarginLeft - vieweableMarginRight;
   const int progressBarY = renderer.getScreenHeight() - vieweableMarginBottom - BOOK_PROGRESS_BAR_HEIGHT;
   const int barWidth = progressBarMaxWidth * bookProgress / 100;
-  renderer.fillRect(vieweableMarginLeft, progressBarY, barWidth, BOOK_PROGRESS_BAR_HEIGHT, true);
+  renderer.rectangle.fill(vieweableMarginLeft, progressBarY, barWidth, BOOK_PROGRESS_BAR_HEIGHT, true);
 }
 
 int ScreenComponents::drawTabBar(const GfxRenderer& renderer, const int y, const std::vector<TabInfo>& tabs) {
@@ -192,22 +192,22 @@ int ScreenComponents::drawTabBar(const GfxRenderer& renderer, const int y, const
   constexpr int underlineHeight = 2;  
   constexpr int underlineGap = 4;     
 
-  const int lineHeight = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+  const int lineHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
   const int tabBarHeight = lineHeight + underlineGap + underlineHeight;
 
   int currentX = leftMargin;
 
   for (const auto& tab : tabs) {
     const int textWidth =
-        renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tab.label, tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+        renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tab.label, tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, currentX, y, tab.label, true,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, currentX, y, tab.label, true,
                       tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     
     if (tab.selected) {
-      renderer.fillRect(currentX, y + lineHeight + underlineGap, textWidth, underlineHeight);
+      renderer.rectangle.fill(currentX, y + lineHeight + underlineGap, textWidth, underlineHeight);
     }
 
     currentX += textWidth + tabPadding;
@@ -235,24 +235,24 @@ void ScreenComponents::drawScrollIndicator(const GfxRenderer& renderer, const in
   for (int i = 0; i < arrowSize; ++i) {
     const int lineWidth = 1 + i * 2;
     const int startX = centerX - i;
-    renderer.drawLine(startX, indicatorTop + i, startX + lineWidth - 1, indicatorTop + i);
+    renderer.line.render(startX, indicatorTop + i, startX + lineWidth - 1, indicatorTop + i);
   }
 
   
   for (int i = 0; i < arrowSize; ++i) {
     const int lineWidth = 1 + (arrowSize - 1 - i) * 2;
     const int startX = centerX - (arrowSize - 1 - i);
-    renderer.drawLine(startX, indicatorBottom - arrowSize + 1 + i, startX + lineWidth - 1,
+    renderer.line.render(startX, indicatorBottom - arrowSize + 1 + i, startX + lineWidth - 1,
                       indicatorBottom - arrowSize + 1 + i);
   }
 
   
   const std::string pageText = std::to_string(currentPage) + "/" + std::to_string(totalPages);
-  const int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageText.c_str());
+  const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageText.c_str());
   const int textX = centerX - textWidth / 2;
-  const int textY = (indicatorTop + indicatorBottom) / 2 - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) / 2;
+  const int textY = (indicatorTop + indicatorBottom) / 2 - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) / 2;
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, textY, pageText.c_str());
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, textY, pageText.c_str());
 }
 
 void ScreenComponents::drawProgressBar(const GfxRenderer& renderer, const int x, const int y, const int width,
@@ -265,15 +265,15 @@ void ScreenComponents::drawProgressBar(const GfxRenderer& renderer, const int x,
   const int percent = static_cast<int>((static_cast<uint64_t>(current) * 100) / total);
 
   
-  renderer.drawRect(x, y, width, height);
+  renderer.rectangle.render(x, y, width, height);
 
   
   const int fillWidth = (width - 4) * percent / 100;
   if (fillWidth > 0) {
-    renderer.fillRect(x + 2, y + 2, fillWidth, height - 4);
+    renderer.rectangle.fill(x + 2, y + 2, fillWidth, height - 4);
   }
 
   
   const std::string percentText = std::to_string(percent) + "%";
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, y + height + 15, percentText.c_str());
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, y + height + 15, percentText.c_str());
 }

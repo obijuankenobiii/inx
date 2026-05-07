@@ -263,12 +263,12 @@ void KeyboardEntryActivity::render() const {
   renderer.clearScreen();
 
   
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, title.c_str(), true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, title.c_str(), true, EpdFontFamily::BOLD);
 
   
   const int inputStartY = 50;
   int inputEndY = inputStartY;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 10, inputStartY, "[");
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 10, inputStartY, "[");
 
   std::string displayText;
   if (isPassword) {
@@ -285,21 +285,21 @@ void KeyboardEntryActivity::render() const {
   int lineEndIdx = displayText.length();
   while (true) {
     std::string lineText = displayText.substr(lineStartIdx, lineEndIdx - lineStartIdx);
-    const int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, lineText.c_str());
+    const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, lineText.c_str());
     if (textWidth <= pageWidth - 40) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, inputEndY, lineText.c_str());
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, inputEndY, lineText.c_str());
       if (lineEndIdx == displayText.length()) {
         break;
       }
 
-      inputEndY += renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+      inputEndY += renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
       lineStartIdx = lineEndIdx;
       lineEndIdx = displayText.length();
     } else {
       lineEndIdx -= 1;
     }
   }
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, pageWidth - 15, inputEndY, "]");
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, pageWidth - 15, inputEndY, "]");
 
   
   const int keyboardAreaHeight = NUM_ROWS * (KEY_HEIGHT + KEY_SPACING);
@@ -334,16 +334,16 @@ void KeyboardEntryActivity::render() const {
       
       const bool shiftSelected = (selectedRow == 4 && selectedCol >= SHIFT_COL && selectedCol < SPACE_COL);
       const std::string shiftText = shiftActive ? "SHIFT" : "shift";
-      const int shiftTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftText.c_str());
+      const int shiftTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftText.c_str());
       const int shiftTextX = currentX + (shiftWidth - shiftTextWidth) / 2;
       
       if (shiftSelected) {
-        renderer.fillRect(currentX, rowY, shiftWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.fill(currentX, rowY, shiftWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          shiftText.c_str(), false);
       } else {
-        renderer.drawRect(currentX, rowY, shiftWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.render(currentX, rowY, shiftWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          shiftText.c_str(), true);
       }
       currentX += shiftWidth + KEY_SPACING;
@@ -351,16 +351,16 @@ void KeyboardEntryActivity::render() const {
       
       const bool spaceSelected = (selectedRow == 4 && selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL);
       const std::string spaceText = "_____";
-      const int spaceTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceText.c_str());
+      const int spaceTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceText.c_str());
       const int spaceTextX = currentX + (spaceWidth - spaceTextWidth) / 2;
       
       if (spaceSelected) {
-        renderer.fillRect(currentX, rowY, spaceWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.fill(currentX, rowY, spaceWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          spaceText.c_str(), false);
       } else {
-        renderer.drawRect(currentX, rowY, spaceWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.render(currentX, rowY, spaceWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          spaceText.c_str(), true);
       }
       currentX += spaceWidth + KEY_SPACING;
@@ -368,16 +368,16 @@ void KeyboardEntryActivity::render() const {
       
       const bool bsSelected = (selectedRow == 4 && selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL);
       const std::string bsText = "<-";
-      const int bsTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsText.c_str());
+      const int bsTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsText.c_str());
       const int bsTextX = currentX + (backspaceWidth - bsTextWidth) / 2;
       
       if (bsSelected) {
-        renderer.fillRect(currentX, rowY, backspaceWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.fill(currentX, rowY, backspaceWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          bsText.c_str(), false);
       } else {
-        renderer.drawRect(currentX, rowY, backspaceWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.render(currentX, rowY, backspaceWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          bsText.c_str(), true);
       }
       currentX += backspaceWidth + KEY_SPACING;
@@ -385,16 +385,16 @@ void KeyboardEntryActivity::render() const {
       
       const bool okSelected = (selectedRow == 4 && selectedCol >= DONE_COL);
       const std::string okText = "OK";
-      const int okTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okText.c_str());
+      const int okTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okText.c_str());
       const int okTextX = currentX + (okWidth - okTextWidth) / 2;
       
       if (okSelected) {
-        renderer.fillRect(currentX, rowY, okWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.fill(currentX, rowY, okWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          okText.c_str(), false);
       } else {
-        renderer.drawRect(currentX, rowY, okWidth, KEY_HEIGHT);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
+        renderer.rectangle.render(currentX, rowY, okWidth, KEY_HEIGHT);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
                          okText.c_str(), true);
       }
     } else {
@@ -406,20 +406,20 @@ void KeyboardEntryActivity::render() const {
         
         const char c = layout[row][col];
         std::string keyLabel(1, c);
-        const int charWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, keyLabel.c_str());
+        const int charWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, keyLabel.c_str());
 
         const int keyX = startX + col * (keyWidth + KEY_SPACING);
         const int textX = keyX + (keyWidth - charWidth) / 2;
-        const int textY = rowY + (KEY_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+        const int textY = rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
         
         const bool isSelected = row == selectedRow && col == selectedCol;
         
         if (isSelected) {
-          renderer.fillRect(keyX, rowY, keyWidth, KEY_HEIGHT);
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), false);
+          renderer.rectangle.fill(keyX, rowY, keyWidth, KEY_HEIGHT);
+          renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), false);
         } else {
-          renderer.drawRect(keyX, rowY, keyWidth, KEY_HEIGHT);
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), true);
+          renderer.rectangle.render(keyX, rowY, keyWidth, KEY_HEIGHT);
+          renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), true);
         }
       }
     }
@@ -427,7 +427,7 @@ void KeyboardEntryActivity::render() const {
 
   
   const auto labels = mappedInput.mapLabels("« Back", "Select", "Left", "Right");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

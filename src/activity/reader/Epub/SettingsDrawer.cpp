@@ -604,10 +604,10 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
     if (mappedInputForHints_ != nullptr) {
       const auto labels =
           mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
-      renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
                                labels.btn4);
     } else {
-      renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
     }
   }
   renderer.displayBuffer();
@@ -617,18 +617,18 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
  * @brief Draws the background panel of the settings drawer
  */
 void SettingsDrawer::drawBackground() {
-  renderer.fillRect(drawerX, drawerY, drawerWidth, drawerHeight, false);
-  renderer.drawRect(drawerX, drawerY, drawerWidth, drawerHeight, true);
+  renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
+  renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
   currentY += 25;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
 
   int dividerY = currentY + 30;
-  renderer.drawLine(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
+  renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
 /**
@@ -645,32 +645,32 @@ void SettingsDrawer::drawMenuItems() {
 
     if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
       if (isSelected) {
-        renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       int textX = drawerX + 15;
-      int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
       const char* indicator = entry.getValueText(settings);
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
+        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
                           indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
       }
 
-      renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+      renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
       continue;
     }
 
     if (isSelected) {
-      renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
     const int valueColumnRight = drawerX + drawerWidth - 24;
     if (entry.item == MenuItem::FontFamily) {
@@ -724,14 +724,14 @@ void SettingsDrawer::drawMenuItems() {
       } else {
         const char* val = entry.getValueText(settings);
         if (val && val[0] != '\0') {
-          int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
+          int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+          renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
                             isSelected ? 0 : 1);
         }
       }
     }
 
-    renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
 }
 
@@ -747,7 +747,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
-  renderer.fillRect(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+  renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
 }
 
 /**

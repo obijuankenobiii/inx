@@ -246,18 +246,18 @@ int LibraryActivity::drawHeaderButton(const std::string& text, int headerY, int 
   int buttonX = rightX - BUTTON_WIDTH;
   int buttonY = headerY;
 
-  int textWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, text.c_str());
+  int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, text.c_str());
   int textX = buttonX + (BUTTON_WIDTH - textWidth) / 2;
-  int textY = buttonY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  int textY = buttonY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
   if (isSelected) {
-    renderer.fillRect(buttonX, buttonY, BUTTON_WIDTH, headerHeight);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str(), false);
+    renderer.rectangle.fill(buttonX, buttonY, BUTTON_WIDTH, headerHeight);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str(), false);
     return buttonX - BUTTON_PADDING;
   }
 
-  renderer.drawLine(buttonX, buttonY, buttonX, buttonY + headerHeight - 1);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str());
+  renderer.line.render(buttonX, buttonY, buttonX, buttonY + headerHeight - 1);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str());
   return buttonX - BUTTON_PADDING;
 }
 
@@ -282,7 +282,7 @@ void LibraryActivity::drawButtonHints() const {
   std::string select = "Select";
 
   const auto labels = Activity::mappedInput.mapLabels(back.c_str(), select.c_str(), "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -933,17 +933,17 @@ void LibraryActivity::render() const {
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY = TAB_BAR_HEIGHT + (TAB_BAR_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = TAB_BAR_HEIGHT + (TAB_BAR_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   int containerWidth = screenWidth - 110;
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
-  if (headerSelected) renderer.fillRect(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT, GfxRenderer::FillTone::Ink);
+  if (headerSelected) renderer.rectangle.fill(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                     EpdFontFamily::BOLD);
   drawSortButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, screenWidth);
 
-  renderer.drawLine(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
+  renderer.line.render(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
 
   renderLibraryList(TAB_BAR_HEIGHT * 2);
   drawButtonHints();
@@ -1488,7 +1488,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
   if (items.empty()) {
     int messageY = startY + 150;
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, messageY, "No books found");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, messageY, "No books found");
     return;
   }
 
@@ -1515,14 +1515,14 @@ void LibraryActivity::renderLibraryList(int startY) const {
     int itemHeight = getItemHeight(item);
 
     if (isSelected) {
-      renderer.fillRect(0, drawY, screenWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(0, drawY, screenWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     renderItemIcon(item, drawY, itemHeight, isSelected);
     renderItemText(item, drawY, itemHeight, isSelected, screenWidth);
 
     if (i < static_cast<int>(items.size()) - 1) {
-      renderer.drawLine(0, drawY + itemHeight - 1, screenWidth, drawY + itemHeight - 1);
+      renderer.line.render(0, drawY + itemHeight - 1, screenWidth, drawY + itemHeight - 1);
     }
 
     drawY += itemHeight;
@@ -1542,13 +1542,13 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
   int iconY = drawY + (itemHeight / 2) - 12;
 
   if (item.type == LibraryItem::Type::FOLDER) {
-    renderer.drawIcon(Folder, iconX, iconY, 24, 24, GfxRenderer::None, isSelected);
+    renderer.bitmap.icon(Folder, iconX, iconY, 24, 24, BitmapRender::Orientation::None, isSelected);
   } else {
-    renderer.drawIcon(Book, iconX, iconY + 2, 24, 24, GfxRenderer::None, isSelected);
+    renderer.bitmap.icon(Book, iconX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
 
     if (isBookMarked(item.path)) {
       int starX = renderer.getScreenWidth() - 1 - 45;
-      renderer.drawIcon(Star, starX, iconY + 2, 24, 24, GfxRenderer::None, isSelected);
+      renderer.bitmap.icon(Star, starX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
     }
   }
 }
@@ -1571,31 +1571,31 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
 
   if (useTwoLineFormat) {
     std::string titleText =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, drawY + 5, titleText.c_str(), !isSelected);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, drawY + 5, titleText.c_str(), !isSelected);
 
     std::string secondLineText =
         !item.folderPath.empty()
-            ? renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.folderPath.c_str(), textWidth - 5)
+            ? renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.folderPath.c_str(), textWidth - 5)
             : "Library";
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 38, secondLineText.c_str(), !isSelected);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 38, secondLineText.c_str(), !isSelected);
 
     bool isDone = isBookFinished(item.path);
-    int markerSpace = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
+    int markerSpace = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
     if (isDone) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(completed)", !isSelected,
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(completed)", !isSelected,
                         EpdFontFamily::ITALIC);
     }
 
     if (isBookOpened(item.path) && !isDone) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(reading)", !isSelected,
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(reading)", !isSelected,
                         EpdFontFamily::ITALIC);
     }
   } else {
-    int textY = drawY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+    int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
     std::string displayText =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
   }
 }
 

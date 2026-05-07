@@ -437,8 +437,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
-    const int gutter = std::max(renderer.getSpaceWidth(fontId), 10);
-    int dropCapWidth = renderer.getTextWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
+    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10);
+    int dropCapWidth = renderer.text.getWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
 
     if (currentTextBlock) {
       currentTextBlock->setLeftIndent(dropCapWidth, 3);
@@ -767,7 +767,7 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
  * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
-  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   if (!line || line->isEmpty()) return;
 
@@ -800,7 +800,7 @@ void ChapterHtmlSlimParser::makePages() {
     currentPageNextY = 0;
   }
 
-  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   currentTextBlock->layoutAndExtractLines(
       renderer, inHeader ? headerFontId : fontId, viewportWidth,
@@ -887,9 +887,9 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     currentPageNextY = 0;
     currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
 
-    currentPageNextY = imgH + (renderer.getLineHeight(fontId) / 2);
+    currentPageNextY = imgH + (renderer.text.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
-    int minTextHeight = renderer.getLineHeight(fontId) * lineCompression * 2;
+    int minTextHeight = renderer.text.getLineHeight(fontId) * lineCompression * 2;
 
     if (remainingSpace < minTextHeight) {
       completePageFn(std::move(currentPage));
@@ -915,7 +915,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
   currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
 
-  currentPageNextY += imgH + (renderer.getLineHeight(fontId) / 2);
+  currentPageNextY += imgH + (renderer.text.getLineHeight(fontId) / 2);
 }
 
 /**

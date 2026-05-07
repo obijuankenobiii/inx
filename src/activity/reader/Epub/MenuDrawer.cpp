@@ -147,7 +147,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
 
 void MenuDrawer::drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4) {
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
 }
 
 void MenuDrawer::drawMappedButtonHints(const char* back, const char* confirm, const char* previous,
@@ -260,11 +260,11 @@ void MenuDrawer::renderWithRefresh() {
  * @brief Draws the background panel of the menu drawer
  */
 void MenuDrawer::drawBackground() {
-  renderer.fillRect(drawerX, drawerY, drawerWidth, drawerHeight, false);
-  renderer.drawRect(drawerX, drawerY, drawerWidth, drawerHeight, true);
+  renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
+  renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Reader Menu", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Reader Menu", true, EpdFontFamily::BOLD);
 
   std::string displayTitle = bookTitle;
   if (displayTitle.length() > 30) {
@@ -272,10 +272,10 @@ void MenuDrawer::drawBackground() {
   }
 
   currentY += 25;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 20, currentY, displayTitle.c_str(), true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 20, currentY, displayTitle.c_str(), true);
 
   int dividerY = currentY + 30;
-  renderer.drawLine(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
+  renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
 /**
@@ -291,18 +291,18 @@ void MenuDrawer::drawMenuItems() {
     bool isSelected = (index == selectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
 
-    renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
 }
 
@@ -318,7 +318,7 @@ void MenuDrawer::drawScrollIndicator() {
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
-  renderer.fillRect(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+  renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
 }
 
 /**
@@ -335,8 +335,8 @@ int MenuDrawer::getTocPageItems() const {
  * @brief Draws the TOC background with drawer effect
  */
 void MenuDrawer::drawTocBackground() {
-  renderer.fillRect(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, false);
-  renderer.drawRect(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, true);
+  renderer.rectangle.fill(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, false);
+  renderer.rectangle.render(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, true);
 }
 
 /**
@@ -354,24 +354,24 @@ void MenuDrawer::renderToc() {
 
   
   const int headerY = tocDrawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a chapter to begin reading";
   int subtitleY = headerY + 30;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
   int drawY = dividerY + 2;
 
   if (totalItems == 0) {
     const int msgY = drawY + 24;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY,
                       "No table of contents in this book.", true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY + 22,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY + 22,
                       "Try Delete Cache and reopen to rebuild.", true);
   } else {
     for (int i = 0; i < pageItems; i++) {
@@ -382,10 +382,10 @@ void MenuDrawer::renderToc() {
       bool isSelected = (itemIndex == tocSelectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
       auto item = epub->getTocItem(itemIndex);
       const int level = std::max(1, static_cast<int>(item.level));
@@ -395,11 +395,11 @@ void MenuDrawer::renderToc() {
       const int indentSize = tocDrawerX + relIndent;
       const int maxTitleW = std::max(40, panelW - 70 - relIndent);
       const std::string truncatedName =
-          renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
+          renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
 
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-      renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(), isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+      renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                         true);
     }
   }
@@ -411,7 +411,7 @@ void MenuDrawer::renderToc() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kTocFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   
   drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
@@ -429,26 +429,26 @@ void MenuDrawer::renderBookmarks() {
   drawTocBackground();
 
   const int headerY = tocDrawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a bookmark to open it";
   int subtitleY = headerY + 30;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
     const char* line1 = "No bookmarks yet";
     const char* line2 = "Long press confirm to bookmark";
-    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
     const int msgY = dividerY + 48;
-    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
@@ -467,17 +467,17 @@ void MenuDrawer::renderBookmarks() {
     const auto& row = bookmarkEntries[static_cast<size_t>(itemIndex)];
 
     if (isSelected) {
-      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     const int kIndent = tocDrawerX + 20;
     const std::string truncated =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
@@ -486,7 +486,7 @@ void MenuDrawer::renderBookmarks() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kBookmarkFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "Del");
 }
@@ -499,26 +499,26 @@ void MenuDrawer::renderAnnotations() {
   drawTocBackground();
 
   const int headerY = tocDrawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a page with highlights";
   int subtitleY = headerY + 30;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
     const char* line1 = "No highlights yet";
     const char* line2 = "Add highlights in annotation mode";
-    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
     const int msgY = dividerY + 48;
-    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
@@ -537,17 +537,17 @@ void MenuDrawer::renderAnnotations() {
     const auto& row = annotationEntries[static_cast<size_t>(itemIndex)];
 
     if (isSelected) {
-      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     const int kIndent = tocDrawerX + 20;
     const std::string truncated =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1, true);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
@@ -556,7 +556,7 @@ void MenuDrawer::renderAnnotations() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kAnnotationFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kAnnotationFooterAboveHints);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "");
 }
@@ -569,26 +569,26 @@ void MenuDrawer::renderFootnotes() {
   drawTocBackground();
 
   const int headerY = tocDrawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Footnotes", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Footnotes", true, EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a footnote to read it";
   int subtitleY = headerY + 30;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
     const char* line1 = "No footnotes in this chapter";
     const char* line2 = "Rebuild cache if the book was updated";
-    const int lh = renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
     const int msgY = dividerY + 48;
-    const int w1 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
@@ -607,17 +607,17 @@ void MenuDrawer::renderFootnotes() {
     const auto& row = footnoteEntries[static_cast<size_t>(itemIndex)];
 
     if (isSelected) {
-      renderer.fillRect(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     const int kIndent = tocDrawerX + 20;
     const std::string truncated =
-        renderer.truncatedText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.drawLine(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                       true);
   }
 
@@ -627,7 +627,7 @@ void MenuDrawer::renderFootnotes() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kFootnoteFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kFootnoteFooterAboveHints);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
 }

@@ -319,7 +319,7 @@ void EpubAnnotationUi::drawLatticeHighlightRect(EpubActivity& act, const int x, 
   if (width <= 0 || height <= 0) {
     return;
   }
-  act.renderer.fillSparseInkLatticeInRect(x, std::max(0, y), width, height, kHighlightLatticeStepPx);
+  act.renderer.ui.fillSparseInkLatticeInRect(x, std::max(0, y), width, height, kHighlightLatticeStepPx);
 }
 
 void EpubAnnotationUi::drawLatticeHighlightForWordIndexRange(EpubActivity& act, const size_t lo, const size_t hi) {
@@ -333,12 +333,12 @@ void EpubAnnotationUi::drawLatticeHighlightForWordIndexRange(EpubActivity& act, 
     int minX = words_[a].screenX;
     int maxR = words_[a].screenX + words_[a].screenW;
     const int fid0 = words_[a].fontId > 0 ? words_[a].fontId : act.bookSettings.getReaderFontId();
-    int rowH = std::max(3, words_[a].screenH > 0 ? words_[a].screenH : act.renderer.getLineHeight(fid0));
+    int rowH = std::max(3, words_[a].screenH > 0 ? words_[a].screenH : act.renderer.text.getLineHeight(fid0));
     while (b <= hi && words_[b].screenY == lineY) {
       minX = std::min(minX, words_[b].screenX);
       maxR = std::max(maxR, words_[b].screenX + words_[b].screenW);
       const int fid = words_[b].fontId > 0 ? words_[b].fontId : act.bookSettings.getReaderFontId();
-      const int lh = std::max(3, words_[b].screenH > 0 ? words_[b].screenH : act.renderer.getLineHeight(fid));
+      const int lh = std::max(3, words_[b].screenH > 0 ? words_[b].screenH : act.renderer.text.getLineHeight(fid));
       rowH = std::max(rowH, lh);
       ++b;
     }
@@ -557,8 +557,8 @@ void EpubAnnotationUi::drawUiOverlay(EpubActivity& act) {
   const char* backHint = hasSaveableContent() ? "Save" : "Exit";
   const char* mid = selectingStarted_ ? "Stop" : "Start";
   const auto labels = act.mappedInput.mapLabels(backHint, mid, "Prev", "Next");
-  act.renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  act.renderer.drawSideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Reset", "Up", "Down");
+  act.renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  act.renderer.ui.sideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Reset", "Up", "Down");
   act.renderer.setOrientation(o);
   act.renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

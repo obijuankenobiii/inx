@@ -349,12 +349,12 @@ void SettingsActivity::showIndexingProgress() {
 
   int popupX = (screenWidth - 300) / 2;
   int progressBarY = (screenHeight - 100) / 2 + 40;
-  renderer.drawRect(popupX + 20, progressBarY + 20, 260, 15);
+  renderer.rectangle.render(popupX + 20, progressBarY + 20, 260, 15);
 
   if (indexingTotal > 0) {
     int percentage = (indexingProgress * 100) / indexingTotal;
     int fillWidth = (260 * percentage) / 100;
-    if (fillWidth > 0) renderer.fillRect(popupX + 20, progressBarY + 20, fillWidth, 15);
+    if (fillWidth > 0) renderer.rectangle.fill(popupX + 20, progressBarY + 20, fillWidth, 15);
   }
 
   char countMsg[64];
@@ -363,7 +363,7 @@ void SettingsActivity::showIndexingProgress() {
   } else {
     snprintf(countMsg, sizeof(countMsg),"Found %d files...", indexingProgress);
   }
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
 
   renderer.displayBuffer();
 }

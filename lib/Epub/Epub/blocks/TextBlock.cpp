@@ -52,7 +52,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   auto wordXposIt = wordXpos.begin();
 
   for (size_t i = 0; i < words.size(); i++) {
-    renderer.drawText(fontId, *wordXposIt + x, y, wordIt->c_str(), true, *wordStylesIt);
+    renderer.text.render(fontId, *wordXposIt + x, y, wordIt->c_str(), true, *wordStylesIt);
 
     std::advance(wordIt, 1);
     std::advance(wordStylesIt, 1);

@@ -30,13 +30,13 @@ void truncateLabelToWidth(const GfxRenderer& renderer, int fontId, int maxWidth,
   }
   strncpy(out, text, outSize - 1);
   out[outSize - 1] = '\0';
-  if (renderer.getTextWidth(fontId, out) <= maxWidth) {
+  if (renderer.text.getWidth(fontId, out) <= maxWidth) {
     return;
   }
   const char* ell = "...";
-  const int ellW = renderer.getTextWidth(fontId, ell);
+  const int ellW = renderer.text.getWidth(fontId, ell);
   size_t n = strlen(out);
-  while (n > 0 && renderer.getTextWidth(fontId, out) + ellW > maxWidth) {
+  while (n > 0 && renderer.text.getWidth(fontId, out) + ellW > maxWidth) {
     out[--n] = '\0';
   }
   strncat(out, ell, outSize - strlen(out) - 1);
@@ -151,8 +151,8 @@ void SleepImagePickerActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "Sleep screen image", true, EpdFontFamily::BOLD);
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 52, "Custom / transparent modes", true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "Sleep screen image", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 52, "Custom / transparent modes", true);
 
   const int startY = HEADER_BOTTOM;
   const int itemHeight = LIST_ITEM_HEIGHT;
@@ -166,7 +166,7 @@ void SleepImagePickerActivity::render() {
     const bool isSelected = (index == selectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(0, itemY, pageWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     char line[128];
@@ -174,10 +174,10 @@ void SleepImagePickerActivity::render() {
     truncateLabelToWidth(renderer, fontId, maxW, row.label.c_str(), line, sizeof(line));
 
     const int textX = 20;
-    const int textY = itemY + (itemHeight - renderer.getLineHeight(fontId)) / 2;
-    renderer.drawText(fontId, textX, textY, line, !isSelected);
+    const int textY = itemY + (itemHeight - renderer.text.getLineHeight(fontId)) / 2;
+    renderer.text.render(fontId, textX, textY, line, !isSelected);
 
-    renderer.drawLine(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
     visibleCount++;
   }
 
@@ -188,11 +188,11 @@ void SleepImagePickerActivity::render() {
       thumbH = 4;
     }
     const int thumbY = startY + (scrollOffset * listHeight) / static_cast<int>(rows.size());
-    renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
+    renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
 

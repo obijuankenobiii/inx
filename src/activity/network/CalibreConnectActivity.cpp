@@ -113,16 +113,16 @@ namespace {
     void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
         const int headerHeight = TAB_BAR_HEIGHT;
         
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                         startY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
+                         startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
                          title, true, EpdFontFamily::BOLD);
         
         if (subtitle) {
             int subtitleY = startY + SUBTITLE_Y_OFFSET;
-            renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
+            renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
             
-            int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-            renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+            int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
+            renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
         }
     }
 
@@ -505,28 +505,28 @@ void CalibreConnectActivity::render() const {
         renderActivityHeader(renderer, startY, "Connect to Calibre", "Starting server...");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
         
         auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-        renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                 labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else if (state == CalibreConnectState::ERROR) {
         renderActivityHeader(renderer, startY, "Connect to Calibre", "Setup Failed");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Exit to try again");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Exit to try again");
         
         auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-        renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                 labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
 
@@ -543,44 +543,44 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
     renderActivityHeader(renderer, startY, "Connect to Calibre", "Server Running");
     
     int currentY = startY + SUBTITLE_Y_OFFSET + 
-                   renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                   renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                    DIVIDER_PADDING + SECTION_SPACING - 10;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
     std::string ssidInfo = connectedSSID;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, 
                      truncateString(ssidInfo, 34).c_str());
     currentY += LINE_SPACING;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      connectedIP.c_str());
     currentY += LINE_SPACING * 2;
 
-    renderer.drawLine(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
+    renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
     currentY += SECTION_SPACING;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Setup", true, EpdFontFamily::BOLD);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Setup", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      "1.) Install CrossPoint Reader plugin");
     currentY += SMALL_SPACING;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      "2.) Be on the same WiFi network");
     currentY += SMALL_SPACING;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      "3.) In Calibre: \"Send to device\"");
     currentY += SMALL_SPACING + 20;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
                      "Keep this screen open while sending");
     currentY += SMALL_SPACING * 2;
 
-    renderer.drawLine(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
+    renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
     currentY += SECTION_SPACING;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Status", true, EpdFontFamily::BOLD);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Status", true, EpdFontFamily::BOLD);
     currentY += LINE_SPACING;
 
     if (lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal) {
@@ -588,7 +588,7 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
         if (!currentUploadName.empty()) {
             label += ": " + truncateString(currentUploadName, 30);
         }
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, label.c_str());
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, label.c_str());
         
         constexpr int barWidth = 300;
         constexpr int barHeight = 16;
@@ -600,10 +600,10 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
 
     if (lastCompleteAt > 0 && (millis() - lastCompleteAt) < 6000) {
         std::string msg = "Received: " + truncateString(lastCompleteName, 30);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, msg.c_str());
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, msg.c_str());
     }
 
     auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                             labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

@@ -41,8 +41,8 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
           }
           h.screenX = baseX + relX;
           h.screenY = baseY;
-          h.screenW = std::max(1, renderer.getTextWidth(bodyFontId, wtext.c_str(), st));
-          h.screenH = renderer.getLineHeight(bodyFontId);
+          h.screenW = std::max(1, renderer.text.getWidth(bodyFontId, wtext.c_str(), st));
+          h.screenH = renderer.text.getLineHeight(bodyFontId);
           h.isDropCap = false;
           out.push_back(std::move(h));
         }
@@ -71,8 +71,8 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
           }
           h.screenX = baseX + relX;
           h.screenY = baseY;
-          h.screenW = std::max(1, renderer.getTextWidth(hdrFont, wtext.c_str(), st));
-          h.screenH = renderer.getLineHeight(hdrFont);
+          h.screenW = std::max(1, renderer.text.getWidth(hdrFont, wtext.c_str(), st));
+          h.screenH = renderer.text.getLineHeight(hdrFont);
           h.isDropCap = false;
           out.push_back(std::move(h));
         }
@@ -96,9 +96,9 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
           h.screenX = dc->xPos + marginLeft;
           // Match PageDropCap::render (y offset -5 vs body lines).
           h.screenY = dc->yPos + marginTop - 5;
-          h.screenW = std::max(1, renderer.getTextWidth(df, dct.c_str(), EpdFontFamily::BOLD));
+          h.screenW = std::max(1, renderer.text.getWidth(df, dct.c_str(), EpdFontFamily::BOLD));
         }
-        h.screenH = renderer.getLineHeight(df);
+        h.screenH = renderer.text.getLineHeight(df);
         h.isDropCap = true;
         out.push_back(std::move(h));
         break;

@@ -374,7 +374,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         renderer.clearScreen();
         JpegRenderer jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-        if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+        if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
           renderer.displayBuffer();
           return;
         }
@@ -414,7 +414,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
         APP_STATE.saveToFile();
         JpegRenderer jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-        if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+        if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
           renderer.displayBuffer();
           return;
         }
@@ -426,7 +426,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderer.drawTransparentImage(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
+        renderer.bitmap.transparent(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         return;
       }
@@ -456,7 +456,7 @@ void SleepActivity::renderCoverSleepScreen() const {
       renderer.clearScreen();
       JpegRenderer jpegRenderer(renderer);
       const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-      if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+      if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
         if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
           renderer.invertScreen();
         }
@@ -515,7 +515,7 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
   // Use drawSleepScreen (not drawBitmap) so "Cover Grayscale" off matches Crop mode: sleep uses a
   // stricter BW map; drawBitmap would still dither 2bpp and look grey when Fill is selected.
   constexpr bool kCoverFill = true;
-  renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
+  renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
@@ -527,13 +527,13 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
+    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
+    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
@@ -588,7 +588,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
                             SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER &&
                             SETTINGS.sleepScreenCoverGrayscale != 0;
 
-  renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
+  renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
 
   if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
@@ -600,13 +600,13 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
+    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.drawSleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
+    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
@@ -624,9 +624,9 @@ void SleepActivity::renderDefaultSleepScreen() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  renderer.fillRect(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
+  renderer.rectangle.fill(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight());
   renderer.clearScreen();
-  renderer.drawIcon(CorgiSleep, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
+  renderer.bitmap.icon(CorgiSleep, (pageWidth - 256) / 2, (pageHeight - 256) / 2, 256, 256);
 
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::LIGHT) {
     renderer.invertScreen();
