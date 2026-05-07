@@ -8,6 +8,7 @@
 #include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <JpegRenderer.h>
 #include <SDCardManager.h>
 #include <Xtc.h>
 
@@ -282,40 +283,47 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   }
   char path[192];
   snprintf(path, sizeof(path), "%s/thumb.bmp", cacheDir.c_str());
-  FsFile file;
-  if (!SdMan.openFileForRead("RECENT", path, file)) {
-    drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
-    return;
-  }
-  Bitmap bitmap(file, BitmapDitherMode::None);
-  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
-    file.close();
-    drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
-    return;
-  }
-  {
-    BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
-    const float iw = static_cast<float>(bitmap.getWidth());
-    const float ih = static_cast<float>(bitmap.getHeight());
-    float cropX = 0.f;
-    float cropY = 0.f;
-    if (iw > 0.f && ih > 0.f) {
-      const float ir = iw / ih;
-      const float tr = static_cast<float>(w) / static_cast<float>(h);
-      if (ir > tr) {
-        cropX = 1.0f - (tr / ir);
-      } else if (ir < tr) {
-        cropY = 1.0f - (ir / tr);
-      }
+  char jpegPath[192];
+  snprintf(jpegPath, sizeof(jpegPath), "%s/thumb.jpg", cacheDir.c_str());
+
+  if (SdMan.exists(jpegPath)) {
+    JpegRenderer jpeg(renderer);
+    if (jpeg.drawJpegFromPath(jpegPath, x, y, w, h, true)) {
+      return;
     }
-    const GfxRenderer::BitmapRoundedCornerOutside roundedOutside =
-        SETTINGS.bitmapRoundedCorners == 0
-            ? GfxRenderer::BitmapRoundedCornerOutside::None
-            : (roundedCornerBackdropIsDither ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
-                                              : GfxRenderer::BitmapRoundedCornerOutside::PaperOutside);
-    renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, roundedOutside);
   }
-  file.close();
+
+  FsFile file;
+  if (SdMan.openFileForRead("RECENT", path, file)) {
+    Bitmap bitmap(file, BitmapDitherMode::None);
+    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+      BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
+      const float iw = static_cast<float>(bitmap.getWidth());
+      const float ih = static_cast<float>(bitmap.getHeight());
+      float cropX = 0.f;
+      float cropY = 0.f;
+      if (iw > 0.f && ih > 0.f) {
+        const float ir = iw / ih;
+        const float tr = static_cast<float>(w) / static_cast<float>(h);
+        if (ir > tr) {
+          cropX = 1.0f - (tr / ir);
+        } else if (ir < tr) {
+          cropY = 1.0f - (ir / tr);
+        }
+      }
+      const GfxRenderer::BitmapRoundedCornerOutside roundedOutside =
+          SETTINGS.bitmapRoundedCorners == 0
+              ? GfxRenderer::BitmapRoundedCornerOutside::None
+              : (roundedCornerBackdropIsDither ? GfxRenderer::BitmapRoundedCornerOutside::SparseInkAlignedOutside
+                                               : GfxRenderer::BitmapRoundedCornerOutside::PaperOutside);
+      renderer.drawBitmap(bitmap, x, y, w, h, cropX, cropY, roundedOutside);
+      file.close();
+      return;
+    }
+    file.close();
+  }
+
+  drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
 }
 
 void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {

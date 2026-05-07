@@ -22,6 +22,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#include <JpegRenderer.h>
 #include <SDCardManager.h>
 #include <esp_task_wdt.h>
 #include <time.h>
@@ -474,8 +475,9 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount) 
  * @brief Ensures thumbnail exists, generates if needed
  */
 void EpubActivity::ensureThumbnailExists() {
-  std::string thumbPath = epub->getThumbBmpPath();
-  if (!SdMan.exists(thumbPath.c_str())) {
+  const std::string thumbJpegPath = epub->getThumbJpegPath();
+  const std::string thumbBmpPath = epub->getThumbBmpPath();
+  if (!SdMan.exists(thumbJpegPath.c_str()) && !SdMan.exists(thumbBmpPath.c_str())) {
     epub->generateThumbBmp();
   }
 }
@@ -484,10 +486,21 @@ void EpubActivity::ensureThumbnailExists() {
  * @brief Displays cover if it exists, otherwise shows title
  */
 void EpubActivity::displayCoverOrTitle() {
-  
+  const std::string coverJpegPath = epub->getCoverJpegPath(false);
   std::string coverPath = epub->getCoverBmpPath(false);
-  if (!SdMan.exists(coverPath.c_str())) {
+  if (!SdMan.exists(coverPath.c_str()) && !SdMan.exists(coverJpegPath.c_str())) {
     epub->generateCoverBmp(false);
+  }
+
+  if (SdMan.exists(coverJpegPath.c_str())) {
+    const int pageWidth = renderer.getScreenWidth();
+    const int pageHeight = renderer.getScreenHeight();
+    renderer.clearScreen();
+    JpegRenderer jpeg(renderer);
+    if (jpeg.drawJpegFromPath(coverJpegPath, 0, 0, pageWidth, pageHeight, true)) {
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      return;
+    }
   }
 
   FsFile coverFile;
@@ -1419,8 +1432,10 @@ void EpubActivity::regenerateThumbnail() {
   vTaskDelay(pdMS_TO_TICKS(150));
 
   const std::string thumbPath = epub->getThumbBmpPath();
+  const std::string thumbJpegPath = epub->getThumbJpegPath();
   const std::string smallThumbPath = epub->getSmallThumbBmpPath();
   SdMan.remove(thumbPath.c_str());
+  SdMan.remove(thumbJpegPath.c_str());
   SdMan.remove(smallThumbPath.c_str());
 
   const bool ok = epub->generateThumbBmp();

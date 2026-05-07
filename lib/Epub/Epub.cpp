@@ -54,6 +54,8 @@ bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
   return false;
 }
 
+constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
+
 }  
 
 /**
@@ -357,21 +359,35 @@ bool Epub::generateCoverBmp(bool cropped) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
     return false;
   }
+  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
+  if (isJpegFile(coverHref)) {
+    SdMan.remove(getCoverBmpPath(cropped).c_str());
+    return extractItemToPath(coverHref, getCoverJpegPath(cropped), 4096);
+  }
+  SdMan.remove(getCoverJpegPath(cropped).c_str());
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
                                           800, cropped);
 }
 
 /**
- * @brief Generates a thumbnail image from the cover.
- * 
- * For BMP sources, the image is resized to thumbnail dimensions.
- * For PNG and JPEG sources, the image is converted and resized.
- * 
- * @return true if thumbnail generation succeeded, false otherwise
+ * @brief Builds cache thumbnails: prefers packaged `META-INF/thumbnail.jpg` from the EPUB (EPUB optimizer), else
+ * generates `thumb.bmp` from the cover.
  */
 bool Epub::generateThumbBmp() const {
   const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
-    
+
+  SdMan.remove(getThumbJpegPath().c_str());
+  SdMan.remove(getThumbBmpPath().c_str());
+
+  size_t packagedThumbSize = 0;
+  if (getItemSize(kPackagedDeviceThumbnailPath, &packagedThumbSize) && packagedThumbSize > 0) {
+    if (extractItemToPath(kPackagedDeviceThumbnailPath, getThumbJpegPath(), 2048)) {
+      Serial.printf("[EBP] Thumbnail from packaged %s\n", kPackagedDeviceThumbnailPath);
+      return true;
+    }
+    Serial.printf("[EBP] Packaged thumbnail present but extract failed: %s\n", kPackagedDeviceThumbnailPath);
+  }
+
   const std::string tempPath = cachePath + "/.thumb_extract.tmp";
   FsFile tempFile;
 
@@ -678,6 +694,10 @@ std::string Epub::getCoverBmpPath(bool cropped) const {
   return cachePath + (cropped ? "/cover_crop.bmp" : "/cover.bmp");
 }
 
+std::string Epub::getCoverJpegPath(bool cropped) const {
+  return cachePath + (cropped ? "/cover_crop.jpg" : "/cover.jpg");
+}
+
 std::string Epub::getCoverItemHref() const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
     return "";
@@ -709,6 +729,8 @@ bool Epub::extractCoverItemToPath(const std::string& outPath) const {
  * @return Full filesystem path to the thumbnail BMP file
  */
 std::string Epub::getThumbBmpPath() const { return cachePath + "/thumb.bmp"; }
+
+std::string Epub::getThumbJpegPath() const { return cachePath + "/thumb.jpg"; }
 
 /**
  * @brief Gets the filesystem path for the small thumbnail BMP.

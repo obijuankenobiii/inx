@@ -54,10 +54,12 @@ class Epub {
   std::string& getBasePath() { return contentBasePath; }
 
   std::string getCoverBmpPath(bool cropped = false) const;
+  std::string getCoverJpegPath(bool cropped = false) const;
   std::string getCoverItemHref() const;
   bool extractCoverItemToPath(const std::string& outPath) const;
   bool generateCoverBmp(bool cropped = false) const;
   std::string getThumbBmpPath() const;
+  std::string getThumbJpegPath() const;
   std::string getSmallThumbBmpPath() const;
   bool generateThumbBmp() const;
 

@@ -144,9 +144,12 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
     Epub book(path, "/.metadata/epub");
     if (book.load()) {
       const bool cropped = false;
-       coverPath = book.getCoverBmpPath(cropped);
+      const std::string coverJpegPath = book.getCoverJpegPath(cropped);
+      const std::string coverBmpPath = book.getCoverBmpPath(cropped);
+      coverPath = SdMan.exists(coverJpegPath.c_str()) ? coverJpegPath : coverBmpPath;
       if (!SdMan.exists(coverPath.c_str())) {
         book.generateCoverBmp(cropped);
+        coverPath = SdMan.exists(coverJpegPath.c_str()) ? coverJpegPath : coverBmpPath;
       }
       if (!SdMan.exists(coverPath.c_str())) {
         coverPath.clear();
@@ -158,13 +161,10 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
     Xtc book(path, "/.metadata/xtc");
     if (book.load()) {
       book.setupCacheDir();
-      const std::string thumbPath = book.getThumbBmpPath();
-      if (!SdMan.exists(thumbPath.c_str())) {
-        book.generateThumbBmp();
+      if (!SdMan.exists(book.getCoverBmpPath().c_str())) {
+        book.generateCoverBmp();
       }
-      if (SdMan.exists(thumbPath.c_str())) {
-        coverPath = thumbPath;
-      } else if (book.generateCoverBmp()) {
+      if (SdMan.exists(book.getCoverBmpPath().c_str())) {
         coverPath = book.getCoverBmpPath();
       }
     }
@@ -415,7 +415,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
         JpegRenderer jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
         if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
-          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+          renderer.displayBuffer();
           return;
         }
       }
@@ -449,6 +449,25 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   const std::string coverPath = resolveLastReadCoverPathForSleep(APP_STATE.lastRead);
+
+  if (!coverPath.empty() && isSleepImagePathJpeg(coverPath)) {
+    FsFile jpegFile;
+    if (SdMan.openFileForRead("SLP", coverPath, jpegFile)) {
+      renderer.clearScreen();
+      JpegRenderer jpegRenderer(renderer);
+      const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+      if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+        if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
+          renderer.invertScreen();
+        }
+        renderer.displayBuffer();
+        jpegFile.close();
+        return;
+      }
+      jpegFile.close();
+    }
+    return renderCustomSleepScreen();
+  }
 
   FsFile file;
   if (!coverPath.empty() && SdMan.openFileForRead("SLP", coverPath, file)) {

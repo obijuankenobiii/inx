@@ -7,6 +7,7 @@
 
 #include <Bitmap.h>
 #include <GfxRenderer.h>
+#include <JpegRenderer.h>
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -458,11 +459,16 @@ void StatisticActivity::hydrateFromStorage() {
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
                                     const std::string& title, const std::string& author) const {
+  const std::string coverJpegPath = bookPath + "/thumb.jpg";
   std::string coverPath = bookPath + "/thumb.bmp";
   bool coverDrawn = false;
 
+  if (SdMan.exists(coverJpegPath.c_str())) {
+    JpegRenderer jpeg(renderer);
+    coverDrawn = jpeg.drawJpegFromPath(coverJpegPath, x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), true);
+  }
   FsFile file;
-  if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
+  if (!coverDrawn && SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
     Bitmap bitmap(file, BitmapDitherMode::None);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       const int maxW = std::max(1, width - 4);
@@ -546,25 +552,45 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
   const int availW = std::max(1, kMaxBoxW - 4);
   const int availH = std::max(1, kMaxBoxH - 4);
 
+  const std::string coverJpegPath = bookPath + "/thumb.jpg";
   std::string coverPath = bookPath + "/thumb.bmp";
+
+  if (SdMan.exists(coverJpegPath.c_str())) {
+    const int coverW = availW + 4;
+    const int coverH = availH + 4;
+    const int frameW = coverW + 2 * kOuterPad;
+    const int frameH = coverH + 2 * kOuterPad;
+    const int innerX = boxX + kOuterPad;
+    const int innerY = yTop + kOuterPad;
+    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+    renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+    if (!rr) {
+      renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+    }
+    JpegRenderer jpeg(renderer);
+    if (jpeg.drawJpegFromPath(coverJpegPath, innerX + 2, innerY + 2, availW, availH, true)) {
+      return {frameW, frameH};
+    }
+  }
+
   FsFile file;
   if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
+    const int coverW = availW + 4;
+    const int coverH = availH + 4;
+    const int frameW = coverW + 2 * kOuterPad;
+    const int frameH = coverH + 2 * kOuterPad;
+    const int innerX = boxX + kOuterPad;
+    const int innerY = yTop + kOuterPad;
+    const bool rr = SETTINGS.bitmapRoundedCorners != 0;
+    renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
+    if (!rr) {
+      renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
+    }
     Bitmap bitmap(file, BitmapDitherMode::None);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       const int bw = bitmap.getWidth();
       const int bh = bitmap.getHeight();
       if (bw > 0 && bh > 0) {
-        const int coverW = availW + 4;
-        const int coverH = availH + 4;
-        const int frameW = coverW + 2 * kOuterPad;
-        const int frameH = coverH + 2 * kOuterPad;
-        const int innerX = boxX + kOuterPad;
-        const int innerY = yTop + kOuterPad;
-        const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-        renderer.fillRect(boxX, yTop, frameW, frameH, false, rr);
-        if (!rr) {
-          renderer.drawRect(boxX, yTop, frameW, frameH, true, false);
-        }
         {
           BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
           drawStatsThumbnailInRect(renderer, bitmap, innerX + 2, innerY + 2, availW, availH);
