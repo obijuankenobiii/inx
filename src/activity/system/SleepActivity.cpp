@@ -12,6 +12,7 @@
 #include <Epub/Page.h>
 #include <Epub/Section.h>
 #include <GfxRenderer.h>
+#include <JpegRenderer.h>
 #include <HalDisplay.h>
 #include <SDCardManager.h>
 #include <Txt.h>
@@ -34,17 +35,22 @@
 #include <memory>
 
 namespace {
+bool isSleepImagePathJpeg(const std::string& path) {
+  return StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg");
+}
+bool isSupportedSleepImageFile(const std::string& filename) {
+  return StringUtils::checkFileExtension(filename, ".bmp") || StringUtils::checkFileExtension(filename, ".jpg") ||
+         StringUtils::checkFileExtension(filename, ".jpeg");
+}
 
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
     return "";
   }
-  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.bmp") == 0) {
-    if (SdMan.exists("/sleep.bmp")) {
-      return "/sleep.bmp";
-    }
-    return "";
-  }
+  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.bmp") == 0) return SdMan.exists("/sleep.bmp") ? "/sleep.bmp" : "";
+  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.jpg") == 0) return SdMan.exists("/sleep.jpg") ? "/sleep.jpg" : "";
+  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.jpeg") == 0)
+    return SdMan.exists("/sleep.jpeg") ? "/sleep.jpeg" : "";
   const std::string path = std::string("/sleep/") + SETTINGS.sleepCustomBmp;
   if (SdMan.exists(path.c_str())) {
     return path;
@@ -67,7 +73,7 @@ std::string pickSleepBmpPath() {
     while (auto file = dir.openNextFile()) {
       file.getName(name, sizeof(name));
       std::string filename = name;
-      if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
+      if (filename[0] != '.' && isSupportedSleepImageFile(filename)) {
         matchCount++;
         
         if (random(matchCount) == 0) {
@@ -84,6 +90,12 @@ std::string pickSleepBmpPath() {
   }
   if (SdMan.exists("/sleep.bmp")) {
     return "/sleep.bmp";
+  }
+  if (SdMan.exists("/sleep.jpg")) {
+    return "/sleep.jpg";
+  }
+  if (SdMan.exists("/sleep.jpeg")) {
+    return "/sleep.jpeg";
   }
   return "";
 }
@@ -348,12 +360,26 @@ void SleepActivity::onEnter() {
 /**
  * @brief Renders a custom sleep screen from user-provided images.
  * 
- * Uses a fixed BMP from settings when set; otherwise picks randomly from /sleep/
- * and /sleep.bmp. Falls back to default sleep screen if no images are found.
+ * Uses a fixed image from settings when set; otherwise picks randomly from /sleep/
+ * and SD-root sleep.bmp/jpg/jpeg. Falls back to default sleep screen if no images are found.
  */
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
+    if (isSleepImagePathJpeg(imagePath)) {
+      FsFile jpegFile;
+      if (SdMan.openFileForRead("SLP", imagePath, jpegFile)) {
+        APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+        APP_STATE.saveToFile();
+        renderer.clearScreen();
+        JpegRenderer jpegRenderer(renderer);
+        const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+        if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+          return;
+        }
+      }
+    }
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file, BitmapDitherMode::Atkinson);
@@ -381,6 +407,19 @@ void SleepActivity::renderCustomSleepScreen() const {
 void SleepActivity::renderTransparentSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
+    if (isSleepImagePathJpeg(imagePath)) {
+      FsFile jpegFile;
+      if (SdMan.openFileForRead("SLP", imagePath, jpegFile)) {
+        APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+        APP_STATE.saveToFile();
+        JpegRenderer jpegRenderer(renderer);
+        const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+        if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
+          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+          return;
+        }
+      }
+    }
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file);

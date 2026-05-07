@@ -305,10 +305,10 @@ public:
     /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
     uint8_t sleepScreenCoverGrayscale = 0;
     /**
-     * Fixed custom/transparent sleep BMP when multiple images exist.
-     * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
-     * Basename only = use /sleep/<basename> (e.g. night.bmp).
-     * Exactly "/sleep.bmp" = use the BMP at the SD card root only.
+     * Fixed custom/transparent sleep image when multiple images exist.
+     * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
+     * Basename only = use /sleep/<basename> (e.g. night.bmp / night.jpg).
+     * Exactly "/sleep.bmp" (or /sleep.jpg/.jpeg) = use SD-root fallback file only.
      */
     char sleepCustomBmp[64] = "";
 
@@ -453,7 +453,7 @@ public:
     int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
     
     /**
-     * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").
+     * @brief Validates and stores the fixed custom sleep image choice (basename under /sleep/ or SD-root sleep file).
      * @param s nullptr or empty string clears (random selection each sleep).
      */
     void setSleepCustomBmpFromInput(const char* s);

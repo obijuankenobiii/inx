@@ -79,27 +79,30 @@ void SleepImagePickerActivity::rebuildRows() {
   rows.clear();
   rows.push_back({"Random (each sleep)", ""});
 
-  std::vector<std::pair<std::string, std::string>> folderBmps;
+  std::vector<std::pair<std::string, std::string>> folderImages;
   auto dir = SdMan.open("/sleep");
   if (dir && dir.isDirectory()) {
     char name[256];
     while (auto file = dir.openNextFile()) {
       file.getName(name, sizeof(name));
       std::string filename = name;
-      if (filename[0] != '.' && StringUtils::checkFileExtension(filename, ".bmp")) {
-        folderBmps.emplace_back(filename, filename);
+      const bool supported = StringUtils::checkFileExtension(filename, ".bmp") ||
+                             StringUtils::checkFileExtension(filename, ".jpg") ||
+                             StringUtils::checkFileExtension(filename, ".jpeg");
+      if (filename[0] != '.' && supported) {
+        folderImages.emplace_back(filename, filename);
       }
       file.close();
     }
     dir.close();
   }
 
-  std::sort(folderBmps.begin(), folderBmps.end(),
+  std::sort(folderImages.begin(), folderImages.end(),
              [](const std::pair<std::string, std::string>& a, const std::pair<std::string, std::string>& b) {
                return a.first < b.first;
              });
 
-  std::transform(folderBmps.begin(), folderBmps.end(), std::back_inserter(rows),
+  std::transform(folderImages.begin(), folderImages.end(), std::back_inserter(rows),
                  [](const std::pair<std::string, std::string>& p) {
                    return SleepImagePickerActivity::Row{p.first, p.second};
                  });
@@ -107,7 +110,12 @@ void SleepImagePickerActivity::rebuildRows() {
   if (SdMan.exists("/sleep.bmp")) {
     rows.push_back({"sleep.bmp (SD root)", "/sleep.bmp"});
   }
-
+  if (SdMan.exists("/sleep.jpg")) {
+    rows.push_back({"sleep.jpg (SD root)", "/sleep.jpg"});
+  }
+  if (SdMan.exists("/sleep.jpeg")) {
+    rows.push_back({"sleep.jpeg (SD root)", "/sleep.jpeg"});
+  }
   const int listPixels = renderer.getScreenHeight() - HEADER_BOTTOM - FOOTER;
   itemsPerPage = listPixels / LIST_ITEM_HEIGHT;
   if (itemsPerPage < 1) {

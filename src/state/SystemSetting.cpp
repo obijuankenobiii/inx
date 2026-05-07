@@ -45,7 +45,7 @@ void sanitizeSleepCustomBmp(char* buf) {
   if (buf == nullptr || buf[0] == '\0') {
     return;
   }
-  if (strcmp(buf, "/sleep.bmp") == 0) {
+  if (strcmp(buf, "/sleep.bmp") == 0 || strcmp(buf, "/sleep.jpg") == 0 || strcmp(buf, "/sleep.jpeg") == 0) {
     return;
   }
   if (strstr(buf, "..") != nullptr) {

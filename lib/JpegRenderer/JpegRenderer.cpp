@@ -74,12 +74,37 @@ bool isUnsupportedJpeg(FsFile& file) {
   return isProgressive;
 }
 
+// Precomputed RGB565 -> grayscale table (same concept as TJpg_Decoder path).
+static uint8_t sGrayFrom565[65536];
+static bool sGrayFrom565Init = false;
+
+inline void ensureGrayFrom565Table() {
+  if (sGrayFrom565Init) return;
+  for (uint32_t i = 0; i < 65536; i++) {
+    const uint8_t r5 = static_cast<uint8_t>((i >> 11) & 0x1F);
+    const uint8_t g6 = static_cast<uint8_t>((i >> 5) & 0x3F);
+    const uint8_t b5 = static_cast<uint8_t>(i & 0x1F);
+    const uint8_t r8 = static_cast<uint8_t>((r5 * 255u) / 31u);
+    const uint8_t g8 = static_cast<uint8_t>((g6 * 255u) / 63u);
+    const uint8_t b8 = static_cast<uint8_t>((b5 * 255u) / 31u);
+    sGrayFrom565[i] = static_cast<uint8_t>((r8 * 77u + g8 * 150u + b8 * 29u) >> 8);
+  }
+  sGrayFrom565Init = true;
+}
+
+inline uint8_t grayFromRgbTable(uint8_t r, uint8_t g, uint8_t b) {
+  const uint16_t rgb565 =
+      static_cast<uint16_t>(((r & 0xF8u) << 8) | ((g & 0xFCu) << 3) | ((b & 0xF8u) >> 3));
+  return sGrayFrom565[rgb565];
+}
+
 }  // namespace
 
 bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
+  ensureGrayFrom565Table();
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) {
@@ -130,7 +155,12 @@ bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int
     return false;
   }
 
-  static constexpr uint8_t bayer[4][4] = {{15, 195, 60, 240}, {135, 75, 180, 120}, {45, 225, 30, 210}, {165, 105, 150, 90}};
+  static constexpr uint8_t bayer[4][4] = {
+      {15, 195, 60, 240},
+      {135, 75, 180, 120},
+      {45, 225, 30, 210},
+      {165, 105, 150, 90},
+  };
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
 
@@ -143,8 +173,8 @@ bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int
           if (pX >= imageInfo.m_width) continue;
           const int off = (bY / 8 * (imageInfo.m_MCUWidth / 8) + bX / 8) * 64 + (bY % 8) * 8 + (bX % 8);
           uint8_t gray = (imageInfo.m_comps == 1) ? imageInfo.m_pMCUBufR[off]
-                                                   : ::rgbToGray(imageInfo.m_pMCUBufR[off], imageInfo.m_pMCUBufG[off],
-                                                                 imageInfo.m_pMCUBufB[off]);
+                                                  : grayFromRgbTable(imageInfo.m_pMCUBufR[off], imageInfo.m_pMCUBufG[off],
+                                                                     imageInfo.m_pMCUBufB[off]);
           mcuRowBuffer[bY * imageInfo.m_width + pX] = gray;
         }
       }
@@ -165,11 +195,13 @@ bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int
       if ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
         for (int ox = 0; ox < outWidth; ox++) {
-          uint8_t gray = rowCount[ox] ? static_cast<uint8_t>(rowAccum[ox] / rowCount[ox]) : 0;
+          int gray = rowCount[ox] ? static_cast<int>(rowAccum[ox] / rowCount[ox]) : 0;
           if (gray > 180) gray = 255;
           else if (gray < 70) gray = 0;
           const int screenX = drawOffsetX + ox;
-          if (gray < bayer[screenX & 3][screenY & 3]) renderer_.drawPixel(screenX, screenY, true);
+          if (gray < bayer[screenX & 3][screenY & 3]) {
+            renderer_.drawPixel(screenX, screenY, true);
+          }
         }
         currentOutY++;
         memset(rowAccum, 0, static_cast<size_t>(outWidth) * sizeof(uint32_t));
