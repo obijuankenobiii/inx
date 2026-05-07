@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "BitmapHelpers.h"
+#include "BitmapUtil.h"
 
 #pragma pack(push, 1)
 struct BmpHeader {

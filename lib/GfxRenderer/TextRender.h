@@ -24,5 +24,8 @@ class TextRender {
                     EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
 
  private:
+  void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
+                  EpdFontFamily::Style style) const;
+  int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
   GfxRenderer& gfx;
 };

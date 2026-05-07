@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "BitmapHelpers.h"
+#include "BitmapUtil.h"
 #include "Bitmap.h"
 
 struct JpegReadContext {

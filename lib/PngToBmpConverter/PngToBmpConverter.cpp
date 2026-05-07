@@ -11,7 +11,7 @@
 #include <cstring>
 #include <new>
 
-#include "BitmapHelpers.h"
+#include "BitmapUtil.h"
 
 #define LOG_DBG(...) ((void)0)
 #define LOG_ERR(tag, fmt, ...) Serial.printf("[PNG] " fmt "\n", ##__VA_ARGS__)

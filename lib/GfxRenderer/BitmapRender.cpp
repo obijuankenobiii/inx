@@ -1,5 +1,5 @@
 /**
- * @file GfxRendererBitmap.cpp
+ * @file BitmapRender.cpp
  */
 #include "BitmapRender.h"
 #include "GfxRenderer.h"

@@ -61,11 +61,6 @@ class GfxRenderer {
   friend class BitmapRender;
   friend class TextRender;
 
-  void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
-                  EpdFontFamily::Style style) const;
-  int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
-  bool getGlyphBitmap(const EpdFontFamily& fontFamily, uint32_t offset, uint32_t length, uint8_t* outputBuffer,
-                      EpdFontFamily::Style style) const;
   void freeBwBufferChunks();
   void rotateCoordinates(int x, int y, int* rotatedX, int* rotatedY) const;
 
@@ -118,19 +113,6 @@ class GfxRenderer {
   void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
   BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
  private:
-  int textGetWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-  void textDrawCentered(int fontId, int y, const char* text, bool black = true,
-                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-  void textDraw(int fontId, int x, int y, const char* text, bool black = true,
-                EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-  int textGetSpaceWidth(int fontId) const;
-  int textGetFontAscenderSize(int fontId) const;
-  int textGetLineHeight(int fontId) const;
-  std::string textTruncate(int fontId, const char* text, int maxWidth,
-                           EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-
-  int getTextHeight(int fontId) const;
-
  public:
   
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }

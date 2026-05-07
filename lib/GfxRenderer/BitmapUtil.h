@@ -1,8 +1,8 @@
 #pragma once
 
 /**
- * @file BitmapHelpers.h
- * @brief Public interface and types for BitmapHelpers.
+ * @file BitmapUtil.h
+ * @brief Public interface and types for BitmapUtil.
  */
 
 #include <cstdint>

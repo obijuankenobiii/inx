@@ -1,9 +1,9 @@
 /**
- * @file BitmapHelpers.cpp
- * @brief Definitions for BitmapHelpers.
+ * @file BitmapUtil.cpp
+ * @brief Definitions for BitmapUtil.
  */
 
-#include "BitmapHelpers.h"
+#include "BitmapUtil.h"
 
 #include <Print.h>
 #include <algorithm>
