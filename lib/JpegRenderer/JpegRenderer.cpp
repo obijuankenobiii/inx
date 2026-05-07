@@ -80,6 +80,9 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
                               8);
 }
 
+constexpr int kJpegDitherSolidBlackMax = 32;
+constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
+
 }  // namespace
 
 bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
@@ -178,12 +181,24 @@ bool JpegRenderer::drawJpeg(FsFile& jpegFile, int x, int y, int targetWidth, int
           int corrected = gray + static_cast<int>(errCur[ox]);
           if (corrected < 0) corrected = 0;
           if (corrected > 255) corrected = 255;
-          const int q = corrected < 128 ? 0 : 255;
-          const int err = corrected - q;
-          if (ox + 1 < outWidth) errCur[ox + 1] = static_cast<int16_t>(errCur[ox + 1] + (err * 7) / 16);
-          errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
-          if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 3) / 16);
-          if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 1) / 16);
+
+          int q;
+          int err;
+          if (gray <= kJpegDitherSolidBlackMax) {
+            q = 0;
+            err = 0;
+          } else if (gray >= kJpegDitherSolidWhiteMin) {
+            q = 255;
+            err = 0;
+          } else {
+            q = corrected < 128 ? 0 : 255;
+            err = corrected - q;
+            if (ox + 1 < outWidth) errCur[ox + 1] = static_cast<int16_t>(errCur[ox + 1] + (err * 7) / 16);
+            errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
+            if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 3) / 16);
+            if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 1) / 16);
+          }
+
           if (q == 0) {
             renderer_.drawPixel(drawOffsetX + ox, screenY, true);
           }

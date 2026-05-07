@@ -375,7 +375,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         JpegRenderer jpegRenderer(renderer);
         const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
         if (jpegRenderer.drawJpeg(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
-          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+          renderer.displayBuffer();
           return;
         }
       }
