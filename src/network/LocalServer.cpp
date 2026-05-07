@@ -15,6 +15,7 @@
 #include <algorithm>
 
 #include "html/EpubPageHtml.generated.h"
+#include "html/EpubPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
@@ -116,6 +117,7 @@ void LocalServer::begin() {
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
+  server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -146,6 +148,7 @@ void LocalServer::begin() {
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
   Serial.printf("✓ jszip.min.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(JSZIP_MIN_JS) - 1));
+  Serial.printf("✓ epub_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(EPUB_PAGE_JS) - 1));
   Serial.printf("✓ inx_font_pack.js from firmware flash (%u bytes)\n",
                 static_cast<unsigned>(sizeof(INX_FONT_PACK_JS) - 1));
 
@@ -379,7 +382,9 @@ bool LocalServer::isEpubFile(const String& filename) const {
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
 
-void LocalServer::handleEpubPage() const { server->send(200, "text/html", EpubPageHtml); }
+void LocalServer::handleEpubPage() const {
+  server->send_P(200, PSTR("text/html; charset=utf-8"), EpubPageHtml, sizeof(EpubPageHtml) - 1);
+}
 
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
@@ -390,6 +395,10 @@ void LocalServer::handleInxFontPackJs() const {
 
 void LocalServer::handleJsZipMinJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), JSZIP_MIN_JS, sizeof(JSZIP_MIN_JS) - 1);
+}
+
+void LocalServer::handleEpubPageJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), EPUB_PAGE_JS, sizeof(EPUB_PAGE_JS) - 1);
 }
 
 void LocalServer::handleFileListData() const {
