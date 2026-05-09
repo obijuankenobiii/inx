@@ -18,6 +18,7 @@ class ImageRender {
     BitmapDitherMode bitmapDitherMode = BitmapDitherMode::None;
     bool cropToFill = false;
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
+    bool useDisplayCache = true;
   };
 
   static ImageRender create(GfxRenderer& renderer, const std::string& path);

@@ -281,20 +281,17 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
     drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
     return;
   }
-  char path[192];
-  snprintf(path, sizeof(path), "%s/thumb.bmp", cacheDir.c_str());
-  char jpegPath[192];
-  snprintf(jpegPath, sizeof(jpegPath), "%s/thumb.jpg", cacheDir.c_str());
+  const std::string imagePath = resolveThumbnailPath(cacheDir);
 
-  if (SdMan.exists(jpegPath)) {
+  if (StringUtils::checkFileExtension(imagePath, ".jpg") || StringUtils::checkFileExtension(imagePath, ".jpeg")) {
     ImageRender::Options options;
     options.cropToFill = true;
-    if (ImageRender::create(renderer, jpegPath).render(x, y, w, h, options)) {
+    if (ImageRender::create(renderer, imagePath).render(x, y, w, h, options)) {
       return;
     }
   }
 
-  if (SdMan.exists(path)) {
+  if (!imagePath.empty()) {
     BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
     ImageRender::Options options;
     options.bitmapDitherMode = BitmapDitherMode::None;
@@ -304,12 +301,39 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
             ? BitmapRender::RoundedOutside::None
             : (roundedCornerBackdropIsDither ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
                                              : BitmapRender::RoundedOutside::PaperOutside);
-    if (ImageRender::create(renderer, path).render(x, y, w, h, options)) {
+    if (ImageRender::create(renderer, imagePath).render(x, y, w, h, options)) {
       return;
     }
   }
 
   drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
+}
+
+std::string RecentActivity::resolveThumbnailPath(const std::string& cacheDir) const {
+  if (cacheDir.empty()) {
+    return "";
+  }
+  const auto cached = thumbnailPathCache_.find(cacheDir);
+  if (cached != thumbnailPathCache_.end()) {
+    return cached->second;
+  }
+
+  char jpegPath[192];
+  snprintf(jpegPath, sizeof(jpegPath), "%s/thumb.jpg", cacheDir.c_str());
+  if (SdMan.exists(jpegPath)) {
+    thumbnailPathCache_[cacheDir] = jpegPath;
+    return jpegPath;
+  }
+
+  char bmpPath[192];
+  snprintf(bmpPath, sizeof(bmpPath), "%s/thumb.bmp", cacheDir.c_str());
+  if (SdMan.exists(bmpPath)) {
+    thumbnailPathCache_[cacheDir] = bmpPath;
+    return bmpPath;
+  }
+
+  thumbnailPathCache_[cacheDir] = "";
+  return "";
 }
 
 void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
@@ -320,8 +344,9 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
   }
 
   const RecentBook& curBook = recentBooks[static_cast<size_t>(sel)];
-  BookReadingStats stats;
-  const bool hasStats = loadBookStats(curBook.cachePath.c_str(), stats);
+  const CachedRecentStats& cachedStats = statsForRecentIndex(sel);
+  const BookReadingStats& stats = cachedStats.stats;
+  const bool hasStats = cachedStats.loaded;
 
   const int h = listStatsRecentHScroll;
   int compareIdx = -1;
@@ -335,8 +360,12 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
 
   BookReadingStats secondStats;
   const bool hasSecond = compareIdx >= 0;
-  const bool hasSecondStats =
-      hasSecond && loadBookStats(recentBooks[static_cast<size_t>(compareIdx)].cachePath.c_str(), secondStats);
+  bool hasSecondStats = false;
+  if (hasSecond) {
+    const CachedRecentStats& cachedSecondStats = statsForRecentIndex(compareIdx);
+    secondStats = cachedSecondStats.stats;
+    hasSecondStats = cachedSecondStats.loaded;
+  }
   const bool showCompare = hasStats && hasSecondStats && n > 1;
 
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
@@ -561,7 +590,10 @@ int RecentActivity::getVisibleRows() const {
  */
 void RecentActivity::loadRecentBooks(const bool resetScroll) {
   recentBooks.clear();
+  recentStats_.clear();
+  thumbnailPathCache_.clear();
   recentBooks.reserve(MAX_RECENT_BOOKS);
+  recentStats_.reserve(MAX_RECENT_BOOKS);
   const int maxShow =
       std::min(MAX_RECENT_BOOKS, std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
   if (resetScroll) {
@@ -578,11 +610,22 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
       continue;
     }
     recentBooks.push_back(book);
+    CachedRecentStats cachedStats;
+    cachedStats.loaded = !book.cachePath.empty() && loadBookStats(book.cachePath.c_str(), cachedStats.stats);
+    recentStats_.push_back(cachedStats);
     addedCount++;
   }
   const std::vector<BookState::Book> favorites = BOOK_STATE.getFavoriteBooks();
   rebuildListStatsFavorites(favorites);
   rebuildSimpleUiFavorites(favorites);
+}
+
+const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(const int index) const {
+  static const CachedRecentStats empty;
+  if (index < 0 || index >= static_cast<int>(recentStats_.size())) {
+    return empty;
+  }
+  return recentStats_[static_cast<size_t>(index)];
 }
 
 void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {
@@ -626,6 +669,9 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
  */
 void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites) {
   listStatsFavoriteOnly_.clear();
+  if (!recentBooks.empty()) {
+    return;
+  }
   for (const auto& fav : favorites) {
     if (recentBooksContainPath(recentBooks, fav.path)) {
       continue;
@@ -634,6 +680,7 @@ void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book
       continue;
     }
     listStatsFavoriteOnly_.push_back(fav);
+    return;
   }
 }
 
@@ -668,6 +715,8 @@ void RecentActivity::onExit() {
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   recentBooks.clear();
+  recentStats_.clear();
+  thumbnailPathCache_.clear();
   listStatsFavoriteOnly_.clear();
   simpleUiFavorites_.clear();
   renderer.resetTransientReaderState();
@@ -1366,8 +1415,9 @@ void RecentActivity::renderFlow() {
   drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
                         ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);
 
-  BookReadingStats stats;
-  bool hasStats = loadBookStats(currentBook.cachePath.c_str(), stats);
+  const CachedRecentStats& cachedStats = statsForRecentIndex(currentIndex);
+  const BookReadingStats& stats = cachedStats.stats;
+  const bool hasStats = cachedStats.loaded;
 
   const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;

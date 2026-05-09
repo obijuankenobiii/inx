@@ -6,6 +6,7 @@
  */
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -74,6 +75,12 @@ class RecentActivity final : public Activity, public Menu {
   int simpleUiFavScroll_ = 0;
 
   std::vector<RecentBook> recentBooks;
+  struct CachedRecentStats {
+    bool loaded = false;
+    BookReadingStats stats;
+  };
+  std::vector<CachedRecentStats> recentStats_;
+  mutable std::map<std::string, std::string> thumbnailPathCache_;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -91,6 +98,7 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
+  const CachedRecentStats& statsForRecentIndex(int index) const;
   void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
 
@@ -135,6 +143,7 @@ class RecentActivity final : public Activity, public Menu {
   void renderIcons(int startY);
 
   /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use paper corners. */
+  std::string resolveThumbnailPath(const std::string& cacheDir) const;
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId, bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */

@@ -410,6 +410,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
       APP_STATE.saveToFile();
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+      options.useDisplayCache = false;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
         renderer.displayBuffer();

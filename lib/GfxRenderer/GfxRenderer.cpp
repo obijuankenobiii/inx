@@ -91,6 +91,81 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   }
 }
 
+bool GfxRenderer::readPixel(const int x, const int y) const {
+  const uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  int rotatedX = 0;
+  int rotatedY = 0;
+  rotateCoordinates(x, y, &rotatedX, &rotatedY);
+  if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 || rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+    return false;
+  }
+
+  const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+  const uint8_t bitPosition = 7 - (rotatedX % 8);
+  return (frameBuffer[byteIndex] & (1 << bitPosition)) == 0;
+}
+
+bool GfxRenderer::readPackedRow1bpp(const int x, const int y, const int width, uint8_t* outRow) const {
+  if (!outRow || width <= 0) {
+    return false;
+  }
+  const int rowBytes = (width + 7) / 8;
+  memset(outRow, 0, static_cast<size_t>(rowBytes));
+
+  const uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  for (int col = 0; col < width; col++) {
+    int rotatedX = 0;
+    int rotatedY = 0;
+    rotateCoordinates(x + col, y, &rotatedX, &rotatedY);
+    if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 ||
+        rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+      continue;
+    }
+    const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+    const uint8_t bitPosition = 7 - (rotatedX % 8);
+    if ((frameBuffer[byteIndex] & (1 << bitPosition)) == 0) {
+      outRow[col / 8] |= static_cast<uint8_t>(0x80 >> (col % 8));
+    }
+  }
+  return true;
+}
+
+void GfxRenderer::drawPackedRow1bpp(const int x, const int y, const int width, const uint8_t* row) const {
+  if (!row || width <= 0) {
+    return;
+  }
+  uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) {
+    return;
+  }
+
+  for (int col = 0; col < width; col++) {
+    int rotatedX = 0;
+    int rotatedY = 0;
+    rotateCoordinates(x + col, y, &rotatedX, &rotatedY);
+    if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 ||
+        rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+      continue;
+    }
+    const bool ink = (row[col / 8] & (0x80 >> (col % 8))) != 0;
+    const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+    const uint8_t bitPosition = 7 - (rotatedX % 8);
+    if (ink) {
+      frameBuffer[byteIndex] &= static_cast<uint8_t>(~(1 << bitPosition));
+    } else {
+      frameBuffer[byteIndex] |= static_cast<uint8_t>(1 << bitPosition);
+    }
+  }
+}
+
 void GfxRenderer::clearScreen(const uint8_t color) const { display.clearScreen(color); }
 
 void GfxRenderer::invertScreen() const {
