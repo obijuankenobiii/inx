@@ -14,10 +14,8 @@
 #include "../../src/system/ExternalFont.h"
 #include "BitmapRender.h"
 #include "IconRender.h"
-#include "JpegRender.h"
 #include "LineRender.h"
 #include "PolygonRender.h"
-#include "PngRender.h"
 #include "RectangleRender.h"
 #include "TextRender.h"
 #include "UiRender.h"
@@ -138,8 +136,6 @@ class GfxRenderer {
   LineRender line;
   IconRender icon;
   PolygonRender polygon;
-  JpegRender jpeg;
-  PngRender png;
   BitmapRender bitmap;
   TextRender text;
   UiRender ui;

@@ -19,8 +19,6 @@ GfxRenderer::GfxRenderer(HalDisplay& halDisplay)
       line(*this),
       icon(*this),
       polygon(*this),
-      jpeg(*this),
-      png(*this),
       bitmap(*this),
       text(*this),
       ui(*this) {}

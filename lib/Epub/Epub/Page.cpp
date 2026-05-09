@@ -5,14 +5,11 @@
 
 #include "Page.h"
 
-#include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <JpegRender.h>
-#include <PngRender.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
-#include "../../../src/util/StringUtils.h"
 
 #include <climits>
 #include <cmath>
@@ -23,66 +20,6 @@ namespace {
 constexpr float kImgScaleEps = 1e-5f;
 constexpr float kImgHuge = 1e9f;
 
-enum class PageImageFormat { Bitmap, Jpeg, Png };
-
-PageImageFormat imageFormatFromPath(const std::string& path) {
-  if (StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg")) {
-    return PageImageFormat::Jpeg;
-  }
-  if (StringUtils::checkFileExtension(path, ".png")) {
-    return PageImageFormat::Png;
-  }
-  return PageImageFormat::Bitmap;
-}
-
-bool getImageSourceDimensions(const std::string& path, PageImageFormat format, int* outW, int* outH) {
-  if (format == PageImageFormat::Jpeg) {
-    return JpegRender::getDimensions(path, outW, outH);
-  }
-  if (format == PageImageFormat::Png) {
-    return PngRender::getDimensions(path, outW, outH);
-  }
-
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", path, file)) {
-    return false;
-  }
-  Bitmap bitmap(file, BitmapDitherMode::None);
-  const bool ok = bitmap.parseHeaders() == BmpReaderError::Ok;
-  if (ok) {
-    *outW = bitmap.getWidth();
-    *outH = bitmap.getHeight();
-  }
-  file.close();
-  return ok;
-}
-
-bool renderPageImageByFormat(GfxRenderer& renderer, const std::string& path, PageImageFormat format, int x, int y,
-                             int width, int height, BitmapDitherMode imageDitherMode) {
-  if (format == PageImageFormat::Jpeg) {
-    JpegRender jpeg(renderer);
-    return jpeg.fromPath(path, x, y, width, height, false);
-  }
-  if (format == PageImageFormat::Png) {
-    PngRender png(renderer);
-    return png.fromPath(path, x, y, width, height);
-  }
-
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", path, file)) {
-    Serial.printf("[PAGEIMG] Failed to open image file: %s\n", path.c_str());
-    return false;
-  }
-
-  Bitmap bitmap(file, imageDitherMode);
-  const bool ok = bitmap.parseHeaders() == BmpReaderError::Ok;
-  if (ok) {
-    renderer.bitmap.render(bitmap, x, y, width, height);
-  }
-  file.close();
-  return ok;
-}
-
 /**
  * Tight pixel bounds for how PageImage::render + GfxRenderer::drawBitmap place the bitmap (fit within layout w/h).
  * Matches drawBitmap1Bit / drawBitmap scale and non-replicate vs replicate-upscale branches.
@@ -90,10 +27,9 @@ bool renderPageImageByFormat(GfxRenderer& renderer, const std::string& path, Pag
 bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int xOffset, int yOffset, int& outX1,
                           int& outY1, int& outX2, int& outY2) {
   (void)xOffset;
-  const PageImageFormat format = imageFormatFromPath(img.getPath());
   int sourceW = 0;
   int sourceH = 0;
-  if (!getImageSourceDimensions(img.getPath(), format, &sourceW, &sourceH)) return false;
+  if (!ImageRender::getDimensions(img.getPath(), &sourceW, &sourceH)) return false;
 
   const int lw = img.getWidth();
   const int lh = img.getHeight();
@@ -286,14 +222,14 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
                        const BitmapDitherMode imageDitherMode) {
   (void)xOffset;  
   (void)fontId;
-  const PageImageFormat format = imageFormatFromPath(cachePath);
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
   int renderY = yPos + yOffset;
   if (renderX < 0) renderX = 0;
   if (renderY < 0) renderY = 0;
 
-  if (!renderPageImageByFormat(renderer, cachePath, format, renderX, renderY, width, height, imageDitherMode)) {
+  const ImageRender image = ImageRender::create(renderer, cachePath);
+  if (!image.render(renderX, renderY, width, height, imageDitherMode)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
 }

@@ -446,7 +446,8 @@ bool drawGrayRow(RenderContext& ctx, const uint8_t* grayRow, int width, int rowI
   return true;
 }
 
-bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int outH) {
+bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int outH, int srcX, int srcY, int srcW,
+                     int srcH) {
   PngContext* ctxPtr = new (std::nothrow) PngContext();
   if (!ctxPtr) return false;
   PngContext& ctx = *ctxPtr;
@@ -468,7 +469,8 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 
   int currentSrcY = -1;
   for (int oy = 0; oy < outH; oy++) {
-    const int sy = outH <= 1 ? 0 : std::min(static_cast<int>(ctx.height) - 1, (oy * static_cast<int>(ctx.height)) / outH);
+    const int sy =
+        srcY + (outH <= 1 ? 0 : std::min(srcH - 1, (oy * srcH) / outH));
     while (currentSrcY < sy) {
       if (!decodeScanline(ctx)) {
         free(graySrc);
@@ -483,7 +485,7 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
     }
 
     for (int ox = 0; ox < outW; ox++) {
-      const int sx = outW <= 1 ? 0 : std::min(static_cast<int>(ctx.width) - 1, (ox * static_cast<int>(ctx.width)) / outW);
+      const int sx = srcX + (outW <= 1 ? 0 : std::min(srcW - 1, (ox * srcW) / outW));
       grayDst[ox] = graySrc[sx];
     }
     if (!drawGrayRow(renderCtx, grayDst, outW, oy)) {
@@ -503,18 +505,34 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 }
 }  // namespace
 
-bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight) const {
+bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
   if (!pngFile || targetWidth <= 0 || targetHeight <= 0) return false;
 
-  int outW = 0;
-  int outH = 0;
-  if (!getDimensions(pngFile, &outW, &outH)) return false;
+  int sourceW = 0;
+  int sourceH = 0;
+  if (!getDimensions(pngFile, &sourceW, &sourceH)) return false;
 
-  const float sx = static_cast<float>(targetWidth) / static_cast<float>(outW);
-  const float sy = static_cast<float>(targetHeight) / static_cast<float>(outH);
-  const float scale = std::min(sx, sy);
-  outW = std::max(1, static_cast<int>(outW * scale));
-  outH = std::max(1, static_cast<int>(outH * scale));
+  int srcX = 0;
+  int srcY = 0;
+  int srcW = sourceW;
+  int srcH = sourceH;
+  int outW = targetWidth;
+  int outH = targetHeight;
+  if (cropToFill) {
+    const float sx = static_cast<float>(targetWidth) / static_cast<float>(sourceW);
+    const float sy = static_cast<float>(targetHeight) / static_cast<float>(sourceH);
+    const float scale = std::max(sx, sy);
+    srcW = std::max(1, static_cast<int>(targetWidth / scale));
+    srcH = std::max(1, static_cast<int>(targetHeight / scale));
+    srcX = std::max(0, (sourceW - srcW) / 2);
+    srcY = std::max(0, (sourceH - srcH) / 2);
+  } else {
+    const float sx = static_cast<float>(targetWidth) / static_cast<float>(sourceW);
+    const float sy = static_cast<float>(targetHeight) / static_cast<float>(sourceH);
+    const float scale = std::min(sx, sy);
+    outW = std::max(1, static_cast<int>(sourceW * scale));
+    outH = std::max(1, static_cast<int>(sourceH * scale));
+  }
 
   const int drawX = x + (targetWidth - outW) / 2;
   const int drawY = y + (targetHeight - outH) / 2;
@@ -527,15 +545,16 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
                        .width = outW,
                        .errCur = errors,
                        .errNext = errors + outW};
-  const bool ok = decodeAndRender(pngFile, ctx, outW, outH);
+  const bool ok = decodeAndRender(pngFile, ctx, outW, outH, srcX, srcY, srcW, srcH);
   delete[] errors;
   return ok;
 }
 
-bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight) const {
+bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
+                         bool cropToFill) const {
   FsFile file;
   if (!SdMan.openFileForRead("PNG", path, file)) return false;
-  const bool ok = render(file, x, y, targetWidth, targetHeight);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill);
   file.close();
   return ok;
 }

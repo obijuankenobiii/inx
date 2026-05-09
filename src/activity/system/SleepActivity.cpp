@@ -12,7 +12,7 @@
 #include <Epub/Page.h>
 #include <Epub/Section.h>
 #include <GfxRenderer.h>
-#include <JpegRender.h>
+#include <ImageRender.h>
 #include <HalDisplay.h>
 #include <SDCardManager.h>
 #include <Txt.h>
@@ -367,17 +367,15 @@ void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     if (isSleepImagePathJpeg(imagePath)) {
-      FsFile jpegFile;
-      if (SdMan.openFileForRead("SLP", imagePath, jpegFile)) {
-        APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
-        APP_STATE.saveToFile();
-        renderer.clearScreen();
-        JpegRender jpegRenderer(renderer);
-        const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-        if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
-          renderer.displayBuffer();
-          return;
-        }
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
+      renderer.clearScreen();
+      ImageRender::Options options;
+      options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+      if (ImageRender::create(renderer, imagePath)
+              .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
+        renderer.displayBuffer();
+        return;
       }
     }
     FsFile file;
@@ -408,16 +406,14 @@ void SleepActivity::renderTransparentSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     if (isSleepImagePathJpeg(imagePath)) {
-      FsFile jpegFile;
-      if (SdMan.openFileForRead("SLP", imagePath, jpegFile)) {
-        APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
-        APP_STATE.saveToFile();
-        JpegRender jpegRenderer(renderer);
-        const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-        if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
-          renderer.displayBuffer();
-          return;
-        }
+      APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+      APP_STATE.saveToFile();
+      ImageRender::Options options;
+      options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+      if (ImageRender::create(renderer, imagePath)
+              .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
+        renderer.displayBuffer();
+        return;
       }
     }
     FsFile file;
@@ -451,20 +447,16 @@ void SleepActivity::renderCoverSleepScreen() const {
   const std::string coverPath = resolveLastReadCoverPathForSleep(APP_STATE.lastRead);
 
   if (!coverPath.empty() && isSleepImagePathJpeg(coverPath)) {
-    FsFile jpegFile;
-    if (SdMan.openFileForRead("SLP", coverPath, jpegFile)) {
-      renderer.clearScreen();
-      JpegRender jpegRenderer(renderer);
-      const bool fill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
-      if (jpegRenderer.render(jpegFile, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), fill)) {
-        if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
-          renderer.invertScreen();
-        }
-        renderer.displayBuffer();
-        jpegFile.close();
-        return;
+    renderer.clearScreen();
+    ImageRender::Options options;
+    options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
+    if (ImageRender::create(renderer, coverPath)
+            .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
+      if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
+        renderer.invertScreen();
       }
-      jpegFile.close();
+      renderer.displayBuffer();
+      return;
     }
     return renderCustomSleepScreen();
   }

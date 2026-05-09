@@ -14,8 +14,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <JpegRender.h>
-#include <PngRender.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
@@ -734,8 +733,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 }
 
 /**
- * Reads BMP dimensions from a cached image file.
- * @param path Path to the BMP file
+ * Reads dimensions from a cached image file.
+ * @param path Path to the image file
  * @param w Output parameter for width
  * @param h Output parameter for height
  * @return true if dimensions were successfully read
@@ -743,25 +742,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, int* h) {
   *w = 0;
   *h = 0;
-  const bool isJpeg = hasJpegExt(path);
-  if (isJpeg) {
-    return JpegRender::getDimensions(path, w, h);
-  }
-  if (hasPngExt(path)) {
-    return PngRender::getDimensions(path, w, h);
-  }
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", path, file)) return false;
-
-  Bitmap bitmap(file);
-  const bool ok = (bitmap.parseHeaders() == BmpReaderError::Ok);
-  if (ok) {
-    *w = bitmap.getWidth();
-    *h = bitmap.getHeight();
-  }
-
-  file.close();
-  return ok && (*w > 0) && (*h > 0);
+  return ImageRender::getDimensions(path, w, h) && (*w > 0) && (*h > 0);
 }
 
 /**

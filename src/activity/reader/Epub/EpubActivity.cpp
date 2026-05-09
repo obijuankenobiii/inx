@@ -22,7 +22,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
-#include <JpegRender.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <esp_task_wdt.h>
 #include <time.h>
@@ -496,48 +496,27 @@ void EpubActivity::displayCoverOrTitle() {
     const int pageWidth = renderer.getScreenWidth();
     const int pageHeight = renderer.getScreenHeight();
     renderer.clearScreen();
-    JpegRender jpeg(renderer);
-    if (jpeg.fromPath(coverJpegPath, 0, 0, pageWidth, pageHeight, true)) {
+    ImageRender::Options options;
+    options.cropToFill = true;
+    if (ImageRender::create(renderer, coverJpegPath).render(0, 0, pageWidth, pageHeight, options)) {
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       return;
     }
   }
 
-  FsFile coverFile;
-  if (SdMan.openFileForRead("EBP", coverPath, coverFile)) {
-    Bitmap coverBmp(coverFile);
-    if (coverBmp.parseHeaders() == BmpReaderError::Ok) {
-      [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
-  BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-  const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
-  float cropX = 0.0f;
-  float cropY = 0.0f;
-  constexpr int x = 0;
-  constexpr int y = 0;
-
-
-    const float iw = static_cast<float>(coverBmp.getWidth());
-    const float ih = static_cast<float>(coverBmp.getHeight());
-    if (iw > 0.f && ih > 0.f) {
-      const float ir = iw / ih;
-      const float tr = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
-      if (ir > tr) {
-        cropX = 1.0f - (tr / ir);
-      } else if (ir < tr) {
-        cropY = 1.0f - (ir / tr);
-      }
+  if (SdMan.exists(coverPath.c_str())) {
+    [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
+    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
+    const int pageWidth = renderer.getScreenWidth();
+    const int pageHeight = renderer.getScreenHeight();
+    ImageRender::Options options;
+    options.bitmapDitherMode = BitmapDitherMode::None;
+    options.cropToFill = true;
+    renderer.clearScreen();
+    if (ImageRender::create(renderer, coverPath).render(0, 0, pageWidth, pageHeight, options)) {
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      return;
     }
-
-  renderer.clearScreen();
-
-
-  renderer.bitmap.render(coverBmp, x, y, pageWidth, pageHeight, cropX, cropY);
-
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
-    }
-    coverFile.close();
   } else {
     displayBookTitle();
   }

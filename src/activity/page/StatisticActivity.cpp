@@ -7,7 +7,7 @@
 
 #include <Bitmap.h>
 #include <GfxRenderer.h>
-#include <JpegRender.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -23,29 +23,6 @@
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 namespace {
-
-/** Scale/crop so the bitmap fills [x,y,w,h] without letterboxing (matches Recent thumbnails). */
-void drawStatsThumbnailInRect(GfxRenderer& renderer, Bitmap& bitmap, int x, int y, int w, int h) {
-  if (w <= 0 || h <= 0) {
-    return;
-  }
-  const float iw = static_cast<float>(bitmap.getWidth());
-  const float ih = static_cast<float>(bitmap.getHeight());
-  float cropX = 0.f;
-  float cropY = 0.f;
-  if (iw > 0.f && ih > 0.f) {
-    const float ir = iw / ih;
-    const float tr = static_cast<float>(w) / static_cast<float>(h);
-    if (ir > tr) {
-      cropX = 1.0f - (tr / ir);
-    } else if (ir < tr) {
-      cropY = 1.0f - (ir / tr);
-    }
-  }
-  renderer.bitmap.render(bitmap, x, y, w, h, cropX, cropY,
-                      SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
-                                                         : BitmapRender::RoundedOutside::None);
-}
 
 constexpr unsigned long GO_HOME_MS = 1000;
 
@@ -462,22 +439,22 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   const std::string coverJpegPath = bookPath + "/thumb.jpg";
   std::string coverPath = bookPath + "/thumb.bmp";
   bool coverDrawn = false;
+  ImageRender::Options imageOptions;
+  imageOptions.bitmapDitherMode = BitmapDitherMode::None;
+  imageOptions.cropToFill = true;
+  imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
+                                                                    : BitmapRender::RoundedOutside::None;
 
   if (SdMan.exists(coverJpegPath.c_str())) {
-    JpegRender jpeg(renderer);
-    coverDrawn = jpeg.fromPath(coverJpegPath, x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), true);
+    coverDrawn =
+        ImageRender::create(renderer, coverJpegPath)
+            .render(x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), imageOptions);
   }
-  FsFile file;
-  if (!coverDrawn && SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
-    Bitmap bitmap(file, BitmapDitherMode::None);
-    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      const int maxW = std::max(1, width - 4);
-      const int maxH = std::max(1, height - 4);
-      BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-      drawStatsThumbnailInRect(renderer, bitmap, x + 2, y + 2, maxW, maxH);
-      coverDrawn = true;
-    }
-    file.close();
+  if (!coverDrawn && SdMan.exists(coverPath.c_str())) {
+    const int maxW = std::max(1, width - 4);
+    const int maxH = std::max(1, height - 4);
+    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
+    coverDrawn = ImageRender::create(renderer, coverPath).render(x + 2, y + 2, maxW, maxH, imageOptions);
   }
 
   if (coverDrawn) {
@@ -567,14 +544,14 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     if (!rr) {
       renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
-    JpegRender jpeg(renderer);
-    if (jpeg.fromPath(coverJpegPath, innerX + 2, innerY + 2, availW, availH, true)) {
+    ImageRender::Options imageOptions;
+    imageOptions.cropToFill = true;
+    if (ImageRender::create(renderer, coverJpegPath).render(innerX + 2, innerY + 2, availW, availH, imageOptions)) {
       return {frameW, frameH};
     }
   }
 
-  FsFile file;
-  if (SdMan.openFileForRead("COVER", coverPath.c_str(), file)) {
+  if (SdMan.exists(coverPath.c_str())) {
     const int coverW = availW + 4;
     const int coverH = availH + 4;
     const int frameW = coverW + 2 * kOuterPad;
@@ -586,20 +563,15 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     if (!rr) {
       renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
-    Bitmap bitmap(file, BitmapDitherMode::None);
-    if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-      const int bw = bitmap.getWidth();
-      const int bh = bitmap.getHeight();
-      if (bw > 0 && bh > 0) {
-        {
-          BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
-          drawStatsThumbnailInRect(renderer, bitmap, innerX + 2, innerY + 2, availW, availH);
-        }
-        file.close();
-        return {frameW, frameH};
-      }
+    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
+    ImageRender::Options imageOptions;
+    imageOptions.bitmapDitherMode = BitmapDitherMode::None;
+    imageOptions.cropToFill = true;
+    imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
+                                                                      : BitmapRender::RoundedOutside::None;
+    if (ImageRender::create(renderer, coverPath).render(innerX + 2, innerY + 2, availW, availH, imageOptions)) {
+      return {frameW, frameH};
     }
-    file.close();
   }
 
   constexpr int kFallbackW = 120;
