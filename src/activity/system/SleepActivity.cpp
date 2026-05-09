@@ -31,7 +31,6 @@
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
 #include <cmath>
-#include <cstdio>
 #include <memory>
 
 namespace {
@@ -41,170 +40,6 @@ bool isSleepImagePathJpeg(const std::string& path) {
 bool isSupportedSleepImageFile(const std::string& filename) {
   return StringUtils::checkFileExtension(filename, ".bmp") || StringUtils::checkFileExtension(filename, ".jpg") ||
          StringUtils::checkFileExtension(filename, ".jpeg");
-}
-
-constexpr uint32_t kSleepCacheMagic = 0x43504c53;  // SLPC
-constexpr uint16_t kSleepCacheVersion = 1;
-constexpr const char* kSleepCacheDir = "/.display-cache/sleep";
-
-struct SleepCacheHeader {
-  uint32_t magic;
-  uint16_t version;
-  uint16_t headerSize;
-  uint16_t width;
-  uint16_t height;
-  uint16_t rowBytes;
-  uint16_t reserved;
-};
-
-uint32_t fnv1aAdd(uint32_t hash, const uint8_t byte) {
-  hash ^= byte;
-  return hash * 16777619u;
-}
-
-uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
-  hash = fnv1aAdd(hash, static_cast<uint8_t>(value & 0xFF));
-  hash = fnv1aAdd(hash, static_cast<uint8_t>((value >> 8) & 0xFF));
-  hash = fnv1aAdd(hash, static_cast<uint8_t>((value >> 16) & 0xFF));
-  return fnv1aAdd(hash, static_cast<uint8_t>((value >> 24) & 0xFF));
-}
-
-uint32_t fnv1aAddString(uint32_t hash, const std::string& value) {
-  for (const char c : value) {
-    hash = fnv1aAdd(hash, static_cast<uint8_t>(c));
-  }
-  return hash;
-}
-
-uint32_t fileSizeForCache(const std::string& path) {
-  if (path.empty() || !SdMan.exists(path.c_str())) {
-    return 0;
-  }
-  FsFile file = SdMan.open(path.c_str());
-  const uint32_t size = file ? static_cast<uint32_t>(file.size()) : 0;
-  file.close();
-  return size;
-}
-
-bool isDirectory(const std::string& path) {
-  if (!SdMan.exists(path.c_str())) {
-    return false;
-  }
-  FsFile file = SdMan.open(path.c_str());
-  const bool ok = file && file.isDirectory();
-  file.close();
-  return ok;
-}
-
-bool ensureSleepCacheDir() {
-  if (!isDirectory("/.display-cache") && !SdMan.mkdir("/.display-cache")) {
-    return false;
-  }
-  return isDirectory(kSleepCacheDir) || SdMan.mkdir(kSleepCacheDir);
-}
-
-std::string sleepCachePath(GfxRenderer& renderer, const std::string& key) {
-  uint32_t hash = 2166136261u;
-  hash = fnv1aAddString(hash, key);
-  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(renderer.getScreenWidth()));
-  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(renderer.getScreenHeight()));
-  hash = fnv1aAdd(hash, static_cast<uint8_t>(renderer.getOrientation()));
-  char name[36];
-  snprintf(name, sizeof(name), "/%08lx.irdc", static_cast<unsigned long>(hash));
-  return std::string(kSleepCacheDir) + name;
-}
-
-std::string sleepRenderKey(const char* mode, const std::string& path = "", const std::string& extra = "") {
-  std::string key = "v2|";
-  key += mode;
-  key += "|screen=" + std::to_string(SETTINGS.sleepScreen);
-  key += "|coverMode=" + std::to_string(SETTINGS.sleepScreenCoverMode);
-  key += "|filter=" + std::to_string(SETTINGS.sleepScreenCoverFilter);
-  key += "|sleep2bit=" + std::to_string(SETTINGS.sleepScreenCoverGrayscale);
-  key += "|path=" + path;
-  key += "|size=" + std::to_string(fileSizeForCache(path));
-  key += "|extra=" + extra;
-  return key;
-}
-
-bool renderCachedSleepFrame(GfxRenderer& renderer, const std::string& key,
-                            const HalDisplay::RefreshMode refreshMode = HalDisplay::HALF_REFRESH) {
-  const std::string path = sleepCachePath(renderer, key);
-  if (!SdMan.exists(path.c_str())) {
-    return false;
-  }
-  FsFile file;
-  if (!SdMan.openFileForRead("SLPC", path, file)) {
-    return false;
-  }
-
-  SleepCacheHeader header;
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
-  const int rowBytes = (screenW + 7) / 8;
-  const bool okHeader = file.read(&header, sizeof(header)) == sizeof(header) && header.magic == kSleepCacheMagic &&
-                        header.version == kSleepCacheVersion && header.headerSize == sizeof(SleepCacheHeader) &&
-                        header.width == screenW && header.height == screenH && header.rowBytes == rowBytes;
-  if (!okHeader || rowBytes > 128) {
-    file.close();
-    return false;
-  }
-
-  uint8_t row[128];
-  for (int y = 0; y < screenH; y++) {
-    if (file.read(row, rowBytes) != rowBytes) {
-      file.close();
-      return false;
-    }
-    renderer.drawPackedRow1bpp(0, y, screenW, row);
-  }
-  file.close();
-  renderer.displayBuffer(refreshMode);
-  return true;
-}
-
-bool storeSleepFrame(GfxRenderer& renderer, const std::string& key) {
-  if (renderer.getRenderMode() != GfxRenderer::BW || !ensureSleepCacheDir()) {
-    return false;
-  }
-  const std::string path = sleepCachePath(renderer, key);
-  FsFile file;
-  if (!SdMan.openFileForWrite("SLPC", path, file)) {
-    return false;
-  }
-
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
-  const int rowBytes = (screenW + 7) / 8;
-  if (rowBytes > 128) {
-    file.close();
-    SdMan.remove(path.c_str());
-    return false;
-  }
-
-  const SleepCacheHeader header = {.magic = kSleepCacheMagic,
-                                   .version = kSleepCacheVersion,
-                                   .headerSize = sizeof(SleepCacheHeader),
-                                   .width = static_cast<uint16_t>(screenW),
-                                   .height = static_cast<uint16_t>(screenH),
-                                   .rowBytes = static_cast<uint16_t>(rowBytes),
-                                   .reserved = 0};
-  bool ok = file.write(&header, sizeof(header)) == sizeof(header);
-  uint8_t row[128];
-  for (int y = 0; ok && y < screenH; y++) {
-    renderer.readPackedRow1bpp(0, y, screenW, row);
-    ok = file.write(row, rowBytes) == static_cast<size_t>(rowBytes);
-  }
-  file.close();
-  if (!ok) {
-    SdMan.remove(path.c_str());
-  }
-  return ok;
-}
-
-bool sleepCanUseOneBitFrameCache() {
-  return SETTINGS.sleepScreenCoverGrayscale == 0 ||
-         SETTINGS.sleepScreenCoverFilter != SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 }
 
 bool sleepTwoBitEnabled() {
@@ -562,11 +397,7 @@ void SleepActivity::onEnter() {
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
-    const std::string cacheKey = sleepRenderKey("custom", imagePath);
     recordSleepImageUsed();
-    if (sleepCanUseOneBitFrameCache() && renderCachedSleepFrame(renderer, cacheKey)) {
-      return;
-    }
 
     if (isSleepImagePathJpeg(imagePath)) {
       renderer.clearScreen();
@@ -575,9 +406,6 @@ void SleepActivity::renderCustomSleepScreen() const {
       options.mode = sleepImageRenderMode();
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-        if (sleepCanUseOneBitFrameCache()) {
-          storeSleepFrame(renderer, cacheKey);
-        }
         renderer.displayBuffer();
         runSleepImageTwoBitPasses(renderer, imagePath, options);
         return;
@@ -588,9 +416,9 @@ void SleepActivity::renderCustomSleepScreen() const {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
         if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
-          renderFill(bitmap, sleepCanUseOneBitFrameCache() ? cacheKey : "");
+          renderFill(bitmap);
         } else {
-          renderBitmapSleepScreen(bitmap, false, sleepCanUseOneBitFrameCache() ? cacheKey : "");
+          renderBitmapSleepScreen(bitmap);
         }
         file.close();
         return;
@@ -649,10 +477,6 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   const std::string coverPath = resolveLastReadCoverPathForSleep(APP_STATE.lastRead);
-  const std::string cacheKey = sleepRenderKey("cover", coverPath, APP_STATE.lastRead);
-  if (!coverPath.empty() && sleepCanUseOneBitFrameCache() && renderCachedSleepFrame(renderer, cacheKey)) {
-    return;
-  }
 
   if (!coverPath.empty() && isSleepImagePathJpeg(coverPath)) {
     renderer.clearScreen();
@@ -663,9 +487,6 @@ void SleepActivity::renderCoverSleepScreen() const {
             .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
-      }
-      if (sleepCanUseOneBitFrameCache()) {
-        storeSleepFrame(renderer, cacheKey);
       }
       renderer.displayBuffer();
       runSleepImageTwoBitPasses(renderer, coverPath, options);
@@ -679,9 +500,9 @@ void SleepActivity::renderCoverSleepScreen() const {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       if (SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT) {
-        renderFill(bitmap, sleepCanUseOneBitFrameCache() ? cacheKey : "");
+        renderFill(bitmap);
       } else {
-        renderBitmapSleepScreen(bitmap, false, sleepCanUseOneBitFrameCache() ? cacheKey : "");
+        renderBitmapSleepScreen(bitmap);
       }
     }
     file.close();
@@ -691,7 +512,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   renderCustomSleepScreen();
 }
 
-void SleepActivity::renderFill(const Bitmap& bitmap, const std::string& cacheKey) const {
+void SleepActivity::renderFill(const Bitmap& bitmap) const {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   float cropX = 0.0f;
@@ -724,9 +545,6 @@ void SleepActivity::renderFill(const Bitmap& bitmap, const std::string& cacheKey
     renderer.invertScreen();
   }
 
-  if (!cacheKey.empty()) {
-    storeSleepFrame(renderer, cacheKey);
-  }
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 
   if (hasTwoBit) {
@@ -747,8 +565,7 @@ void SleepActivity::renderFill(const Bitmap& bitmap, const std::string& cacheKey
   }
 }
 
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preCroppedEpubCover,
-                                            const std::string& cacheKey) const {
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preCroppedEpubCover) const {
   (void)preCroppedEpubCover;
 
   int x, y;
@@ -799,9 +616,6 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.invertScreen();
   }
 
-  if (!cacheKey.empty()) {
-    storeSleepFrame(renderer, cacheKey);
-  }
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 
   if (hasTwoBit) {
@@ -829,11 +643,6 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
  * based on sleep screen mode settings.
  */
 void SleepActivity::renderDefaultSleepScreen() const {
-  const std::string cacheKey = sleepRenderKey("default", "", std::to_string(SETTINGS.sleepScreen));
-  if (renderCachedSleepFrame(renderer, cacheKey)) {
-    return;
-  }
-
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
@@ -845,7 +654,6 @@ void SleepActivity::renderDefaultSleepScreen() const {
     renderer.invertScreen();
   }
 
-  storeSleepFrame(renderer, cacheKey);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
@@ -855,11 +663,6 @@ void SleepActivity::renderDefaultSleepScreen() const {
  * Clears the screen to save power and prevent screen burn-in during sleep.
  */
 void SleepActivity::renderBlankSleepScreen() const {
-  const std::string cacheKey = sleepRenderKey("blank");
-  if (renderCachedSleepFrame(renderer, cacheKey)) {
-    return;
-  }
   renderer.clearScreen();
-  storeSleepFrame(renderer, cacheKey);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
