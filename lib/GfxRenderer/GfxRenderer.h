@@ -24,15 +24,6 @@ class GfxRenderer {
  public:
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
-  /** How 2bpp grays map to ink when drawing scaled bitmaps in BW (reader can override per session). */
-  enum class BitmapGrayRenderStyle : uint8_t {
-    Balanced,  ///< Legacy: only dark gray + black ink (light gray omitted)
-    FullGray,  ///< "Balance" contrast: ink both gray stages (former full-gray behavior)
-    Dark,      ///< Stronger ink / tighter snap than FullGray
-    VeryDark   ///< Maximum ink / strongest stage mapping
-  };
-
-  
   enum Orientation {
     Portrait,                  
     LandscapeClockwise,        
@@ -53,7 +44,6 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
-  mutable BitmapGrayRenderStyle bitmapGrayRenderStyle = BitmapGrayRenderStyle::Balanced;
   std::map<int, EpdFontFamily> fontMap;
   std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
 
@@ -111,13 +101,11 @@ class GfxRenderer {
     SparseInkAlignedOutside = 2,
   };
 
-
-  void setBitmapGrayRenderStyle(BitmapGrayRenderStyle s) const { bitmapGrayRenderStyle = s; }
-  BitmapGrayRenderStyle getBitmapGrayRenderStyle() const { return bitmapGrayRenderStyle; }
  private:
  public:
   
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }
+  RenderMode getRenderMode() const { return renderMode; }
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
@@ -142,19 +130,4 @@ class GfxRenderer {
   BitmapRender bitmap;
   TextRender text;
   UiRender ui;
-};
-
-/**
- * RAII: temporarily sets scaled-bitmap gray style for `bitmap.draw`; restores on destruction.
- */
-struct BitmapGrayStyleScope {
-  GfxRenderer& r;
-  GfxRenderer::BitmapGrayRenderStyle prev;
-  BitmapGrayStyleScope(GfxRenderer& renderer, GfxRenderer::BitmapGrayRenderStyle style)
-      : r(renderer), prev(renderer.getBitmapGrayRenderStyle()) {
-    r.setBitmapGrayRenderStyle(style);
-  }
-  ~BitmapGrayStyleScope() { r.setBitmapGrayRenderStyle(prev); }
-  BitmapGrayStyleScope(const BitmapGrayStyleScope&) = delete;
-  BitmapGrayStyleScope& operator=(const BitmapGrayStyleScope&) = delete;
 };

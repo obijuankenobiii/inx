@@ -7,6 +7,7 @@
 
 #include <Bitmap.h>
 #include <BitmapRender.h>
+#include <ImageRenderMode.h>
 
 #include <string>
 
@@ -15,7 +16,7 @@ class GfxRenderer;
 class ImageRender {
  public:
   struct Options {
-    BitmapDitherMode bitmapDitherMode = BitmapDitherMode::None;
+    ImageRenderMode mode = ImageRenderMode::OneBit;
     bool cropToFill = false;
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
     bool useDisplayCache = true;
@@ -27,7 +28,7 @@ class ImageRender {
   bool getDimensions(int* outW, int* outH) const;
   bool render(int x, int y, int width, int height) const;
   bool render(int x, int y, int width, int height, const Options& options) const;
-  bool render(int x, int y, int width, int height, BitmapDitherMode imageDitherMode) const;
+  bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
 
  private:
   enum class Format { Bitmap, Jpeg, Png };

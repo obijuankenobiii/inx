@@ -44,10 +44,6 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
     SettingInfo::Toggle("Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
                       GroupType::IMAGE),
-    SettingInfo::Enum(
-        "Contrast", &SystemSetting::displayImagePresentation,
-        {"Low","Medium","High","Very high"},
-        GroupType::IMAGE),
     SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
@@ -116,13 +112,8 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"1 page","5 pages","10 pages","15 pages","30 pages"}, GroupType::SYSTEM),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
-    SettingInfo::Toggle("Image Grayscale", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
+    SettingInfo::Toggle("Image 2-bit Mode", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
     SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
-    SettingInfo::Enum(
-        "Contrast", &SystemSetting::readerImagePresentation,
-        {"Low","Medium","High","Very high"},
-        GroupType::IMAGE),
-
     SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
     SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
                       {"None","No Progress","Full w/ Percentage","Full w/ Progress Bar","Progress Bar","Battery %",

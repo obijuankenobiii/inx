@@ -122,15 +122,9 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
   }
 }
 
-inline bool bwShouldInk2bpp(const uint8_t stage03, const GfxRenderer::BitmapGrayRenderStyle gs) {
+inline bool bwShouldInk2bpp(const uint8_t stage03, const ImageRenderMode mode) {
   const uint8_t st = stage03 & 3u;
-  if (gs == GfxRenderer::BitmapGrayRenderStyle::VeryDark) {
-    return st < 3u;
-  }
-  if (gs == GfxRenderer::BitmapGrayRenderStyle::Balanced) {
-    return st <= 1u;
-  }
-  return st < 3u;
+  return mode == ImageRenderMode::TwoBit ? st < 3u : st <= 1u;
 }
 
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
@@ -143,14 +137,11 @@ void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, con
   static const uint8_t kBayer2[4] = {0, 2, 3, 1};
   const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
   const uint8_t tScaled = (t * 16) / 4;
-  const auto style = gfx.getBitmapGrayRenderStyle();
-  const bool veryDark = (style == GfxRenderer::BitmapGrayRenderStyle::VeryDark);
-  const bool dark = (style == GfxRenderer::BitmapGrayRenderStyle::Dark) || veryDark;
   if (v == 1u) {
-    gfx.drawPixel(px, py, tScaled < (veryDark ? 14u : (dark ? 13u : 12u)));
+    gfx.drawPixel(px, py, tScaled < 12u);
     return;
   }
-  gfx.drawPixel(px, py, tScaled < (veryDark ? 14u : (dark ? 13u : 6u)));
+  gfx.drawPixel(px, py, tScaled < 6u);
 }
 
 /** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
@@ -166,7 +157,7 @@ bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int heigh
 
 void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY,
-                             const RoundedOutside roundedOutside) const {
+                             const RoundedOutside roundedOutside, const ImageRenderMode mode) const {
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     oneBit(bitmap, x, y, maxWidth, maxHeight, roundedOutside);
     return;
@@ -219,8 +210,6 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
     return;
   }
 
-  const GfxRenderer::BitmapGrayRenderStyle grayStyle = gfx.bitmapGrayRenderStyle;
-
   auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
     return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
   };
@@ -232,7 +221,7 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
       }
     }
     if (gfx.renderMode == GfxRenderer::BW) {
-      if (bwShouldInk2bpp(val, grayStyle)) {
+      if (bwShouldInk2bpp(val, mode)) {
         drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
@@ -354,8 +343,6 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
     return;
   }
 
-  const GfxRenderer::BitmapGrayRenderStyle grayStyle = gfx.bitmapGrayRenderStyle;
-
   auto pixel2bpp = [](const uint8_t* row, const int px) -> uint8_t {
     return static_cast<uint8_t>((row[px / 4] >> (6 - ((px * 2) % 8))) & 0x3);
   };
@@ -367,7 +354,7 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
       }
     }
     if (gfx.renderMode == GfxRenderer::BW) {
-      if (bwShouldInk2bpp(val, grayStyle)) {
+      if (bwShouldInk2bpp(val, ImageRenderMode::OneBit)) {
         drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
@@ -556,8 +543,8 @@ void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth,
 
       if (shouldDraw) {
         if (gfx.renderMode == GfxRenderer::BW) {
-          if (bwShouldInk2bpp(val, gfx.bitmapGrayRenderStyle)) {
-                      drawBwFrom2bppStage(gfx, destX, destY, val);
+          if (bwShouldInk2bpp(val, ImageRenderMode::OneBit)) {
+            drawBwFrom2bppStage(gfx, destX, destY, val);
           }
         } else {
           gfx.drawPixel(destX, destY, true);

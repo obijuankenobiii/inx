@@ -16,6 +16,8 @@
 namespace {
 constexpr int kPngDitherSolidBlackMax = 32;
 constexpr int kPngDitherSolidWhiteMin = 255 - kPngDitherSolidBlackMax;
+constexpr int kPngTwoBitSolidBlackMax = 3;
+constexpr int kPngTwoBitSolidWhiteMin = 252;
 constexpr uint8_t kPngSignature[8] = {137, 80, 78, 71, 13, 10, 26, 10};
 
 enum PngColorType : uint8_t {
@@ -63,6 +65,7 @@ struct RenderContext {
   int x;
   int y;
   int width;
+  ImageRenderMode mode;
   int16_t* errCur;
   int16_t* errNext;
 };
@@ -410,10 +413,43 @@ void advanceScanline(PngContext& ctx) {
   ctx.currentRow = temp;
 }
 
+int quantizeGray(const int corrected, const ImageRenderMode mode) {
+  if (mode == ImageRenderMode::TwoBit) {
+    if (corrected < 43) return 0;
+    if (corrected < 128) return 85;
+    if (corrected < 213) return 170;
+    return 255;
+  }
+  return corrected < 128 ? 0 : 255;
+}
+
+void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, const int q) {
+  if (ctx.mode == ImageRenderMode::OneBit) {
+    if (q == 0) {
+      ctx.renderer->drawPixel(x, y, true);
+    }
+    return;
+  }
+
+  const uint8_t level = q <= 0 ? 0 : (q <= 85 ? 1 : (q <= 170 ? 2 : 3));
+  const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
+  if (renderMode == GfxRenderer::BW) {
+    if (level < 3) {
+      ctx.renderer->drawPixel(x, y, true);
+    }
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
+    ctx.renderer->drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && level == 1) {
+    ctx.renderer->drawPixel(x, y, false);
+  }
+}
+
 bool drawGrayRow(RenderContext& ctx, const uint8_t* grayRow, int width, int rowIndex) {
   if (!grayRow || width <= 0 || width != ctx.width) return false;
   const int screenY = ctx.y + rowIndex;
-  for (int ox = 0; ox < width; ox++) {
+  const bool reverseRow = ctx.mode == ImageRenderMode::TwoBit && ((rowIndex & 1) != 0);
+  for (int step = 0; step < width; step++) {
+    const int ox = reverseRow ? (width - 1 - step) : step;
     const int gray = grayRow[ox];
     int corrected = gray + static_cast<int>(ctx.errCur[ox]);
     if (corrected < 0) corrected = 0;
@@ -421,22 +457,32 @@ bool drawGrayRow(RenderContext& ctx, const uint8_t* grayRow, int width, int rowI
 
     int q;
     int err;
-    if (gray <= kPngDitherSolidBlackMax) {
+    const int solidBlackMax =
+        ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidBlackMax : kPngDitherSolidBlackMax;
+    const int solidWhiteMin = ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidWhiteMin : kPngDitherSolidWhiteMin;
+    if (gray <= solidBlackMax) {
       q = 0;
       err = 0;
-    } else if (gray >= kPngDitherSolidWhiteMin) {
+    } else if (gray >= solidWhiteMin) {
       q = 255;
       err = 0;
     } else {
-      q = corrected < 128 ? 0 : 255;
+      q = quantizeGray(corrected, ctx.mode);
       err = corrected - q;
-      if (ox + 1 < width) ctx.errCur[ox + 1] = static_cast<int16_t>(ctx.errCur[ox + 1] + (err * 7) / 16);
-      ctx.errNext[ox] = static_cast<int16_t>(ctx.errNext[ox] + (err * 5) / 16);
-      if (ox > 0) ctx.errNext[ox - 1] = static_cast<int16_t>(ctx.errNext[ox - 1] + (err * 3) / 16);
-      if (ox + 1 < width) ctx.errNext[ox + 1] = static_cast<int16_t>(ctx.errNext[ox + 1] + (err * 1) / 16);
+      if (reverseRow) {
+        if (ox > 0) ctx.errCur[ox - 1] = static_cast<int16_t>(ctx.errCur[ox - 1] + (err * 7) / 16);
+        ctx.errNext[ox] = static_cast<int16_t>(ctx.errNext[ox] + (err * 5) / 16);
+        if (ox + 1 < width) ctx.errNext[ox + 1] = static_cast<int16_t>(ctx.errNext[ox + 1] + (err * 3) / 16);
+        if (ox > 0) ctx.errNext[ox - 1] = static_cast<int16_t>(ctx.errNext[ox - 1] + (err * 1) / 16);
+      } else {
+        if (ox + 1 < width) ctx.errCur[ox + 1] = static_cast<int16_t>(ctx.errCur[ox + 1] + (err * 7) / 16);
+        ctx.errNext[ox] = static_cast<int16_t>(ctx.errNext[ox] + (err * 5) / 16);
+        if (ox > 0) ctx.errNext[ox - 1] = static_cast<int16_t>(ctx.errNext[ox - 1] + (err * 3) / 16);
+        if (ox + 1 < width) ctx.errNext[ox + 1] = static_cast<int16_t>(ctx.errNext[ox + 1] + (err * 1) / 16);
+      }
     }
 
-    if (q == 0) ctx.renderer->drawPixel(ctx.x + ox, screenY, true);
+    drawQuantizedPixel(ctx, ctx.x + ox, screenY, q);
   }
 
   int16_t* t = ctx.errCur;
@@ -505,7 +551,8 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 }
 }  // namespace
 
-bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
+bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
+                       const ImageRenderMode mode) const {
   if (!pngFile || targetWidth <= 0 || targetHeight <= 0) return false;
 
   int sourceW = 0;
@@ -543,6 +590,7 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
                        .x = drawX,
                        .y = drawY,
                        .width = outW,
+                       .mode = mode,
                        .errCur = errors,
                        .errNext = errors + outW};
   const bool ok = decodeAndRender(pngFile, ctx, outW, outH, srcX, srcY, srcW, srcH);
@@ -551,10 +599,10 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
 }
 
 bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                         bool cropToFill) const {
+                         bool cropToFill, const ImageRenderMode mode) const {
   FsFile file;
   if (!SdMan.openFileForRead("PNG", path, file)) return false;
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
   file.close();
   return ok;
 }

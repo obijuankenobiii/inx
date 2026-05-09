@@ -278,18 +278,7 @@ public:
     };
 
     /**
-     * @brief Bitmap contrast / ink weight for reader and system images (2bpp → BW when scaled).
-     */
-    enum READER_IMAGE_PRESENTATION {
-        IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
-        IMAGE_PRESENTATION_MEDIUM = 1,  ///< Default: full-gray halftone (former “Balance”)
-        IMAGE_PRESENTATION_HIGH = 2,    ///< Strong: tighter snap + more ink
-        IMAGE_PRESENTATION_VERY_HIGH = 3,  ///< Strongest: maximum ink weight / edge emphasis
-        READER_IMAGE_PRESENTATION_COUNT
-    };
-
-    /**
-     * @brief Error diffusion when decoding high-color BMP to 2bpp (matches `BitmapDitherMode`).
+     * @brief Legacy image-dither values kept only for settings-file compatibility; rendering always uses Floyd.
      */
     enum READER_IMAGE_DITHER {
         IMAGE_DITHER_NONE = 0,
@@ -396,18 +385,18 @@ public:
      */
     uint8_t pageAutoTurnSeconds = 0;
 
-    /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
+    /** When set, EPUB pages with images render in 2-bit mode; otherwise images render in 1-bit mode. */
     uint8_t readerImageGrayscale = 0;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
-    /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
-    uint8_t readerImagePresentation = IMAGE_PRESENTATION_MEDIUM;
-    /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
+    /** Legacy ignored value retained for settings-file compatibility. */
+    uint8_t legacyReaderImagePresentation = 1;
+    /** Legacy ignored value retained for settings-file compatibility. */
     uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
-    /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
+    /** Legacy ignored value retained for settings-file compatibility. */
     uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
-    /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
-    uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
+    /** Legacy ignored value retained for settings-file compatibility. */
+    uint8_t legacyDisplayImagePresentation = 1;
     /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats: paper). */
     uint8_t bitmapRoundedCorners = 0;
 

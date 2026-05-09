@@ -127,10 +127,6 @@
         <div class="setting-control"><label class="toggle-switch"><input id="sleepScreenCoverGrayscale" type="checkbox"><span class="toggle-slider"></span></label></div>
       </div>
       <div class="setting-item">
-        <div><div class="setting-label">Contrast</div></div>
-        <div class="setting-control"><select id="displayImagePresentation"></select></div>
-      </div>
-      <div class="setting-item">
         <div><div class="setting-label">Rounded thumbnails</div></div>
         <div class="setting-control"><label class="toggle-switch"><input id="bitmapRoundedCorners" type="checkbox"><span class="toggle-slider"></span></label></div>
       </div>
@@ -307,16 +303,12 @@
     <div class="settings-section">
       <div class="section-header"><h3>Image</h3></div>
       <div class="setting-item">
-        <div><div class="setting-label">Image Grayscale</div></div>
+        <div><div class="setting-label">Image 2-bit Mode</div></div>
         <div class="setting-control"><label class="toggle-switch"><input id="readerImageGrayscale" type="checkbox"><span class="toggle-slider"></span></label></div>
       </div>
       <div class="setting-item">
         <div><div class="setting-label">Smart Refresh (Images)</div></div>
         <div class="setting-control"><label class="toggle-switch"><input id="readerSmartRefreshOnImages" type="checkbox"><span class="toggle-slider"></span></label></div>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Contrast</div></div>
-        <div class="setting-control"><select id="readerImagePresentation"></select></div>
       </div>
     </div>
     <div class="settings-section">
@@ -354,8 +346,6 @@ const options = {
   sleepScreenCoverFilter: ["None", "Contrast", "Inverted"],
   hideBatteryPercentage: ["Never", "In Reader", "Always"],
   recentLibraryMode: ["Grid", "Current | Previous", "Flow", "Simple", "List", "Icons"],
-  displayImagePresentation: ["Low", "Medium", "High", "Very high"],
-  readerImagePresentation: ["Low", "Medium", "High", "Very high"],
   frontButtonLayout: ["Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right", "Back, Confirm, Right, Left"],
   shortPwrBtn: ["Ignore", "Sleep", "Page Refresh"],
   sleepTimeout: ["1 min", "5 min", "10 min", "15 min", "30 min"],

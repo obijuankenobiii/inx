@@ -34,7 +34,6 @@
 #include "state/SystemSetting.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
-#include "state/ImageBitmapGrayMaps.h"
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
@@ -69,16 +68,166 @@ constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr unsigned long STATS_SAVE_INTERVAL_MS = 30000;
 /** Minimum time in the reader before this visit counts as a reading session (avoids flip-through bumps). */
 constexpr uint32_t READING_SESSION_COUNT_MIN_MS = 45000;
+constexpr uint32_t kPageCacheMagic = 0x43445045;  // EPDC
+constexpr uint16_t kPageCacheVersion = 1;
+
+struct EpubPageCacheHeader {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t headerSize;
+  uint16_t width;
+  uint16_t height;
+  uint16_t rowBytes;
+  uint16_t reserved;
+};
+
+uint32_t fnv1aAdd(uint32_t hash, const uint8_t byte) {
+  hash ^= byte;
+  return hash * 16777619u;
+}
+
+uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
+  hash = fnv1aAdd(hash, static_cast<uint8_t>(value & 0xFF));
+  hash = fnv1aAdd(hash, static_cast<uint8_t>((value >> 8) & 0xFF));
+  hash = fnv1aAdd(hash, static_cast<uint8_t>((value >> 16) & 0xFF));
+  return fnv1aAdd(hash, static_cast<uint8_t>((value >> 24) & 0xFF));
+}
+
+uint32_t fnv1aAddString(uint32_t hash, const std::string& value) {
+  for (const char c : value) {
+    hash = fnv1aAdd(hash, static_cast<uint8_t>(c));
+  }
+  return hash;
+}
+
+uint32_t epubPageBodyCacheHash(const std::string& bookPath, const int spineIndex, const int pageNumber,
+                               const int pageCount, const int screenW, const int screenH, const int fontId,
+                               const int headerFontId, const int marginTop, const int marginRight,
+                               const int marginBottom, const int marginLeft, const BookSettings& settings) {
+  uint32_t hash = 2166136261u;
+  hash = fnv1aAddString(hash, bookPath);
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(spineIndex));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(pageNumber));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(pageCount));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(screenW));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(screenH));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(fontId));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(headerFontId));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(marginTop));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(marginRight));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(marginBottom));
+  hash = fnv1aAddUint32(hash, static_cast<uint32_t>(marginLeft));
+  hash = fnv1aAdd(hash, settings.fontFamily);
+  hash = fnv1aAdd(hash, settings.fontSize);
+  hash = fnv1aAdd(hash, settings.lineSpacing);
+  hash = fnv1aAdd(hash, settings.paragraphAlignment);
+  hash = fnv1aAdd(hash, settings.paragraphCssIndentEnabled);
+  hash = fnv1aAdd(hash, settings.extraParagraphSpacing);
+  hash = fnv1aAdd(hash, settings.hyphenationEnabled);
+  hash = fnv1aAdd(hash, settings.screenMargin);
+  hash = fnv1aAdd(hash, settings.orientation);
+  return hash;
+}
+
+std::string epubPageBodyCachePath(const std::string& cachePath, const uint32_t hash) {
+  char name[40];
+  snprintf(name, sizeof(name), "/%08lx.irdc", static_cast<unsigned long>(hash));
+  return cachePath + "/page-cache" + name;
+}
+
+bool ensureEpubPageCacheDir(const std::string& cachePath) {
+  const std::string dir = cachePath + "/page-cache";
+  if (SdMan.exists(dir.c_str())) {
+    FsFile f = SdMan.open(dir.c_str());
+    const bool ok = f && f.isDirectory();
+    f.close();
+    return ok;
+  }
+  return SdMan.mkdir(dir.c_str());
+}
+
+bool renderEpubPageBodyCacheIfAvailable(GfxRenderer& renderer, const std::string& path) {
+  if (!SdMan.exists(path.c_str())) {
+    return false;
+  }
+  FsFile file;
+  if (!SdMan.openFileForRead("EPDC", path, file)) {
+    return false;
+  }
+  EpubPageCacheHeader header;
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const bool headerOk = file.read(&header, sizeof(header)) == sizeof(header) && header.magic == kPageCacheMagic &&
+                        header.version == kPageCacheVersion && header.headerSize == sizeof(EpubPageCacheHeader) &&
+                        header.width == screenW && header.height == screenH &&
+                        header.rowBytes == static_cast<uint16_t>((screenW + 7) / 8);
+  if (!headerOk) {
+    file.close();
+    return false;
+  }
+  uint8_t row[128];
+  const int rowBytes = header.rowBytes;
+  if (rowBytes > static_cast<int>(sizeof(row))) {
+    file.close();
+    return false;
+  }
+  for (int y = 0; y < screenH; y++) {
+    if (file.read(row, rowBytes) != rowBytes) {
+      file.close();
+      return false;
+    }
+    renderer.drawPackedRow1bpp(0, y, screenW, row);
+  }
+  file.close();
+  return true;
+}
+
+bool storeEpubPageBodyCache(GfxRenderer& renderer, const std::string& cachePath, const std::string& path) {
+  if (!ensureEpubPageCacheDir(cachePath)) {
+    Serial.printf("[%lu] [EPDC] Failed to create page-cache dir: %s\n", millis(), cachePath.c_str());
+    return false;
+  }
+  FsFile file;
+  if (!SdMan.openFileForWrite("EPDC", path, file)) {
+    return false;
+  }
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int rowBytes = (screenW + 7) / 8;
+  uint8_t row[128];
+  if (rowBytes > static_cast<int>(sizeof(row))) {
+    file.close();
+    SdMan.remove(path.c_str());
+    return false;
+  }
+  const EpubPageCacheHeader header = {.magic = kPageCacheMagic,
+                                      .version = kPageCacheVersion,
+                                      .headerSize = sizeof(EpubPageCacheHeader),
+                                      .width = static_cast<uint16_t>(screenW),
+                                      .height = static_cast<uint16_t>(screenH),
+                                      .rowBytes = static_cast<uint16_t>(rowBytes),
+                                      .reserved = 0};
+  if (file.write(&header, sizeof(header)) != sizeof(header)) {
+    file.close();
+    SdMan.remove(path.c_str());
+    return false;
+  }
+  for (int y = 0; y < screenH; y++) {
+    renderer.readPackedRow1bpp(0, y, screenW, row);
+    if (file.write(row, rowBytes) != static_cast<size_t>(rowBytes)) {
+      file.close();
+      SdMan.remove(path.c_str());
+      return false;
+    }
+  }
+  file.close();
+  return true;
+}
 
 /**
  * MAP_NONE adds L/R to Up/Down for paging. In landscape CCW, physical left = next page and right = previous;
  * in landscape CW (and portrait), left = previous and right = next.
  */
-struct ReaderBitmapStyleGuard {
-  BitmapGrayStyleScope scope;
-  explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
-};
-
 void addMapNoneLandscapeLeftRightForPageTurn(const GfxRenderer::Orientation orientation,
                                             const MappedInputManager& mappedInput, bool& prev, bool& next) {
   const bool leftReleased = mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -505,12 +654,9 @@ void EpubActivity::displayCoverOrTitle() {
   }
 
   if (SdMan.exists(coverPath.c_str())) {
-    [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
-    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
     const int pageWidth = renderer.getScreenWidth();
     const int pageHeight = renderer.getScreenHeight();
     ImageRender::Options options;
-    options.bitmapDitherMode = BitmapDitherMode::None;
     options.cropToFill = true;
     renderer.clearScreen();
     if (ImageRender::create(renderer, coverPath).render(0, 0, pageWidth, pageHeight, options)) {
@@ -1607,7 +1753,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginRight, const int orientedMarginBottom,
                                   const int orientedMarginLeft) {
   if (!page) return;
-  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(renderer);
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
 
@@ -1682,17 +1827,34 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  const BitmapDitherMode imageDitherMode = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
   const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && page->hasImages();
+  const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
   const bool textAa = bookSettings.textAntiAliasing != 0;
+  const bool pageBodyCacheEnabled =
+      !textAa && !needsImageGrayscale && epub != nullptr && section != nullptr && renderer.getRenderMode() == GfxRenderer::BW;
+  std::string pageBodyCachePath;
+  if (pageBodyCacheEnabled) {
+    const uint32_t pageCacheHash = epubPageBodyCacheHash(
+        epub->getPath(), currentSpineIndex, section->currentPage, section->pageCount, renderer.getScreenWidth(),
+        renderer.getScreenHeight(), fontId, headerFontId, orientedMarginTop, orientedMarginRight,
+        orientedMarginBottom, orientedMarginLeft, bookSettings);
+    pageBodyCachePath = epubPageBodyCachePath(epub->getCachePath(), pageCacheHash);
+  }
 
   // BW: text first, then images (same separation as grayscale passes: text AA uses skipImages; image tone uses
   // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
   auto drawPageBodyBw = [&]() {
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageDitherMode);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   };
-  drawPageBodyBw();
+  const bool pageBodyFromCache =
+      pageBodyCacheEnabled && renderEpubPageBodyCacheIfAvailable(renderer, pageBodyCachePath);
+  if (!pageBodyFromCache) {
+    drawPageBodyBw();
+    if (pageBodyCacheEnabled) {
+      storeEpubPageBodyCache(renderer, epub->getCachePath(), pageBodyCachePath);
+    }
+  }
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
 
@@ -1734,12 +1896,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageDitherMode);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
@@ -1755,12 +1917,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageDitherMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageDitherMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();

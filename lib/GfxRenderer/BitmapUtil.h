@@ -18,26 +18,13 @@ uint8_t quantizeSimple(int gray);
 uint8_t quantize1bit(int gray, int x, int y);
 int adjustPixel(int gray);
 
-
-
-
-
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b);
-
-
-
 
 bool bmpTo1BitBmpScaled(const char* srcPath, const char* dstPath, int targetMaxWidth, int targetMaxHeight);
 
 enum class BmpRowOrder { BottomUp, TopDown };
 
-
 void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder rowOrder);
-
-
-
-
-
 
 class Atkinson1BitDitherer {
  public:
@@ -252,34 +239,18 @@ class FloydSteinbergDitherer {
     
     uint8_t quantized;
     int quantizedValue;
-    if (false) {  
-      if (adjusted < 43) {
-        quantized = 0;
-        quantizedValue = 0;
-      } else if (adjusted < 128) {
-        quantized = 1;
-        quantizedValue = 85;
-      } else if (adjusted < 213) {
-        quantized = 2;
-        quantizedValue = 170;
-      } else {
-        quantized = 3;
-        quantizedValue = 255;
-      }
-    } else {  
-      if (adjusted < 30) {
-        quantized = 0;
-        quantizedValue = 15;
-      } else if (adjusted < 50) {
-        quantized = 1;
-        quantizedValue = 30;
-      } else if (adjusted < 140) {
-        quantized = 2;
-        quantizedValue = 80;
-      } else {
-        quantized = 3;
-        quantizedValue = 210;
-      }
+    if (adjusted < 43) {
+      quantized = 0;
+      quantizedValue = 0;
+    } else if (adjusted < 128) {
+      quantized = 1;
+      quantizedValue = 85;
+    } else if (adjusted < 213) {
+      quantized = 2;
+      quantizedValue = 170;
+    } else {
+      quantized = 3;
+      quantizedValue = 255;
     }
 
     

@@ -25,7 +25,6 @@
 #include "state/BookSetting.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
-#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -305,13 +304,13 @@ bool tryRenderEpubLastReadReadingPage(GfxRenderer& renderer, const std::string& 
     return false;
   }
 
-  BitmapGrayStyleScope bitmapStyle(renderer, readerImageBitmapGrayStyle());
   renderer.clearScreen(0xFF);
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
-    const BitmapDitherMode imageDither = bitmapDitherModeFromSetting(SETTINGS.readerImageDither);
-  page->render(renderer, fontId, headerFontId, vp.totalMarginLeft, vp.totalMarginTop, true, imageDither);
-  page->renderImages(renderer, fontId, vp.totalMarginLeft, vp.totalMarginTop, imageDither);
+  const ImageRenderMode imageMode =
+      SETTINGS.readerImageGrayscale != 0 && page->hasImages() ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
+  page->render(renderer, fontId, headerFontId, vp.totalMarginLeft, vp.totalMarginTop, true, imageMode);
+  page->renderImages(renderer, fontId, vp.totalMarginLeft, vp.totalMarginTop, imageMode);
 
   StatusBar statusBar(renderer, *epub, bookSettings);
   statusBar.render(&sec, spineIndex, vp.totalMarginRight, vp.totalMarginBottom, vp.totalMarginLeft);
@@ -380,7 +379,7 @@ void SleepActivity::renderCustomSleepScreen() const {
     }
     FsFile file;
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
-      Bitmap bitmap(file, BitmapDitherMode::Atkinson);
+      Bitmap bitmap(file);
       APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
       APP_STATE.saveToFile();
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {

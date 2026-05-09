@@ -21,7 +21,6 @@
 #include "images/Down.h"
 #include "images/Up.h"
 #include "state/BookState.h"
-#include "state/ImageBitmapGrayMaps.h"
 #include "state/Statistics.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
@@ -292,15 +291,15 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   }
 
   if (!imagePath.empty()) {
-    BitmapGrayStyleScope displayGray(renderer, displayImageBitmapGrayStyle());
     ImageRender::Options options;
-    options.bitmapDitherMode = BitmapDitherMode::None;
     options.cropToFill = true;
     options.roundedOutside =
         SETTINGS.bitmapRoundedCorners == 0
             ? BitmapRender::RoundedOutside::None
             : (roundedCornerBackdropIsDither ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
                                              : BitmapRender::RoundedOutside::PaperOutside);
+
+    renderer.rectangle.fill(x, y, w, h, false);
     if (ImageRender::create(renderer, imagePath).render(x, y, w, h, options)) {
       return;
     }
@@ -727,7 +726,6 @@ void RecentActivity::onExit() {
  * Renders the complete grid view including all visible books.
  */
 void RecentActivity::renderGrid(int startY) {
-  renderTabBar(renderer);
   int totalBooks = static_cast<int>(recentBooks.size());
   if (totalBooks == 0) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
@@ -1384,7 +1382,7 @@ void RecentActivity::renderFlow() {
   int centerX = carouselX + (carouselW - centerW) / 2;
   int centerY = carouselY + (carouselH - centerH) / 2 + 4;
 
-  float scale = 0.9;
+  float scale = 0.9f;
   int sideW = (int)(centerW * scale);
   int sideH = (int)(centerH * scale);
   int leftX = centerX - sideW - 20;
@@ -1394,23 +1392,20 @@ void RecentActivity::renderFlow() {
   
   if (currentIndex > 0) {
     const RecentBook& leftBook = recentBooks[currentIndex - 1];
-    if (rr) {
-      renderer.rectangle.fill(leftX, sideY, sideW, sideH, false, true);
-    }
+    renderer.rectangle.fill(leftX, sideY, sideW, sideH, false, rr);
     drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
                           ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
   }
 
   if (currentIndex + 1 < totalBooks) {
     const RecentBook& rightBook = recentBooks[currentIndex + 1];
-    if (rr) {
-      renderer.rectangle.fill(rightX, sideY, sideW, sideH, false, true);
-    }
+    renderer.rectangle.fill(rightX, sideY, sideW, sideH, false, rr);
     drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
                           ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
   }
 
   const RecentBook& currentBook = recentBooks[currentIndex];
+
   renderer.rectangle.fill(centerX, centerY, centerW, centerH, false, rr);
   drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
                         ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);

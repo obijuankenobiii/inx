@@ -316,7 +316,7 @@ void SettingsDrawer::setupMenu() {
     MenuEntry imgGrayEntry;
     imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
     imgGrayEntry.group = GroupType::IMAGE;
-    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.name = "Image 2-bit Mode";
     imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
       return SETTINGS.readerImageGrayscale ? "On" : "Off";
     };
@@ -338,35 +338,6 @@ void SettingsDrawer::setupMenu() {
       SETTINGS.saveToFile();
     };
     menuItems.push_back(smartRefreshEntry);
-
-    MenuEntry presEntry;
-    presEntry.item = MenuItem::ReaderImagePresentation;
-    presEntry.group = GroupType::IMAGE;
-    presEntry.name = "Contrast";
-    presEntry.getValueText = [](const BookSettings&) -> const char* {
-      switch (SETTINGS.readerImagePresentation) {
-        case SystemSetting::IMAGE_PRESENTATION_LOW:
-          return "Low";
-        case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
-          return "Very high";
-        case SystemSetting::IMAGE_PRESENTATION_HIGH:
-          return "High";
-        default:
-          return "Medium";
-      }
-    };
-    presEntry.change = [](BookSettings&, int delta) {
-      int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
-      if (v < 0) {
-        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
-      }
-      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        v = 0;
-      }
-      SETTINGS.readerImagePresentation = static_cast<uint8_t>(v);
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(presEntry);
   }
 
   MenuEntry controlsSeparator;
@@ -859,7 +830,6 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
-    case MenuItem::ReaderImagePresentation:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

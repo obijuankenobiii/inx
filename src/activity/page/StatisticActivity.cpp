@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include "state/ImageBitmapGrayMaps.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -440,7 +439,6 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   std::string coverPath = bookPath + "/thumb.bmp";
   bool coverDrawn = false;
   ImageRender::Options imageOptions;
-  imageOptions.bitmapDitherMode = BitmapDitherMode::None;
   imageOptions.cropToFill = true;
   imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
                                                                     : BitmapRender::RoundedOutside::None;
@@ -453,7 +451,6 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   if (!coverDrawn && SdMan.exists(coverPath.c_str())) {
     const int maxW = std::max(1, width - 4);
     const int maxH = std::max(1, height - 4);
-    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
     coverDrawn = ImageRender::create(renderer, coverPath).render(x + 2, y + 2, maxW, maxH, imageOptions);
   }
 
@@ -563,9 +560,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     if (!rr) {
       renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
     }
-    BitmapGrayStyleScope displayGrayStyle(renderer, displayImageBitmapGrayStyle());
     ImageRender::Options imageOptions;
-    imageOptions.bitmapDitherMode = BitmapDitherMode::None;
     imageOptions.cropToFill = true;
     imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
                                                                       : BitmapRender::RoundedOutside::None;

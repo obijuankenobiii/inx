@@ -82,10 +82,45 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 
 constexpr int kJpegDitherSolidBlackMax = 32;
 constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
+constexpr int kJpegTwoBitSolidBlackMax = 3;
+constexpr int kJpegTwoBitSolidWhiteMin = 252;
+
+int quantizeGray(const int corrected, const ImageRenderMode mode) {
+  if (mode == ImageRenderMode::TwoBit) {
+    if (corrected < 43) return 0;
+    if (corrected < 128) return 85;
+    if (corrected < 213) return 170;
+    return 255;
+  }
+  return corrected < 128 ? 0 : 255;
+}
+
+void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, const int q,
+                        const ImageRenderMode mode) {
+  if (mode == ImageRenderMode::OneBit) {
+    if (q == 0) {
+      renderer.drawPixel(x, y, true);
+    }
+    return;
+  }
+
+  const uint8_t level = q <= 0 ? 0 : (q <= 85 ? 1 : (q <= 170 ? 2 : 3));
+  const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+  if (renderMode == GfxRenderer::BW) {
+    if (level < 3) {
+      renderer.drawPixel(x, y, true);
+    }
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
+    renderer.drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && level == 1) {
+    renderer.drawPixel(x, y, false);
+  }
+}
 
 }  // namespace
 
-bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill) const {
+bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
+                        const ImageRenderMode mode) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -176,7 +211,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       bool emittedOutputRow = false;
       while ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
-        for (int ox = 0; ox < outWidth; ox++) {
+        const bool reverseRow = mode == ImageRenderMode::TwoBit && ((currentOutY & 1) != 0);
+        for (int step = 0; step < outWidth; step++) {
+          const int ox = reverseRow ? (outWidth - 1 - step) : step;
           const int gray = rowCount[ox] ? static_cast<int>(rowAccum[ox] / rowCount[ox]) : 0;
           int corrected = gray + static_cast<int>(errCur[ox]);
           if (corrected < 0) corrected = 0;
@@ -184,24 +221,33 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
           int q;
           int err;
-          if (gray <= kJpegDitherSolidBlackMax) {
+          const int solidBlackMax =
+              mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
+          const int solidWhiteMin =
+              mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
+          if (gray <= solidBlackMax) {
             q = 0;
             err = 0;
-          } else if (gray >= kJpegDitherSolidWhiteMin) {
+          } else if (gray >= solidWhiteMin) {
             q = 255;
             err = 0;
           } else {
-            q = corrected < 128 ? 0 : 255;
+            q = quantizeGray(corrected, mode);
             err = corrected - q;
-            if (ox + 1 < outWidth) errCur[ox + 1] = static_cast<int16_t>(errCur[ox + 1] + (err * 7) / 16);
-            errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
-            if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 3) / 16);
-            if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 1) / 16);
+            if (reverseRow) {
+              if (ox > 0) errCur[ox - 1] = static_cast<int16_t>(errCur[ox - 1] + (err * 7) / 16);
+              errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
+              if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 3) / 16);
+              if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 1) / 16);
+            } else {
+              if (ox + 1 < outWidth) errCur[ox + 1] = static_cast<int16_t>(errCur[ox + 1] + (err * 7) / 16);
+              errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
+              if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 3) / 16);
+              if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 1) / 16);
+            }
           }
 
-          if (q == 0) {
-            renderer_.drawPixel(drawOffsetX + ox, screenY, true);
-          }
+          drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
         }
         int16_t* t = errCur;
         errCur = errNext;
@@ -226,12 +272,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 }
 
 bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                                    bool cropToFill) const {
+                          bool cropToFill, const ImageRenderMode mode) const {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
   file.close();
   return ok;
 }

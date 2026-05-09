@@ -9,14 +9,14 @@
 #include <string>
 
 #include "BitmapRender.h"
+#include "ImageRenderMode.h"
 
 class GfxRenderer;
 
 struct ImageDisplayCacheOptions {
   bool cropToFill = false;
-  BitmapDitherMode bitmapDitherMode = BitmapDitherMode::None;
+  ImageRenderMode mode = ImageRenderMode::OneBit;
   BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
-  uint8_t bitmapGrayStyle = 0;
 };
 
 class ImageDisplayCache {
@@ -27,6 +27,6 @@ class ImageDisplayCache {
                     const ImageDisplayCacheOptions& options);
 
  private:
-  static std::string pathFor(const std::string& sourcePath, int width, int height,
+  static std::string pathFor(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
                              const ImageDisplayCacheOptions& options);
 };

@@ -93,7 +93,7 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
  * @param yOffset Vertical offset for page margins
  */
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                      BitmapDitherMode ) {
+                      ImageRenderMode ) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -132,7 +132,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        BitmapDitherMode ) {
+                        ImageRenderMode ) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -173,7 +173,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                         BitmapDitherMode ) {
+                         ImageRenderMode ) {
   renderer.text.render(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
@@ -219,7 +219,7 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                       const BitmapDitherMode imageDitherMode) {
+                       const ImageRenderMode imageMode) {
   (void)xOffset;  
   (void)fontId;
   const int screenW = renderer.getScreenWidth();
@@ -229,7 +229,7 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
   if (renderY < 0) renderY = 0;
 
   const ImageRender image = ImageRender::create(renderer, cachePath);
-  if (!image.render(renderX, renderY, width, height, imageDitherMode)) {
+  if (!image.render(renderX, renderY, width, height, imageMode)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
 }
@@ -324,7 +324,7 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
 }
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages, const BitmapDitherMode imageDitherMode) const {
+                  bool skipImages, const ImageRenderMode imageMode) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
@@ -332,20 +332,20 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
 
     uint8_t tag = element->getTag();
     if (tag == TAG_PageHeader) {
-      element->render(renderer, headerFontId, xOffset, yOffset, imageDitherMode);
+      element->render(renderer, headerFontId, xOffset, yOffset, imageMode);
     } else {
-      element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
+      element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }
   }
 }
 
 void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        const BitmapDitherMode imageDitherMode) const {
+                        const ImageRenderMode imageMode) const {
   for (auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
-    element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
+    element->render(renderer, fontId, xOffset, yOffset, imageMode);
   }
 }
 

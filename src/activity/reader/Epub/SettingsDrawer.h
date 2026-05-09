@@ -127,7 +127,6 @@ private:
 
         ReaderImageGrayscale,      ///< Global: EPUB image grayscale pass
         ReaderSmartImageRefresh,   ///< Global: half refresh on image pages
-        ReaderImagePresentation,  ///< Global: Low / Medium / High / Very high bitmap contrast
         PageAutoTurn
     };
     

@@ -16,7 +16,6 @@ Bitmap::~Bitmap() {
   delete[] errorCurRow;
   delete[] errorNextRow;
 
-  delete atkinsonDitherer;
   delete fsDitherer;
 }
 
@@ -165,9 +164,7 @@ BmpReaderError Bitmap::parseHeaders() {
   
   
   const bool highColor = !nativePalette;
-  if (highColor && ditherMode == BitmapDitherMode::Atkinson) {
-    atkinsonDitherer = new AtkinsonDitherer(width);
-  } else if (highColor && ditherMode == BitmapDitherMode::FloydSteinberg) {
+  if (highColor) {
     fsDitherer = new FloydSteinbergDitherer(width);
   }
 
@@ -189,9 +186,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   
   auto packPixel = [&](const uint8_t lum) {
     uint8_t color;
-    if (atkinsonDitherer) {
-      color = atkinsonDitherer->processPixel(adjustPixel(lum), currentX);
-    } else if (fsDitherer) {
+    if (fsDitherer) {
       color = fsDitherer->processPixel(adjustPixel(lum), currentX);
     } else {
       if (nativePalette) {
@@ -268,9 +263,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
       return BmpReaderError::UnsupportedBpp;
   }
 
-  if (atkinsonDitherer)
-    atkinsonDitherer->nextRow();
-  else if (fsDitherer)
+  if (fsDitherer)
     fsDitherer->nextRow();
 
   
@@ -286,7 +279,6 @@ BmpReaderError Bitmap::rewindToData() const {
 
   
   if (fsDitherer) fsDitherer->reset();
-  if (atkinsonDitherer) atkinsonDitherer->reset();
 
   return BmpReaderError::Ok;
 }

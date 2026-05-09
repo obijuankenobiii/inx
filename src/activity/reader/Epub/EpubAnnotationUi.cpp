@@ -16,7 +16,6 @@ static_assert(8000U * 6U == HalDisplay::BUFFER_SIZE, "Capture chunk layout must 
 #include <new>
 #include <algorithm>
 
-#include "state/ImageBitmapGrayMaps.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -30,11 +29,6 @@ constexpr unsigned long kNavEdgeDebounceMs = 130;
 /** After initial edge, repeat nav while held (long-press highlight extension). */
 constexpr unsigned long kNavRepeatInitialMs = 420;
 constexpr unsigned long kNavRepeatIntervalMs = 95;
-
-struct ReaderBitmapStyleGuard {
-  BitmapGrayStyleScope scope;
-  explicit ReaderBitmapStyleGuard(GfxRenderer& ren) : scope(ren, readerImageBitmapGrayStyle()) {}
-};
 
 }  // namespace
 
@@ -389,7 +383,6 @@ void EpubAnnotationUi::prepareWordGeometry(EpubActivity& act) {
   if (!act.section || !act.epub) {
     return;
   }
-  [[maybe_unused]] ReaderBitmapStyleGuard bitmapStyleGuard(act.renderer);
   ensureDiskListLoaded(act);
   const ViewportInfo info = act.calculateViewport();
   const int fontId = act.bookSettings.getReaderFontId();

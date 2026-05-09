@@ -50,7 +50,7 @@ bool ImageRender::getDimensionsForFormat(const std::string& path, Format format,
     return false;
   }
 
-  Bitmap bitmap(file, BitmapDitherMode::None);
+  Bitmap bitmap(file);
   const bool ok = bitmap.parseHeaders() == BmpReaderError::Ok;
   if (ok) {
     *outW = bitmap.getWidth();
@@ -63,10 +63,11 @@ bool ImageRender::getDimensionsForFormat(const std::string& path, Format format,
 bool ImageRender::render(int x, int y, int width, int height, const Options& options) const {
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
-  cacheOptions.bitmapDitherMode = options.bitmapDitherMode;
+  cacheOptions.mode = options.mode;
   cacheOptions.roundedOutside = options.roundedOutside;
-  cacheOptions.bitmapGrayStyle = static_cast<uint8_t>(renderer_.getBitmapGrayRenderStyle());
-  if (options.useDisplayCache &&
+  const bool canUseDisplayCache = options.useDisplayCache && options.mode == ImageRenderMode::OneBit &&
+                                  renderer_.getRenderMode() == GfxRenderer::BW;
+  if (canUseDisplayCache &&
       ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions)) {
     return true;
   }
@@ -74,10 +75,10 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   bool ok = false;
   if (format_ == Format::Jpeg) {
     JpegRender jpeg(renderer_);
-    ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill);
+    ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);
   } else if (format_ == Format::Png) {
     PngRender png(renderer_);
-    ok = png.fromPath(path_, x, y, width, height, options.cropToFill);
+    ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);
   } else {
     FsFile file;
     if (!SdMan.openFileForRead("EHP", path_, file)) {
@@ -85,7 +86,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
       return false;
     }
 
-    Bitmap bitmap(file, options.bitmapDitherMode);
+    Bitmap bitmap(file);
     ok = bitmap.parseHeaders() == BmpReaderError::Ok;
     if (ok) {
       float cropX = 0.f;
@@ -99,12 +100,12 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
           cropY = 1.0f - (imageRatio / targetRatio);
         }
       }
-      renderer_.bitmap.render(bitmap, x, y, width, height, cropX, cropY, options.roundedOutside);
+      renderer_.bitmap.render(bitmap, x, y, width, height, cropX, cropY, options.roundedOutside, options.mode);
     }
     file.close();
   }
 
-  if (ok && options.useDisplayCache) {
+  if (ok && canUseDisplayCache) {
     ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
   }
   return ok;
@@ -114,8 +115,8 @@ bool ImageRender::render(int x, int y, int width, int height) const {
   return render(x, y, width, height, Options());
 }
 
-bool ImageRender::render(int x, int y, int width, int height, BitmapDitherMode imageDitherMode) const {
+bool ImageRender::render(int x, int y, int width, int height, ImageRenderMode mode) const {
   Options options;
-  options.bitmapDitherMode = imageDitherMode;
+  options.mode = mode;
   return render(x, y, width, height, options);
 }
