@@ -291,7 +291,7 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
+    /** Sleep-only image 2-bit mode; kept in the old serialized slot for settings compatibility. */
     uint8_t sleepScreenCoverGrayscale = 0;
     /**
      * Fixed custom/transparent sleep image when multiple images exist.

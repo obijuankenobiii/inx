@@ -60,6 +60,7 @@ class RecentActivity final : public Activity, public Menu {
 
  private:
   bool halfRefreshOnLoadApplied_ = false;
+  bool ignoreBackReleaseOnEnter_ = false;
 
   int selectorIndex = 0;
   bool updateRequired = false;

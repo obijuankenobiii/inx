@@ -7,6 +7,7 @@
 
 #include "../Activity.h"
 #include <memory> 
+#include <string>
 
 class Bitmap;
 
@@ -70,10 +71,11 @@ class SleepActivity final : public Activity {
    * @param bitmap The bitmap image to render
    * @param preCroppedEpubCover When true (EPUB + Crop mode), bitmap is the pre-cropped cover; draw at full screen with no aspect crop.
    */
-  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preCroppedEpubCover = false) const;
+  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preCroppedEpubCover = false,
+                               const std::string& cacheKey = "") const;
 
   /** Fill mode: aspect crop + `drawBitmap` (same scaling as reader / CrossPoint-style covers). */
-  void renderFill(const Bitmap& bitmap) const;
+  void renderFill(const Bitmap& bitmap, const std::string& cacheKey = "") const;
   
   /**
    * @brief Renders a completely blank sleep screen.

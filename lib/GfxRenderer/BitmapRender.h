@@ -33,12 +33,14 @@ class BitmapRender {
 
   void icon(const uint8_t bitmap[], int x, int y, int width, int height,
                 Orientation orientation = Orientation::None, bool invert = false) const;
+  void maskRoundedOutside(int x, int y, int width, int height, RoundedOutside roundedOutside) const;
 
   void transparent(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0,
                        uint8_t transparentColor = 1, Orientation orientation = Orientation::None) const;
 
   void sleepScreen(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0.f,
-                       float cropY = 0.f, bool coverFill = false) const;
+                   float cropY = 0.f, bool coverFill = false,
+                   ImageRenderMode mode = ImageRenderMode::OneBit) const;
 
  private:
   void oneBit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,

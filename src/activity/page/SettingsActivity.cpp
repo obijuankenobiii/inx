@@ -42,7 +42,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
                       GroupType::IMAGE),
     SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
-    SettingInfo::Toggle("Cover Grayscale", &SystemSetting::sleepScreenCoverGrayscale,
+    SettingInfo::Toggle("Sleep 2-bit Mode", &SystemSetting::sleepScreenCoverGrayscale,
                       GroupType::IMAGE),
     SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 

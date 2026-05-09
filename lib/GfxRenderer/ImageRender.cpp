@@ -105,6 +105,10 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
     file.close();
   }
 
+  if (ok && options.roundedOutside != BitmapRender::RoundedOutside::None) {
+    renderer_.bitmap.maskRoundedOutside(x, y, width, height, options.roundedOutside);
+  }
+
   if (ok && canUseDisplayCache) {
     ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
   }

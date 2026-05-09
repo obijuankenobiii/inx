@@ -18,10 +18,10 @@
 #include "state/BookSetting.h"
 #include "state/BookProgress.h"
 #include "SettingsDrawer.h"
-#include "state/Statistics.h"
 #include "system/ScreenComponents.h"
 
 #include "EpubAnnotationUi.h"
+#include "EpubReadingStats.h"
 
 struct ViewportInfo {
   int totalMarginTop;
@@ -129,12 +129,7 @@ private:
     uint8_t bookLayoutAppliedOrientation_ = 0xFF;
     bool leftButtonLongPressProcessed = false;
 
-    BookReadingStats bookStats;
-    uint32_t pageStartTime;
-    uint32_t lastSaveTime;
-    /** Wall time from onEnter; session count increments only after ~45s in the reader. */
-    uint32_t readerSessionStartMs_ = 0;
-    bool readingSessionCountCommitted_ = false;
+    EpubReadingStats readingStats_;
 
     /** @param clearFramebuffer When false, skips clearScreen before compositing (same-page annotation overlay refresh). */
     void renderScreen(bool clearFramebuffer = true);
@@ -325,5 +320,4 @@ private:
     void fastPath();
     void slowPath();
     void displayBookStats();
-    std::string formatTime(uint32_t timeMs);
 };

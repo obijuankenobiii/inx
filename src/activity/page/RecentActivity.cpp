@@ -282,14 +282,6 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   }
   const std::string imagePath = resolveThumbnailPath(cacheDir);
 
-  if (StringUtils::checkFileExtension(imagePath, ".jpg") || StringUtils::checkFileExtension(imagePath, ".jpeg")) {
-    ImageRender::Options options;
-    options.cropToFill = true;
-    if (ImageRender::create(renderer, imagePath).render(x, y, w, h, options)) {
-      return;
-    }
-  }
-
   if (!imagePath.empty()) {
     ImageRender::Options options;
     options.cropToFill = true;
@@ -322,6 +314,13 @@ std::string RecentActivity::resolveThumbnailPath(const std::string& cacheDir) co
   if (SdMan.exists(jpegPath)) {
     thumbnailPathCache_[cacheDir] = jpegPath;
     return jpegPath;
+  }
+
+  char pngPath[192];
+  snprintf(pngPath, sizeof(pngPath), "%s/thumb.png", cacheDir.c_str());
+  if (SdMan.exists(pngPath)) {
+    thumbnailPathCache_[cacheDir] = pngPath;
+    return pngPath;
   }
 
   char bmpPath[192];
@@ -692,6 +691,8 @@ void RecentActivity::onEnter() {
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   halfRefreshOnLoadApplied_ = false;
+  ignoreBackReleaseOnEnter_ = mappedInput.isPressed(MappedInputManager::Button::Back) ||
+                              mappedInput.wasReleased(MappedInputManager::Button::Back);
   renderer.clearScreen(0xff);
   loadRecentBooks();
 
@@ -1143,6 +1144,14 @@ void RecentActivity::loop() {
   bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
   bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
   bool confirmPressed = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
+
+  if (ignoreBackReleaseOnEnter_) {
+    if (mappedInput.isPressed(MappedInputManager::Button::Back) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      return;
+    }
+    ignoreBackReleaseOnEnter_ = false;
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (mappedInput.getHeldTime() >= GO_HOME_MS) {

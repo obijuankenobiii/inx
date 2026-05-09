@@ -474,6 +474,11 @@ void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int hei
   }
 }
 
+void BitmapRender::maskRoundedOutside(const int x, const int y, const int width, const int height,
+                                      const RoundedOutside roundedOutside) const {
+  maskBitmapCornersOutsideRounded(gfx, x, y, width, height, roundedOutside);
+}
+
 void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
                     uint8_t transparentStage,
                     Orientation orientation) const {
@@ -622,8 +627,8 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
 
 void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
                                   const int maxHeight, const float cropX, const float cropY,
-                                  const bool coverFill) const {
-  if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
+                                  const bool coverFill, const ImageRenderMode mode) const {
+  if (mode == ImageRenderMode::OneBit && bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     SleepScreenBitmap::renderBitmap1Bit(gfx, bitmap, x, y, maxWidth, maxHeight);
     return;
   }
@@ -680,8 +685,8 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
   const int screenW = gfx.getScreenWidth();
   const int screenH = gfx.getScreenHeight();
 
-  auto plotSleepPixel = [this](const int sx, const int sy, const uint8_t val) {
-    if (gfx.renderMode == GfxRenderer::BW && val < 3) {
+  auto plotSleepPixel = [this, mode](const int sx, const int sy, const uint8_t val) {
+    if (gfx.renderMode == GfxRenderer::BW && bwShouldInk2bpp(val, mode)) {
       gfx.drawPixel(sx, sy);
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
       gfx.drawPixel(sx, sy, false);
