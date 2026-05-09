@@ -15,7 +15,6 @@ class PngToBmpConverter {
                                          bool crop);
 
  public:
-    
     static bool pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut);
     static bool pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut,
                                                int targetMaxWidth, int targetMaxHeight,

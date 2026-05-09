@@ -20,6 +20,7 @@ GfxRenderer::GfxRenderer(HalDisplay& halDisplay)
       icon(*this),
       polygon(*this),
       jpeg(*this),
+      png(*this),
       bitmap(*this),
       text(*this),
       ui(*this) {}
@@ -335,4 +336,3 @@ void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
   fontMap.erase(fontId);
   fontMap.emplace(fontId, updatedFamily);
 }
-

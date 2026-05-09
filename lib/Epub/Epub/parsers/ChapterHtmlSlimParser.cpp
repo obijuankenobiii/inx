@@ -15,6 +15,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <JpegRender.h>
+#include <PngRender.h>
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
@@ -38,6 +39,16 @@ bool hasJpegExt(const std::string& path) {
   std::string ext = path.substr(dot);
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
   return ext == ".jpg" || ext == ".jpeg";
+}
+
+bool hasPngExt(const std::string& path) {
+  const size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos) {
+    return false;
+  }
+  std::string ext = path.substr(dot);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return ext == ".png";
 }
 
 int countUtf8Codepoints(const char* s, int byteLen) {
@@ -747,6 +758,9 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
   if (isJpeg) {
     return JpegRender::getDimensions(path, w, h);
   }
+  if (hasPngExt(path)) {
+    return PngRender::getDimensions(path, w, h);
+  }
   FsFile file;
   if (!SdMan.openFileForRead("EHP", path, file)) return false;
 
@@ -823,6 +837,7 @@ void ChapterHtmlSlimParser::makePages() {
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
   const bool cacheIsJpeg = hasJpegExt(cacheImgPath);
+  const bool cacheIsPng = hasPngExt(cacheImgPath);
   if (SdMan.exists(cacheImgPath.c_str())) {
     if (getImageDimensions(cacheImgPath, w, h)) {
       Serial.printf("[%lu] [EBP-IMG] cache hit %s\n", static_cast<unsigned long>(millis()), cacheImgPath.c_str());
@@ -840,7 +855,7 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
   }
 
   bool result = false;
-  if (cacheIsJpeg) {
+  if (cacheIsJpeg || cacheIsPng) {
     result = epub.extractItemToPath(internalPath, cacheImgPath, 4096);
   } else {
     result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);

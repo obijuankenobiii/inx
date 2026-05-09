@@ -9,6 +9,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <JpegRender.h>
+#include <PngRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
@@ -29,6 +30,16 @@ bool hasJpegExt(const std::string& path) {
   std::string ext = path.substr(dot);
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
   return ext == ".jpg" || ext == ".jpeg";
+}
+
+bool hasPngExt(const std::string& path) {
+  const size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos) {
+    return false;
+  }
+  std::string ext = path.substr(dot);
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return ext == ".png";
 }
 
 /**
@@ -242,6 +253,7 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
                        const BitmapDitherMode imageDitherMode) {
   (void)xOffset;  
   const bool isJpeg = hasJpegExt(cachePath);
+  const bool isPng = hasPngExt(cachePath);
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
   int renderY = yPos + yOffset;
@@ -253,6 +265,15 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
     (void)fontId;
     if (!jpeg.fromPath(cachePath, renderX, renderY, width, height, false)) {
       Serial.printf("[PAGEIMG] Failed to draw JPEG: %s\n", cachePath.c_str());
+    }
+    return;
+  }
+
+  if (isPng) {
+    PngRender png(renderer);
+    (void)fontId;
+    if (!png.fromPath(cachePath, renderX, renderY, width, height)) {
+      Serial.printf("[PAGEIMG] Failed to draw PNG: %s\n", cachePath.c_str());
     }
     return;
   }

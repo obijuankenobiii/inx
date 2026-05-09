@@ -17,6 +17,7 @@
 #include "JpegRender.h"
 #include "LineRender.h"
 #include "PolygonRender.h"
+#include "PngRender.h"
 #include "RectangleRender.h"
 #include "TextRender.h"
 #include "UiRender.h"
@@ -138,6 +139,7 @@ class GfxRenderer {
   IconRender icon;
   PolygonRender polygon;
   JpegRender jpeg;
+  PngRender png;
   BitmapRender bitmap;
   TextRender text;
   UiRender ui;

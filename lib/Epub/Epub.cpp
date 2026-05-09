@@ -122,8 +122,8 @@ std::string Epub::getCacheImgPath(const std::string& internalHref) const {
   if (dot != std::string::npos) {
     fileName = fileName.substr(0, dot);
   }
-  if (ext == ".jpg" || ext == ".jpeg") {
-    return cachePath + "/images/" + fileName + ".jpg";
+  if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
+    return cachePath + "/images/" + fileName + ext;
   }
   return cachePath + "/images/" + fileName + ".bmp";
 }

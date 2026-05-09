@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 
-#include <InflateReader.h>
+#include <miniz.h>
 
 #include <algorithm>
 #include <cmath>
@@ -178,10 +178,9 @@ void writeBmpHeader2bit(Print& bmpOut, const int width, const int height) {
   }
 }
 
-// Context for streaming PNG decompression
-// IMPORTANT: reader must be the first field - the uzlib callback casts uzlib_uncomp* to PngDecodeContext*
 struct PngDecodeContext {
-  InflateReader reader;  // Must be first — callback casts uzlib_uncomp* to PngDecodeContext*
+  mz_stream zstream;
+  bool zstreamInitialized;
   FsFile* file;
 
   // PNG image properties
@@ -198,14 +197,24 @@ struct PngDecodeContext {
 
   // Chunk reading state
   uint32_t chunkBytesRemaining;  // bytes left in current IDAT chunk
+  bool idatCrcPending;           // current IDAT data ended; CRC still needs skipping
   bool idatFinished;             // no more IDAT chunks
 
-  // File read buffer for feeding uzlib
+  // File read buffer for feeding miniz
   uint8_t readBuf[2048];
 
   // Palette for indexed color (type 3)
   uint8_t palette[256 * 3];
+  uint8_t paletteAlpha[256];
   int paletteSize;
+
+  // PNG tRNS transparency for grayscale/RGB images
+  bool hasTransparentGray;
+  bool hasTransparentRgb;
+  uint16_t transparentGray;
+  uint16_t transparentRed;
+  uint16_t transparentGreen;
+  uint16_t transparentBlue;
 };
 
 // Read the next IDAT chunk header, skipping non-IDAT chunks
@@ -234,50 +243,77 @@ static bool findNextIdatChunk(PngDecodeContext& ctx) {
   }
 }
 
-// uzlib callback: reads the next batch of IDAT data from the file
-static int pngIdatReadCallback(uzlib_uncomp* uncomp) {
-  auto* ctx = reinterpret_cast<PngDecodeContext*>(uncomp);
+static bool pngLoadIdatInput(PngDecodeContext& ctx) {
+  if (ctx.idatFinished) return false;
 
-  if (ctx->idatFinished) return -1;
+  while (ctx.chunkBytesRemaining == 0) {
+    if (ctx.idatCrcPending) {
+      if (!ctx.file->seekCur(4)) {
+        ctx.idatFinished = true;
+        return false;
+      }
+      ctx.idatCrcPending = false;
+    }
 
-  // Skip 4-byte CRC and find next IDAT chunk when current chunk is exhausted
-  while (ctx->chunkBytesRemaining == 0) {
-    if (!ctx->file->seekCur(4)) {  // skip 4-byte CRC of previous IDAT
-      ctx->idatFinished = true;
-      return -1;
+    if (!findNextIdatChunk(ctx)) {
+      ctx.idatFinished = true;
+      return false;
     }
-    if (!findNextIdatChunk(*ctx)) {
-      ctx->idatFinished = true;
-      return -1;
-    }
+    ctx.idatCrcPending = true;
   }
 
-  // Read from current IDAT chunk into the read buffer
-  size_t toRead = sizeof(ctx->readBuf);
-  if (toRead > ctx->chunkBytesRemaining) toRead = ctx->chunkBytesRemaining;
+  size_t toRead = sizeof(ctx.readBuf);
+  if (toRead > ctx.chunkBytesRemaining) toRead = ctx.chunkBytesRemaining;
 
-  int bytesRead = ctx->file->read(ctx->readBuf, toRead);
+  const int bytesRead = ctx.file->read(ctx.readBuf, toRead);
   if (bytesRead <= 0) {
-    ctx->idatFinished = true;
-    return -1;
+    ctx.idatFinished = true;
+    return false;
   }
 
-  ctx->chunkBytesRemaining -= bytesRead;
+  ctx.chunkBytesRemaining -= static_cast<uint32_t>(bytesRead);
+  ctx.zstream.next_in = ctx.readBuf;
+  ctx.zstream.avail_in = static_cast<unsigned int>(bytesRead);
+  return true;
+}
 
-  // Give uzlib the buffer (skip first byte since we return it directly)
-  uncomp->source = ctx->readBuf + 1;
-  uncomp->source_limit = ctx->readBuf + bytesRead;
-  return ctx->readBuf[0];
+static bool pngInflateRead(PngDecodeContext& ctx, uint8_t* dest, const size_t len) {
+  ctx.zstream.next_out = dest;
+  ctx.zstream.avail_out = static_cast<unsigned int>(len);
+
+  while (ctx.zstream.avail_out > 0) {
+    if (ctx.zstream.avail_in == 0 && !pngLoadIdatInput(ctx)) {
+      return false;
+    }
+
+    const unsigned int availInBefore = ctx.zstream.avail_in;
+    const unsigned int availOutBefore = ctx.zstream.avail_out;
+    const int res = mz_inflate(&ctx.zstream, MZ_NO_FLUSH);
+
+    if (res == MZ_STREAM_END) {
+      return ctx.zstream.avail_out == 0;
+    }
+    if (res != MZ_OK) {
+      LOG_ERR("PNG", "Inflate failed: %d", res);
+      return false;
+    }
+    if (ctx.zstream.avail_in == availInBefore && ctx.zstream.avail_out == availOutBefore) {
+      LOG_ERR("PNG", "Inflate made no progress");
+      return false;
+    }
+  }
+
+  return true;
 }
 
 // Decode one scanline: decompress filter byte + raw bytes, then unfilter
 static bool decodeScanline(PngDecodeContext& ctx) {
   // Decompress filter byte
   uint8_t filterType;
-  if (!ctx.reader.read(&filterType, 1)) return false;
+  if (!pngInflateRead(ctx, &filterType, 1)) return false;
 
   // Decompress raw row data into currentRow
-  if (!ctx.reader.read(ctx.currentRow, ctx.rawRowBytes)) return false;
+  if (!pngInflateRead(ctx, ctx.currentRow, ctx.rawRowBytes)) return false;
 
   // Apply reverse filter
   const int bpp = ctx.bytesPerPixel;
@@ -323,6 +359,14 @@ static bool decodeScanline(PngDecodeContext& ctx) {
   return true;
 }
 
+static uint8_t compositeOverWhite(const uint8_t lum, const uint8_t alpha) {
+  return static_cast<uint8_t>((static_cast<uint16_t>(lum) * alpha + 255u * (255u - alpha)) / 255u);
+}
+
+static uint8_t rgbToGrayFast(const uint8_t r, const uint8_t g, const uint8_t b) {
+  return static_cast<uint8_t>((r * 25 + g * 50 + b * 25) / 100);
+}
+
 // Batch-convert an entire scanline to grayscale.
 // Branches once on colorType/bitDepth, then runs a tight loop for the whole row.
 static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow) {
@@ -332,15 +376,24 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
   switch (ctx.colorType) {
     case PNG_COLOR_GRAYSCALE:
       if (ctx.bitDepth == 8) {
-        memcpy(grayRow, src, w);
+        if (ctx.hasTransparentGray) {
+          for (uint32_t x = 0; x < w; x++) grayRow[x] = (src[x] == ctx.transparentGray) ? 255 : src[x];
+        } else {
+          memcpy(grayRow, src, w);
+        }
       } else if (ctx.bitDepth == 16) {
-        for (uint32_t x = 0; x < w; x++) grayRow[x] = src[x * 2];
+        for (uint32_t x = 0; x < w; x++) {
+          const uint8_t* p = src + x * 2;
+          const uint16_t gray16 = static_cast<uint16_t>(p[0]) << 8 | p[1];
+          grayRow[x] = (ctx.hasTransparentGray && gray16 == ctx.transparentGray) ? 255 : p[0];
+        }
       } else {
         const int ppb = 8 / ctx.bitDepth;
         const uint8_t mask = (1 << ctx.bitDepth) - 1;
         for (uint32_t x = 0; x < w; x++) {
           int shift = (ppb - 1 - (x % ppb)) * ctx.bitDepth;
-          grayRow[x] = (src[x / ppb] >> shift & mask) * 255 / mask;
+          const uint8_t sample = src[x / ppb] >> shift & mask;
+          grayRow[x] = (ctx.hasTransparentGray && sample == ctx.transparentGray) ? 255 : sample * 255 / mask;
         }
       }
       break;
@@ -350,11 +403,24 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         // Fast path: most common EPUB cover format
         for (uint32_t x = 0; x < w; x++) {
           const uint8_t* p = src + x * 3;
-          grayRow[x] = (p[0] * 25 + p[1] * 50 + p[2] * 25) / 100;
+          uint8_t gray = rgbToGrayFast(p[0], p[1], p[2]);
+          if (ctx.hasTransparentRgb && p[0] == ctx.transparentRed && p[1] == ctx.transparentGreen &&
+              p[2] == ctx.transparentBlue) {
+            gray = 255;
+          }
+          grayRow[x] = gray;
         }
       } else {
         for (uint32_t x = 0; x < w; x++) {
-          grayRow[x] = (src[x * 6] * 25 + src[x * 6 + 2] * 50 + src[x * 6 + 4] * 25) / 100;
+          const uint8_t* p = src + x * 6;
+          uint8_t gray = rgbToGrayFast(p[0], p[2], p[4]);
+          if (ctx.hasTransparentRgb &&
+              (static_cast<uint16_t>(p[0]) << 8 | p[1]) == ctx.transparentRed &&
+              (static_cast<uint16_t>(p[2]) << 8 | p[3]) == ctx.transparentGreen &&
+              (static_cast<uint16_t>(p[4]) << 8 | p[5]) == ctx.transparentBlue) {
+            gray = 255;
+          }
+          grayRow[x] = gray;
         }
       }
       break;
@@ -368,16 +434,17 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         int shift = (ppb - 1 - (x % ppb)) * ctx.bitDepth;
         uint8_t idx = (src[x / ppb] >> shift) & mask;
         if (idx >= palSize) idx = 0;
-        grayRow[x] = (pal[idx * 3] * 25 + pal[idx * 3 + 1] * 50 + pal[idx * 3 + 2] * 25) / 100;
+        grayRow[x] = compositeOverWhite(rgbToGrayFast(pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]),
+                                        ctx.paletteAlpha[idx]);
       }
       break;
     }
 
     case PNG_COLOR_GRAYSCALE_ALPHA:
       if (ctx.bitDepth == 8) {
-        for (uint32_t x = 0; x < w; x++) grayRow[x] = src[x * 2];
+        for (uint32_t x = 0; x < w; x++) grayRow[x] = compositeOverWhite(src[x * 2], src[x * 2 + 1]);
       } else {
-        for (uint32_t x = 0; x < w; x++) grayRow[x] = src[x * 4];
+        for (uint32_t x = 0; x < w; x++) grayRow[x] = compositeOverWhite(src[x * 4], src[x * 4 + 2]);
       }
       break;
 
@@ -385,11 +452,11 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
       if (ctx.bitDepth == 8) {
         for (uint32_t x = 0; x < w; x++) {
           const uint8_t* p = src + x * 4;
-          grayRow[x] = (p[0] * 25 + p[1] * 50 + p[2] * 25) / 100;
+          grayRow[x] = compositeOverWhite(rgbToGrayFast(p[0], p[1], p[2]), p[3]);
         }
       } else {
         for (uint32_t x = 0; x < w; x++) {
-          grayRow[x] = (src[x * 8] * 25 + src[x * 8 + 2] * 50 + src[x * 8 + 4] * 25) / 100;
+          grayRow[x] = compositeOverWhite(rgbToGrayFast(src[x * 8], src[x * 8 + 2], src[x * 8 + 4]), src[x * 8 + 6]);
         }
       }
       break;
@@ -509,6 +576,7 @@ static bool pngDecodeBegin(FsFile& pngFile, PngDecodeContext& ctx) {
   ctx.bytesPerPixel = bytesPerPixel;
   ctx.rawRowBytes = rawRowBytes;
   ctx.paletteSize = 0;
+  memset(ctx.paletteAlpha, 255, sizeof(ctx.paletteAlpha));
 
   // Allocate scanline buffers
   ctx.currentRow = static_cast<uint8_t*>(malloc(rawRowBytes));
@@ -537,8 +605,32 @@ static bool pngDecodeBegin(FsFile& pngFile, PngDecodeContext& ctx) {
       pngFile.read(ctx.palette, palBytes);
       if (chunkLen > palBytes) pngFile.seekCur(chunkLen - palBytes);
       pngFile.seekCur(4);  // CRC
+    } else if (memcmp(chunkType, "tRNS", 4) == 0) {
+      if (colorType == PNG_COLOR_PALETTE) {
+        const uint32_t alphaCount = std::min<uint32_t>(chunkLen, sizeof(ctx.paletteAlpha));
+        pngFile.read(ctx.paletteAlpha, alphaCount);
+        if (chunkLen > alphaCount) pngFile.seekCur(chunkLen - alphaCount);
+      } else if (colorType == PNG_COLOR_GRAYSCALE && chunkLen >= 2) {
+        uint8_t trns[2];
+        pngFile.read(trns, 2);
+        ctx.transparentGray = static_cast<uint16_t>(trns[0]) << 8 | trns[1];
+        ctx.hasTransparentGray = true;
+        if (chunkLen > 2) pngFile.seekCur(chunkLen - 2);
+      } else if (colorType == PNG_COLOR_RGB && chunkLen >= 6) {
+        uint8_t trns[6];
+        pngFile.read(trns, 6);
+        ctx.transparentRed = static_cast<uint16_t>(trns[0]) << 8 | trns[1];
+        ctx.transparentGreen = static_cast<uint16_t>(trns[2]) << 8 | trns[3];
+        ctx.transparentBlue = static_cast<uint16_t>(trns[4]) << 8 | trns[5];
+        ctx.hasTransparentRgb = true;
+        if (chunkLen > 6) pngFile.seekCur(chunkLen - 6);
+      } else {
+        pngFile.seekCur(chunkLen);
+      }
+      pngFile.seekCur(4);  // CRC
     } else if (memcmp(chunkType, "IDAT", 4) == 0) {
       ctx.chunkBytesRemaining = chunkLen;
+      ctx.idatCrcPending = true;
       foundIdat = true;
     } else if (memcmp(chunkType, "IEND", 4) == 0) {
       break;
@@ -554,22 +646,31 @@ static bool pngDecodeBegin(FsFile& pngFile, PngDecodeContext& ctx) {
     return false;
   }
 
-  if (!ctx.reader.init(true)) {
-    LOG_ERR("PNG", "Failed to init inflate reader");
+  if (mz_inflateInit(&ctx.zstream) != MZ_OK) {
+    LOG_ERR("PNG", "Failed to init inflate stream");
     free(ctx.currentRow);
     free(ctx.previousRow);
     return false;
   }
-  ctx.reader.setReadCallback(pngIdatReadCallback);
-  ctx.reader.skipZlibHeader();
+  ctx.zstreamInitialized = true;
   return true;
 }
 
 static void pngDecodeReleaseScanlines(PngDecodeContext& ctx) {
+  if (ctx.zstreamInitialized) {
+    mz_inflateEnd(&ctx.zstream);
+    ctx.zstreamInitialized = false;
+  }
   free(ctx.currentRow);
   free(ctx.previousRow);
   ctx.currentRow = nullptr;
   ctx.previousRow = nullptr;
+}
+
+static void pngDecodeAdvanceScanline(PngDecodeContext& ctx) {
+  uint8_t* temp = ctx.previousRow;
+  ctx.previousRow = ctx.currentRow;
+  ctx.currentRow = temp;
 }
 }  // namespace
 
@@ -577,8 +678,15 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
                                                    bool oneBit, bool crop) {
   LOG_DBG("PNG", "Converting PNG to %s BMP (target: %dx%d)", oneBit ? "1-bit" : "2-bit", targetWidth, targetHeight);
 
-  PngDecodeContext ctx{};
+  PngDecodeContext* ctxPtr = new (std::nothrow) PngDecodeContext();
+  if (!ctxPtr) {
+    LOG_ERR("PNG", "Failed to allocate decode context");
+    return false;
+  }
+
+  PngDecodeContext& ctx = *ctxPtr;
   if (!pngDecodeBegin(pngFile, ctx)) {
+    delete ctxPtr;
     return false;
   }
 
@@ -634,6 +742,7 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
   if (!rowBuffer) {
     LOG_ERR("PNG", "Failed to allocate row buffer");
     pngDecodeReleaseScanlines(ctx);
+    delete ctxPtr;
     return false;
   }
 
@@ -675,8 +784,8 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
     delete fsDitherer;
     delete atkinson1BitDitherer;
     free(rowBuffer);
-    free(ctx.currentRow);
-    free(ctx.previousRow);
+    pngDecodeReleaseScanlines(ctx);
+    delete ctxPtr;
     return false;
   }
 
@@ -830,6 +939,7 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
   delete atkinson1BitDitherer;
   free(rowBuffer);
   pngDecodeReleaseScanlines(ctx);
+  delete ctxPtr;
 
   if (success) {
     LOG_DBG("PNG", "Successfully converted PNG to BMP");
@@ -840,8 +950,15 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
 bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Print& bmpOut) {
   const uint32_t originalPos = pngFile.position();
   pngFile.seek(0);
-  PngDecodeContext ctx{};
+  PngDecodeContext* ctxPtr = new (std::nothrow) PngDecodeContext();
+  if (!ctxPtr) {
+    pngFile.seek(originalPos);
+    return false;
+  }
+
+  PngDecodeContext& ctx = *ctxPtr;
   if (!pngDecodeBegin(pngFile, ctx)) {
+    delete ctxPtr;
     pngFile.seek(originalPos);
     return false;
   }
@@ -859,6 +976,7 @@ bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Prin
     free(grayDw);
     packer.freeBuffers();
     pngDecodeReleaseScanlines(ctx);
+    delete ctxPtr;
     pngFile.seek(originalPos);
     return false;
   }
@@ -868,6 +986,7 @@ bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Prin
     free(grayDw);
     packer.freeBuffers();
     pngDecodeReleaseScanlines(ctx);
+    delete ctxPtr;
     pngFile.seek(originalPos);
     return false;
   }
@@ -881,10 +1000,12 @@ bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Prin
         free(grayDw);
         packer.freeBuffers();
         pngDecodeReleaseScanlines(ctx);
+        delete ctxPtr;
         pngFile.seek(originalPos);
         return false;
       }
       convertScanlineToGray(ctx, grayRow);
+      pngDecodeAdvanceScanline(ctx);
       currentSrcY++;
     }
     for (int ox = 0; ox < dw; ox++) {
@@ -896,6 +1017,7 @@ bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Prin
       free(grayDw);
       packer.freeBuffers();
       pngDecodeReleaseScanlines(ctx);
+      delete ctxPtr;
       pngFile.seek(originalPos);
       return false;
     }
@@ -905,6 +1027,7 @@ bool PngToBmpConverter::pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Prin
   free(grayDw);
   packer.freeBuffers();
   pngDecodeReleaseScanlines(ctx);
+  delete ctxPtr;
   pngFile.seek(originalPos);
   return true;
 }
