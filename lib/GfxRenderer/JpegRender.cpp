@@ -117,7 +117,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       outHeight = targetHeight;
     } else {
       float scale = std::min(sx, sy);
-      if (scale > 1.0f) scale = 1.0f;
       outWidth = std::max(1, static_cast<int>(std::lround(imageInfo.m_width * scale)));
       outHeight = std::max(1, static_cast<int>(std::lround(imageInfo.m_height * scale)));
     }
@@ -174,7 +173,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           rowCount[ox]++;
         }
       }
-      if ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
+      bool emittedOutputRow = false;
+      while ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
         for (int ox = 0; ox < outWidth; ox++) {
           const int gray = rowCount[ox] ? static_cast<int>(rowAccum[ox] / rowCount[ox]) : 0;
@@ -208,9 +208,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         errNext = t;
         memset(errNext, 0, static_cast<size_t>(outWidth) * sizeof(int16_t));
         currentOutY++;
+        emittedOutputRow = true;
+        nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
+      }
+      if (emittedOutputRow) {
         memset(rowAccum, 0, static_cast<size_t>(outWidth) * sizeof(uint32_t));
         memset(rowCount, 0, static_cast<size_t>(outWidth) * sizeof(uint16_t));
-        nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
       }
     }
   }

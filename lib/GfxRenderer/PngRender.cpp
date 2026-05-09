@@ -510,13 +510,11 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
   int outH = 0;
   if (!getDimensions(pngFile, &outW, &outH)) return false;
 
-  if (outW > targetWidth || outH > targetHeight) {
-    const float sx = static_cast<float>(targetWidth) / static_cast<float>(outW);
-    const float sy = static_cast<float>(targetHeight) / static_cast<float>(outH);
-    const float scale = std::min(sx, sy);
-    outW = std::max(1, static_cast<int>(outW * scale));
-    outH = std::max(1, static_cast<int>(outH * scale));
-  }
+  const float sx = static_cast<float>(targetWidth) / static_cast<float>(outW);
+  const float sy = static_cast<float>(targetHeight) / static_cast<float>(outH);
+  const float scale = std::min(sx, sy);
+  outW = std::max(1, static_cast<int>(outW * scale));
+  outH = std::max(1, static_cast<int>(outH * scale));
 
   const int drawX = x + (targetWidth - outW) / 2;
   const int drawY = y + (targetHeight - outH) / 2;

@@ -13,6 +13,7 @@
 #include <PngToBmpConverter.h>
 #include <SDCardManager.h>
 #include <ZipFile.h>
+#include "../../src/util/StringUtils.h"
 
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
@@ -59,30 +60,21 @@ constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
 }  
 
 /**
- * @brief Checks file type.
- */
-static bool isFileType(const std::string& path, const std::string& extension) {
-  size_t dot = path.find_last_of('.');
-  if (dot == std::string::npos) return false;
-  std::string ext = path.substr(dot);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-  return ext == extension;
-}
-
-/**
  * @brief Checks file type is png.
  */
-static bool isPngFile(const std::string& path) { return isFileType(path, ".png"); }
+static bool isPngFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".png"); }
 
 /**
  * @brief Checks file type is jpeg.
  */
-static bool isJpegFile(const std::string& path) { return isFileType(path, ".jpg") || isFileType(path, ".jpeg"); }
+static bool isJpegFile(const std::string& path) {
+  return StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg");
+}
 
 /**
  * @brief Checks file type is bmp.
  */
-static bool isBmpFile(const std::string& path) { return isFileType(path, ".bmp"); }
+static bool isBmpFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
 
 /**
  * @brief Creates the cache directory structure for this EPUB.
@@ -111,19 +103,15 @@ std::string Epub::getCacheImgPath(const std::string& internalHref) const {
   size_t lastSlash = internalHref.find_last_of('/');
   std::string fileName = (lastSlash == std::string::npos) ? internalHref : internalHref.substr(lastSlash + 1);
 
-  std::string ext;
-  const size_t dotExt = fileName.find_last_of('.');
-  if (dotExt != std::string::npos) {
-    ext = fileName.substr(dotExt);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-  }
-
   size_t dot = fileName.find_last_of('.');
   if (dot != std::string::npos) {
     fileName = fileName.substr(0, dot);
   }
-  if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
-    return cachePath + "/images/" + fileName + ext;
+  if (isJpegFile(internalHref)) {
+    return cachePath + "/images/" + fileName + ".jpg";
+  }
+  if (isPngFile(internalHref)) {
+    return cachePath + "/images/" + fileName + ".png";
   }
   return cachePath + "/images/" + fileName + ".bmp";
 }

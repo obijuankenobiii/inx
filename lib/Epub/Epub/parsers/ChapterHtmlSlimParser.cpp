@@ -19,6 +19,7 @@
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
+#include "../../../../src/util/StringUtils.h"
 
 #include "../Page.h"
 #include "../../../KOReaderSync/htmlEntities.h"
@@ -32,23 +33,11 @@ constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 namespace {
 
 bool hasJpegExt(const std::string& path) {
-  const size_t dot = path.find_last_of('.');
-  if (dot == std::string::npos) {
-    return false;
-  }
-  std::string ext = path.substr(dot);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-  return ext == ".jpg" || ext == ".jpeg";
+  return StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg");
 }
 
 bool hasPngExt(const std::string& path) {
-  const size_t dot = path.find_last_of('.');
-  if (dot == std::string::npos) {
-    return false;
-  }
-  std::string ext = path.substr(dot);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-  return ext == ".png";
+  return StringUtils::checkFileExtension(path, ".png");
 }
 
 int countUtf8Codepoints(const char* s, int byteLen) {
@@ -396,6 +385,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = (imgHeight * cssMaxW) / std::max(1, imgWidth);
       imgWidth = cssMaxW;
     }
+    
     if (cssMaxH > 0 && imgHeight > cssMaxH) {
       imgWidth = (imgWidth * cssMaxH) / std::max(1, imgHeight);
       imgHeight = cssMaxH;
@@ -409,7 +399,6 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = cssMinH;
     }
 
-    
     if (imgWidth > viewportWidth) {
       imgHeight = (imgHeight * viewportWidth) / imgWidth;
       imgWidth = viewportWidth;
