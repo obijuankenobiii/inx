@@ -124,24 +124,26 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
 
 inline bool bwShouldInk2bpp(const uint8_t stage03, const ImageRenderMode mode) {
   const uint8_t st = stage03 & 3u;
-  return mode == ImageRenderMode::TwoBit ? st < 3u : st <= 1u;
+  if (mode != ImageRenderMode::TwoBit) {
+    return st == 1u || st == 3u;
+  }
+  return st > 0u;
+}
+
+inline bool grayMsbShouldInk2bpp(const uint8_t stage03) {
+  const uint8_t st = stage03 & 3u;
+  return st == 1u || st == 2u;
+}
+
+inline bool grayLsbShouldInk2bpp(const uint8_t stage03) {
+  return (stage03 & 3u) == 1u;
 }
 
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
   const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
-  if (v == 3u) return;
-  if (v == 0u) {
+  if (FourToneImageDitherer::bwPreviewInkForLevel(v, px, py)) {
     gfx.drawPixel(px, py, true);
-    return;
   }
-  static const uint8_t kBayer2[4] = {0, 2, 3, 1};
-  const uint8_t t = kBayer2[((py & 1) << 1) | (px & 1)];
-  const uint8_t tScaled = (t * 16) / 4;
-  if (v == 1u) {
-    gfx.drawPixel(px, py, tScaled < 12u);
-    return;
-  }
-  gfx.drawPixel(px, py, tScaled < 6u);
 }
 
 /** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
@@ -224,9 +226,9 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
       if (bwShouldInk2bpp(val, mode)) {
         drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
       gfx.drawPixel(screenX, screenY, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && val == 1) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
       gfx.drawPixel(screenX, screenY, false);
     }
   };
@@ -357,9 +359,9 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
       if (bwShouldInk2bpp(val, ImageRenderMode::OneBit)) {
         drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
       gfx.drawPixel(screenX, screenY, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && val == 1) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
       gfx.drawPixel(screenX, screenY, false);
     }
   };
@@ -613,7 +615,7 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
 
       const uint8_t val = outRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
 
-      if (val < 3) {
+      if (val == 1 || val == 3) {
         gfx.drawPixel(screenX, screenY, true);
       }
     }
@@ -688,9 +690,9 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
   auto plotSleepPixel = [this, mode](const int sx, const int sy, const uint8_t val) {
     if (gfx.renderMode == GfxRenderer::BW && bwShouldInk2bpp(val, mode)) {
       gfx.drawPixel(sx, sy);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (val == 1 || val == 2)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
       gfx.drawPixel(sx, sy, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && val == 1) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
       gfx.drawPixel(sx, sy, false);
     }
   };

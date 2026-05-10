@@ -5,6 +5,7 @@
 
 #include "PngRender.h"
 
+#include "BitmapUtil.h"
 #include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <miniz.h>
@@ -16,8 +17,8 @@
 namespace {
 constexpr int kPngDitherSolidBlackMax = 32;
 constexpr int kPngDitherSolidWhiteMin = 255 - kPngDitherSolidBlackMax;
-constexpr int kPngTwoBitSolidBlackMax = 3;
-constexpr int kPngTwoBitSolidWhiteMin = 252;
+constexpr int kPngTwoBitSolidBlackMax = 6;
+constexpr int kPngTwoBitSolidWhiteMin = 255;
 constexpr uint8_t kPngSignature[8] = {137, 80, 78, 71, 13, 10, 26, 10};
 
 enum PngColorType : uint8_t {
@@ -66,8 +67,8 @@ struct RenderContext {
   int y;
   int width;
   ImageRenderMode mode;
-  int16_t* errCur;
-  int16_t* errNext;
+  FourToneImageDitherer* twoBitDitherer;
+  Atkinson1BitDitherer* oneBitDitherer;
 };
 
 bool readBE32(FsFile& file, uint32_t& value) {
@@ -415,10 +416,7 @@ void advanceScanline(PngContext& ctx) {
 
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
-    if (corrected < 43) return 0;
-    if (corrected < 128) return 85;
-    if (corrected < 213) return 170;
-    return 255;
+    return quantizeTwoBitImage(corrected).value;
   }
   return corrected < 128 ? 0 : 255;
 }
@@ -431,10 +429,11 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
     return;
   }
 
-  const uint8_t level = q <= 0 ? 0 : (q <= 85 ? 1 : (q <= 170 ? 2 : 3));
+  const uint8_t level = FourToneImageDitherer::levelFromValue(q);
   const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
   if (renderMode == GfxRenderer::BW) {
-    if (level < 3) {
+    if ((ctx.mode == ImageRenderMode::TwoBit && FourToneImageDitherer::bwInkForLevel(level, x, y)) ||
+        (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
       ctx.renderer->drawPixel(x, y, true);
     }
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
@@ -447,48 +446,36 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
 bool drawGrayRow(RenderContext& ctx, const uint8_t* grayRow, int width, int rowIndex) {
   if (!grayRow || width <= 0 || width != ctx.width) return false;
   const int screenY = ctx.y + rowIndex;
-  const bool reverseRow = ctx.mode == ImageRenderMode::TwoBit && ((rowIndex & 1) != 0);
   for (int step = 0; step < width; step++) {
-    const int ox = reverseRow ? (width - 1 - step) : step;
+    const int ox = step;
     const int gray = grayRow[ox];
-    int corrected = gray + static_cast<int>(ctx.errCur[ox]);
-    if (corrected < 0) corrected = 0;
-    if (corrected > 255) corrected = 255;
 
     int q;
-    int err;
     const int solidBlackMax =
         ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidBlackMax : kPngDitherSolidBlackMax;
     const int solidWhiteMin = ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidWhiteMin : kPngDitherSolidWhiteMin;
     if (gray <= solidBlackMax) {
       q = 0;
-      err = 0;
     } else if (gray >= solidWhiteMin) {
       q = 255;
-      err = 0;
     } else {
-      q = quantizeGray(corrected, ctx.mode);
-      err = corrected - q;
-      if (reverseRow) {
-        if (ox > 0) ctx.errCur[ox - 1] = static_cast<int16_t>(ctx.errCur[ox - 1] + (err * 7) / 16);
-        ctx.errNext[ox] = static_cast<int16_t>(ctx.errNext[ox] + (err * 5) / 16);
-        if (ox + 1 < width) ctx.errNext[ox + 1] = static_cast<int16_t>(ctx.errNext[ox + 1] + (err * 3) / 16);
-        if (ox > 0) ctx.errNext[ox - 1] = static_cast<int16_t>(ctx.errNext[ox - 1] + (err * 1) / 16);
+      if (ctx.mode == ImageRenderMode::TwoBit) {
+        q = ctx.twoBitDitherer->process(gray, step).value;
+      } else if (ctx.oneBitDitherer) {
+        q = ctx.oneBitDitherer->processPixel(gray, step) ? 255 : 0;
       } else {
-        if (ox + 1 < width) ctx.errCur[ox + 1] = static_cast<int16_t>(ctx.errCur[ox + 1] + (err * 7) / 16);
-        ctx.errNext[ox] = static_cast<int16_t>(ctx.errNext[ox] + (err * 5) / 16);
-        if (ox > 0) ctx.errNext[ox - 1] = static_cast<int16_t>(ctx.errNext[ox - 1] + (err * 3) / 16);
-        if (ox + 1 < width) ctx.errNext[ox + 1] = static_cast<int16_t>(ctx.errNext[ox + 1] + (err * 1) / 16);
+        q = quantizeGray(gray, ctx.mode);
       }
     }
 
     drawQuantizedPixel(ctx, ctx.x + ox, screenY, q);
   }
 
-  int16_t* t = ctx.errCur;
-  ctx.errCur = ctx.errNext;
-  ctx.errNext = t;
-  memset(ctx.errNext, 0, static_cast<size_t>(width) * sizeof(int16_t));
+  if (ctx.mode == ImageRenderMode::TwoBit) {
+    ctx.twoBitDitherer->nextRow();
+  } else if (ctx.oneBitDitherer) {
+    ctx.oneBitDitherer->nextRow();
+  }
   return true;
 }
 
@@ -583,18 +570,30 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
 
   const int drawX = x + (targetWidth - outW) / 2;
   const int drawY = y + (targetHeight - outH) / 2;
-  int16_t* errors = new (std::nothrow) int16_t[static_cast<size_t>(outW) * 2]();
-  if (!errors) return false;
+  FourToneImageDitherer* twoBitDitherer = nullptr;
+  Atkinson1BitDitherer* oneBitDitherer = nullptr;
+  if (mode == ImageRenderMode::TwoBit) {
+    twoBitDitherer = new (std::nothrow) FourToneImageDitherer(outW);
+  } else {
+    oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outW);
+  }
+  if ((mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+      (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
+    delete twoBitDitherer;
+    delete oneBitDitherer;
+    return false;
+  }
 
   RenderContext ctx = {.renderer = &renderer_,
                        .x = drawX,
                        .y = drawY,
                        .width = outW,
                        .mode = mode,
-                       .errCur = errors,
-                       .errNext = errors + outW};
+                       .twoBitDitherer = twoBitDitherer,
+                       .oneBitDitherer = oneBitDitherer};
   const bool ok = decodeAndRender(pngFile, ctx, outW, outH, srcX, srcY, srcW, srcH);
-  delete[] errors;
+  delete twoBitDitherer;
+  delete oneBitDitherer;
   return ok;
 }
 

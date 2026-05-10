@@ -16,7 +16,7 @@ Bitmap::~Bitmap() {
   delete[] errorCurRow;
   delete[] errorNextRow;
 
-  delete fsDitherer;
+  delete imageDitherer;
 }
 
 uint16_t Bitmap::readLE16(FsFile& f) {
@@ -165,7 +165,7 @@ BmpReaderError Bitmap::parseHeaders() {
   
   const bool highColor = !nativePalette;
   if (highColor) {
-    fsDitherer = new FloydSteinbergDitherer(width);
+    imageDitherer = new FourToneImageDitherer(width);
   }
 
   return BmpReaderError::Ok;
@@ -186,15 +186,16 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   
   auto packPixel = [&](const uint8_t lum) {
     uint8_t color;
-    if (fsDitherer) {
-      color = fsDitherer->processPixel(adjustPixel(lum), currentX);
+    if (imageDitherer) {
+      color = imageDitherer->process(lum, currentX).level;
     } else {
       if (nativePalette) {
         
-        color = static_cast<uint8_t>(adjustPixel(lum) >> 6);
+        color = FourToneImageDitherer::levelFromValue(adjustPixel(lum));
       } else {
         
-        color = quantize(adjustPixel(lum), currentX, prevRowY);
+        const uint8_t q = quantize(adjustPixel(lum), currentX, prevRowY);
+        color = q == 0 ? 3 : (q == 1 ? 1 : (q == 2 ? 2 : 0));
       }
     }
     currentOutByte |= (color << bitShift);
@@ -263,8 +264,9 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
       return BmpReaderError::UnsupportedBpp;
   }
 
-  if (fsDitherer)
-    fsDitherer->nextRow();
+  if (imageDitherer) {
+    imageDitherer->nextRow();
+  }
 
   
   if (bitShift != 6) *outPtr = currentOutByte;
@@ -278,7 +280,7 @@ BmpReaderError Bitmap::rewindToData() const {
   }
 
   
-  if (fsDitherer) fsDitherer->reset();
+  if (imageDitherer) imageDitherer->reset();
 
   return BmpReaderError::Ok;
 }

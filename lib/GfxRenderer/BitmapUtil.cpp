@@ -133,6 +133,8 @@ uint8_t quantizeSimple(int gray) {
   }
 }
 
+ImageToneSample quantizeTwoBitImage(const int gray) { return FourToneImageDitherer::quantize(adjustPixel(gray)); }
+
 
 
 static inline uint8_t quantizeNoise(int gray, int x, int y) {
@@ -286,8 +288,8 @@ bool EpubWeb2BitRowPacker::init(int width) {
   dw = width;
   bytesPerRow = (dw * 2 + 31) / 32 * 4;
   rowBuffer = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(bytesPerRow), 1));
-  errorBuffers = static_cast<int16_t*>(std::calloc(static_cast<size_t>(dw) * 2u, sizeof(int16_t)));
-  if (!rowBuffer || !errorBuffers) {
+  ditherer = new FourToneImageDitherer(width);
+  if (!rowBuffer || !ditherer || !ditherer->ok()) {
     freeBuffers();
     return false;
   }
@@ -298,51 +300,24 @@ bool EpubWeb2BitRowPacker::init(int width) {
 void EpubWeb2BitRowPacker::freeBuffers() {
   std::free(rowBuffer);
   rowBuffer = nullptr;
-  std::free(errorBuffers);
-  errorBuffers = nullptr;
+  delete ditherer;
+  ditherer = nullptr;
   dw = 0;
   bytesPerRow = 0;
   rowIndex = 0;
 }
 
 bool EpubWeb2BitRowPacker::writeGrayRow(Print& bmpOut, const uint8_t* grayRow) {
-  if (!rowBuffer || !errorBuffers || !grayRow || dw <= 0) return false;
+  if (!rowBuffer || !ditherer || !ditherer->ok() || !grayRow || dw <= 0) return false;
   std::memset(rowBuffer, 0, static_cast<size_t>(bytesPerRow));
-  int16_t* cur = &errorBuffers[(rowIndex & 1) * dw];
-  int16_t* nxt = &errorBuffers[((rowIndex + 1) & 1) * dw];
-  std::memset(nxt, 0, static_cast<size_t>(dw) * sizeof(int16_t));
 
   for (int x = 0; x < dw; x++) {
-    int16_t corrected = static_cast<int16_t>(grayRow[x]) + cur[x];
-    if (corrected < 0) corrected = 0;
-    if (corrected > 255) corrected = 255;
-
-    uint8_t twoBit = 0;
-    uint8_t quantized = 0;
-    if (corrected < 42) {
-      twoBit = 0;
-      quantized = 0;
-    } else if (corrected < 127) {
-      twoBit = 1;
-      quantized = 85;
-    } else if (corrected < 212) {
-      twoBit = 2;
-      quantized = 170;
-    } else {
-      twoBit = 3;
-      quantized = 255;
-    }
-
-    const int16_t err = static_cast<int16_t>(corrected - static_cast<int16_t>(quantized));
-    if (x < dw - 1) cur[x + 1] += static_cast<int16_t>((err * 7) / 16);
-    nxt[x] += static_cast<int16_t>((err * 5) / 16);
-    if (x > 0) nxt[x - 1] += static_cast<int16_t>((err * 3) / 16);
-    if (x < dw - 1) nxt[x + 1] += static_cast<int16_t>((err * 1) / 16);
-
+    const uint8_t twoBit = ditherer->process(grayRow[x], x).level;
     rowBuffer[(x * 2) / 8] |= static_cast<uint8_t>(twoBit << (6 - ((x * 2) % 8)));
   }
 
   bmpOut.write(rowBuffer, static_cast<size_t>(bytesPerRow));
+  ditherer->nextRow();
   rowIndex++;
   return true;
 }

@@ -57,6 +57,11 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
     return;
   }
 
+    if (!renderer.storeBwBuffer()) {
+      return;
+    }
+
+
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
   options.useDisplayCache = false;
@@ -72,7 +77,8 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   renderer.copyGrayscaleMsbBuffers();
 
   renderer.displayGrayBuffer();
-  renderer.setRenderMode(GfxRenderer::BW);
+  // renderer.setRenderMode(GfxRenderer::BW);
+      renderer.restoreBwBuffer();
 }
 
 void recordSleepImageUsed() {
@@ -396,11 +402,12 @@ void SleepActivity::onEnter() {
  */
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
+  renderer.clearScreen(0xff);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   if (!imagePath.empty()) {
     recordSleepImageUsed();
 
     if (isSleepImagePathJpeg(imagePath)) {
-      renderer.clearScreen();
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
@@ -445,7 +452,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
       options.mode = sleepImageRenderMode();
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-        renderer.displayBuffer();
+        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         runSleepImageTwoBitPasses(renderer, imagePath, options);
         return;
       }
@@ -488,7 +495,7 @@ void SleepActivity::renderCoverSleepScreen() const {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
       }
-      renderer.displayBuffer();
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       runSleepImageTwoBitPasses(renderer, coverPath, options);
       return;
     }
@@ -616,7 +623,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  renderer.displayBuffer();
 
   if (hasTwoBit) {
     bitmap.rewindToData();

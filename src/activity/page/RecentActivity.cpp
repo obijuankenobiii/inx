@@ -608,9 +608,7 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
       continue;
     }
     recentBooks.push_back(book);
-    CachedRecentStats cachedStats;
-    cachedStats.loaded = !book.cachePath.empty() && loadBookStats(book.cachePath.c_str(), cachedStats.stats);
-    recentStats_.push_back(cachedStats);
+    recentStats_.push_back(CachedRecentStats{});
     addedCount++;
   }
   const std::vector<BookState::Book> favorites = BOOK_STATE.getFavoriteBooks();
@@ -620,10 +618,21 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
 
 const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(const int index) const {
   static const CachedRecentStats empty;
-  if (index < 0 || index >= static_cast<int>(recentStats_.size())) {
+  if (index < 0 || index >= static_cast<int>(recentStats_.size()) ||
+      index >= static_cast<int>(recentBooks.size())) {
     return empty;
   }
-  return recentStats_[static_cast<size_t>(index)];
+  CachedRecentStats& cached = recentStats_[static_cast<size_t>(index)];
+  if (!cached.attempted) {
+    cached.attempted = true;
+    const RecentBook& book = recentBooks[static_cast<size_t>(index)];
+    std::string cachePath = book.cachePath;
+    if (cachePath.empty()) {
+      cachePath = epubCachePathForBookPath(book.path);
+    }
+    cached.loaded = !cachePath.empty() && loadBookStats(cachePath.c_str(), cached.stats);
+  }
+  return cached;
 }
 
 void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {

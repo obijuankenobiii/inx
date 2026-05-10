@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 
 #include "GfxRenderer.h"
 
@@ -50,12 +51,20 @@ uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
 }
 
 uint32_t sourceSize(const std::string& path) {
+  static std::map<std::string, uint32_t> sizeCache;
+  const auto cached = sizeCache.find(path);
+  if (cached != sizeCache.end()) {
+    return cached->second;
+  }
+
   FsFile file;
   if (!SdMan.openFileForRead("IDC", path, file)) {
+    sizeCache[path] = 0;
     return 0;
   }
   const uint32_t size = static_cast<uint32_t>(file.size());
   file.close();
+  sizeCache[path] = size;
   return size;
 }
 

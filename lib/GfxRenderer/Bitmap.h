@@ -102,5 +102,5 @@ class Bitmap {
   mutable int16_t* errorNextRow = nullptr;
   mutable int prevRowY = -1;  
 
-  mutable FloydSteinbergDitherer* fsDitherer = nullptr;
+  mutable FourToneImageDitherer* imageDitherer = nullptr;
 };  

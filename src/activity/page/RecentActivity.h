@@ -77,10 +77,11 @@ class RecentActivity final : public Activity, public Menu {
 
   std::vector<RecentBook> recentBooks;
   struct CachedRecentStats {
+    bool attempted = false;
     bool loaded = false;
     BookReadingStats stats;
   };
-  std::vector<CachedRecentStats> recentStats_;
+  mutable std::vector<CachedRecentStats> recentStats_;
   mutable std::map<std::string, std::string> thumbnailPathCache_;
 
   const std::function<void()> onLibraryOpen;

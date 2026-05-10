@@ -5,6 +5,7 @@
 
 #include "JpegRender.h"
 
+#include "BitmapUtil.h"
 #include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <picojpeg.h>
@@ -82,15 +83,12 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 
 constexpr int kJpegDitherSolidBlackMax = 32;
 constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
-constexpr int kJpegTwoBitSolidBlackMax = 3;
-constexpr int kJpegTwoBitSolidWhiteMin = 252;
+constexpr int kJpegTwoBitSolidBlackMax = 6;
+constexpr int kJpegTwoBitSolidWhiteMin = 255;
 
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
-    if (corrected < 43) return 0;
-    if (corrected < 128) return 85;
-    if (corrected < 213) return 170;
-    return 255;
+    return quantizeTwoBitImage(corrected).value;
   }
   return corrected < 128 ? 0 : 255;
 }
@@ -104,10 +102,11 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
     return;
   }
 
-  const uint8_t level = q <= 0 ? 0 : (q <= 85 ? 1 : (q <= 170 ? 2 : 3));
+  const uint8_t level = FourToneImageDitherer::levelFromValue(q);
   const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
   if (renderMode == GfxRenderer::BW) {
-    if (level < 3) {
+    if ((mode == ImageRenderMode::TwoBit && FourToneImageDitherer::bwInkForLevel(level, x, y)) ||
+        (mode == ImageRenderMode::OneBit && level < 3)) {
       renderer.drawPixel(x, y, true);
     }
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
@@ -166,16 +165,22 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint32_t* rowAccum = new (std::nothrow) uint32_t[outWidth]();
   uint16_t* rowCount = new (std::nothrow) uint16_t[outWidth]();
-  auto* fsErrors = new (std::nothrow) int16_t[static_cast<size_t>(outWidth) * 2]();
-  if (!mcuRowBuffer || !rowAccum || !rowCount || !fsErrors) {
+  FourToneImageDitherer* twoBitDitherer = nullptr;
+  Atkinson1BitDitherer* oneBitDitherer = nullptr;
+  if (mode == ImageRenderMode::TwoBit) {
+    twoBitDitherer = new (std::nothrow) FourToneImageDitherer(outWidth);
+  } else {
+    oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
+  }
+  if (!mcuRowBuffer || !rowAccum || !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+      (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     delete[] rowAccum;
     delete[] rowCount;
-    delete[] fsErrors;
+    delete twoBitDitherer;
+    delete oneBitDitherer;
     return false;
   }
-  int16_t* errCur = fsErrors;
-  int16_t* errNext = fsErrors + outWidth;
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
@@ -211,48 +216,36 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       bool emittedOutputRow = false;
       while ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
-        const bool reverseRow = mode == ImageRenderMode::TwoBit && ((currentOutY & 1) != 0);
         for (int step = 0; step < outWidth; step++) {
-          const int ox = reverseRow ? (outWidth - 1 - step) : step;
+          const int ox = step;
           const int gray = rowCount[ox] ? static_cast<int>(rowAccum[ox] / rowCount[ox]) : 0;
-          int corrected = gray + static_cast<int>(errCur[ox]);
-          if (corrected < 0) corrected = 0;
-          if (corrected > 255) corrected = 255;
 
           int q;
-          int err;
           const int solidBlackMax =
               mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
           const int solidWhiteMin =
               mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
           if (gray <= solidBlackMax) {
             q = 0;
-            err = 0;
           } else if (gray >= solidWhiteMin) {
             q = 255;
-            err = 0;
           } else {
-            q = quantizeGray(corrected, mode);
-            err = corrected - q;
-            if (reverseRow) {
-              if (ox > 0) errCur[ox - 1] = static_cast<int16_t>(errCur[ox - 1] + (err * 7) / 16);
-              errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
-              if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 3) / 16);
-              if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 1) / 16);
+            if (mode == ImageRenderMode::TwoBit) {
+              q = twoBitDitherer->process(gray, step).value;
+            } else if (oneBitDitherer) {
+              q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
             } else {
-              if (ox + 1 < outWidth) errCur[ox + 1] = static_cast<int16_t>(errCur[ox + 1] + (err * 7) / 16);
-              errNext[ox] = static_cast<int16_t>(errNext[ox] + (err * 5) / 16);
-              if (ox > 0) errNext[ox - 1] = static_cast<int16_t>(errNext[ox - 1] + (err * 3) / 16);
-              if (ox + 1 < outWidth) errNext[ox + 1] = static_cast<int16_t>(errNext[ox + 1] + (err * 1) / 16);
+              q = quantizeGray(gray, mode);
             }
           }
 
           drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
         }
-        int16_t* t = errCur;
-        errCur = errNext;
-        errNext = t;
-        memset(errNext, 0, static_cast<size_t>(outWidth) * sizeof(int16_t));
+        if (mode == ImageRenderMode::TwoBit) {
+          twoBitDitherer->nextRow();
+        } else if (oneBitDitherer) {
+          oneBitDitherer->nextRow();
+        }
         currentOutY++;
         emittedOutputRow = true;
         nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
@@ -267,7 +260,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   free(mcuRowBuffer);
   delete[] rowAccum;
   delete[] rowCount;
-  delete[] fsErrors;
+  delete twoBitDitherer;
+  delete oneBitDitherer;
   return currentOutY > 0;
 }
 

@@ -1697,10 +1697,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     if (!page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, ix, iy, iw, ih)) {
       return false;
     }
-    renderer.rectangle.fill(ix, iy, iw, ih, false);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-    drawPageBodyBw();
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+
+    // drawPageBodyBw();
+    renderer.displayBuffer();
     return true;
   };
 

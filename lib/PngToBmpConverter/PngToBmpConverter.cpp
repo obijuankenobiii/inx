@@ -20,8 +20,8 @@
 // IMAGE PROCESSING OPTIONS - Same as JpegToBmpConverter for consistency
 // ============================================================================
 constexpr bool USE_8BIT_OUTPUT = false;
-constexpr bool USE_ATKINSON = true;
-constexpr bool USE_FLOYD_STEINBERG = false;
+constexpr bool USE_ATKINSON = false;
+constexpr bool USE_FLOYD_STEINBERG = true;
 constexpr bool USE_PRESCALE = true;
 // ============================================================================
 
@@ -746,19 +746,13 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
     return false;
   }
 
-  // Create ditherers (same as JpegToBmpConverter)
-  AtkinsonDitherer* atkinsonDitherer = nullptr;
-  FloydSteinbergDitherer* fsDitherer = nullptr;
+  FourToneImageDitherer* imageDitherer = nullptr;
   Atkinson1BitDitherer* atkinson1BitDitherer = nullptr;
 
   if (oneBit) {
     atkinson1BitDitherer = new Atkinson1BitDitherer(outWidth);
   } else if (!USE_8BIT_OUTPUT) {
-    if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(outWidth);
-    } else if (USE_FLOYD_STEINBERG) {
-      fsDitherer = new FloydSteinbergDitherer(outWidth);
-    }
+    imageDitherer = new FourToneImageDitherer(outWidth);
   }
 
   // Scaling accumulators
@@ -780,8 +774,7 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
     LOG_ERR("PNG", "Failed to allocate grayscale row buffer");
     delete[] rowAccum;
     delete[] rowCount;
-    delete atkinsonDitherer;
-    delete fsDitherer;
+    delete imageDitherer;
     delete atkinson1BitDitherer;
     free(rowBuffer);
     pngDecodeReleaseScanlines(ctx);
@@ -822,23 +815,12 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
         if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
       } else {
         for (int x = 0; x < outWidth; x++) {
-          const uint8_t gray = adjustPixel(grayRow[x]);
-          uint8_t twoBit;
-          if (atkinsonDitherer) {
-            twoBit = atkinsonDitherer->processPixel(gray, x);
-          } else if (fsDitherer) {
-            twoBit = fsDitherer->processPixel(gray, x);
-          } else {
-            twoBit = quantize(gray, x, y);
-          }
+          const uint8_t twoBit = imageDitherer ? imageDitherer->process(grayRow[x], x).level : quantize(grayRow[x], x, y);
           const int byteIndex = (x * 2) / 8;
           const int bitOffset = 6 - ((x * 2) % 8);
           rowBuffer[byteIndex] |= (twoBit << bitOffset);
         }
-        if (atkinsonDitherer)
-          atkinsonDitherer->nextRow();
-        else if (fsDitherer)
-          fsDitherer->nextRow();
+        if (imageDitherer) imageDitherer->nextRow();
       }
       bmpOut.write(rowBuffer, bytesPerRow);
     } else {
@@ -888,23 +870,14 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
           if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
         } else {
           for (int x = 0; x < outWidth; x++) {
-            const uint8_t gray = adjustPixel((rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0);
-            uint8_t twoBit;
-            if (atkinsonDitherer) {
-              twoBit = atkinsonDitherer->processPixel(gray, x);
-            } else if (fsDitherer) {
-              twoBit = fsDitherer->processPixel(gray, x);
-            } else {
-              twoBit = quantize(gray, x, currentOutY);
-            }
+            const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
+            const uint8_t twoBit =
+                imageDitherer ? imageDitherer->process(gray, x).level : quantize(gray, x, currentOutY);
             const int byteIndex = (x * 2) / 8;
             const int bitOffset = 6 - ((x * 2) % 8);
             rowBuffer[byteIndex] |= (twoBit << bitOffset);
           }
-          if (atkinsonDitherer)
-            atkinsonDitherer->nextRow();
-          else if (fsDitherer)
-            fsDitherer->nextRow();
+          if (imageDitherer) imageDitherer->nextRow();
         }
 
         bmpOut.write(rowBuffer, bytesPerRow);
@@ -934,8 +907,7 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
   free(grayRow);
   delete[] rowAccum;
   delete[] rowCount;
-  delete atkinsonDitherer;
-  delete fsDitherer;
+  delete imageDitherer;
   delete atkinson1BitDitherer;
   free(rowBuffer);
   pngDecodeReleaseScanlines(ctx);
