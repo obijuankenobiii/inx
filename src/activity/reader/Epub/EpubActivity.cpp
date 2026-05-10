@@ -30,6 +30,7 @@
 
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
+#include "EpubPercentSelectionActivity.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
 #include "state/SystemSetting.h"
@@ -1030,6 +1031,9 @@ void EpubActivity::toggleMenuDrawer() {
               break;
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
+            case MenuDrawer::MenuAction::GO_TO_PERCENT:
+              openPercentSelectionFromMenu();
+              break;
             case MenuDrawer::MenuAction::GO_HOME:
               goHome();
               break;
@@ -1431,6 +1435,87 @@ void EpubActivity::openKOReaderSyncFromMenu() {
       }));
 }
 
+void EpubActivity::openPercentSelectionFromMenu() {
+  if (!epub) {
+    return;
+  }
+  dismissMenuDrawerForBlockingWork();
+  float bookProgress = 0.0f;
+  if (epub->getBookSize() > 0 && section && section->pageCount > 0) {
+    const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+    bookProgress = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
+  }
+  int initialPercent = static_cast<int>(bookProgress + 0.5f);
+  if (initialPercent < 0) initialPercent = 0;
+  if (initialPercent > 100) initialPercent = 100;
+
+  enterNewActivity(new EpubPercentSelectionActivity(
+      renderer, mappedInput, initialPercent,
+      [this]() {
+        exitActivity();
+        updateRequired = true;
+        startPageTimer();
+      },
+      [this](const int percent) {
+        exitActivity();
+        jumpToPercent(percent);
+        updateRequired = true;
+        startPageTimer();
+      }));
+}
+
+void EpubActivity::jumpToPercent(int percent) {
+  if (!epub) {
+    return;
+  }
+
+  const size_t bookSize = epub->getBookSize();
+  if (bookSize == 0) {
+    return;
+  }
+
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+
+  size_t targetSize =
+      (bookSize / 100) * static_cast<size_t>(percent) + (bookSize % 100) * static_cast<size_t>(percent) / 100;
+  if (percent >= 100) {
+    targetSize = bookSize - 1;
+  }
+
+  const int spineCount = epub->getSpineItemsCount();
+  if (spineCount == 0) {
+    return;
+  }
+
+  int targetSpineIndex = spineCount - 1;
+  size_t prevCumulative = 0;
+
+  for (int i = 0; i < spineCount; i++) {
+    const size_t cumulative = epub->getCumulativeSpineItemSize(i);
+    if (targetSize <= cumulative) {
+      targetSpineIndex = i;
+      prevCumulative = (i > 0) ? epub->getCumulativeSpineItemSize(i - 1) : 0;
+      break;
+    }
+  }
+
+  const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
+  const size_t spineSize = (cumulative > prevCumulative) ? (cumulative - prevCumulative) : 0;
+  pendingSpineProgress =
+      (spineSize == 0) ? 0.0f : static_cast<float>(targetSize - prevCumulative) / static_cast<float>(spineSize);
+  if (pendingSpineProgress < 0.0f) {
+    pendingSpineProgress = 0.0f;
+  } else if (pendingSpineProgress > 1.0f) {
+    pendingSpineProgress = 1.0f;
+  }
+
+  currentSpineIndex = targetSpineIndex;
+  nextPageNumber = 0;
+  pendingPercentJump = true;
+  section.reset();
+}
+
 /**
  * @brief Handles page turning logic
  * @param forward True for forward page turn, false for backward
@@ -1538,6 +1623,15 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
           static_cast<float>(section->currentPage) / static_cast<float>(cachedChapterTotalPageCount);
       section->currentPage = std::min(static_cast<int>(progress * section->pageCount), section->pageCount - 1);
       cachedChapterTotalPageCount = 0;
+    }
+
+    if (pendingPercentJump && section->pageCount > 0) {
+      int newPage = static_cast<int>(pendingSpineProgress * static_cast<float>(section->pageCount));
+      if (newPage >= section->pageCount) {
+        newPage = section->pageCount - 1;
+      }
+      section->currentPage = newPage;
+      pendingPercentJump = false;
     }
   }
 

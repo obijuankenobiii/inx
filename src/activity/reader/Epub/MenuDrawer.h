@@ -25,6 +25,7 @@ public:
         SHOW_ANNOTATIONS,
         SHOW_FOOTNOTES,
         SELECT_CHAPTER,
+        GO_TO_PERCENT,
         KOREADER_SYNC,
         GO_HOME,
         DELETE_CACHE,
