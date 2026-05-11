@@ -45,6 +45,19 @@
 
 #define CMD_DEEP_SLEEP 0x10  
 
+namespace {
+struct DriveVoltages {
+  uint8_t gate;
+  uint8_t source1;
+  uint8_t source2;
+  uint8_t source3;
+  uint8_t vcom;
+};
+
+constexpr DriveVoltages kNormalDriveVoltages{0x17, 0x41, 0xA8, 0x32, 0x30};
+constexpr DriveVoltages kSunlightFadeDriveVoltages{0x15, 0x3F, 0xA0, 0x2E, 0x2C};
+}  
+
 
 const unsigned char lut_grayscale[] PROGMEM = {
     
@@ -123,7 +136,11 @@ EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t 
 #ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
       frameBufferActive(nullptr),
 #endif
-      customLutActive(false) {
+      customLutActive(false),
+      sunlightFadeFixEnabled(false),
+      sunlightFadeVoltagesApplied(false),
+      inGrayscaleMode(false),
+      drawGrayscale(false) {
   if (Serial) Serial.printf("[%lu] EInkDisplay: Constructor called\n", millis());
   if (Serial) Serial.printf("[%lu]   SCLK=%d, MOSI=%d, CS=%d, DC=%d, RST=%d, BUSY=%d\n", millis(), sclk, mosi, cs, dc, rst, busy);
 }
@@ -549,19 +566,6 @@ void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScree
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
   sendData((mode == FAST_REFRESH) ? CTRL1_NORMAL : CTRL1_BYPASS_RED);  
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
-  
   uint8_t displayMode = 0x00;
 
   
@@ -587,6 +591,17 @@ void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScree
     displayMode |= customLutActive ? 0x0C : 0x1C;
   }
 
+  if (sunlightFadeFixEnabled) {
+    applyDriveVoltages(kSunlightFadeDriveVoltages.gate, kSunlightFadeDriveVoltages.source1,
+                       kSunlightFadeDriveVoltages.source2, kSunlightFadeDriveVoltages.source3,
+                       kSunlightFadeDriveVoltages.vcom);
+    sunlightFadeVoltagesApplied = true;
+  } else if (sunlightFadeVoltagesApplied || customLutActive) {
+    applyDriveVoltages(kNormalDriveVoltages.gate, kNormalDriveVoltages.source1, kNormalDriveVoltages.source2,
+                       kNormalDriveVoltages.source3, kNormalDriveVoltages.vcom);
+    sunlightFadeVoltagesApplied = false;
+  }
+
   
   const char* refreshType = (mode == FULL_REFRESH) ? "full" : (mode == HALF_REFRESH) ? "half" : "fast";
   if (Serial) Serial.printf("[%lu]   Powering on display 0x%02X (%s refresh)...\n", millis(), displayMode, refreshType);
@@ -610,17 +625,16 @@ void EInkDisplay::setCustomLUT(const bool enabled, const unsigned char* lutData)
       sendData(pgm_read_byte(&lutData[i]));
     }
 
-    
-    sendCommand(CMD_GATE_VOLTAGE);  
-    sendData(pgm_read_byte(&lutData[105]));
-
-    sendCommand(CMD_SOURCE_VOLTAGE);         
-    sendData(pgm_read_byte(&lutData[106]));  
-    sendData(pgm_read_byte(&lutData[107]));  
-    sendData(pgm_read_byte(&lutData[108]));  
-
-    sendCommand(CMD_WRITE_VCOM);  
-    sendData(pgm_read_byte(&lutData[109]));
+    if (sunlightFadeFixEnabled) {
+      applyDriveVoltages(kSunlightFadeDriveVoltages.gate, kSunlightFadeDriveVoltages.source1,
+                         kSunlightFadeDriveVoltages.source2, kSunlightFadeDriveVoltages.source3,
+                         kSunlightFadeDriveVoltages.vcom);
+      sunlightFadeVoltagesApplied = true;
+    } else {
+      applyDriveVoltages(pgm_read_byte(&lutData[105]), pgm_read_byte(&lutData[106]), pgm_read_byte(&lutData[107]),
+                         pgm_read_byte(&lutData[108]), pgm_read_byte(&lutData[109]));
+      sunlightFadeVoltagesApplied = false;
+    }
 
     customLutActive = true;
     if (Serial) Serial.printf("[%lu]   Custom LUT loaded\n", millis());
@@ -628,6 +642,22 @@ void EInkDisplay::setCustomLUT(const bool enabled, const unsigned char* lutData)
     customLutActive = false;
     if (Serial) Serial.printf("[%lu]   Custom LUT disabled\n", millis());
   }
+}
+
+void EInkDisplay::setSunlightFadeFixEnabled(const bool enabled) { sunlightFadeFixEnabled = enabled; }
+
+void EInkDisplay::applyDriveVoltages(const uint8_t gate, const uint8_t source1, const uint8_t source2,
+                                     const uint8_t source3, const uint8_t vcom) {
+  sendCommand(CMD_GATE_VOLTAGE);
+  sendData(gate);
+
+  sendCommand(CMD_SOURCE_VOLTAGE);
+  sendData(source1);
+  sendData(source2);
+  sendData(source3);
+
+  sendCommand(CMD_WRITE_VCOM);
+  sendData(vcom);
 }
 
 void EInkDisplay::deepSleep() {

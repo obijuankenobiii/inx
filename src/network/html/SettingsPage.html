@@ -111,6 +111,10 @@
         <div><div class="setting-label">Recent books shown</div></div>
         <div class="setting-control"><select id="recentVisibleCount"></select></div>
       </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Fix sunlight fade</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="fixSunlightFade" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
     </div>
     <div class="settings-section">
       <div class="section-header"><h3>Image</h3></div>
@@ -365,7 +369,7 @@ const options = {
   statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
 };
 const boolSettings = [
-  "sleepScreenCoverGrayscale", "bitmapRoundedCorners", "useLibraryIndex", "librarySortEnabled",
+  "sleepScreenCoverGrayscale", "bitmapRoundedCorners", "fixSunlightFade", "useLibraryIndex", "librarySortEnabled",
   "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
   "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled",
   "textAntiAliasing", "readerImageGrayscale", "readerSmartRefreshOnImages"

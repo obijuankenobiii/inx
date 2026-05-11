@@ -376,6 +376,8 @@ public:
     uint8_t librarySortEnabled = 1;
     /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
     uint8_t librarySortMode = 0;
+    /** Reduces panel drive voltage a little during refresh to help sunlight fade. */
+    uint8_t fixSunlightFade = 0;
 
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 

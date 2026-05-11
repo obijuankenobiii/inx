@@ -41,7 +41,6 @@ BootActivity::BootActivity(GfxRenderer& renderer, MappedInputManager& inputManag
 void BootActivity::onEnter() {
   Activity::onEnter();
 
-  SETTINGS.loadFromFile();
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
   BOOK_STATE.loadFromFile();

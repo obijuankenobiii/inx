@@ -64,7 +64,6 @@ void clearEpubCacheIfNeeded(const String& filePath) {
 
 
 
-
 LocalServer::LocalServer() {}
 
 LocalServer::~LocalServer() { stop(); }
@@ -1011,6 +1010,7 @@ void LocalServer::handleSettingsGet() const {
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
+  doc["fixSunlightFade"] = SETTINGS.fixSunlightFade;
   doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
   doc["librarySortMode"] = SETTINGS.librarySortMode;
 
@@ -1127,6 +1127,10 @@ void LocalServer::handleSettingsUpdate() const {
       if (v < 1) v = 1;
       if (v > 8) v = 8;
       SETTINGS.recentVisibleCount = static_cast<uint8_t>(v);
+      changed = true;
+    }
+    else if (strcmp(key, "fixSunlightFade") == 0) {
+      SETTINGS.fixSunlightFade = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "librarySortEnabled") == 0) {

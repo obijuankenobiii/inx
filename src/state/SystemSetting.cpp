@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 18;
-constexpr uint8_t SETTINGS_COUNT = 51;
+constexpr uint8_t SETTINGS_FILE_VERSION = 19;
+constexpr uint8_t SETTINGS_COUNT = 52;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -96,6 +96,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->librarySortMode > 5) mut->librarySortMode = 0;
+    if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -151,6 +152,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
+  serialization::writePod(outputFile, fixSunlightFade);
 
   outputFile.close();
 
@@ -178,7 +180,7 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16) {
+      version != 15 && version != 16 && version != 17 && version != 18) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -489,6 +491,13 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, fixSunlightFade);
+      if (fixSunlightFade > 1) {
+        fixSunlightFade = 0;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -504,6 +513,9 @@ bool SystemSetting::loadFromFile() {
   }
   if (librarySortMode > 5) {
     librarySortMode = 0;
+  }
+  if (fixSunlightFade > 1) {
+    fixSunlightFade = 0;
   }
 
   if (settingsRead < SETTINGS_COUNT) {
