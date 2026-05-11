@@ -114,7 +114,7 @@ void ClearCacheActivity::render() {
 }
 
 void ClearCacheActivity::clearCache() {
-  Serial.printf("[%lu] [RESET_DEVICE] Removing /.system and /.metadata...\n", millis());
+  Serial.printf("[%lu] [RESET_DEVICE] Removing /.system, /.metadata, and legacy /.display-cache...\n", millis());
 
   clearedCount = 0;
   failedCount = 0;
@@ -136,6 +136,7 @@ void ClearCacheActivity::clearCache() {
 
   tryRemoveTree("/.system");
   tryRemoveTree("/.metadata");
+  tryRemoveTree("/.display-cache");
 
   Serial.printf("[%lu] [RESET_DEVICE] Done: %d removed, %d failed\n", millis(), clearedCount, failedCount);
 

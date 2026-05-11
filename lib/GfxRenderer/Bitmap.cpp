@@ -17,50 +17,9 @@
 Bitmap::~Bitmap() {
   delete[] errorCurRow;
   delete[] errorNextRow;
-  delete[] lumRow;
 
   delete imageDitherer;
 }
-
-namespace {
-constexpr int kBitmapTwoBitContrastPercent = 160;
-constexpr int kBitmapTwoBitSharpenThreshold = 7;
-constexpr int kBitmapTwoBitSharpenPercent = 45;
-constexpr int kBitmapTwoBitSharpenMax = 30;
-constexpr int kBitmapTwoBitHighlightThreshold = 10;
-constexpr int kBitmapTwoBitHighlightMaxLift = 54;
-constexpr int kBitmapTwoBitShadowStart = 164;
-constexpr int kBitmapTwoBitShadowMaxDarken = 16;
-
-int bitmapTwoBitTone(const int gray) {
-  const int adjusted = ((gray - 128) * kBitmapTwoBitContrastPercent) / 100 + 128;
-  return std::max(0, std::min(255, adjusted));
-}
-
-int bitmapTwoBitDetailTone(const int gray, const int leftGray, const int rightGray) {
-  const int neighbor = (leftGray + rightGray) / 2;
-  const int detail = gray - neighbor;
-  const int lightEdge = gray - neighbor;
-  int sharpenedGray = gray;
-  if (std::abs(detail) > kBitmapTwoBitSharpenThreshold) {
-    const int boost = std::max(-kBitmapTwoBitSharpenMax,
-                               std::min(kBitmapTwoBitSharpenMax, (detail * kBitmapTwoBitSharpenPercent) / 100));
-    sharpenedGray = std::max(0, std::min(255, gray + boost));
-  }
-
-  int tone = bitmapTwoBitTone(sharpenedGray);
-  if (gray < kBitmapTwoBitShadowStart) {
-    const int shadowDarken =
-        ((kBitmapTwoBitShadowStart - gray) * kBitmapTwoBitShadowMaxDarken) / kBitmapTwoBitShadowStart;
-    tone = std::max(0, tone - shadowDarken);
-  }
-  if (lightEdge > kBitmapTwoBitHighlightThreshold) {
-    const int lift = std::min(kBitmapTwoBitHighlightMaxLift, (lightEdge - kBitmapTwoBitHighlightThreshold) * 2);
-    tone = std::max(tone, bitmapTwoBitTone(std::min(255, gray + lift)));
-  }
-  return tone;
-}
-}  // namespace
 
 uint16_t Bitmap::readLE16(FsFile& f) {
   const int c0 = f.read();
@@ -203,20 +162,6 @@ BmpReaderError Bitmap::parseHeaders() {
   }
 
   
-  
-  
-  
-  const bool highColor = !nativePalette;
-  if (highColor) {
-    imageDitherer = new FourToneImageDitherer(width);
-    lumRow = new uint8_t[width];
-    if (!lumRow) {
-      delete imageDitherer;
-      imageDitherer = nullptr;
-      return BmpReaderError::OomRowBuffer;
-    }
-  }
-
   return BmpReaderError::Ok;
 }
 
@@ -235,20 +180,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   
   auto packPixel = [&](const uint8_t lum) {
     uint8_t color;
-    if (imageDitherer) {
-      const int leftLum = currentX > 0 ? lumRow[currentX - 1] : lum;
-      const int rightLum = currentX + 1 < width ? lumRow[currentX + 1] : lum;
-      color = imageDitherer->process(bitmapTwoBitDetailTone(lum, leftLum, rightLum), currentX).level;
-    } else {
-      if (nativePalette) {
-        
-        color = FourToneImageDitherer::levelFromValue(adjustPixel(lum));
-      } else {
-        
-        const uint8_t q = quantize(adjustPixel(lum), currentX, prevRowY);
-        color = q == 0 ? 3 : (q == 1 ? 1 : (q == 2 ? 2 : 0));
-      }
-    }
+    color = FourToneImageDitherer::levelFromValue(adjustPixel(lum));
     currentOutByte |= (color << bitShift);
     if (bitShift == 0) {
       *outPtr++ = currentOutByte;
@@ -264,7 +196,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     case 32: {
       const uint8_t* p = rowBuffer;
       for (int x = 0; x < width; x++) {
-        lumRow[x] = rgbToGray(p[2], p[1], p[0]);
+        packPixel(rgbToGray(p[2], p[1], p[0]));
         p += 4;
       }
       break;
@@ -272,40 +204,28 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     case 24: {
       const uint8_t* p = rowBuffer;
       for (int x = 0; x < width; x++) {
-        lumRow[x] = rgbToGray(p[2], p[1], p[0]);
+        packPixel(rgbToGray(p[2], p[1], p[0]));
         p += 3;
       }
       break;
     }
     case 8: {
       for (int x = 0; x < width; x++) {
-        if (lumRow) {
-          lumRow[x] = paletteLum[rowBuffer[x]];
-        } else {
-          packPixel(paletteLum[rowBuffer[x]]);
-        }
+        packPixel(paletteLum[rowBuffer[x]]);
       }
       break;
     }
     case 4: {
       for (int x = 0; x < width; x++) {
         const uint8_t nibble = (x & 1) ? (rowBuffer[x >> 1] & 0x0F) : (rowBuffer[x >> 1] >> 4);
-        if (lumRow) {
-          lumRow[x] = paletteLum[nibble];
-        } else {
-          packPixel(paletteLum[nibble]);
-        }
+        packPixel(paletteLum[nibble]);
       }
       break;
     }
     case 2: {
       for (int x = 0; x < width; x++) {
         const uint8_t lum = paletteLum[(rowBuffer[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03];
-        if (lumRow) {
-          lumRow[x] = lum;
-        } else {
-          packPixel(lum);
-        }
+        packPixel(lum);
       }
       break;
     }
@@ -314,22 +234,12 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
         
         const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
         
-        if (lumRow) {
-          lumRow[x] = paletteLum[palIndex];
-        } else {
-          packPixel(paletteLum[palIndex]);
-        }
+        packPixel(paletteLum[palIndex]);
       }
       break;
     }
     default:
       return BmpReaderError::UnsupportedBpp;
-  }
-
-  if (lumRow) {
-    for (int x = 0; x < width; x++) {
-      packPixel(lumRow[x]);
-    }
   }
 
   if (imageDitherer) {

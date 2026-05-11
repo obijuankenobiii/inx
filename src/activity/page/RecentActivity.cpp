@@ -285,6 +285,7 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   if (!imagePath.empty()) {
     ImageRender::Options options;
     options.cropToFill = true;
+    options.useDisplayCache = true;
     options.roundedOutside =
         SETTINGS.bitmapRoundedCorners == 0
             ? BitmapRender::RoundedOutside::None
