@@ -9,6 +9,8 @@ int clamp255(const int v) {
   return std::max(0, std::min(255, v));
 }
 
+constexpr int kCleanPaperMin = 248;
+
 int perceptualTone(const int gray) {
   if (gray < 8) {
     return clamp255(gray);
@@ -69,7 +71,7 @@ ImageToneSample FourToneImageDitherer::quantize(const int gray) {
   } else if (g < 132) {
     sample.level = 1;
     sample.value = 85;
-  } else if (g < 252) {
+  } else if (g < kCleanPaperMin) {
     sample.level = 2;
     sample.value = 170;
   } else {
@@ -104,7 +106,16 @@ ImageToneSample FourToneImageDitherer::process(const int gray, const int x) {
     return quantize(perceptualTone(gray));
   }
 
-  const int adjusted = clamp255(perceptualTone(gray) + errorRows_[0][0][x + 2]);
+  const int base = perceptualTone(gray);
+  if (base >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
+  const int adjusted = clamp255(base + errorRows_[0][0][x + 2]);
+  if (adjusted >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
   const ImageToneSample out = quantize(adjusted);
   const int spread = (adjusted - static_cast<int>(out.value)) >> 3;
 

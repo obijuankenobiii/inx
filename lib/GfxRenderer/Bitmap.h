@@ -101,6 +101,7 @@ class Bitmap {
   mutable int16_t* errorCurRow = nullptr;
   mutable int16_t* errorNextRow = nullptr;
   mutable int prevRowY = -1;  
+  mutable uint8_t* lumRow = nullptr;
 
   mutable FourToneImageDitherer* imageDitherer = nullptr;
 };  

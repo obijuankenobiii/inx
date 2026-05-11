@@ -83,7 +83,7 @@ constexpr int kJpegDitherSolidBlackMax = 32;
 constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 255;
-constexpr int kJpegTwoBitContrastPercent = 180;
+constexpr int kJpegTwoBitContrastPercent = 165;
 constexpr int kJpegTwoBitSharpenThreshold = 6;
 constexpr int kJpegTwoBitSharpenPercent = 65;
 constexpr int kJpegTwoBitSharpenMax = 42;
@@ -92,7 +92,7 @@ constexpr int kJpegTwoBitEdgeMaxDarken = 36;
 constexpr int kJpegTwoBitHighlightThreshold = 8;
 constexpr int kJpegTwoBitHighlightMaxLift = 100;
 constexpr int kJpegTwoBitShadowStart = 170;
-constexpr int kJpegTwoBitShadowMaxDarken = 28;
+constexpr int kJpegTwoBitShadowMaxDarken = 16;
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
