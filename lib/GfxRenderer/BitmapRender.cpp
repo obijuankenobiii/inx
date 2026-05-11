@@ -224,7 +224,11 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
     }
     if (gfx.renderMode == GfxRenderer::BW) {
       if (bwShouldInk2bpp(val, mode)) {
-        drawBwFrom2bppStage(gfx, screenX, screenY, val);
+        if (mode == ImageRenderMode::TwoBit) {
+          gfx.drawPixel(screenX, screenY, true);
+        } else {
+          drawBwFrom2bppStage(gfx, screenX, screenY, val);
+        }
       }
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
       gfx.drawPixel(screenX, screenY, false);

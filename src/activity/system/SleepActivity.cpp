@@ -64,7 +64,12 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
-  options.useDisplayCache = false;
+
+  if (ImageRender::create(renderer, imagePath)
+          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
+    renderer.restoreBwBuffer();
+    return;
+  }
 
   renderer.clearScreen(0x00);
   renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
@@ -77,7 +82,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   renderer.copyGrayscaleMsbBuffers();
 
   renderer.displayGrayBuffer();
-  // renderer.setRenderMode(GfxRenderer::BW);
+  renderer.setRenderMode(GfxRenderer::BW);
       renderer.restoreBwBuffer();
 }
 

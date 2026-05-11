@@ -64,9 +64,12 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = options.mode;
+  cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
-  const bool canUseDisplayCache = options.useDisplayCache && options.mode == ImageRenderMode::OneBit &&
-                                  renderer_.getRenderMode() == GfxRenderer::BW;
+  const bool canUseDisplayCache =
+      options.useDisplayCache &&
+      ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
+       options.mode == ImageRenderMode::TwoBit);
   if (canUseDisplayCache &&
       ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions)) {
     return true;
@@ -113,6 +116,17 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
     ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
   }
   return ok;
+}
+
+bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const Options& options) const {
+  if (!options.useDisplayCache) {
+    return false;
+  }
+  ImageDisplayCacheOptions cacheOptions;
+  cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.mode = ImageRenderMode::TwoBit;
+  cacheOptions.roundedOutside = options.roundedOutside;
+  return ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
 }
 
 bool ImageRender::render(int x, int y, int width, int height) const {

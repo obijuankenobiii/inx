@@ -16,7 +16,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 1;
+constexpr uint16_t kVersion = 2;
 constexpr const char* kCacheDir = "/.display-cache";
 
 struct CacheHeader {
@@ -83,6 +83,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAddUint32(hash, static_cast<uint32_t>(visible.height));
   hash = fnv1aAdd(hash, options.cropToFill ? 1 : 0);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.mode));
+  hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));
   return hash;
 }
@@ -171,6 +172,12 @@ std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string&
   return std::string(kCacheDir) + name;
 }
 
+bool ImageDisplayCache::exists(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
+                               const int width, const int height, const ImageDisplayCacheOptions& options) {
+  const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
+  return !cachePath.empty() && SdMan.exists(cachePath.c_str());
+}
+
 bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
                                           const int y, const int width, const int height,
                                           const ImageDisplayCacheOptions& options) {
@@ -217,6 +224,43 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
   }
 
   file.close();
+  return true;
+}
+
+bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
+                                                 const int y, const int width, const int height,
+                                                 const ImageDisplayCacheOptions& options) {
+  ImageDisplayCacheOptions lsbOptions = options;
+  lsbOptions.mode = ImageRenderMode::TwoBit;
+  lsbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_LSB);
+
+  ImageDisplayCacheOptions msbOptions = options;
+  msbOptions.mode = ImageRenderMode::TwoBit;
+  msbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_MSB);
+
+  if (!exists(renderer, sourcePath, x, y, width, height, lsbOptions) ||
+      !exists(renderer, sourcePath, x, y, width, height, msbOptions)) {
+    return false;
+  }
+
+  renderer.clearScreen(0x00);
+  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+  if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, lsbOptions)) {
+    renderer.setRenderMode(GfxRenderer::BW);
+    return false;
+  }
+  renderer.copyGrayscaleLsbBuffers();
+
+  renderer.clearScreen(0x00);
+  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+  if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, msbOptions)) {
+    renderer.setRenderMode(GfxRenderer::BW);
+    return false;
+  }
+  renderer.copyGrayscaleMsbBuffers();
+
+  renderer.displayGrayBuffer();
+  renderer.setRenderMode(GfxRenderer::BW);
   return true;
 }
 

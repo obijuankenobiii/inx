@@ -76,15 +76,41 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>((static_cast<uint32_t>(r) * 77u + static_cast<uint32_t>(g) * 150u +
-                               static_cast<uint32_t>(b) * 29u) >>
-                              8);
+  return static_cast<uint8_t>((static_cast<uint32_t>(r) * 299u + static_cast<uint32_t>(g) * 587u +
+                               static_cast<uint32_t>(b) * 114u + 500u) /
+                              1000u);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 32;
 constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
-constexpr int kJpegTwoBitSolidBlackMax = 6;
+constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 255;
+constexpr int kJpegTwoBitContrastPercent = 180;
+constexpr int kJpegTwoBitEdgeThreshold = 12;
+constexpr int kJpegTwoBitEdgeMaxDarken = 36;
+constexpr int kJpegTwoBitShadowStart = 170;
+constexpr int kJpegTwoBitShadowMaxDarken = 28;
+
+int jpegTwoBitTone(const int gray) {
+  const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
+  return std::max(0, std::min(255, adjusted));
+}
+
+int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray) {
+  const int neighbor = (leftGray + rightGray) / 2;
+  const int darkEdge = neighbor - gray;
+  int tone = jpegTwoBitTone(gray);
+  if (gray < kJpegTwoBitShadowStart) {
+    const int shadowDarken =
+        ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
+    tone = std::max(0, tone - shadowDarken);
+  }
+  if (darkEdge > kJpegTwoBitEdgeThreshold) {
+    const int edgeDarken = std::min(kJpegTwoBitEdgeMaxDarken, darkEdge - kJpegTwoBitEdgeThreshold);
+    tone = std::max(0, tone - edgeDarken);
+  }
+  return tone;
+}
 
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
@@ -105,7 +131,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
   const uint8_t level = FourToneImageDitherer::levelFromValue(q);
   const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
   if (renderMode == GfxRenderer::BW) {
-    if ((mode == ImageRenderMode::TwoBit && FourToneImageDitherer::bwInkForLevel(level, x, y)) ||
+    if ((mode == ImageRenderMode::TwoBit && level > 0) ||
         (mode == ImageRenderMode::OneBit && level < 3)) {
       renderer.drawPixel(x, y, true);
     }
@@ -231,7 +257,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
             q = 255;
           } else {
             if (mode == ImageRenderMode::TwoBit) {
-              q = twoBitDitherer->process(gray, step).value;
+              const int leftGray = ox > 0 && rowCount[ox - 1] ? static_cast<int>(rowAccum[ox - 1] / rowCount[ox - 1]) : gray;
+              const int rightGray = ox + 1 < outWidth && rowCount[ox + 1] ? static_cast<int>(rowAccum[ox + 1] / rowCount[ox + 1]) : gray;
+              const int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray);
+              q = twoBitDitherer->process(tone, step).value;
             } else if (oneBitDitherer) {
               q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
             } else {

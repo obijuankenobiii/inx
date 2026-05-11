@@ -10,7 +10,10 @@ int clamp255(const int v) {
 }
 
 int perceptualTone(const int gray) {
-  return clamp255(gray);
+  if (gray < 24) {
+    return clamp255(gray);
+  }
+  return clamp255(gray + 6);
 }
 
 }  // namespace
