@@ -70,7 +70,19 @@ static const uint8_t LUT_B[256] = {
  * @param b Blue channel (0-255)
  * @return Grayscale value (0-255)
  */
-uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) { return LUT_R[r] + LUT_G[g] + LUT_B[b]; }
+uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) {
+  const int luma = LUT_R[r] + LUT_G[g] + LUT_B[b];
+  const int maxChannel = std::max(static_cast<int>(r), std::max(static_cast<int>(g), static_cast<int>(b)));
+  const int minChannel = std::min(static_cast<int>(r), std::min(static_cast<int>(g), static_cast<int>(b)));
+  const int chroma = maxChannel - minChannel;
+  if (chroma < 28) {
+    return static_cast<uint8_t>(luma);
+  }
+
+  const int chromaWeight = std::min(180, (chroma * 2) / 3 + 48);
+  const int lifted = luma + ((maxChannel - luma) * chromaWeight) / 255;
+  return static_cast<uint8_t>(std::max(luma, std::min(255, lifted)));
+}
 
 
 constexpr bool USE_BRIGHTNESS = false;       

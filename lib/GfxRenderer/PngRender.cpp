@@ -90,9 +90,19 @@ uint8_t paethPredictor(uint8_t a, uint8_t b, uint8_t c) {
 }
 
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>((static_cast<uint32_t>(r) * 77u + static_cast<uint32_t>(g) * 150u +
-                               static_cast<uint32_t>(b) * 29u) >>
-                              8);
+  const int luma = (static_cast<uint32_t>(r) * 77u + static_cast<uint32_t>(g) * 150u +
+                    static_cast<uint32_t>(b) * 29u) >>
+                   8;
+  const int maxChannel = std::max(static_cast<int>(r), std::max(static_cast<int>(g), static_cast<int>(b)));
+  const int minChannel = std::min(static_cast<int>(r), std::min(static_cast<int>(g), static_cast<int>(b)));
+  const int chroma = maxChannel - minChannel;
+  if (chroma < 28) {
+    return static_cast<uint8_t>(luma);
+  }
+
+  const int chromaWeight = std::min(180, (chroma * 2) / 3 + 48);
+  const int lifted = luma + ((maxChannel - luma) * chromaWeight) / 255;
+  return static_cast<uint8_t>(std::max(luma, std::min(255, lifted)));
 }
 
 uint8_t compositeOverWhite(uint8_t lum, uint8_t alpha) {

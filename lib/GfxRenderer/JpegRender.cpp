@@ -76,9 +76,7 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>((static_cast<uint32_t>(r) * 299u + static_cast<uint32_t>(g) * 587u +
-                               static_cast<uint32_t>(b) * 114u + 500u) /
-                              1000u);
+  return rgbToGray(r, g, b);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 32;
@@ -86,8 +84,13 @@ constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 255;
 constexpr int kJpegTwoBitContrastPercent = 180;
+constexpr int kJpegTwoBitSharpenThreshold = 6;
+constexpr int kJpegTwoBitSharpenPercent = 65;
+constexpr int kJpegTwoBitSharpenMax = 42;
 constexpr int kJpegTwoBitEdgeThreshold = 12;
 constexpr int kJpegTwoBitEdgeMaxDarken = 36;
+constexpr int kJpegTwoBitHighlightThreshold = 8;
+constexpr int kJpegTwoBitHighlightMaxLift = 100;
 constexpr int kJpegTwoBitShadowStart = 170;
 constexpr int kJpegTwoBitShadowMaxDarken = 28;
 
@@ -98,12 +101,25 @@ int jpegTwoBitTone(const int gray) {
 
 int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray) {
   const int neighbor = (leftGray + rightGray) / 2;
+  const int detail = gray - neighbor;
   const int darkEdge = neighbor - gray;
-  int tone = jpegTwoBitTone(gray);
+  const int lightEdge = gray - neighbor;
+  int sharpenedGray = gray;
+  if (std::abs(detail) > kJpegTwoBitSharpenThreshold) {
+    const int boost = std::max(-kJpegTwoBitSharpenMax,
+                               std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
+    sharpenedGray = std::max(0, std::min(255, gray + boost));
+  }
+
+  int tone = jpegTwoBitTone(sharpenedGray);
   if (gray < kJpegTwoBitShadowStart) {
     const int shadowDarken =
         ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
     tone = std::max(0, tone - shadowDarken);
+  }
+  if (lightEdge > kJpegTwoBitHighlightThreshold) {
+    const int lift = std::min(kJpegTwoBitHighlightMaxLift, (lightEdge - kJpegTwoBitHighlightThreshold) * 3);
+    tone = std::max(tone, jpegTwoBitTone(std::min(255, gray + lift)));
   }
   if (darkEdge > kJpegTwoBitEdgeThreshold) {
     const int edgeDarken = std::min(kJpegTwoBitEdgeMaxDarken, darkEdge - kJpegTwoBitEdgeThreshold);

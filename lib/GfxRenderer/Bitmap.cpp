@@ -5,6 +5,8 @@
 
 #include "Bitmap.h"
 
+#include "BitmapUtil.h"
+
 #include <cstdlib>
 #include <cstring>
 
@@ -134,7 +136,7 @@ BmpReaderError Bitmap::parseHeaders() {
     for (uint32_t i = 0; i < colorsUsed; i++) {
       uint8_t rgb[4];
       file.read(rgb, 4);  
-      paletteLum[i] = (77u * rgb[2] + 150u * rgb[1] + 29u * rgb[0]) >> 8;
+      paletteLum[i] = rgbToGray(rgb[2], rgb[1], rgb[0]);
     }
   }
 
