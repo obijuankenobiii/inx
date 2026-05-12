@@ -10,7 +10,6 @@
 #include <esp_heap_caps.h>
 
 #include "system/Fonts.h"
-#include "system/SystemMetrics.h"
 
 namespace {
 void formatHeapSize(const size_t bytes, char* out, const size_t outSize) {
@@ -107,16 +106,6 @@ void AboutPage::renderWithRefresh() {
   yPos += 22;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, heapLine, true,
                        EpdFontFamily::REGULAR);
-  yPos += 36;
-
-  const unsigned cpuUsage = SystemMetrics::getCpuUsagePercent();
-  char cpuLine[32];
-  std::snprintf(cpuLine, sizeof(cpuLine), "%u%% / 100%%", cpuUsage);
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "CPU use / total", true,
-                       EpdFontFamily::BOLD);
-  yPos += 22;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, cpuLine, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Close", "", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

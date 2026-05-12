@@ -79,20 +79,20 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
   return rgbToGray(r, g, b);
 }
 
-constexpr int kJpegDitherSolidBlackMax = 32;
+constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 255;
 constexpr int kJpegTwoBitContrastPercent = 165;
-constexpr int kJpegTwoBitSharpenThreshold = 6;
+constexpr int kJpegTwoBitSharpenThreshold = 200;
 constexpr int kJpegTwoBitSharpenPercent = 65;
 constexpr int kJpegTwoBitSharpenMax = 42;
 constexpr int kJpegTwoBitEdgeThreshold = 12;
 constexpr int kJpegTwoBitEdgeMaxDarken = 36;
 constexpr int kJpegTwoBitHighlightThreshold = 8;
 constexpr int kJpegTwoBitHighlightMaxLift = 100;
-constexpr int kJpegTwoBitShadowStart = 170;
-constexpr int kJpegTwoBitShadowMaxDarken = 16;
+constexpr int kJpegTwoBitShadowStart = 10;
+constexpr int kJpegTwoBitShadowMaxDarken = 0;
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;

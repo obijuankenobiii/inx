@@ -65,14 +65,14 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Action("About", GroupType::NONE),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS)};
+    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("About", GroupType::NONE)};
 
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
