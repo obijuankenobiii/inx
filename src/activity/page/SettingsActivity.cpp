@@ -14,7 +14,6 @@
 
 #include"../settings/CategorySettingsActivity.h"
 #include"../settings/LibraryIndexer.h"
-#include"../settings/OtaUpdateActivity.h"
 #include"state/SystemSetting.h"
 #include"system/Fonts.h"
 #include"system/MappedInputManager.h"
@@ -66,14 +65,14 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
     SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
+    SettingInfo::Action("About", GroupType::NONE),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("About", GroupType::DEVICE_ACTIONS)};
+    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS)};
 
 constexpr int readerSettingsCount = 29;
 const SettingInfo readerSettings[readerSettingsCount] = {
@@ -246,19 +245,7 @@ void SettingsActivity::openCurrentPanel() {
         exitActivity();
         showingAbout = true;
         if (!aboutPage) {
-          aboutPage = new AboutPage(
-              renderer, mappedInput,
-              [this]() {
-                showingAbout = false;
-                openCurrentPanel();
-              },
-              [this]() {
-                showingAbout = false;
-                enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this]() {
-                  exitActivity();
-                  openCurrentPanel();
-                }));
-              });
+          aboutPage = new AboutPage(renderer, mappedInput);
         }
         aboutPage->show();
       },
