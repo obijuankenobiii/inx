@@ -6,19 +6,12 @@
 #ifndef ABOUT_PAGE_H
 #define ABOUT_PAGE_H
 
-#include <functional>
-#include <string>
-
 #include "GfxRenderer.h"
 #include "system/MappedInputManager.h"
 
 class AboutPage {
  public:
-  using DismissCallback = std::function<void()>;
-  using CheckForUpdatesCallback = std::function<void()>;
-
-  AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput, DismissCallback onDismiss,
-            CheckForUpdatesCallback onCheckForUpdates = nullptr);
+  AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput);
   ~AboutPage();
 
   void show();
@@ -33,8 +26,6 @@ class AboutPage {
 
   GfxRenderer& renderer;
   MappedInputManager& mappedInput;
-  DismissCallback onDismiss;
-  CheckForUpdatesCallback onCheckForUpdates;
 
   bool visible;
   bool dismissed;
