@@ -1,6 +1,7 @@
 #include "ExternalFont.h"
 
 #include <Arduino.h>
+#include <Utf8.h>
 #include <cstring>
 #include <new>
 
@@ -260,6 +261,28 @@ void ExternalFont::rememberLowercaseGlyphOffset(const uint32_t offset) {
     if (m_lowercaseGlyphOffsets[i] == 0) {
       m_lowercaseGlyphOffsets[i] = offset;
       return;
+    }
+  }
+}
+
+void ExternalFont::prewarmText(const char* utf8Text) {
+  if (!utf8Text || !m_bitmapCacheEnabled || !m_bitmapCache) {
+    return;
+  }
+
+  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(utf8Text);
+  uint32_t cp = 0;
+  uint8_t buffer[kGlyphBitmapCacheMaxBytes];
+  while ((cp = utf8NextCodepoint(&ptr))) {
+    EpdGlyph glyph{};
+    if (!getGlyphMetadata(cp, glyph)) {
+      if (!getGlyphMetadata(REPLACEMENT_GLYPH, glyph)) {
+        continue;
+      }
+    }
+    rememberLowercaseGlyphOffset(glyph.dataOffset);
+    if (glyph.dataLength > 0 && glyph.dataLength <= sizeof(buffer)) {
+      getGlyphBitmap(glyph.dataOffset, glyph.dataLength, buffer);
     }
   }
 }

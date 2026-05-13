@@ -60,6 +60,18 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   }
 }
 
+void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId) const {
+  if (words.size() != wordStyles.size()) {
+    return;
+  }
+
+  auto wordIt = words.begin();
+  auto styleIt = wordStyles.begin();
+  for (; wordIt != words.end() && styleIt != wordStyles.end(); ++wordIt, ++styleIt) {
+    renderer.text.prewarm(fontId, wordIt->c_str(), *styleIt);
+  }
+}
+
 /**
  * Serializes the text block to a file.
  * 

@@ -175,7 +175,7 @@ private:
      * @param currentPage Current page number
      * @param pageCount Total pages in current chapter
      */
-    void saveProgress(int spineIndex, int currentPage, int pageCount);
+    void saveProgress(int spineIndex, int currentPage, int pageCount, bool saveRecentNow = true);
     
     /**
      * Loads progress from file using BookProgress handler.

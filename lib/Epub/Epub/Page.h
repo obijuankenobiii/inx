@@ -183,6 +183,7 @@ class Page {
               ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                     ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
+  void prewarmText(GfxRenderer& renderer, int fontId, int headerFontId) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

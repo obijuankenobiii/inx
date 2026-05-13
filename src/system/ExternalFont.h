@@ -10,6 +10,7 @@ public:
     bool load(const char* path);
     void unload();
     void setLowercaseGlyphBitmapCacheEnabled(bool enabled);
+    void prewarmText(const char* utf8Text);
     bool getGlyphMetadata(uint32_t codePoint, EpdGlyph& outGlyph);
     bool getGlyphBitmap(uint32_t offset, uint32_t length, uint8_t* outputBuffer);
     EpdFontData* getData() { return m_fontData; }

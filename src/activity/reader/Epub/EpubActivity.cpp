@@ -427,7 +427,7 @@ void EpubActivity::loadProgress() {
  * @param currentPage Current page number
  * @param pageCount Total pages in current chapter
  */
-void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount) {
+void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, const bool saveRecentNow) {
   if (!bookProgress || !epub) {
     return;
   }
@@ -448,7 +448,8 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount) 
   if (pageCount > 0) {
     float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
     float bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
-    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
+    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue,
+                         saveRecentNow);
   }
 }
 
@@ -659,7 +660,7 @@ void EpubActivity::onExit() {
       RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(),
                            bookProgressValue);
 
-      saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+      saveProgress(currentSpineIndex, section->currentPage, section->pageCount, false);
     }
   }
 
@@ -1569,7 +1570,7 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
   if (settingsDrawerVisible && settingsDrawer) settingsDrawer->render();
   if (menuDrawerVisible && menuDrawer) menuDrawer->render();
 
-  saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+  saveProgress(currentSpineIndex, section->currentPage, section->pageCount, false);
   lastGoodSpineIndex_ = currentSpineIndex;
   lastGoodPageNumber_ = section->currentPage;
   chapterRecoveryAttempted_ = false;
@@ -1589,6 +1590,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (!page) return;
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
+  const bool pageHasImages = page->hasImages();
+  page->prewarmText(renderer, fontId, headerFontId);
 
   annUi_.ensureDiskListLoaded(*this);
 
@@ -1624,11 +1627,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   if (!needAnnotationGeometry) {
     annUi_.words().clear();
-    annUi_.words().shrink_to_fit();
     annUi_.lineFirst().clear();
-    annUi_.lineFirst().shrink_to_fit();
     annUi_.storedRanges().clear();
-    annUi_.storedRanges().shrink_to_fit();
     annUi_.clearWordIndexCache();
   } else if (wordIndexCacheHit) {
     if (annUi_.isActive()) {
@@ -1656,12 +1656,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   }
 
-  if (SETTINGS.readerSmartRefreshOnImages && !page->hasImages() && lastPageHadImages && lastPageHadLargeImage &&
+  if (SETTINGS.readerSmartRefreshOnImages && !pageHasImages && lastPageHadImages && lastPageHadLargeImage &&
       !isBookmarking && !annUi_.isActive()) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && page->hasImages();
+  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && pageHasImages;
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
   const bool textAa = bookSettings.textAntiAliasing != 0;
 
@@ -1669,7 +1669,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
   auto drawPageBodyBw = [&]() {
     page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    if (pageHasImages) {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    }
   };
   drawPageBodyBw();
 
@@ -1683,7 +1685,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     if (annUi_.isActive()) {
       return false;
     }
-    if (!textAa || !page->hasImages() || needsImageGrayscale) {
+    if (!textAa || !pageHasImages || needsImageGrayscale) {
       return false;
     }
     int16_t ix = 0;
@@ -1694,7 +1696,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       return false;
     }
 
-    drawPageBodyBw();
     renderer.displayBuffer();
     return true;
   };
@@ -1751,15 +1752,15 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       // With AA on, skip pushing BW to the panel before the grayscale pass — saves one full flash per frame
       // while moving the highlight (annotation mode) or reading with AA.
       if (!(annUi_.isActive() && textAa)) {
-        renderer.displayBuffer(page->hasImages() ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+        renderer.displayBuffer(pageHasImages ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
       }
     }
     runTextAntiAliasPass();
     runImageGrayscalePass();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = page->hasImages();
+    lastPageHadImages = pageHasImages;
     lastPageHadLargeImage =
-        pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
+        pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
     if (annUi_.isActive()) {
       annUi_.drawUiOverlay(*this);
     } else if (!annUi_.storedRanges().empty()) {
@@ -1778,8 +1779,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   runTextAntiAliasPass();
   runImageGrayscalePass();
 
-  lastPageHadImages = page->hasImages();
-  lastPageHadLargeImage = pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
+  lastPageHadImages = pageHasImages;
+  lastPageHadLargeImage =
+      pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
   if (annUi_.isActive()) {
     annUi_.drawUiOverlay(*this);
   } else if (!annUi_.storedRanges().empty()) {

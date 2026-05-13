@@ -246,7 +246,10 @@ void EpubAnnotations::ensurePageLoaded(const std::string& cachePath, const int s
     return;
   }
   records_.clear();
-  loadAnn3(pageShardPath(cachePath, spine, page), records_);
+  const std::string path = pageShardPath(cachePath, spine, page);
+  if (SdMan.exists(path.c_str())) {
+    loadAnn3(path, records_);
+  }
   cacheSpine_ = spine;
   cachePage_ = page;
 }

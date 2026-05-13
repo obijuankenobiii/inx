@@ -20,7 +20,7 @@ constexpr int MAX_RECENT_BOOKS = 8;
 RecentBooks RecentBooks::instance;
 
 void RecentBooks::addBook(const std::string& path, const std::string& cachePath, const std::string& title,
-                          const std::string& author, float progress) {
+                          const std::string& author, float progress, const bool saveNow) {
   auto it =
       std::find_if(recentBooks.begin(), recentBooks.end(), [&](const RecentBook& book) { return book.path == path; });
 
@@ -39,7 +39,9 @@ void RecentBooks::addBook(const std::string& path, const std::string& cachePath,
     recentBooks.resize(MAX_RECENT_BOOKS);
   }
 
-  saveToFile();
+  if (saveNow) {
+    saveToFile();
+  }
 }
 
 void RecentBooks::updateProgress(const std::string& path, float progress) {

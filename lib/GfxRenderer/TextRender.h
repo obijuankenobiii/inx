@@ -14,6 +14,7 @@ class TextRender {
   int getFontAscenderSize(int fontId) const;
   int getLineHeight(int fontId) const;
   int getSpaceWidth(int fontId) const;
+  void prewarm(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   std::string truncate(int fontId, const char* text, int maxWidth,
                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void rotated90CW(int fontId, int x, int y, const char* text, bool black = true,

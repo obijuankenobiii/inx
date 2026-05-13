@@ -90,6 +90,7 @@ class TextBlock final : public Block {
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
   void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
+  void prewarm(const GfxRenderer& renderer, int fontId) const;
   
   /**
    * Gets the block type identifier.
