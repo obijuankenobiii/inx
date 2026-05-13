@@ -76,23 +76,23 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return rgbToGrayFast(r, g, b);
+  return rgbToGray(r, g, b);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
-constexpr int kJpegDitherSolidWhiteMin = 255 - kJpegDitherSolidBlackMax;
+constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 0;
-constexpr int kJpegTwoBitSolidWhiteMin = 255;
-constexpr int kJpegTwoBitContrastPercent = 165;
+constexpr int kJpegTwoBitSolidWhiteMin = 240;  // Changed from 255 - preserve light grays
+constexpr int kJpegTwoBitContrastPercent = 130; // Reduced from 165 - less contrast crushing
 constexpr int kJpegTwoBitSharpenThreshold = 200;
-constexpr int kJpegTwoBitSharpenPercent = 65;
-constexpr int kJpegTwoBitSharpenMax = 42;
+constexpr int kJpegTwoBitSharpenPercent = 45;   // Reduced from 65
+constexpr int kJpegTwoBitSharpenMax = 30;       // Reduced from 42
 constexpr int kJpegTwoBitEdgeThreshold = 12;
-constexpr int kJpegTwoBitEdgeMaxDarken = 36;
-constexpr int kJpegTwoBitHighlightThreshold = 8;
-constexpr int kJpegTwoBitHighlightMaxLift = 100;
-constexpr int kJpegTwoBitShadowStart = 10;
-constexpr int kJpegTwoBitShadowMaxDarken = 0;
+constexpr int kJpegTwoBitEdgeMaxDarken = 20;    // Reduced from 36
+constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
+constexpr int kJpegTwoBitHighlightMaxLift = 60;  // Reduced from 100 - less over-lifting
+constexpr int kJpegTwoBitShadowStart = 15;       // Increased from 10
+constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
