@@ -76,7 +76,7 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return rgbToGray(r, g, b);
+  return rgbToGrayFast(r, g, b);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;

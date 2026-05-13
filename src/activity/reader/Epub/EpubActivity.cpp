@@ -1679,11 +1679,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
-  /** Crosspoint-style: HALF_REFRESH fixes ink too firmly for grayscale LUT; blank image area + two FAST passes.
-   * Skipped when image grayscale is also on: the prep fill uses image bounds that can overlap body text, and the
-   * combined grayscale passes already handle image+text without this intermediate full redraw. */
   auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
-    // Avoid 2 extra FAST refreshes while navigating highlights (major flicker source).
     if (annUi_.isActive()) {
       return false;
     }
@@ -1698,7 +1694,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       return false;
     }
 
-    // drawPageBodyBw();
+    drawPageBodyBw();
     renderer.displayBuffer();
     return true;
   };
