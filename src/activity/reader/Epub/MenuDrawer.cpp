@@ -104,6 +104,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   syncLayoutFromRenderer();
 
   menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
+               {"Go To Percent", MenuAction::GO_TO_PERCENT},
                {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
                {"Annotations", MenuAction::SHOW_ANNOTATIONS},
                {"Show Footnotes", MenuAction::SHOW_FOOTNOTES},

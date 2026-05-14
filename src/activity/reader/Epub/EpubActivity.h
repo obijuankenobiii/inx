@@ -95,6 +95,8 @@ private:
     int currentSpineIndex = 0;
     int nextPageNumber = 0;
     int pagesUntilFullRefresh = 0;
+    bool pendingPercentJump = false;
+    float pendingSpineProgress = 0.0f;
     int cachedSpineIndex = 0;
     int cachedChapterTotalPageCount = 0;
     bool updateRequired = false;
@@ -238,6 +240,10 @@ private:
 
     /** Opens KOReader sync as a sub-activity (from menu). */
     void openKOReaderSyncFromMenu();
+
+    /** Opens percent selection as a sub-activity (from menu). */
+    void openPercentSelectionFromMenu();
+    void jumpToPercent(int percent);
         
     void displayBookTitle();
     void drawLoadingScreen();
