@@ -2,229 +2,215 @@
 
 Reimagined. Improved. Simplified.
 
-*This project is a fork of CrossPoint and is not affiliated with Xteink; it's built as a community project.*
+Inx is a community firmware for the Xteink X4. It is focused on a cleaner reading experience, better EPUB support, native image rendering, and practical device tools.
+
+*This project is a fork of CrossPoint and is not affiliated with Xteink.*
 
 ---
 
 ![](./docs/images/cover.jpg)
 
-## Features & functions
+## What You Can Do
 
-This section lists what the firmware actually implements (navigation, screens, settings, readers, and utilities).
+- Read **EPUB**, **XTC / XTCH**, **TXT**, and **MD** files.
+- Browse books from **Recent**, **Library**, **Settings**, **Sync**, and **Statistics** tabs.
+- Use EPUB features such as bookmarks, annotations, go-to-percent, table of contents, per-book settings, and KOReader sync.
+- Render **JPEG**, **PNG**, and **BMP** images directly.
+- Use **1-bit** or **2-bit** image rendering.
+- Cache rendered images and system data for faster repeat loads.
+- Use custom sleep screens, JPEG wallpapers, recent-book sleep screens, or transparent cover sleep screens.
+- Connect to Wi-Fi, Calibre, OPDS catalogs, KOReader sync, and the local web file manager.
+- Tune reader layout, buttons, fonts, status bar, refresh behavior, and display options.
 
-### Navigation
+## Main Features
 
-- **Tab bar** (left/right on supported layouts): **Recent** → **Library** → **Settings** → **Sync** → **Statistics**, then wraps.
-- **Settings** opens directly into grouped **System** or **Reader** lists (expand/collapse sections with **Confirm** on a section header). **Back** swaps between **System** and **Reader** panels (hint shows the other panel name).
-- **Power**: configurable short press (sleep / page refresh / ignore) and **long hold** to sleep; idle **time to sleep** returns to the sleep screen.
+### Reader
 
-### Recent (home)
+- EPUB paging with saved progress.
+- EPUB text annotation and highlight support.
+- EPUB bookmarks.
+- Go to a specific percentage in an EPUB.
+- Table of contents, bookmark, annotation, and footnote navigation from the in-book menu.
+- Per-book reader settings.
+- Reading statistics.
+- KOReader sync support.
+- TXT / MD reader.
+- XTC / XTCH reader with chapter selection.
 
-- **Recent Library Mode** (system setting): **Grid**, **Current | Previous**, or **Flow**.
-- **Tabs from Recent**: **Library** (opens library at `/`), **Statistics**, **Settings**; select a book to open the **Reader** for that file.
+### Images
+
+- Native JPEG rendering.
+- Native PNG rendering.
+- BMP rendering.
+- JPEG wallpapers.
+- 1-bit and 2-bit image modes.
+- Display cache for faster repeated image draws.
+- Improved image scaling and dithering.
+- Cover and sleep-screen rendering options.
 
 ### Library
 
-- **File explorer** with path navigation, **nested folders**, **A–Z sort**.
-- **Favorites** and book selection to open the reader.
-- Optional **library index** (see Settings → **Index your library** and **Use Index for Library**).
+- Recent books page.
+- Folder-based library browser.
+- Flat all-books view.
+- Favorites.
+- Sort options.
+- Optional indexed library mode for faster browsing.
 
-### Statistics
+### Display
 
-- Reading / book statistics view (from the Statistics tab).
+- Text anti-aliasing.
+- Configurable refresh frequency.
+- Sunlight fade fix.
+- Sleep screen modes:
+  - Dark
+  - Light
+  - Custom image
+  - Recent book
+  - Transparent cover
+  - None
+- Custom sleep images from `/sleep/` or `/sleep.bmp`.
 
-### Sync (network hub)
+### Sync & Network
 
-From the **Sync** tab:
-
-- **Join a Network** – Wi‑Fi station setup (`LocalNetworkActivity`); after connect, a small **`LocalServer`** HTTP/Web UI can run for file upload from the browser (see that activity’s flow).
-- **Connect to Calibre** – wireless Calibre device flow (`CalibreConnectActivity`).
-- **Create Hotspot** – device as AP (`HotspotActivity`).
-
-File transfer / device workflows return to Sync or related callbacks as implemented.
+- Join Wi-Fi networks.
+- Create a hotspot.
+- Connect to Calibre.
+- Browse OPDS catalogs.
+- Use KOReader sync.
+- Upload files through the local web interface.
 
 ### Settings
 
-Settings are two panels (**System** and **Reader**), each a grouped list. Sections start **collapsed**; open a section to change items.
+Settings are split into simple **System** and **Reader** panels.
 
-#### System panel
+System settings include:
 
-| Group | Items |
-|--------|--------|
-| **Display ** | Sleep Screen (Dark, Light, Custom, Recent Book, Transparent Cover, None); **Choose sleep image** ([fixed vs random BMPs](#custom-sleep-images)); Sleep Screen Cover Mode (Fit, Crop); Sleep Screen Cover Filter (None, Contrast, Inverted); Hide Battery % (Never, In Reader, Always); Recent Library Mode (Grid, Current | Previous, Flow) |
-| **Buttons** | Front Button Layout (four layouts mapping Back / Confirm / Left / Right); Short Power Button Click (Ignore, Sleep, Page Refresh) |
-| **Device ** | Time to Sleep (1–30 min); **Use Index for Library** (toggle); Boot Mode (Recent Books, Home Page) |
-| **Actions** | **Index your library**; **KOReader Sync**; **OPDS Browser**; **Clear Cache**; **Check for updates** (opens OTA flow with Wi‑Fi selection) |
-| **About** | **About** is a **standalone row** at the bottom of System settings (not inside a collapsible group). Opens the modal with **Current version** and an **Update** button; **Update** (Confirm) starts the same OTA path as **Check for updates** (Wi‑Fi, then GitHub / HTTPS OTA). |
+- Sleep screen.
+- Sleep image picker.
+- Recent page mode.
+- Button layout.
+- Power button behavior.
+- Time to sleep.
+- Library indexing.
+- Cache clearing.
+- KOReader, OPDS, Calibre, and OTA update tools.
+- About page with device memory information.
 
-#### Reader panel (global reading defaults)
+Reader settings include:
 
-| Group | Items |
-|--------|--------|
-| **Font** | Font Family (Bookerly, Atkinson Hyperlegible, Literata); Font Size (Extra Small → X Large) |
-| **Layout** | Line Spacing (Tight, Normal, Wide); Screen Margin (5–80); Paragraph Alignment (Justify, Left, Center, Right); Extra Paragraph Spacing; Reading Orientation (Portrait, Landscape CW, Inverted, Landscape CCW); Hyphenation |
-| **Navigation** | Next & Previous Mapping (Left/Right, Right/Left, Up/Down, Down/Up, None); Book Settings Toggle (which physical button opens the in-book menu); Long-press Chapter Skip; Short Power Button in reader (Page Turn, Page Refresh); Page Auto Turn (0–180 s, step 10) |
-| **System** (reader rendering) | Text Anti-Aliasing; Refresh Frequency (1 / 5 / 10 / 15 / 30 pages) |
-| **Status bar** | Status Bar Mode (None, No Progress, Full w/ Percentage, Full w/ Progress Bar, Progress Bar, Battery %, Percentage, Page Bars); **Left / Middle / Right** sections each: None, Page Numbers, Percentage, Chapter Title, Battery Icon, Battery %, Battery Icon+%, Progress Bar, Progress Bar+%, Page Bars, Book Title, Author Name |
+- Font family and size.
+- Line spacing.
+- Screen margins.
+- Paragraph alignment.
+- Reading orientation.
+- Hyphenation.
+- Page navigation mapping.
+- Auto page turn.
+- Text anti-aliasing.
+- Image grayscale / 2-bit rendering.
+- Status bar layout.
 
-#### Custom sleep images
+## Custom Sleep Images
 
-For **Custom** and **Transparent Cover** sleep modes, BMPs can live in a **`/sleep/`** folder on the SD card (any number of `.bmp` files). Optionally, a single **`sleep.bmp`** at the **card root** is used when the folder has no matches or as an extra choice.
+Put sleep images on the SD card:
 
-- **Random (each sleep)** (default): each sleep picks a random image from `/sleep/` and root `sleep.bmp`, as before.
-- **Choose sleep image** (System → Display ): opens **`SleepImagePickerActivity`**—select one file to always use, or **Random** to clear that choice. The selection is stored in settings (`sleepCustomBmp` in `/.system/settings.bin`; also exposed as **`sleepCustomBmp`** in the device **LocalServer** settings JSON: empty string = random, a basename = `/sleep/<basename>`, or the exact value **`/sleep.bmp`** for the root file only).
+```text
+/sleep/
+  image1.bmp
+  image2.jpg
+  image3.png
 
-#### Related settings flows (activities)
+/sleep.bmp
+```
 
-- **Choose sleep image** – list and confirm a fixed sleep BMP or random (`SleepImagePickerActivity`).
-- **KOReader Sync** – settings and credential entry (`KOReaderSettingsActivity`); **Wi‑Fi** and **KOReaderAuthActivity** when needed; uses **`KeyboardEntryActivity`** for text fields.
-- **OPDS Browser** – browse and download from OPDS catalogs (`OpdsBookBrowserActivity`); may use **Wi‑Fi** (`WifiSelectionActivity`) and keyboard entry for URLs/credentials.
-- **Clear Cache** – clear cached data (`ClearCacheActivity`).
-- **Check for updates** / **About → Update** – **`OtaUpdateActivity`**: turns on Wi‑Fi, runs **`WifiSelectionActivity`**, then **`OtaUpdater`** (GitHub releases API, optional HTTPS install). Same OTA stack as the **Check for updates** row under Actions.
+You can choose a fixed sleep image from settings, or let the device pick one randomly.
 
-### Reading
+## Cache
 
-- **Formats**: **EPUB** (2/3), **XTC** / **XTCH**, **TXT** / **MD** – routed by extension in **`ReaderActivity`** into **`EpubActivity`**, **`XtcReaderActivity`**, or **`TxtReaderActivity`**.
-- **EPUB**
-  - **Paging**, **saved position**, **status bar**, **chapter** navigation, configurable **page auto-turn**.
-  - **Bookmarks**: long-press **Confirm** to add; **`BookmarkActivity`** to list, open, or remove entries.
-  - **Menu drawer** (short **Confirm**): book title, **TOC / chapter list** (drawer UI), **bookmarks**, **go home** (close book), **delete cache** / **delete progress** / **delete book**, **regenerate full book layout** (rebuild cached layout data).
-  - **Settings drawer** (mapped **Book Settings Toggle** button): per-book overrides aligned with global reader settings (font, layout, controls, status bar).
-  - **KOReader sync** (when launched from the EPUB flow): **`KOReaderSyncActivity`** (Wi‑Fi via **`WifiSelectionActivity`** as needed).
-  - **Short Power** in reader: page turn or screen refresh (per reader settings).
-  - **Back**: long hold exits the book (short hold behavior depends on context / drawers).
-- **XTC**: **`XtcReaderActivity`**; chapter flow may open **`XtcReaderChapterSelectionActivity`**.
-- **TXT**: **`TxtReaderActivity`** with scrolling / paging behavior as implemented there.
+Inx uses SD-card cache files to save RAM and speed up repeated work.
 
-### System & lifecycle
+Main cache locations:
 
-- **Boot** – startup / splash path (`BootActivity`).
-- **Sleep** – **`SleepActivity`** and **`HalDisplay` deep sleep**; sleep **image** driven by **Sleep Screen** (dark, light, custom, recent book, transparent cover, none). For **custom / transparent** BMPs, a **fixed file** from settings (see [Custom sleep images](#custom-sleep-images)) is used when set; otherwise images under **`/sleep/`** (and root **`sleep.bmp`**) are chosen **at random** each sleep. Cover **fit/crop** and **filter** apply to book-cover sleep; **auto sleep** after **Time to Sleep**; **USB-only wake** can return to deep sleep from `setup()`.
-- **SD card missing / error** – **`FullScreenMessageActivity`** with a fixed message until SD is fixed.
-- **Keyboard entry** – **`KeyboardEntryActivity`** for Wi‑Fi passwords, OPDS/Calibre/KOReader fields, and similar prompts.
-- **Activity switch logging** – `switchTo` in `main.cpp` prints **heap / fragmentation** over serial for debugging.
+```text
+/.metadata/       EPUB metadata, layout, progress, stats, annotations
+/.system/cache/   Display and image cache
+/.system/         Settings and system data
+```
 
-### Complete screen & activity reference
+You can clear cache from **Settings → Actions → Clear Cache**.
 
-Rough inventory of major UI entry points (see `src/activity/` and `src/main.cpp` for wiring):
-
-| Area | Components |
-|------|------------|
-| **Shell** | `BootActivity`, `SleepActivity`, `FullScreenMessageActivity` |
-| **Tabs** | `RecentActivity`, `LibraryActivity`, `SettingsActivity`, `SyncActivity`, `StatisticActivity` |
-| **Reader** | `ReaderActivity` → `EpubActivity` \| `XtcReaderActivity` \| `TxtReaderActivity` |
-| **EPUB UI** | `MenuDrawer` (TOC + actions), `SettingsDrawer`, `BookmarkActivity` |
-| **XTC** | `XtcReaderChapterSelectionActivity` |
-| **Settings detail** | `CategorySettingsActivity`; `AboutPage` (modal); `SleepImagePickerActivity`, `KOReaderSettingsActivity`, `KOReaderAuthActivity`, `CalibreSettingsActivity`, `ClearCacheActivity`, `OtaUpdateActivity` |
-| **Network** | `LocalNetworkActivity`, `CalibreConnectActivity`, `HotspotActivity`, `WifiSelectionActivity` |
-| **Browser** | `OpdsBookBrowserActivity` |
-| **KOReader (book)** | `KOReaderSyncActivity` |
-| **Utilities** | `KeyboardEntryActivity` |
-
----
+Deleting `/.metadata` will force EPUB layout data to be rebuilt.
 
 ## Installing
 
-### Web (specific firmware version)
+### Web Flash
 
-1. Connect your Xteink X4 to your computer via USB-C
-2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/obijuankenobiii/inx/releases)
-3. Go to https://xteink.dve.al/ and flash the firmware file using the "OTA fast flash controls" section
+1. Connect your Xteink X4 to your computer with USB-C.
+2. Download `firmware.bin` from the [releases page](https://github.com/obijuankenobiii/inx/releases).
+3. Open [xteink.dve.al](https://xteink.dve.al/).
+4. Flash the firmware using the OTA fast flash controls.
 
-To revert back to the official firmware, you can flash the latest official firmware from https://xteink.dve.al/, or swap
-back to the other partition using the "Swap boot partition" button here https://xteink.dve.al/debug.
-
-### Manual
-
-See [Development](#development) below.
+To return to the official firmware, flash the latest official firmware from [xteink.dve.al](https://xteink.dve.al/) or use the debug page to swap boot partitions.
 
 ## Development
 
-### Prerequisites
+### Requirements
 
-* **PlatformIO Core** (`pio`) or **VS Code + PlatformIO IDE**
-* Python 3.8+
-* USB-C cable for flashing the ESP32-C3
-* Xteink X4
+- PlatformIO Core (`pio`) or VS Code with PlatformIO.
+- Python 3.8 or newer.
+- USB-C cable.
+- Xteink X4.
 
-### Checking out the code
+### Clone
 
-Inx uses PlatformIO for building and flashing the firmware. To get started, clone the repository:
-
-```
+```sh
 git clone --recursive https://github.com/obijuankenobiii/inx
+cd inx
+```
 
-# Or, if you've already cloned without --recursive:
+If you already cloned without submodules:
+
+```sh
 git submodule update --init --recursive
 ```
 
-### Flashing your device
+### Build
 
-Connect your Xteink X4 to your computer via USB-C and run the following command.
+```sh
+pio run
+```
+
+### Flash
 
 ```sh
 pio run --target upload
 ```
-### Debugging
 
-After flashing the new features, it’s recommended to capture detailed logs from the serial port.
+### Serial Debugging
 
-First, make sure all required Python packages are installed:
+Install the monitor dependencies:
 
-```python
+```sh
 python3 -m pip install pyserial colorama matplotlib
 ```
-after that run the script:
+
+Run the monitor:
+
 ```sh
-# For Linux
-# This was tested on Debian and should work on most Linux systems.
+# Linux
 python3 scripts/debugging_monitor.py
 
-# For macOS
+# macOS example
 python3 scripts/debugging_monitor.py /dev/cu.usbmodem2101
 ```
-Minor adjustments may be required for Windows.
-
-## Internals
-
-INX is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only
-has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based
-on this constraint.
-
-### Data caching
-
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the 
-cache. This cache directory exists at `.metadata` on the SD card. The structure is as follows:
-
-
-```
-.metadata/
-├── 12471232/       # Each EPUB is cached to a subdirectory named `epub_<hash>`
-│   ├── setting.bin     # Stores reading progress (chapter, page, etc.)
-│   ├── statistics.bin     # Stores reading statistics (chapter count, page count, session count, time read)
-│   ├── progress.bin     # Stores reading progress (chapter, page, etc.)
-│   ├── cover.bmp        # Book cover image (once generated)
-│   ├── book.bin         # Book metadata (title, author, spine, table of contents, etc.)
-│   └── sections/        # All chapter data is stored in the sections subdirectory
-│       ├── 0.bin        # Chapter data (screen count, all text layout info, etc.)
-│       ├── 1.bin        #     files are named by their index in the spine
-│       └── ...
-│
-└── 189013891/
-```
-
-Deleting the `.metadata` directory will clear the entire cache. 
-
 
 ## Contributing
 
-Contributions are very welcome!
+Contributions are welcome.
 
-
-### To submit a contribution:
-
-1. Fork the repo
-2. Create a branch (`feature/dithering-improvement`)
-3. Make changes
-4. Submit a PR
+1. Fork the repository.
+2. Create a branch.
+3. Make your changes.
+4. Open a pull request.
 
