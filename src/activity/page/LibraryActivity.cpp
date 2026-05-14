@@ -1190,16 +1190,10 @@ bool LibraryActivity::handlePageNavigation(bool wantUpStep, bool wantDownStep, i
 
   
   if (currentPage > 0) {
-    int pageChangeThreshold = 1;
-    if (selectorIndex <= pageChangeThreshold && wantUpStep) {
+    if (selectorIndex == 0 && wantUpStep) {
       goToPreviousPage();
       return true;
     }
-  }
-
-  if (selectorIndex == 0 && wantUpStep && currentPage > 0) {
-    goToPreviousPage();
-    return true;
   }
 
   return false;

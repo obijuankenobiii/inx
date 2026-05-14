@@ -91,7 +91,6 @@ constexpr int kLoadProgSideMargin = 20;
 constexpr int kLoadProgInnerPad = 12;
 constexpr int kLoadProgBarH = 10;
 constexpr int kLoadProgGapLabelToBar = 10;
-constexpr int kLoadProgGapBarToPct = 8;
 
 void paintLoadingProgressBarRow(const GfxRenderer& renderer, const ScreenComponents::LoadingProgressLayout& L,
                                   const int progressPercent0to100) {
@@ -103,11 +102,7 @@ void paintLoadingProgressBarRow(const GfxRenderer& renderer, const ScreenCompone
   if (fillW > 0) {
     renderer.rectangle.fill(L.barX + 1, L.barY + 1, fillW, L.barH - 2, true);
   }
-  renderer.rectangle.render(L.barX, L.barY, L.barW, L.barH, true);
-
-  char pctBuf[16];
-  snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
-  renderer.text.render(L.pctFontId, L.pctX, L.pctY, pctBuf, false);
+  renderer.rectangle.render(L.barX, L.barY, L.barW, L.barH, false);
 }
 
 }  
@@ -118,33 +113,24 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   const int clamped = std::max(0, std::min(100, progressPercent0to100));
   const int screenW = renderer.getScreenWidth();
   constexpr int labelFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-  constexpr int pctFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
   const int lhLabel = renderer.text.getLineHeight(labelFontId);
-  const int lhPct = renderer.text.getLineHeight(pctFontId);
-
-  char pctBuf[16];
-  snprintf(pctBuf, sizeof(pctBuf), "%d%%", clamped);
-  const int pctW = renderer.text.getWidth(pctFontId, pctBuf);
 
   constexpr int kMinBarW = 40;
   const int labelMaxForMeasure = std::max(8, screenW - 2 * kLoadProgSideMargin - 2 * kLoadProgInnerPad);
   const std::string msgShown = renderer.text.truncate(labelFontId, message ? message : "", labelMaxForMeasure);
   const int labelW = renderer.text.getWidth(labelFontId, msgShown.c_str());
 
-  const int rowInnerW = kMinBarW + kLoadProgGapBarToPct + pctW;
-  const int innerContentW = std::max(labelW, rowInnerW);
+  const int innerContentW = std::max(labelW, kMinBarW);
   const int panelW = std::min(screenW - 4, innerContentW + 2 * kLoadProgInnerPad);
   const int panelX = (screenW - panelW) / 2;
   const int innerW = panelW - 2 * kLoadProgInnerPad;
-  const int barW = std::max(kMinBarW, innerW - kLoadProgGapBarToPct - pctW);
-  const int pctX = panelX + kLoadProgInnerPad + barW + kLoadProgGapBarToPct;
+  const int barW = std::max(kMinBarW, innerW);
   const int panelH = kLoadProgInnerPad + lhLabel + kLoadProgGapLabelToBar + kLoadProgBarH + kLoadProgInnerPad;
   const int panelY = kLoadProgBottomY - panelH;
   const int labelX = panelX + (panelW - labelW) / 2;
   const int labelY = panelY + kLoadProgInnerPad;
   const int barX = panelX + kLoadProgInnerPad;
   const int barY = labelY + lhLabel + kLoadProgGapLabelToBar;
-  const int pctY = barY + (kLoadProgBarH - lhPct) / 2;
 
   renderer.rectangle.fill(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true, true);
   renderer.rectangle.fill(panelX, panelY, panelW, panelH, true, true);
@@ -159,9 +145,6 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   L.barY = barY;
   L.barW = barW;
   L.barH = kLoadProgBarH;
-  L.pctX = pctX;
-  L.pctY = pctY;
-  L.pctFontId = pctFontId;
 
   paintLoadingProgressBarRow(renderer, L, clamped);
   renderer.displayBuffer();
