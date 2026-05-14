@@ -10,6 +10,7 @@ SRC_DIR = os.path.join(REPO_ROOT, "src")
 JS_EMBEDS = [
     ("data/js/inx_font_pack.js", "src/network/html/InxFontPackJs.generated.h", "INX_FONT_PACK_JS", "INXFP"),
     ("data/js/jszip.min.js", "src/network/html/JsZipMinJs.generated.h", "JSZIP_MIN_JS", "INXJZ9"),
+    ("data/js/epub_page.js", "src/network/html/EpubPageJs.generated.h", "EPUB_PAGE_JS", "INXEPUB"),
 ]
 
 

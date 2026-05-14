@@ -282,10 +282,6 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
   
   file.close();
   
-  if (page) {
-    Serial.printf("[%lu] [SCT] Loaded page %d\n", millis(), currentPage);
-  }
-  
   return page;
 }
 

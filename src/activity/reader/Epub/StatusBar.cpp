@@ -97,12 +97,12 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
     const std::string batteryPercentStr = getBatteryPercentString();
     
     auto getRightAlignedX = [&](const char* text) -> int {
-        int textWidth = m_renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
+        int textWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
         return sectionStart + sectionWidth - textWidth - 5;
     };
     
     auto getCenteredX = [&](const char* text) -> int {
-        int textWidth = m_renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
+        int textWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
         return sectionCenter - (textWidth / 2);
     };
     
@@ -122,22 +122,22 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
     switch (config.item) {
         case StatusBarItem::PAGE_NUMBERS: {
             int xPos = getPositionX(pageStr.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, pageStr.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, pageStr.c_str());
             break;
         }
             
         case StatusBarItem::PERCENTAGE: {
             int xPos = getPositionX(percentStr.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, percentStr.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, percentStr.c_str());
             break;
         }
             
         case StatusBarItem::CHAPTER_TITLE: {
             int maxWidth = sectionWidth - 10;
-            std::string truncated = m_renderer.truncatedText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
+            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
                                                           chapterTitle.c_str(), maxWidth);
             int xPos = getPositionX(truncated.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
             break;
         }
             
@@ -156,7 +156,7 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
             
         case StatusBarItem::BATTERY_PERCENTAGE: {
             int xPos = getPositionX(batteryPercentStr.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, batteryPercentStr.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, batteryPercentStr.c_str());
             break;
         }
             
@@ -178,16 +178,16 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
             int barX = sectionCenter - (barWidth / 2);
             int barY = textY + 10;
             
-            m_renderer.drawRect(barX, barY, barWidth, 6, true);
+            m_renderer.rectangle.render(barX, barY, barWidth, 6, true);
             int fillWidth = static_cast<int>((bookProgress / 100.0f) * (barWidth - 2));
             if (fillWidth > 0) {
-                m_renderer.fillRect(barX + 1, barY + 1, fillWidth, 4, true);
+                m_renderer.rectangle.fill(barX + 1, barY + 1, fillWidth, 4, true);
             }
             break;
         }
             
         case StatusBarItem::PROGRESS_BAR_WITH_PERCENT: {
-            int percentWidth = m_renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentStr.c_str());
+            int percentWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentStr.c_str());
             int barWidth = std::min(80, sectionWidth - percentWidth - 20);
             
             int barX, percentX;
@@ -201,12 +201,12 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
                 percentX = barX + barWidth + 5;
             }
             
-            m_renderer.drawRect(barX, barY, barWidth, 6, true);
+            m_renderer.rectangle.render(barX, barY, barWidth, 6, true);
             int fillWidth = static_cast<int>((bookProgress / 100.0f) * (barWidth - 2));
             if (fillWidth > 0) {
-                m_renderer.fillRect(barX + 1, barY + 1, fillWidth, 4, true);
+                m_renderer.rectangle.fill(barX + 1, barY + 1, fillWidth, 4, true);
             }
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, textY, percentStr.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, textY, percentStr.c_str());
             break;
         }
             
@@ -217,20 +217,20 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
         case StatusBarItem::BOOK_TITLE: {
             std::string bookTitle = m_epub.getTitle();
             int maxWidth = sectionWidth - 10;
-            std::string truncated = m_renderer.truncatedText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
+            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
                                                           bookTitle.c_str(), maxWidth);
             int xPos = getPositionX(truncated.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
             break;
         }
             
         case StatusBarItem::AUTHOR_NAME: {
             std::string author = m_epub.getAuthor();
             int maxWidth = sectionWidth - 10;
-            std::string truncated = m_renderer.truncatedText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
+            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
                                                           author.c_str(), maxWidth);
             int xPos = getPositionX(truncated.c_str());
-            m_renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
             break;
         }
             
@@ -279,11 +279,11 @@ void StatusBar::renderPageBars(int sectionStart, int sectionCenter, int sectionW
         }
         
         if (barEndPage < currentPage) {
-            m_renderer.fillRect(x, barY, barWidth - 1, barHeight, true);
+            m_renderer.rectangle.fill(x, barY, barWidth - 1, barHeight, true);
         } else if (i * pagesPerBar > currentPage) {
-            m_renderer.drawRect(x, barY, barWidth - 1, barHeight, true);
+            m_renderer.rectangle.render(x, barY, barWidth - 1, barHeight, true);
         } else {
-            m_renderer.drawRect(x, barY + (barHeight / 2), barWidth - 1, barHeight / 2, true);
+            m_renderer.rectangle.render(x, barY + (barHeight / 2), barWidth - 1, barHeight / 2, true);
         }
     }
 }

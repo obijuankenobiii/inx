@@ -13,6 +13,7 @@
 #include <PngToBmpConverter.h>
 #include <SDCardManager.h>
 #include <ZipFile.h>
+#include "../../src/util/StringUtils.h"
 
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
@@ -54,33 +55,26 @@ bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
   return false;
 }
 
-}  
+constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
 
-/**
- * @brief Checks file type.
- */
-static bool isFileType(const std::string& path, const std::string& extension) {
-  size_t dot = path.find_last_of('.');
-  if (dot == std::string::npos) return false;
-  std::string ext = path.substr(dot);
-  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-  return ext == extension;
-}
+}  
 
 /**
  * @brief Checks file type is png.
  */
-static bool isPngFile(const std::string& path) { return isFileType(path, ".png"); }
+static bool isPngFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".png"); }
 
 /**
  * @brief Checks file type is jpeg.
  */
-static bool isJpegFile(const std::string& path) { return isFileType(path, ".jpg") || isFileType(path, ".jpeg"); }
+static bool isJpegFile(const std::string& path) {
+  return StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg");
+}
 
 /**
  * @brief Checks file type is bmp.
  */
-static bool isBmpFile(const std::string& path) { return isFileType(path, ".bmp"); }
+static bool isBmpFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
 
 /**
  * @brief Creates the cache directory structure for this EPUB.
@@ -113,8 +107,24 @@ std::string Epub::getCacheImgPath(const std::string& internalHref) const {
   if (dot != std::string::npos) {
     fileName = fileName.substr(0, dot);
   }
-
+  if (isJpegFile(internalHref)) {
+    return cachePath + "/images/" + fileName + ".jpg";
+  }
+  if (isPngFile(internalHref)) {
+    return cachePath + "/images/" + fileName + ".png";
+  }
   return cachePath + "/images/" + fileName + ".bmp";
+}
+
+bool Epub::extractItemToPath(const std::string& itemHref, const std::string& outPath, const size_t chunkSize) const {
+  FsFile out;
+  if (!SdMan.openFileForWrite("EBP", outPath, out)) {
+    return false;
+  }
+  const bool ok = readItemContentsToStream(itemHref, out, chunkSize);
+  out.sync();
+  out.close();
+  return ok;
 }
 
 /**
@@ -337,21 +347,35 @@ bool Epub::generateCoverBmp(bool cropped) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
     return false;
   }
+  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
+  if (isJpegFile(coverHref)) {
+    SdMan.remove(getCoverBmpPath(cropped).c_str());
+    return extractItemToPath(coverHref, getCoverJpegPath(cropped), 4096);
+  }
+  SdMan.remove(getCoverJpegPath(cropped).c_str());
   return extractAndConvertImageFullScreen(bookMetadataCache->coreMetadata.coverItemHref, getCoverBmpPath(cropped), 480,
                                           800, cropped);
 }
 
 /**
- * @brief Generates a thumbnail image from the cover.
- * 
- * For BMP sources, the image is resized to thumbnail dimensions.
- * For PNG and JPEG sources, the image is converted and resized.
- * 
- * @return true if thumbnail generation succeeded, false otherwise
+ * @brief Builds cache thumbnails: prefers packaged `META-INF/thumbnail.jpg` from the EPUB (EPUB optimizer), else
+ * generates `thumb.bmp` from the cover.
  */
 bool Epub::generateThumbBmp() const {
   const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
-    
+
+  SdMan.remove(getThumbJpegPath().c_str());
+  SdMan.remove(getThumbBmpPath().c_str());
+
+  size_t packagedThumbSize = 0;
+  if (getItemSize(kPackagedDeviceThumbnailPath, &packagedThumbSize) && packagedThumbSize > 0) {
+    if (extractItemToPath(kPackagedDeviceThumbnailPath, getThumbJpegPath(), 2048)) {
+      Serial.printf("[EBP] Thumbnail from packaged %s\n", kPackagedDeviceThumbnailPath);
+      return true;
+    }
+    Serial.printf("[EBP] Packaged thumbnail present but extract failed: %s\n", kPackagedDeviceThumbnailPath);
+  }
+
   const std::string tempPath = cachePath + "/.thumb_extract.tmp";
   FsFile tempFile;
 
@@ -658,12 +682,43 @@ std::string Epub::getCoverBmpPath(bool cropped) const {
   return cachePath + (cropped ? "/cover_crop.bmp" : "/cover.bmp");
 }
 
+std::string Epub::getCoverJpegPath(bool cropped) const {
+  return cachePath + (cropped ? "/cover_crop.jpg" : "/cover.jpg");
+}
+
+std::string Epub::getCoverItemHref() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    return "";
+  }
+  return bookMetadataCache->coreMetadata.coverItemHref;
+}
+
+bool Epub::extractCoverItemToPath(const std::string& outPath) const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    return false;
+  }
+  const std::string& href = bookMetadataCache->coreMetadata.coverItemHref;
+  if (href.empty()) {
+    return false;
+  }
+  FsFile out;
+  if (!SdMan.openFileForWrite("EBP", outPath, out)) {
+    return false;
+  }
+  const bool ok = readItemContentsToStream(href, out, 2048);
+  out.sync();
+  out.close();
+  return ok;
+}
+
 /**
  * @brief Gets the filesystem path for the thumbnail BMP.
  *
  * @return Full filesystem path to the thumbnail BMP file
  */
 std::string Epub::getThumbBmpPath() const { return cachePath + "/thumb.bmp"; }
+
+std::string Epub::getThumbJpegPath() const { return cachePath + "/thumb.jpg"; }
 
 /**
  * @brief Gets the filesystem path for the small thumbnail BMP.

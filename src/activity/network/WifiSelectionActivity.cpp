@@ -487,22 +487,22 @@ void WifiSelectionActivity::renderScanning(const int screenWidth, const int scre
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Scanning for networks...";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Scanning...");
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Scanning...");
 
   const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -517,24 +517,24 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Select a network to connect";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
   const int visibleAreaHeight = screenHeight - listStartY - 80;
 
   if (networks.empty()) {
     const int centerY = listStartY + (visibleAreaHeight / 2);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "No networks found");
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Connect to scan again");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "No networks found");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Connect to scan again");
   } else {
     const int maxVisibleNetworks = visibleAreaHeight / LIST_ITEM_HEIGHT;
 
@@ -550,7 +550,7 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
       const bool isSelected = (static_cast<int>(i) == selectedNetworkIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       std::string displayName = network.ssid;
@@ -561,42 +561,42 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
       const int textX = 20;
       const int titleY = itemY + 20;
 
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, displayName.c_str(), !isSelected);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, displayName.c_str(), !isSelected);
 
       if (network.isEncrypted) {
-        int lockTextX = textX + renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayName.c_str()) + 10;
+        int lockTextX = textX + renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayName.c_str()) + 10;
         if (lockTextX < screenWidth - 150) {
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, lockTextX, titleY + 2, "(Locked)", !isSelected);
+          renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, lockTextX, titleY + 2, "(Locked)", !isSelected);
         }
       }
 
       drawWifiIcon(screenWidth - 60, itemY + 15, network.rssi, isSelected);
 
       if (network.hasSavedPassword) {
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 80, itemY + 15, "+", !isSelected);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 80, itemY + 15, "+", !isSelected);
       }
 
       if (i < networks.size() - 1) {
-        renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
       }
     }
 
     if (scrollOffset > 0) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15, listStartY, "^");
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15, listStartY, "^");
     }
     if (scrollOffset + maxVisibleNetworks < static_cast<int>(networks.size())) {
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15,
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenWidth - 15,
                         listStartY + maxVisibleNetworks * LIST_ITEM_HEIGHT, "v");
     }
 
     char countStr[32];
     snprintf(countStr, sizeof(countStr), "%zu networks found", networks.size());
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 90, countStr);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 105, cachedMacAddress.c_str());
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 90, countStr);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, screenHeight - 105, cachedMacAddress.c_str());
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -611,16 +611,16 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connecting...";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
 
@@ -629,12 +629,12 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
   if (ssidInfo.length() > 25) {
     ssidInfo.replace(22, ssidInfo.length() - 22, "...");
   }
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 50, connect.c_str());
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 20, ssidInfo.c_str());
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY + 20, "Please wait...");
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 50, connect.c_str());
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 20, ssidInfo.c_str());
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY + 20, "Please wait...");
 
   const auto labels = mappedInput.mapLabels("", "", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -649,19 +649,19 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connected successfully!";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int promptY = dividerY + 30;
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Save password for next time?");
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Save password for next time?");
 
   const int buttonY = promptY + 50;
   constexpr int buttonWidth = 60;
@@ -670,19 +670,19 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
   const int startX = (screenWidth - totalWidth) / 2;
 
   if (savePromptSelection == 0) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX, buttonY, "[Yes]");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX, buttonY, "[Yes]");
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + 4, buttonY, "Yes");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + 4, buttonY, "Yes");
   }
 
   if (savePromptSelection == 1) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
   }
 
   const auto labels = mappedInput.mapLabels("« Skip", "Select", "Left", "Right");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -698,28 +698,28 @@ void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const 
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int errorY = dividerY + 40;
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, errorY - 20, connectionError.c_str());
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, errorY - 20, connectionError.c_str());
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 25) {
     ssidInfo.replace(22, ssidInfo.length() - 22, "...");
   }
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, errorY + 10, ssidInfo.c_str());
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, errorY + 10, ssidInfo.c_str());
 
   const auto labels = mappedInput.mapLabels("« Back", "Continue", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -734,19 +734,19 @@ void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int 
 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
   int subtitleY = headerY + 40;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
 
-  const int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int promptY = dividerY + 30;
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Forget network and remove saved password?");
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Forget network and remove saved password?");
 
   const int buttonY = promptY + 50;
   constexpr int buttonWidth = 120;
@@ -755,21 +755,21 @@ void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int 
   const int startX = (screenWidth - totalWidth) / 2;
 
   if (forgetPromptSelection == 0) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX, buttonY, "[Cancel]");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX, buttonY, "[Cancel]");
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + 4, buttonY, "Cancel");
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + 4, buttonY, "Cancel");
   }
 
   if (forgetPromptSelection == 1) {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY,
                       "[Forget network]");
   } else {
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY,
                       "Forget network");
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "Left", "Right");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -803,26 +803,26 @@ void WifiSelectionActivity::drawWifiIcon(int x, int y, int32_t rssi, bool isSele
   int bar4Y = startY;
 
   if (visibleBars >= 1) {
-    renderer.fillRect(x, bar1Y, barWidth, bar1Height, drawColor);
+    renderer.rectangle.fill(x, bar1Y, barWidth, bar1Height, static_cast<int>(drawColor));
   } else {
-    renderer.drawRect(x, bar1Y, barWidth, bar1Height, drawColor);
+    renderer.rectangle.render(x, bar1Y, barWidth, bar1Height, drawColor);
   }
 
   if (visibleBars >= 2) {
-    renderer.fillRect(x + 10, bar2Y, barWidth, bar2Height, drawColor);
+    renderer.rectangle.fill(x + 10, bar2Y, barWidth, bar2Height, static_cast<int>(drawColor));
   } else {
-    renderer.drawRect(x + 10, bar2Y, barWidth, bar2Height, drawColor);
+    renderer.rectangle.render(x + 10, bar2Y, barWidth, bar2Height, drawColor);
   }
 
   if (visibleBars >= 3) {
-    renderer.fillRect(x + 20, bar3Y, barWidth, bar3Height, drawColor);
+    renderer.rectangle.fill(x + 20, bar3Y, barWidth, bar3Height, static_cast<int>(drawColor));
   } else {
-    renderer.drawRect(x + 20, bar3Y, barWidth, bar3Height, drawColor);
+    renderer.rectangle.render(x + 20, bar3Y, barWidth, bar3Height, drawColor);
   }
 
   if (visibleBars >= 4) {
-    renderer.fillRect(x + 30, bar4Y, barWidth, bar4Height, drawColor);
+    renderer.rectangle.fill(x + 30, bar4Y, barWidth, bar4Height, static_cast<int>(drawColor));
   } else {
-    renderer.drawRect(x + 30, bar4Y, barWidth, bar4Height, drawColor);
+    renderer.rectangle.render(x + 30, bar4Y, barWidth, bar4Height, drawColor);
   }
 }

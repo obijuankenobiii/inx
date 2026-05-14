@@ -51,16 +51,16 @@ constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;
 void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
     const int headerHeight = TAB_BAR_HEIGHT;
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                     startY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
+                     startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
                      title, true, EpdFontFamily::BOLD);
     
     if (subtitle) {
         int subtitleY = startY + SUBTITLE_Y_OFFSET;
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
         
-        int dividerY = subtitleY + renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-        renderer.drawLine(0, dividerY, renderer.getScreenWidth(), dividerY);
+        int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
+        renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
     }
 }
 
@@ -275,7 +275,7 @@ void HotspotActivity::drawQRCode(int x, int y, const std::string& data) const {
     for (uint8_t cy = 0; cy < qrcode.size; cy++) {
         for (uint8_t cx = 0; cx < qrcode.size; cx++) {
             if (qrcode_getModule(&qrcode, cx, cy)) {
-                renderer.fillRect(x + QR_PIXEL_SIZE * cx, y + QR_PIXEL_SIZE * cy, 
+                renderer.rectangle.fill(x + QR_PIXEL_SIZE * cx, y + QR_PIXEL_SIZE * cy, 
                                  QR_PIXEL_SIZE, QR_PIXEL_SIZE, true);
             }
         }
@@ -298,28 +298,28 @@ void HotspotActivity::render() const {
         renderActivityHeader(renderer, startY, "File Transfer", "Starting hotspot...");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
         
         auto labels = mappedInput.mapLabels("« Back", "", "", "");
-        renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                 labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else if (state == HotspotState::ERROR) {
         renderActivityHeader(renderer, startY, "File Transfer", "Setup Failed");
         
         int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                           DIVIDER_PADDING;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start hotspot");
-        renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start hotspot");
+        renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
         
         auto labels = mappedInput.mapLabels("« Back", "", "", "");
-        renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                 labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
 
@@ -339,7 +339,7 @@ void HotspotActivity::renderServerRunning() const {
     renderActivityHeader(renderer, startY, "File Transfer", "Hotspot Mode");
     
     int currentY = startY + SUBTITLE_Y_OFFSET + 
-                   renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
+                   renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
                    DIVIDER_PADDING + 40;  
 
     
@@ -348,7 +348,7 @@ void HotspotActivity::renderServerRunning() const {
     const int qrX = rightColX;
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
                      "Scan to connect", true, EpdFontFamily::BOLD);
     
     
@@ -357,19 +357,19 @@ void HotspotActivity::renderServerRunning() const {
     currentY += LINE_SPACING;
     
     std::string ssidInfo = connectedSSID;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
                      truncateString(ssidInfo, 20).c_str());
     currentY += LINE_SPACING;
     
     std::string ipInfo = connectedIP;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
                      ipInfo.c_str());
     currentY += LINE_SPACING;
     
     currentY += QR_SIZE + 20;  
 
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
                      "Scan to visit", true, EpdFontFamily::BOLD);
     
     
@@ -379,17 +379,17 @@ void HotspotActivity::renderServerRunning() const {
     currentY += LINE_SPACING;
     
     
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10,
                      hostnameUrl.c_str(), true);
     currentY += SMALL_SPACING;
     
     std::string ipUrl = "http://" + connectedIP + "/";
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, leftColX, currentY + 10,
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, leftColX, currentY + 10,
                      ipUrl.c_str());
     currentY += QR_SIZE + 20;
 
     
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                             labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

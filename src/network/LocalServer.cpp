@@ -15,6 +15,7 @@
 #include <algorithm>
 
 #include "html/EpubPageHtml.generated.h"
+#include "html/EpubPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
@@ -59,7 +60,6 @@ void clearEpubCacheIfNeeded(const String& filePath) {
   }
 }
 }  
-
 
 
 
@@ -116,6 +116,7 @@ void LocalServer::begin() {
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
+  server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -146,6 +147,7 @@ void LocalServer::begin() {
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
   Serial.printf("✓ jszip.min.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(JSZIP_MIN_JS) - 1));
+  Serial.printf("✓ epub_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(EPUB_PAGE_JS) - 1));
   Serial.printf("✓ inx_font_pack.js from firmware flash (%u bytes)\n",
                 static_cast<unsigned>(sizeof(INX_FONT_PACK_JS) - 1));
 
@@ -379,7 +381,9 @@ bool LocalServer::isEpubFile(const String& filename) const {
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
 
-void LocalServer::handleEpubPage() const { server->send(200, "text/html", EpubPageHtml); }
+void LocalServer::handleEpubPage() const {
+  server->send_P(200, PSTR("text/html; charset=utf-8"), EpubPageHtml, sizeof(EpubPageHtml) - 1);
+}
 
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
@@ -390,6 +394,10 @@ void LocalServer::handleInxFontPackJs() const {
 
 void LocalServer::handleJsZipMinJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), JSZIP_MIN_JS, sizeof(JSZIP_MIN_JS) - 1);
+}
+
+void LocalServer::handleEpubPageJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), EPUB_PAGE_JS, sizeof(EPUB_PAGE_JS) - 1);
 }
 
 void LocalServer::handleFileListData() const {
@@ -997,10 +1005,12 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
   doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
+  doc["sleepImageTwoBit"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
+  doc["fixSunlightFade"] = SETTINGS.fixSunlightFade;
   doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
   doc["librarySortMode"] = SETTINGS.librarySortMode;
 
@@ -1027,10 +1037,6 @@ void LocalServer::handleSettingsGet() const {
   doc["refreshFrequency"] = SETTINGS.refreshFrequency;
   doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
   doc["readerSmartRefreshOnImages"] = SETTINGS.readerSmartRefreshOnImages;
-  doc["readerImagePresentation"] = SETTINGS.readerImagePresentation;
-  doc["readerImageDither"] = SETTINGS.readerImageDither;
-  doc["displayImageDither"] = SETTINGS.displayImageDither;
-  doc["displayImagePresentation"] = SETTINGS.displayImagePresentation;
   doc["statusBar"] = SETTINGS.statusBar;
   doc["statusBarLeft"] = SETTINGS.statusBarLeft;
   doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
@@ -1044,6 +1050,14 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepTimeout"] = SETTINGS.sleepTimeout;
   doc["useLibraryIndex"] = SETTINGS.useLibraryIndex;
   doc["bootSetting"] = SETTINGS.bootSetting;
+
+  doc["refreshOnLoadRecent"] = SETTINGS.refreshOnLoadRecent;
+  doc["refreshOnLoadLibrary"] = SETTINGS.refreshOnLoadLibrary;
+  doc["refreshOnLoadSettings"] = SETTINGS.refreshOnLoadSettings;
+  doc["refreshOnLoadSync"] = SETTINGS.refreshOnLoadSync;
+  doc["refreshOnLoadStatistics"] = SETTINGS.refreshOnLoadStatistics;
+  doc["pageAutoTurnSeconds"] = SETTINGS.pageAutoTurnSeconds;
+  doc["bitmapRoundedCorners"] = SETTINGS.bitmapRoundedCorners;
   
   String json;
   serializeJson(doc, json);
@@ -1088,6 +1102,10 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
       changed = true;
     }
+    else if (strcmp(key, "sleepImageTwoBit") == 0) {
+      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
     else if (strcmp(key, "sleepCustomBmp") == 0) {
       if (kv.value().isNull()) {
         SETTINGS.setSleepCustomBmpFromInput(nullptr);
@@ -1109,6 +1127,10 @@ void LocalServer::handleSettingsUpdate() const {
       if (v < 1) v = 1;
       if (v > 8) v = 8;
       SETTINGS.recentVisibleCount = static_cast<uint8_t>(v);
+      changed = true;
+    }
+    else if (strcmp(key, "fixSunlightFade") == 0) {
+      SETTINGS.fixSunlightFade = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "librarySortEnabled") == 0) {
@@ -1169,7 +1191,11 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "readerMenuButton") == 0) {
-      SETTINGS.readerMenuButton = (uint8_t)value;
+      uint8_t v = (uint8_t)value;
+      if (v >= SystemSetting::READER_MENU_BUTTON_COUNT) {
+        v = SystemSetting::MENU_UP;
+      }
+      SETTINGS.readerMenuButton = v;
       changed = true;
     }
     else if (strcmp(key, "longPressChapterSkip") == 0) {
@@ -1197,30 +1223,6 @@ void LocalServer::handleSettingsUpdate() const {
     else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
       SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "readerImagePresentation") == 0) {
-      if (value >= 0 && value < SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        SETTINGS.readerImagePresentation = (uint8_t)value;
-        changed = true;
-      }
-    }
-    else if (strcmp(key, "readerImageDither") == 0) {
-      if (value >= 0 && value < SystemSetting::READER_IMAGE_DITHER_COUNT) {
-        SETTINGS.readerImageDither = (uint8_t)value;
-        changed = true;
-      }
-    }
-    else if (strcmp(key, "displayImageDither") == 0) {
-      if (value >= 0 && value < SystemSetting::READER_IMAGE_DITHER_COUNT) {
-        SETTINGS.displayImageDither = (uint8_t)value;
-        changed = true;
-      }
-    }
-    else if (strcmp(key, "displayImagePresentation") == 0) {
-      if (value >= 0 && value < SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        SETTINGS.displayImagePresentation = (uint8_t)value;
-        changed = true;
-      }
     }
     else if (strcmp(key, "statusBar") == 0) {
       SETTINGS.statusBar = (uint8_t)value;
@@ -1256,6 +1258,38 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "bootSetting") == 0) {
       SETTINGS.bootSetting = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadRecent") == 0) {
+      SETTINGS.refreshOnLoadRecent = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadLibrary") == 0) {
+      SETTINGS.refreshOnLoadLibrary = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadSettings") == 0) {
+      SETTINGS.refreshOnLoadSettings = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadSync") == 0) {
+      SETTINGS.refreshOnLoadSync = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "refreshOnLoadStatistics") == 0) {
+      SETTINGS.refreshOnLoadStatistics = (uint8_t)value ? 1 : 0;
+      changed = true;
+    }
+    else if (strcmp(key, "pageAutoTurnSeconds") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 0) v = 0;
+      if (v > 180) v = 180;
+      v = (v / 10) * 10;
+      SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
+      changed = true;
+    }
+    else if (strcmp(key, "bitmapRoundedCorners") == 0) {
+      SETTINGS.bitmapRoundedCorners = (uint8_t)value ? 1 : 0;
       changed = true;
     }
   }

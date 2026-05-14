@@ -5,9 +5,9 @@
 
 #include "Page.h"
 
-#include <Bitmap.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
@@ -27,22 +27,13 @@ constexpr float kImgHuge = 1e9f;
 bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int xOffset, int yOffset, int& outX1,
                           int& outY1, int& outX2, int& outY2) {
   (void)xOffset;
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", img.getPath(), file)) {
-    return false;
-  }
-  Bitmap bitmap(file, BitmapDitherMode::None);
-  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
-    file.close();
-    return false;
-  }
-  const int bmpW = bitmap.getWidth();
-  const int bmpH = bitmap.getHeight();
-  file.close();
+  int sourceW = 0;
+  int sourceH = 0;
+  if (!ImageRender::getDimensions(img.getPath(), &sourceW, &sourceH)) return false;
 
   const int lw = img.getWidth();
   const int lh = img.getHeight();
-  if (bmpW <= 0 || bmpH <= 0 || lw <= 0 || lh <= 0) {
+  if (sourceW <= 0 || sourceH <= 0 || lw <= 0 || lh <= 0) {
     return false;
   }
 
@@ -61,8 +52,8 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
   float scale = 1.0f;
   bool isScaled = false;
   if (hasW || hasH) {
-    const float fitW = hasW ? static_cast<float>(lw) / static_cast<float>(bmpW) : kImgHuge;
-    const float fitH = hasH ? static_cast<float>(lh) / static_cast<float>(bmpH) : kImgHuge;
+    const float fitW = hasW ? static_cast<float>(lw) / static_cast<float>(sourceW) : kImgHuge;
+    const float fitH = hasH ? static_cast<float>(lh) / static_cast<float>(sourceH) : kImgHuge;
     const float fitScale = (hasW && hasH) ? std::min(fitW, fitH) : (hasW ? fitW : fitH);
     if (std::abs(fitScale - 1.0f) > kImgScaleEps) {
       scale = fitScale;
@@ -74,14 +65,14 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
   int x2 = renderX;
   int y2 = renderY;
   if (replicateUpscale) {
-    x2 = renderX + static_cast<int>(std::ceil(static_cast<float>(bmpW) * scale)) - 1;
-    y2 = renderY + static_cast<int>(std::ceil(static_cast<float>(bmpH) * scale)) - 1;
+    x2 = renderX + static_cast<int>(std::ceil(static_cast<float>(sourceW) * scale)) - 1;
+    y2 = renderY + static_cast<int>(std::ceil(static_cast<float>(sourceH) * scale)) - 1;
   } else if (isScaled) {
-    x2 = renderX + static_cast<int>(std::floor(static_cast<float>(bmpW - 1) * scale));
-    y2 = renderY + static_cast<int>(std::floor(static_cast<float>(bmpH - 1) * scale));
+    x2 = renderX + static_cast<int>(std::floor(static_cast<float>(sourceW - 1) * scale));
+    y2 = renderY + static_cast<int>(std::floor(static_cast<float>(sourceH - 1) * scale));
   } else {
-    x2 = renderX + bmpW - 1;
-    y2 = renderY + bmpH - 1;
+    x2 = renderX + sourceW - 1;
+    y2 = renderY + sourceH - 1;
   }
 
   outX1 = std::max(0, std::min(renderX, screenW - 1));
@@ -102,7 +93,7 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
  * @param yOffset Vertical offset for page margins
  */
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                      BitmapDitherMode ) {
+                      ImageRenderMode ) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -141,7 +132,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        BitmapDitherMode ) {
+                        ImageRenderMode ) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -182,8 +173,8 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                         BitmapDitherMode ) {
-  renderer.drawText(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
+                         ImageRenderMode ) {
+  renderer.text.render(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
 /**
@@ -228,27 +219,19 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                       const BitmapDitherMode imageDitherMode) {
+                       const ImageRenderMode imageMode) {
   (void)xOffset;  
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", cachePath, file)) {
-    Serial.printf("[PAGEIMG] Failed to open image file: %s\n", cachePath.c_str());
-    return;
+  (void)fontId;
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  const ImageRender image = ImageRender::create(renderer, cachePath);
+  if (!image.render(renderX, renderY, width, height, imageMode)) {
+    Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
-
-  Bitmap bitmap(file, imageDitherMode);
-  if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-    const int screenW = renderer.getScreenWidth();
-    int renderX = (screenW - width) / 2;
-    int renderY = yPos + yOffset;
-
-    if (renderX < 0) renderX = 0;
-    if (renderY < 0) renderY = 0;
-    
-    renderer.drawBitmap(bitmap, renderX, renderY, width, height);
-  }
-
-  file.close();
 }
 
 /**
@@ -341,7 +324,7 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
 }
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages, const BitmapDitherMode imageDitherMode) const {
+                  bool skipImages, const ImageRenderMode imageMode) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
@@ -349,20 +332,44 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
 
     uint8_t tag = element->getTag();
     if (tag == TAG_PageHeader) {
-      element->render(renderer, headerFontId, xOffset, yOffset, imageDitherMode);
+      element->render(renderer, headerFontId, xOffset, yOffset, imageMode);
     } else {
-      element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
+      element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }
   }
 }
 
 void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        const BitmapDitherMode imageDitherMode) const {
+                        const ImageRenderMode imageMode) const {
   for (auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
-    element->render(renderer, fontId, xOffset, yOffset, imageDitherMode);
+    element->render(renderer, fontId, xOffset, yOffset, imageMode);
+  }
+}
+
+void Page::prewarmText(GfxRenderer& renderer, const int fontId, const int headerFontId) const {
+  for (const auto& element : elements) {
+    switch (element->getTag()) {
+      case TAG_PageLine: {
+        const auto* line = static_cast<const PageLine*>(element.get());
+        line->getTextBlock().prewarm(renderer, fontId);
+        break;
+      }
+      case TAG_PageHeader: {
+        const auto* header = static_cast<const PageHeader*>(element.get());
+        header->getTextBlock().prewarm(renderer, headerFontId);
+        break;
+      }
+      case TAG_PageDropCap: {
+        const auto* dropCap = static_cast<const PageDropCap*>(element.get());
+        renderer.text.prewarm(dropCap->getDropCapFontId(), dropCap->getDropCapText().c_str(), EpdFontFamily::BOLD);
+        break;
+      }
+      default:
+        break;
+    }
   }
 }
 

@@ -158,20 +158,20 @@ void CalibreSettingsActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
 
   
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
 
   
-  renderer.fillRect(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30, GfxRenderer::FillTone::Ink);
+  renderer.rectangle.fill(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30, static_cast<int>(GfxRenderer::FillTone::Ink));
 
   
   for (int i = 0; i < MENU_ITEMS; i++) {
     const int settingY = 70 + i * 30;
     const bool isSelected = (i == selectedIndex);
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
     
     const char* status = "[Not Set]";
@@ -182,13 +182,13 @@ void CalibreSettingsActivity::render() {
     } else if (i == 2) {
       status = (strlen(SETTINGS.opdsPassword) > 0) ? "[Set]" : "[Not Set]";
     }
-    const auto width = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
+    const auto width = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
   }
 
   
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

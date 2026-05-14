@@ -241,6 +241,7 @@ public:
     enum READER_SHORT_PWRBTN {
         READER_PAGE_TURN = 0,       ///< Turn page
         READER_PAGE_REFRESH = 1,    ///< Refresh screen
+        READER_ANNOTATE = 2,        ///< Enter EPUB highlight / annotation mode
         READER_SHORT_PWRBTN_COUNT
     };
     
@@ -277,18 +278,7 @@ public:
     };
 
     /**
-     * @brief Bitmap contrast / ink weight for reader and system images (2bpp → BW when scaled).
-     */
-    enum READER_IMAGE_PRESENTATION {
-        IMAGE_PRESENTATION_LOW = 0,     ///< Lightest: legacy Balanced snap (less mid-gray ink)
-        IMAGE_PRESENTATION_MEDIUM = 1,  ///< Default: full-gray halftone (former “Balance”)
-        IMAGE_PRESENTATION_HIGH = 2,    ///< Strong: tighter snap + more ink
-        IMAGE_PRESENTATION_VERY_HIGH = 3,  ///< Strongest: maximum ink weight / edge emphasis
-        READER_IMAGE_PRESENTATION_COUNT
-    };
-
-    /**
-     * @brief Error diffusion when decoding high-color BMP to 2bpp (matches `BitmapDitherMode`).
+     * @brief Legacy image-dither values kept only for settings-file compatibility; rendering always uses Floyd.
      */
     enum READER_IMAGE_DITHER {
         IMAGE_DITHER_NONE = 0,
@@ -301,13 +291,13 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    /** When set (and filter is None), 2bpp cover images get the e-ink grayscale pass on sleep. */
+    /** Sleep-only image 2-bit mode; kept in the old serialized slot for settings compatibility. */
     uint8_t sleepScreenCoverGrayscale = 0;
     /**
-     * Fixed custom/transparent sleep BMP when multiple images exist.
-     * Empty = pick a random file from /sleep/ (and /sleep.bmp) each time.
-     * Basename only = use /sleep/<basename> (e.g. night.bmp).
-     * Exactly "/sleep.bmp" = use the BMP at the SD card root only.
+     * Fixed custom/transparent sleep image when multiple images exist.
+     * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
+     * Basename only = use /sleep/<basename> (e.g. night.bmp / night.jpg).
+     * Exactly "/sleep.bmp" (or /sleep.jpg/.jpeg) = use SD-root fallback file only.
      */
     char sleepCustomBmp[64] = "";
 
@@ -386,6 +376,8 @@ public:
     uint8_t librarySortEnabled = 1;
     /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
     uint8_t librarySortMode = 0;
+    /** Reduces panel drive voltage a little during refresh to help sunlight fade. */
+    uint8_t fixSunlightFade = 0;
 
     uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
 
@@ -395,18 +387,18 @@ public:
      */
     uint8_t pageAutoTurnSeconds = 0;
 
-    /** When set, EPUB pages with bitmap images run the extra grayscale pass after BW render. */
+    /** When set, EPUB pages with images render in 2-bit mode; otherwise images render in 1-bit mode. */
     uint8_t readerImageGrayscale = 0;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
-    /** Bitmap gray mapping for book images in the reader (see READER_IMAGE_PRESENTATION). */
-    uint8_t readerImagePresentation = IMAGE_PRESENTATION_MEDIUM;
-    /** High-color BMP → 2bpp dither for EPUB reader pages and reader cover (see READER_IMAGE_DITHER). */
+    /** Legacy ignored value retained for settings-file compatibility. */
+    uint8_t legacyReaderImagePresentation = 1;
+    /** Legacy ignored value retained for settings-file compatibility. */
     uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
-    /** Same enum as reader: sleep screen BMPs, recent/library covers, stats thumbnails. */
+    /** Legacy ignored value retained for settings-file compatibility. */
     uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
-    /** Bitmap gray mapping for sleep/library/stats images (see READER_IMAGE_PRESENTATION). */
-    uint8_t displayImagePresentation = IMAGE_PRESENTATION_MEDIUM;
+    /** Legacy ignored value retained for settings-file compatibility. */
+    uint8_t legacyDisplayImagePresentation = 1;
     /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats: paper). */
     uint8_t bitmapRoundedCorners = 0;
 
@@ -452,7 +444,7 @@ public:
     int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
     
     /**
-     * @brief Validates and stores the fixed custom sleep BMP choice (basename under /sleep/ or "/sleep.bmp").
+     * @brief Validates and stores the fixed custom sleep image choice (basename under /sleep/ or SD-root sleep file).
      * @param s nullptr or empty string clears (random selection each sleep).
      */
     void setSleepCustomBmpFromInput(const char* s);

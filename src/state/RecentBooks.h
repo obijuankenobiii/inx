@@ -46,7 +46,7 @@ class RecentBooks {
    */
   void addBook(const std::string& path, const std::string& cachePath,
                const std::string& title, const std::string& author, 
-               float progress = -1.0f);
+               float progress = -1.0f, bool saveNow = true);
 
   /**
    * @brief Update reading progress for an existing book

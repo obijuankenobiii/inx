@@ -212,6 +212,9 @@ void setup() {
     return;
   }
 
+  SETTINGS.loadFromFile();
+  display.setSunlightFadeFixEnabled(SETTINGS.fixSunlightFade != 0);
+
   switch (gpio.getWakeupReason()) {
     case HalGPIO::WakeupReason::PowerButton:
       verifyPowerButtonDuration();

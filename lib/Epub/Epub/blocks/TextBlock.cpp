@@ -8,6 +8,29 @@
 #include <GfxRenderer.h>
 #include <Serialization.h>
 
+#include <iterator>
+
+std::string TextBlock::getWordAt(size_t index) const {
+  if (index >= words.size()) return {};
+  auto it = words.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
+uint16_t TextBlock::getWordXAt(size_t index) const {
+  if (index >= wordXpos.size()) return 0;
+  auto it = wordXpos.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
+EpdFontFamily::Style TextBlock::getWordStyleAt(size_t index) const {
+  if (index >= wordStyles.size()) return EpdFontFamily::REGULAR;
+  auto it = wordStyles.begin();
+  std::advance(it, static_cast<std::ptrdiff_t>(index));
+  return *it;
+}
+
 /**
  * Renders the text block at the specified position.
  * 
@@ -29,11 +52,23 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   auto wordXposIt = wordXpos.begin();
 
   for (size_t i = 0; i < words.size(); i++) {
-    renderer.drawText(fontId, *wordXposIt + x, y, wordIt->c_str(), true, *wordStylesIt);
+    renderer.text.render(fontId, *wordXposIt + x, y, wordIt->c_str(), true, *wordStylesIt);
 
     std::advance(wordIt, 1);
     std::advance(wordStylesIt, 1);
     std::advance(wordXposIt, 1);
+  }
+}
+
+void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId) const {
+  if (words.size() != wordStyles.size()) {
+    return;
+  }
+
+  auto wordIt = words.begin();
+  auto styleIt = wordStyles.begin();
+  for (; wordIt != words.end() && styleIt != wordStyles.end(); ++wordIt, ++styleIt) {
+    renderer.text.prewarm(fontId, wordIt->c_str(), *styleIt);
   }
 }
 

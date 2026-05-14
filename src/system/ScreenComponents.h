@@ -34,7 +34,7 @@ class ScreenComponents {
 
   static void fillPopupProgress(const GfxRenderer& renderer, const PopupLayout& layout, int progress);
 
-  /** Geometry for {@link LoadingProgress}: label on top, bar with numeric percent on the right. */
+  /** Geometry for {@link LoadingProgress}: label on top, full-width progress bar below. */
   struct LoadingProgressLayout {
     int panelX = 0;
     int panelY = 0;
@@ -44,13 +44,10 @@ class ScreenComponents {
     int barY = 0;
     int barW = 0;
     int barH = 0;
-    int pctX = 0;
-    int pctY = 0;
-    int pctFontId = 0;
   };
 
   /**
-   * Bottom popup: text label, progress bar below, percentage to the right of the bar (0–100).
+   * Bottom popup: text label and progress bar below.
    */
   struct LoadingProgress {
     static LoadingProgressLayout show(const GfxRenderer& renderer, const char* message, int progressPercent0to100);

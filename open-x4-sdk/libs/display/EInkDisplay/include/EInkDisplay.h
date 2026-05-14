@@ -60,6 +60,7 @@ class EInkDisplay {
 
   
   void setCustomLUT(bool enabled, const unsigned char* lutData = nullptr);
+  void setSunlightFadeFixEnabled(bool enabled);
 
   
   void deepSleep();
@@ -90,6 +91,8 @@ class EInkDisplay {
   
   bool isScreenOn;
   bool customLutActive;
+  bool sunlightFadeFixEnabled;
+  bool sunlightFadeVoltagesApplied;
   bool inGrayscaleMode;
   bool drawGrayscale;
 
@@ -100,6 +103,7 @@ class EInkDisplay {
   void sendData(const uint8_t* data, uint16_t length);
   void waitWhileBusy(const char* comment = nullptr);
   void initDisplayController();
+  void applyDriveVoltages(uint8_t gate, uint8_t source1, uint8_t source2, uint8_t source3, uint8_t vcom);
 
   
   void setRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h);

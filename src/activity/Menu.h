@@ -49,27 +49,27 @@ class Menu {
 
       switch (i) {
         case 0:
-          renderer.drawIcon(Recent, iconX, iconY, ICON_SIZE, ICON_SIZE);
+          renderer.bitmap.icon(Recent, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 1:
-          renderer.drawIcon(Library, iconX, iconY, ICON_SIZE, ICON_SIZE);
+          renderer.bitmap.icon(Library, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 2:
-          renderer.drawIcon(Setting, iconX, iconY, ICON_SIZE, ICON_SIZE);
+          renderer.bitmap.icon(Setting, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 3:
-          renderer.drawIcon(Sync, iconX, iconY, ICON_SIZE, ICON_SIZE);
+          renderer.bitmap.icon(Sync, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
         case 4:
-          renderer.drawIcon(Stats, iconX, iconY, ICON_SIZE, ICON_SIZE);
+          renderer.bitmap.icon(Stats, iconX, iconY, ICON_SIZE, ICON_SIZE);
           break;
       }
 
       if (isSelected) {
-        renderer.fillRect(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      renderer.drawLine(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);
+      renderer.line.render(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);
     }
     drawBattery(renderer);
   }

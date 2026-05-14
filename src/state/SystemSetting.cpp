@@ -35,17 +35,18 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 18;
-constexpr uint8_t SETTINGS_COUNT = 51;
+constexpr uint8_t SETTINGS_FILE_VERSION = 19;
+constexpr uint8_t SETTINGS_COUNT = 52;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
+constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 
 void sanitizeSleepCustomBmp(char* buf) {
   if (buf == nullptr || buf[0] == '\0') {
     return;
   }
-  if (strcmp(buf, "/sleep.bmp") == 0) {
+  if (strcmp(buf, "/sleep.bmp") == 0 || strcmp(buf, "/sleep.jpg") == 0 || strcmp(buf, "/sleep.jpeg") == 0) {
     return;
   }
   if (strstr(buf, "..") != nullptr) {
@@ -95,6 +96,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->librarySortMode > 5) mut->librarySortMode = 0;
+    if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -136,10 +138,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, readerSmartRefreshOnImages);
   serialization::writePod(outputFile, sleepScreenCoverGrayscale);
   serialization::writeString(outputFile, std::string(sleepCustomBmp));
-  serialization::writePod(outputFile, readerImagePresentation);
+  serialization::writePod(outputFile, legacyReaderImagePresentation);
   serialization::writePod(outputFile, readerImageDither);
   serialization::writePod(outputFile, displayImageDither);
-  serialization::writePod(outputFile, displayImagePresentation);
+  serialization::writePod(outputFile, legacyDisplayImagePresentation);
   serialization::writePod(outputFile, paragraphCssIndentEnabled);
   serialization::writePod(outputFile, refreshOnLoadRecent);
   serialization::writePod(outputFile, refreshOnLoadLibrary);
@@ -150,6 +152,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
+  serialization::writePod(outputFile, fixSunlightFade);
 
   outputFile.close();
 
@@ -177,7 +180,7 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16) {
+      version != 15 && version != 16 && version != 17 && version != 18) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -400,7 +403,7 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      readAndValidate(inputFile, readerImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      readAndValidate(inputFile, legacyReaderImagePresentation, LEGACY_IMAGE_PRESENTATION_COUNT);
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
@@ -412,7 +415,7 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      readAndValidate(inputFile, displayImagePresentation, READER_IMAGE_PRESENTATION_COUNT);
+      readAndValidate(inputFile, legacyDisplayImagePresentation, LEGACY_IMAGE_PRESENTATION_COUNT);
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
@@ -488,6 +491,13 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, fixSunlightFade);
+      if (fixSunlightFade > 1) {
+        fixSunlightFade = 0;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -504,23 +514,26 @@ bool SystemSetting::loadFromFile() {
   if (librarySortMode > 5) {
     librarySortMode = 0;
   }
+  if (fixSunlightFade > 1) {
+    fixSunlightFade = 0;
+  }
 
   if (settingsRead < SETTINGS_COUNT) {
     if (settingsRead < SETTINGS_COUNT_V9) {
       displayImageDither = readerImageDither;
     }
-    displayImagePresentation = readerImagePresentation;
+    legacyDisplayImagePresentation = legacyReaderImagePresentation;
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
 
   
   if (version == 10) {
-    if (readerImagePresentation == 1u) {
-      readerImagePresentation = 0u;
+    if (legacyReaderImagePresentation == 1u) {
+      legacyReaderImagePresentation = 0u;
     }
-    if (displayImagePresentation == 1u) {
-      displayImagePresentation = 0u;
+    if (legacyDisplayImagePresentation == 1u) {
+      legacyDisplayImagePresentation = 0u;
     }
   }
 
@@ -528,15 +541,15 @@ bool SystemSetting::loadFromFile() {
   if (version == 10 || version == 11) {
     auto mapLegacyPresentation = [](uint8_t& p) {
       if (p == 0u) {
-        p = SystemSetting::IMAGE_PRESENTATION_MEDIUM;
+        p = 1u;
       } else if (p == 1u) {
-        p = SystemSetting::IMAGE_PRESENTATION_HIGH;
-      } else if (p >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        p = SystemSetting::IMAGE_PRESENTATION_MEDIUM;
+        p = 2u;
+      } else if (p >= LEGACY_IMAGE_PRESENTATION_COUNT) {
+        p = 1u;
       }
     };
-    mapLegacyPresentation(readerImagePresentation);
-    mapLegacyPresentation(displayImagePresentation);
+    mapLegacyPresentation(legacyReaderImagePresentation);
+    mapLegacyPresentation(legacyDisplayImagePresentation);
   }
 
   return true;

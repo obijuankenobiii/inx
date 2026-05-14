@@ -5,22 +5,33 @@
 
 #include "AboutPage.h"
 
+#include <Arduino.h>
+#include <cstdio>
+#include <esp_heap_caps.h>
+
 #include "system/Fonts.h"
 
-AboutPage::AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput, DismissCallback onDismiss,
-                     CheckForUpdatesCallback onCheckForUpdates)
+namespace {
+void formatHeapSize(const size_t bytes, char* out, const size_t outSize) {
+  if (bytes >= 1024 * 1024) {
+    const size_t wholeMb = bytes / (1024 * 1024);
+    const size_t tenthMb = ((bytes % (1024 * 1024)) * 10) / (1024 * 1024);
+    std::snprintf(out, outSize, "%u.%u MB", static_cast<unsigned>(wholeMb), static_cast<unsigned>(tenthMb));
+    return;
+  }
+
+  std::snprintf(out, outSize, "%u KB", static_cast<unsigned>((bytes + 1023) / 1024));
+}
+}  // namespace
+
+AboutPage::AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : renderer(renderer),
       mappedInput(mappedInput),
-      onDismiss(std::move(onDismiss)),
-      onCheckForUpdates(std::move(onCheckForUpdates)),
       visible(false),
       dismissed(false),
       lastInputTime(0) {}
 
-AboutPage::~AboutPage() {
-  onDismiss = nullptr;
-  onCheckForUpdates = nullptr;
-}
+AboutPage::~AboutPage() = default;
 
 void AboutPage::show() {
   if (visible) return;
@@ -44,20 +55,10 @@ void AboutPage::handleInput() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     hide();
-    if (onDismiss) {
-      onDismiss();
-    }
     lastInputTime = currentTime;
     return;
   }
 
-  if (onCheckForUpdates && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    visible = false;
-    dismissed = false;
-    lastInputTime = currentTime;
-    onCheckForUpdates();
-    return;
-  }
 }
 
 void AboutPage::render() {
@@ -76,34 +77,38 @@ void AboutPage::renderWithRefresh() {
   const int popupX = (screenWidth - popupWidth) / 2;
   const int popupY = (screenHeight - popupHeight) / 2;
 
-  renderer.fillRect(popupX, popupY, popupWidth, popupHeight, false);
-  renderer.drawRect(popupX, popupY, popupWidth, popupHeight, true);
+  renderer.rectangle.fill(popupX, popupY, popupWidth, popupHeight, false);
+  renderer.rectangle.render(popupX, popupY, popupWidth, popupHeight, true);
 
   int yPos = popupY + 28;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 24, yPos, "Inx", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 24, yPos, "Inx", true, EpdFontFamily::BOLD);
   yPos += 36;
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "Current version", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "Current version", true, EpdFontFamily::BOLD);
   yPos += 22;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, INX_VERSION, true, EpdFontFamily::REGULAR);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, INX_VERSION, true, EpdFontFamily::REGULAR);
   yPos += 36;
 
-  if (onCheckForUpdates) {
-    constexpr int btnW = 220;
-    constexpr int btnH = 48;
-    const int btnX = popupX + (popupWidth - btnW) / 2;
-    renderer.fillRect(btnX, yPos, btnW, btnH, false);
-    renderer.drawRect(btnX, yPos, btnW, btnH, true);
-    const char* updateLabel = "Update";
-    const int tw = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, updateLabel, EpdFontFamily::BOLD);
-    const int tx = btnX + (btnW - tw) / 2;
-    const int ty = yPos + (btnH - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tx, ty, updateLabel, true, EpdFontFamily::BOLD);
-  }
+  const size_t totalHeap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+  const size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+  const size_t usedHeap = totalHeap > freeHeap ? totalHeap - freeHeap : 0;
 
-  const char* confirmHint = onCheckForUpdates ? "Update" : "";
-  const auto labels = mappedInput.mapLabels("Close", confirmHint, "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  char usedBuffer[20];
+  char totalBuffer[20];
+  char heapLine[52];
+  formatHeapSize(usedHeap, usedBuffer, sizeof(usedBuffer));
+  formatHeapSize(totalHeap, totalBuffer, sizeof(totalBuffer));
+  const unsigned heapPercent = totalHeap > 0 ? static_cast<unsigned>((usedHeap * 100) / totalHeap) : 0;
+  std::snprintf(heapLine, sizeof(heapLine), "%s / %s (%u%%)", usedBuffer, totalBuffer, heapPercent);
+
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "RAM used / total", true,
+                       EpdFontFamily::BOLD);
+  yPos += 22;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, heapLine, true,
+                       EpdFontFamily::REGULAR);
+
+  const auto labels = mappedInput.mapLabels("Close", "", "", "");
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

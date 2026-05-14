@@ -10,8 +10,11 @@
 #include <SdFat.h>
 
 class PngToBmpConverter {
-public:
-    
+ private:
+  static bool pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight, bool oneBit,
+                                         bool crop);
+
+ public:
     static bool pngFileTo1BitBmpStream(FsFile& pngFile, Print& bmpOut);
     static bool pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut,
                                                int targetMaxWidth, int targetMaxHeight,
@@ -22,7 +25,7 @@ public:
     static bool pngFileTo2BitBmpStreamWithSize(FsFile& pngFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight,
                                               bool cropToFill = true);
 
-    /** EPUB body images: 2-bit BMP matching web reader (contain 500×820, FS dither, 42/127/212). */
+    /** EPUB body images: 2-bit BMP matching web reader (contain to max 500x820, same as JPEG path). */
     static bool pngFileToEpubWebStyle2BitBmpStream(FsFile& pngFile, Print& bmpOut);
     
     

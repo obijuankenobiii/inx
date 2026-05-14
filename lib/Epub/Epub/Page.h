@@ -5,7 +5,7 @@
  * @brief Public interface and types for Page.
  */
 
-#include <Bitmap.h>
+#include <ImageRenderMode.h>
 #include <SdFat.h>
 #include <utility>
 #include <vector>
@@ -51,10 +51,10 @@ class PageElement {
    * @param fontId Font ID for text rendering
    * @param xOffset Horizontal offset for page margins
    * @param yOffset Vertical offset for page margins
-   * @param imageDitherMode High-color BMP decode dithering (images only; callers pass from app settings).
+   * @param imageMode Image output depth for image elements.
    */
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-                      BitmapDitherMode imageDitherMode = BitmapDitherMode::None) = 0;
+                      ImageRenderMode imageMode = ImageRenderMode::OneBit) = 0;
   
   /**
    * Serializes the element to a file.
@@ -75,9 +75,11 @@ class PageLine final : public PageElement {
   PageLine(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), block(std::move(block)) {}
 
+  const TextBlock& getTextBlock() const { return *block; }
+
   PageElementTag getTag() const override { return TAG_PageLine; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageLine> deserialize(FsFile& file);
 };
@@ -94,9 +96,12 @@ class PageHeader final : public PageElement {
   PageHeader(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos, int fontId)
       : PageElement(xPos, yPos), block(std::move(block)), headerFontId(fontId) {}
 
+  const TextBlock& getTextBlock() const { return *block; }
+  int getHeaderFontId() const { return headerFontId; }
+
   PageElementTag getTag() const override { return TAG_PageHeader; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageHeader> deserialize(FsFile& file);
 };
@@ -118,9 +123,12 @@ class PageDropCap final : public PageElement {
   PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId)
       : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId) {}
 
+  const std::string& getDropCapText() const { return text; }
+  int getDropCapFontId() const { return dropCapFontId; }
+
   PageElementTag getTag() const override { return TAG_PageDropCap; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageDropCap> deserialize(FsFile& file);
 };
@@ -140,7 +148,7 @@ class PageImage final : public PageElement {
 
   PageElementTag getTag() const override { return TAG_PageImage; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) override;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   
@@ -172,9 +180,10 @@ class Page {
                            int16_t& outW, int16_t& outH) const;
 
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
-              BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-                    BitmapDitherMode imageDitherMode = BitmapDitherMode::None) const;
+                    ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
+  void prewarmText(GfxRenderer& renderer, int fontId, int headerFontId) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

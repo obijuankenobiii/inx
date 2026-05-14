@@ -5,6 +5,8 @@
 
 #include "system/MappedInputManager.h"
 
+#include <utility>
+
 #include "state/SystemSetting.h"
 
 namespace {
@@ -100,6 +102,10 @@ bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); 
 
 unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
 
+bool MappedInputManager::rawHalIsPressed(const uint8_t halButtonIndex) const {
+  return gpio.isPressed(halButtonIndex);
+}
+
 MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
   const auto sideLayout = static_cast<SystemSetting::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
   
@@ -113,17 +119,55 @@ MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
 
 MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const char* confirm, const char* previous,
                                                          const char* next) const {
+  const char* p = previous;
+  const char* n = next;
+  if (invertDirectionalAxes180_) {
+    std::swap(p, n);
+  }
+
   const auto layout = static_cast<SystemSetting::FRONT_BUTTON_LAYOUT>(SETTINGS.frontButtonLayout);
 
   switch (layout) {
     case SystemSetting::LEFT_RIGHT_BACK_CONFIRM:
-      return {previous, next, back, confirm};
+      return {p, n, back, confirm};
     case SystemSetting::LEFT_BACK_CONFIRM_RIGHT:
-      return {previous, back, confirm, next};
+      return {p, back, confirm, n};
     case SystemSetting::BACK_CONFIRM_RIGHT_LEFT:
-      return {back, confirm, next, previous};
+      return {back, confirm, n, p};
     case SystemSetting::BACK_CONFIRM_LEFT_RIGHT:
     default:
-      return {back, confirm, previous, next};
+      return {back, confirm, p, n};
   }
+}
+
+MappedInputManager::Labels MappedInputManager::mapLabelsWithReaderNav(const char* back, const char* confirm,
+                                                                    const char* prevSym, const char* nextSym,
+                                                                    bool landscapeDrawer) const {
+  const char* p = prevSym;
+  const char* n = nextSym;
+
+  if (landscapeDrawer) {
+    std::swap(p, n);
+  } else {
+    using RM = SystemSetting::READER_DIRECTION_MAPPING;
+    switch (static_cast<RM>(SETTINGS.readerDirectionMapping)) {
+      case RM::MAP_RIGHT_LEFT:
+        std::swap(p, n);
+        break;
+      case RM::MAP_UP_DOWN:
+        p = "Up";
+        n = "Down";
+        break;
+      case RM::MAP_DOWN_UP:
+        p = "Down";
+        n = "Up";
+        break;
+      case RM::MAP_LEFT_RIGHT:
+      case RM::MAP_NONE:
+      default:
+        break;
+    }
+  }
+
+  return mapLabels(back, confirm, p, n);
 }

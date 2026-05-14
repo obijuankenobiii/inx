@@ -128,30 +128,30 @@ void KOReaderAuthActivity::render() {
   }
 
   renderer.clearScreen();
-  renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "KOReader Auth", true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "KOReader Auth", true, EpdFontFamily::BOLD);
 
   if (state == AUTHENTICATING) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Success!", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "KOReader sync is ready to use");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Success!", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "KOReader sync is ready to use");
 
     const auto labels = mappedInput.mapLabels("Done", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, errorMessage.c_str());
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, errorMessage.c_str());
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }

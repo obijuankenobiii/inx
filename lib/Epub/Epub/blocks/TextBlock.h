@@ -69,6 +69,11 @@ class TextBlock final : public Block {
    * @return true if empty
    */
   bool isEmpty() override { return words.empty(); }
+
+  size_t getWordCount() const { return words.size(); }
+  std::string getWordAt(size_t index) const;
+  uint16_t getWordXAt(size_t index) const;
+  EpdFontFamily::Style getWordStyleAt(size_t index) const;
   
   /**
    * Layout is pre-calculated during parsing.
@@ -85,6 +90,7 @@ class TextBlock final : public Block {
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
   void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
+  void prewarm(const GfxRenderer& renderer, int fontId) const;
   
   /**
    * Gets the block type identifier.

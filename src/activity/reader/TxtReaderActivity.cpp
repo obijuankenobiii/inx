@@ -193,7 +193,7 @@ void TxtReaderActivity::initializeReader() {
 
   viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
   const int viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
-  const int lineHeight = renderer.getLineHeight(cachedFontId);
+  const int lineHeight = renderer.text.getLineHeight(cachedFontId);
 
   linesPerPage = viewportHeight / lineHeight;
   if (linesPerPage < 1) linesPerPage = 1;
@@ -309,7 +309,7 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
     
     while (!line.empty() && static_cast<int>(outLines.size()) < linesPerPage) {
-      int lineWidth = renderer.getTextWidth(cachedFontId, line.c_str());
+      int lineWidth = renderer.text.getWidth(cachedFontId, line.c_str());
 
       if (lineWidth <= viewportWidth) {
         outLines.push_back(line);
@@ -320,7 +320,7 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
       
       size_t breakPos = line.length();
-      while (breakPos > 0 && renderer.getTextWidth(cachedFontId, line.substr(0, breakPos).c_str()) > viewportWidth) {
+      while (breakPos > 0 && renderer.text.getWidth(cachedFontId, line.substr(0, breakPos).c_str()) > viewportWidth) {
         
         size_t spacePos = line.rfind(' ', breakPos - 1);
         if (spacePos != std::string::npos && spacePos > 0) {
@@ -392,7 +392,7 @@ void TxtReaderActivity::renderScreen() {
 
   if (pageOffsets.empty()) {
     renderer.clearScreen();
-    renderer.drawCenteredText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Empty file", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Empty file", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
@@ -423,7 +423,7 @@ void TxtReaderActivity::renderPage() {
   orientedMarginRight += cachedScreenMargin;
   orientedMarginBottom += statusBarMargin;
 
-  const int lineHeight = renderer.getLineHeight(cachedFontId);
+  const int lineHeight = renderer.text.getLineHeight(cachedFontId);
   const int contentWidth = viewportWidth;
 
   
@@ -441,12 +441,12 @@ void TxtReaderActivity::renderPage() {
             
             break;
           case SystemSetting::CENTER_ALIGN: {
-            int textWidth = renderer.getTextWidth(cachedFontId, line.c_str());
+            int textWidth = renderer.text.getWidth(cachedFontId, line.c_str());
             x = orientedMarginLeft + (contentWidth - textWidth) / 2;
             break;
           }
           case SystemSetting::RIGHT_ALIGN: {
-            int textWidth = renderer.getTextWidth(cachedFontId, line.c_str());
+            int textWidth = renderer.text.getWidth(cachedFontId, line.c_str());
             x = orientedMarginLeft + contentWidth - textWidth;
             break;
           }
@@ -456,7 +456,7 @@ void TxtReaderActivity::renderPage() {
             break;
         }
 
-        renderer.drawText(cachedFontId, x, y, line.c_str());
+        renderer.text.render(cachedFontId, x, y, line.c_str());
       }
       y += lineHeight;
     }
@@ -527,8 +527,8 @@ void TxtReaderActivity::renderStatusBar(const int orientedMarginRight, const int
       snprintf(progressStr, sizeof(progressStr), "%d/%d", currentPage + 1, totalPages);
     }
 
-    progressTextWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, progressStr);
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, renderer.getScreenWidth() - orientedMarginRight - progressTextWidth, textY,
+    progressTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, progressStr);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, renderer.getScreenWidth() - orientedMarginRight - progressTextWidth, textY,
                       progressStr);
   }
 
@@ -547,13 +547,13 @@ void TxtReaderActivity::renderStatusBar(const int orientedMarginRight, const int
     const int availableTextWidth = renderer.getScreenWidth() - titleMarginLeft - titleMarginRight;
 
     std::string title = txt->getTitle();
-    int titleWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
+    int titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
     if (titleWidth > availableTextWidth) {
-      title = renderer.truncatedText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str(), availableTextWidth);
-      titleWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
+      title = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str(), availableTextWidth);
+      titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
     }
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, titleMarginLeft + (availableTextWidth - titleWidth) / 2, textY, title.c_str());
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, titleMarginLeft + (availableTextWidth - titleWidth) / 2, textY, title.c_str());
   }
 }
 

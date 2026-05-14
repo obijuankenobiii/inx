@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "BitmapHelpers.h"
+#include "BitmapUtil.h"
 #include "Bitmap.h"
 
 struct JpegReadContext {
@@ -274,12 +274,12 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(
     outYThresholds[oy] = (uint32_t)oy * scaleY_fp;
   }
 
-  FloydSteinbergDitherer* ditherer = nullptr;
+  FourToneImageDitherer* ditherer = nullptr;
   Atkinson1BitDitherer* ditherer1bit = nullptr;
   
   if (!oneBit && !quickMode) 
   {
-    ditherer = new FloydSteinbergDitherer(outWidth);
+    ditherer = new FourToneImageDitherer(outWidth);
   }
   
   if (oneBit) 
@@ -416,7 +416,7 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(
             
             for (int x = 0; x < outWidth; x++) {
               uint8_t gray = (accum[x].count > 0) ? (uint8_t)(accum[x].sum / accum[x].count) : 0;
-              uint8_t twoBit = ditherer->processPixel(gray, x);
+              uint8_t twoBit = ditherer->process(gray, x).level;
               int byteIdx = (x * 2) >> 3;
               rowBuffer[byteIdx] |= (twoBit << shiftAmounts[x]);
             }
@@ -560,12 +560,12 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
   uint32_t* rowAccum = new uint32_t[outWidth]();
   uint16_t* rowCount = new uint16_t[outWidth]();
   
-  FloydSteinbergDitherer* ditherer = nullptr;
+  FourToneImageDitherer* ditherer = nullptr;
   Atkinson1BitDitherer* ditherer1bit = nullptr;
   
   if (!oneBit && !quickMode) 
   {
-    ditherer = new FloydSteinbergDitherer(outWidth);
+    ditherer = new FourToneImageDitherer(outWidth);
   }
   
   if (oneBit) 
@@ -664,7 +664,7 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(
             } 
             else if (ditherer) 
             {
-              twoBit = ditherer->processPixel(gray, x);
+              twoBit = ditherer->process(gray, x).level;
             } 
             else 
             {
@@ -927,32 +927,19 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(
           if (corrected > 255) corrected = 255;
           
           
-          uint8_t twoBit;
-          uint8_t quantized;
-          
-          if (corrected < 48) {
-            twoBit = 0; 
-            quantized = 0;
-          } else if (corrected < 112) {
-            twoBit = 1; 
-            quantized = 85;
-          } else if (corrected < 192) {
-            twoBit = 2; 
-            quantized = 170;
-          } else {
-            twoBit = 3; 
-            quantized = 255;
-          }
+          const ImageToneSample tone = quantizeTwoBitImage(corrected);
+          const uint8_t twoBit = tone.level;
+          const int quantized = tone.value;
           
           
           int16_t error = corrected - quantized;
           
           if (x < outWidth - 1) {
-            currentError[x + 1] += (error * 7) / 16;
+            currentError[x + 1] += (error * 6) / 16;
           }
-          nextError[x] += (error * 5) / 16;
+          nextError[x] += (error * 4) / 16;
           if (x > 0) {
-            nextError[x - 1] += (error * 3) / 16;
+            nextError[x - 1] += (error * 2) / 16;
           }
           if (x < outWidth - 1) {
             nextError[x + 1] += (error * 1) / 16;
@@ -1342,22 +1329,16 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(
           if (corrected > 255) corrected = 255;
 
           
-          uint8_t twoBit;
-          uint8_t quantized;
-          
-          
-          twoBit = (corrected >> 6) & 0x03;  
-          
-          
-          static const uint8_t quantValues[4] = {0, 85, 170, 255};
-          quantized = quantValues[twoBit];
+          const ImageToneSample tone = quantizeTwoBitImage(corrected);
+          const uint8_t twoBit = tone.level;
+          const int quantized = tone.value;
 
           int16_t err = corrected - quantized;
           
           
-          if (x < targetMaxWidth - 1) currentError[x+1] += (err * 7) / 16;
-          nextError[x] += (err * 5) / 16;
-          if (x > 0) nextError[x-1] += (err * 3) / 16;
+          if (x < targetMaxWidth - 1) currentError[x+1] += (err * 6) / 16;
+          nextError[x] += (err * 4) / 16;
+          if (x > 0) nextError[x-1] += (err * 2) / 16;
           if (x < targetMaxWidth - 1) nextError[x+1] += (err * 1) / 16;
 
           

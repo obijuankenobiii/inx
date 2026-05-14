@@ -123,10 +123,8 @@ class ChapterHtmlSlimParser {
    */
   bool ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w, int* h);
 
-  /**
-   * Reads BMP dimensions from a cached image file.
-   */
-  bool getBmpDimensions(const std::string& path, int* w, int* h);
+  /** Reads cached image dimensions (BMP or JPEG). */
+  bool getImageDimensions(const std::string& path, int* w, int* h);
 
   /**
    * Loads all CSS rules from the EPUB cache using CssParser.

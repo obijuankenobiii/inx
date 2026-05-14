@@ -77,6 +77,7 @@ class LocalServer {
   void handleFontManagerPage() const;
   void handleInxFontPackJs() const;
   void handleJsZipMinJs() const;
+  void handleEpubPageJs() const;
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;

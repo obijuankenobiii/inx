@@ -7,9 +7,10 @@
 
 #include <Epub.h>
 #include <Epub/Section.h>
-#include <vector>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "MenuDrawer.h"
 #include "StatusBar.h"
@@ -17,16 +18,29 @@
 #include "state/BookSetting.h"
 #include "state/BookProgress.h"
 #include "SettingsDrawer.h"
-#include "state/Statistics.h"
 #include "system/ScreenComponents.h"
 
-struct ViewportInfo;
+#include "EpubAnnotationUi.h"
+#include "EpubReadingStats.h"
+
+struct ViewportInfo {
+  int totalMarginTop;
+  int totalMarginBottom;
+  int totalMarginLeft;
+  int totalMarginRight;
+  uint16_t width;
+  uint16_t height;
+  int fontId;
+  float lineCompression;
+};
 
 /**
  * Main activity for reading EPUB books.
  * Handles page navigation, bookmarks, settings, and reading statistics.
  */
 class EpubActivity final : public ActivityWithSubactivity {
+  friend class EpubAnnotationUi;
+
 public:
     /**
      * Represents a bookmark in the book.
@@ -81,6 +95,8 @@ private:
     int currentSpineIndex = 0;
     int nextPageNumber = 0;
     int pagesUntilFullRefresh = 0;
+    bool pendingPercentJump = false;
+    float pendingSpineProgress = 0.0f;
     int cachedSpineIndex = 0;
     int cachedChapterTotalPageCount = 0;
     bool updateRequired = false;
@@ -115,11 +131,10 @@ private:
     uint8_t bookLayoutAppliedOrientation_ = 0xFF;
     bool leftButtonLongPressProcessed = false;
 
-    BookReadingStats bookStats;
-    uint32_t pageStartTime;
-    uint32_t lastSaveTime;
+    EpubReadingStats readingStats_;
 
-    void renderScreen();
+    /** @param clearFramebuffer When false, skips clearScreen before compositing (same-page annotation overlay refresh). */
+    void renderScreen(bool clearFramebuffer = true);
     
     /**
      * Handles page turning logic for forward/backward navigation.
@@ -162,7 +177,7 @@ private:
      * @param currentPage Current page number
      * @param pageCount Total pages in current chapter
      */
-    void saveProgress(int spineIndex, int currentPage, int pageCount);
+    void saveProgress(int spineIndex, int currentPage, int pageCount, bool saveRecentNow = true);
     
     /**
      * Loads progress from file using BookProgress handler.
@@ -191,6 +206,11 @@ private:
 
     /** User picked a footnote line from the reader menu drawer. */
     void onFootnoteDrawerSelected(int storageIndex);
+
+    /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
+    void onAnnotationDrawerSelected(int storageIndex);
+
+    void goToAnnotationPage(int spineIndex, int pageNumber);
     
     /**
      * Deletes the book cache.
@@ -220,6 +240,10 @@ private:
 
     /** Opens KOReader sync as a sub-activity (from menu). */
     void openKOReaderSyncFromMenu();
+
+    /** Opens percent selection as a sub-activity (from menu). */
+    void openPercentSelectionFromMenu();
+    void jumpToPercent(int percent);
         
     void displayBookTitle();
     void drawLoadingScreen();
@@ -245,6 +269,8 @@ private:
     void goToBookmark(int index);
     std::string getCurrentChapterTitle() const;
     void drawBookmarkIndicator();
+
+    EpubAnnotationUi annUi_;
     
     /**
      * Applies current book settings and rebuilds affected sections.
@@ -255,6 +281,7 @@ private:
     void loadBookSettings();
     
     void initStats();
+    void maybeCommitReadingSessionCount();
     void startPageTimer();
     void endPageTimer();
     void saveBookStats();
@@ -299,5 +326,4 @@ private:
     void fastPath();
     void slowPath();
     void displayBookStats();
-    std::string formatTime(uint32_t timeMs);
 };

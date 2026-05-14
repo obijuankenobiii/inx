@@ -316,7 +316,7 @@ void SettingsDrawer::setupMenu() {
     MenuEntry imgGrayEntry;
     imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
     imgGrayEntry.group = GroupType::IMAGE;
-    imgGrayEntry.name = "Image Grayscale";
+    imgGrayEntry.name = "Image 2-bit Mode";
     imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
       return SETTINGS.readerImageGrayscale ? "On" : "Off";
     };
@@ -338,35 +338,6 @@ void SettingsDrawer::setupMenu() {
       SETTINGS.saveToFile();
     };
     menuItems.push_back(smartRefreshEntry);
-
-    MenuEntry presEntry;
-    presEntry.item = MenuItem::ReaderImagePresentation;
-    presEntry.group = GroupType::IMAGE;
-    presEntry.name = "Contrast";
-    presEntry.getValueText = [](const BookSettings&) -> const char* {
-      switch (SETTINGS.readerImagePresentation) {
-        case SystemSetting::IMAGE_PRESENTATION_LOW:
-          return "Low";
-        case SystemSetting::IMAGE_PRESENTATION_VERY_HIGH:
-          return "Very high";
-        case SystemSetting::IMAGE_PRESENTATION_HIGH:
-          return "High";
-        default:
-          return "Medium";
-      }
-    };
-    presEntry.change = [](BookSettings&, int delta) {
-      int v = static_cast<int>(SETTINGS.readerImagePresentation) + delta;
-      if (v < 0) {
-        v = SystemSetting::READER_IMAGE_PRESENTATION_COUNT - 1;
-      }
-      if (v >= SystemSetting::READER_IMAGE_PRESENTATION_COUNT) {
-        v = 0;
-      }
-      SETTINGS.readerImagePresentation = static_cast<uint8_t>(v);
-      SETTINGS.saveToFile();
-    };
-    menuItems.push_back(presEntry);
   }
 
   MenuEntry controlsSeparator;
@@ -601,7 +572,14 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   drawMenuItems();
   drawScrollIndicator();
   if (!isLandscapeReader(renderer)) {
-    renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+    if (mappedInputForHints_ != nullptr) {
+      const auto labels =
+          mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
+                               labels.btn4);
+    } else {
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+    }
   }
   renderer.displayBuffer();
 }
@@ -610,18 +588,18 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
  * @brief Draws the background panel of the settings drawer
  */
 void SettingsDrawer::drawBackground() {
-  renderer.fillRect(drawerX, drawerY, drawerWidth, drawerHeight, false);
-  renderer.drawRect(drawerX, drawerY, drawerWidth, drawerHeight, true);
+  renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
+  renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + 10;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
   currentY += 25;
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
 
   int dividerY = currentY + 30;
-  renderer.drawLine(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
+  renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
 /**
@@ -638,32 +616,32 @@ void SettingsDrawer::drawMenuItems() {
 
     if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
       if (isSelected) {
-        renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       int textX = drawerX + 15;
-      int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
       const char* indicator = entry.getValueText(settings);
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
+        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
                           indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
       }
 
-      renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+      renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
       continue;
     }
 
     if (isSelected) {
-      renderer.fillRect(drawerX, itemY, drawerWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
     const int valueColumnRight = drawerX + drawerWidth - 24;
     if (entry.item == MenuItem::FontFamily) {
@@ -717,14 +695,14 @@ void SettingsDrawer::drawMenuItems() {
       } else {
         const char* val = entry.getValueText(settings);
         if (val && val[0] != '\0') {
-          int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-          renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
+          int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+          renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
                             isSelected ? 0 : 1);
         }
       }
     }
 
-    renderer.drawLine(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
   }
 }
 
@@ -740,7 +718,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
-  renderer.fillRect(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+  renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
 }
 
 /**
@@ -852,7 +830,6 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
-    case MenuItem::ReaderImagePresentation:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:

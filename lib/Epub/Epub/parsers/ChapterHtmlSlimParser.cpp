@@ -14,9 +14,11 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Utf8.h>
 #include <expat.h>
+#include "../../../../src/util/StringUtils.h"
 
 #include "../Page.h"
 #include "../../../KOReaderSync/htmlEntities.h"
@@ -28,6 +30,14 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
 
 namespace {
+
+bool hasJpegExt(const std::string& path) {
+  return StringUtils::checkFileExtension(path, ".jpg") || StringUtils::checkFileExtension(path, ".jpeg");
+}
+
+bool hasPngExt(const std::string& path) {
+  return StringUtils::checkFileExtension(path, ".png");
+}
 
 int countUtf8Codepoints(const char* s, int byteLen) {
   const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
@@ -374,6 +384,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = (imgHeight * cssMaxW) / std::max(1, imgWidth);
       imgWidth = cssMaxW;
     }
+    
     if (cssMaxH > 0 && imgHeight > cssMaxH) {
       imgWidth = (imgWidth * cssMaxH) / std::max(1, imgHeight);
       imgHeight = cssMaxH;
@@ -387,7 +398,6 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = cssMinH;
     }
 
-    
     if (imgWidth > viewportWidth) {
       imgHeight = (imgHeight * viewportWidth) / imgWidth;
       imgWidth = viewportWidth;
@@ -426,8 +436,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
-    const int gutter = std::max(renderer.getSpaceWidth(fontId), 10);
-    int dropCapWidth = renderer.getTextWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
+    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10);
+    int dropCapWidth = renderer.text.getWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
 
     if (currentTextBlock) {
       currentTextBlock->setLeftIndent(dropCapWidth, 3);
@@ -723,27 +733,16 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 }
 
 /**
- * Reads BMP dimensions from a cached image file.
- * @param path Path to the BMP file
+ * Reads dimensions from a cached image file.
+ * @param path Path to the image file
  * @param w Output parameter for width
  * @param h Output parameter for height
  * @return true if dimensions were successfully read
  */
-bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, int* h) {
+bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, int* h) {
   *w = 0;
   *h = 0;
-  FsFile file;
-  if (!SdMan.openFileForRead("EHP", path, file)) return false;
-
-  Bitmap bitmap(file);
-  const bool ok = (bitmap.parseHeaders() == BmpReaderError::Ok);
-  if (ok) {
-    *w = bitmap.getWidth();
-    *h = bitmap.getHeight();
-  }
-
-  file.close();
-  return ok && (*w > 0) && (*h > 0);
+  return ImageRender::getDimensions(path, w, h) && (*w > 0) && (*h > 0);
 }
 
 /**
@@ -752,7 +751,7 @@ bool ChapterHtmlSlimParser::getBmpDimensions(const std::string& path, int* w, in
  * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
-  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   if (!line || line->isEmpty()) return;
 
@@ -785,7 +784,7 @@ void ChapterHtmlSlimParser::makePages() {
     currentPageNextY = 0;
   }
 
-  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   currentTextBlock->layoutAndExtractLines(
       renderer, inHeader ? headerFontId : fontId, viewportWidth,
@@ -807,8 +806,10 @@ void ChapterHtmlSlimParser::makePages() {
  */
 bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w,
                                               int* h) {
+  const bool cacheIsJpeg = hasJpegExt(cacheImgPath);
+  const bool cacheIsPng = hasPngExt(cacheImgPath);
   if (SdMan.exists(cacheImgPath.c_str())) {
-    if (getBmpDimensions(cacheImgPath, w, h)) {
+    if (getImageDimensions(cacheImgPath, w, h)) {
       Serial.printf("[%lu] [EBP-IMG] cache hit %s\n", static_cast<unsigned long>(millis()), cacheImgPath.c_str());
       return true;
     }
@@ -823,13 +824,18 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
     return false;
   }
 
-  bool result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  bool result = false;
+  if (cacheIsJpeg || cacheIsPng) {
+    result = epub.extractItemToPath(internalPath, cacheImgPath, 4096);
+  } else {
+    result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  }
 
   if (result) {
     if (++imageExtractCountForYield_ % 2u == 0u) {
       yield();
     }
-    if (getBmpDimensions(cacheImgPath, w, h)) {
+    if (getImageDimensions(cacheImgPath, w, h)) {
       return true;
     }
     Serial.printf("[%lu] [EBP-IMG] post-extract BMP unreadable: %s\n", static_cast<unsigned long>(millis()),
@@ -866,9 +872,9 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     currentPageNextY = 0;
     currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
 
-    currentPageNextY = imgH + (renderer.getLineHeight(fontId) / 2);
+    currentPageNextY = imgH + (renderer.text.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
-    int minTextHeight = renderer.getLineHeight(fontId) * lineCompression * 2;
+    int minTextHeight = renderer.text.getLineHeight(fontId) * lineCompression * 2;
 
     if (remainingSpace < minTextHeight) {
       completePageFn(std::move(currentPage));
@@ -894,7 +900,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
   currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
 
-  currentPageNextY += imgH + (renderer.getLineHeight(fontId) / 2);
+  currentPageNextY += imgH + (renderer.text.getLineHeight(fontId) / 2);
 }
 
 /**

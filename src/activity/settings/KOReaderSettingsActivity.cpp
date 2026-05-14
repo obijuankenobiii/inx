@@ -181,13 +181,13 @@ void KOReaderSettingsActivity::render() {
   const auto screenHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "KOReader Sync", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "KOReader Sync", true, EpdFontFamily::BOLD);
   
   const char* subtitleText = "Configure sync settings.";
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 55, subtitleText);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 55, subtitleText);
 
   const int dividerY = HEADER_HEIGHT + 30;
-  renderer.drawLine(0, dividerY, screenWidth, dividerY);
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   
   int startY = dividerY;
@@ -199,14 +199,14 @@ void KOReaderSettingsActivity::render() {
       bool isSelected = (i == selectedIndex);
 
       if (isSelected) {
-        renderer.fillRect(0, itemY, screenWidth, LIST_ITEM_HEIGHT, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       
-      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
       
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, menuNames[i], !isSelected);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, menuNames[i], !isSelected);
 
       
       const char* status = "";
@@ -223,22 +223,22 @@ void KOReaderSettingsActivity::render() {
       }
 
       if (strlen(status) > 0) {
-        int statusWidth = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - statusWidth - 40, textY, status, !isSelected);
+        int statusWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - statusWidth - 40, textY, status, !isSelected);
       }
 
       
       if (i != 3) {
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 25, textY, "›", !isSelected);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 25, textY, "›", !isSelected);
       }
 
-      renderer.drawLine(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+      renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
     }
   }
 
   
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

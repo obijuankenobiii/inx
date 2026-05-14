@@ -21,6 +21,7 @@ constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
 constexpr char tmpCssBinFile[] = "/css.bin.tmp";  
+constexpr size_t kMaxParsedCssBytes = 50 * 1024;
 }  
 
 
@@ -465,9 +466,9 @@ void BookMetadataCache::createCssEntry(const std::string& path, const std::strin
   }
   
   
-  if (content.size() > MAX_CSS_SIZE) {
+  if (content.size() > kMaxParsedCssBytes) {
     Serial.printf("[%lu] [BMC] CSS file too large: %s (%d bytes, max %d)\n", 
-                  millis(), path.c_str(), (int)content.size(), MAX_CSS_SIZE);
+                  millis(), path.c_str(), (int)content.size(), static_cast<int>(kMaxParsedCssBytes));
     return;
   }
   
@@ -669,6 +670,12 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
           
           size_t cssSize;
           if (zip.getInflatedFileSize(fullCssPath.c_str(), &cssSize)) {
+            if (cssSize > kMaxParsedCssBytes) {
+              Serial.printf("[%lu] [BMC] Skipping large CSS file: %s (%u bytes)\n", millis(), fullCssPath.c_str(),
+                            static_cast<unsigned>(cssSize));
+              searchPos = itemPos + 5;
+              continue;
+            }
             std::string tempCssPath = cachePath + "/.css.tmp";
             FsFile cssTempFile;
             if (SdMan.openFileForWrite("BMC", tempCssPath, cssTempFile)) {
@@ -678,6 +685,14 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
                 
                 
                 if (SdMan.openFileForRead("BMC", tempCssPath, cssTempFile)) {
+                  if (cssTempFile.size() > kMaxParsedCssBytes) {
+                    Serial.printf("[%lu] [BMC] Skipping large CSS temp file: %s (%u bytes)\n", millis(),
+                                  fullCssPath.c_str(), static_cast<unsigned>(cssTempFile.size()));
+                    cssTempFile.close();
+                    SdMan.remove(tempCssPath.c_str());
+                    searchPos = itemPos + 5;
+                    continue;
+                  }
                   std::string cssContent;
                   cssContent.reserve(cssTempFile.size());
                   uint8_t cssBuf[1024];

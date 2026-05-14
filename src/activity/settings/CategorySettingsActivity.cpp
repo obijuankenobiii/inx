@@ -428,12 +428,12 @@ void CategorySettingsActivity::render() {
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY =
-      headerY + (headerHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
-  renderer.drawText(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
-  renderer.drawLine(0, dividerY, pageWidth, dividerY);
+  renderer.line.render(0, dividerY, pageWidth, dividerY);
 
   const int startY = dividerY;
   const int itemHeight = LIST_ITEM_HEIGHT;
@@ -453,32 +453,32 @@ void CategorySettingsActivity::render() {
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
-        renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
+        renderer.rectangle.fill(0, itemY, pageWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       int textX = 20;
-      int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, textY, indicator, !isSelected);
+        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, textY, indicator, !isSelected);
       }
 
-      renderer.drawLine(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
       visibleCount++;
       continue;
     }
 
     if (isSelected) {
-      renderer.fillRect(0, itemY, pageWidth, itemHeight, GfxRenderer::FillTone::Ink);
+      renderer.rectangle.fill(0, itemY, pageWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     int textX = 28;
-    int textY = itemY + (itemHeight - renderer.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-    renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
     const bool useCheckbox = (entry.type == SettingType::TOGGLE && entry.valuePtr);
     if (useCheckbox) {
@@ -497,12 +497,12 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.getTextWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        renderer.drawText(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, textY, val, !isSelected);
+        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, textY, val, !isSelected);
       }
     }
 
-    renderer.drawLine(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
     visibleCount++;
   }
 
@@ -511,7 +511,7 @@ void CategorySettingsActivity::render() {
     int listHeight = itemsPerPage * itemHeight;
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();
     int thumbY = startY + (scrollOffset * listHeight) / menuItems.size();
-    renderer.fillRect(pageWidth - 4, thumbY, 2, thumbH, true);
+    renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
   {
@@ -519,17 +519,17 @@ void CategorySettingsActivity::render() {
     renderer.setOrientation(GfxRenderer::Orientation::Portrait);
     const int pageHeight = renderer.getScreenHeight();
     constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-    const int lineH = renderer.getLineHeight(fontId);
+    const int lineH = renderer.text.getLineHeight(fontId);
     constexpr int kHintBarInsetFromBottom = 40;
     constexpr int kGapAboveHints = 8;
     const int versionRowTop = pageHeight - kHintBarInsetFromBottom - kGapAboveHints - lineH;
-    renderer.drawCenteredText(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
+    renderer.text.centered(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
     renderer.setOrientation(orientationBeforeHints);
   }
 
   const char* backLbl = backButtonLabel ? backButtonLabel : "\xC2\xAB Back";
   const auto labels = mappedInput.mapLabels(backLbl, "Toggle", "", "");
-  renderer.drawButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }
