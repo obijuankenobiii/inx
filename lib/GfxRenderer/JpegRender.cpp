@@ -203,8 +203,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   const int drawOffsetX = x + (targetWidth - outWidth) / 2;
   const int drawOffsetY = y + (targetHeight - outHeight) / 2;
   const int srcYEnd = srcOffsetY + cropSrcHeight;
+  const bool verticalUpscale = outHeight > cropSrcHeight;
 
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
+  uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
   uint32_t* rowAccum = new (std::nothrow) uint32_t[outWidth]();
   uint16_t* rowCount = new (std::nothrow) uint16_t[outWidth]();
   FourToneImageDitherer* twoBitDitherer = nullptr;
@@ -214,9 +216,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !rowAccum || !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+  if (!mcuRowBuffer || !scaledRow || !rowAccum || !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
+    free(scaledRow);
     delete[] rowAccum;
     delete[] rowCount;
     delete twoBitDitherer;
@@ -226,6 +229,42 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
+
+  auto emitOutputRow = [&](const int screenY, const uint8_t* row) {
+    for (int step = 0; step < outWidth; step++) {
+      const int ox = step;
+      const int gray = row[ox];
+
+      int q;
+      const int solidBlackMax =
+          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
+      const int solidWhiteMin =
+          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
+      if (gray <= solidBlackMax) {
+        q = 0;
+      } else if (gray >= solidWhiteMin) {
+        q = 255;
+      } else {
+        if (mode == ImageRenderMode::TwoBit) {
+          const int leftGray = ox > 0 ? row[ox - 1] : gray;
+          const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
+          const int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray);
+          q = twoBitDitherer->process(tone, step).value;
+        } else if (oneBitDitherer) {
+          q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
+        } else {
+          q = quantizeGray(gray, mode);
+        }
+      }
+
+      drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
+    }
+    if (mode == ImageRenderMode::TwoBit) {
+      twoBitDitherer->nextRow();
+    } else if (oneBitDitherer) {
+      oneBitDitherer->nextRow();
+    }
+  };
 
   for (int mcuY = 0; mcuY < imageInfo.m_MCUSPerCol; mcuY++) {
     for (int mcuX = 0; mcuX < imageInfo.m_MCUSPerRow; mcuX++) {
@@ -251,51 +290,29 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       for (int ox = 0; ox < outWidth; ox++) {
         const int sx = srcOffsetX + static_cast<int>((static_cast<uint64_t>(ox) * scaleX_fp) >> 16);
         if (sx >= srcOffsetX && sx < srcOffsetX + cropSrcWidth && sx < imageInfo.m_width) {
-          rowAccum[ox] += srcRow[sx];
-          rowCount[ox]++;
+          if (verticalUpscale) {
+            scaledRow[ox] = srcRow[sx];
+          } else {
+            rowAccum[ox] += srcRow[sx];
+            rowCount[ox]++;
+          }
         }
       }
       bool emittedOutputRow = false;
-      while ((static_cast<uint32_t>(srcY + 1) << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
+      const uint32_t cropRowsSeen = static_cast<uint32_t>(srcY - srcOffsetY + 1);
+      while ((cropRowsSeen << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
-        for (int step = 0; step < outWidth; step++) {
-          const int ox = step;
-          const int gray = rowCount[ox] ? static_cast<int>(rowAccum[ox] / rowCount[ox]) : 0;
-
-          int q;
-          const int solidBlackMax =
-              mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
-          const int solidWhiteMin =
-              mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
-          if (gray <= solidBlackMax) {
-            q = 0;
-          } else if (gray >= solidWhiteMin) {
-            q = 255;
-          } else {
-            if (mode == ImageRenderMode::TwoBit) {
-              const int leftGray = ox > 0 && rowCount[ox - 1] ? static_cast<int>(rowAccum[ox - 1] / rowCount[ox - 1]) : gray;
-              const int rightGray = ox + 1 < outWidth && rowCount[ox + 1] ? static_cast<int>(rowAccum[ox + 1] / rowCount[ox + 1]) : gray;
-              const int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray);
-              q = twoBitDitherer->process(tone, step).value;
-            } else if (oneBitDitherer) {
-              q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
-            } else {
-              q = quantizeGray(gray, mode);
-            }
+        if (!verticalUpscale) {
+          for (int ox = 0; ox < outWidth; ox++) {
+            scaledRow[ox] = rowCount[ox] ? static_cast<uint8_t>(rowAccum[ox] / rowCount[ox]) : 0;
           }
-
-          drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
         }
-        if (mode == ImageRenderMode::TwoBit) {
-          twoBitDitherer->nextRow();
-        } else if (oneBitDitherer) {
-          oneBitDitherer->nextRow();
-        }
+        emitOutputRow(screenY, scaledRow);
         currentOutY++;
         emittedOutputRow = true;
         nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
       }
-      if (emittedOutputRow) {
+      if (emittedOutputRow && !verticalUpscale) {
         memset(rowAccum, 0, static_cast<size_t>(outWidth) * sizeof(uint32_t));
         memset(rowCount, 0, static_cast<size_t>(outWidth) * sizeof(uint16_t));
       }
@@ -303,6 +320,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   }
 
   free(mcuRowBuffer);
+  free(scaledRow);
   delete[] rowAccum;
   delete[] rowCount;
   delete twoBitDitherer;

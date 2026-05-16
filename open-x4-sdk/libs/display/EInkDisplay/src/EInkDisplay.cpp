@@ -559,6 +559,10 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
   setCustomLUT(true, lut_grayscale);
   refreshDisplay(FAST_REFRESH, turnOffScreen);
   setCustomLUT(false);
+
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+  memcpy(frameBufferActive, frameBuffer, BUFFER_SIZE);
+#endif
 }
 
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {
