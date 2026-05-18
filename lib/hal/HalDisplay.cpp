@@ -27,6 +27,8 @@ EInkDisplay::RefreshMode convertRefreshMode(HalDisplay::RefreshMode mode) {
       return EInkDisplay::FULL_REFRESH;
     case HalDisplay::HALF_REFRESH:
       return EInkDisplay::HALF_REFRESH;
+    case HalDisplay::STRONG_FAST_REFRESH:
+      return EInkDisplay::STRONG_FAST_REFRESH;
     case HalDisplay::FAST_REFRESH:
     default:
       return EInkDisplay::FAST_REFRESH;

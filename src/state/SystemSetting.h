@@ -269,6 +269,25 @@ public:
     };
 
     /**
+     * @brief Library browser display modes
+     */
+    enum LIBRARY_MODE {
+        LIBRARY_LIST = 0,   ///< Compact list browser
+        LIBRARY_GRID = 1,   ///< 3x4 icon grid browser
+        LIBRARY_MODE_COUNT
+    };
+
+    /**
+     * @brief Library browser content view
+     */
+    enum LIBRARY_VIEW_MODE {
+        LIBRARY_VIEW_FOLDERS = 0,  ///< Folder/group browser
+        LIBRARY_VIEW_BOOKS = 1,    ///< Flat book list
+        LIBRARY_VIEW_TAGS = 2,     ///< Tag collections
+        LIBRARY_VIEW_MODE_COUNT
+    };
+
+    /**
      * @brief Boot destination settings
      */
     enum BOOT_SETTING {
@@ -370,9 +389,11 @@ public:
     
     
     uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
+    uint8_t libraryMode = LIBRARY_LIST;                       ///< Library browser display mode
+    uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;           ///< Last Library browser content view
     /** How many recent books to show on the Recent hub (1–8). */
     uint8_t recentVisibleCount = 8;
-    /** Library: 0 = folders and books A–Z only; 1 = use librarySortMode (favorites / groups / reading). */
+    /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
     uint8_t librarySortEnabled = 1;
     /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
     uint8_t librarySortMode = 0;

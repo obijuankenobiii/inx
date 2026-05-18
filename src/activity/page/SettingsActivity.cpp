@@ -22,7 +22,7 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 34;
+constexpr int systemPageSettingsCount = 35;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
@@ -33,6 +33,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
                       {"Grid","Current | Previous","Flow","Simple","List","Icons"},
                       GroupType::DEVICE_DISPLAY),
+    SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List","Grid"}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 8, 1}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Toggle("Fix sunlight fade", &SystemSetting::fixSunlightFade, GroupType::DEVICE_DISPLAY),
 

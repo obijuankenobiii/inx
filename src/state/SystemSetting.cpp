@@ -35,8 +35,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 19;
-constexpr uint8_t SETTINGS_COUNT = 52;
+constexpr uint8_t SETTINGS_FILE_VERSION = 21;
+constexpr uint8_t SETTINGS_COUNT = 54;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -95,8 +95,10 @@ bool SystemSetting::saveToFile() const {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
-    if (mut->librarySortMode > 5) mut->librarySortMode = 0;
+    if (mut->librarySortMode > 6) mut->librarySortMode = 0;
     if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
+    if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
+    if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -153,6 +155,8 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
   serialization::writePod(outputFile, fixSunlightFade);
+  serialization::writePod(outputFile, libraryMode);
+  serialization::writePod(outputFile, libraryViewMode);
 
   outputFile.close();
 
@@ -180,7 +184,7 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16 && version != 17 && version != 18) {
+      version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -486,7 +490,7 @@ bool SystemSetting::loadFromFile() {
     }
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, librarySortMode);
-      if (librarySortMode > 5) {
+      if (librarySortMode > 6) {
         librarySortMode = 0;
       }
       ++settingsRead;
@@ -496,6 +500,14 @@ bool SystemSetting::loadFromFile() {
       if (fixSunlightFade > 1) {
         fixSunlightFade = 0;
       }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, libraryMode, LIBRARY_MODE_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, libraryViewMode, LIBRARY_VIEW_MODE_COUNT);
       ++settingsRead;
     }
 
@@ -511,11 +523,17 @@ bool SystemSetting::loadFromFile() {
   if (librarySortEnabled > 1) {
     librarySortEnabled = 1;
   }
-  if (librarySortMode > 5) {
+  if (librarySortMode > 6) {
     librarySortMode = 0;
   }
   if (fixSunlightFade > 1) {
     fixSunlightFade = 0;
+  }
+  if (libraryMode >= LIBRARY_MODE_COUNT) {
+    libraryMode = LIBRARY_LIST;
+  }
+  if (libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) {
+    libraryViewMode = LIBRARY_VIEW_FOLDERS;
   }
 
   if (settingsRead < SETTINGS_COUNT) {

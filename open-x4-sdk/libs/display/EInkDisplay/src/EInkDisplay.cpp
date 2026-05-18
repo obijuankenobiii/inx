@@ -446,7 +446,7 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
   
   setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
-  if (mode != FAST_REFRESH) {
+  if (mode != FAST_REFRESH && mode != STRONG_FAST_REFRESH) {
     
     writeRamBuffer(CMD_WRITE_RAM_BW, frameBuffer, BUFFER_SIZE);
     writeRamBuffer(CMD_WRITE_RAM_RED, frameBuffer, BUFFER_SIZE);
@@ -464,8 +464,14 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
   swapBuffers();
 #endif
 
-  
-  refreshDisplay(mode, turnOffScreen);
+  if (mode == STRONG_FAST_REFRESH) {
+    refreshDisplay(FAST_REFRESH, false);
+    refreshDisplay(FAST_REFRESH, false);
+    refreshDisplay(FAST_REFRESH, false);
+    refreshDisplay(FAST_REFRESH, turnOffScreen);
+  } else {
+    refreshDisplay(mode, turnOffScreen);
+  }
 
 #ifdef EINK_DISPLAY_SINGLE_BUFFER_MODE
   
@@ -568,7 +574,7 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {
   
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
-  sendData((mode == FAST_REFRESH) ? CTRL1_NORMAL : CTRL1_BYPASS_RED);  
+  sendData((mode == FAST_REFRESH || mode == STRONG_FAST_REFRESH) ? CTRL1_NORMAL : CTRL1_BYPASS_RED);  
 
   uint8_t displayMode = 0x00;
 
