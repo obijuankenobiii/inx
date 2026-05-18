@@ -1006,6 +1006,33 @@ bool LibraryActivity::restoreSelectionToPath(const std::string& path) {
   return false;
 }
 
+bool LibraryActivity::restoreSelectionToTag(const std::string& tagKey) {
+  if (tagKey.empty()) {
+    return false;
+  }
+
+  const int originalPage = currentPage;
+
+  for (int page = 0; page < totalPages; ++page) {
+    currentPage = page;
+    loadAllBooksRecursive();
+    for (int i = 0; i < static_cast<int>(currentPageItems.size()); ++i) {
+      if (currentPageItems[i].type == LibraryItem::Type::FOLDER && currentPageItems[i].path == tagKey) {
+        selectorIndex = i;
+        isHeaderButtonSelected = false;
+        isIndexButtonSelected = false;
+        isSortButtonSelected = false;
+        listScrollOffset = 0;
+        return true;
+      }
+    }
+  }
+
+  currentPage = std::max(0, std::min(originalPage, totalPages - 1));
+  loadAllBooksRecursive();
+  return false;
+}
+
 /**
  * @brief Task trampoline for display task
  * @param param Pointer to LibraryActivity instance
@@ -1681,9 +1708,11 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
 void LibraryActivity::handleBackNavigation() {
   if (currentViewMode == ViewMode::TAG_VIEW) {
     if (!selectedTagKey_.empty()) {
+      const std::string previousTagKey = selectedTagKey_;
       selectedTagKey_.clear();
       resetNavigation();
       loadAllBooksRecursive();
+      restoreSelectionToTag(previousTagKey);
       updateRequired = true;
       return;
     }

@@ -188,6 +188,7 @@ class LibraryActivity final : public Activity, public Menu {
   bool shouldShowIndexButton() const;
   void showIndexingPopup() const;
   bool restoreSelectionToPath(const std::string& path);
+  bool restoreSelectionToTag(const std::string& tagKey);
 
   /**
    * @brief Reset navigation state (selection, scroll, page)
