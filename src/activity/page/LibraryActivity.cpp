@@ -2023,7 +2023,7 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
         tempEntry.tag = BookTags::find(tags, tempEntry.path);
-        tempEntry.folderPath = tempEntry.tag.empty() ? "Untagged" : tempEntry.tag;
+        tempEntry.folderPath = tempEntry.tag.empty() ? tempEntry.folderPath : tempEntry.tag;
       }
 
       if (isTagViewMode() && selectedTagKey_.empty()) {
