@@ -1935,12 +1935,13 @@ void LibraryActivity::renderGridItemIcon(const LibraryItem& item, int x, int y, 
   if (item.type == LibraryItem::Type::FOLDER) {
     renderer.bitmap.icon(isLarge ? FolderLarge : Folder, iconX, iconY, iconSize, iconSize, BitmapRender::Orientation::None, isSelected);
   } else {
-    renderer.bitmap.icon(isLarge ? BookLarge : Book, iconX, iconY, iconSize, iconSize, BitmapRender::Orientation::None, isSelected);
     if (isBookMarked(item.path)) {
       const int starSize = 18;
-      renderer.bitmap.icon(Star, x + w - starSize - 2, y + 2, starSize, starSize, BitmapRender::Orientation::None,
+      renderer.bitmap.icon(Star, x + w - starSize - 10, y, starSize, starSize, BitmapRender::Orientation::None,
                            isSelected);
     }
+    renderer.bitmap.icon(isLarge ? BookLarge : Book, iconX, iconY, iconSize, iconSize, BitmapRender::Orientation::None, isSelected);
+
   }
 }
 

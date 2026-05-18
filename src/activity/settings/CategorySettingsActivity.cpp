@@ -462,9 +462,9 @@ void CategorySettingsActivity::render() {
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, indicator);
-        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
+        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
+        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
                              !isSelected);
       }
 
@@ -499,9 +499,9 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, val);
-        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
+        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
       }
     }
 
