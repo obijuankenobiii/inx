@@ -95,7 +95,7 @@ bool SystemSetting::saveToFile() const {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
-    if (mut->librarySortMode > 6) mut->librarySortMode = 0;
+    if (mut->librarySortMode > 7) mut->librarySortMode = 0;
     if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
     if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
@@ -490,7 +490,7 @@ bool SystemSetting::loadFromFile() {
     }
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, librarySortMode);
-      if (librarySortMode > 6) {
+      if (librarySortMode > 7) {
         librarySortMode = 0;
       }
       ++settingsRead;
@@ -523,7 +523,7 @@ bool SystemSetting::loadFromFile() {
   if (librarySortEnabled > 1) {
     librarySortEnabled = 1;
   }
-  if (librarySortMode > 6) {
+  if (librarySortMode > 7) {
     librarySortMode = 0;
   }
   if (fixSunlightFade > 1) {

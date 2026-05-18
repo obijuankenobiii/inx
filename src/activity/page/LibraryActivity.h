@@ -62,7 +62,8 @@ class LibraryActivity final : public Activity, public Menu {
     GROUP_ZA,    ///< Group descending Z-A, then title A-Z (favorites first)
     READING_AZ,  ///< Reading status first (reading > unfinished > completed), then title A-Z
     READING_ZA,  ///< Reading status first (reading > unfinished > completed), then title Z-A
-    TAG          ///< User tag/category, then title A-Z
+    TAG_AZ,      ///< User tag/category A-Z, then title A-Z
+    TAG_ZA       ///< User tag/category Z-A, then title A-Z
   };
 
   static constexpr int LIST_ITEM_HEIGHT = 60;       ///< Height of list items in folder view

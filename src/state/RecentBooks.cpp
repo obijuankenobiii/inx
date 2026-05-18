@@ -202,3 +202,10 @@ void RecentBooks::removeBook(const std::string& path) {
     saveToFile();
   }
 }
+
+void RecentBooks::clear(const bool saveNow) {
+  recentBooks.clear();
+  if (saveNow) {
+    saveToFile();
+  }
+}

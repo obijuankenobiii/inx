@@ -54,7 +54,7 @@ namespace {
 uint8_t sortModeToStorage(SortMode m) { return static_cast<uint8_t>(m); }
 
 SortMode storageToSortMode(uint8_t v) {
-  if (v > static_cast<uint8_t>(SortMode::TAG)) {
+  if (v > static_cast<uint8_t>(SortMode::TAG_ZA)) {
     return SortMode::TITLE_AZ;
   }
   return static_cast<SortMode>(v);
@@ -793,7 +793,7 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
       return getReadingStatusComparator(true);  
     case SortMode::READING_ZA:
       return getReadingStatusComparator(false);  
-    case SortMode::TAG:
+    case SortMode::TAG_AZ:
       return [this](const TempBookEntry& a, const TempBookEntry& b) {
         if (favoritesPromoted && a.isFavorite != b.isFavorite) return a.isFavorite > b.isFavorite;
         std::string aTag = a.tag.empty() ? "zzzzzz untagged" : a.tag;
@@ -801,6 +801,16 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
         std::transform(aTag.begin(), aTag.end(), aTag.begin(), ::tolower);
         std::transform(bTag.begin(), bTag.end(), bTag.begin(), ::tolower);
         if (aTag != bTag) return aTag < bTag;
+        return a.sortKey < b.sortKey;
+      };
+    case SortMode::TAG_ZA:
+      return [this](const TempBookEntry& a, const TempBookEntry& b) {
+        if (favoritesPromoted && a.isFavorite != b.isFavorite) return a.isFavorite > b.isFavorite;
+        std::string aTag = a.tag.empty() ? "" : a.tag;
+        std::string bTag = b.tag.empty() ? "" : b.tag;
+        std::transform(aTag.begin(), aTag.end(), aTag.begin(), ::tolower);
+        std::transform(bTag.begin(), bTag.end(), bTag.begin(), ::tolower);
+        if (aTag != bTag) return aTag > bTag;
         return a.sortKey < b.sortKey;
       };
   }
@@ -899,7 +909,7 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
   switch (currentSortMode) {
     case SortMode::TITLE_AZ:
     case SortMode::GROUP_AZ:
-    case SortMode::TAG:
+    case SortMode::TAG_AZ:
       return [](const LibraryItem& a, const LibraryItem& b) {
         std::string aName = a.displayName;
         std::string bName = b.displayName;
@@ -909,6 +919,7 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
       };
     case SortMode::TITLE_ZA:
     case SortMode::GROUP_ZA:
+    case SortMode::TAG_ZA:
       return [](const LibraryItem& a, const LibraryItem& b) {
         std::string aName = a.displayName;
         std::string bName = b.displayName;
@@ -1035,9 +1046,9 @@ void LibraryActivity::render() const {
   int headerTextX = 20;
   int headerTextY = TAB_BAR_HEIGHT + (TAB_BAR_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   const bool showIndexButton = shouldShowIndexButton();
-  int containerWidth = screenWidth - (showIndexButton ? 120 : 110);
+  int containerWidth = screenWidth - 110;
   if (showIndexButton) {
-    containerWidth -= 50;
+    containerWidth -= 64;
   }
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
@@ -1092,7 +1103,7 @@ void LibraryActivity::switchToTagView() {
     savedFolderPath = basepath;
   }
   currentViewMode = ViewMode::TAG_VIEW;
-  currentSortMode = SortMode::TAG;
+  currentSortMode = SortMode::TAG_AZ;
   basepath = "/";
   selectedTagKey_.clear();
   resetNavigation();
@@ -1206,7 +1217,7 @@ void LibraryActivity::onEnter() {
   resetNavigation();
   tabSelectorIndex = 1;
   currentSortMode = storageToSortMode(SETTINGS.librarySortMode);
-  if (!SETTINGS.useLibraryIndex && currentSortMode == SortMode::TAG) {
+  if (!SETTINGS.useLibraryIndex && (currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA)) {
     currentSortMode = SortMode::TITLE_AZ;
   }
 
@@ -1708,9 +1719,12 @@ void LibraryActivity::cycleSortMode() {
       currentSortMode = SortMode::READING_ZA;
       break;
     case SortMode::READING_ZA:
-      currentSortMode = SETTINGS.useLibraryIndex ? SortMode::TAG : SortMode::TITLE_AZ;
+      currentSortMode = SETTINGS.useLibraryIndex ? SortMode::TAG_AZ : SortMode::TITLE_AZ;
       break;
-    case SortMode::TAG:
+    case SortMode::TAG_AZ:
+      currentSortMode = SortMode::TAG_ZA;
+      break;
+    case SortMode::TAG_ZA:
       currentSortMode = SortMode::TITLE_AZ;
       break;
   }
@@ -1758,8 +1772,10 @@ std::string LibraryActivity::getSortButtonText() const {
       return "Read A-Z";
     case SortMode::READING_ZA:
       return "Read Z-A";
-    case SortMode::TAG:
-      return "Tag";
+    case SortMode::TAG_AZ:
+      return "Tag A-Z";
+    case SortMode::TAG_ZA:
+      return "Tag Z-A";
   }
   return "Sort";
 }
@@ -2008,7 +2024,7 @@ void LibraryActivity::loadLibraryFromIndex() {
 void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<TempBookEntry> tempBooks;
   std::vector<BookTags::Entry> tags;
-  const bool useTags = isTagViewMode() || currentSortMode == SortMode::TAG;
+  const bool useTags = isTagViewMode() || currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
     BookTags::load(tags);
   }
@@ -2095,7 +2111,7 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
   std::vector<BookTags::Entry> tags;
-  const bool useTags = currentSortMode == SortMode::TAG;
+  const bool useTags = currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
     BookTags::load(tags);
   }

@@ -125,6 +125,16 @@ void BookState::setFinished(const std::string& path, bool finished) {
   }
 }
 
+void BookState::clear(const bool saveNow) {
+  books.clear();
+  pathIndex_.clear();
+  favoriteIndices_.clear();
+  nextId = 1;
+  if (saveNow) {
+    saveToFile();
+  }
+}
+
 bool BookState::saveToFile() const {
   SdMan.mkdir("/.metadata");
 
