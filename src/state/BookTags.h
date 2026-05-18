@@ -150,6 +150,54 @@ class BookTags {
     return writeAll(entries, tags);
   }
 
+  static bool renameTag(const std::string& rawOldTag, const std::string& rawNewTag) {
+    const std::string oldTag = normalizeTag(rawOldTag.c_str());
+    const std::string newTag = normalizeTag(rawNewTag.c_str());
+    if (oldTag.empty() || newTag.empty()) {
+      return false;
+    }
+    if (!SdMan.exists("/.metadata")) SdMan.mkdir("/.metadata");
+    if (!SdMan.exists("/.metadata/library")) SdMan.mkdir("/.metadata/library");
+
+    std::vector<Entry> entries;
+    load(entries);
+    std::vector<std::string> tags;
+    loadTagList(tags);
+
+    for (auto& entry : entries) {
+      if (entry.tag == oldTag) {
+        entry.tag = newTag;
+      }
+    }
+
+    for (auto& tag : tags) {
+      if (tag == oldTag) {
+        tag = newTag;
+      }
+    }
+    addUniqueTag(tags, newTag);
+    removeDuplicateTags(tags);
+    return writeAll(entries, tags);
+  }
+
+  static bool deleteTag(const std::string& rawTag) {
+    const std::string tag = normalizeTag(rawTag.c_str());
+    if (tag.empty()) {
+      return false;
+    }
+
+    std::vector<Entry> entries;
+    load(entries);
+    std::vector<std::string> tags;
+    loadTagList(tags);
+
+    entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                 [&](const Entry& entry) { return entry.tag == tag; }),
+                  entries.end());
+    tags.erase(std::remove(tags.begin(), tags.end(), tag), tags.end());
+    return writeAll(entries, tags);
+  }
+
  private:
   static void addUniqueTag(std::vector<std::string>& tags, const std::string& tag) {
     if (tag.empty()) {
@@ -169,6 +217,14 @@ class BookTags {
       std::transform(b.begin(), b.end(), b.begin(), ::tolower);
       return a < b;
     });
+  }
+
+  static void removeDuplicateTags(std::vector<std::string>& tags) {
+    std::vector<std::string> uniqueTags;
+    for (const auto& tag : tags) {
+      addUniqueTag(uniqueTags, tag);
+    }
+    tags = uniqueTags;
   }
 
   static bool writeAll(const std::vector<Entry>& entries, std::vector<std::string> tags) {

@@ -726,6 +726,27 @@ void LocalServer::handleBookTagsPost() const {
     return;
   }
 
+  if (strcmp(action, "renameTag") == 0) {
+    const char* oldTag = doc["oldTag"] | "";
+    const char* newTag = doc["newTag"] | "";
+    if (!BookTags::renameTag(oldTag, newTag)) {
+      server->send(500, "text/plain", "Failed to rename tag");
+      return;
+    }
+    server->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
+  if (strcmp(action, "deleteTag") == 0) {
+    const char* tag = doc["tag"] | "";
+    if (!BookTags::deleteTag(tag)) {
+      server->send(500, "text/plain", "Failed to delete tag");
+      return;
+    }
+    server->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
   const char* path = doc["path"] | "";
   const char* tag = doc["tag"] | "";
   if (!path[0]) {

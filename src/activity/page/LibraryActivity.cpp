@@ -82,6 +82,13 @@ ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
   return ViewMode::FOLDER_VIEW;
 }
 
+std::string normalizeLibraryPath(std::string path) {
+  while (path.length() > 1 && path.back() == '/') {
+    path.pop_back();
+  }
+  return path.empty() ? "/" : path;
+}
+
 /**
  * @brief RAII mutex guard for automatic mutex management
  */
@@ -121,7 +128,7 @@ constexpr int LIB_GRID_OUTER_PAD = 8;
 constexpr int LIB_GRID_LABEL_GAP = 4;
 constexpr int LIB_GRID_LABEL_H = 28;
 constexpr const char* TAG_UNTAGGED_KEY = "\x01";
-constexpr const char* TAG_UNTAGGED_LABEL = "Untagged";
+constexpr const char* TAG_UNTAGGED_LABEL = "Others";
 
 }  
 
@@ -971,6 +978,34 @@ void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& te
   }
 }
 
+bool LibraryActivity::restoreSelectionToPath(const std::string& path) {
+  const std::string targetPath = normalizeLibraryPath(path);
+  if (targetPath.empty()) {
+    return false;
+  }
+
+  const int originalPage = currentPage;
+
+  for (int page = 0; page < totalPages; ++page) {
+    currentPage = page;
+    loadAllBooksRecursive();
+    for (int i = 0; i < static_cast<int>(currentPageItems.size()); ++i) {
+      if (normalizeLibraryPath(currentPageItems[i].path) == targetPath) {
+        selectorIndex = i;
+        isHeaderButtonSelected = false;
+        isIndexButtonSelected = false;
+        isSortButtonSelected = false;
+        listScrollOffset = 0;
+        return true;
+      }
+    }
+  }
+
+  currentPage = std::max(0, std::min(originalPage, totalPages - 1));
+  loadAllBooksRecursive();
+  return false;
+}
+
 /**
  * @brief Task trampoline for display task
  * @param param Pointer to LibraryActivity instance
@@ -1666,6 +1701,11 @@ void LibraryActivity::handleBackNavigation() {
     return;
   }
 
+  std::string previousChildPath = basepath;
+  if (!previousChildPath.empty() && previousChildPath.back() != '/') {
+    previousChildPath += "/";
+  }
+
   std::string newPath = basepath;
 
   if (!newPath.empty() && newPath.back() == '/') {
@@ -1691,6 +1731,7 @@ void LibraryActivity::handleBackNavigation() {
 
   resetNavigation();
   loadAllBooksRecursive();
+  restoreSelectionToPath(previousChildPath);
   updateRequired = true;
 }
 
@@ -1810,7 +1851,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
   if (items.empty()) {
     int messageY = startY + 150;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, messageY, "No books found");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, messageY, "No books found");
     return;
   }
 
@@ -1962,31 +2003,31 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
 
   if (useTwoLineFormat) {
     std::string titleText =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, drawY + 5, titleText.c_str(), !isSelected);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 8, titleText.c_str(), !isSelected);
 
     std::string secondLineText =
         !item.folderPath.empty()
             ? renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.folderPath.c_str(), textWidth - 5)
             : "Library";
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 38, secondLineText.c_str(), !isSelected);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 40, secondLineText.c_str(), !isSelected);
 
     bool isDone = isBookFinished(item.path);
     int markerSpace = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
     if (isDone) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(completed)", !isSelected,
-                        EpdFontFamily::ITALIC);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 40, "(completed)", !isSelected,
+                        EpdFontFamily::BOLD);
     }
 
     if (isBookOpened(item.path) && !isDone) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 38, "(reading)", !isSelected,
-                        EpdFontFamily::ITALIC);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 40, "(reading)", !isSelected,
+                        EpdFontFamily::BOLD);
     }
   } else {
-    int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+    int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     std::string displayText =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
   }
 }
 
@@ -2125,7 +2166,7 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
         tempEntry.tag = BookTags::find(tags, tempEntry.path);
-        tempEntry.folderPath = tempEntry.tag.empty() ? "Untagged" : tempEntry.tag;
+        tempEntry.folderPath = tempEntry.tag.empty() ? "Others" : tempEntry.tag;
       }
 
       

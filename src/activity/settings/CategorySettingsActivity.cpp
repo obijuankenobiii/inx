@@ -462,8 +462,10 @@ void CategorySettingsActivity::render() {
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, textY, indicator, !isSelected);
+        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, indicator);
+        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
+                             !isSelected);
       }
 
       renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
@@ -475,7 +477,7 @@ void CategorySettingsActivity::render() {
       renderer.rectangle.fill(0, itemY, pageWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    int textX = 28;
+    int textX = entry.group == GroupType::NONE ? 20 : 28;
     int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
@@ -497,8 +499,9 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, textY, val, !isSelected);
+        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, val);
+        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
       }
     }
 

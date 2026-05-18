@@ -187,6 +187,7 @@ class LibraryActivity final : public Activity, public Menu {
   void startLibraryIndexing();
   bool shouldShowIndexButton() const;
   void showIndexingPopup() const;
+  bool restoreSelectionToPath(const std::string& path);
 
   /**
    * @brief Reset navigation state (selection, scroll, page)

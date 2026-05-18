@@ -28,7 +28,11 @@
   .new-tag-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
   .add-btn { padding: 10px 18px; background: #111; color: #fff; border: none; border-radius: 8px; font: inherit; cursor: pointer; }
   .tag-list { display: flex; gap: 8px; flex-wrap: wrap; }
-  .tag-pill { padding: 6px 10px; border-radius: 999px; background: #eee; color: #111; font-size: 13px; }
+  .tag-pill { padding: 5px 8px 5px 10px; border-radius: 999px; background: #eee; color: #111; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .tag-actions { display: inline-flex; align-items: center; gap: 2px; }
+  .tag-mini-btn { border: none; background: rgba(255,255,255,.7); color: #333; border-radius: 999px; padding: 3px 7px; font: inherit; font-size: 11px; cursor: pointer; }
+  .tag-mini-btn:hover { background: #111; color: #fff; }
+  .tag-mini-btn.danger:hover { background: #ff3b30; color: #fff; }
   .book-list { display: flex; flex-direction: column; gap: 8px; }
   .book-row { display: grid; grid-template-columns: 1fr 210px; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
   .book-row:last-child { border-bottom: none; }
@@ -175,7 +179,16 @@ function renderTags() {
   const opts = document.getElementById("tagOptions");
   document.getElementById("tagSummary").textContent = tags.length ? tags.length + " reusable tags" : "No tags yet";
   opts.innerHTML = tags.map(t => '<option value="' + escapeHtml(t) + '"></option>').join("");
-  tagList.innerHTML = tags.length ? tags.map(t => '<span class="tag-pill">' + escapeHtml(t) + '</span>').join("") : '<div class="summary">Create tags here, then reuse them below.</div>';
+  tagList.innerHTML = tags.length ? tags.map(t => {
+    const safeTag = escapeHtml(t);
+    return '<span class="tag-pill"><span>' + safeTag + '</span><span class="tag-actions"><button class="tag-mini-btn tag-edit-btn" data-tag="' + safeTag + '">Edit</button><button class="tag-mini-btn danger tag-delete-btn" data-tag="' + safeTag + '">Delete</button></span></span>';
+  }).join("") : '<div class="summary">Create tags here, then reuse them below.</div>';
+  document.querySelectorAll(".tag-edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => renameTag(btn.dataset.tag || ""));
+  });
+  document.querySelectorAll(".tag-delete-btn").forEach(btn => {
+    btn.addEventListener("click", () => deleteTag(btn.dataset.tag || ""));
+  });
 }
 
 function renderBooks() {
@@ -223,6 +236,46 @@ async function addTag() {
     showToast("Tag added");
   } catch (e) {
     showToast("Failed to add tag", true);
+  }
+}
+
+async function renameTag(oldTag) {
+  const newTag = (prompt("Rename tag", oldTag) || "").trim();
+  if (!newTag || newTag === oldTag) return;
+  try {
+    const ok = (await fetch("/api/book-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "renameTag", oldTag, newTag })
+    })).ok;
+    if (!ok) throw new Error("rename failed");
+    tags = tags.map(t => t === oldTag ? newTag : t).filter((t, i, a) => a.indexOf(t) === i);
+    tags.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    books.forEach(b => { if (b.tag === oldTag) b.tag = newTag; });
+    renderTags();
+    renderBooks();
+    showToast("Tag renamed");
+  } catch (e) {
+    showToast("Failed to rename tag", true);
+  }
+}
+
+async function deleteTag(tag) {
+  if (!confirm('Delete tag "' + tag + '" and clear it from matching books?')) return;
+  try {
+    const ok = (await fetch("/api/book-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "deleteTag", tag })
+    })).ok;
+    if (!ok) throw new Error("delete failed");
+    tags = tags.filter(t => t !== tag);
+    books.forEach(b => { if (b.tag === tag) b.tag = ""; });
+    renderTags();
+    renderBooks();
+    showToast("Tag deleted");
+  } catch (e) {
+    showToast("Failed to delete tag", true);
   }
 }
 
