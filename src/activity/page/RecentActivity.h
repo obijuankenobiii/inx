@@ -100,6 +100,8 @@ class RecentActivity final : public Activity, public Menu {
    * Filters out books that no longer exist on the SD card.
    */
   void loadRecentBooks(bool resetScroll = true);
+  bool openBookPath(const std::string& path, const std::string& title = "", const std::string& author = "",
+                    bool removeMissingFromRecents = false);
   const CachedRecentStats& statsForRecentIndex(int index) const;
   void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
