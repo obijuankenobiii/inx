@@ -20,10 +20,9 @@
 #include "esp_wifi.h"
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases/latest";
 
-
-constexpr size_t kReleaseJsonPreallocSizes[] = {4096, 6144, 8192, 10240, 12288};
+constexpr size_t kMaxReleaseJsonBytes = 12288;
 
 constexpr int kGithubCheckTaskStack = 16384;
 constexpr int kGithubCheckTaskPrio = 3;
@@ -53,11 +52,15 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
     const int content_len = esp_http_client_get_content_length(event->client);
     const bool chunked = esp_http_client_is_chunked_response(event->client);
     if (!chunked && content_len > 0) {
+      if (static_cast<size_t>(content_len) + 1 > kMaxReleaseJsonBytes) {
+        Serial.printf("[%lu] [OTA] HTTP body too large from Content-Length (%d cap %u)\n", millis(), content_len,
+                      static_cast<unsigned>(kMaxReleaseJsonBytes));
+        return ESP_ERR_NO_MEM;
+      }
       local_buf_cap = static_cast<size_t>(content_len) + 1;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     } else {
-      
-      local_buf_cap = need;
+      local_buf_cap = kMaxReleaseJsonBytes;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     }
     if (local_buf == nullptr) {
@@ -69,8 +72,21 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   }
 
   if (need > local_buf_cap) {
-    
-    const size_t ncap = need;
+    if (need > kMaxReleaseJsonBytes) {
+      Serial.printf("[%lu] [OTA] HTTP body too large (need %u cap %u free %u largest %u)\n", millis(),
+                    static_cast<unsigned>(need), static_cast<unsigned>(kMaxReleaseJsonBytes),
+                    static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      return ESP_ERR_NO_MEM;
+    }
+
+    size_t ncap = local_buf_cap * 2;
+    if (ncap < need) {
+      ncap = need;
+    }
+    if (ncap > kMaxReleaseJsonBytes) {
+      ncap = kMaxReleaseJsonBytes;
+    }
     char* nb = static_cast<char*>(realloc(local_buf, ncap));
     if (nb == nullptr) {
       Serial.printf("[%lu] [OTA] HTTP body buffer realloc failed (cap %u need %u free %u largest %u)\n", millis(),
@@ -147,8 +163,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   esp_http_client_config_t client_config = {};
   client_config.url = latestReleaseUrl;
   client_config.event_handler = event_handler;
-  client_config.buffer_size = 3072;
-  client_config.buffer_size_tx = 1536;
+  client_config.buffer_size = 2048;
+  client_config.buffer_size_tx = 1024;
   client_config.timeout_ms = 25000;
   client_config.skip_cert_common_name_check = true;
   client_config.crt_bundle_attach = esp_crt_bundle_attach;
@@ -188,20 +204,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     return INTERNAL_UPDATE_ERROR;
   }
 
-  
-  for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
-    void* p = calloc(tryBytes, 1);
-    if (p != nullptr) {
-      local_buf = static_cast<char*>(p);
-      local_buf_cap = tryBytes;
-      Serial.printf("[%lu] [OTA] HTTP body prealloc %u bytes (free %u largest %u)\n", millis(),
-                    static_cast<unsigned>(tryBytes), static_cast<unsigned>(ESP.getFreeHeap()),
-                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-      break;
-    }
-  }
-
-  
   vTaskDelay(pdMS_TO_TICKS(200));
   esp_task_wdt_reset();
 
