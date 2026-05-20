@@ -26,8 +26,7 @@ constexpr unsigned long kChordHoldMs = 600;
 constexpr int kHighlightLatticeStepPx = 2;
 /** ADC/button bounce can deliver two wasPressed edges ~ms apart; loop has no delay — suppress 2nd edge. */
 constexpr unsigned long kNavEdgeDebounceMs = 130;
-/** After initial edge, repeat nav while held (long-press highlight extension). */
-constexpr unsigned long kNavRepeatInitialMs = 420;
+constexpr unsigned long kNavRepeatInitialMs = 700;
 constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 }  // namespace
@@ -209,8 +208,8 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
   MappedInputManager& m = act.mappedInput;
   const unsigned long now = millis();
 
-  // Initial edge: one step only (debounced). Schedules timed repeats while held — do not use raw isPressed on the same
-  // path as wasPressed in one check, or the first frame double-counts.
+  // One edge = one move. Holding the same direction starts repeat only after a long enough delay
+  // that a normal click cannot jump two words/lines.
   if (m.wasPressed(Btn::Left)) {
     if (isDuplicateNavEdge(0, now)) {
       return true;
@@ -255,41 +254,33 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     act.startPageTimer();
     return true;
   }
-
-  // Long-hold: repeat after initial delay, then at fixed interval (held button only; avoids first-frame double step).
-  if (annNavRepeatDir_ == 0 && m.isPressed(Btn::Left) && now >= annNavRepeatNextMs_) {
-    moveFocusWord(-1);
-    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
-    act.updateRequired = true;
-    act.startPageTimer();
-    return true;
-  }
-  if (annNavRepeatDir_ == 1 && m.isPressed(Btn::Right) && now >= annNavRepeatNextMs_) {
-    moveFocusWord(1);
-    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
-    act.updateRequired = true;
-    act.startPageTimer();
-    return true;
-  }
-  if (annNavRepeatDir_ == 2 && m.isPressed(Btn::Up) && now >= annNavRepeatNextMs_) {
-    moveFocusLine(-1);
-    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
-    act.updateRequired = true;
-    act.startPageTimer();
-    return true;
-  }
-  if (annNavRepeatDir_ == 3 && m.isPressed(Btn::Down) && now >= annNavRepeatNextMs_) {
-    moveFocusLine(1);
-    annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
-    act.updateRequired = true;
-    act.startPageTimer();
-    return true;
-  }
-
-  if (!m.isPressed(Btn::Left) && !m.isPressed(Btn::Right) && !m.isPressed(Btn::Up) && !m.isPressed(Btn::Down)) {
+  const bool leftHeld = m.isPressed(Btn::Left);
+  const bool rightHeld = m.isPressed(Btn::Right);
+  const bool upHeld = m.isPressed(Btn::Up);
+  const bool downHeld = m.isPressed(Btn::Down);
+  if (!leftHeld && !rightHeld && !upHeld && !downHeld) {
     annNavRepeatDir_ = -1;
+    return false;
   }
-  return false;
+  if (annNavRepeatDir_ < 0 || now < annNavRepeatNextMs_) {
+    return false;
+  }
+  if (annNavRepeatDir_ == 0 && leftHeld) {
+    moveFocusWord(-1);
+  } else if (annNavRepeatDir_ == 1 && rightHeld) {
+    moveFocusWord(1);
+  } else if (annNavRepeatDir_ == 2 && upHeld) {
+    moveFocusLine(-1);
+  } else if (annNavRepeatDir_ == 3 && downHeld) {
+    moveFocusLine(1);
+  } else {
+    annNavRepeatDir_ = -1;
+    return false;
+  }
+  annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
+  act.updateRequired = true;
+  act.startPageTimer();
+  return true;
 }
 
 std::string EpubAnnotationUi::extractRangeText(const size_t anchorFlat, const size_t focusFlat) const {
