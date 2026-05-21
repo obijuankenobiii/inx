@@ -9,6 +9,8 @@
 #include <ArduinoJson.h>
 #include <new>
 
+#include <algorithm>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -16,8 +18,10 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
+#include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
+#include <SDCardManager.h>
 
 namespace {
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases/latest";
@@ -358,5 +362,89 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   }
 
   Serial.printf("[%lu] [OTA] Update completed\n", millis());
+  return OK;
+}
+
+OtaUpdater::OtaUpdaterError OtaUpdater::installUpdateFromSd(const char* firmwarePath) {
+  if (firmwarePath == nullptr || firmwarePath[0] == '\0') {
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  FsFile file;
+  if (!SdMan.openFileForRead("OTA", firmwarePath, file)) {
+    Serial.printf("[%lu] [OTA] SD firmware not found: %s\n", millis(), firmwarePath);
+    return HTTP_ERROR;
+  }
+
+  const size_t firmwareSize = file.size();
+  if (firmwareSize == 0) {
+    Serial.printf("[%lu] [OTA] SD firmware is empty: %s\n", millis(), firmwarePath);
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  const esp_partition_t* updatePartition = esp_ota_get_next_update_partition(nullptr);
+  if (updatePartition == nullptr) {
+    Serial.printf("[%lu] [OTA] No OTA update partition available\n", millis());
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  Serial.printf("[%lu] [OTA] Installing SD firmware %s (%u bytes) to %s\n", millis(), firmwarePath,
+                static_cast<unsigned>(firmwareSize), updatePartition->label);
+
+  esp_ota_handle_t otaHandle = 0;
+  esp_err_t err = esp_ota_begin(updatePartition, firmwareSize, &otaHandle);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_begin failed: %s\n", millis(), esp_err_to_name(err));
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  uint8_t buffer[1024];
+  processedSize = 0;
+  totalSize = firmwareSize;
+  render = false;
+
+  while (processedSize < firmwareSize) {
+    const size_t toRead = std::min(sizeof(buffer), firmwareSize - processedSize);
+    const int readBytes = file.read(buffer, toRead);
+    if (readBytes <= 0) {
+      Serial.printf("[%lu] [OTA] SD read failed at %u / %u\n", millis(), static_cast<unsigned>(processedSize),
+                    static_cast<unsigned>(firmwareSize));
+      esp_ota_abort(otaHandle);
+      file.close();
+      return HTTP_ERROR;
+    }
+
+    err = esp_ota_write(otaHandle, buffer, static_cast<size_t>(readBytes));
+    if (err != ESP_OK) {
+      Serial.printf("[%lu] [OTA] esp_ota_write failed: %s\n", millis(), esp_err_to_name(err));
+      esp_ota_abort(otaHandle);
+      file.close();
+      return INTERNAL_UPDATE_ERROR;
+    }
+
+    processedSize += static_cast<size_t>(readBytes);
+    render = true;
+    esp_task_wdt_reset();
+    vTaskDelay(1);
+  }
+
+  file.close();
+
+  err = esp_ota_end(otaHandle);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_end failed: %s\n", millis(), esp_err_to_name(err));
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  err = esp_ota_set_boot_partition(updatePartition);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_set_boot_partition failed: %s\n", millis(), esp_err_to_name(err));
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  Serial.printf("[%lu] [OTA] SD firmware install completed\n", millis());
   return OK;
 }
