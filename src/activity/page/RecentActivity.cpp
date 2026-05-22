@@ -617,6 +617,36 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
   rebuildSimpleUiFavorites(favorites);
 }
 
+bool RecentActivity::openBookPath(const std::string& path, const std::string& title, const std::string& author,
+                                  const bool removeMissingFromRecents) {
+  if (path.empty()) {
+    return false;
+  }
+
+  if (!SdMan.exists(path.c_str())) {
+    if (removeMissingFromRecents) {
+      RECENT_BOOKS.removeBook(path);
+      loadRecentBooks(false);
+      const int n = static_cast<int>(recentBooks.size());
+      selectorIndex = n == 0 ? 0 : std::min(selectorIndex, n - 1);
+      scrollOffset = 0;
+      scrollOffsetDefault = 0;
+      updateRequired = true;
+    }
+    return false;
+  }
+
+  auto* book = BOOK_STATE.findBookByPath(path);
+  if (!book) {
+    BOOK_STATE.addOrUpdateBook(path, title.empty() ? formatTitle(getBaseFilename(path)) : title, author);
+  }
+  BOOK_STATE.setReading(path, true);
+
+  bookSelected = true;
+  onSelectBook(path);
+  return true;
+}
+
 const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(const int index) const {
   static const CachedRecentStats empty;
   if (index < 0 || index >= static_cast<int>(recentStats_.size()) ||
@@ -1284,14 +1314,14 @@ void RecentActivity::loop() {
     }
     if (confirmPressed) {
       if (recentSlots == 1 && selectorIndex == 0) {
-        bookSelected = true;
-        onSelectBook(recentBooks[0].path);
+        const auto& book = recentBooks[0];
+        openBookPath(book.path, book.title, book.author, true);
         return;
       }
       const int fi = selectorIndex - recentSlots;
       if (fi >= 0 && fi < favCount) {
-        bookSelected = true;
-        onSelectBook(simpleUiFavorites_[static_cast<size_t>(fi)].path);
+        const auto& book = simpleUiFavorites_[static_cast<size_t>(fi)];
+        openBookPath(book.path, book.title, book.author, false);
         return;
       }
     }
@@ -1314,8 +1344,8 @@ void RecentActivity::loop() {
     }
 
     if (confirmPressed && selectorIndex >= 0 && selectorIndex < totalBooks) {
-      bookSelected = true;
-      onSelectBook(recentBooks[selectorIndex].path);
+      const auto& book = recentBooks[selectorIndex];
+      openBookPath(book.path, book.title, book.author, true);
       return;
     }
   } else if (isListView) {
@@ -1341,8 +1371,8 @@ void RecentActivity::loop() {
     }
 
     if (confirmPressed && selectorIndex >= 0 && selectorIndex < totalBooks) {
-      bookSelected = true;
-      onSelectBook(recentBooks[selectorIndex].path);
+      const auto& book = recentBooks[selectorIndex];
+      openBookPath(book.path, book.title, book.author, true);
       return;
     }
   } else {
@@ -1369,8 +1399,8 @@ void RecentActivity::loop() {
     }
 
     if (confirmPressed && selectorIndex >= 0 && selectorIndex < totalBooks) {
-      bookSelected = true;
-      onSelectBook(recentBooks[selectorIndex].path);
+      const auto& book = recentBooks[selectorIndex];
+      openBookPath(book.path, book.title, book.author, true);
       return;
     }
   }

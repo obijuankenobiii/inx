@@ -79,6 +79,7 @@
     <a class="nav-btn" href="/">Dashboard</a>
     <a class="nav-btn" href="/files">Files</a>
     <a class="nav-btn" href="/epub">Epub</a>
+    <a class="nav-btn" href="/tags">Tags</a>
     <a class="nav-btn" href="/font-manager">Fonts</a>
     <a class="nav-btn active" href="/settings">Settings</a>
   </div>
@@ -106,6 +107,10 @@
       <div class="setting-item">
         <div><div class="setting-label">Recent Library Mode</div></div>
         <div class="setting-control"><select id="recentLibraryMode"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Library Mode</div></div>
+        <div class="setting-control"><select id="libraryMode"></select></div>
       </div>
       <div class="setting-item">
         <div><div class="setting-label">Recent books shown</div></div>
@@ -350,6 +355,7 @@ const options = {
   sleepScreenCoverFilter: ["None", "Contrast", "Inverted"],
   hideBatteryPercentage: ["Never", "In Reader", "Always"],
   recentLibraryMode: ["Grid", "Current | Previous", "Flow", "Simple", "List", "Icons"],
+  libraryMode: ["List", "Grid"],
   frontButtonLayout: ["Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right", "Back, Confirm, Right, Left"],
   shortPwrBtn: ["Ignore", "Sleep", "Page Refresh"],
   sleepTimeout: ["1 min", "5 min", "10 min", "15 min", "30 min"],

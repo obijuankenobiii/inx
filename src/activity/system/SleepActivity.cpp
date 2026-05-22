@@ -57,17 +57,11 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
     return;
   }
 
-    if (!renderer.storeBwBuffer()) {
-      return;
-    }
-
-
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
 
   if (ImageRender::create(renderer, imagePath)
           .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-    renderer.restoreBwBuffer();
     return;
   }
 
@@ -83,7 +77,6 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 
   renderer.displayGrayBuffer();
   renderer.setRenderMode(GfxRenderer::BW);
-      renderer.restoreBwBuffer();
 }
 
 void recordSleepImageUsed() {
@@ -408,7 +401,7 @@ void SleepActivity::onEnter() {
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   renderer.clearScreen(0xff);
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   if (!imagePath.empty()) {
     recordSleepImageUsed();
 
@@ -455,6 +448,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
+      options.useDisplayCache = false;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);

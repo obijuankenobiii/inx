@@ -62,6 +62,11 @@ class RecentBooks {
   void removeBook(const std::string& path);
 
   /**
+   * @brief Clear all recent books from memory and optionally persist the empty list
+   */
+  void clear(bool saveNow = true);
+
+  /**
    * @brief Get the list of recent books (most recent first)
    */
   const std::vector<RecentBook>& getBooks() const { return recentBooks; }

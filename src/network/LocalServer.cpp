@@ -13,6 +13,7 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cstring>
 
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
@@ -22,8 +23,11 @@
 #include "html/JsZipMinJs.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
+#include "html/TagsPageHtml.generated.h"
 #include "util/StringUtils.h"
 #include "state/SystemSetting.h"
+#include "state/BookTags.h"
+#include "activity/settings/LibraryIndexer.h"
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
 #include "system/FontManager.h"
@@ -38,6 +42,11 @@ constexpr uint16_t LOCAL_UDP_PORT = 8134;
 
 
 LocalServer* wsInstance = nullptr;
+
+volatile bool webLibraryIndexing = false;
+volatile int webLibraryIndexCurrent = 0;
+volatile int webLibraryIndexTotal = 0;
+char webLibraryIndexPath[128] = "";
 
 
 FsFile wsUploadFile;
@@ -58,6 +67,166 @@ void clearEpubCacheIfNeeded(const String& filePath) {
     Epub(filePath.c_str(), "/.metadata").clearCache();
     Serial.printf("[%lu] [WEB] Cleared epub cache for: %s\n", millis(), filePath.c_str());
   }
+}
+
+struct IndexedBookInfo {
+  String path;
+  String title;
+  String folder;
+  String tag;
+};
+
+String jsonEscape(const String& s) {
+  String out;
+  out.reserve(s.length() + 8);
+  for (size_t i = 0; i < s.length(); ++i) {
+    char c = s.charAt(i);
+    switch (c) {
+      case '"':
+        out += "\\\"";
+        break;
+      case '\\':
+        out += "\\\\";
+        break;
+      case '\n':
+        out += "\\n";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        out += c;
+        break;
+    }
+  }
+  return out;
+}
+
+bool readExactString(FsFile& file, size_t len, String& out) {
+  out = "";
+  if (len == 0) {
+    return true;
+  }
+  std::vector<char> buf(len + 1, 0);
+  if (file.read(buf.data(), len) != static_cast<int>(len)) {
+    return false;
+  }
+  out = String(buf.data());
+  return true;
+}
+
+String indexedFolderName(const String& path) {
+  if (path == "/" || path.length() == 0) {
+    return "Library";
+  }
+  int lastSlash = path.lastIndexOf('/');
+  if (lastSlash < 0) {
+    return path;
+  }
+  String name = path.substring(lastSlash + 1);
+  return name.length() ? name : "Library";
+}
+
+bool readIndexedBook(FsFile& idxFile, IndexedBookInfo& out) {
+  uint16_t pLen = 0;
+  if (idxFile.read(&pLen, sizeof(pLen)) != sizeof(pLen)) return false;
+  if (!readExactString(idxFile, pLen, out.path)) return false;
+
+  uint8_t nLen = 0;
+  if (idxFile.read(&nLen, sizeof(nLen)) != sizeof(nLen)) return false;
+  idxFile.seek(idxFile.position() + nLen);
+
+  uint8_t dLen = 0;
+  if (idxFile.read(&dLen, sizeof(dLen)) != sizeof(dLen)) return false;
+  if (!readExactString(idxFile, dLen, out.title)) return false;
+
+  uint8_t fLen = 0;
+  if (idxFile.read(&fLen, sizeof(fLen)) != sizeof(fLen)) return false;
+  if (!readExactString(idxFile, fLen, out.folder)) return false;
+  if (out.folder.length() == 0) {
+    int slash = out.path.lastIndexOf('/');
+    out.folder = slash <= 0 ? "Library" : indexedFolderName(out.path.substring(0, slash));
+  }
+  return true;
+}
+
+void skipIndexedDirectory(FsFile& idxFile) {
+  uint16_t pathLen = 0;
+  if (idxFile.read(&pathLen, sizeof(pathLen)) != sizeof(pathLen)) return;
+  idxFile.seek(idxFile.position() + pathLen);
+  uint16_t entryCount = 0;
+  idxFile.read(&entryCount, sizeof(entryCount));
+}
+
+bool loadIndexedBooksWithTags(std::vector<IndexedBookInfo>& books) {
+  books.clear();
+  FsFile idxFile = SdMan.open("/.metadata/library/library.idx", O_READ);
+  if (!idxFile) {
+    return false;
+  }
+
+  char magic[4] = {};
+  uint8_t version = 0;
+  if (idxFile.read(magic, 4) != 4 || memcmp(magic, "LIBX", 4) != 0 || idxFile.read(&version, 1) != 1) {
+    idxFile.close();
+    return false;
+  }
+
+  std::vector<BookTags::Entry> tags;
+  BookTags::load(tags);
+
+  while (idxFile.available()) {
+    uint8_t marker = 0;
+    if (idxFile.read(&marker, 1) != 1) break;
+    if (marker == 0x01) {
+      IndexedBookInfo book;
+      if (!readIndexedBook(idxFile, book)) break;
+      const std::string tag = BookTags::find(tags, book.path.c_str());
+      book.tag = tag.c_str();
+      books.push_back(book);
+      if ((books.size() % 64u) == 0u) {
+        yield();
+      }
+    } else if (marker == 0xFF) {
+      skipIndexedDirectory(idxFile);
+    }
+  }
+
+  idxFile.close();
+  return true;
+}
+
+void webLibraryIndexTask(void*) {
+  webLibraryIndexCurrent = 0;
+  webLibraryIndexTotal = 0;
+  webLibraryIndexPath[0] = '\0';
+
+  FsFile root = SdMan.open("/");
+  if (root) {
+    webLibraryIndexTotal = LibraryIndexer::countBooks(root);
+    root.close();
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(10));
+
+  LibraryIndexer::indexAll([](int current, int total, const char* path) {
+    webLibraryIndexCurrent = current;
+    webLibraryIndexTotal = total;
+    if (path) {
+      strlcpy(webLibraryIndexPath, path, sizeof(webLibraryIndexPath));
+    }
+    if (current % 10 == 0) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  });
+
+  SETTINGS.useLibraryIndex = 1;
+  SETTINGS.saveToFile();
+  webLibraryIndexing = false;
+  vTaskDelete(nullptr);
 }
 }  
 
@@ -114,12 +283,17 @@ void LocalServer::begin() {
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
   server->on("/epub", HTTP_GET, [this] { handleEpubPage(); });
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
+  server->on("/tags", HTTP_GET, [this] { handleTagsPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
   server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
+  server->on("/api/book-tags", HTTP_GET, [this] { handleBookTagsGet(); });
+  server->on("/api/book-tags", HTTP_POST, [this] { handleBookTagsPost(); });
+  server->on("/api/library-index/refresh", HTTP_POST, [this] { handleLibraryIndexRefresh(); });
+  server->on("/api/library-index/status", HTTP_GET, [this] { handleLibraryIndexStatus(); });
   server->on("/download", HTTP_GET, [this] { handleDownload(); });
 
   
@@ -387,6 +561,8 @@ void LocalServer::handleEpubPage() const {
 
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
+void LocalServer::handleTagsPage() const { server->send(200, "text/html", TagsPageHtml); }
+
 void LocalServer::handleInxFontPackJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_FONT_PACK_JS,
                   sizeof(INX_FONT_PACK_JS) - 1);
@@ -448,6 +624,142 @@ void LocalServer::handleFileListData() const {
   
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
+}
+
+void LocalServer::handleBookTagsGet() const {
+  std::vector<IndexedBookInfo> books;
+  const bool hasIndex = loadIndexedBooksWithTags(books);
+  std::vector<std::string> tags;
+  BookTags::loadTagList(tags);
+
+  std::sort(books.begin(), books.end(), [](const IndexedBookInfo& a, const IndexedBookInfo& b) {
+    String aTitle = a.title;
+    String bTitle = b.title;
+    aTitle.toLowerCase();
+    bTitle.toLowerCase();
+    return aTitle < bTitle;
+  });
+
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("{\"indexed\":");
+  server->sendContent(hasIndex ? "true" : "false");
+  server->sendContent(",\"tags\":[");
+  for (size_t i = 0; i < tags.size(); ++i) {
+    if (i > 0) {
+      server->sendContent(",");
+    }
+    server->sendContent("\"" + jsonEscape(tags[i].c_str()) + "\"");
+  }
+  server->sendContent("],\"books\":[");
+  bool first = true;
+  for (const auto& book : books) {
+    if (!first) {
+      server->sendContent(",");
+    }
+    first = false;
+    String row = "{\"path\":\"" + jsonEscape(book.path) + "\",\"title\":\"" + jsonEscape(book.title) +
+                 "\",\"folder\":\"" + jsonEscape(book.folder) + "\",\"tag\":\"" + jsonEscape(book.tag) + "\"}";
+    server->sendContent(row);
+    yield();
+  }
+  server->sendContent("]}");
+  server->sendContent("");
+}
+
+void LocalServer::handleLibraryIndexRefresh() const {
+  if (webLibraryIndexing) {
+    server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
+    return;
+  }
+
+  webLibraryIndexing = true;
+  webLibraryIndexCurrent = 0;
+  webLibraryIndexTotal = 0;
+  webLibraryIndexPath[0] = '\0';
+
+  BaseType_t created =
+      xTaskCreate(webLibraryIndexTask, "WebLibIndex", 4096, nullptr, 1, nullptr);
+  if (created != pdPASS) {
+    webLibraryIndexing = false;
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"task\"}");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
+}
+
+void LocalServer::handleLibraryIndexStatus() const {
+  String body = "{\"indexing\":";
+  body += webLibraryIndexing ? "true" : "false";
+  body += ",\"current\":";
+  body += String(webLibraryIndexCurrent);
+  body += ",\"total\":";
+  body += String(webLibraryIndexTotal);
+  body += ",\"path\":\"";
+  body += jsonEscape(String(webLibraryIndexPath));
+  body += "\"}";
+  server->send(200, "application/json", body);
+}
+
+void LocalServer::handleBookTagsPost() const {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+
+  const char* action = doc["action"] | "";
+  if (strcmp(action, "addTag") == 0) {
+    const char* tag = doc["tag"] | "";
+    if (!BookTags::addTag(tag)) {
+      server->send(500, "text/plain", "Failed to save tag");
+      return;
+    }
+    server->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
+  if (strcmp(action, "renameTag") == 0) {
+    const char* oldTag = doc["oldTag"] | "";
+    const char* newTag = doc["newTag"] | "";
+    if (!BookTags::renameTag(oldTag, newTag)) {
+      server->send(500, "text/plain", "Failed to rename tag");
+      return;
+    }
+    server->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
+  if (strcmp(action, "deleteTag") == 0) {
+    const char* tag = doc["tag"] | "";
+    if (!BookTags::deleteTag(tag)) {
+      server->send(500, "text/plain", "Failed to delete tag");
+      return;
+    }
+    server->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
+  const char* path = doc["path"] | "";
+  const char* tag = doc["tag"] | "";
+  if (!path[0]) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+
+  if (!BookTags::set(path, tag)) {
+    server->send(500, "text/plain", "Failed to save tag");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
 }
 
 void LocalServer::handleDownload() const {
@@ -1009,6 +1321,7 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
+  doc["libraryMode"] = SETTINGS.libraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
   doc["fixSunlightFade"] = SETTINGS.fixSunlightFade;
   doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
@@ -1122,6 +1435,12 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.recentLibraryMode = (uint8_t)value;
       changed = true;
     }
+    else if (strcmp(key, "libraryMode") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::LIBRARY_MODE_COUNT) v = SystemSetting::LIBRARY_LIST;
+      SETTINGS.libraryMode = v;
+      changed = true;
+    }
     else if (strcmp(key, "recentVisibleCount") == 0) {
       int v = static_cast<int>(value);
       if (v < 1) v = 1;
@@ -1140,7 +1459,7 @@ void LocalServer::handleSettingsUpdate() const {
     else if (strcmp(key, "librarySortMode") == 0) {
       int v = static_cast<int>(value);
       if (v < 0) v = 0;
-      if (v > 5) v = 0;
+      if (v > 6) v = 0;
       SETTINGS.librarySortMode = static_cast<uint8_t>(v);
       changed = true;
     }

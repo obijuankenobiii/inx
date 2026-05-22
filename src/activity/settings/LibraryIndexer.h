@@ -25,7 +25,7 @@ class LibraryIndexer {
     FsFile file;
     while (file.openNext(&dir, O_RDONLY)) {
       file.getName(name, sizeof(name));
-      if (name[0] == '.' || strcmp(name, ".metadata") == 0) {
+      if (shouldSkipEntry(name)) {
         file.close();
         continue;
       }
@@ -83,6 +83,11 @@ class LibraryIndexer {
   }
 
  private:
+  static bool shouldSkipEntry(const char* name) {
+    return name == nullptr || name[0] == '.' || strcmp(name, ".metadata") == 0 ||
+           strcasecmp(name, "sleep") == 0 || strcasecmp(name, "fonts") == 0;
+  }
+
   static void indexDirectory(FsFile& dir, FsFile& idxFile, int& currentBook, int totalBooks,
                              std::function<void(int, int, const char*)> progressCallback,
                              const std::string& currentPath, int depth) {
@@ -106,7 +111,7 @@ class LibraryIndexer {
     while (file.openNext(&dir, O_RDONLY)) {
       file.getName(name, sizeof(name));
 
-      if (name[0] == '.' || strcmp(name, ".metadata") == 0) {
+      if (shouldSkipEntry(name)) {
         file.close();
         continue;
       }

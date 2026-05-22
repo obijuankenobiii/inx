@@ -46,4 +46,5 @@ class OtaUpdater {
   const std::string& getLatestVersion() const;
   OtaUpdaterError checkForUpdate();
   OtaUpdaterError installUpdate();
+  OtaUpdaterError installUpdateFromSd(const char* firmwarePath = "/firmware.bin");
 };

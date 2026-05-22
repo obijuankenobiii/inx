@@ -6,6 +6,7 @@
 #include "OtaUpdateActivity.h"
 
 #include <GfxRenderer.h>
+#include <SDCardManager.h>
 #include <WiFi.h>
 
 #include <freertos/FreeRTOS.h>
@@ -15,60 +16,20 @@
 
 #include "activity/network/WifiSelectionActivity.h"
 #include "network/OtaUpdater.h"
-#include "state/NetworkCredential.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
 // cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
 
+namespace {
+constexpr const char* kSdFirmwarePath = "/firmware.bin";
+constexpr int kSourceItemHeight = 56;
+}
+
 void OtaUpdateActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OtaUpdateActivity*>(param);
   self->displayTaskLoop();
-}
-
-bool OtaUpdateActivity::tryConnectUsingStoredCredentials() {
-  WIFI_STORE.loadFromFile();
-  const auto& creds = WIFI_STORE.getCredentials();
-  if (creds.empty()) {
-    Serial.printf("[%lu] [OTA] No saved Wi-Fi credentials\n", millis());
-    return false;
-  }
-
-  WiFi.mode(WIFI_STA);
-
-  // cppcheck-suppress useStlAlgorithm
-  for (const auto& cred : creds) {
-    if (cred.ssid.empty()) {
-      continue;
-    }
-
-    WiFi.disconnect(false);
-    vTaskDelay(pdMS_TO_TICKS(150));
-
-    if (!cred.password.empty()) {
-      WiFi.begin(cred.ssid.c_str(), cred.password.c_str());
-    } else {
-      WiFi.begin(cred.ssid.c_str());
-    }
-
-    const unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-      esp_task_wdt_reset();
-      vTaskDelay(pdMS_TO_TICKS(200));
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("[%lu] [OTA] Connected with saved Wi-Fi: %s\n", millis(), cred.ssid.c_str());
-      return true;
-    }
-
-    Serial.printf("[%lu] [OTA] Saved Wi-Fi connect failed: %s\n", millis(), cred.ssid.c_str());
-    WiFi.disconnect(false);
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
-
-  return false;
 }
 
 void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
@@ -119,6 +80,9 @@ void OtaUpdateActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
   renderingMutex = xSemaphoreCreateMutex();
+  state = SOURCE_SELECTION;
+  sourceSelectedIndex = 0;
+  updateRequired = true;
 
   xTaskCreate(&OtaUpdateActivity::taskTrampoline, "OtaUpdateActivityTask",
               4096,               
@@ -127,17 +91,7 @@ void OtaUpdateActivity::onEnter() {
               &displayTaskHandle  
   );
 
-  Serial.printf("[%lu] [OTA] Turning on WiFi...\n", millis());
-  WiFi.mode(WIFI_STA);
-
-  if (tryConnectUsingStoredCredentials()) {
-    Serial.printf("[%lu] [OTA] Using saved Wi-Fi (skipped picker)\n", millis());
-    onWifiSelectionComplete(true);
-  } else {
-    Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
-    enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
-                                                 [this](const bool connected) { onWifiSelectionComplete(connected); }));
-  }
+  Serial.printf("[%lu] [OTA] Waiting for update source selection\n", millis());
 }
 
 void OtaUpdateActivity::onExit() {
@@ -196,6 +150,9 @@ void OtaUpdateActivity::render() {
 
   const char* subtitleText = "";
   switch (state) {
+    case SOURCE_SELECTION:
+      subtitleText = "Choose update source";
+      break;
     case WIFI_SELECTION:
       subtitleText = "Select Wi-Fi to continue";
       break;
@@ -204,6 +161,9 @@ void OtaUpdateActivity::render() {
       break;
     case WAITING_CONFIRMATION:
       subtitleText = "New update available!";
+      break;
+    case WAITING_SD_CONFIRMATION:
+      subtitleText = "Install firmware from SD";
       break;
     case UPDATE_IN_PROGRESS:
       subtitleText = "Downloading firmware...";
@@ -228,7 +188,21 @@ void OtaUpdateActivity::render() {
 
   const int bodyTop = dividerY + 16;
 
-  if (state == WIFI_SELECTION) {
+  if (state == SOURCE_SELECTION) {
+    constexpr const char* items[] = {"Online update", "SD card firmware"};
+    for (int i = 0; i < 2; ++i) {
+      const int itemY = bodyTop + i * kSourceItemHeight;
+      const bool selected = sourceSelectedIndex == i;
+      if (selected) {
+        renderer.rectangle.fill(0, itemY, pageWidth, kSourceItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+      }
+      const int textY = itemY + (kSourceItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, items[i], !selected, EpdFontFamily::REGULAR);
+      renderer.line.render(0, itemY + kSourceItemHeight - 1, pageWidth, itemY + kSourceItemHeight - 1);
+    }
+    const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == WIFI_SELECTION) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Choose a network above.", true,
                               EpdFontFamily::REGULAR);
@@ -245,6 +219,29 @@ void OtaUpdateActivity::render() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28, newVer.c_str(), true, EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == WAITING_SD_CONFIRMATION) {
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
+                         ("File: " + std::string(kSdFirmwarePath)).c_str(), true, EpdFontFamily::REGULAR);
+    if (SdMan.exists(kSdFirmwarePath)) {
+      FsFile file;
+      size_t firmwareSize = 0;
+      if (SdMan.openFileForRead("OTA", kSdFirmwarePath, file)) {
+        firmwareSize = file.size();
+        file.close();
+      }
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28,
+                           ("Size: " + std::to_string(firmwareSize) + " bytes").c_str(), true,
+                           EpdFontFamily::REGULAR);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 64, "Install this firmware?", true,
+                           EpdFontFamily::BOLD);
+      const auto labels = mappedInput.mapLabels("Cancel", "Install", "", "");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    } else {
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 36, "Put firmware.bin in the SD root.",
+                           true, EpdFontFamily::REGULAR);
+      const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
   } else if (state == UPDATE_IN_PROGRESS) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 8, "Updating...", true, EpdFontFamily::BOLD);
     renderer.rectangle.render(20, bodyTop + 36, pageWidth - 40, 50);
@@ -290,6 +287,39 @@ void OtaUpdateActivity::loop() {
     return;
   }
 
+  if (state == SOURCE_SELECTION) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      goBack();
+      return;
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+        mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+      sourceSelectedIndex = sourceSelectedIndex == 0 ? 1 : 0;
+      updateRequired = true;
+      return;
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      if (sourceSelectedIndex == 0) {
+        xSemaphoreTake(renderingMutex, portMAX_DELAY);
+        state = WIFI_SELECTION;
+        xSemaphoreGive(renderingMutex);
+        updateRequired = true;
+        Serial.printf("[%lu] [OTA] Turning on WiFi...\n", millis());
+        WiFi.mode(WIFI_STA);
+        Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
+        enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
+                                                   [this](const bool connected) { onWifiSelectionComplete(connected); }));
+      } else {
+        xSemaphoreTake(renderingMutex, portMAX_DELAY);
+        state = WAITING_SD_CONFIRMATION;
+        xSemaphoreGive(renderingMutex);
+        updateRequired = true;
+      }
+      return;
+    }
+    return;
+  }
+
   if (state == WIFI_SELECTION) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       goBack();
@@ -326,6 +356,41 @@ void OtaUpdateActivity::loop() {
       goBack();
     }
 
+    return;
+  }
+
+  if (state == WAITING_SD_CONFIRMATION) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      state = SOURCE_SELECTION;
+      xSemaphoreGive(renderingMutex);
+      updateRequired = true;
+      return;
+    }
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && SdMan.exists(kSdFirmwarePath)) {
+      Serial.printf("[%lu] [OTA] Installing firmware from SD...\n", millis());
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      state = UPDATE_IN_PROGRESS;
+      xSemaphoreGive(renderingMutex);
+      updateRequired = true;
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      const auto res = updater.installUpdateFromSd(kSdFirmwarePath);
+
+      if (res != OtaUpdater::OK) {
+        Serial.printf("[%lu] [OTA] SD update failed: %d\n", millis(), res);
+        xSemaphoreTake(renderingMutex, portMAX_DELAY);
+        state = FAILED;
+        xSemaphoreGive(renderingMutex);
+        updateRequired = true;
+        return;
+      }
+
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      state = FINISHED;
+      xSemaphoreGive(renderingMutex);
+      updateRequired = true;
+    }
     return;
   }
 

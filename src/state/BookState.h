@@ -58,6 +58,7 @@ public:
   void toggleFavorite(const std::string& path);
   void setReading(const std::string& path, bool isReading);
   void setFinished(const std::string& path, bool isFinished);
+  void clear(bool saveNow = true);
 
   bool saveToFile() const;
   bool loadFromFile();

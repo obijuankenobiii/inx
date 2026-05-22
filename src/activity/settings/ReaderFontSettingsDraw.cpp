@@ -11,10 +11,7 @@
 
 #include <EpdFontFamily.h>
 
-#include "state/SystemSetting.h"
-#include "system/FontManager.h"
-
-#define SETTINGS SystemSetting::getInstance()
+#include "system/Fonts.h"
 
 namespace {
 
@@ -50,10 +47,11 @@ namespace ReaderFontSettingsDraw {
 
 void drawFontFamilyRowValue(const GfxRenderer& renderer, uint8_t fontFamily, int valueColumnRight, int itemY,
                             int itemHeight, bool rowSelected, const char* familyLabel) {
+  (void)fontFamily;
   if (!familyLabel || familyLabel[0] == '\0') {
     return;
   }
-  const int previewFont = SETTINGS.getReaderFontIdForSettingsUi(fontFamily, SystemSetting::EXTRA_SMALL);
+  constexpr int previewFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
   const bool black = !rowSelected;
   const int valW = renderer.text.getWidth(previewFont, familyLabel, EpdFontFamily::REGULAR);
   const int lh = renderer.text.getLineHeight(previewFont);
@@ -64,16 +62,13 @@ void drawFontFamilyRowValue(const GfxRenderer& renderer, uint8_t fontFamily, int
 
 void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily, uint8_t fontSizeIndex,
                                 int valueAreaLeft, int valueAreaRight, int itemY, int itemHeight, bool rowSelected) {
+  (void)fontFamily;
   const bool ink = !rowSelected;
-  const uint32_t famCount = FontManager::readerFontFamilyOptionCount();
-  const uint8_t fam =
-      famCount > 0 ? std::min<uint8_t>(fontFamily, static_cast<uint8_t>(famCount - 1u)) : fontFamily;
-  const uint8_t sel = std::min<uint8_t>(fontSizeIndex, SystemSetting::FONT_SIZE_COUNT - 1);
-  constexpr int kN = SystemSetting::FONT_SIZE_COUNT;
-
-  const int fidSel = SETTINGS.getReaderFontIdForSettingsUi(fam, sel);
-  const int fidMin = SETTINGS.getReaderFontIdForSettingsUi(fam, SystemSetting::EXTRA_SMALL);
-  const int fidMax = SETTINGS.getReaderFontIdForSettingsUi(fam, SystemSetting::EXTRA_LARGE);
+  const uint8_t sel = std::min<uint8_t>(fontSizeIndex, 4);
+  constexpr int kN = 5;
+  constexpr int fidSel = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int fidMin = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  constexpr int fidMax = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
 
   const int trackY = itemY + itemHeight - 9;
   const int maxPreviewW = std::max(24, valueAreaRight - valueAreaLeft - 8);

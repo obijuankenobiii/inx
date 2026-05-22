@@ -20,7 +20,8 @@ class EInkDisplay {
   enum RefreshMode {
     FULL_REFRESH,  
     HALF_REFRESH,  
-    FAST_REFRESH   
+    FAST_REFRESH,
+    STRONG_FAST_REFRESH
   };
 
   

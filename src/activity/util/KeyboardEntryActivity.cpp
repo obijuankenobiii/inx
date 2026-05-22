@@ -9,9 +9,10 @@
 #include "system/Fonts.h"
 
 namespace {
-constexpr int KEY_HEIGHT = 28;
-constexpr int KEY_SPACING = 4;
-constexpr int BOTTOM_MARGIN = 60;
+constexpr int KEY_HEIGHT = 34;
+constexpr int KEY_SPACING = 5;
+constexpr int BOTTOM_MARGIN = 52;
+constexpr int PAGE_MARGIN = 18;
 /** Stack size (bytes) for xTaskCreate; 2048 overflowed with render() + GfxRenderer on ESP32-C3. */
 constexpr uint32_t kDisplayTaskStackBytes = 8192;
 }  // namespace
@@ -262,13 +263,12 @@ void KeyboardEntryActivity::render() const {
 
   renderer.clearScreen();
 
-  
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, title.c_str(), true, EpdFontFamily::BOLD);
+  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+  constexpr int inputFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  constexpr int keyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int hintFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
-  
-  const int inputStartY = 50;
-  int inputEndY = inputStartY;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 10, inputStartY, "[");
+  renderer.text.render(titleFont, PAGE_MARGIN, 22, title.c_str(), true, EpdFontFamily::BOLD);
 
   std::string displayText;
   if (isPassword) {
@@ -280,26 +280,23 @@ void KeyboardEntryActivity::render() const {
   
   displayText += "_";
 
-  
-  int lineStartIdx = 0;
-  int lineEndIdx = displayText.length();
-  while (true) {
-    std::string lineText = displayText.substr(lineStartIdx, lineEndIdx - lineStartIdx);
-    const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, lineText.c_str());
-    if (textWidth <= pageWidth - 40) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, inputEndY, lineText.c_str());
-      if (lineEndIdx == displayText.length()) {
-        break;
-      }
+  const int inputX = PAGE_MARGIN;
+  const int inputY = 62;
+  const int inputW = pageWidth - PAGE_MARGIN * 2;
+  constexpr int inputH = 56;
+  renderer.rectangle.render(inputX, inputY, inputW, inputH, true, true);
 
-      inputEndY += renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
-      lineStartIdx = lineEndIdx;
-      lineEndIdx = displayText.length();
-    } else {
-      lineEndIdx -= 1;
-    }
+  std::string inputLine = renderer.text.truncate(inputFont, displayText.c_str(), inputW - 24);
+  const int inputTextY = inputY + (inputH - renderer.text.getLineHeight(inputFont)) / 2;
+  renderer.text.render(inputFont, inputX + 12, inputTextY, inputLine.c_str(), true);
+
+  if (maxLength > 0) {
+    char countText[24];
+    snprintf(countText, sizeof(countText), "%u/%u", static_cast<unsigned>(text.length()),
+             static_cast<unsigned>(maxLength));
+    const int countW = renderer.text.getWidth(hintFont, countText);
+    renderer.text.render(hintFont, inputX + inputW - countW - 10, inputY + inputH + 8, countText, true);
   }
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, pageWidth - 15, inputEndY, "]");
 
   
   const int keyboardAreaHeight = NUM_ROWS * (KEY_HEIGHT + KEY_SPACING);
@@ -310,7 +307,26 @@ void KeyboardEntryActivity::render() const {
 
   
   const int maxKeysInRow = 13;  
-  const int keyWidth = (pageWidth - (maxKeysInRow + 1) * KEY_SPACING) / maxKeysInRow;
+  const int keyWidth = (pageWidth - PAGE_MARGIN * 2 - (maxKeysInRow - 1) * KEY_SPACING) / maxKeysInRow;
+
+  auto drawKey = [&](const int x, const int y, const int w, const int h, const char* label, const bool selected,
+                     const bool emphasized = false) {
+    const int labelW = renderer.text.getWidth(keyFont, label, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+    const int labelX = x + (w - labelW) / 2;
+    const int labelY = y + (h - renderer.text.getLineHeight(keyFont)) / 2;
+    if (selected) {
+      renderer.rectangle.fill(x, y, w, h, true, true);
+      renderer.text.render(keyFont, labelX, labelY, label, false, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+      return;
+    }
+
+    renderer.rectangle.fill(x, y, w, h, false, true);
+    renderer.rectangle.render(x, y, w, h, true, true);
+    if (emphasized) {
+      renderer.rectangle.render(x + 2, y + 2, w - 4, h - 4, true, true);
+    }
+    renderer.text.render(keyFont, labelX, labelY, label, true, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+  };
 
   for (int row = 0; row < NUM_ROWS; row++) {
     const int rowY = keyboardStartY + row * (KEY_HEIGHT + KEY_SPACING);
@@ -333,70 +349,22 @@ void KeyboardEntryActivity::render() const {
 
       
       const bool shiftSelected = (selectedRow == 4 && selectedCol >= SHIFT_COL && selectedCol < SPACE_COL);
-      const std::string shiftText = shiftActive ? "SHIFT" : "shift";
-      const int shiftTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftText.c_str());
-      const int shiftTextX = currentX + (shiftWidth - shiftTextWidth) / 2;
-      
-      if (shiftSelected) {
-        renderer.rectangle.fill(currentX, rowY, shiftWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         shiftText.c_str(), false);
-      } else {
-        renderer.rectangle.render(currentX, rowY, shiftWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, shiftTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         shiftText.c_str(), true);
-      }
+      drawKey(currentX, rowY, shiftWidth, KEY_HEIGHT, shiftActive ? "SHIFT" : "Aa", shiftSelected, shiftActive);
       currentX += shiftWidth + KEY_SPACING;
 
       
       const bool spaceSelected = (selectedRow == 4 && selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL);
-      const std::string spaceText = "_____";
-      const int spaceTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceText.c_str());
-      const int spaceTextX = currentX + (spaceWidth - spaceTextWidth) / 2;
-      
-      if (spaceSelected) {
-        renderer.rectangle.fill(currentX, rowY, spaceWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         spaceText.c_str(), false);
-      } else {
-        renderer.rectangle.render(currentX, rowY, spaceWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, spaceTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         spaceText.c_str(), true);
-      }
+      drawKey(currentX, rowY, spaceWidth, KEY_HEIGHT, "SPACE", spaceSelected);
       currentX += spaceWidth + KEY_SPACING;
 
       
       const bool bsSelected = (selectedRow == 4 && selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL);
-      const std::string bsText = "<-";
-      const int bsTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsText.c_str());
-      const int bsTextX = currentX + (backspaceWidth - bsTextWidth) / 2;
-      
-      if (bsSelected) {
-        renderer.rectangle.fill(currentX, rowY, backspaceWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         bsText.c_str(), false);
-      } else {
-        renderer.rectangle.render(currentX, rowY, backspaceWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bsTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         bsText.c_str(), true);
-      }
+      drawKey(currentX, rowY, backspaceWidth, KEY_HEIGHT, "DEL", bsSelected);
       currentX += backspaceWidth + KEY_SPACING;
 
       
       const bool okSelected = (selectedRow == 4 && selectedCol >= DONE_COL);
-      const std::string okText = "OK";
-      const int okTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okText.c_str());
-      const int okTextX = currentX + (okWidth - okTextWidth) / 2;
-      
-      if (okSelected) {
-        renderer.rectangle.fill(currentX, rowY, okWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         okText.c_str(), false);
-      } else {
-        renderer.rectangle.render(currentX, rowY, okWidth, KEY_HEIGHT);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, okTextX, rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2, 
-                         okText.c_str(), true);
-      }
+      drawKey(currentX, rowY, okWidth, KEY_HEIGHT, "OK", okSelected, true);
     } else {
       
       const int totalRowWidth = rowLength * keyWidth + (rowLength - 1) * KEY_SPACING;
@@ -405,28 +373,17 @@ void KeyboardEntryActivity::render() const {
       for (int col = 0; col < rowLength; col++) {
         
         const char c = layout[row][col];
-        std::string keyLabel(1, c);
-        const int charWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, keyLabel.c_str());
+        char keyLabel[2] = {c, '\0'};
 
         const int keyX = startX + col * (keyWidth + KEY_SPACING);
-        const int textX = keyX + (keyWidth - charWidth) / 2;
-        const int textY = rowY + (KEY_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-        
         const bool isSelected = row == selectedRow && col == selectedCol;
-        
-        if (isSelected) {
-          renderer.rectangle.fill(keyX, rowY, keyWidth, KEY_HEIGHT);
-          renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), false);
-        } else {
-          renderer.rectangle.render(keyX, rowY, keyWidth, KEY_HEIGHT);
-          renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, textX, textY, keyLabel.c_str(), true);
-        }
+        drawKey(keyX, rowY, keyWidth, KEY_HEIGHT, keyLabel, isSelected);
       }
     }
   }
 
   
-  const auto labels = mappedInput.mapLabels("« Back", "Select", "Left", "Right");
+  const auto labels = mappedInput.mapLabels("Back", "Select", "Prev", "Next");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

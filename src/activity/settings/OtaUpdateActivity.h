@@ -15,9 +15,11 @@
 
 class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   enum State {
+    SOURCE_SELECTION,
     WIFI_SELECTION,
     CHECKING_FOR_UPDATE,
     WAITING_CONFIRMATION,
+    WAITING_SD_CONFIRMATION,
     UPDATE_IN_PROGRESS,
     NO_UPDATE,
     FAILED,
@@ -28,13 +30,12 @@ class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
+  int sourceSelectedIndex = 0;
   const std::function<void()> goBack;
-  State state = WIFI_SELECTION;
+  State state = SOURCE_SELECTION;
   OtaUpdater updater;
 
   void onWifiSelectionComplete(bool success);
-  /** Tries each saved credential until one connects, or returns false. */
-  bool tryConnectUsingStoredCredentials();
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render();

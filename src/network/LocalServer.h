@@ -75,6 +75,7 @@ class LocalServer {
   
   void handleRoot() const;
   void handleFontManagerPage() const;
+  void handleTagsPage() const;
   void handleInxFontPackJs() const;
   void handleJsZipMinJs() const;
   void handleEpubPageJs() const;
@@ -101,4 +102,8 @@ class LocalServer {
   void handleKOReaderPost() const;
 
   void handleFontsRescan() const;
+  void handleLibraryIndexRefresh() const;
+  void handleLibraryIndexStatus() const;
+  void handleBookTagsGet() const;
+  void handleBookTagsPost() const;
 };

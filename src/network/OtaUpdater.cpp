@@ -9,6 +9,8 @@
 #include <ArduinoJson.h>
 #include <new>
 
+#include <algorithm>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -16,14 +18,15 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
+#include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
+#include <SDCardManager.h>
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases/latest";
 
-
-constexpr size_t kReleaseJsonPreallocSizes[] = {4096, 6144, 8192, 10240, 12288};
+constexpr size_t kMaxReleaseJsonBytes = 12288;
 
 constexpr int kGithubCheckTaskStack = 16384;
 constexpr int kGithubCheckTaskPrio = 3;
@@ -53,11 +56,15 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
     const int content_len = esp_http_client_get_content_length(event->client);
     const bool chunked = esp_http_client_is_chunked_response(event->client);
     if (!chunked && content_len > 0) {
+      if (static_cast<size_t>(content_len) + 1 > kMaxReleaseJsonBytes) {
+        Serial.printf("[%lu] [OTA] HTTP body too large from Content-Length (%d cap %u)\n", millis(), content_len,
+                      static_cast<unsigned>(kMaxReleaseJsonBytes));
+        return ESP_ERR_NO_MEM;
+      }
       local_buf_cap = static_cast<size_t>(content_len) + 1;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     } else {
-      
-      local_buf_cap = need;
+      local_buf_cap = kMaxReleaseJsonBytes;
       local_buf = static_cast<char*>(calloc(local_buf_cap, 1));
     }
     if (local_buf == nullptr) {
@@ -69,8 +76,21 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   }
 
   if (need > local_buf_cap) {
-    
-    const size_t ncap = need;
+    if (need > kMaxReleaseJsonBytes) {
+      Serial.printf("[%lu] [OTA] HTTP body too large (need %u cap %u free %u largest %u)\n", millis(),
+                    static_cast<unsigned>(need), static_cast<unsigned>(kMaxReleaseJsonBytes),
+                    static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      return ESP_ERR_NO_MEM;
+    }
+
+    size_t ncap = local_buf_cap * 2;
+    if (ncap < need) {
+      ncap = need;
+    }
+    if (ncap > kMaxReleaseJsonBytes) {
+      ncap = kMaxReleaseJsonBytes;
+    }
     char* nb = static_cast<char*>(realloc(local_buf, ncap));
     if (nb == nullptr) {
       Serial.printf("[%lu] [OTA] HTTP body buffer realloc failed (cap %u need %u free %u largest %u)\n", millis(),
@@ -147,8 +167,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   esp_http_client_config_t client_config = {};
   client_config.url = latestReleaseUrl;
   client_config.event_handler = event_handler;
-  client_config.buffer_size = 3072;
-  client_config.buffer_size_tx = 1536;
+  client_config.buffer_size = 2048;
+  client_config.buffer_size_tx = 1024;
   client_config.timeout_ms = 25000;
   client_config.skip_cert_common_name_check = true;
   client_config.crt_bundle_attach = esp_crt_bundle_attach;
@@ -188,20 +208,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     return INTERNAL_UPDATE_ERROR;
   }
 
-  
-  for (const size_t tryBytes : kReleaseJsonPreallocSizes) {
-    void* p = calloc(tryBytes, 1);
-    if (p != nullptr) {
-      local_buf = static_cast<char*>(p);
-      local_buf_cap = tryBytes;
-      Serial.printf("[%lu] [OTA] HTTP body prealloc %u bytes (free %u largest %u)\n", millis(),
-                    static_cast<unsigned>(tryBytes), static_cast<unsigned>(ESP.getFreeHeap()),
-                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-      break;
-    }
-  }
-
-  
   vTaskDelay(pdMS_TO_TICKS(200));
   esp_task_wdt_reset();
 
@@ -356,5 +362,89 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   }
 
   Serial.printf("[%lu] [OTA] Update completed\n", millis());
+  return OK;
+}
+
+OtaUpdater::OtaUpdaterError OtaUpdater::installUpdateFromSd(const char* firmwarePath) {
+  if (firmwarePath == nullptr || firmwarePath[0] == '\0') {
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  FsFile file;
+  if (!SdMan.openFileForRead("OTA", firmwarePath, file)) {
+    Serial.printf("[%lu] [OTA] SD firmware not found: %s\n", millis(), firmwarePath);
+    return HTTP_ERROR;
+  }
+
+  const size_t firmwareSize = file.size();
+  if (firmwareSize == 0) {
+    Serial.printf("[%lu] [OTA] SD firmware is empty: %s\n", millis(), firmwarePath);
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  const esp_partition_t* updatePartition = esp_ota_get_next_update_partition(nullptr);
+  if (updatePartition == nullptr) {
+    Serial.printf("[%lu] [OTA] No OTA update partition available\n", millis());
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  Serial.printf("[%lu] [OTA] Installing SD firmware %s (%u bytes) to %s\n", millis(), firmwarePath,
+                static_cast<unsigned>(firmwareSize), updatePartition->label);
+
+  esp_ota_handle_t otaHandle = 0;
+  esp_err_t err = esp_ota_begin(updatePartition, firmwareSize, &otaHandle);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_begin failed: %s\n", millis(), esp_err_to_name(err));
+    file.close();
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  uint8_t buffer[1024];
+  processedSize = 0;
+  totalSize = firmwareSize;
+  render = false;
+
+  while (processedSize < firmwareSize) {
+    const size_t toRead = std::min(sizeof(buffer), firmwareSize - processedSize);
+    const int readBytes = file.read(buffer, toRead);
+    if (readBytes <= 0) {
+      Serial.printf("[%lu] [OTA] SD read failed at %u / %u\n", millis(), static_cast<unsigned>(processedSize),
+                    static_cast<unsigned>(firmwareSize));
+      esp_ota_abort(otaHandle);
+      file.close();
+      return HTTP_ERROR;
+    }
+
+    err = esp_ota_write(otaHandle, buffer, static_cast<size_t>(readBytes));
+    if (err != ESP_OK) {
+      Serial.printf("[%lu] [OTA] esp_ota_write failed: %s\n", millis(), esp_err_to_name(err));
+      esp_ota_abort(otaHandle);
+      file.close();
+      return INTERNAL_UPDATE_ERROR;
+    }
+
+    processedSize += static_cast<size_t>(readBytes);
+    render = true;
+    esp_task_wdt_reset();
+    vTaskDelay(1);
+  }
+
+  file.close();
+
+  err = esp_ota_end(otaHandle);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_end failed: %s\n", millis(), esp_err_to_name(err));
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  err = esp_ota_set_boot_partition(updatePartition);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [OTA] esp_ota_set_boot_partition failed: %s\n", millis(), esp_err_to_name(err));
+    return INTERNAL_UPDATE_ERROR;
+  }
+
+  Serial.printf("[%lu] [OTA] SD firmware install completed\n", millis());
   return OK;
 }

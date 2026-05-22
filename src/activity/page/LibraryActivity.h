@@ -48,7 +48,8 @@ class LibraryActivity final : public Activity, public Menu {
    */
   enum class ViewMode {
     FOLDER_VIEW,    ///< Hierarchical folder navigation
-    BOOK_LIST_VIEW  ///< Flat list of all books
+    BOOK_LIST_VIEW, ///< Flat list of all books
+    TAG_VIEW        ///< Indexed books grouped into user tag collections
   };
 
   /**
@@ -60,7 +61,9 @@ class LibraryActivity final : public Activity, public Menu {
     GROUP_AZ,    ///< Group ascending A-Z, then title A-Z (favorites first)
     GROUP_ZA,    ///< Group descending Z-A, then title A-Z (favorites first)
     READING_AZ,  ///< Reading status first (reading > unfinished > completed), then title A-Z
-    READING_ZA   ///< Reading status first (reading > unfinished > completed), then title Z-A
+    READING_ZA,  ///< Reading status first (reading > unfinished > completed), then title Z-A
+    TAG_AZ,      ///< User tag/category A-Z, then title A-Z
+    TAG_ZA       ///< User tag/category Z-A, then title A-Z
   };
 
   static constexpr int LIST_ITEM_HEIGHT = 60;       ///< Height of list items in folder view
@@ -68,6 +71,8 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int FOLDER_ICON_SPACING = 20;    ///< Spacing for folder icons
   static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view
   static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
+  static constexpr int GRID_ITEMS_PER_PAGE = 12;    ///< Items per page for grid folder view
+  static constexpr int GRID_ICON_SIZE = 150;        ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
@@ -117,15 +122,22 @@ class LibraryActivity final : public Activity, public Menu {
   TaskHandle_t displayTaskHandle = nullptr;    ///< Handle for display update task
   SemaphoreHandle_t renderingMutex = nullptr;  ///< Mutex for render thread safety
   bool halfRefreshOnLoadApplied_ = false;
+  volatile bool displayTaskStopRequested_ = false;
+  volatile bool isIndexing_ = false;
+  volatile bool libraryIndexReloadRequested_ = false;
+  volatile int indexingProgress_ = 0;
+  volatile int indexingTotal_ = 0;
 
   std::string savedFolderPath;  ///< Saved path when switching views
   std::string basepath;         ///< Current browsing path
+  std::string selectedTagKey_;  ///< Current tag collection key in tag view; empty means tag list
   int selectorIndex = 0;        ///< Currently selected item index
   int listScrollOffset = 0;     ///< Scroll offset for list rendering
   bool updateRequired = false;  ///< Flag to trigger re-render
   bool favoritesPromoted = true;
 
   bool isHeaderButtonSelected = false;      ///< Whether header button is selected
+  bool isIndexButtonSelected = false;       ///< Whether library index refresh button is selected
   bool isSortButtonSelected = false;        ///< Whether sort button is selected
   bool favoriteLongPressProcessed = false;  ///< Flag to prevent duplicate favorite toggles
 
@@ -171,6 +183,12 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Switch to folder view mode
    */
   void switchToFolderView();
+  void switchToTagView();
+  void startLibraryIndexing();
+  bool shouldShowIndexButton() const;
+  void showIndexingPopup() const;
+  bool restoreSelectionToPath(const std::string& path);
+  bool restoreSelectionToTag(const std::string& tagKey);
 
   /**
    * @brief Reset navigation state (selection, scroll, page)
@@ -321,6 +339,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load all books recursively with pagination
    */
   void loadAllBooksRecursive();
+  void loadAllBooksRecursiveLocked();
 
   /**
    * @brief Load books using recursive scan for book list view
@@ -487,6 +506,23 @@ class LibraryActivity final : public Activity, public Menu {
   void renderLibraryList(int startY) const;
 
   /**
+   * @brief Render the folder browser as a 3x4 icon grid
+   * @param startY Starting Y position for the grid
+   */
+  void renderLibraryGrid(int startY) const;
+
+  /**
+   * @brief Whether the current folder browser should use the 3x4 grid layout
+   */
+  bool isLibraryGridMode() const;
+  bool isTagViewMode() const;
+
+  /**
+   * @brief Render a large built-in icon for a grid item
+   */
+  void renderGridItemIcon(const LibraryItem& item, int x, int y, int w, int h, bool isSelected, bool isLarge) const;
+
+  /**
    * @brief Render the icon for a list item
    * @param item The library item
    * @param drawY Y position to draw at
@@ -515,6 +551,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @return Next button X position
    */
   int drawHeaderButton(const std::string& text, int headerY, int headerHeight, int rightX, bool isSelected) const;
+  int drawIndexButton(int headerY, int headerHeight, int x, bool isSelected) const;
 
   /**
    * @brief Draw the sort button

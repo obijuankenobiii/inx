@@ -147,8 +147,8 @@ void ClearCacheActivity::clearCache() {
   }
 
   (void)SETTINGS.loadFromFile();
-  (void)RECENT_BOOKS.loadFromFile();
-  (void)BOOK_STATE.loadFromFile();
+  RECENT_BOOKS.clear();
+  BOOK_STATE.clear();
   (void)APP_STATE.loadFromFile();
   (void)WIFI_STORE.loadFromFile();
 
