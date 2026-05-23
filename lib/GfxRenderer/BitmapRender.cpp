@@ -474,8 +474,10 @@ void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int hei
       }
 
       const bool ink = !readIconBitMsbFirst(bitmap, width, height, sx, sy);
-      const bool black = ink ^ invert;
-      gfx.drawPixel(x + dx, y + dy, black);
+      if (!ink) {
+        continue;
+      }
+      gfx.drawPixel(x + dx, y + dy, !invert);
     }
   }
 }

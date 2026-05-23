@@ -261,6 +261,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
 
   renderer.displayGrayBuffer();
   renderer.setRenderMode(GfxRenderer::BW);
+  renderer.cleanupGrayscaleWithFrameBuffer();
   return true;
 }
 

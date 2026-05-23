@@ -77,6 +77,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 
   renderer.displayGrayBuffer();
   renderer.setRenderMode(GfxRenderer::BW);
+  renderer.cleanupGrayscaleWithFrameBuffer();
 }
 
 void recordSleepImageUsed() {
@@ -568,6 +569,7 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
+    renderer.cleanupGrayscaleWithFrameBuffer();
   }
 }
 
@@ -639,6 +641,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
+    renderer.cleanupGrayscaleWithFrameBuffer();
   }
 }
 
