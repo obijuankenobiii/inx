@@ -495,7 +495,7 @@ void SleepActivity::renderCoverSleepScreen() const {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
       }
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      renderer.displayBuffer();
       runSleepImageTwoBitPasses(renderer, coverPath, options);
       return;
     }
@@ -552,7 +552,7 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  renderer.displayBuffer();
 
   if (hasTwoBit) {
     bitmap.rewindToData();

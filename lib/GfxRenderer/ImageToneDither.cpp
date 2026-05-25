@@ -135,6 +135,37 @@ ImageToneSample FourToneImageDitherer::process(const int gray, const int x) {
   return out;
 }
 
+ImageToneSample FourToneImageDitherer::processAtkinson(const int gray, const int x) {
+  if (!ok() || x < 0 || x >= width_) {
+    return quantize(perceptualTone(gray));
+  }
+
+  const int base = perceptualTone(gray);
+  if (base >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
+  const int adjusted = clamp255(base + errorRows_[0][0][x + 2]);
+  if (adjusted >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
+  const ImageToneSample out = quantize(adjusted);
+  const int spread = (adjusted - static_cast<int>(out.value)) / 8;
+  if (spread == 0) {
+    return out;
+  }
+
+  if (x + 1 < width_) errorRows_[0][0][x + 3] += static_cast<int16_t>(spread);
+  if (x + 2 < width_) errorRows_[0][0][x + 4] += static_cast<int16_t>(spread);
+  if (x > 0) errorRows_[0][1][x + 1] += static_cast<int16_t>(spread);
+  errorRows_[0][1][x + 2] += static_cast<int16_t>(spread);
+  if (x + 1 < width_) errorRows_[0][1][x + 3] += static_cast<int16_t>(spread);
+  errorRows_[0][2][x + 2] += static_cast<int16_t>(spread);
+
+  return out;
+}
+
 void FourToneImageDitherer::nextRow() {
   for (int plane = 0; plane < 3; plane++) {
     int16_t* temp = errorRows_[plane][0];

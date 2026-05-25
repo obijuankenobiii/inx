@@ -76,7 +76,8 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return rgbToGray(r, g, b);
+  return static_cast<uint8_t>((77 * static_cast<int>(r) + 150 * static_cast<int>(g) + 29 * static_cast<int>(b) + 128) >>
+                              8);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
@@ -84,9 +85,9 @@ constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light 
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 240;  // Changed from 255 - preserve light grays
 constexpr int kJpegTwoBitContrastPercent = 130; // Reduced from 165 - less contrast crushing
-constexpr int kJpegTwoBitSharpenThreshold = 200;
-constexpr int kJpegTwoBitSharpenPercent = 45;   // Reduced from 65
-constexpr int kJpegTwoBitSharpenMax = 30;       // Reduced from 42
+constexpr int kJpegTwoBitSharpenThreshold = 18;
+constexpr int kJpegTwoBitSharpenPercent = 35;
+constexpr int kJpegTwoBitSharpenMax = 18;
 constexpr int kJpegTwoBitEdgeThreshold = 12;
 constexpr int kJpegTwoBitEdgeMaxDarken = 20;    // Reduced from 36
 constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
