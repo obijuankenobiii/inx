@@ -13,6 +13,7 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 #include "html/EpubPageHtml.generated.h"
@@ -837,7 +838,7 @@ static String uploadError = "";
 
 
 constexpr size_t UPLOAD_BUFFER_SIZE = 4096;  
-static uint8_t uploadBuffer[UPLOAD_BUFFER_SIZE];
+static uint8_t* uploadBuffer = nullptr;
 static size_t uploadBufferPos = 0;
 
 
@@ -845,8 +846,14 @@ static unsigned long uploadStartTime = 0;
 static unsigned long totalWriteTime = 0;
 static size_t writeCount = 0;
 
+static void freeUploadBuffer() {
+  std::free(uploadBuffer);
+  uploadBuffer = nullptr;
+  uploadBufferPos = 0;
+}
+
 static bool flushUploadBuffer() {
-  if (uploadBufferPos > 0 && uploadFile) {
+  if (uploadBufferPos > 0 && uploadFile && uploadBuffer) {
     esp_task_wdt_reset();  
     const unsigned long writeStart = millis();
     const size_t written = uploadFile.write(uploadBuffer, uploadBufferPos);
@@ -892,6 +899,7 @@ void LocalServer::handleUpload() const {
     uploadBufferPos = 0;
     totalWriteTime = 0;
     writeCount = 0;
+    freeUploadBuffer();
 
     
     
@@ -934,6 +942,15 @@ void LocalServer::handleUpload() const {
       return;
     }
     esp_task_wdt_reset();
+
+    uploadBuffer = static_cast<uint8_t*>(std::malloc(UPLOAD_BUFFER_SIZE));
+    if (!uploadBuffer) {
+      uploadError = "Failed to allocate upload buffer";
+      uploadFile.close();
+      SdMan.remove(filePath.c_str());
+      Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to allocate %d byte buffer\n", millis(), UPLOAD_BUFFER_SIZE);
+      return;
+    }
 
     Serial.printf("[%lu] [WEB] [UPLOAD] File created successfully: %s\n", millis(), filePath.c_str());
   } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -980,6 +997,7 @@ void LocalServer::handleUpload() const {
         uploadError = "Failed to write final data to SD card";
       }
       uploadFile.close();
+      freeUploadBuffer();
 
       if (uploadError.isEmpty()) {
         uploadSuccess = true;
@@ -999,7 +1017,7 @@ void LocalServer::handleUpload() const {
       }
     }
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
-    uploadBufferPos = 0;  
+    freeUploadBuffer();
     if (uploadFile) {
       uploadFile.close();
       

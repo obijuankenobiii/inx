@@ -6,6 +6,8 @@
 
 #include "toojpeg.h"
 
+#include <cstdlib>
+
 // - the "official" specifications: https://www.w3.org/Graphics/JPEG/itu-t81.pdf and https://www.w3.org/Graphics/JPEG/jfif3.pdf
 // - Wikipedia has a short description of the JFIF/JPEG file format: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format
 // - the popular STB Image library includes Jon's JPEG encoder as well: https://github.com/nothings/stb/blob/master/stb_image_write.h
@@ -463,14 +465,46 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
             << AcLuminanceValues;
 
   // compute actual Huffman code tables (see Jon's code for precalculated tables)
-  static BitCode huffmanLuminanceDC[256];
-  static BitCode huffmanLuminanceAC[256];
+  BitCode* huffmanLuminanceDC = (BitCode*)std::malloc(256 * sizeof(BitCode));
+  BitCode* huffmanLuminanceAC = (BitCode*)std::malloc(256 * sizeof(BitCode));
+  BitCode* huffmanChrominanceDC = nullptr;
+  BitCode* huffmanChrominanceAC = nullptr;
+  float* scaledLuminance = (float*)std::malloc(8 * 8 * sizeof(float));
+  float* scaledChrominance = nullptr;
+  BitCode* codewordsArray = (BitCode*)std::malloc(2 * CodeWordLimit * sizeof(BitCode));
+  float (*Y)[8] = (float (*)[8])std::malloc(8 * 8 * sizeof(float));
+  float (*Cb)[8] = nullptr;
+  float (*Cr)[8] = nullptr;
+  if (isRGB)
+  {
+    huffmanChrominanceDC = (BitCode*)std::malloc(256 * sizeof(BitCode));
+    huffmanChrominanceAC = (BitCode*)std::malloc(256 * sizeof(BitCode));
+    scaledChrominance = (float*)std::malloc(8 * 8 * sizeof(float));
+    Cb = (float (*)[8])std::malloc(8 * 8 * sizeof(float));
+    Cr = (float (*)[8])std::malloc(8 * 8 * sizeof(float));
+  }
+  auto cleanup = [&]() {
+    std::free(huffmanLuminanceDC);
+    std::free(huffmanLuminanceAC);
+    std::free(huffmanChrominanceDC);
+    std::free(huffmanChrominanceAC);
+    std::free(scaledLuminance);
+    std::free(scaledChrominance);
+    std::free(codewordsArray);
+    std::free(Y);
+    std::free(Cb);
+    std::free(Cr);
+  };
+  if (!huffmanLuminanceDC || !huffmanLuminanceAC || !scaledLuminance || !codewordsArray || !Y ||
+      (isRGB && (!huffmanChrominanceDC || !huffmanChrominanceAC || !scaledChrominance || !Cb || !Cr)))
+  {
+    cleanup();
+    return false;
+  }
   generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
   generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
 
   // chrominance is only relevant for color images
-  static BitCode huffmanChrominanceDC[256];
-  static BitCode huffmanChrominanceAC[256];
   if (isRGB)
   {
     // store luminance's DC+AC Huffman table definitions
@@ -503,8 +537,6 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
 
   // ////////////////////////////////////////
   // adjust quantization tables with AAN scaling factors to simplify DCT
-  static float scaledLuminance  [8*8];
-  static float scaledChrominance[8*8];
   for (auto i = 0; i < 8*8; i++)
   {
     auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
@@ -514,7 +546,8 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
     static const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
     auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
     scaledLuminance  [ZigZagInv[i]] = factor / quantLuminance  [i];
-    scaledChrominance[ZigZagInv[i]] = factor / quantChrominance[i];
+    if (isRGB)
+      scaledChrominance[ZigZagInv[i]] = factor / quantChrominance[i];
     // if you really want JPEGs that are bitwise identical to Jon Olick's code then you need slightly different formulas (note: sqrt(8) = 2.828427125f)
     //static const float aasf[] = { 1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f, 1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f, 0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f }; // line 240 of jo_jpeg.cpp
     //scaledLuminance  [ZigZagInv[i]] = 1 / (quantLuminance  [i] * aasf[row] * aasf[column]); // lines 266-267 of jo_jpeg.cpp
@@ -523,10 +556,9 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
 
   // ////////////////////////////////////////
   // precompute JPEG codewords for quantized DCT
-  static BitCode codewordsArray[2 * CodeWordLimit];    // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
   BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
   uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
-  int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
+  int mask        = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
   for (int16_t value = 1; value < CodeWordLimit; value++)
   {
     // numBits = position of highest set bit (ignoring the sign)
@@ -553,8 +585,6 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
 
   // average color of the previous MCU
   int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
-  // convert from RGB to YCbCr
-  static float Y[8][8], Cb[8][8], Cr[8][8];
 
   for (auto mcuY = 0; mcuY < height; mcuY += mcuSize) // each step is either 8 or 16 (=mcuSize)
     for (auto mcuX = 0; mcuX < width; mcuX += mcuSize)
@@ -660,6 +690,7 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
   // ///////////////////////////
   // EOI marker
   bitWriter << 0xFF << 0xD9; // this marker has no length, therefore I can't use addMarker()
+  cleanup();
   return true;
 } // writeJpeg()
 } // namespace TooJpeg
