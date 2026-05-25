@@ -55,7 +55,7 @@ struct DriveVoltages {
 };
 
 constexpr DriveVoltages kNormalDriveVoltages{0x17, 0x41, 0xA8, 0x32, 0x30};
-constexpr DriveVoltages kSunlightFadeDriveVoltages{0x17, 0x41, 0xA8, 0x32, 0x2E};
+constexpr DriveVoltages kSunlightFadeDriveVoltages = kNormalDriveVoltages;
 }  
 
 
