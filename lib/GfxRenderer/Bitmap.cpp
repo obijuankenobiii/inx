@@ -19,6 +19,7 @@ Bitmap::~Bitmap() {
   delete[] errorNextRow;
 
   delete imageDitherer;
+  delete oneBitDitherer;
 }
 
 uint16_t Bitmap::readLE16(FsFile& f) {
@@ -252,6 +253,84 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   return BmpReaderError::Ok;
 }
 
+BmpReaderError Bitmap::readNextRowOneBit(uint8_t* data, uint8_t* rowBuffer) const {
+  if (file.read(rowBuffer, rowBytes) != rowBytes) return BmpReaderError::ShortReadRow;
+
+  if (!oneBitDitherer) {
+    oneBitDitherer = new Atkinson1BitDitherer(width);
+    if (!oneBitDitherer) return BmpReaderError::OomRowBuffer;
+  }
+
+  uint8_t* outPtr = data;
+  uint8_t currentOutByte = 0;
+  int bitShift = 6;
+
+  auto packStage = [&](const uint8_t lum, const int x) {
+    const uint8_t stage = oneBitDitherer->processPixel(lum, x) ? 0 : 3;
+    currentOutByte |= static_cast<uint8_t>(stage << bitShift);
+    if (bitShift == 0) {
+      *outPtr++ = currentOutByte;
+      currentOutByte = 0;
+      bitShift = 6;
+    } else {
+      bitShift -= 2;
+    }
+  };
+
+  switch (bpp) {
+    case 32: {
+      const uint8_t* p = rowBuffer;
+      for (int x = 0; x < width; x++) {
+        packStage(rgbToGray(p[2], p[1], p[0]), x);
+        p += 4;
+      }
+      break;
+    }
+    case 24: {
+      const uint8_t* p = rowBuffer;
+      for (int x = 0; x < width; x++) {
+        packStage(rgbToGray(p[2], p[1], p[0]), x);
+        p += 3;
+      }
+      break;
+    }
+    case 8: {
+      for (int x = 0; x < width; x++) {
+        packStage(paletteLum[rowBuffer[x]], x);
+      }
+      break;
+    }
+    case 4: {
+      for (int x = 0; x < width; x++) {
+        const uint8_t nibble = (x & 1) ? (rowBuffer[x >> 1] & 0x0F) : (rowBuffer[x >> 1] >> 4);
+        packStage(paletteLum[nibble], x);
+      }
+      break;
+    }
+    case 2: {
+      for (int x = 0; x < width; x++) {
+        const uint8_t lum = paletteLum[(rowBuffer[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03];
+        packStage(lum, x);
+      }
+      break;
+    }
+    case 1: {
+      for (int x = 0; x < width; x++) {
+        const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
+        packStage(paletteLum[palIndex], x);
+      }
+      break;
+    }
+    default:
+      return BmpReaderError::UnsupportedBpp;
+  }
+
+  oneBitDitherer->nextRow();
+  if (bitShift != 6) *outPtr = currentOutByte;
+
+  return BmpReaderError::Ok;
+}
+
 BmpReaderError Bitmap::rewindToData() const {
   if (!file.seek(bfOffBits)) {
     return BmpReaderError::SeekPixelDataFailed;
@@ -259,6 +338,7 @@ BmpReaderError Bitmap::rewindToData() const {
 
   
   if (imageDitherer) imageDitherer->reset();
+  if (oneBitDitherer) oneBitDitherer->reset();
 
   return BmpReaderError::Ok;
 }

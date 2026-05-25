@@ -132,6 +132,23 @@ int adjustPixel(int gray) {
   return gray;
 }
 
+int adjustOneBitPixel(int gray) {
+  gray = std::max(0, std::min(255, gray));
+  if (gray < 24) {
+    return gray;
+  }
+  if (gray < 96) {
+    gray += 18;
+  } else if (gray < 176) {
+    gray += 24;
+  } else if (gray < 232) {
+    gray += 14;
+  } else {
+    gray += 4;
+  }
+  return std::max(0, std::min(255, gray));
+}
+
 
 uint8_t quantizeSimple(int gray) {
   if (gray < 45) {
@@ -176,7 +193,7 @@ uint8_t quantize(int gray, int x, int y) {
 
 
 uint8_t quantize1bit(int gray, int x, int y) {
-  gray = adjustPixel(gray);
+  gray = adjustOneBitPixel(gray);
 
   
   uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;

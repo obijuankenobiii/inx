@@ -371,7 +371,7 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
   };
 
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-    if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+    if (bitmap.readNextRowOneBit(outRow, rowBufBytes) != BmpReaderError::Ok) {
       free(outRow);
       free(rowBufBytes);
       return;

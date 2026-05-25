@@ -73,6 +73,7 @@ class Bitmap {
   ~Bitmap();
   BmpReaderError parseHeaders();
   BmpReaderError readNextRow(uint8_t* data, uint8_t* rowBuffer) const;
+  BmpReaderError readNextRowOneBit(uint8_t* data, uint8_t* rowBuffer) const;
   BmpReaderError rewindToData() const;
   int getWidth() const { return width; }
   int getHeight() const { return height; }
@@ -103,4 +104,5 @@ class Bitmap {
   mutable int prevRowY = -1;  
 
   mutable FourToneImageDitherer* imageDitherer = nullptr;
+  mutable Atkinson1BitDitherer* oneBitDitherer = nullptr;
 };  
