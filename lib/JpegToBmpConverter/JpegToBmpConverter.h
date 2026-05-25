@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 /**
  * @file JpegToBmpConverter.h
  * @brief Public interface and types for JpegToBmpConverter.
@@ -54,6 +56,13 @@ class JpegToBmpConverter {
    * Ideal for thumbnails where artifacts are problematic
    */
   bool jpegFileToThumbnailBmp(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth = 120, int targetMaxHeight = 160);
+
+  /**
+   * Resize a JPEG cover and write it back as a JPEG thumbnail.
+   * This keeps cache thumbnails as thumb.jpg instead of converting them to BMP.
+   */
+  bool jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth = 225,
+                               int targetMaxHeight = 340, uint8_t quality = 82);
 
   /**
    * Convert JPEG to 1-bit BMP with clean thresholding (no dithering)
