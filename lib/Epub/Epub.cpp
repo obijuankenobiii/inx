@@ -363,13 +363,15 @@ bool Epub::generateCoverBmp(bool cropped) const {
  */
 bool Epub::generateThumbBmp() const {
   const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
+  const std::string thumbJpegPath = getThumbJpegPath();
+  const std::string thumbBmpPath = getThumbBmpPath();
 
-  SdMan.remove(getThumbJpegPath().c_str());
-  SdMan.remove(getThumbBmpPath().c_str());
+  SdMan.remove(thumbJpegPath.c_str());
+  SdMan.remove(thumbBmpPath.c_str());
 
   size_t packagedThumbSize = 0;
   if (getItemSize(kPackagedDeviceThumbnailPath, &packagedThumbSize) && packagedThumbSize > 0) {
-    if (extractItemToPath(kPackagedDeviceThumbnailPath, getThumbJpegPath(), 2048)) {
+    if (extractItemToPath(kPackagedDeviceThumbnailPath, thumbJpegPath, 2048)) {
       Serial.printf("[EBP] Thumbnail from packaged %s\n", kPackagedDeviceThumbnailPath);
       return true;
     }
@@ -405,18 +407,18 @@ bool Epub::generateThumbBmp() const {
     success = false;
   } else {
     FsFile thumbFile;
-    if (SdMan.openFileForWrite("EBP", getThumbJpegPath(), thumbFile)) {
+    if (SdMan.openFileForWrite("EBP", thumbJpegPath, thumbFile)) {
       JpegToBmpConverter converter;
       success = converter.jpegFileToThumbnailJpeg(sourceFile, thumbFile, 225, 340, 82);
       thumbFile.sync();
       thumbFile.close();
       if (!success) {
-        SdMan.remove(getThumbJpegPath().c_str());
+        SdMan.remove(thumbJpegPath.c_str());
       }
     } else {
       success = false;
     }
-    Serial.printf("[EBP] Thumbnail JPEG resize %s: %s\n", success ? "ok" : "failed", getThumbJpegPath().c_str());
+    Serial.printf("[EBP] Thumbnail JPEG resize %s: %s\n", success ? "ok" : "failed", thumbJpegPath.c_str());
   }
 
   sourceFile.close();

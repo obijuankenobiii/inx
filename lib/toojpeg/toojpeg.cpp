@@ -463,14 +463,14 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
             << AcLuminanceValues;
 
   // compute actual Huffman code tables (see Jon's code for precalculated tables)
-  BitCode huffmanLuminanceDC[256];
-  BitCode huffmanLuminanceAC[256];
+  static BitCode huffmanLuminanceDC[256];
+  static BitCode huffmanLuminanceAC[256];
   generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
   generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
 
   // chrominance is only relevant for color images
-  BitCode huffmanChrominanceDC[256];
-  BitCode huffmanChrominanceAC[256];
+  static BitCode huffmanChrominanceDC[256];
+  static BitCode huffmanChrominanceAC[256];
   if (isRGB)
   {
     // store luminance's DC+AC Huffman table definitions
@@ -503,8 +503,8 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
 
   // ////////////////////////////////////////
   // adjust quantization tables with AAN scaling factors to simplify DCT
-  float scaledLuminance  [8*8];
-  float scaledChrominance[8*8];
+  static float scaledLuminance  [8*8];
+  static float scaledChrominance[8*8];
   for (auto i = 0; i < 8*8; i++)
   {
     auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
@@ -523,7 +523,7 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
 
   // ////////////////////////////////////////
   // precompute JPEG codewords for quantized DCT
-  BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
+  static BitCode codewordsArray[2 * CodeWordLimit];    // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
   BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
   uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
   int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
@@ -554,7 +554,7 @@ bool writeJpeg(WRITE_ONE_BYTE output, const void* pixels_, unsigned short width,
   // average color of the previous MCU
   int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
   // convert from RGB to YCbCr
-  float Y[8][8], Cb[8][8], Cr[8][8];
+  static float Y[8][8], Cb[8][8], Cr[8][8];
 
   for (auto mcuY = 0; mcuY < height; mcuY += mcuSize) // each step is either 8 or 16 (=mcuSize)
     for (auto mcuX = 0; mcuX < width; mcuX += mcuSize)
