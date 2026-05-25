@@ -55,7 +55,7 @@ struct DriveVoltages {
 };
 
 constexpr DriveVoltages kNormalDriveVoltages{0x17, 0x41, 0xA8, 0x32, 0x30};
-constexpr DriveVoltages kSunlightFadeDriveVoltages{0x15, 0x3F, 0xA0, 0x2E, 0x2C};
+constexpr DriveVoltages kSunlightFadeDriveVoltages{0x17, 0x41, 0xA8, 0x32, 0x2E};
 }  
 
 
@@ -439,7 +439,6 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
 
   
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 
@@ -506,7 +505,6 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
 
   
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 

@@ -12,13 +12,19 @@ int clamp255(const int v) {
 constexpr int kCleanPaperMin = 248;
 
 int perceptualTone(const int gray) {
-  if (gray < 8) {
-    return clamp255(gray);
+  if (gray < 24) {
+    return gray;
   }
-  if (gray < 48) {
-    return clamp255(gray + 10);
+  if (gray < 96) {
+    return clamp255(gray - 6);
   }
-  return clamp255(gray + 12);
+  if (gray < 180) {
+    return clamp255(gray - 10);
+  }
+  if (gray < 236) {
+    return clamp255(gray - 4);
+  }
+  return clamp255(gray);
 }
 
 }  // namespace
@@ -65,10 +71,10 @@ bool FourToneImageDitherer::ok() const {
 ImageToneSample FourToneImageDitherer::quantize(const int gray) {
   const int g = clamp255(gray);
   ImageToneSample sample;
-  if (g < 12) {
+  if (g < 20) {
     sample.level = 3;
     sample.value = 0;
-  } else if (g < 132) {
+  } else if (g < 158) {
     sample.level = 1;
     sample.value = 85;
   } else if (g < kCleanPaperMin) {
@@ -82,8 +88,8 @@ ImageToneSample FourToneImageDitherer::quantize(const int gray) {
 }
 
 uint8_t FourToneImageDitherer::levelFromValue(const int value) {
-  if (value <= 28) return 3;
-  if (value <= 145) return 1;
+  if (value <= 36) return 3;
+  if (value <= 166) return 1;
   if (value <= 236) return 2;
   return 0;
 }
