@@ -142,43 +142,6 @@ std::string pickSleepBmpPath() {
   return "";
 }
 
-void applyBookOrientationToRenderer(GfxRenderer& r, const uint8_t orientationByte) {
-  using O = SystemSetting::ORIENTATION;
-  switch (orientationByte) {
-    case O::PORTRAIT:
-      r.setOrientation(GfxRenderer::Orientation::Portrait);
-      break;
-    case O::LANDSCAPE_CW:
-      r.setOrientation(GfxRenderer::Orientation::LandscapeClockwise);
-      break;
-    case O::INVERTED:
-      r.setOrientation(GfxRenderer::Orientation::PortraitInverted);
-      break;
-    case O::LANDSCAPE_CCW:
-      r.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
-      break;
-    default:
-      break;
-  }
-}
-
-void applyLastReadBookOrientationToRenderer(GfxRenderer& r, const std::string& lastReadPath) {
-  if (lastReadPath.empty()) {
-    applyBookOrientationToRenderer(r, SETTINGS.orientation);
-    return;
-  }
-  if (StringUtils::checkFileExtension(lastReadPath, ".epub")) {
-    Epub book(lastReadPath, "/.metadata/epub");
-    if (book.load()) {
-      BookSettings bs;
-      bs.loadFromFile(book.getCachePath());
-      applyBookOrientationToRenderer(r, bs.orientation);
-      return;
-    }
-  }
-  applyBookOrientationToRenderer(r, SETTINGS.orientation);
-}
-
 std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   std::string coverPath;
 
@@ -220,146 +183,8 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   }
 
   return coverPath;
+  }
 }
-
-struct SleepReaderViewport {
-  int totalMarginTop = 0;
-  int totalMarginBottom = 0;
-  int totalMarginLeft = 0;
-  int totalMarginRight = 0;
-  uint16_t width = 0;
-  uint16_t height = 0;
-  int fontId = 0;
-  float lineCompression = 1.f;
-};
-
-SleepReaderViewport computeSleepReaderViewport(GfxRenderer& gfx, const BookSettings& bookSettings) {
-  SleepReaderViewport info;
-  int oT = 0;
-  int oR = 0;
-  int oB = 0;
-  int oL = 0;
-  gfx.getOrientedViewableTRBL(&oT, &oR, &oB, &oL);
-
-  constexpr int statusBarMargin = 19;
-  constexpr int progressBarMarginTop = 10;
-
-  info.totalMarginTop = oT + bookSettings.screenMargin;
-  info.totalMarginBottom = oB + bookSettings.screenMargin;
-  info.totalMarginLeft = oL + bookSettings.screenMargin;
-  info.totalMarginRight = oR + bookSettings.screenMargin;
-
-  const bool hasStatusBar = (bookSettings.statusBarLeft.item != StatusBarItem::NONE ||
-                             bookSettings.statusBarMiddle.item != StatusBarItem::NONE ||
-                             bookSettings.statusBarRight.item != StatusBarItem::NONE);
-
-  const bool showProgressBar = (bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR ||
-                                bookSettings.statusBarMiddle.item == StatusBarItem::PROGRESS_BAR_WITH_PERCENT);
-
-  if (hasStatusBar) {
-    info.totalMarginBottom +=
-        statusBarMargin - bookSettings.screenMargin +
-        (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
-  }
-
-  int w = gfx.getScreenWidth() - info.totalMarginLeft - info.totalMarginRight;
-  int h = gfx.getScreenHeight() - info.totalMarginTop - info.totalMarginBottom;
-  constexpr int kMinViewport = 8;
-  if (w < kMinViewport) {
-    w = kMinViewport;
-  }
-  if (h < kMinViewport) {
-    h = kMinViewport;
-  }
-  info.width = static_cast<uint16_t>(w);
-  info.height = static_cast<uint16_t>(h);
-  info.fontId = bookSettings.getReaderFontId();
-  info.lineCompression = bookSettings.getReaderLineCompression();
-  return info;
-}
-
-/**
- * Renders the last-saved EPUB reading page into the framebuffer (no displayBuffer).
- * Used for transparent sleep so the overlay sits on the real page, not the cover.
- */
-bool tryRenderEpubLastReadReadingPage(GfxRenderer& renderer, const std::string& epubPath) {
-  std::unique_ptr<Epub> epub(new Epub(epubPath, "/.metadata/epub"));
-  if (!epub->load()) {
-    return false;
-  }
-  std::shared_ptr<Epub> epubShared(epub.get(), [](Epub*) {});
-
-  BookSettings bookSettings;
-  bookSettings.loadFromFile(epub->getCachePath());
-  if (!bookSettings.useCustomSettings) {
-    bookSettings.orientation = SETTINGS.orientation;
-    bookSettings.paragraphCssIndentEnabled = SETTINGS.paragraphCssIndentEnabled;
-  }
-  applyBookOrientationToRenderer(renderer, bookSettings.orientation);
-
-  const int spines = epub->getSpineItemsCount();
-  if (spines <= 0) {
-    return false;
-  }
-
-  BookProgress bp(epub->getCachePath());
-  BookProgress::Data prog{};
-  int spineIndex = epub->getSpineIndexForInitialOpen();
-  int pageNum = 0;
-  if (bp.load(prog) && bp.validate(prog, spines)) {
-    bp.sanitize(prog, spines);
-    spineIndex = static_cast<int>(prog.spineIndex);
-    pageNum = static_cast<int>(prog.pageNumber);
-  }
-
-  const SleepReaderViewport vp = computeSleepReaderViewport(renderer, bookSettings);
-  FontManager::ensureReaderLayoutFonts(vp.fontId, renderer);
-
-  Section sec(epubShared, spineIndex, renderer);
-  bool loaded = sec.loadSectionFile(vp.fontId, vp.lineCompression, bookSettings.extraParagraphSpacing,
-                                    bookSettings.paragraphAlignment, vp.width, vp.height, bookSettings.hyphenationEnabled,
-                                    bookSettings.paragraphCssIndentEnabled != 0);
-  if (!loaded) {
-    esp_task_wdt_reset();
-    if (!sec.createSectionFile(vp.fontId, FontManager::getNextFont(vp.fontId), FontManager::getMaxFontId(vp.fontId),
-                               vp.lineCompression, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment,
-                               vp.width, vp.height, bookSettings.hyphenationEnabled,
-                               bookSettings.paragraphCssIndentEnabled != 0, nullptr, false)) {
-      return false;
-    }
-    loaded = sec.loadSectionFile(vp.fontId, vp.lineCompression, bookSettings.extraParagraphSpacing,
-                                 bookSettings.paragraphAlignment, vp.width, vp.height, bookSettings.hyphenationEnabled,
-                                 bookSettings.paragraphCssIndentEnabled != 0);
-    if (!loaded) {
-      return false;
-    }
-  }
-
-  if (sec.pageCount == 0) {
-    return false;
-  }
-  if (pageNum < 0 || pageNum >= static_cast<int>(sec.pageCount)) {
-    pageNum = 0;
-  }
-  sec.currentPage = pageNum;
-  std::unique_ptr<Page> page = sec.loadPageFromSectionFile();
-  if (!page) {
-    return false;
-  }
-
-  renderer.clearScreen(0xFF);
-  const int fontId = bookSettings.getReaderFontId();
-  const int headerFontId = FontManager::getNextFont(fontId);
-  const ImageRenderMode imageMode =
-      SETTINGS.readerImageGrayscale != 0 && page->hasImages() ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  page->render(renderer, fontId, headerFontId, vp.totalMarginLeft, vp.totalMarginTop, true, imageMode);
-  page->renderImages(renderer, fontId, vp.totalMarginLeft, vp.totalMarginTop, imageMode);
-
-  StatusBar statusBar(renderer, *epub, bookSettings);
-  statusBar.render(&sec, spineIndex, vp.totalMarginRight, vp.totalMarginBottom, vp.totalMarginLeft);
-  return true;
-}
-}  
 
 /**
  * @brief Initializes and renders the sleep screen when activity becomes active.
@@ -370,7 +195,10 @@ bool tryRenderEpubLastReadReadingPage(GfxRenderer& renderer, const std::string& 
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
-  const GfxRenderer::Orientation orientationBeforeSleep = renderer.getOrientation();
+  if(SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT) {
+    renderer.clearScreen(0xff);
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
 
   switch (SETTINGS.sleepScreen) {
     case SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT:
@@ -389,8 +217,6 @@ void SleepActivity::onEnter() {
       renderDefaultSleepScreen();
       break;
   }
-
-  renderer.setOrientation(orientationBeforeSleep);
 }
 
 /**
@@ -401,8 +227,6 @@ void SleepActivity::onEnter() {
  */
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
-  renderer.clearScreen(0xff);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   if (!imagePath.empty()) {
     recordSleepImageUsed();
 
