@@ -16,7 +16,7 @@
 #include "WifiSelectionActivity.h"
 
 namespace {
-constexpr const char* AP_HOSTNAME = "crosspoint";
+constexpr const char* AP_HOSTNAME = "xteink";
 
 
 constexpr int CONTENT_MARGIN = 25;

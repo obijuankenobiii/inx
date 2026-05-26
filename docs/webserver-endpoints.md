@@ -37,7 +37,7 @@ Serves the home page HTML interface.
 
 **Request:**
 ```bash
-curl http://crosspoint.local/
+curl http://xteink.local/
 ```
 
 **Response:** HTML page (200 OK)
@@ -50,7 +50,7 @@ Serves the file browser HTML interface.
 
 **Request:**
 ```bash
-curl http://crosspoint.local/files
+curl http://xteink.local/files
 ```
 
 **Response:** HTML page (200 OK)
@@ -63,7 +63,7 @@ Returns JSON with device status information.
 
 **Request:**
 ```bash
-curl http://crosspoint.local/api/status
+curl http://xteink.local/api/status
 ```
 
 **Response (200 OK):**
@@ -96,10 +96,10 @@ Returns a JSON array of files and folders in the specified directory.
 **Request:**
 ```bash
 # List root directory
-curl http://crosspoint.local/api/files
+curl http://xteink.local/api/files
 
 # List specific directory
-curl "http://crosspoint.local/api/files?path=/Books"
+curl "http://xteink.local/api/files?path=/Books"
 ```
 
 **Query Parameters:**
@@ -137,10 +137,10 @@ Uploads a file to the SD card via multipart form data.
 **Request:**
 ```bash
 # Upload to root directory
-curl -X POST -F "file=@mybook.epub" http://crosspoint.local/upload
+curl -X POST -F "file=@mybook.epub" http://xteink.local/upload
 
 # Upload to specific directory
-curl -X POST -F "file=@mybook.epub" "http://crosspoint.local/upload?path=/Books"
+curl -X POST -F "file=@mybook.epub" "http://xteink.local/upload?path=/Books"
 ```
 
 **Query Parameters:**
@@ -176,7 +176,7 @@ Creates a new folder on the SD card.
 
 **Request:**
 ```bash
-curl -X POST -d "name=NewFolder&path=/" http://crosspoint.local/mkdir
+curl -X POST -d "name=NewFolder&path=/" http://xteink.local/mkdir
 ```
 
 **Form Parameters:**
@@ -209,10 +209,10 @@ Deletes a file or folder from the SD card.
 **Request:**
 ```bash
 # Delete a file
-curl -X POST -d "path=/Books/mybook.epub&type=file" http://crosspoint.local/delete
+curl -X POST -d "path=/Books/mybook.epub&type=file" http://xteink.local/delete
 
 # Delete an empty folder
-curl -X POST -d "path=/OldFolder&type=folder" http://crosspoint.local/delete
+curl -X POST -d "path=/OldFolder&type=folder" http://xteink.local/delete
 ```
 
 **Form Parameters:**
@@ -254,7 +254,7 @@ A WebSocket endpoint for high-speed binary file uploads. More efficient than HTT
 
 **Connection:**
 ```
-ws://crosspoint.local:81/
+ws://xteink.local:81/
 ```
 
 **Protocol:**
@@ -291,7 +291,7 @@ Server -> "DONE"
 **Example with `websocat`:**
 ```bash
 # Interactive session
-websocat ws://crosspoint.local:81
+websocat ws://xteink.local:81
 
 # Then type:
 START:mybook.epub:1234567:/Books
@@ -325,7 +325,7 @@ The device can operate in two network modes:
 
 ## Notes
 
-- These examples use `crosspoint.local`. If your network does not support mDNS or the address does not resolve, replace it with the specific **IP Address** displayed on your device screen (e.g., `http://192.168.1.102/`).
+- These examples use `xteink.local`. If your network does not support mDNS or the address does not resolve, replace it with the specific **IP Address** displayed on your device screen (e.g., `http://192.168.1.102/`).
 - All paths on the SD card start with `/`
 - Trailing slashes are automatically stripped (except for root `/`)
 - The webserver uses chunked transfer encoding for file listings
