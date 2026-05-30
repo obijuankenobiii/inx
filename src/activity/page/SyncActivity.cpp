@@ -12,12 +12,13 @@
 
 #include "images/Wifi.h"
 #include "images/Qr.h"
+#include "images/Opds.h"
 #include "images/Calibre.h"
 #include "state/SystemSetting.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 3;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot"};
+constexpr int MENU_ITEM_COUNT = 4;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser"};
 constexpr int LIST_ITEM_HEIGHT = 60;
 }
 
@@ -88,6 +89,10 @@ void SyncActivity::loop() {
       mode = NetworkMode::CREATE_HOTSPOT;
     }
 
+    if (selectedIndex == 3) {
+      mode = NetworkMode::OPDS_BROWSER;
+    }
+
     if (onModeSelected) {
       onModeSelected(mode);
     }
@@ -151,17 +156,21 @@ void SyncActivity::render() const {
       const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
 
       switch (i) {
-        case 0:  
+        case 0:
           renderer.bitmap.icon(Wifi, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
-        case 1:  
+        case 1:
           renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
         case 2:
           renderer.bitmap.icon(Qr, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
+        case 3:
+          renderer.bitmap.icon(Opds, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None,
+                               isSelected);
+          break;
       }
-      
+
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
