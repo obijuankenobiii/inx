@@ -92,6 +92,7 @@ struct BookSettings {
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
   uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
+  uint8_t bionicReadingEnabled = 0;   ///< Bionic Reading enabled
 
   
   uint8_t screenMargin = 20;  ///< Screen margin in pixels
@@ -211,6 +212,12 @@ struct BookSettings {
             paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
           }
 
+          if (bytesRead >= offset + 1) {
+            bionicReadingEnabled = data[offset++] ? 1 : 0;
+          } else {
+            bionicReadingEnabled = 0;
+          }
+
           useCustomSettings = true;
           f.close();
           return true;
@@ -258,6 +265,7 @@ struct BookSettings {
 
       data[offset++] = pageAutoTurnSeconds;
       data[offset++] = paragraphCssIndentEnabled;
+      data[offset++] = bionicReadingEnabled;
 
       bool success = (f.write(data, offset) == offset);
       f.close();
@@ -282,6 +290,7 @@ struct BookSettings {
     paragraphAlignment = global.paragraphAlignment;
     paragraphCssIndentEnabled = global.paragraphCssIndentEnabled;
     hyphenationEnabled = global.hyphenationEnabled;
+    bionicReadingEnabled = global.bionicReadingEnabled;
     screenMargin = global.screenMargin;
 
     switch (global.refreshFrequency) {
@@ -358,6 +367,7 @@ struct BookSettings {
            paragraphCssIndentEnabled == other.paragraphCssIndentEnabled &&
            extraParagraphSpacing == other.extraParagraphSpacing &&
            textAntiAliasing == other.textAntiAliasing && hyphenationEnabled == other.hyphenationEnabled &&
+           bionicReadingEnabled == other.bionicReadingEnabled &&
            screenMargin == other.screenMargin && orientation == other.orientation &&
            longPressChapterSkip == other.longPressChapterSkip && refreshFrequency == other.refreshFrequency &&
            pageAutoTurnSeconds == other.pageAutoTurnSeconds && statusBarLeft == other.statusBarLeft &&

@@ -75,7 +75,7 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("About", GroupType::NONE)};
 
-constexpr int readerSettingsCount = 29;
+constexpr int readerSettingsCount = 30;
 const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Literata", "Atkinson Hyperlegible"},
@@ -95,6 +95,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
     SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
                       {"Portrait","Landscape CW","Inverted","Landscape CCW"}, GroupType::LAYOUT),
     SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
+    SettingInfo::Toggle("Bionic Reading", &SystemSetting::bionicReadingEnabled, GroupType::LAYOUT),
 
     SettingInfo::Separator("Buttons", GroupType::READER_CONTROLS),
     SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,

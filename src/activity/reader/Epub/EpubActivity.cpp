@@ -306,6 +306,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         info.height,
         bookSettings.hyphenationEnabled,
         bookSettings.paragraphCssIndentEnabled != 0,
+        bookSettings.bionicReadingEnabled != 0,
         nullptr,
         skipImages);
 
@@ -333,7 +334,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
   bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                                  bookSettings.paragraphAlignment, info.width, info.height,
                                                  bookSettings.hyphenationEnabled,
-                                                 bookSettings.paragraphCssIndentEnabled != 0);
+                                                 bookSettings.paragraphCssIndentEnabled != 0,
+                                                 bookSettings.bionicReadingEnabled != 0);
 
   if (!isCached) {
     if (!buildSection(spineIndex, info, true, false)) {
@@ -341,7 +343,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
     }
     if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                         bookSettings.paragraphAlignment, info.width, info.height,
-                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0)) {
+                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
+                                        bookSettings.bionicReadingEnabled != 0)) {
       return nullptr;
     }
   }

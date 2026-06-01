@@ -363,6 +363,7 @@ public:
     
     uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
     uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
+    uint8_t bionicReadingEnabled = 0;                            ///< Bionic Reading enabled
 
     
     uint8_t screenMargin = 20;                                  ///< Screen margin in pixels

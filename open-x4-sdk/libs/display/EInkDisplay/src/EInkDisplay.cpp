@@ -598,6 +598,7 @@ void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScree
     sendData(0x5A);
     displayMode |= 0xD4;
   } else {  
+    displayMode |= 0xC0;
     displayMode |= customLutActive ? 0x0C : 0x1C;
   }
 

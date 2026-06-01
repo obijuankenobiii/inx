@@ -298,6 +298,19 @@ void SettingsDrawer::setupMenu() {
       s.useCustomSettings = true;
     };
     menuItems.push_back(hypenEntry);
+
+    MenuEntry bionicEntry;
+    bionicEntry.item = MenuItem::BionicReading;
+    bionicEntry.group = GroupType::LAYOUT;
+    bionicEntry.name = "Bionic Reading";
+    bionicEntry.getValueText = [](const BookSettings& s) -> const char* {
+      return s.bionicReadingEnabled ? "On" : "Off";
+    };
+    bionicEntry.change = [](BookSettings& s, int) {
+      s.bionicReadingEnabled = s.bionicReadingEnabled ? 0 : 1;
+      s.useCustomSettings = true;
+    };
+    menuItems.push_back(bionicEntry);
   }
 
   MenuEntry imageSeparator;
@@ -671,6 +684,10 @@ void SettingsDrawer::drawMenuItems() {
           checkbox = true;
           checked = settings.hyphenationEnabled != 0;
           break;
+        case MenuItem::BionicReading:
+          checkbox = true;
+          checked = settings.bionicReadingEnabled != 0;
+          break;
         case MenuItem::ReaderImageGrayscale:
           checkbox = true;
           checked = SETTINGS.readerImageGrayscale != 0;
@@ -823,6 +840,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:
     case MenuItem::ParagraphCssIndent:
+    case MenuItem::BionicReading:
     case MenuItem::FontFamily:
       settingsUpdated = true;
       break;

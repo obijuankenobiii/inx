@@ -37,7 +37,7 @@ class Section {
    */
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                               uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                              bool respectCssParagraphIndent);
+                              bool respectCssParagraphIndent, bool bionicReadingEnabled);
 
   /**
    * Handles completion of a page during section creation.
@@ -80,7 +80,7 @@ class Section {
    */
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                        uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                       bool respectCssParagraphIndent);
+                       bool respectCssParagraphIndent, bool bionicReadingEnabled);
 
   /**
    * Removes the section file from the filesystem.
@@ -108,7 +108,7 @@ class Section {
    */
   bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, bool extraParagraphSpacing,
                          uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                         bool hyphenationEnabled, bool respectCssParagraphIndent,
+                         bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled,
                          const std::function<void()>& popupFn = nullptr, bool skipImages = false);
 
   /**

@@ -115,6 +115,7 @@ private:
         
         
         Hyphenation,         ///< Hyphenation toggle
+        BionicReading,       ///< Bionic Reading toggle
         AntiAliasing,        ///< Text anti-aliasing toggle
         RefreshRate,         ///< Display refresh frequency
         ChapterSkip,         ///< Long-press chapter skip toggle

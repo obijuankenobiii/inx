@@ -7,6 +7,7 @@
 
 #include <EpdFontFamily.h>
 
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -20,9 +21,11 @@ class GfxRenderer;
 class ParsedText {
   std::list<std::string> words;
   std::list<EpdFontFamily::Style> wordStyles;
+  std::list<uint8_t> bionicPrefixBytes;
   TextBlock::Style style;
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
+  bool bionicReadingEnabled;
   /** Reader "Indent" / book setting: legacy first-line em and em-based CSS indent simulation. */
   bool respectParagraphIndent_ = true;
 
@@ -47,10 +50,11 @@ class ParsedText {
 
  public:
   explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing, const bool hyphenationEnabled,
-                      const bool respectParagraphIndent = true)
+                      const bool respectParagraphIndent = true, const bool bionicReadingEnabled = false)
       : style(style),
         extraParagraphSpacing(extraParagraphSpacing),
         hyphenationEnabled(hyphenationEnabled),
+        bionicReadingEnabled(bionicReadingEnabled),
         respectParagraphIndent_(respectParagraphIndent) {}
   ~ParsedText() = default;
 

@@ -13,10 +13,10 @@
 #include <FsHelpers.h> 
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 11;
+constexpr uint8_t SECTION_FILE_VERSION = 12;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
-                                 sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) +
-                                 sizeof(uint32_t);
+                                 sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(bool) +
+                                 sizeof(uint16_t) + sizeof(uint32_t);
 }
 
 /**
@@ -55,7 +55,7 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
 void Section::writeSectionFileHeader(const int fontId, const float lineCompression, const bool extraParagraphSpacing,
                                      const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                                      const uint16_t viewportHeight, const bool hyphenationEnabled,
-                                     const bool respectCssParagraphIndent) {
+                                     const bool respectCssParagraphIndent, const bool bionicReadingEnabled) {
   if (!file) return;
   serialization::writePod(file, SECTION_FILE_VERSION);
   serialization::writePod(file, fontId);
@@ -66,6 +66,7 @@ void Section::writeSectionFileHeader(const int fontId, const float lineCompressi
   serialization::writePod(file, viewportHeight);
   serialization::writePod(file, hyphenationEnabled);
   serialization::writePod(file, respectCssParagraphIndent);
+  serialization::writePod(file, bionicReadingEnabled);
   serialization::writePod(file, pageCount);
   serialization::writePod(file, static_cast<uint32_t>(0));
 }
@@ -86,12 +87,12 @@ void Section::writeSectionFileHeader(const int fontId, const float lineCompressi
 bool Section::loadSectionFile(const int fontId, const float lineCompression, const bool extraParagraphSpacing,
                               const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                               const uint16_t viewportHeight, const bool hyphenationEnabled,
-                              const bool respectCssParagraphIndent) {
+                              const bool respectCssParagraphIndent, const bool bionicReadingEnabled) {
   if (!SdMan.openFileForRead("SCT", filePath, file)) return false;
   
   uint8_t version;
   serialization::readPod(file, version);
-  if (version != SECTION_FILE_VERSION && version != 10) {
+  if (version != SECTION_FILE_VERSION) {
     file.close();
     clearCache();
     return false;
@@ -105,6 +106,7 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   uint16_t storedViewportHeight;
   bool storedHyphenationEnabled;
   bool storedRespectCssIndent = false;
+  bool storedBionicReadingEnabled = false;
   uint16_t storedPageCount;
   uint32_t storedLutOffset;
 
@@ -115,9 +117,8 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   serialization::readPod(file, storedViewportWidth);
   serialization::readPod(file, storedViewportHeight);
   serialization::readPod(file, storedHyphenationEnabled);
-  if (version >= 11) {
-    serialization::readPod(file, storedRespectCssIndent);
-  }
+  serialization::readPod(file, storedRespectCssIndent);
+  serialization::readPod(file, storedBionicReadingEnabled);
   serialization::readPod(file, storedPageCount);
   serialization::readPod(file, storedLutOffset);
 
@@ -130,6 +131,7 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   settingsMatch &= (storedViewportHeight == viewportHeight);
   settingsMatch &= (storedHyphenationEnabled == hyphenationEnabled);
   settingsMatch &= (storedRespectCssIndent == respectCssParagraphIndent);
+  settingsMatch &= (storedBionicReadingEnabled == bionicReadingEnabled);
   
   if (!settingsMatch) {
     file.close();
@@ -164,6 +166,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
                                 const bool hyphenationEnabled, const bool respectCssParagraphIndent,
+                                const bool bionicReadingEnabled,
                                 const std::function<void()>& popupFn, bool skipImages) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
@@ -214,6 +217,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       viewportHeight,
       hyphenationEnabled,
       respectCssParagraphIndent,
+      bionicReadingEnabled,
       [this, &lut](std::unique_ptr<Page> page) {
         lut.emplace_back(this->onPageComplete(std::move(page)));
       },
@@ -226,7 +230,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   if (!SdMan.openFileForWrite("SCT", filePath, file)) return false;
 
   writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
-                         viewportHeight, hyphenationEnabled, respectCssParagraphIndent);
+                         viewportHeight, hyphenationEnabled, respectCssParagraphIndent, bionicReadingEnabled);
 
   success = visitor.parseAndBuildPages(skipImages);
 

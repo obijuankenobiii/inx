@@ -1356,6 +1356,7 @@ void LocalServer::handleSettingsGet() const {
   doc["extraParagraphSpacing"] = SETTINGS.extraParagraphSpacing;
   doc["orientation"] = SETTINGS.orientation;
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
+  doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
   
   
   doc["readerDirectionMapping"] = SETTINGS.readerDirectionMapping;
@@ -1521,6 +1522,10 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "hyphenationEnabled") == 0) {
       SETTINGS.hyphenationEnabled = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "bionicReadingEnabled") == 0) {
+      SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "readerDirectionMapping") == 0) {
