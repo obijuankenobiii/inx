@@ -10,6 +10,7 @@
 
 #include <map>
 #include <memory>
+#include <vector>
 
 #include "../../src/system/ExternalFont.h"
 #include "BitmapRender.h"
@@ -36,14 +37,15 @@ class GfxRenderer {
 
  private:
   static constexpr size_t BW_BUFFER_CHUNK_SIZE = 8000;  
-  static constexpr size_t BW_BUFFER_NUM_CHUNKS = HalDisplay::BUFFER_SIZE / BW_BUFFER_CHUNK_SIZE;
-  static_assert(BW_BUFFER_CHUNK_SIZE * BW_BUFFER_NUM_CHUNKS == HalDisplay::BUFFER_SIZE,
-                "BW buffer chunking does not line up with display buffer size");
 
   HalDisplay& display;
   RenderMode renderMode;
   Orientation orientation;
-  uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
+  uint16_t panelWidth = HalDisplay::DISPLAY_WIDTH;
+  uint16_t panelHeight = HalDisplay::DISPLAY_HEIGHT;
+  uint16_t panelWidthBytes = HalDisplay::DISPLAY_WIDTH_BYTES;
+  uint32_t frameBufferSize = HalDisplay::BUFFER_SIZE;
+  std::vector<uint8_t*> bwBufferChunks;
   std::map<int, EpdFontFamily> fontMap;
   std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
 
@@ -78,6 +80,7 @@ class GfxRenderer {
   void displayBuffer(const HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;
+  void begin();
 
   /** Solid ink/paper, or Gray (50% checkerboard dither in BW, similar to light fills in list UIs). */
   enum class FillTone : uint8_t { Paper, Ink, Gray };
@@ -117,7 +120,7 @@ class GfxRenderer {
 
   
   uint8_t* getFrameBuffer() const;
-  static size_t getBufferSize();
+  size_t getBufferSize() const;
   void grayscaleRevert() const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
 

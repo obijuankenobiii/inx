@@ -190,6 +190,7 @@ void enterDeepSleep() {
 
 void setupDisplayAndFonts() {
   display.begin();
+  render.begin();
   FontManager::initialize(render);
 }
 

@@ -25,6 +25,14 @@ GfxRenderer::GfxRenderer(HalDisplay& halDisplay)
 
 GfxRenderer::~GfxRenderer() { freeBwBufferChunks(); }
 
+void GfxRenderer::begin() {
+  panelWidth = display.getDisplayWidth();
+  panelHeight = display.getDisplayHeight();
+  panelWidthBytes = display.getDisplayWidthBytes();
+  frameBufferSize = display.getBufferSize();
+  bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
+}
+
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
   fontMap.erase(fontId);
   fontMap.emplace(fontId, std::move(font));
@@ -36,19 +44,19 @@ void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int
       
       
       *rotatedX = y;
-      *rotatedY = HalDisplay::DISPLAY_HEIGHT - 1 - x;
+      *rotatedY = panelHeight - 1 - x;
       break;
     }
     case LandscapeClockwise: {
       
-      *rotatedX = HalDisplay::DISPLAY_WIDTH - 1 - x;
-      *rotatedY = HalDisplay::DISPLAY_HEIGHT - 1 - y;
+      *rotatedX = panelWidth - 1 - x;
+      *rotatedY = panelHeight - 1 - y;
       break;
     }
     case PortraitInverted: {
       
       
-      *rotatedX = HalDisplay::DISPLAY_WIDTH - 1 - y;
+      *rotatedX = panelWidth - 1 - y;
       *rotatedY = x;
       break;
     }
@@ -75,13 +83,13 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   rotateCoordinates(x, y, &rotatedX, &rotatedY);
 
   
-  if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 || rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+  if (rotatedX < 0 || rotatedX >= panelWidth || rotatedY < 0 || rotatedY >= panelHeight) {
     Serial.printf("[%lu] [GFX] !! Outside range (%d, %d) -> (%d, %d)\n", millis(), x, y, rotatedX, rotatedY);
     return;
   }
 
   
-  const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+  const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
   const uint8_t bitPosition = 7 - (rotatedX % 8);  
 
   if (state) {
@@ -100,11 +108,11 @@ bool GfxRenderer::readPixel(const int x, const int y) const {
   int rotatedX = 0;
   int rotatedY = 0;
   rotateCoordinates(x, y, &rotatedX, &rotatedY);
-  if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 || rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+  if (rotatedX < 0 || rotatedX >= panelWidth || rotatedY < 0 || rotatedY >= panelHeight) {
     return false;
   }
 
-  const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+  const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
   const uint8_t bitPosition = 7 - (rotatedX % 8);
   return (frameBuffer[byteIndex] & (1 << bitPosition)) == 0;
 }
@@ -125,11 +133,10 @@ bool GfxRenderer::readPackedRow1bpp(const int x, const int y, const int width, u
     int rotatedX = 0;
     int rotatedY = 0;
     rotateCoordinates(x + col, y, &rotatedX, &rotatedY);
-    if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 ||
-        rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+    if (rotatedX < 0 || rotatedX >= panelWidth || rotatedY < 0 || rotatedY >= panelHeight) {
       continue;
     }
-    const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+    const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
     const uint8_t bitPosition = 7 - (rotatedX % 8);
     if ((frameBuffer[byteIndex] & (1 << bitPosition)) == 0) {
       outRow[col / 8] |= static_cast<uint8_t>(0x80 >> (col % 8));
@@ -151,12 +158,11 @@ void GfxRenderer::drawPackedRow1bpp(const int x, const int y, const int width, c
     int rotatedX = 0;
     int rotatedY = 0;
     rotateCoordinates(x + col, y, &rotatedX, &rotatedY);
-    if (rotatedX < 0 || rotatedX >= HalDisplay::DISPLAY_WIDTH || rotatedY < 0 ||
-        rotatedY >= HalDisplay::DISPLAY_HEIGHT) {
+    if (rotatedX < 0 || rotatedX >= panelWidth || rotatedY < 0 || rotatedY >= panelHeight) {
       continue;
     }
     const bool ink = (row[col / 8] & (0x80 >> (col % 8))) != 0;
-    const uint16_t byteIndex = rotatedY * HalDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+    const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
     const uint8_t bitPosition = 7 - (rotatedX % 8);
     if (ink) {
       frameBuffer[byteIndex] &= static_cast<uint8_t>(~(1 << bitPosition));
@@ -174,7 +180,7 @@ void GfxRenderer::invertScreen() const {
     Serial.printf("[%lu] [GFX] !! No framebuffer in invertScreen\n", millis());
     return;
   }
-  for (int i = 0; i < HalDisplay::BUFFER_SIZE; i++) {
+  for (uint32_t i = 0; i < frameBufferSize; i++) {
     buffer[i] = ~buffer[i];
   }
 }
@@ -186,13 +192,13 @@ int GfxRenderer::getScreenWidth() const {
     case Portrait:
     case PortraitInverted:
       
-      return HalDisplay::DISPLAY_HEIGHT;
+      return panelHeight;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
       
-      return HalDisplay::DISPLAY_WIDTH;
+      return panelWidth;
   }
-  return HalDisplay::DISPLAY_HEIGHT;
+  return panelHeight;
 }
 
 int GfxRenderer::getScreenHeight() const {
@@ -200,18 +206,18 @@ int GfxRenderer::getScreenHeight() const {
     case Portrait:
     case PortraitInverted:
       
-      return HalDisplay::DISPLAY_WIDTH;
+      return panelWidth;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
       
-      return HalDisplay::DISPLAY_HEIGHT;
+      return panelHeight;
   }
-  return HalDisplay::DISPLAY_WIDTH;
+  return panelWidth;
 }
 
 uint8_t* GfxRenderer::getFrameBuffer() const { return display.getFrameBuffer(); }
 
-size_t GfxRenderer::getBufferSize() { return HalDisplay::BUFFER_SIZE; }
+size_t GfxRenderer::getBufferSize() const { return frameBufferSize; }
 
 
 
@@ -245,7 +251,11 @@ bool GfxRenderer::storeBwBuffer() {
   }
 
   
-  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+  if (bwBufferChunks.empty()) {
+    bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
+  }
+
+  for (size_t i = 0; i < bwBufferChunks.size(); i++) {
     
     if (bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunk %zu already stored - this is likely a bug, freeing chunk\n",
@@ -255,20 +265,21 @@ bool GfxRenderer::storeBwBuffer() {
     }
 
     const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
-    bwBufferChunks[i] = static_cast<uint8_t*>(malloc(BW_BUFFER_CHUNK_SIZE));
+    const size_t chunkSize = std::min(BW_BUFFER_CHUNK_SIZE, static_cast<size_t>(frameBufferSize) - offset);
+    bwBufferChunks[i] = static_cast<uint8_t*>(malloc(chunkSize));
 
     if (!bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i,
-                    BW_BUFFER_CHUNK_SIZE);
+                    chunkSize);
       
       freeBwBufferChunks();
       return false;
     }
 
-    memcpy(bwBufferChunks[i], frameBuffer + offset, BW_BUFFER_CHUNK_SIZE);
+    memcpy(bwBufferChunks[i], frameBuffer + offset, chunkSize);
   }
 
-  Serial.printf("[%lu] [GFX] Stored BW buffer in %zu chunks (%zu bytes each)\n", millis(), BW_BUFFER_NUM_CHUNKS,
+  Serial.printf("[%lu] [GFX] Stored BW buffer in %zu chunks (%zu bytes each)\n", millis(), bwBufferChunks.size(),
                 BW_BUFFER_CHUNK_SIZE);
   return true;
 }
@@ -300,7 +311,7 @@ void GfxRenderer::restoreBwBuffer() {
     return;
   }
 
-  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+  for (size_t i = 0; i < bwBufferChunks.size(); i++) {
     
     if (!bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunks not stored - this is likely a bug\n", millis());
@@ -309,7 +320,8 @@ void GfxRenderer::restoreBwBuffer() {
     }
 
     const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
-    memcpy(frameBuffer + offset, bwBufferChunks[i], BW_BUFFER_CHUNK_SIZE);
+    const size_t chunkSize = std::min(BW_BUFFER_CHUNK_SIZE, static_cast<size_t>(frameBufferSize) - offset);
+    memcpy(frameBuffer + offset, bwBufferChunks[i], chunkSize);
   }
 
   display.cleanupGrayscaleBuffers(frameBuffer);

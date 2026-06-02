@@ -23,13 +23,39 @@
 
 #define UART0_RXD 20  
 
+#define X3_I2C_SDA 20
+#define X3_I2C_SCL 0
+#define X3_I2C_FREQ 400000
+
+#define I2C_ADDR_BQ27220 0x55
+#define BQ27220_SOC_REG 0x2C
+#define BQ27220_CUR_REG 0x0C
+#define BQ27220_VOLT_REG 0x08
+
+#define I2C_ADDR_DS3231 0x68
+#define DS3231_SEC_REG 0x00
+
+#define I2C_ADDR_QMI8658 0x6B
+#define I2C_ADDR_QMI8658_ALT 0x6A
+#define QMI8658_WHO_AM_I_REG 0x00
+#define QMI8658_WHO_AM_I_VALUE 0x05
+
 class HalGPIO {
 #if CROSSPOINT_EMULATED == 0
   InputManager inputMgr;
 #endif
 
  public:
+  enum class DeviceType : uint8_t { X4, X3 };
+
+ private:
+  DeviceType deviceType = DeviceType::X4;
+
+ public:
   HalGPIO() = default;
+
+  bool deviceIsX3() const { return deviceType == DeviceType::X3; }
+  bool deviceIsX4() const { return deviceType == DeviceType::X4; }
 
   
   void begin();
@@ -72,3 +98,5 @@ class HalGPIO {
   static constexpr uint8_t BTN_DOWN = 5;
   static constexpr uint8_t BTN_POWER = 6;
 };
+
+extern HalGPIO gpio;
