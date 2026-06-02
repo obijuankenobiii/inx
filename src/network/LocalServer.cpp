@@ -1337,6 +1337,9 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["sleepImageTwoBit"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
+  doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
+  doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
+  doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["libraryMode"] = SETTINGS.libraryMode;
@@ -1444,6 +1447,25 @@ void LocalServer::handleSettingsUpdate() const {
       } else {
         SETTINGS.setSleepCustomBmpFromInput(kv.value().as<const char*>());
       }
+      changed = true;
+    }
+    else if (strcmp(key, "sleepClockStyle") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::SLEEP_CLOCK_STYLE_COUNT) v = SystemSetting::CLOCK_CENTERED_DATE;
+      SETTINGS.sleepClockStyle = v;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepClockTimeFormat") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::CLOCK_TIME_FORMAT_COUNT) v = SystemSetting::CLOCK_24_HOUR;
+      SETTINGS.sleepClockTimeFormat = v;
+      changed = true;
+    }
+    else if (strcmp(key, "timeZoneQuarterOffset") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 0) v = 0;
+      if (v > 104) v = 104;
+      SETTINGS.timeZoneQuarterOffset = static_cast<uint8_t>(v);
       changed = true;
     }
     else if (strcmp(key, "hideBatteryPercentage") == 0) {

@@ -21,7 +21,8 @@ class HalDisplay {
     FULL_REFRESH,  
     HALF_REFRESH,  
     FAST_REFRESH,
-    STRONG_FAST_REFRESH
+    STRONG_FAST_REFRESH,
+    MANUAL_REFRESH
   };
 
   

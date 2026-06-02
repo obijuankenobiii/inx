@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <esp_sleep.h>
+#include <time.h>
 
 namespace X3GPIO {
 
@@ -50,6 +51,33 @@ bool readI2CReg16LE(uint8_t addr, uint8_t reg, uint16_t* outValue) {
   const uint8_t hi = Wire.read();
   *outValue = (static_cast<uint16_t>(hi) << 8) | lo;
   return true;
+}
+
+bool readI2CRegs(uint8_t addr, uint8_t reg, uint8_t* out, uint8_t len) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  if (Wire.requestFrom(addr, len, static_cast<uint8_t>(true)) < len) {
+    while (Wire.available()) {
+      Wire.read();
+    }
+    return false;
+  }
+  for (uint8_t i = 0; i < len; ++i) {
+    out[i] = Wire.read();
+  }
+  return true;
+}
+
+bool writeI2CRegs(uint8_t addr, uint8_t reg, const uint8_t* data, uint8_t len) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  for (uint8_t i = 0; i < len; ++i) {
+    Wire.write(data[i]);
+  }
+  return Wire.endTransmission(true) == 0;
 }
 
 bool readBQ27220CurrentMA(int16_t* outCurrent) {
@@ -185,6 +213,15 @@ HalGPIO::DeviceType detectDeviceTypeWithFingerprint() {
   return HalGPIO::DeviceType::X4;
 }
 
+uint8_t bcdToDec(uint8_t value) { return ((value >> 4) * 10) + (value & 0x0F); }
+
+uint8_t decToBcd(uint8_t value) { return static_cast<uint8_t>(((value / 10) << 4) | (value % 10)); }
+
+bool validDateTime(const HalGPIO::DateTime& dt) {
+  return dt.year >= 2024 && dt.year <= 2099 && dt.month >= 1 && dt.month <= 12 && dt.day >= 1 && dt.day <= 31 &&
+         dt.hour <= 23 && dt.minute <= 59 && dt.second <= 59;
+}
+
 }  // namespace
 
 void HalGPIO::begin() {
@@ -253,6 +290,80 @@ bool HalGPIO::isUsbConnected() const {
     return false;
   }
   return digitalRead(UART0_RXD) == HIGH;
+}
+
+bool HalGPIO::readDateTime(DateTime& outDateTime) const {
+  if (!deviceIsX3()) {
+    return false;
+  }
+
+  uint8_t regs[7] = {};
+  X3GPIO::beginX3I2C();
+  const bool ok = X3GPIO::readI2CRegs(I2C_ADDR_DS3231, DS3231_SEC_REG, regs, sizeof(regs));
+  X3GPIO::endX3I2C();
+  if (!ok) {
+    return false;
+  }
+
+  DateTime dt;
+  dt.second = bcdToDec(regs[0] & 0x7F);
+  dt.minute = bcdToDec(regs[1] & 0x7F);
+  dt.hour = bcdToDec(regs[2] & 0x3F);
+  dt.weekday = bcdToDec(regs[3] & 0x07);
+  dt.day = bcdToDec(regs[4] & 0x3F);
+  dt.month = bcdToDec(regs[5] & 0x1F);
+  dt.year = static_cast<uint16_t>(2000 + bcdToDec(regs[6]));
+
+  if (!validDateTime(dt)) {
+    return false;
+  }
+
+  outDateTime = dt;
+  return true;
+}
+
+bool HalGPIO::writeDateTime(const DateTime& dateTime) const {
+  if (!deviceIsX3() || !validDateTime(dateTime)) {
+    return false;
+  }
+
+  const uint8_t regs[7] = {decToBcd(dateTime.second),
+                           decToBcd(dateTime.minute),
+                           decToBcd(dateTime.hour),
+                           decToBcd(dateTime.weekday >= 1 && dateTime.weekday <= 7 ? dateTime.weekday : 1),
+                           decToBcd(dateTime.day),
+                           decToBcd(dateTime.month),
+                           decToBcd(static_cast<uint8_t>(dateTime.year - 2000))};
+  X3GPIO::beginX3I2C();
+  const bool ok = X3GPIO::writeI2CRegs(I2C_ADDR_DS3231, DS3231_SEC_REG, regs, sizeof(regs));
+  X3GPIO::endX3I2C();
+  return ok;
+}
+
+bool HalGPIO::syncRtcFromSystemTime() const {
+  if (!deviceIsX3()) {
+    return false;
+  }
+
+  const time_t now = time(nullptr);
+  if (now < 1704067200) {
+    return false;
+  }
+
+  struct tm localTime {};
+  if (localtime_r(&now, &localTime) == nullptr) {
+    return false;
+  }
+
+  DateTime dt;
+  dt.year = static_cast<uint16_t>(localTime.tm_year + 1900);
+  dt.month = static_cast<uint8_t>(localTime.tm_mon + 1);
+  dt.day = static_cast<uint8_t>(localTime.tm_mday);
+  dt.hour = static_cast<uint8_t>(localTime.tm_hour);
+  dt.minute = static_cast<uint8_t>(localTime.tm_min);
+  dt.second = static_cast<uint8_t>(localTime.tm_sec);
+  dt.weekday = static_cast<uint8_t>(localTime.tm_wday == 0 ? 7 : localTime.tm_wday);
+  return writeDateTime(dt);
 }
 
 HalGPIO::WakeupReason HalGPIO::getWakeupReason() const {

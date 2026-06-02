@@ -101,6 +101,18 @@
         <div class="setting-control"><input id="sleepCustomBmp" placeholder="Filename (.bmp/.jpg/.jpeg) or empty for random" autocomplete="off"></div>
       </div>
       <div class="setting-item">
+        <div><div class="setting-label">Clock design</div></div>
+        <div class="setting-control"><select id="sleepClockStyle"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Clock format</div></div>
+        <div class="setting-control"><select id="sleepClockTimeFormat"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Timezone</div></div>
+        <div class="setting-control"><select id="timeZoneQuarterOffset"></select></div>
+      </div>
+      <div class="setting-item">
         <div><div class="setting-label">Hide Battery %</div></div>
         <div class="setting-control"><select id="hideBatteryPercentage"></select></div>
       </div>
@@ -354,9 +366,11 @@
 <script>
 let settingsData = {}, pendingChanges = {}, wifiNetworks = [];
 const options = {
-  sleepScreen: ["Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"],
+  sleepScreen: ["Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None", "Date Time"],
   sleepScreenCoverMode: ["Fill", "Crop"],
   sleepScreenCoverFilter: ["None", "Contrast", "Inverted"],
+  sleepClockStyle: ["Stacked", "Centered", "Card"],
+  sleepClockTimeFormat: ["12 hour", "24 hour"],
   hideBatteryPercentage: ["Never", "In Reader", "Always"],
   recentLibraryMode: ["Grid", "Current | Previous", "Flow", "Simple", "List", "Icons"],
   libraryMode: ["List", "Grid"],
@@ -386,6 +400,13 @@ const boolSettings = [
 ];
 const marginOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
 const fontFamilyBuiltin = ["Literata", "Atkinson Hyperlegible"];
+
+function timezoneLabel(slot) {
+  const mins = (Number(slot) - 48) * 15;
+  const sign = mins < 0 ? "-" : "+";
+  const abs = Math.abs(mins);
+  return "UTC" + sign + String(Math.floor(abs / 60)).padStart(2, "0") + ":" + String(abs % 60).padStart(2, "0");
+}
 
 function switchTab(id, btn) {
   document.querySelectorAll(".tab-content").forEach(function (el) { el.classList.remove("active"); });
@@ -630,6 +651,22 @@ function populateSettings() {
     sm.onchange = function () {
       pendingChanges.screenMargin = parseInt(sm.value, 10);
       markChanged(sm);
+    };
+  }
+
+  const tz = document.getElementById("timeZoneQuarterOffset");
+  if (tz && settingsData.timeZoneQuarterOffset !== undefined) {
+    tz.innerHTML = "";
+    for (let i = 0; i <= 104; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = timezoneLabel(i);
+      if (Number(settingsData.timeZoneQuarterOffset) === i) opt.selected = true;
+      tz.appendChild(opt);
+    }
+    tz.onchange = function () {
+      pendingChanges.timeZoneQuarterOffset = parseInt(tz.value, 10);
+      markChanged(tz);
     };
   }
 

@@ -22,12 +22,18 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 35;
+constexpr int systemPageSettingsCount = 39;
 const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
-                      {"Dark","Light","Custom","Recent Book","Transparent Cover","None"}, GroupType::DEVICE_DISPLAY),
+                      {"Dark","Light","Custom","Recent Book","Transparent Cover","None","Date Time"},
+                      GroupType::DEVICE_DISPLAY),
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
+    SettingInfo::Action("Choose clock", GroupType::DEVICE_DISPLAY),
+    SettingInfo::Enum("Clock format", &SystemSetting::sleepClockTimeFormat, {"12 hour","24 hour"},
+                      GroupType::DEVICE_DISPLAY),
+    SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Action("Sync time via WiFi", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,

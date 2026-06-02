@@ -178,6 +178,11 @@ void FontManager::initialize(GfxRenderer& renderer) {
       &atkinson_hyperlegible18RegularFont, &atkinson_hyperlegible18BoldFont, &atkinson_hyperlegible18ItalicFont,
       &atkinson_hyperlegible18BoldItalicFont);
 
+  static EpdFont montserratClock70RegularFont(&montserrat_clock_70_regular);
+  static EpdFont montserratClock70BoldFont(&montserrat_clock_70_bold);
+  static EpdFontFamily montserratClock70FontFamily(&montserratClock70RegularFont, &montserratClock70BoldFont, nullptr,
+                                                   nullptr);
+
   renderer.insertFont(LITERATA_10_FONT_ID, literata10RegularFontFamily);
   renderer.insertFont(LITERATA_12_FONT_ID, literata12RegularFontFamily);
   renderer.insertFont(LITERATA_14_FONT_ID, literata14RegularFontFamily);
@@ -190,8 +195,9 @@ void FontManager::initialize(GfxRenderer& renderer) {
   renderer.insertFont(ATKINSON_HYPERLEGIBLE_14_FONT_ID, atkinson_hyperlegible14FontFamily);
   renderer.insertFont(ATKINSON_HYPERLEGIBLE_16_FONT_ID, atkinson_hyperlegible16FontFamily);
   renderer.insertFont(ATKINSON_HYPERLEGIBLE_18_FONT_ID, atkinson_hyperlegible18FontFamily);
+  renderer.insertFont(MONTSERRAT_CLOCK_70_FONT_ID, montserratClock70FontFamily);
 
-  Serial.println("[FontManager] Initialized (Literata + Atkinson + SD streaming)");
+  Serial.println("[FontManager] Initialized (Literata + Atkinson + Montserrat clock + SD streaming)");
   printMemoryUsage();
 }
 

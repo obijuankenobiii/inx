@@ -252,7 +252,7 @@ void EInkDisplay::begin() {
   // Initialize to white
   memset(frameBuffer0, 0xFF, bufferSize);
   _x3RedRamSynced = false;
-  _x3InitialFullSyncsRemaining = _x3Mode ? 2 : 0;
+  _x3InitialFullSyncsRemaining = _x3Mode ? 1 : 0;
   _x3ForceFullSyncNext = false;
   _x3ForcedConditionPassesNext = 0;
   _x3GrayState = {};
@@ -845,12 +845,11 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
 
     if (!fastMode) delay(200);
 
-    // One-time light settle after the first major full-sync improves early
-    // page-turn quality on X3 without paying the old 6-pass cost.
+    // Only run extra conditioning when explicitly requested. Normal X3 page
+    // turns should not surprise the user with full-screen settle flashes.
     uint8_t postConditionPasses = 0;
     if (doFullSync) {
       if (forcedFullSync) postConditionPasses = _x3ForcedConditionPassesNext;
-      else if (_x3InitialFullSyncsRemaining == 1) postConditionPasses = 1;
     }
 
     if (postConditionPasses > 0) {

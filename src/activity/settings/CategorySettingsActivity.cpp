@@ -13,8 +13,10 @@
 #include <string>
 
 #include "CalibreSettingsActivity.h"
+#include "ClockStylePickerActivity.h"
 #include "ClearCacheActivity.h"
 #include "SleepImagePickerActivity.h"
+#include "TimeSyncActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
@@ -211,11 +213,19 @@ void CategorySettingsActivity::setupMenu() {
           }
         }
         if (setting.type == SettingType::VALUE) {
-          entry.getValueText = [this, setting]() -> const char* {
-            static char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(setting.valuePtr));
-            return buffer;
-          };
+          if (setting.name != nullptr && strcmp(setting.name, "Timezone") == 0) {
+            entry.getValueText = []() -> const char* {
+              static char buffer[16];
+              SETTINGS.formatTimeZone(buffer, sizeof(buffer));
+              return buffer;
+            };
+          } else {
+            entry.getValueText = [this, setting]() -> const char* {
+              static char buffer[32];
+              snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(setting.valuePtr));
+              return buffer;
+            };
+          }
           entry.change = [this, setting](int delta) {
             int current = SETTINGS.*(setting.valuePtr);
             int newVal = current + (delta * setting.valueRange.step);
@@ -269,6 +279,20 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
+            if (strcmp(setting.name, "Choose clock") == 0) {
+              exitActivity();
+              enterNewActivity(new ClockStylePickerActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
+            if (strcmp(setting.name, "Sync time via WiFi") == 0) {
+              exitActivity();
+              enterNewActivity(new TimeSyncActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
             if (strcmp(setting.name, "Check for updates") == 0) {
               exitActivity();
               enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
@@ -309,7 +333,7 @@ void CategorySettingsActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     updateRequired = true;
     return;
   }

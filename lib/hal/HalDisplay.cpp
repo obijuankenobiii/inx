@@ -17,9 +17,6 @@ void HalDisplay::begin() {
     einkDisplay.setDisplayX3();
   }
   einkDisplay.begin();
-  if (gpio.deviceIsX3()) {
-    einkDisplay.requestResync();
-  }
 }
 
 void HalDisplay::clearScreen(uint8_t color) const { einkDisplay.clearScreen(color); }
@@ -35,6 +32,8 @@ EInkDisplay::RefreshMode convertRefreshMode(HalDisplay::RefreshMode mode) {
       return EInkDisplay::FULL_REFRESH;
     case HalDisplay::HALF_REFRESH:
       return EInkDisplay::HALF_REFRESH;
+    case HalDisplay::MANUAL_REFRESH:
+      return gpio.deviceIsX3() ? EInkDisplay::FULL_REFRESH : EInkDisplay::HALF_REFRESH;
     case HalDisplay::STRONG_FAST_REFRESH:
       return EInkDisplay::STRONG_FAST_REFRESH;
     case HalDisplay::FAST_REFRESH:
@@ -44,16 +43,10 @@ EInkDisplay::RefreshMode convertRefreshMode(HalDisplay::RefreshMode mode) {
 }
 
 void HalDisplay::displayBuffer(HalDisplay::RefreshMode mode) {
-  if (gpio.deviceIsX3() && mode == RefreshMode::HALF_REFRESH) {
-    einkDisplay.requestResync(1);
-  }
   einkDisplay.displayBuffer(convertRefreshMode(mode));
 }
 
 void HalDisplay::refreshDisplay(HalDisplay::RefreshMode mode, bool turnOffScreen) {
-  if (gpio.deviceIsX3() && mode == RefreshMode::HALF_REFRESH) {
-    einkDisplay.requestResync(1);
-  }
   einkDisplay.refreshDisplay(convertRefreshMode(mode), turnOffScreen);
 }
 

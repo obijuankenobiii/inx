@@ -48,6 +48,16 @@ class HalGPIO {
  public:
   enum class DeviceType : uint8_t { X4, X3 };
 
+  struct DateTime {
+    uint16_t year = 0;
+    uint8_t month = 0;
+    uint8_t day = 0;
+    uint8_t hour = 0;
+    uint8_t minute = 0;
+    uint8_t second = 0;
+    uint8_t weekday = 0;
+  };
+
  private:
   DeviceType deviceType = DeviceType::X4;
 
@@ -84,6 +94,10 @@ class HalGPIO {
 
   
   bool isUsbConnected() const;
+
+  bool readDateTime(DateTime& outDateTime) const;
+  bool writeDateTime(const DateTime& dateTime) const;
+  bool syncRtcFromSystemTime() const;
 
   enum class WakeupReason { PowerButton, AfterFlash, AfterUSBPower, Other };
 

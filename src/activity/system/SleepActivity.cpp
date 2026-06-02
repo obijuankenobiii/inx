@@ -14,6 +14,7 @@
 #include <GfxRenderer.h>
 #include <ImageRender.h>
 #include <HalDisplay.h>
+#include <HalGPIO.h>
 #include <SDCardManager.h>
 #include <Txt.h>
 #include <Xtc.h>
@@ -29,6 +30,8 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
+#include "system/SleepClockRenderer.h"
+#include "system/StoredClock.h"
 #include "util/StringUtils.h"
 #include <cmath>
 #include <memory>
@@ -195,7 +198,8 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
-  if(SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT) {
+  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
+      SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
     renderer.clearScreen(0xff);
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
@@ -212,6 +216,9 @@ void SleepActivity::onEnter() {
       break;
     case SystemSetting::SLEEP_SCREEN_MODE::COVER:
       renderCoverSleepScreen();
+      break;
+    case SystemSetting::SLEEP_SCREEN_MODE::DATETIME:
+      renderDateTimeSleepScreen();
       break;
     default:
       renderDefaultSleepScreen();
@@ -486,6 +493,34 @@ void SleepActivity::renderDefaultSleepScreen() const {
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::LIGHT) {
     renderer.invertScreen();
   }
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
+/**
+ * @brief Renders a minimal date/time sleep screen using the X3 RTC.
+ */
+void SleepActivity::renderDateTimeSleepScreen() const {
+  HalGPIO::DateTime dateTime;
+  bool hasClock = false;
+  if (gpio.deviceIsX3()) {
+    hasClock = gpio.readDateTime(dateTime);
+  } else {
+    hasClock = StoredClock::load(dateTime);
+  }
+
+  renderer.clearScreen(0xff);
+  SleepClockRenderer::DateTimeView view;
+  if (hasClock) {
+    view.year = dateTime.year;
+    view.month = dateTime.month;
+    view.day = dateTime.day;
+    view.hour = dateTime.hour;
+    view.minute = dateTime.minute;
+    view.weekday = dateTime.weekday;
+  }
+  SleepClockRenderer::render(renderer, SETTINGS.sleepClockStyle, view, hasClock, 0, 0, renderer.getScreenWidth(),
+                             renderer.getScreenHeight());
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
