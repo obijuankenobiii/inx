@@ -2,6 +2,7 @@
  * @file BitmapRender.cpp
  */
 #include "BitmapRender.h"
+#include "BitmapUtil.h"
 #include "GfxRenderer.h"
 
 #include <Arduino.h>
@@ -146,6 +147,11 @@ void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, con
   }
 }
 
+uint8_t displayLevel2bpp(const uint8_t stage03, const ImageRenderMode mode) {
+  const uint8_t level = stage03 & 3u;
+  return mode == ImageRenderMode::TwoBit ? adjustTwoBitImageLevelForDisplay(level) : level;
+}
+
 /** 1-bpp packed row-major, MSB = left; dimensions are the source bitmap's (width x height). */
 bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int height, const int sx, const int sy) {
   if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
@@ -222,17 +228,18 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
         return;
       }
     }
+    const uint8_t displayVal = displayLevel2bpp(val, mode);
     if (gfx.renderMode == GfxRenderer::BW) {
-      if (bwShouldInk2bpp(val, mode)) {
+      if (bwShouldInk2bpp(displayVal, mode)) {
         if (mode == ImageRenderMode::TwoBit) {
           gfx.drawPixel(screenX, screenY, true);
         } else {
-          drawBwFrom2bppStage(gfx, screenX, screenY, val);
+          drawBwFrom2bppStage(gfx, screenX, screenY, displayVal);
         }
       }
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal)) {
       gfx.drawPixel(screenX, screenY, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal)) {
       gfx.drawPixel(screenX, screenY, false);
     }
   };
@@ -694,11 +701,12 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
   const int screenH = gfx.getScreenHeight();
 
   auto plotSleepPixel = [this, mode](const int sx, const int sy, const uint8_t val) {
-    if (gfx.renderMode == GfxRenderer::BW && bwShouldInk2bpp(val, mode)) {
+    const uint8_t displayVal = displayLevel2bpp(val, mode);
+    if (gfx.renderMode == GfxRenderer::BW && bwShouldInk2bpp(displayVal, mode)) {
       gfx.drawPixel(sx, sy);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal)) {
       gfx.drawPixel(sx, sy, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal)) {
       gfx.drawPixel(sx, sy, false);
     }
   };

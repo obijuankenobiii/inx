@@ -145,7 +145,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
     return;
   }
 
-  const uint8_t level = FourToneImageDitherer::levelFromValue(q);
+  const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
   const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
   if (renderMode == GfxRenderer::BW) {
     if ((mode == ImageRenderMode::TwoBit && level > 0) ||

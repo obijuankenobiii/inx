@@ -439,7 +439,7 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
     return;
   }
 
-  const uint8_t level = FourToneImageDitherer::levelFromValue(q);
+  const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
   const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
   if (renderMode == GfxRenderer::BW) {
     if ((ctx.mode == ImageRenderMode::TwoBit && level > 0) ||

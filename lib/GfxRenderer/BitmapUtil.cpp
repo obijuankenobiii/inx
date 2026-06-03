@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "Bitmap.h"
+#include "HalGPIO.h"
 
 /**
  * @brief Precomputed red channel contribution to grayscale (BT.601 coefficients)
@@ -163,6 +164,20 @@ uint8_t quantizeSimple(int gray) {
 }
 
 ImageToneSample quantizeTwoBitImage(const int gray) { return FourToneImageDitherer::quantize(adjustPixel(gray)); }
+
+uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
+  const uint8_t l = level & 3u;
+  if (!gpio.deviceIsX3()) {
+    return l;
+  }
+  if (l == 1u) {
+    return 2u;
+  }
+  if (l == 2u) {
+    return 0u;
+  }
+  return l;
+}
 
 
 
