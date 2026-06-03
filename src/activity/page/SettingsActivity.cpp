@@ -22,26 +22,27 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-constexpr int systemPageSettingsCount = 39;
-const SettingInfo systemPageSettings[systemPageSettingsCount] = {
+const SettingInfo systemPageSettings[] = {
     SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
                       {"Dark","Light","Custom","Recent Book","Transparent Cover","None","Date Time"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Action("Choose clock", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Clock format", &SystemSetting::sleepClockTimeFormat, {"12 hour","24 hour"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Action("Sync time via WiFi", GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never","In Reader","Always"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid","Current | Previous","Flow","Simple","List","Icons"},
+                      {"Grid","Current | Previous","Flow","Simple","List","Icons","Cover"},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List","Grid"}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 8, 1}, GroupType::DEVICE_DISPLAY),
     SettingInfo::Toggle("Fix sunlight fade", &SystemSetting::fixSunlightFade, GroupType::DEVICE_DISPLAY),
+
+    SettingInfo::Separator("Clock", GroupType::CLOCK),
+    SettingInfo::Action("Face", GroupType::CLOCK),
+    SettingInfo::Enum("Format", &SystemSetting::sleepClockTimeFormat, {"12 hour","24 hour"},
+                      GroupType::CLOCK),
+    SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::CLOCK),
+    SettingInfo::Action("Sync", GroupType::CLOCK),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),
     SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode,
@@ -80,9 +81,9 @@ const SettingInfo systemPageSettings[systemPageSettingsCount] = {
     SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("About", GroupType::NONE)};
+constexpr int systemPageSettingsCount = sizeof(systemPageSettings) / sizeof(systemPageSettings[0]);
 
-constexpr int readerSettingsCount = 30;
-const SettingInfo readerSettings[readerSettingsCount] = {
+const SettingInfo readerSettings[] = {
     SettingInfo::Separator("Font", GroupType::FONT),
     SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Literata", "Atkinson Hyperlegible"},
                       GroupType::FONT),
@@ -139,6 +140,7 @@ const SettingInfo readerSettings[readerSettingsCount] = {
                       {"None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %",
                       "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
                       GroupType::STATUS_BAR)};
+constexpr int readerSettingsCount = sizeof(readerSettings) / sizeof(readerSettings[0]);
 
 }  
 

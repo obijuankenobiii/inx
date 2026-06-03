@@ -17,7 +17,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 21;
+constexpr uint16_t kVersion = 23;
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {

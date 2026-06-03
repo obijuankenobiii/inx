@@ -30,6 +30,7 @@ enum class GroupType {
     SYSTEM,
     STATUS_BAR,
     DEVICE_DISPLAY,
+    CLOCK,
     DEVICE_BUTTONS,
     DEVICE_ADVANCED,
     DEVICE_ACTIONS,
@@ -133,9 +134,14 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
   bool halfRefreshOnLoadApplied_ = false;
+  bool selectorOpen = false;
+  uint8_t selectorMode = 0;
   int selectedIndex = 0;
   int scrollOffset = 0;
   int itemsPerPage = 0;
+  int selectorSourceIndex = -1;
+  int selectorSelectedIndex = 0;
+  int selectorScrollOffset = 0;
   const char* categoryName;
   const SettingInfo* settingsList;
   int settingsCount;
@@ -161,6 +167,8 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   };
   
   std::vector<MenuEntry> menuItems;
+  std::vector<std::string> selectorOptions;
+  std::vector<std::string> selectorValues;
   std::map<GroupType, bool> groupExpanded;
   
   static void taskTrampoline(void* param);
@@ -168,6 +176,17 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   void render();
   void setupMenu();
   void applyChange(int delta);
+  void openSelectorForSelected();
+  void openSleepImageSelector();
+  bool rebuildSleepImageIndex();
+  void loadSleepImageIndexRows();
+  void applySleepImageSelection();
+  void moveSelector(int delta);
+  void selectorPage(int delta);
+  void closeSelector(bool save);
+  void renderSelectorOverlay();
+  int selectedOptionIndex(const MenuEntry& entry) const;
+  void applySelectedOption(MenuEntry& entry, int optionIndex);
   void toggleGroup(GroupType group);
   
   void navigateToSelectedMenu() override;
@@ -204,6 +223,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     groupExpanded[GroupType::STATUS_BAR] = false;
     groupExpanded[GroupType::READER_CONTROLS] = false;
     groupExpanded[GroupType::DEVICE_DISPLAY] = false;
+    groupExpanded[GroupType::CLOCK] = false;
     groupExpanded[GroupType::DEVICE_BUTTONS] = false;
     groupExpanded[GroupType::DEVICE_ADVANCED] = false;
     groupExpanded[GroupType::DEVICE_ACTIONS] = false;

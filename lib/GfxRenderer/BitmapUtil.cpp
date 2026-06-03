@@ -167,15 +167,6 @@ ImageToneSample quantizeTwoBitImage(const int gray) { return FourToneImageDither
 
 uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
   const uint8_t l = level & 3u;
-  if (!gpio.deviceIsX3()) {
-    return l;
-  }
-  if (l == 1u) {
-    return 2u;
-  }
-  if (l == 2u) {
-    return 0u;
-  }
   return l;
 }
 
