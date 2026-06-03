@@ -573,7 +573,13 @@ void EpubActivity::fastPath() {
 /**
  * @brief Slow path for new books
  */
-void EpubActivity::slowPath() {
+bool EpubActivity::slowPath() {
+  if (!epub->isLoaded() && !epub->load(true)) {
+    readerPopup("Error preparing book");
+    onGoBack();
+    return false;
+  }
+
   displayCoverOrTitle();
   loadingProgress = 30;
   drawLoadingScreen();
@@ -593,6 +599,12 @@ void EpubActivity::slowPath() {
   renderer.clearScreen(0xff);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadCurrentSection();
+  if (!section) {
+    readerPopup("Error loading chapter");
+    onGoBack();
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -605,20 +617,27 @@ void EpubActivity::onEnter() {
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
-  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
   bool hasProgress = bookProgress->exists();
+  const bool useFastPath = epub->isLoaded() && book && hasProgress;
 
-  if (book && hasProgress) {
-    fastPath();
-  } else {
+  if (!useFastPath) {
     renderer.clearScreen(0xff);
     renderer.displayBuffer();
     ScreenComponents::drawPopup(renderer, "Preparing book...");
     renderer.displayBuffer();
-    slowPath();
+  }
+
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
+
+  if (useFastPath) {
+    fastPath();
+  } else {
+    if (!slowPath()) {
+      return;
+    }
   }
 
   updateExternalState();

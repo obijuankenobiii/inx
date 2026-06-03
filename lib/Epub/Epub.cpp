@@ -596,6 +596,15 @@ bool Epub::load(const bool buildIfMissing) {
   return bookMetadataCache->load();
 }
 
+bool Epub::hasMetadataCache() const {
+  BookMetadataCache cache(cachePath);
+  return cache.load();
+}
+
+bool Epub::isLoaded() const {
+  return bookMetadataCache && bookMetadataCache->isLoaded();
+}
+
 /**
  * @brief Clears all cached data for this EPUB.
  *

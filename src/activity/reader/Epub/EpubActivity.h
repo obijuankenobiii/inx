@@ -324,6 +324,6 @@ private:
     void preloadChapters();
     void updateExternalState();
     void fastPath();
-    void slowPath();
+    bool slowPath();
     void displayBookStats();
 };

@@ -56,11 +56,11 @@ std::unique_ptr<Epub> ReaderActivity::loadEpub(const std::string& path) {
   }
 
   auto epub = std::unique_ptr<Epub>(new Epub(path, "/.metadata"));
-  if (epub->load()) {
-    return epub;
+  if (epub->hasMetadataCache()) {
+    (void)epub->load(false);
   }
 
-  return nullptr;
+  return epub;
 }
 
 /**
