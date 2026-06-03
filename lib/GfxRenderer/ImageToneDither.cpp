@@ -12,13 +12,19 @@ int clamp255(const int v) {
 constexpr int kCleanPaperMin = 248;
 
 int perceptualTone(const int gray) {
-  if (gray < 8) {
-    return clamp255(gray);
+  if (gray < 24) {
+    return gray;
   }
-  if (gray < 48) {
-    return clamp255(gray + 10);
+  if (gray < 96) {
+    return clamp255(gray - 6);
   }
-  return clamp255(gray + 12);
+  if (gray < 180) {
+    return clamp255(gray - 10);
+  }
+  if (gray < 236) {
+    return clamp255(gray - 4);
+  }
+  return clamp255(gray);
 }
 
 }  // namespace
@@ -65,10 +71,10 @@ bool FourToneImageDitherer::ok() const {
 ImageToneSample FourToneImageDitherer::quantize(const int gray) {
   const int g = clamp255(gray);
   ImageToneSample sample;
-  if (g < 12) {
+  if (g < 20) {
     sample.level = 3;
     sample.value = 0;
-  } else if (g < 132) {
+  } else if (g < 158) {
     sample.level = 1;
     sample.value = 85;
   } else if (g < kCleanPaperMin) {
@@ -82,8 +88,8 @@ ImageToneSample FourToneImageDitherer::quantize(const int gray) {
 }
 
 uint8_t FourToneImageDitherer::levelFromValue(const int value) {
-  if (value <= 28) return 3;
-  if (value <= 145) return 1;
+  if (value <= 36) return 3;
+  if (value <= 166) return 1;
   if (value <= 236) return 2;
   return 0;
 }
@@ -118,6 +124,37 @@ ImageToneSample FourToneImageDitherer::process(const int gray, const int x) {
 
   const ImageToneSample out = quantize(adjusted);
   const int spread = (adjusted - static_cast<int>(out.value)) >> 3;
+
+  if (x + 1 < width_) errorRows_[0][0][x + 3] += static_cast<int16_t>(spread);
+  if (x + 2 < width_) errorRows_[0][0][x + 4] += static_cast<int16_t>(spread);
+  if (x > 0) errorRows_[0][1][x + 1] += static_cast<int16_t>(spread);
+  errorRows_[0][1][x + 2] += static_cast<int16_t>(spread);
+  if (x + 1 < width_) errorRows_[0][1][x + 3] += static_cast<int16_t>(spread);
+  errorRows_[0][2][x + 2] += static_cast<int16_t>(spread);
+
+  return out;
+}
+
+ImageToneSample FourToneImageDitherer::processAtkinson(const int gray, const int x) {
+  if (!ok() || x < 0 || x >= width_) {
+    return quantize(perceptualTone(gray));
+  }
+
+  const int base = perceptualTone(gray);
+  if (base >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
+  const int adjusted = clamp255(base + errorRows_[0][0][x + 2]);
+  if (adjusted >= kCleanPaperMin) {
+    return quantize(255);
+  }
+
+  const ImageToneSample out = quantize(adjusted);
+  const int spread = (adjusted - static_cast<int>(out.value)) / 8;
+  if (spread == 0) {
+    return out;
+  }
 
   if (x + 1 < width_) errorRows_[0][0][x + 3] += static_cast<int16_t>(spread);
   if (x + 2 < width_) errorRows_[0][0][x + 4] += static_cast<int16_t>(spread);

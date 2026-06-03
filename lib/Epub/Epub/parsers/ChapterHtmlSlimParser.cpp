@@ -501,8 +501,8 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
     }
     makePages();
   }
-  currentTextBlock.reset(
-      new ParsedText(style, extraParagraphSpacing, hyphenationEnabled, respectCssParagraphIndent));
+  currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing, hyphenationEnabled, respectCssParagraphIndent,
+                                        bionicReadingEnabled));
 }
 
 /**

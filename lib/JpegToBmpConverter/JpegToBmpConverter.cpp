@@ -16,6 +16,7 @@
 
 #include "BitmapUtil.h"
 #include "Bitmap.h"
+#include <toojpeg.h>
 
 struct JpegReadContext {
   FsFile& file;
@@ -29,6 +30,14 @@ constexpr bool USE_FLOYD_STEINBERG = true;
 constexpr bool USE_PRESCALE = true;
 constexpr int TARGET_MAX_WIDTH = 480;   
 constexpr int TARGET_MAX_HEIGHT = 800;  
+
+static Print* gJpegThumbnailOut = nullptr;
+
+static void jpegThumbnailWriteByte(unsigned char byte) {
+  if (gJpegThumbnailOut) {
+    gJpegThumbnailOut->write(static_cast<uint8_t>(byte));
+  }
+}
 
 inline void write16(
   Print& out, 
@@ -970,6 +979,143 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(
   delete[] errorBuffer;
   
   return true;
+}
+
+bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth,
+                                                 int targetMaxHeight, uint8_t quality) {
+  if (isUnsupportedJpeg(jpegFile)) return false;
+
+  JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
+  pjpeg_image_info_t imageInfo;
+  if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
+
+  if (imageInfo.m_width <= 0 || imageInfo.m_height <= 0 || targetMaxWidth <= 0 || targetMaxHeight <= 0) {
+    return false;
+  }
+
+  const float scaleX = static_cast<float>(targetMaxWidth) / static_cast<float>(imageInfo.m_width);
+  const float scaleY = static_cast<float>(targetMaxHeight) / static_cast<float>(imageInfo.m_height);
+  float scale = std::min(scaleX, scaleY);
+  if (scale > 1.0f) {
+    scale = 1.0f;
+  }
+
+  int outWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_width) * scale)));
+  int outHeight = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_height) * scale)));
+  const size_t maxColorThumbnailBytes =
+      std::max<size_t>(12288u, static_cast<size_t>(targetMaxWidth) * static_cast<size_t>(targetMaxHeight));
+  const size_t colorBytes = static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u;
+  if (colorBytes > maxColorThumbnailBytes) {
+    const float memoryScale = std::sqrt(static_cast<float>(maxColorThumbnailBytes) / static_cast<float>(colorBytes));
+    outWidth = std::max(1, static_cast<int>(std::floor(static_cast<float>(outWidth) * memoryScale)));
+    outHeight = std::max(1, static_cast<int>(std::floor(static_cast<float>(outHeight) * memoryScale)));
+  }
+  const uint32_t scaleX_fp = (static_cast<uint32_t>(imageInfo.m_width) << 16) / static_cast<uint32_t>(outWidth);
+  const uint32_t scaleY_fp = (static_cast<uint32_t>(imageInfo.m_height) << 16) / static_cast<uint32_t>(outHeight);
+
+  uint8_t* thumbnail =
+      static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u));
+  uint8_t* mcuRowBuffer =
+      static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight) *
+                                   3u));
+  if (!thumbnail || !mcuRowBuffer) {
+    free(thumbnail);
+    free(mcuRowBuffer);
+    return false;
+  }
+  memset(thumbnail, 255, static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u);
+
+  int currentOutY = 0;
+  bool decodeFailed = false;
+
+  for (int mcuY = 0; mcuY < imageInfo.m_MCUSPerCol && !decodeFailed; mcuY++) {
+    memset(mcuRowBuffer, 255,
+           static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight) * 3u);
+
+    for (int mcuX = 0; mcuX < imageInfo.m_MCUSPerRow; mcuX++) {
+      if (pjpeg_decode_mcu() != 0) {
+        decodeFailed = true;
+        break;
+      }
+
+      for (int bY = 0; bY < imageInfo.m_MCUHeight; bY++) {
+        for (int bX = 0; bX < imageInfo.m_MCUWidth; bX++) {
+          const int pX = mcuX * imageInfo.m_MCUWidth + bX;
+          if (pX >= imageInfo.m_width) continue;
+
+          const int off = (bY / 8 * (imageInfo.m_MCUWidth / 8) + bX / 8) * 64 + (bY % 8) * 8 + (bX % 8);
+          uint8_t r = imageInfo.m_pMCUBufR[off];
+          uint8_t g = r;
+          uint8_t b = r;
+          if (imageInfo.m_comps != 1) {
+            g = imageInfo.m_pMCUBufG[off];
+            b = imageInfo.m_pMCUBufB[off];
+          }
+          uint8_t* dst = mcuRowBuffer + (static_cast<size_t>(bY) * static_cast<size_t>(imageInfo.m_width) +
+                                         static_cast<size_t>(pX)) *
+                                            3u;
+          dst[0] = r;
+          dst[1] = g;
+          dst[2] = b;
+        }
+      }
+    }
+
+    for (int y = 0; y < imageInfo.m_MCUHeight && (mcuY * imageInfo.m_MCUHeight + y) < imageInfo.m_height; y++) {
+      const int currentSrcY = mcuY * imageInfo.m_MCUHeight + y;
+      uint8_t* srcRow = mcuRowBuffer + static_cast<size_t>(y) * static_cast<size_t>(imageInfo.m_width) * 3u;
+
+      while (currentOutY < outHeight) {
+        const int sampleSrcY = (currentOutY * scaleY_fp) >> 16;
+        if (sampleSrcY < currentSrcY) {
+          currentOutY++;
+          continue;
+        }
+        if (sampleSrcY > currentSrcY) {
+          break;
+        }
+        uint8_t* outRow = thumbnail + static_cast<size_t>(currentOutY) * static_cast<size_t>(outWidth) * 3u;
+        for (int x = 0; x < outWidth; x++) {
+          int sx = (x * scaleX_fp) >> 16;
+          if (sx < 0) sx = 0;
+          if (sx >= imageInfo.m_width) sx = imageInfo.m_width - 1;
+          const uint8_t* src = srcRow + static_cast<size_t>(sx) * 3u;
+          uint8_t* dst = outRow + static_cast<size_t>(x) * 3u;
+          dst[0] = src[0];
+          dst[1] = src[1];
+          dst[2] = src[2];
+        }
+        currentOutY++;
+      }
+    }
+  }
+
+  while (!decodeFailed && currentOutY < outHeight) {
+    uint8_t* outRow = thumbnail + static_cast<size_t>(currentOutY) * static_cast<size_t>(outWidth) * 3u;
+    const uint8_t* prevRow =
+        currentOutY > 0 ? thumbnail + static_cast<size_t>(currentOutY - 1) * static_cast<size_t>(outWidth) * 3u
+                        : nullptr;
+    if (prevRow) {
+      memcpy(outRow, prevRow, static_cast<size_t>(outWidth) * 3u);
+    } else {
+      memset(outRow, 255, static_cast<size_t>(outWidth) * 3u);
+    }
+    currentOutY++;
+  }
+
+  bool encoded = false;
+  if (!decodeFailed) {
+    if (quality < 1) quality = 1;
+    if (quality > 100) quality = 100;
+    gJpegThumbnailOut = &jpegOut;
+    encoded = TooJpeg::writeJpeg(jpegThumbnailWriteByte, thumbnail, static_cast<unsigned short>(outWidth),
+                                 static_cast<unsigned short>(outHeight), true, quality, true);
+    gJpegThumbnailOut = nullptr;
+  }
+
+  free(thumbnail);
+  free(mcuRowBuffer);
+  return encoded;
 }
 
 bool JpegToBmpConverter::jpegFileTo1BitThumbnailBmp(

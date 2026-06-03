@@ -16,6 +16,7 @@
 #include <string>
 
 #include "activity/network/CalibreConnectActivity.h"
+#include "activity/browser/OpdsBookBrowserActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -123,6 +124,9 @@ void onNetworkModeSelected(NetworkMode mode) {
     case NetworkMode::CREATE_HOTSPOT:
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
       break;
+    case NetworkMode::OPDS_BROWSER:
+      switchTo<OpdsBookBrowserActivity>(render, input, onGoToFileTransfer);
+      break;
   }
 }
 
@@ -190,6 +194,7 @@ void enterDeepSleep() {
 
 void setupDisplayAndFonts() {
   display.begin();
+  render.begin();
   FontManager::initialize(render);
 }
 

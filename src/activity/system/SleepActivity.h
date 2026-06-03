@@ -82,6 +82,11 @@ class SleepActivity final : public Activity {
    * Clears the screen to save power and prevent screen burn-in during sleep.
    */
   void renderBlankSleepScreen() const;
+
+  /**
+   * @brief Renders a minimal clock sleep screen using the X3 RTC when available.
+   */
+  void renderDateTimeSleepScreen() const;
   
   /**
    * @brief Renders a transparent overlay sleep screen.

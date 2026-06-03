@@ -18,10 +18,9 @@
 #include "util/StringUtils.h"
 
 namespace {
-constexpr int LIST_ITEM_HEIGHT = 60;
-constexpr int HEADER_BOTTOM = 88;
-constexpr int FOOTER = 52;
-constexpr int MAX_LABEL_PX_MARGIN = 36;
+constexpr int SELECTOR_ROW_HEIGHT = 34;
+constexpr int SELECTOR_HEADER_HEIGHT = 34;
+constexpr int SELECTOR_VISIBLE_ROWS = 5;
 
 void truncateLabelToWidth(const GfxRenderer& renderer, int fontId, int maxWidth, const char* text, char* out,
                           size_t outSize) {
@@ -116,11 +115,7 @@ void SleepImagePickerActivity::rebuildRows() {
   if (SdMan.exists("/sleep.jpeg")) {
     rows.push_back({"sleep.jpeg (SD root)", "/sleep.jpeg"});
   }
-  const int listPixels = renderer.getScreenHeight() - HEADER_BOTTOM - FOOTER;
-  itemsPerPage = listPixels / LIST_ITEM_HEIGHT;
-  if (itemsPerPage < 1) {
-    itemsPerPage = 1;
-  }
+  itemsPerPage = SELECTOR_VISIBLE_ROWS;
 }
 
 void SleepImagePickerActivity::onExit() {
@@ -149,49 +144,59 @@ void SleepImagePickerActivity::displayTaskLoop() {
 
 void SleepImagePickerActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "Sleep screen image", true, EpdFontFamily::BOLD);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 52, "Custom / transparent modes", true);
-
-  const int startY = HEADER_BOTTOM;
-  const int itemHeight = LIST_ITEM_HEIGHT;
+  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   const int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
-  int visibleCount = 0;
-  for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(rows.size()); i++) {
-    const int index = i + scrollOffset;
+  const int visibleRows = std::min(SELECTOR_VISIBLE_ROWS, static_cast<int>(rows.size()));
+  const int panelW = std::min(pageWidth - 24, 380);
+  const int panelH = SELECTOR_HEADER_HEIGHT + visibleRows * SELECTOR_ROW_HEIGHT + 18;
+  const int panelX = (pageWidth - panelW) / 2;
+  const int panelY = std::max(12, (pageHeight - panelH) / 2);
+
+  renderer.rectangle.fill(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true);
+  renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
+  renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
+  renderer.rectangle.fill(panelX, panelY, panelW, SELECTOR_HEADER_HEIGHT, true);
+
+  const int titleY = panelY + (SELECTOR_HEADER_HEIGHT - renderer.text.getLineHeight(titleFont)) / 2;
+  renderer.text.render(titleFont, panelX + 14, titleY, "Sleep image", false, EpdFontFamily::BOLD);
+
+  const int maxScroll = std::max(0, static_cast<int>(rows.size()) - visibleRows);
+  scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+  for (int i = 0; i < visibleRows; ++i) {
+    const int index = scrollOffset + i;
+    if (index >= static_cast<int>(rows.size())) {
+      break;
+    }
     const auto& row = rows[static_cast<size_t>(index)];
-    const int itemY = startY + visibleCount * itemHeight;
-    const bool isSelected = (index == selectedIndex);
+    const int rowY = panelY + SELECTOR_HEADER_HEIGHT + i * SELECTOR_ROW_HEIGHT;
+    const bool isSelected = index == selectedIndex;
 
     if (isSelected) {
-      renderer.rectangle.fill(0, itemY, pageWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+      renderer.rectangle.fill(panelX + 4, rowY + 2, panelW - 8, SELECTOR_ROW_HEIGHT - 4, true);
     }
 
     char line[128];
-    const int maxW = pageWidth - MAX_LABEL_PX_MARGIN;
-    truncateLabelToWidth(renderer, fontId, maxW, row.label.c_str(), line, sizeof(line));
-
-    const int textX = 20;
-    const int textY = itemY + (itemHeight - renderer.text.getLineHeight(fontId)) / 2;
-    renderer.text.render(fontId, textX, textY, line, !isSelected);
-
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
-    visibleCount++;
+    truncateLabelToWidth(renderer, fontId, panelW - 44, row.label.c_str(), line, sizeof(line));
+    const int textY = rowY + (SELECTOR_ROW_HEIGHT - renderer.text.getLineHeight(fontId)) / 2;
+    renderer.text.render(fontId, panelX + 18, textY, line, !isSelected,
+                         isSelected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
   }
 
-  if (static_cast<int>(rows.size()) > itemsPerPage) {
-    const int listHeight = itemsPerPage * itemHeight;
-    int thumbH = (itemsPerPage * listHeight) / static_cast<int>(rows.size());
-    if (thumbH < 4) {
-      thumbH = 4;
-    }
-    const int thumbY = startY + (scrollOffset * listHeight) / static_cast<int>(rows.size());
-    renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
+  if (static_cast<int>(rows.size()) > visibleRows) {
+    const int trackX = panelX + panelW - 10;
+    const int trackY = panelY + SELECTOR_HEADER_HEIGHT + 4;
+    const int trackH = visibleRows * SELECTOR_ROW_HEIGHT - 8;
+    const int thumbH = std::max(8, trackH * visibleRows / static_cast<int>(rows.size()));
+    const int thumbY = trackY + scrollOffset * std::max(1, trackH - thumbH) / maxScroll;
+    renderer.rectangle.fill(trackX, trackY, 2, trackH, true);
+    renderer.rectangle.fill(trackX - 2, thumbY, 6, thumbH, true);
   }
 
-  const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "", "");
+  const auto labels = mappedInput.mapLabels("Cancel", "Select", "Page -", "Page +");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
@@ -224,7 +229,7 @@ void SleepImagePickerActivity::loop() {
 
   bool needRedraw = false;
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up) || mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
     if (selectedIndex > 0) {
       selectedIndex--;
       if (selectedIndex < scrollOffset) {
@@ -232,8 +237,7 @@ void SleepImagePickerActivity::loop() {
       }
       needRedraw = true;
     }
-  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
     if (selectedIndex < static_cast<int>(rows.size()) - 1) {
       selectedIndex++;
       const int maxScroll = std::max(0, static_cast<int>(rows.size()) - itemsPerPage);
@@ -242,6 +246,18 @@ void SleepImagePickerActivity::loop() {
       }
       needRedraw = true;
     }
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Left) ||
+             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    const int direction = mappedInput.wasPressed(MappedInputManager::Button::Left) ? -1 : 1;
+    selectedIndex += direction * itemsPerPage;
+    selectedIndex = std::max(0, std::min(selectedIndex, static_cast<int>(rows.size()) - 1));
+    const int maxScroll = std::max(0, static_cast<int>(rows.size()) - itemsPerPage);
+    if (selectedIndex < scrollOffset) {
+      scrollOffset = selectedIndex;
+    } else if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+      scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+    }
+    needRedraw = true;
   }
 
   if (needRedraw) {

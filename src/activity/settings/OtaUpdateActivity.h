@@ -9,6 +9,9 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <string>
+#include <vector>
+
 #include "activity/ActivityWithSubactivity.h"
 #include "../Menu.h"
 #include "network/OtaUpdater.h"
@@ -19,6 +22,7 @@ class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
     WIFI_SELECTION,
     CHECKING_FOR_UPDATE,
     WAITING_CONFIRMATION,
+    WAITING_SD_SELECTION,
     WAITING_SD_CONFIRMATION,
     UPDATE_IN_PROGRESS,
     NO_UPDATE,
@@ -31,6 +35,9 @@ class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
   int sourceSelectedIndex = 0;
+  int sdFirmwareSelectedIndex = 0;
+  int sdFirmwareScrollOffset = 0;
+  std::vector<std::string> sdFirmwareFiles;
   const std::function<void()> goBack;
   State state = SOURCE_SELECTION;
   OtaUpdater updater;
@@ -39,6 +46,8 @@ class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render();
+  void scanSdFirmwareFiles();
+  const std::string& selectedSdFirmwarePath() const;
 
   void navigateToSelectedMenu() override {}
 

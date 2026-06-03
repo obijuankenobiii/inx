@@ -855,7 +855,7 @@ void StatisticActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     updateRequired = true;
     return;
   }

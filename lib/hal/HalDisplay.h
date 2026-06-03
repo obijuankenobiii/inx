@@ -21,7 +21,8 @@ class HalDisplay {
     FULL_REFRESH,  
     HALF_REFRESH,  
     FAST_REFRESH,
-    STRONG_FAST_REFRESH
+    STRONG_FAST_REFRESH,
+    MANUAL_REFRESH
   };
 
   
@@ -54,6 +55,11 @@ class HalDisplay {
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
   void displayGrayBuffer();
+
+  uint16_t getDisplayWidth() const;
+  uint16_t getDisplayHeight() const;
+  uint16_t getDisplayWidthBytes() const;
+  uint32_t getBufferSize() const;
 
  private:
   EInkDisplay einkDisplay;

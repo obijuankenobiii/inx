@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -26,6 +27,48 @@ constexpr size_t SOFT_HYPHEN_BYTES = 2;
 
 bool containsSoftHyphen(const std::string& word) { return word.find(SOFT_HYPHEN_UTF8) != std::string::npos; }
 
+bool isUtf8Continuation(unsigned char c) { return (c & 0xC0) == 0x80; }
+
+size_t nextUtf8CodepointOffset(const std::string& word, size_t offset) {
+  if (offset >= word.size()) {
+    return word.size();
+  }
+  ++offset;
+  while (offset < word.size() && isUtf8Continuation(static_cast<unsigned char>(word[offset]))) {
+    ++offset;
+  }
+  return offset;
+}
+
+uint8_t bionicPrefixLengthBytes(const std::string& word) {
+  size_t codepoints = 0;
+  for (size_t i = 0; i < word.size(); i = nextUtf8CodepointOffset(word, i)) {
+    ++codepoints;
+  }
+  if (codepoints < 4) {
+    return 0;
+  }
+
+  const size_t prefixCodepoints = std::min<size_t>(4, std::max<size_t>(1, (codepoints + 1) / 2));
+  size_t offset = 0;
+  for (size_t i = 0; i < prefixCodepoints && offset < word.size(); ++i) {
+    offset = nextUtf8CodepointOffset(word, offset);
+  }
+  return static_cast<uint8_t>(std::min<size_t>(offset, 255));
+}
+
+EpdFontFamily::Style bionicStyleFor(EpdFontFamily::Style style) {
+  switch (style) {
+    case EpdFontFamily::ITALIC:
+      return EpdFontFamily::BOLD_ITALIC;
+    case EpdFontFamily::REGULAR:
+      return EpdFontFamily::BOLD;
+    case EpdFontFamily::BOLD:
+    case EpdFontFamily::BOLD_ITALIC:
+    default:
+      return style;
+  }
+}
 
 void stripSoftHyphensInPlace(std::string& word) {
   size_t pos = 0;
@@ -50,6 +93,28 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
     sanitized.push_back('-');
   }
   return renderer.text.getWidth(fontId, sanitized.c_str(), style);
+}
+
+uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                          const EpdFontFamily::Style style, const uint8_t bionicPrefixBytes,
+                          const bool appendHyphen = false) {
+  if (bionicPrefixBytes == 0 || bionicPrefixBytes >= word.size()) {
+    return measureWordWidth(renderer, fontId, word, style, appendHyphen);
+  }
+
+  std::string sanitized = word;
+  if (containsSoftHyphen(sanitized)) {
+    stripSoftHyphensInPlace(sanitized);
+  }
+  if (appendHyphen) {
+    sanitized.push_back('-');
+  }
+
+  const uint8_t prefixBytes = static_cast<uint8_t>(std::min<size_t>(bionicPrefixBytes, sanitized.size()));
+  const std::string prefix = sanitized.substr(0, prefixBytes);
+  const std::string suffix = sanitized.substr(prefixBytes);
+  return renderer.text.getWidth(fontId, prefix.c_str(), bionicStyleFor(style)) +
+         renderer.text.getWidth(fontId, suffix.c_str(), style);
 }
 
 /**
@@ -101,8 +166,10 @@ std::vector<size_t> computeGreedyLineBreaksWithDropIndent(const int pageWidth, c
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle) {
   if (word.empty()) return;
 
+  const uint8_t bionicPrefixBytesValue = bionicReadingEnabled ? bionicPrefixLengthBytes(word) : 0;
   words.push_back(std::move(word));
   wordStyles.push_back(fontStyle);
+  bionicPrefixBytes.push_back(bionicPrefixBytesValue);
 }
 
 
@@ -143,12 +210,14 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
 
   auto wordsIt = words.begin();
   auto wordStylesIt = wordStyles.begin();
+  auto bionicIt = bionicPrefixBytes.begin();
 
   while (wordsIt != words.end()) {
-    wordWidths.push_back(measureWordWidth(renderer, fontId, *wordsIt, *wordStylesIt));
+    wordWidths.push_back(measureWordWidth(renderer, fontId, *wordsIt, *wordStylesIt, *bionicIt));
 
     std::advance(wordsIt, 1);
     std::advance(wordStylesIt, 1);
+    std::advance(bionicIt, 1);
   }
 
   return wordWidths;
@@ -330,6 +399,9 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
           pad += em;
         }
         words.front().insert(0, pad);
+        if (!bionicPrefixBytes.empty()) {
+          bionicPrefixBytes.front() = 0;
+        }
       }
     }
     return;
@@ -341,6 +413,9 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
 
   if (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) {
     words.front().insert(0, "\xe2\x80\x83");
+    if (!bionicPrefixBytes.empty()) {
+      bionicPrefixBytes.front() = 0;
+    }
   }
 }
 
@@ -412,8 +487,10 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   
   auto wordIt = words.begin();
   auto styleIt = wordStyles.begin();
+  auto bionicIt = bionicPrefixBytes.begin();
   std::advance(wordIt, wordIndex);
   std::advance(styleIt, wordIndex);
+  std::advance(bionicIt, wordIndex);
 
   const std::string& word = *wordIt;
   const auto style = *styleIt;
@@ -436,7 +513,9 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
     }
 
     const bool needsHyphen = info.requiresInsertedHyphen;
-    const int prefixWidth = measureWordWidth(renderer, fontId, word.substr(0, offset), style, needsHyphen);
+    const uint8_t hyphenPrefixBytes = bionicReadingEnabled ? bionicPrefixLengthBytes(word.substr(0, offset)) : 0;
+    const int prefixWidth =
+        measureWordWidth(renderer, fontId, word.substr(0, offset), style, hyphenPrefixBytes, needsHyphen);
     if (prefixWidth > availableWidth || prefixWidth <= chosenWidth) {
       continue;  
     }
@@ -461,12 +540,17 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   
   auto insertWordIt = std::next(wordIt);
   auto insertStyleIt = std::next(styleIt);
+  auto insertBionicIt = std::next(bionicIt);
   words.insert(insertWordIt, remainder);
   wordStyles.insert(insertStyleIt, style);
+  const uint8_t prefixBionic = bionicReadingEnabled ? bionicPrefixLengthBytes(*wordIt) : 0;
+  const uint8_t remainderBionic = bionicReadingEnabled ? bionicPrefixLengthBytes(remainder) : 0;
+  *bionicIt = prefixBionic;
+  bionicPrefixBytes.insert(insertBionicIt, remainderBionic);
 
   
   wordWidths[wordIndex] = static_cast<uint16_t>(chosenWidth);
-  const uint16_t remainderWidth = measureWordWidth(renderer, fontId, remainder, style);
+  const uint16_t remainderWidth = measureWordWidth(renderer, fontId, remainder, style, remainderBionic);
   wordWidths.insert(wordWidths.begin() + wordIndex + 1, remainderWidth);
   return true;
 }
@@ -543,19 +627,32 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   
   auto wordEndIt = words.begin();
   auto wordStyleEndIt = wordStyles.begin();
+  auto bionicEndIt = bionicPrefixBytes.begin();
   std::advance(wordEndIt, lineWordCount);
   std::advance(wordStyleEndIt, lineWordCount);
+  std::advance(bionicEndIt, lineWordCount);
 
   std::list<std::string> lineWords;
   lineWords.splice(lineWords.begin(), words, words.begin(), wordEndIt);
   std::list<EpdFontFamily::Style> lineWordStyles;
   lineWordStyles.splice(lineWordStyles.begin(), wordStyles, wordStyles.begin(), wordStyleEndIt);
+  std::list<uint8_t> lineBionicPrefixBytes;
+  lineBionicPrefixBytes.splice(lineBionicPrefixBytes.begin(), bionicPrefixBytes, bionicPrefixBytes.begin(),
+                               bionicEndIt);
 
+  auto bionicIt = lineBionicPrefixBytes.begin();
   for (auto& word : lineWords) {
     if (containsSoftHyphen(word)) {
       stripSoftHyphensInPlace(word);
+      if (bionicReadingEnabled && bionicIt != lineBionicPrefixBytes.end()) {
+        *bionicIt = bionicPrefixLengthBytes(word);
+      }
+    }
+    if (bionicIt != lineBionicPrefixBytes.end()) {
+      ++bionicIt;
     }
   }
 
-  processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), style));
+  processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
+                                          std::move(lineBionicPrefixBytes), style));
 }

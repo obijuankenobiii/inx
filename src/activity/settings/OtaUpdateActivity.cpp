@@ -12,6 +12,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <algorithm>
 #include <string>
 
 #include "activity/network/WifiSelectionActivity.h"
@@ -23,8 +24,36 @@
 #include "esp_task_wdt.h"
 
 namespace {
-constexpr const char* kSdFirmwarePath = "/firmware.bin";
 constexpr int kSourceItemHeight = 56;
+constexpr int kFirmwareItemHeight = 46;
+const std::string kEmptyPath;
+
+bool hasBinExtension(const std::string& path) {
+  if (path.length() < 4) {
+    return false;
+  }
+  const size_t n = path.length();
+  return (path[n - 4] == '.') && (path[n - 3] == 'b' || path[n - 3] == 'B') &&
+         (path[n - 2] == 'i' || path[n - 2] == 'I') && (path[n - 1] == 'n' || path[n - 1] == 'N');
+}
+
+std::string joinSdPath(const char* dirPath, const char* name) {
+  std::string n = name ? name : "";
+  if (n.empty()) {
+    return "";
+  }
+  if (n[0] == '/') {
+    return n;
+  }
+  std::string d = dirPath ? dirPath : "/";
+  if (d.empty() || d == "/") {
+    return "/" + n;
+  }
+  if (d.back() == '/') {
+    return d + n;
+  }
+  return d + "/" + n;
+}
 }
 
 void OtaUpdateActivity::taskTrampoline(void* param) {
@@ -92,6 +121,48 @@ void OtaUpdateActivity::onEnter() {
   );
 
   Serial.printf("[%lu] [OTA] Waiting for update source selection\n", millis());
+}
+
+void OtaUpdateActivity::scanSdFirmwareFiles() {
+  sdFirmwareFiles.clear();
+  sdFirmwareSelectedIndex = 0;
+  sdFirmwareScrollOffset = 0;
+
+  auto scanDir = [this](const char* dirPath) {
+    FsFile dir = SdMan.open(dirPath);
+    if (!dir || !dir.isDirectory()) {
+      if (dir) {
+        dir.close();
+      }
+      return;
+    }
+
+    for (FsFile file = dir.openNextFile(); file; file = dir.openNextFile()) {
+      if (!file.isDirectory()) {
+        char name[160] = {};
+        file.getName(name, sizeof(name));
+        const std::string path = joinSdPath(dirPath, name);
+        if (hasBinExtension(path)) {
+          sdFirmwareFiles.push_back(path);
+        }
+      }
+      file.close();
+    }
+    dir.close();
+  };
+
+  scanDir("/");
+  scanDir("/firmware");
+
+  std::sort(sdFirmwareFiles.begin(), sdFirmwareFiles.end());
+  sdFirmwareFiles.erase(std::unique(sdFirmwareFiles.begin(), sdFirmwareFiles.end()), sdFirmwareFiles.end());
+}
+
+const std::string& OtaUpdateActivity::selectedSdFirmwarePath() const {
+  if (sdFirmwareSelectedIndex < 0 || sdFirmwareSelectedIndex >= static_cast<int>(sdFirmwareFiles.size())) {
+    return kEmptyPath;
+  }
+  return sdFirmwareFiles[static_cast<size_t>(sdFirmwareSelectedIndex)];
 }
 
 void OtaUpdateActivity::onExit() {
@@ -162,11 +233,14 @@ void OtaUpdateActivity::render() {
     case WAITING_CONFIRMATION:
       subtitleText = "New update available!";
       break;
+    case WAITING_SD_SELECTION:
+      subtitleText = "Choose firmware file";
+      break;
     case WAITING_SD_CONFIRMATION:
       subtitleText = "Install firmware from SD";
       break;
     case UPDATE_IN_PROGRESS:
-      subtitleText = "Downloading firmware...";
+      subtitleText = "Installing firmware...";
       break;
     case NO_UPDATE:
       subtitleText = "No update available";
@@ -186,7 +260,7 @@ void OtaUpdateActivity::render() {
   const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
 
-  const int bodyTop = dividerY + 16;
+  const int bodyTop = dividerY;
 
   if (state == SOURCE_SELECTION) {
     constexpr const char* items[] = {"Online update", "SD card firmware"};
@@ -219,13 +293,52 @@ void OtaUpdateActivity::render() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28, newVer.c_str(), true, EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else if (state == WAITING_SD_SELECTION) {
+    const int totalFiles = static_cast<int>(sdFirmwareFiles.size());
+    if (totalFiles == 0) {
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
+                           "No firmware .bin files found.", true, EpdFontFamily::BOLD);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 32,
+                           "Put .bin files in / or /firmware.", true, EpdFontFamily::REGULAR);
+      const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    } else {
+      const int listBottom = screenHeight - 44;
+      const int visibleRows = std::max(1, (listBottom - bodyTop) / kFirmwareItemHeight);
+      if (sdFirmwareSelectedIndex < sdFirmwareScrollOffset) {
+        sdFirmwareScrollOffset = sdFirmwareSelectedIndex;
+      } else if (sdFirmwareSelectedIndex >= sdFirmwareScrollOffset + visibleRows) {
+        sdFirmwareScrollOffset = sdFirmwareSelectedIndex - visibleRows + 1;
+      }
+      const int maxScroll = std::max(0, totalFiles - visibleRows);
+      sdFirmwareScrollOffset = std::max(0, std::min(sdFirmwareScrollOffset, maxScroll));
+
+      const int endIndex = std::min(totalFiles, sdFirmwareScrollOffset + visibleRows);
+      for (int i = sdFirmwareScrollOffset; i < endIndex; ++i) {
+        const int itemY = bodyTop + (i - sdFirmwareScrollOffset) * kFirmwareItemHeight;
+        const bool selected = sdFirmwareSelectedIndex == i;
+        if (selected) {
+          renderer.rectangle.fill(0, itemY, pageWidth, kFirmwareItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+        }
+        const std::string label = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                         sdFirmwareFiles[static_cast<size_t>(i)].c_str(), pageWidth - 40);
+        const int textY =
+            itemY + (kFirmwareItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label.c_str(), !selected,
+                             EpdFontFamily::REGULAR);
+        renderer.line.render(0, itemY + kFirmwareItemHeight - 1, pageWidth, itemY + kFirmwareItemHeight - 1);
+      }
+      const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
   } else if (state == WAITING_SD_CONFIRMATION) {
+    const std::string& firmwarePath = selectedSdFirmwarePath();
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
-                         ("File: " + std::string(kSdFirmwarePath)).c_str(), true, EpdFontFamily::REGULAR);
-    if (SdMan.exists(kSdFirmwarePath)) {
+                         ("File: " + firmwarePath).c_str(), true, EpdFontFamily::REGULAR);
+    if (!firmwarePath.empty() && SdMan.exists(firmwarePath.c_str())) {
       FsFile file;
       size_t firmwareSize = 0;
-      if (SdMan.openFileForRead("OTA", kSdFirmwarePath, file)) {
+      if (SdMan.openFileForRead("OTA", firmwarePath, file)) {
         firmwareSize = file.size();
         file.close();
       }
@@ -237,7 +350,7 @@ void OtaUpdateActivity::render() {
       const auto labels = mappedInput.mapLabels("Cancel", "Install", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 36, "Put firmware.bin in the SD root.",
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 36, "Firmware file is missing.",
                            true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -310,8 +423,9 @@ void OtaUpdateActivity::loop() {
         enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                                    [this](const bool connected) { onWifiSelectionComplete(connected); }));
       } else {
+        scanSdFirmwareFiles();
         xSemaphoreTake(renderingMutex, portMAX_DELAY);
-        state = WAITING_SD_CONFIRMATION;
+        state = WAITING_SD_SELECTION;
         xSemaphoreGive(renderingMutex);
         updateRequired = true;
       }
@@ -359,7 +473,7 @@ void OtaUpdateActivity::loop() {
     return;
   }
 
-  if (state == WAITING_SD_CONFIRMATION) {
+  if (state == WAITING_SD_SELECTION) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = SOURCE_SELECTION;
@@ -368,14 +482,53 @@ void OtaUpdateActivity::loop() {
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && SdMan.exists(kSdFirmwarePath)) {
-      Serial.printf("[%lu] [OTA] Installing firmware from SD...\n", millis());
+    const int totalFiles = static_cast<int>(sdFirmwareFiles.size());
+    if (totalFiles == 0) {
+      return;
+    }
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+      sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + 1) % totalFiles;
+      updateRequired = true;
+      return;
+    }
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+      sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + totalFiles - 1) % totalFiles;
+      updateRequired = true;
+      return;
+    }
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      state = WAITING_SD_CONFIRMATION;
+      xSemaphoreGive(renderingMutex);
+      updateRequired = true;
+      return;
+    }
+
+    return;
+  }
+
+  if (state == WAITING_SD_CONFIRMATION) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      state = WAITING_SD_SELECTION;
+      xSemaphoreGive(renderingMutex);
+      updateRequired = true;
+      return;
+    }
+
+    const std::string& firmwarePath = selectedSdFirmwarePath();
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && !firmwarePath.empty() &&
+        SdMan.exists(firmwarePath.c_str())) {
+      Serial.printf("[%lu] [OTA] Installing firmware from SD: %s\n", millis(), firmwarePath.c_str());
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = UPDATE_IN_PROGRESS;
       xSemaphoreGive(renderingMutex);
       updateRequired = true;
       vTaskDelay(10 / portTICK_PERIOD_MS);
-      const auto res = updater.installUpdateFromSd(kSdFirmwarePath);
+      const auto res = updater.installUpdateFromSd(firmwarePath.c_str());
 
       if (res != OtaUpdater::OK) {
         Serial.printf("[%lu] [OTA] SD update failed: %d\n", millis(), res);

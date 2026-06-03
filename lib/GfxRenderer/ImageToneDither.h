@@ -17,6 +17,7 @@ class FourToneImageDitherer {
 
   bool ok() const;
   ImageToneSample process(int gray, int x);
+  ImageToneSample processAtkinson(int gray, int x);
   void nextRow();
   void reset();
 

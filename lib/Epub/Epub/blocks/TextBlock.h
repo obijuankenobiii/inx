@@ -31,6 +31,7 @@ class TextBlock final : public Block {
   std::list<std::string> words;
   std::list<uint16_t> wordXpos;
   std::list<EpdFontFamily::Style> wordStyles;
+  std::list<uint8_t> bionicPrefixBytes;
   Style style;
 
  public:
@@ -46,6 +47,15 @@ class TextBlock final : public Block {
                      std::list<EpdFontFamily::Style> word_styles, const Style style)
       : words(std::move(words)), wordXpos(std::move(word_xpos)), 
         wordStyles(std::move(word_styles)), style(style) {}
+
+  explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
+                     std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> bionic_prefix_bytes,
+                     const Style style)
+      : words(std::move(words)),
+        wordXpos(std::move(word_xpos)),
+        wordStyles(std::move(word_styles)),
+        bionicPrefixBytes(std::move(bionic_prefix_bytes)),
+        style(style) {}
   
   ~TextBlock() override = default;
   

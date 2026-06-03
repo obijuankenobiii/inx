@@ -306,6 +306,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         info.height,
         bookSettings.hyphenationEnabled,
         bookSettings.paragraphCssIndentEnabled != 0,
+        bookSettings.bionicReadingEnabled != 0,
         nullptr,
         skipImages);
 
@@ -333,7 +334,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
   bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                                  bookSettings.paragraphAlignment, info.width, info.height,
                                                  bookSettings.hyphenationEnabled,
-                                                 bookSettings.paragraphCssIndentEnabled != 0);
+                                                 bookSettings.paragraphCssIndentEnabled != 0,
+                                                 bookSettings.bionicReadingEnabled != 0);
 
   if (!isCached) {
     if (!buildSection(spineIndex, info, true, false)) {
@@ -341,7 +343,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
     }
     if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
                                         bookSettings.paragraphAlignment, info.width, info.height,
-                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0)) {
+                                        bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
+                                        bookSettings.bionicReadingEnabled != 0)) {
       return nullptr;
     }
   }
@@ -570,7 +573,13 @@ void EpubActivity::fastPath() {
 /**
  * @brief Slow path for new books
  */
-void EpubActivity::slowPath() {
+bool EpubActivity::slowPath() {
+  if (!epub->isLoaded() && !epub->load(true)) {
+    readerPopup("Error preparing book");
+    onGoBack();
+    return false;
+  }
+
   displayCoverOrTitle();
   loadingProgress = 30;
   drawLoadingScreen();
@@ -590,6 +599,12 @@ void EpubActivity::slowPath() {
   renderer.clearScreen(0xff);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   loadCurrentSection();
+  if (!section) {
+    readerPopup("Error loading chapter");
+    onGoBack();
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -602,20 +617,27 @@ void EpubActivity::onEnter() {
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
-  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   bookProgress.reset(new BookProgress(epub->getCachePath()));
   
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
   bool hasProgress = bookProgress->exists();
+  const bool useFastPath = epub->isLoaded() && book && hasProgress;
 
-  if (book && hasProgress) {
-    fastPath();
-  } else {
+  if (!useFastPath) {
     renderer.clearScreen(0xff);
     renderer.displayBuffer();
     ScreenComponents::drawPopup(renderer, "Preparing book...");
     renderer.displayBuffer();
-    slowPath();
+  }
+
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
+
+  if (useFastPath) {
+    fastPath();
+  } else {
+    if (!slowPath()) {
+      return;
+    }
   }
 
   updateExternalState();
@@ -864,7 +886,7 @@ void EpubActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     updateRequired = true;
     return;
   }

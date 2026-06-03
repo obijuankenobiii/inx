@@ -5,9 +5,6 @@
 #include <Epub/Page.h>
 #include <Epub/PageWordIndex.h>
 #include <GfxRenderer.h>
-#include <HalDisplay.h>
-
-static_assert(8000U * 6U == HalDisplay::BUFFER_SIZE, "Capture chunk layout must match display buffer");
 #include <HalGPIO.h>
 #include <ctime>
 
@@ -434,13 +431,18 @@ void EpubAnnotationUi::captureFramebuffer(EpubActivity& act) {
 
   uint8_t* fb = act.renderer.getFrameBuffer();
   const size_t n = act.renderer.getBufferSize();
-  if (!fb || n == 0 || n != kCaptureChunkBytes * kCaptureChunkCount) {
+  if (!fb || n == 0) {
     return;
   }
 
+  const size_t chunkCount = (n + kCaptureChunkBytes - 1) / kCaptureChunkBytes;
+  captureChunks_.resize(chunkCount);
+
   bool chunkedOk = true;
-  for (size_t i = 0; i < kCaptureChunkCount; ++i) {
-    uint8_t* const buf = new (std::nothrow) uint8_t[kCaptureChunkBytes];
+  for (size_t i = 0; i < chunkCount; ++i) {
+    const size_t offset = i * kCaptureChunkBytes;
+    const size_t chunkBytes = std::min(kCaptureChunkBytes, n - offset);
+    uint8_t* const buf = new (std::nothrow) uint8_t[chunkBytes];
     if (!buf) {
       chunkedOk = false;
       for (size_t j = 0; j < i; ++j) {
@@ -448,7 +450,7 @@ void EpubAnnotationUi::captureFramebuffer(EpubActivity& act) {
       }
       break;
     }
-    memcpy(buf, fb + i * kCaptureChunkBytes, kCaptureChunkBytes);
+    memcpy(buf, fb + offset, chunkBytes);
     captureChunks_[i].reset(buf);
   }
 
@@ -490,12 +492,19 @@ void EpubAnnotationUi::repaint(EpubActivity& act) {
     }
     memcpy(fb, captureMonolithic_.get(), n);
   } else {
-    for (size_t i = 0; i < kCaptureChunkCount; ++i) {
+    const size_t chunkCount = (n + kCaptureChunkBytes - 1) / kCaptureChunkBytes;
+    if (captureChunks_.size() != chunkCount) {
+      act.renderScreen(true);
+      return;
+    }
+    for (size_t i = 0; i < chunkCount; ++i) {
+      const size_t offset = i * kCaptureChunkBytes;
+      const size_t chunkBytes = std::min(kCaptureChunkBytes, n - offset);
       if (!captureChunks_[i]) {
         act.renderScreen(true);
         return;
       }
-      memcpy(fb + i * kCaptureChunkBytes, captureChunks_[i].get(), kCaptureChunkBytes);
+      memcpy(fb + offset, captureChunks_[i].get(), chunkBytes);
     }
   }
   drawUiOverlay(act);

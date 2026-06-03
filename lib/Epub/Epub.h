@@ -36,6 +36,9 @@ class Epub {
 
   /** Loads book.bin from cache; on success returns immediately without re-parsing OPF/TOC/CSS. */
   bool load(bool buildIfMissing = true);
+  /** Fast metadata-cache probe. Does not parse the EPUB or build missing cache files. */
+  bool hasMetadataCache() const;
+  bool isLoaded() const;
   bool clearCache();
   void setupCacheDir() const;
   

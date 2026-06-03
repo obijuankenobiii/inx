@@ -6,6 +6,7 @@
  */
 
 #include <cstdint>
+#include <cstddef>
 #include <iosfwd>
 
 class GfxRenderer;
@@ -32,7 +33,21 @@ public:
         COVER = 3,          ///< Book cover
         TRANSPARENT = 4,    ///< Transparent
         BLANK = 5,          ///< Blank screen
+        DATETIME = 6,       ///< Minimal date and time
         SLEEP_SCREEN_MODE_COUNT 
+    };
+
+    enum SLEEP_CLOCK_STYLE {
+        CLOCK_STACKED_CITY = 0,
+        CLOCK_CENTERED_DATE = 1,
+        CLOCK_HORIZONTAL_CARD = 2,
+        SLEEP_CLOCK_STYLE_COUNT
+    };
+
+    enum CLOCK_TIME_FORMAT {
+        CLOCK_12_HOUR = 0,
+        CLOCK_24_HOUR = 1,
+        CLOCK_TIME_FORMAT_COUNT
     };
     
     /**
@@ -265,6 +280,7 @@ public:
         RECENT_SIMPLE = 3,  ///< Simple: recent cover on top, favorites list below
         RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
         RECENT_ICONS = 5,   ///< 2×3 icon grid (200×200); scroll for more books
+        RECENT_COVER = 6,   ///< Latest recent book cover with title, author, and progress
         RECENT_LIBRARY_MODE_COUNT
     };
 
@@ -319,6 +335,10 @@ public:
      * Exactly "/sleep.bmp" (or /sleep.jpg/.jpeg) = use SD-root fallback file only.
      */
     char sleepCustomBmp[64] = "";
+    uint8_t sleepClockStyle = CLOCK_CENTERED_DATE;              ///< Date/time sleep screen style
+    uint8_t sleepClockTimeFormat = CLOCK_24_HOUR;               ///< 12/24 hour clock format
+    /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
+    uint8_t timeZoneQuarterOffset = 80;
 
     
     uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
@@ -363,6 +383,7 @@ public:
     
     uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
     uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
+    uint8_t bionicReadingEnabled = 0;                            ///< Bionic Reading enabled
 
     
     uint8_t screenMargin = 20;                                  ///< Screen margin in pixels
@@ -499,6 +520,9 @@ public:
      * @return Number of pages between refreshes
      */
     int getRefreshFrequency() const;
+
+    int getTimeZoneOffsetMinutes() const;
+    void formatTimeZone(char* out, size_t outSize) const;
 };
 
 #define SETTINGS SystemSetting::getInstance()

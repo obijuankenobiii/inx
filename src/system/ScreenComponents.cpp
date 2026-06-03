@@ -7,19 +7,21 @@
 
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#include <HalGPIO.h>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdint>
 #include <string>
 
-#include "system/Battery.h"
 #include "system/Fonts.h"
+
+extern HalGPIO gpio;
 
 void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, const int top,
                                    const bool showPercentage) {
   
-  const uint16_t percentage = battery.readPercentage();
+  const uint16_t percentage = gpio.getBatteryPercentage();
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
   renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
 
@@ -57,7 +59,7 @@ ScreenComponents::PopupLayout ScreenComponents::drawPopup(const GfxRenderer& ren
   const int textHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
   const int w = textWidth + margin * 2;
   const int h = textHeight + margin * 2;
-  constexpr int y = 330;
+  const int y = std::max(0, renderer.getScreenHeight() * 2 / 5);
   const int x = (renderer.getScreenWidth() - w) / 2;
 
   renderer.rectangle.fill(x - 2, y - 2, w + 4, h + 4, true, true);
@@ -86,7 +88,6 @@ void ScreenComponents::fillPopupProgress(const GfxRenderer& renderer, const Popu
 
 namespace {
 
-constexpr int kLoadProgBottomY = 312;
 constexpr int kLoadProgSideMargin = 20;
 constexpr int kLoadProgInnerPad = 12;
 constexpr int kLoadProgBarH = 10;
@@ -126,7 +127,7 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   const int innerW = panelW - 2 * kLoadProgInnerPad;
   const int barW = std::max(kMinBarW, innerW);
   const int panelH = kLoadProgInnerPad + lhLabel + kLoadProgGapLabelToBar + kLoadProgBarH + kLoadProgInnerPad;
-  const int panelY = kLoadProgBottomY - panelH;
+  const int panelY = std::max(0, renderer.getScreenHeight() * 2 / 5 - panelH);
   const int labelX = panelX + (panelW - labelW) / 2;
   const int labelY = panelY + kLoadProgInnerPad;
   const int barX = panelX + kLoadProgInnerPad;

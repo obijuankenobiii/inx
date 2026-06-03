@@ -76,7 +76,8 @@ bool isUnsupportedJpeg(FsFile& file) {
 }
 
 inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
-  return rgbToGray(r, g, b);
+  return static_cast<uint8_t>((77 * static_cast<int>(r) + 150 * static_cast<int>(g) + 29 * static_cast<int>(b) + 128) >>
+                              8);
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
@@ -84,9 +85,9 @@ constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light 
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 240;  // Changed from 255 - preserve light grays
 constexpr int kJpegTwoBitContrastPercent = 130; // Reduced from 165 - less contrast crushing
-constexpr int kJpegTwoBitSharpenThreshold = 200;
-constexpr int kJpegTwoBitSharpenPercent = 45;   // Reduced from 65
-constexpr int kJpegTwoBitSharpenMax = 30;       // Reduced from 42
+constexpr int kJpegTwoBitSharpenThreshold = 18;
+constexpr int kJpegTwoBitSharpenPercent = 35;
+constexpr int kJpegTwoBitSharpenMax = 18;
 constexpr int kJpegTwoBitEdgeThreshold = 12;
 constexpr int kJpegTwoBitEdgeMaxDarken = 20;    // Reduced from 36
 constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
@@ -144,7 +145,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
     return;
   }
 
-  const uint8_t level = FourToneImageDitherer::levelFromValue(q);
+  const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
   const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
   if (renderMode == GfxRenderer::BW) {
     if ((mode == ImageRenderMode::TwoBit && level > 0) ||
@@ -204,9 +205,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   const int drawOffsetY = y + (targetHeight - outHeight) / 2;
   const int srcYEnd = srcOffsetY + cropSrcHeight;
   const bool verticalUpscale = outHeight > cropSrcHeight;
+  const bool horizontalUpscale = outWidth > cropSrcWidth;
 
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
+  uint8_t* prevScaledRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
+  uint8_t* blendedRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
   uint32_t* rowAccum = new (std::nothrow) uint32_t[outWidth]();
   uint16_t* rowCount = new (std::nothrow) uint16_t[outWidth]();
   FourToneImageDitherer* twoBitDitherer = nullptr;
@@ -216,10 +220,13 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow || !rowAccum || !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+  if (!mcuRowBuffer || !scaledRow || (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
+      !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     free(scaledRow);
+    free(prevScaledRow);
+    free(blendedRow);
     delete[] rowAccum;
     delete[] rowCount;
     delete twoBitDitherer;
@@ -229,6 +236,47 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
+  bool hasPrevScaledRow = false;
+
+  auto buildScaledRow = [&](const uint8_t* srcRow, uint8_t* row) {
+    for (int ox = 0; ox < outWidth; ox++) {
+      if (horizontalUpscale) {
+        const uint32_t srcFp = static_cast<uint32_t>((static_cast<uint64_t>(ox) * scaleX_fp));
+        int sx0 = srcOffsetX + static_cast<int>(srcFp >> 16);
+        if (sx0 < srcOffsetX) sx0 = srcOffsetX;
+        if (sx0 >= srcOffsetX + cropSrcWidth) sx0 = srcOffsetX + cropSrcWidth - 1;
+        const int sx1 = std::min(srcOffsetX + cropSrcWidth - 1, sx0 + 1);
+        const uint32_t frac = srcFp & 0xFFFFu;
+        const uint32_t invFrac = 65536u - frac;
+        row[ox] = static_cast<uint8_t>((srcRow[sx0] * invFrac + srcRow[sx1] * frac + 32768u) >> 16);
+      } else {
+        int sxStart = srcOffsetX + static_cast<int>((static_cast<uint64_t>(ox) * scaleX_fp) >> 16);
+        int sxEnd = srcOffsetX + static_cast<int>((static_cast<uint64_t>(ox + 1) * scaleX_fp) >> 16);
+        sxStart = std::max(srcOffsetX, std::min(srcOffsetX + cropSrcWidth - 1, sxStart));
+        sxEnd = std::max(sxStart + 1, std::min(srcOffsetX + cropSrcWidth, sxEnd));
+        uint32_t sum = 0;
+        for (int sx = sxStart; sx < sxEnd; sx++) {
+          sum += srcRow[sx];
+        }
+        row[ox] = static_cast<uint8_t>(sum / static_cast<uint32_t>(sxEnd - sxStart));
+      }
+    }
+  };
+
+  auto blendScaledRows = [&](const uint8_t* upper, const uint8_t* lower, uint32_t frac, uint8_t* row) {
+    if (frac == 0) {
+      memcpy(row, upper, static_cast<size_t>(outWidth));
+      return;
+    }
+    if (frac >= 65536u) {
+      memcpy(row, lower, static_cast<size_t>(outWidth));
+      return;
+    }
+    const uint32_t invFrac = 65536u - frac;
+    for (int ox = 0; ox < outWidth; ox++) {
+      row[ox] = static_cast<uint8_t>((upper[ox] * invFrac + lower[ox] * frac + 32768u) >> 16);
+    }
+  };
 
   auto emitOutputRow = [&](const int screenY, const uint8_t* row) {
     for (int step = 0; step < outWidth; step++) {
@@ -287,40 +335,71 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       const int srcY = mcuY * imageInfo.m_MCUHeight + yInMcu;
       if (srcY < srcOffsetY || srcY >= srcYEnd) continue;
       const uint8_t* srcRow = mcuRowBuffer + yInMcu * imageInfo.m_width;
-      for (int ox = 0; ox < outWidth; ox++) {
-        const int sx = srcOffsetX + static_cast<int>((static_cast<uint64_t>(ox) * scaleX_fp) >> 16);
-        if (sx >= srcOffsetX && sx < srcOffsetX + cropSrcWidth && sx < imageInfo.m_width) {
-          if (verticalUpscale) {
-            scaledRow[ox] = srcRow[sx];
-          } else {
-            rowAccum[ox] += srcRow[sx];
-            rowCount[ox]++;
+
+      buildScaledRow(srcRow, scaledRow);
+
+      if (verticalUpscale) {
+        const int cropY = srcY - srcOffsetY;
+        if (!hasPrevScaledRow || cropY == 0) {
+          while (currentOutY < outHeight) {
+            const uint32_t srcFp = static_cast<uint32_t>(static_cast<uint64_t>(currentOutY) * scaleY_fp);
+            if ((srcFp >> 16) > 0) {
+              break;
+            }
+            emitOutputRow(drawOffsetY + currentOutY, scaledRow);
+            currentOutY++;
+          }
+        } else {
+          const uint32_t prevBase = static_cast<uint32_t>(cropY - 1) << 16;
+          const uint32_t currBase = static_cast<uint32_t>(cropY) << 16;
+          while (currentOutY < outHeight) {
+            const uint32_t srcFp = static_cast<uint32_t>(static_cast<uint64_t>(currentOutY) * scaleY_fp);
+            if (srcFp > currBase) {
+              break;
+            }
+            const uint32_t frac = srcFp <= prevBase ? 0u : std::min<uint32_t>(65536u, srcFp - prevBase);
+            blendScaledRows(prevScaledRow, scaledRow, frac, blendedRow);
+            emitOutputRow(drawOffsetY + currentOutY, blendedRow);
+            currentOutY++;
           }
         }
+        memcpy(prevScaledRow, scaledRow, static_cast<size_t>(outWidth));
+        hasPrevScaledRow = true;
+        continue;
+      }
+
+      for (int ox = 0; ox < outWidth; ox++) {
+        rowAccum[ox] += scaledRow[ox];
+        rowCount[ox]++;
       }
       bool emittedOutputRow = false;
       const uint32_t cropRowsSeen = static_cast<uint32_t>(srcY - srcOffsetY + 1);
       while ((cropRowsSeen << 16) >= nextOutY_srcStart && currentOutY < outHeight) {
         const int screenY = drawOffsetY + currentOutY;
-        if (!verticalUpscale) {
-          for (int ox = 0; ox < outWidth; ox++) {
-            scaledRow[ox] = rowCount[ox] ? static_cast<uint8_t>(rowAccum[ox] / rowCount[ox]) : 0;
-          }
+        for (int ox = 0; ox < outWidth; ox++) {
+          scaledRow[ox] = rowCount[ox] ? static_cast<uint8_t>(rowAccum[ox] / rowCount[ox]) : 0;
         }
         emitOutputRow(screenY, scaledRow);
         currentOutY++;
         emittedOutputRow = true;
         nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
       }
-      if (emittedOutputRow && !verticalUpscale) {
+      if (emittedOutputRow) {
         memset(rowAccum, 0, static_cast<size_t>(outWidth) * sizeof(uint32_t));
         memset(rowCount, 0, static_cast<size_t>(outWidth) * sizeof(uint16_t));
       }
     }
   }
 
+  while (verticalUpscale && hasPrevScaledRow && currentOutY < outHeight) {
+    emitOutputRow(drawOffsetY + currentOutY, prevScaledRow);
+    currentOutY++;
+  }
+
   free(mcuRowBuffer);
   free(scaledRow);
+  free(prevScaledRow);
+  free(blendedRow);
   delete[] rowAccum;
   delete[] rowCount;
   delete twoBitDitherer;

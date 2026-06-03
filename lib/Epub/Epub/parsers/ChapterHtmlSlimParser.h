@@ -72,6 +72,7 @@ class ChapterHtmlSlimParser {
   uint16_t viewportWidth;
   uint16_t viewportHeight;
   bool hyphenationEnabled;
+  bool bionicReadingEnabled = false;
   /** Book/global "Indent": honor CSS `text-indent` when true (from paragraphCssIndentEnabled). */
   bool respectCssParagraphIndent = false;
 
@@ -158,6 +159,7 @@ class ChapterHtmlSlimParser {
                                  const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
                                  const uint16_t viewportWidth, const uint16_t viewportHeight,
                                  const bool hyphenationEnabled, const bool respectCssParagraphIndent,
+                                 const bool bionicReadingEnabled,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
                                  const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
@@ -174,6 +176,7 @@ class ChapterHtmlSlimParser {
         viewportWidth(viewportWidth),
         viewportHeight(viewportHeight),
         hyphenationEnabled(hyphenationEnabled),
+        bionicReadingEnabled(bionicReadingEnabled),
         respectCssParagraphIndent(respectCssParagraphIndent),
         completePageFn(completePageFn),
         popupFn(popupFn),

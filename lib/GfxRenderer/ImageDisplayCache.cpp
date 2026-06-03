@@ -6,6 +6,7 @@
 #include "ImageDisplayCache.h"
 
 #include <Arduino.h>
+#include <HalGPIO.h>
 #include <SDCardManager.h>
 
 #include <algorithm>
@@ -16,7 +17,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 21;
+constexpr uint16_t kVersion = 23;
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {
@@ -85,6 +86,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.mode));
   hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));
+  hash = fnv1aAdd(hash, gpio.deviceIsX3() ? 1 : 0);
   return hash;
 }
 
@@ -261,6 +263,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
 
   renderer.displayGrayBuffer();
   renderer.setRenderMode(GfxRenderer::BW);
+  renderer.cleanupGrayscaleWithFrameBuffer();
   return true;
 }
 

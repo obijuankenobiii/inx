@@ -46,6 +46,8 @@
 #include "font/literata_14_bolditalic.h"
 #include "font/literata_16_bolditalic.h"
 #include "font/literata_18_bolditalic.h"
+#include "font/montserrat_clock_70_bold.h"
+#include "font/montserrat_clock_70_regular.h"
 
 #define ATKINSON_HYPERLEGIBLE_8_FONT_ID (2001)
 #define ATKINSON_HYPERLEGIBLE_10_FONT_ID (2002)
@@ -59,3 +61,5 @@
 #define LITERATA_14_FONT_ID (3003)
 #define LITERATA_16_FONT_ID (3004)
 #define LITERATA_18_FONT_ID (3005)
+
+#define MONTSERRAT_CLOCK_70_FONT_ID (4001)

@@ -18,7 +18,9 @@ struct BmpHeader;
 uint8_t quantize(int gray, int x, int y);
 uint8_t quantizeSimple(int gray);
 ImageToneSample quantizeTwoBitImage(int gray);
+uint8_t adjustTwoBitImageLevelForDisplay(uint8_t level);
 uint8_t quantize1bit(int gray, int x, int y);
+int adjustOneBitPixel(int gray);
 int adjustPixel(int gray);
 
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b);
@@ -51,7 +53,7 @@ class Atkinson1BitDitherer {
 
   uint8_t processPixel(int gray, int x) {
     
-    gray = adjustPixel(gray);
+    gray = adjustOneBitPixel(gray);
 
     
     int adjusted = gray + errorRow0[x + 2];

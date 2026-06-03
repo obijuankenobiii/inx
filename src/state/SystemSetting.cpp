@@ -12,6 +12,7 @@
 #include <Serialization.h>
 
 #include <cstring>
+#include <cstdio>
 #include <string>
 
 #include "system/FontManager.h"
@@ -35,8 +36,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 21;
-constexpr uint8_t SETTINGS_COUNT = 54;
+constexpr uint8_t SETTINGS_FILE_VERSION = 24;
+constexpr uint8_t SETTINGS_COUNT = 58;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -99,6 +100,10 @@ bool SystemSetting::saveToFile() const {
     if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
     if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
+    if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
+    if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
+    if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
+    if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -157,6 +162,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, fixSunlightFade);
   serialization::writePod(outputFile, libraryMode);
   serialization::writePod(outputFile, libraryViewMode);
+  serialization::writePod(outputFile, bionicReadingEnabled);
+  serialization::writePod(outputFile, sleepClockStyle);
+  serialization::writePod(outputFile, sleepClockTimeFormat);
+  serialization::writePod(outputFile, timeZoneQuarterOffset);
 
   outputFile.close();
 
@@ -184,7 +193,8 @@ bool SystemSetting::loadFromFile() {
 
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20) {
+      version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20 &&
+      version != 22 && version != 23) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -510,6 +520,28 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, libraryViewMode, LIBRARY_VIEW_MODE_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, bionicReadingEnabled);
+      if (bionicReadingEnabled > 1) {
+        bionicReadingEnabled = 0;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, sleepClockStyle, SLEEP_CLOCK_STYLE_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, sleepClockTimeFormat, CLOCK_TIME_FORMAT_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, timeZoneQuarterOffset);
+      if (timeZoneQuarterOffset > 104) {
+        timeZoneQuarterOffset = 80;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -529,11 +561,23 @@ bool SystemSetting::loadFromFile() {
   if (fixSunlightFade > 1) {
     fixSunlightFade = 0;
   }
+  if (sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) {
+    sleepClockStyle = CLOCK_CENTERED_DATE;
+  }
+  if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) {
+    sleepClockTimeFormat = CLOCK_24_HOUR;
+  }
+  if (timeZoneQuarterOffset > 104) {
+    timeZoneQuarterOffset = 80;
+  }
   if (libraryMode >= LIBRARY_MODE_COUNT) {
     libraryMode = LIBRARY_LIST;
   }
   if (libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) {
     libraryViewMode = LIBRARY_VIEW_FOLDERS;
+  }
+  if (bionicReadingEnabled > 1) {
+    bionicReadingEnabled = 0;
   }
 
   if (settingsRead < SETTINGS_COUNT) {
@@ -667,6 +711,21 @@ int SystemSetting::getRefreshFrequency() const {
     case REFRESH_30:
       return 30;
   }
+}
+
+int SystemSetting::getTimeZoneOffsetMinutes() const {
+  const int quarterHours = static_cast<int>(timeZoneQuarterOffset) - 48;
+  return quarterHours * 15;
+}
+
+void SystemSetting::formatTimeZone(char* out, size_t outSize) const {
+  if (out == nullptr || outSize == 0) {
+    return;
+  }
+  const int minutes = getTimeZoneOffsetMinutes();
+  const char sign = minutes < 0 ? '-' : '+';
+  const int absMinutes = minutes < 0 ? -minutes : minutes;
+  std::snprintf(out, outSize, "UTC%c%02d:%02d", sign, absMinutes / 60, absMinutes % 60);
 }
 
 int SystemSetting::getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const {

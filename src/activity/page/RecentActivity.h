@@ -55,7 +55,8 @@ class RecentActivity final : public Activity, public Menu {
     Flow,  /**< Flow carousel */
     SimpleUi, /**< Recent cover on gray band, favorites list below */
     List, /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
-    Icons /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
+    Icons, /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
+    Cover /**< Latest recent cover only, with title, author, and progress below */
   };
 
  private:
@@ -83,6 +84,7 @@ class RecentActivity final : public Activity, public Menu {
   };
   mutable std::vector<CachedRecentStats> recentStats_;
   mutable std::map<std::string, std::string> thumbnailPathCache_;
+  mutable std::map<std::string, std::string> coverPathCache_;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -141,6 +143,7 @@ class RecentActivity final : public Activity, public Menu {
   void renderFlow();
 
   void renderSimpleUi();
+  void renderCoverMode();
 
   /** Book list: five rows, vertical scroll when more than five recents. */
   void renderList(int startY);
@@ -148,6 +151,7 @@ class RecentActivity final : public Activity, public Menu {
 
   /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use paper corners. */
   std::string resolveThumbnailPath(const std::string& cacheDir) const;
+  std::string resolveCoverPath(const std::string& cacheDir) const;
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
                              int placeholderFontId, bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
@@ -173,6 +177,9 @@ class RecentActivity final : public Activity, public Menu {
     void paint(RecentActivity& self) override;
   };
   struct IconsViewLayout final : LayoutEngine {
+    void paint(RecentActivity& self) override;
+  };
+  struct CoverViewLayout final : LayoutEngine {
     void paint(RecentActivity& self) override;
   };
   struct SimpleUiViewLayout final : LayoutEngine {

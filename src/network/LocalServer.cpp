@@ -13,6 +13,7 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 #include "html/EpubPageHtml.generated.h"
@@ -837,7 +838,7 @@ static String uploadError = "";
 
 
 constexpr size_t UPLOAD_BUFFER_SIZE = 4096;  
-static uint8_t uploadBuffer[UPLOAD_BUFFER_SIZE];
+static uint8_t* uploadBuffer = nullptr;
 static size_t uploadBufferPos = 0;
 
 
@@ -845,8 +846,14 @@ static unsigned long uploadStartTime = 0;
 static unsigned long totalWriteTime = 0;
 static size_t writeCount = 0;
 
+static void freeUploadBuffer() {
+  std::free(uploadBuffer);
+  uploadBuffer = nullptr;
+  uploadBufferPos = 0;
+}
+
 static bool flushUploadBuffer() {
-  if (uploadBufferPos > 0 && uploadFile) {
+  if (uploadBufferPos > 0 && uploadFile && uploadBuffer) {
     esp_task_wdt_reset();  
     const unsigned long writeStart = millis();
     const size_t written = uploadFile.write(uploadBuffer, uploadBufferPos);
@@ -892,6 +899,7 @@ void LocalServer::handleUpload() const {
     uploadBufferPos = 0;
     totalWriteTime = 0;
     writeCount = 0;
+    freeUploadBuffer();
 
     
     
@@ -934,6 +942,15 @@ void LocalServer::handleUpload() const {
       return;
     }
     esp_task_wdt_reset();
+
+    uploadBuffer = static_cast<uint8_t*>(std::malloc(UPLOAD_BUFFER_SIZE));
+    if (!uploadBuffer) {
+      uploadError = "Failed to allocate upload buffer";
+      uploadFile.close();
+      SdMan.remove(filePath.c_str());
+      Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to allocate %d byte buffer\n", millis(), UPLOAD_BUFFER_SIZE);
+      return;
+    }
 
     Serial.printf("[%lu] [WEB] [UPLOAD] File created successfully: %s\n", millis(), filePath.c_str());
   } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -980,6 +997,7 @@ void LocalServer::handleUpload() const {
         uploadError = "Failed to write final data to SD card";
       }
       uploadFile.close();
+      freeUploadBuffer();
 
       if (uploadError.isEmpty()) {
         uploadSuccess = true;
@@ -999,7 +1017,7 @@ void LocalServer::handleUpload() const {
       }
     }
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
-    uploadBufferPos = 0;  
+    freeUploadBuffer();
     if (uploadFile) {
       uploadFile.close();
       
@@ -1319,6 +1337,9 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["sleepImageTwoBit"] = SETTINGS.sleepScreenCoverGrayscale;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
+  doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
+  doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
+  doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["libraryMode"] = SETTINGS.libraryMode;
@@ -1338,6 +1359,7 @@ void LocalServer::handleSettingsGet() const {
   doc["extraParagraphSpacing"] = SETTINGS.extraParagraphSpacing;
   doc["orientation"] = SETTINGS.orientation;
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
+  doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
   
   
   doc["readerDirectionMapping"] = SETTINGS.readerDirectionMapping;
@@ -1427,6 +1449,25 @@ void LocalServer::handleSettingsUpdate() const {
       }
       changed = true;
     }
+    else if (strcmp(key, "sleepClockStyle") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::SLEEP_CLOCK_STYLE_COUNT) v = SystemSetting::CLOCK_CENTERED_DATE;
+      SETTINGS.sleepClockStyle = v;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepClockTimeFormat") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::CLOCK_TIME_FORMAT_COUNT) v = SystemSetting::CLOCK_24_HOUR;
+      SETTINGS.sleepClockTimeFormat = v;
+      changed = true;
+    }
+    else if (strcmp(key, "timeZoneQuarterOffset") == 0) {
+      int v = static_cast<int>(value);
+      if (v < 0) v = 0;
+      if (v > 104) v = 104;
+      SETTINGS.timeZoneQuarterOffset = static_cast<uint8_t>(v);
+      changed = true;
+    }
     else if (strcmp(key, "hideBatteryPercentage") == 0) {
       SETTINGS.hideBatteryPercentage = (uint8_t)value;
       changed = true;
@@ -1503,6 +1544,10 @@ void LocalServer::handleSettingsUpdate() const {
     }
     else if (strcmp(key, "hyphenationEnabled") == 0) {
       SETTINGS.hyphenationEnabled = (uint8_t)value;
+      changed = true;
+    }
+    else if (strcmp(key, "bionicReadingEnabled") == 0) {
+      SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
     }
     else if (strcmp(key, "readerDirectionMapping") == 0) {
