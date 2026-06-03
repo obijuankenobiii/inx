@@ -260,7 +260,7 @@ void OtaUpdateActivity::render() {
   const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
 
-  const int bodyTop = dividerY + 16;
+  const int bodyTop = dividerY;
 
   if (state == SOURCE_SELECTION) {
     constexpr const char* items[] = {"Online update", "SD card firmware"};
