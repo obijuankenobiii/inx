@@ -94,14 +94,19 @@ constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more
 constexpr int kJpegTwoBitHighlightMaxLift = 60;  // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
-constexpr int kJpegTwoBitQualitySolidBlackMax = 32;
+constexpr int kJpegTwoBitQualitySolidBlackMax = 12;
 constexpr int kJpegTwoBitQualitySolidWhiteMin = 218;
 constexpr int kJpegTwoBitQualityContrastPercent = 162;
+constexpr int kJpegTwoBitQualityShadowContrastPercent = 122;
 constexpr int kJpegTwoBitQualitySharpenThreshold = 3;
 constexpr int kJpegTwoBitQualitySharpenPercent = 105;
 constexpr int kJpegTwoBitQualitySharpenMax = 38;
-constexpr int kJpegTwoBitQualityShadowKnee = 112;
-constexpr int kJpegTwoBitQualityShadowDarkenMax = 22;
+constexpr int kJpegTwoBitQualityShadowKnee = 96;
+constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
+// X3 panels render the GRAY2 mid/shadow levels darker than X4. The quality tone curve is
+// calibrated for X4, so on X3 we lift shadows (instead of darkening them) to match. Tune on
+// real X3 hardware: larger = brighter shadows.
+constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
 
 int jpegTwoBitTone(const int gray) {
@@ -138,7 +143,8 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
   return tone;
 }
 
-int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y) {
+int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y,
+                          const bool isX3) {
   if (gray <= kJpegTwoBitQualitySolidBlackMax) {
     return 0;
   }
@@ -156,14 +162,22 @@ int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGra
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
-  int tone = ((sharpenedGray - 128) * kJpegTwoBitQualityContrastPercent) / 100 + 128;
+  int tone;
+  if (sharpenedGray < 128) {
+    tone = ((sharpenedGray - 64) * kJpegTwoBitQualityShadowContrastPercent) / 100 + 64;
+  } else {
+    tone = ((sharpenedGray - 128) * kJpegTwoBitQualityContrastPercent) / 100 + 128;
+  }
   if (gray < kJpegTwoBitQualityShadowKnee) {
-    const int darken = ((kJpegTwoBitQualityShadowKnee - gray) * kJpegTwoBitQualityShadowDarkenMax) /
-                       kJpegTwoBitQualityShadowKnee;
-    tone -= darken;
+    const int kneeDepth = kJpegTwoBitQualityShadowKnee - gray;
+    if (isX3) {
+      tone += (kneeDepth * kJpegTwoBitQualityX3ShadowLift) / kJpegTwoBitQualityShadowKnee;
+    } else {
+      tone -= (kneeDepth * kJpegTwoBitQualityShadowDarkenMax) / kJpegTwoBitQualityShadowKnee;
+    }
   }
 
-  if (tone <= 20) {
+  if (tone <= 8) {
     return 0;
   }
   if (tone >= 238) {
@@ -291,6 +305,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
     return false;
   }
 
+  const bool deviceIsX3 = renderer_.deviceIsX3();
+
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
   bool hasPrevScaledRow = false;
@@ -353,7 +369,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = quality ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY)
+          const int tone = quality ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
+                                                           deviceIsX3)
                                    : jpegTwoBitDetailTone(gray, leftGray, rightGray);
           q = (quality ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
