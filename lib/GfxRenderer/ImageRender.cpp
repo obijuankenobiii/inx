@@ -66,6 +66,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   cacheOptions.mode = options.mode;
   cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
+  cacheOptions.quality = options.quality;
   const bool canUseDisplayCache =
       options.useDisplayCache &&
       ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
@@ -78,7 +79,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   bool ok = false;
   if (format_ == Format::Jpeg) {
     JpegRender jpeg(renderer_);
-    ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);
+    ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.quality);
   } else if (format_ == Format::Png) {
     PngRender png(renderer_);
     ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);

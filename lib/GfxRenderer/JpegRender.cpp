@@ -94,6 +94,15 @@ constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more
 constexpr int kJpegTwoBitHighlightMaxLift = 60;  // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
+constexpr int kJpegTwoBitQualitySolidBlackMax = 32;
+constexpr int kJpegTwoBitQualitySolidWhiteMin = 218;
+constexpr int kJpegTwoBitQualityContrastPercent = 162;
+constexpr int kJpegTwoBitQualitySharpenThreshold = 3;
+constexpr int kJpegTwoBitQualitySharpenPercent = 105;
+constexpr int kJpegTwoBitQualitySharpenMax = 38;
+constexpr int kJpegTwoBitQualityShadowKnee = 112;
+constexpr int kJpegTwoBitQualityShadowDarkenMax = 22;
+constexpr int kJpegTwoBitQualityMicroDither = 8;
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
@@ -127,6 +136,48 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
     tone = std::max(0, tone - edgeDarken);
   }
   return tone;
+}
+
+int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y) {
+  if (gray <= kJpegTwoBitQualitySolidBlackMax) {
+    return 0;
+  }
+  if (gray >= kJpegTwoBitQualitySolidWhiteMin) {
+    return 255;
+  }
+
+  const int neighbor = (leftGray + rightGray) / 2;
+  const int detail = gray - neighbor;
+  int sharpenedGray = gray;
+  if (std::abs(detail) > kJpegTwoBitQualitySharpenThreshold) {
+    const int boost = std::max(-kJpegTwoBitQualitySharpenMax,
+                               std::min(kJpegTwoBitQualitySharpenMax,
+                                        (detail * kJpegTwoBitQualitySharpenPercent) / 100));
+    sharpenedGray = std::max(0, std::min(255, gray + boost));
+  }
+
+  int tone = ((sharpenedGray - 128) * kJpegTwoBitQualityContrastPercent) / 100 + 128;
+  if (gray < kJpegTwoBitQualityShadowKnee) {
+    const int darken = ((kJpegTwoBitQualityShadowKnee - gray) * kJpegTwoBitQualityShadowDarkenMax) /
+                       kJpegTwoBitQualityShadowKnee;
+    tone -= darken;
+  }
+
+  if (tone <= 20) {
+    return 0;
+  }
+  if (tone >= 238) {
+    return 255;
+  }
+
+  if (gray > kJpegTwoBitQualitySolidBlackMax + 10 && gray < kJpegTwoBitQualitySolidWhiteMin - 10) {
+    // Tiny ordered bias keeps soft art texture from collapsing into a single flat gray band.
+    const int latticeA = ((x * 13 + y * 7 + ((x ^ y) * 3)) & 15) - 8;
+    const int latticeB = (((x + y * 3) * 5) & 7) - 4;
+    tone += ((latticeA + latticeB) * kJpegTwoBitQualityMicroDither) / 12;
+  }
+
+  return std::max(0, std::min(255, tone));
 }
 
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
@@ -168,7 +219,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
 }  // namespace
 
 bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                        const ImageRenderMode mode) const {
+                        const ImageRenderMode mode, const bool quality) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -302,8 +353,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray);
-          q = twoBitDitherer->process(tone, step).value;
+          const int tone = quality ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY)
+                                   : jpegTwoBitDetailTone(gray, leftGray, rightGray);
+          q = (quality ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
         } else {
@@ -414,12 +466,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 }
 
 bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                          bool cropToFill, const ImageRenderMode mode) const {
+                          bool cropToFill, const ImageRenderMode mode, const bool quality) const {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality);
   file.close();
   return ok;
 }

@@ -20,6 +20,7 @@ class ImageRender {
     bool cropToFill = false;
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
     bool useDisplayCache = true;
+    bool quality = false;
   };
 
   static ImageRender create(GfxRenderer& renderer, const std::string& path);

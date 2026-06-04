@@ -166,6 +166,27 @@ ImageToneSample FourToneImageDitherer::processAtkinson(const int gray, const int
   return out;
 }
 
+ImageToneSample FourToneImageDitherer::processQuality(const int gray, const int x) {
+  if (!ok() || x < 0 || x >= width_) {
+    return quantize(gray);
+  }
+
+  const int adjusted = clamp255(gray + errorRows_[0][0][x + 2]);
+  const ImageToneSample out = quantize(adjusted);
+  const int error = adjusted - static_cast<int>(out.value);
+
+  if (error == 0) {
+    return out;
+  }
+
+  if (x + 1 < width_) errorRows_[0][0][x + 3] += static_cast<int16_t>((error * 7) / 16);
+  if (x > 0) errorRows_[0][1][x + 1] += static_cast<int16_t>((error * 3) / 16);
+  errorRows_[0][1][x + 2] += static_cast<int16_t>((error * 5) / 16);
+  if (x + 1 < width_) errorRows_[0][1][x + 3] += static_cast<int16_t>(error / 16);
+
+  return out;
+}
+
 void FourToneImageDitherer::nextRow() {
   for (int plane = 0; plane < 3; plane++) {
     int16_t* temp = errorRows_[plane][0];

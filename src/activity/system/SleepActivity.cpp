@@ -67,6 +67,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
   const bool quality = sleepImageQualityEnabled();
+  options.quality = quality;
 
   if (ImageRender::create(renderer, imagePath)
           .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality)) {
