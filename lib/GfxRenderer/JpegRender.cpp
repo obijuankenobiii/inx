@@ -158,6 +158,10 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
              (renderer.deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
     renderer.drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAY2_LSB && (level == 0 || level == 2)) {
+    renderer.drawPixel(x, y, true);
+  } else if (renderMode == GfxRenderer::GRAY2_MSB && (level == 0 || level == 1)) {
+    renderer.drawPixel(x, y, true);
   }
 }
 

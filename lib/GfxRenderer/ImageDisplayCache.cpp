@@ -17,7 +17,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 23;
+constexpr uint16_t kVersion = 24;
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {
@@ -86,6 +86,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.mode));
   hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));
+  hash = fnv1aAdd(hash, options.quality ? 1 : 0);
   hash = fnv1aAdd(hash, gpio.deviceIsX3() ? 1 : 0);
   return hash;
 }
@@ -234,27 +235,29 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
                                                  const ImageDisplayCacheOptions& options, const bool quality) {
   ImageDisplayCacheOptions lsbOptions = options;
   lsbOptions.mode = ImageRenderMode::TwoBit;
-  lsbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.quality = quality;
 
   ImageDisplayCacheOptions msbOptions = options;
   msbOptions.mode = ImageRenderMode::TwoBit;
-  msbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.quality = quality;
 
   if (!exists(renderer, sourcePath, x, y, width, height, lsbOptions) ||
       !exists(renderer, sourcePath, x, y, width, height, msbOptions)) {
     return false;
   }
 
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+  renderer.clearScreen(0xFF);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, lsbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);
     return false;
   }
   renderer.copyGrayscaleLsbBuffers();
 
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+  renderer.clearScreen(0xFF);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, msbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);
     return false;

@@ -144,6 +144,16 @@ inline bool grayLsbShouldInk2bpp(const uint8_t stage03, const bool x3ImageLut = 
   return x3ImageLut ? (st == 1u || st == 3u) : st == 1u;
 }
 
+inline bool gray2LsbShouldClear2bpp(const uint8_t stage03) {
+  const uint8_t st = stage03 & 3u;
+  return st == 0u || st == 2u;
+}
+
+inline bool gray2MsbShouldClear2bpp(const uint8_t stage03) {
+  const uint8_t st = stage03 & 3u;
+  return st == 0u || st == 1u;
+}
+
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
   const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
   if (FourToneImageDitherer::bwPreviewInkForLevel(v, px, py)) {
@@ -241,10 +251,14 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
           drawBwFrom2bppStage(gfx, screenX, screenY, displayVal);
         }
       }
-      } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
-        gfx.drawPixel(screenX, screenY, false);
-      } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
-        gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(displayVal)) {
+      gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal)) {
+      gfx.drawPixel(screenX, screenY, true);
     }
   };
 
@@ -378,6 +392,10 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
       gfx.drawPixel(screenX, screenY, false);
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val, gfx.deviceIsX3())) {
       gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(val)) {
+      gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(val)) {
+      gfx.drawPixel(screenX, screenY, true);
     }
   };
 
@@ -712,6 +730,10 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
       gfx.drawPixel(sx, sy, false);
     } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
       gfx.drawPixel(sx, sy, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(displayVal)) {
+      gfx.drawPixel(sx, sy, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal)) {
+      gfx.drawPixel(sx, sy, true);
     }
   };
 
