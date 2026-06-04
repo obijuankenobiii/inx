@@ -216,6 +216,7 @@ void appendStatsFromCacheDir(std::vector<BookReadingStats>& result, const char* 
         const std::string path = std::string(rootDir) + "/" + std::string(fileName);
         BookReadingStats stats;
         if (loadBookStats(path.c_str(), stats)) {
+            stats.path = path;
             result.push_back(stats);
         }
     }

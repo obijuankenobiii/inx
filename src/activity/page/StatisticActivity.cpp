@@ -13,10 +13,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "state/RecentBooks.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -32,6 +35,18 @@ constexpr int FONT_SERIF_MD = LITERATA_16_FONT_ID;
 constexpr int FONT_SERIF_LG = LITERATA_18_FONT_ID;
 constexpr int FONT_SERIF_SM = LITERATA_12_FONT_ID;
 constexpr float kPi = 3.14159265f;
+
+static std::string epubCachePathForBookPath(const std::string& bookPath) {
+  return "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(bookPath));
+}
+
+static bool statsFileExistsForCachePath(const std::string& cachePath) {
+  if (cachePath.empty()) {
+    return false;
+  }
+  const std::string statsPath = cachePath + "/statistics.bin";
+  return SdMan.exists(statsPath.c_str());
+}
 
 /** Global “All items” donut row (must match measureAllItemsBodyHeight). */
 constexpr int kGlobalAllItemsDonutR = 68;
@@ -412,6 +427,12 @@ void StatisticActivity::loadStats() {
   ScreenComponents::LoadingProgressLayout layout =
       ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 12);
   allBooksStats = getAllBooksStats();
+  loadedBookStatsPaths.clear();
+  for (const auto& stats : allBooksStats) {
+    if (!stats.path.empty()) {
+      loadedBookStatsPaths.insert(stats.path);
+    }
+  }
   ScreenComponents::LoadingProgress::setProgress(renderer, layout, 40);
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
@@ -424,13 +445,88 @@ void StatisticActivity::loadStats() {
 }
 
 void StatisticActivity::hydrateFromStorage() {
-  allBooksStats = getAllBooksStats();
-  std::sort(allBooksStats.begin(), allBooksStats.end(),
-            [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
   if (!loadGlobalStats(globalStats)) {
-    globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
-    saveGlobalStats(globalStats);
+    globalStats = GlobalReadingStats();
   }
+  allBooksStats.clear();
+  loadedBookStatsPaths.clear();
+  indexBookStatsPaths();
+}
+
+void StatisticActivity::indexBookStatsPaths() {
+  std::set<std::string> seen;
+  auto addCachePath = [&](const std::string& cachePath, const RecentBook* recent) {
+    if (cachePath.empty() || seen.count(cachePath) != 0 || !statsFileExistsForCachePath(cachePath)) {
+      return;
+    }
+    BookReadingStats placeholder;
+    placeholder.path = cachePath;
+    if (recent != nullptr) {
+      placeholder.title = recent->title;
+      placeholder.author = recent->author;
+      if (recent->progress >= 0.f) {
+        placeholder.progressPercent = recent->progress * 100.f;
+      }
+    }
+    allBooksStats.push_back(placeholder);
+    seen.insert(cachePath);
+  };
+
+  RECENT_BOOKS.loadFromFile();
+  for (const auto& book : RECENT_BOOKS.getBooks()) {
+    std::string cachePath = book.cachePath;
+    if (cachePath.empty() && !book.path.empty()) {
+      cachePath = epubCachePathForBookPath(book.path);
+    }
+    addCachePath(cachePath, &book);
+  }
+
+  auto appendMetadataRoot = [&](const char* rootDir) {
+    FsFile root = SdMan.open(rootDir);
+    if (!root || !root.isDirectory()) {
+      if (root) {
+        root.close();
+      }
+      return;
+    }
+
+    char name[128];
+    root.rewindDirectory();
+    while (true) {
+      FsFile entry = root.openNextFile();
+      if (!entry) {
+        break;
+      }
+      if (entry.isDirectory()) {
+        entry.getName(name, sizeof(name));
+        addCachePath(std::string(rootDir) + "/" + std::string(name), nullptr);
+      }
+      entry.close();
+    }
+    root.close();
+  };
+
+  appendMetadataRoot("/.metadata/epub");
+  appendMetadataRoot("/.metadata/xtc");
+}
+
+bool StatisticActivity::ensureBookStatsLoaded(const int bookIdx) {
+  if (bookIdx < 0 || bookIdx >= static_cast<int>(allBooksStats.size())) {
+    return false;
+  }
+  BookReadingStats& slot = allBooksStats[static_cast<size_t>(bookIdx)];
+  const std::string cachePath = slot.path;
+  if (loadedBookStatsPaths.count(cachePath) != 0) {
+    return true;
+  }
+  BookReadingStats loaded;
+  if (!loadBookStats(cachePath.c_str(), loaded)) {
+    return false;
+  }
+  loaded.path = cachePath;
+  slot = loaded;
+  loadedBookStatsPaths.insert(cachePath);
+  return true;
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -590,8 +686,6 @@ void StatisticActivity::onEnter() {
   hydrateFromStorage();
   viewIndex = 0;
 
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
   render();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Statistics);
 }
@@ -601,6 +695,7 @@ void StatisticActivity::onExit() {
 
   allBooksStats.clear();
   allBooksStats.shrink_to_fit();
+  loadedBookStatsPaths.clear();
 }
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {
@@ -824,6 +919,9 @@ void StatisticActivity::render() {
   if (v >= totalViews) v = totalViews - 1;
 
   if (v == 0) {
+    if (!allBooksStats.empty()) {
+      ensureBookStatsLoaded(0);
+    }
     constexpr int Margin = 10;
     constexpr int kMarginX = 30;
     const int innerLeft = kMarginX;
@@ -838,10 +936,11 @@ void StatisticActivity::render() {
     GAP = renderGuage(GAP + kMarginX - 10, innerLeft - 130, innerRight, Margin);
     renderSecondGrid(GAP + kMarginX, innerLeft, innerRight, contentBottom);
   } else {
+    ensureBookStatsLoaded(v - 1);
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);
   }
 
-  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
+  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "Overview", "Book");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
