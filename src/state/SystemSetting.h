@@ -69,6 +69,13 @@ public:
         SLEEP_SCREEN_COVER_FILTER_COUNT
     };
 
+    enum SLEEP_IMAGE_QUALITY {
+        SLEEP_IMAGE_LOW = 0,     ///< 1-bit image rendering
+        SLEEP_IMAGE_MEDIUM = 1,  ///< 2-bit fast image rendering
+        SLEEP_IMAGE_HIGH = 2,    ///< 2-bit quality image rendering
+        SLEEP_IMAGE_QUALITY_COUNT
+    };
+
     /**
      * @brief Navigation disable modes
      */
@@ -326,8 +333,8 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    /** Sleep-only image 2-bit mode; kept in the old serialized slot for settings compatibility. */
-    uint8_t sleepScreenCoverGrayscale = 0;
+    /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
+    uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
     /**
      * Fixed custom/transparent sleep image when multiple images exist.
      * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.

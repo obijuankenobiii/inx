@@ -7,6 +7,7 @@
 
 #include <Utf8.h>
 #include <memory>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <cmath>
@@ -404,7 +405,36 @@ void GfxRenderer::removeFont(int fontId) {
   fontMap.erase(it);
 }
 
-void GfxRenderer::removeAllStreamingFonts() { streamingFonts.clear(); }
+void GfxRenderer::removeAllStreamingFonts() {
+  if (streamingFonts.empty()) {
+    return;
+  }
+
+  std::set<const EpdFontData*> streamingData;
+  for (const auto& entry : streamingFonts) {
+    streamingData.insert(entry.first);
+  }
+
+  for (auto it = fontMap.begin(); it != fontMap.end();) {
+    bool usesStreamingData = false;
+    for (const auto style :
+         {EpdFontFamily::REGULAR, EpdFontFamily::BOLD, EpdFontFamily::ITALIC, EpdFontFamily::BOLD_ITALIC}) {
+      const EpdFontData* data = it->second.getData(style);
+      if (data != nullptr && streamingData.count(data) != 0) {
+        usesStreamingData = true;
+        break;
+      }
+    }
+
+    if (usesStreamingData) {
+      it = fontMap.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  streamingFonts.clear();
+}
 
 void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
                                         std::unique_ptr<ExternalFont> streamingFont) {

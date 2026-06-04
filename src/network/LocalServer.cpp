@@ -1334,8 +1334,9 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreen"] = SETTINGS.sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
-  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
-  doc["sleepImageTwoBit"] = SETTINGS.sleepScreenCoverGrayscale;
+  doc["sleepImageQuality"] = SETTINGS.sleepImageQuality;
+  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepImageQuality;
+  doc["sleepImageTwoBit"] = SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
   doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
@@ -1434,11 +1435,19 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
-      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
+                                       ? static_cast<uint8_t>(value)
+                                       : SystemSetting::SLEEP_IMAGE_LOW;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepImageQuality") == 0) {
+      SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
+                                       ? static_cast<uint8_t>(value)
+                                       : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
     }
     else if (strcmp(key, "sleepImageTwoBit") == 0) {
-      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      SETTINGS.sleepImageQuality = (uint8_t)value ? SystemSetting::SLEEP_IMAGE_MEDIUM : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
     }
     else if (strcmp(key, "sleepCustomBmp") == 0) {

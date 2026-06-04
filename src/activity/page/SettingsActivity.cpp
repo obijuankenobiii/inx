@@ -50,8 +50,8 @@ const SettingInfo systemPageSettings[] = {
                       GroupType::IMAGE),
     SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
                       {"None","Contrast","Inverted"}, GroupType::IMAGE),
-    SettingInfo::Toggle("Sleep 2-bit Mode", &SystemSetting::sleepScreenCoverGrayscale,
-                      GroupType::IMAGE),
+    SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality,
+                      {"Low", "Medium", "High"}, GroupType::IMAGE),
     SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),

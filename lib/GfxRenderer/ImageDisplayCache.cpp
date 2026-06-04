@@ -248,7 +248,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
     return false;
   }
 
-  renderer.clearScreen(0xFF);
+  renderer.clearScreen(quality ? 0xFF : 0x00);
   renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, lsbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);
@@ -256,7 +256,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   }
   renderer.copyGrayscaleLsbBuffers();
 
-  renderer.clearScreen(0xFF);
+  renderer.clearScreen(quality ? 0xFF : 0x00);
   renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, msbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);

@@ -46,8 +46,12 @@ bool isSupportedSleepImageFile(const std::string& filename) {
 }
 
 bool sleepTwoBitEnabled() {
-  return SETTINGS.sleepScreenCoverGrayscale != 0 &&
+  return SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW &&
          SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
+}
+
+bool sleepImageQualityEnabled() {
+  return SETTINGS.sleepImageQuality == SystemSetting::SLEEP_IMAGE_HIGH;
 }
 
 ImageRenderMode sleepImageRenderMode() {
@@ -62,23 +66,24 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
+  const bool quality = sleepImageQualityEnabled();
 
   if (ImageRender::create(renderer, imagePath)
-          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, true)) {
+          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality)) {
     return;
   }
 
-  renderer.clearScreen(0xFF);
-  renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
+  renderer.clearScreen(quality ? 0xFF : 0x00);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
   ImageRender::create(renderer, imagePath).render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options);
   renderer.copyGrayscaleLsbBuffers();
 
-  renderer.clearScreen(0xFF);
-  renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
+  renderer.clearScreen(quality ? 0xFF : 0x00);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   ImageRender::create(renderer, imagePath).render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options);
   renderer.copyGrayscaleMsbBuffers();
 
-  renderer.displayGrayBuffer(true);
+  renderer.displayGrayBuffer(quality);
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.cleanupGrayscaleWithFrameBuffer();
 }
@@ -386,19 +391,20 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
   renderer.displayBuffer();
 
   if (hasTwoBit) {
+    const bool quality = sleepImageQualityEnabled();
     bitmap.rewindToData();
-    renderer.clearScreen(0xFF);
-    renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
+    renderer.clearScreen(quality ? 0xFF : 0x00);
+    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
-    renderer.clearScreen(0xFF);
-    renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
+    renderer.clearScreen(quality ? 0xFF : 0x00);
+    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer(true);
+    renderer.displayGrayBuffer(quality);
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }
@@ -458,19 +464,20 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   renderer.displayBuffer();
 
   if (hasTwoBit) {
+    const bool quality = sleepImageQualityEnabled();
     bitmap.rewindToData();
-    renderer.clearScreen(0xFF);
-    renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
+    renderer.clearScreen(quality ? 0xFF : 0x00);
+    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
-    renderer.clearScreen(0xFF);
-    renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
+    renderer.clearScreen(quality ? 0xFF : 0x00);
+    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer(true);
+    renderer.displayGrayBuffer(quality);
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }

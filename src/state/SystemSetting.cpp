@@ -103,6 +103,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
+    if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
     if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
   }
 
@@ -143,7 +144,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, pageAutoTurnSeconds);
   serialization::writePod(outputFile, readerImageGrayscale);
   serialization::writePod(outputFile, readerSmartRefreshOnImages);
-  serialization::writePod(outputFile, sleepScreenCoverGrayscale);
+  serialization::writePod(outputFile, sleepImageQuality);
   serialization::writeString(outputFile, std::string(sleepCustomBmp));
   serialization::writePod(outputFile, legacyReaderImagePresentation);
   serialization::writePod(outputFile, readerImageDither);
@@ -404,9 +405,9 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      serialization::readPod(inputFile, sleepScreenCoverGrayscale);
-      if (sleepScreenCoverGrayscale > 1) {
-        sleepScreenCoverGrayscale = 1;
+      serialization::readPod(inputFile, sleepImageQuality);
+      if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
+        sleepImageQuality = SLEEP_IMAGE_LOW;
       }
       ++settingsRead;
     }
@@ -566,6 +567,9 @@ bool SystemSetting::loadFromFile() {
   }
   if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) {
     sleepClockTimeFormat = CLOCK_24_HOUR;
+  }
+  if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
+    sleepImageQuality = SLEEP_IMAGE_LOW;
   }
   if (timeZoneQuarterOffset > 104) {
     timeZoneQuarterOffset = 80;

@@ -26,8 +26,8 @@ class FontManager {
     bool isBuiltin;
   };
 
-  /** SD streaming font IDs (must not overlap built-in Literata / Atkinson ranges). */
-  static constexpr int SD_FONT_START_ID = 4000;
+  /** SD streaming font IDs (must not overlap built-in Literata / Atkinson / system utility font ranges). */
+  static constexpr int SD_FONT_START_ID = 5000;
 
   static void initialize(GfxRenderer& renderer);
 

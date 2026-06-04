@@ -144,8 +144,8 @@
         <div class="setting-control"><select id="sleepScreenCoverFilter"></select></div>
       </div>
       <div class="setting-item">
-        <div><div class="setting-label">Sleep 2-bit Mode</div></div>
-        <div class="setting-control"><label class="toggle-switch"><input id="sleepScreenCoverGrayscale" type="checkbox"><span class="toggle-slider"></span></label></div>
+        <div><div class="setting-label">Sleep Image Quality</div></div>
+        <div class="setting-control"><select id="sleepImageQuality"></select></div>
       </div>
       <div class="setting-item">
         <div><div class="setting-label">Rounded thumbnails</div></div>
@@ -369,6 +369,7 @@ const options = {
   sleepScreen: ["Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None", "Date Time"],
   sleepScreenCoverMode: ["Fill", "Crop"],
   sleepScreenCoverFilter: ["None", "Contrast", "Inverted"],
+  sleepImageQuality: ["Low", "Medium", "High"],
   sleepClockStyle: ["Stacked", "Centered", "Card"],
   sleepClockTimeFormat: ["12 hour", "24 hour"],
   hideBatteryPercentage: ["Never", "In Reader", "Always"],
@@ -393,7 +394,7 @@ const options = {
   statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
 };
 const boolSettings = [
-  "sleepScreenCoverGrayscale", "bitmapRoundedCorners", "fixSunlightFade", "useLibraryIndex", "librarySortEnabled",
+  "bitmapRoundedCorners", "fixSunlightFade", "useLibraryIndex", "librarySortEnabled",
   "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
   "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled", "bionicReadingEnabled",
   "textAntiAliasing", "readerImageGrayscale", "readerSmartRefreshOnImages"
