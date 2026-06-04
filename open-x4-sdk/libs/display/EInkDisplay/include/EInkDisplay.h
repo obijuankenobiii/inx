@@ -40,6 +40,7 @@ class EInkDisplay {
   uint16_t getDisplayHeight() const { return displayHeight; }
   uint16_t getDisplayWidthBytes() const { return displayWidthBytes; }
   uint32_t getBufferSize() const { return bufferSize; }
+  bool isX3() const { return _x3Mode; }
 
   // Frame buffer operations
   void clearScreen(uint8_t color = 0xFF) const;

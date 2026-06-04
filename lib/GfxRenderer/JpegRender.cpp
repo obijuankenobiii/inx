@@ -84,7 +84,7 @@ constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 0;
 constexpr int kJpegTwoBitSolidWhiteMin = 240;  // Changed from 255 - preserve light grays
-constexpr int kJpegTwoBitContrastPercent = 130; // Reduced from 165 - less contrast crushing
+constexpr int kJpegTwoBitContrastPercent = 105; // Reduced from 165 - less contrast crushing
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 35;
 constexpr int kJpegTwoBitSharpenMax = 18;
@@ -92,7 +92,7 @@ constexpr int kJpegTwoBitEdgeThreshold = 12;
 constexpr int kJpegTwoBitEdgeMaxDarken = 20;    // Reduced from 36
 constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
 constexpr int kJpegTwoBitHighlightMaxLift = 60;  // Reduced from 100 - less over-lifting
-constexpr int kJpegTwoBitShadowStart = 15;       // Increased from 10
+constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
 
 int jpegTwoBitTone(const int gray) {
@@ -152,9 +152,11 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
         (mode == ImageRenderMode::OneBit && level < 3)) {
       renderer.drawPixel(x, y, true);
     }
-  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
+             (renderer.deviceIsX3() ? (level == 2 || level == 3) : (level == 1 || level == 2))) {
     renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && level == 1) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
+             (renderer.deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
     renderer.drawPixel(x, y, false);
   }
 }

@@ -16,13 +16,13 @@ int perceptualTone(const int gray) {
     return gray;
   }
   if (gray < 96) {
-    return clamp255(gray - 6);
+    return clamp255(gray + 18);
   }
   if (gray < 180) {
-    return clamp255(gray - 10);
+    return clamp255(gray + 24);
   }
   if (gray < 236) {
-    return clamp255(gray - 4);
+    return clamp255(gray + 22);
   }
   return clamp255(gray);
 }

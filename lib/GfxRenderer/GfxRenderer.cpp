@@ -187,6 +187,8 @@ void GfxRenderer::invertScreen() const {
 
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const { display.displayBuffer(refreshMode); }
 
+bool GfxRenderer::deviceIsX3() const { return display.deviceIsX3(); }
+
 int GfxRenderer::getScreenWidth() const {
   switch (orientation) {
     case Portrait:

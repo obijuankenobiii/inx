@@ -60,6 +60,7 @@ class HalDisplay {
   uint16_t getDisplayHeight() const;
   uint16_t getDisplayWidthBytes() const;
   uint32_t getBufferSize() const;
+  bool deviceIsX3() const;
 
  private:
   EInkDisplay einkDisplay;

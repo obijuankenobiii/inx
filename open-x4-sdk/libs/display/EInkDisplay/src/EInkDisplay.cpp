@@ -633,7 +633,7 @@ void EInkDisplay::copyGrayscaleLsbBuffers(const uint8_t* lsbBuffer) {
   }
 
   if (_x3Mode) {
-    // X3 single-pass AA: write LSB plane to old-data RAM.
+    // X3 image LUT grayscale uses explicit two-bit plane encoding.
     uint8_t row[128];
     auto sendMirroredPlane = [&](const uint8_t* plane) {
       for (uint16_t y = 0; y < displayHeight; y++) {
@@ -1053,14 +1053,14 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
       }
     };
 
-    const uint8_t* vcom = lut_x3_vcom_gray;
-    const uint8_t* ww = lut_x3_ww_gray;
-    const uint8_t* bw = lut_x3_bw_gray;
-    const uint8_t* wb = lut_x3_wb_gray;
-    const uint8_t* bb = lut_x3_bb_gray;
-    uint8_t dataInterval0 = 0x29;
+    const uint8_t* vcom = lut_x3_vcom_img;
+    const uint8_t* ww = lut_x3_ww_img;
+    const uint8_t* bw = lut_x3_bw_img;
+    const uint8_t* wb = lut_x3_wb_img;
+    const uint8_t* bb = lut_x3_bb_img;
+    uint8_t dataInterval0 = 0xA9;
     uint8_t dataInterval1 = 0x07;
-    if (Serial) Serial.printf("[%lu]   X3_GRAY_MODE=gray_tuned\n", millis());
+    if (Serial) Serial.printf("[%lu]   X3_GRAY_MODE=img_lut_2bit\n", millis());
     sendCommandDataX3(0x20, vcom, 42);
     sendCommandDataX3(0x21, ww, 42);
     sendCommandDataX3(0x22, bw, 42);
