@@ -118,7 +118,8 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   return ok;
 }
 
-bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const Options& options) const {
+bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const Options& options,
+                                      const bool quality) const {
   if (!options.useDisplayCache) {
     return false;
   }
@@ -126,7 +127,7 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = ImageRenderMode::TwoBit;
   cacheOptions.roundedOutside = options.roundedOutside;
-  return ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
+  return ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions, quality);
 }
 
 bool ImageRender::render(int x, int y, int width, int height) const {

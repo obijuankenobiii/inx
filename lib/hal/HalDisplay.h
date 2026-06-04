@@ -54,7 +54,7 @@ class HalDisplay {
   void copyGrayscaleMsbBuffers(const uint8_t* msbBuffer);
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
-  void displayGrayBuffer();
+  void displayGrayBuffer(bool quality = false);
 
   uint16_t getDisplayWidth() const;
   uint16_t getDisplayHeight() const;

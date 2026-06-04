@@ -64,7 +64,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   options.mode = ImageRenderMode::TwoBit;
 
   if (ImageRender::create(renderer, imagePath)
-          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
+          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, true)) {
     return;
   }
 
@@ -78,7 +78,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   ImageRender::create(renderer, imagePath).render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options);
   renderer.copyGrayscaleMsbBuffers();
 
-  renderer.displayGrayBuffer();
+  renderer.displayGrayBuffer(true);
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.cleanupGrayscaleWithFrameBuffer();
 }
@@ -398,7 +398,7 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
+    renderer.displayGrayBuffer(true);
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }
@@ -470,7 +470,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
+    renderer.displayGrayBuffer(true);
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }

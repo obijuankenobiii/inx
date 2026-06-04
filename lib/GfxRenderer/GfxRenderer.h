@@ -112,7 +112,7 @@ class GfxRenderer {
   bool deviceIsX3() const;
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
-  void displayGrayBuffer() const;
+  void displayGrayBuffer(bool quality = false) const;
   bool storeBwBuffer();    
   void restoreBwBuffer();  
   void cleanupGrayscaleWithFrameBuffer() const;

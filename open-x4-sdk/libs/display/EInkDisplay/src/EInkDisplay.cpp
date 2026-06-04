@@ -1015,7 +1015,7 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
   if (Serial) Serial.printf("[%lu]   Window display complete\n", millis());
 }
 
-void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
+void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const bool quality) {
   if (_x3Mode) {
     // X3 AA pipeline: LSB->0x10 + MSB->0x13, trigger 0x12 with X3 LUT bank.
     drawGrayscale = false;
@@ -1053,14 +1053,14 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
       }
     };
 
-    const uint8_t* vcom = lut_x3_vcom_img;
-    const uint8_t* ww = lut_x3_ww_img;
-    const uint8_t* bw = lut_x3_bw_img;
-    const uint8_t* wb = lut_x3_wb_img;
-    const uint8_t* bb = lut_x3_bb_img;
-    uint8_t dataInterval0 = 0xA9;
+    const uint8_t* vcom = quality ? lut_x3_vcom_img : lut_x3_vcom_gray;
+    const uint8_t* ww = quality ? lut_x3_ww_img : lut_x3_ww_gray;
+    const uint8_t* bw = quality ? lut_x3_bw_img : lut_x3_bw_gray;
+    const uint8_t* wb = quality ? lut_x3_wb_img : lut_x3_wb_gray;
+    const uint8_t* bb = quality ? lut_x3_bb_img : lut_x3_bb_gray;
+    uint8_t dataInterval0 = quality ? 0xA9 : 0x29;
     uint8_t dataInterval1 = 0x07;
-    if (Serial) Serial.printf("[%lu]   X3_GRAY_MODE=img_lut_2bit\n", millis());
+    if (Serial) Serial.printf("[%lu]   X3_GRAY_MODE=%s\n", millis(), quality ? "img_lut_2bit" : "gray_tuned_fast");
     sendCommandDataX3(0x20, vcom, 42);
     sendCommandDataX3(0x21, ww, 42);
     sendCommandDataX3(0x22, bw, 42);

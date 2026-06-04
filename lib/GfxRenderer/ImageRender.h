@@ -29,7 +29,7 @@ class ImageRender {
   bool render(int x, int y, int width, int height) const;
   bool render(int x, int y, int width, int height, const Options& options) const;
   bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
-  bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options) const;
+  bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options, bool quality = false) const;
 
  private:
   enum class Format { Bitmap, Jpeg, Png };
