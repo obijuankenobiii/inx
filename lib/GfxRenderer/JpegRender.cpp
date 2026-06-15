@@ -83,8 +83,8 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 0;
-constexpr int kJpegTwoBitSolidWhiteMin = 240;  // Changed from 255 - preserve light grays
-constexpr int kJpegTwoBitContrastPercent = 105; // Reduced from 165 - less contrast crushing
+constexpr int kJpegTwoBitSolidWhiteMin = 225;  // Snap near-white to clean white so whites don't dither to gray
+constexpr int kJpegTwoBitContrastPercent = 135; // Restored contrast - 105 was too flat / washed out
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 35;
 constexpr int kJpegTwoBitSharpenMax = 18;

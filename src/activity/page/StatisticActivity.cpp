@@ -940,7 +940,7 @@ void StatisticActivity::render() {
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);
   }
 
-  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "Overview", "Book");
+  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

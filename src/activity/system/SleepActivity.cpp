@@ -66,6 +66,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
+  options.useDisplayCache = false;
   const bool quality = sleepImageQualityEnabled();
   options.quality = quality;
 
@@ -247,6 +248,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
+      options.useDisplayCache = false;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
         renderer.displayBuffer();
@@ -327,6 +329,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     ImageRender::Options options;
     options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
     options.mode = sleepImageRenderMode();
+    options.useDisplayCache = false;
     if (ImageRender::create(renderer, coverPath)
             .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
