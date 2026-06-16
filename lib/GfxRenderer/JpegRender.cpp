@@ -393,7 +393,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           // HIGH uses processQuality (GRAY2 path). MEDIUM uses its own Floyd-Steinberg dither
           // (processGrayscaleFS): smooth like quality but keeps perceptualTone for the grayscale path.
           q = (quality ? twoBitDitherer->processQuality(tone, step)
-                       : twoBitDitherer->processGrayscaleFS(tone, step))
+                       : twoBitDitherer->process(tone, step))
                   .value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
