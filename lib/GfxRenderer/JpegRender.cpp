@@ -81,17 +81,17 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
-constexpr int kJpegDitherSolidWhiteMin = 235;  // Changed from 255 - more light grays
+constexpr int kJpegDitherSolidWhiteMin = 255;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 10;   // Snap dark tones to clean black instead of dithering them to gray
 constexpr int kJpegTwoBitSolidWhiteMin = 200;  // Snap light tones to clean white so the image isn't washed gray
 constexpr int kJpegTwoBitContrastPercent = 135; // Restored contrast - 105 was too flat / washed out
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
-constexpr int kJpegTwoBitSharpenMax = 100;
-constexpr int kJpegTwoBitEdgeThreshold = 12;
-constexpr int kJpegTwoBitEdgeMaxDarken = 20;    // Reduced from 36
+constexpr int kJpegTwoBitSharpenMax = 130;
+constexpr int kJpegTwoBitEdgeThreshold = 0;
+constexpr int kJpegTwoBitEdgeMaxDarken = 0;    // Reduced from 36
 constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
-constexpr int kJpegTwoBitHighlightMaxLift = 60;  // Reduced from 100 - less over-lifting
+constexpr int kJpegTwoBitHighlightMaxLift = 50;  // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
 constexpr int kJpegTwoBitQualitySolidBlackMax = 12;
