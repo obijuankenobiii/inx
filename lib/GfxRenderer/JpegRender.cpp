@@ -194,6 +194,22 @@ int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGra
   return std::max(0, std::min(255, tone));
 }
 
+// MEDIUM grayscale image-level -> lut_grayscale entry (code). Bit0 = LSB plane (BW RAM, cmd 0x24),
+// Bit1 = MSB plane (RED RAM, cmd 0x26); the 2-bit value is the LUT entry index (0b00..0b11).
+// Image levels: 0 = white (lightest), 2 = light gray, 1 = dark gray, 3 = black (darkest).
+// Your lut_grayscale: 0b00 = black, 0b01 = light gray, 0b10 = medium gray, 0b11 = dark gray.
+// EDIT these 4 values to match what each tone should look like on the panel.
+// On-panel brightness order is 00 (lightest) -> 11 -> 10 -> 01 (darkest) - the entries render
+// inverse to their drive-bit labels. Map image tones to that real order:
+// No-flicker lut_grayscale on-panel brightness order: 00 (lightest) -> 11 -> 10 -> 01 (darkest).
+// Map image tones to that order. EDIT these 4 values if a shade is off on your panel.
+constexpr uint8_t kGrayscaleCodeForLevel[4] = {
+    0b00,  // level 0  white      -> entry 00 (lightest)
+    0b10,  // level 1  dark gray  -> entry 10
+    0b11,  // level 2  light gray -> entry 11
+    0b01,  // level 3  black      -> entry 01 (darkest)
+};
+
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
     return quantizeTwoBitImage(corrected).value;
@@ -218,10 +234,12 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
       renderer.drawPixel(x, y, true);
     }
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
-             (renderer.deviceIsX3() ? (level == 2 || level == 3) : (level == 1 || level == 2))) {
+             (renderer.deviceIsX3() ? (level == 2 || level == 3)
+                                    : ((kGrayscaleCodeForLevel[level & 3] & 0b10) != 0))) {
     renderer.drawPixel(x, y, false);
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
-             (renderer.deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
+             (renderer.deviceIsX3() ? (level == 1 || level == 3)
+                                    : ((kGrayscaleCodeForLevel[level & 3] & 0b01) != 0))) {
     renderer.drawPixel(x, y, false);
   } else if (renderMode == GfxRenderer::GRAY2_LSB && (level == 0 || level == 2)) {
     renderer.drawPixel(x, y, true);
@@ -372,7 +390,11 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           const int tone = quality ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
                                                            deviceIsX3)
                                    : jpegTwoBitDetailTone(gray, leftGray, rightGray);
-          q = (quality ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
+          // HIGH uses processQuality (GRAY2 path). MEDIUM uses its own Floyd-Steinberg dither
+          // (processGrayscaleFS): smooth like quality but keeps perceptualTone for the grayscale path.
+          q = (quality ? twoBitDitherer->processQuality(tone, step)
+                       : twoBitDitherer->processGrayscaleFS(tone, step))
+                  .value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
         } else {
