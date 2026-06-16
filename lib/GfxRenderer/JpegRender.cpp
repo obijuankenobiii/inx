@@ -210,6 +210,15 @@ constexpr uint8_t kGrayscaleCodeForLevel[4] = {
     0b01,  // level 3  black      -> entry 01 (darkest)
 };
 
+// X3 fast grayscale does not follow the same effective on-panel order as X4. In particular,
+// the old direct plane mapping makes dark gray and black swap places. Keep X3 explicit too.
+constexpr uint8_t kX3GrayscaleCodeForLevel[4] = {
+    0b00,  // level 0  white
+    0b11,  // level 1  dark gray
+    0b10,  // level 2  light gray
+    0b01,  // level 3  black
+};
+
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
     return quantizeTwoBitImage(corrected).value;
@@ -228,18 +237,18 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
 
   const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
   const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+  const uint8_t grayscaleCode =
+      (renderer.deviceIsX3() ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
   if (renderMode == GfxRenderer::BW) {
     if ((mode == ImageRenderMode::TwoBit && level > 0) ||
         (mode == ImageRenderMode::OneBit && level < 3)) {
       renderer.drawPixel(x, y, true);
     }
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
-             (renderer.deviceIsX3() ? (level == 2 || level == 3)
-                                    : ((kGrayscaleCodeForLevel[level & 3] & 0b10) != 0))) {
+             ((grayscaleCode & 0b10) != 0)) {
     renderer.drawPixel(x, y, false);
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
-             (renderer.deviceIsX3() ? (level == 1 || level == 3)
-                                    : ((kGrayscaleCodeForLevel[level & 3] & 0b01) != 0))) {
+             ((grayscaleCode & 0b01) != 0)) {
     renderer.drawPixel(x, y, false);
   } else if (renderMode == GfxRenderer::GRAY2_LSB && (level == 0 || level == 2)) {
     renderer.drawPixel(x, y, true);
