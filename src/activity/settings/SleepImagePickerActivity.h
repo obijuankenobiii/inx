@@ -32,7 +32,8 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
  private:
   struct Row {
     std::string label;
-    std::string value;  
+    std::string value;
+    std::string previewPath;
   };
 
   TaskHandle_t displayTaskHandle = nullptr;
@@ -41,8 +42,6 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
 
   std::vector<Row> rows;
   int selectedIndex = 0;
-  int scrollOffset = 0;
-  int itemsPerPage = 1;
 
   const std::function<void()> onBack;
 

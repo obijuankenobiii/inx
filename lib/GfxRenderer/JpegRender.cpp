@@ -83,8 +83,8 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 255;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 10;   // Snap dark tones to clean black instead of dithering them to gray
-constexpr int kJpegTwoBitSolidWhiteMin = 200;  // Snap light tones to clean white so the image isn't washed gray
-constexpr int kJpegTwoBitContrastPercent = 135; // Restored contrast - 105 was too flat / washed out
+constexpr int kJpegTwoBitSolidWhiteMin = 224;  // Keep upper mids from blowing out to white too early
+constexpr int kJpegTwoBitContrastPercent = 128; // Restore midtone separation closer to the quality render
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
 constexpr int kJpegTwoBitSharpenMax = 130;
@@ -94,6 +94,16 @@ constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more
 constexpr int kJpegTwoBitHighlightMaxLift = 50;  // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
+constexpr int kJpegTwoBitShadowTextureLiftMin = 52;
+constexpr int kJpegTwoBitShadowTextureLiftMax = 126;
+constexpr int kJpegTwoBitShadowTextureLift = 6;
+constexpr int kJpegTwoBitMidtoneLiftMin = 104;
+constexpr int kJpegTwoBitMidtoneLiftMax = 188;
+constexpr int kJpegTwoBitMidtoneLift = 8;
+constexpr int kJpegTwoBitMediumMixStart = 96;
+constexpr int kJpegTwoBitMediumMixFull = 148;
+constexpr int kJpegTwoBitMediumMixDetailMin = 2;
+constexpr int kJpegTwoBitMediumMixDetailFull = 28;
 constexpr int kJpegTwoBitQualitySolidBlackMax = 12;
 constexpr int kJpegTwoBitQualitySolidWhiteMin = 218;
 constexpr int kJpegTwoBitQualityContrastPercent = 162;
@@ -114,7 +124,7 @@ int jpegTwoBitTone(const int gray) {
   return std::max(0, std::min(255, adjusted));
 }
 
-int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray) {
+int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray, const int x, const int y) {
   const int neighbor = (leftGray + rightGray) / 2;
   const int detail = gray - neighbor;
   const int darkEdge = neighbor - gray;
@@ -140,7 +150,13 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
     const int edgeDarken = std::min(kJpegTwoBitEdgeMaxDarken, darkEdge - kJpegTwoBitEdgeThreshold);
     tone = std::max(0, tone - edgeDarken);
   }
-  return tone;
+  if (gray >= kJpegTwoBitShadowTextureLiftMin && gray <= kJpegTwoBitShadowTextureLiftMax) {
+    tone = std::min(255, tone + kJpegTwoBitShadowTextureLift);
+  }
+  if (gray >= kJpegTwoBitMidtoneLiftMin && gray <= kJpegTwoBitMidtoneLiftMax) {
+    tone = std::min(255, tone + kJpegTwoBitMidtoneLift);
+  }
+  return std::max(0, std::min(255, tone));
 }
 
 int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y,
@@ -318,7 +334,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow || (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
+  if (!mcuRowBuffer || !scaledRow ||
+      (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
       !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
@@ -396,11 +413,11 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = quality ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
-                                                           deviceIsX3)
-                                   : jpegTwoBitDetailTone(gray, leftGray, rightGray);
-          // HIGH uses processQuality (GRAY2 path). MEDIUM uses its own Floyd-Steinberg dither
-          // (processGrayscaleFS): smooth like quality but keeps perceptualTone for the grayscale path.
+          const int tone = quality
+                               ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
+                                                       deviceIsX3)
+                               : jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
+                                                       deviceIsX3);
           q = (quality ? twoBitDitherer->processQuality(tone, step)
                        : twoBitDitherer->process(tone, step))
                   .value;
@@ -410,7 +427,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           q = quantizeGray(gray, mode);
         }
       }
-
       drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
     }
     if (mode == ImageRenderMode::TwoBit) {

@@ -18,10 +18,11 @@
 #include "CalibreSettingsActivity.h"
 #include "ClockStylePickerActivity.h"
 #include "ClearCacheActivity.h"
-#include "TimeSyncActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
+#include "SleepImagePickerActivity.h"
+#include "TimeSyncActivity.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -292,7 +293,11 @@ void CategorySettingsActivity::setupMenu() {
               }));
             }
             if (strcmp(setting.name, "Choose sleep image") == 0) {
-              openSleepImageSelector();
+              exitActivity();
+              enterNewActivity(new SleepImagePickerActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
               return;
             }
             if (strcmp(setting.name, "Choose clock") == 0 || strcmp(setting.name, "Face") == 0) {
