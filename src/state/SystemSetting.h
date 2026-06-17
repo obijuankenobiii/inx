@@ -307,6 +307,7 @@ public:
         LIBRARY_VIEW_FOLDERS = 0,  ///< Folder/group browser
         LIBRARY_VIEW_BOOKS = 1,    ///< Flat book list
         LIBRARY_VIEW_TAGS = 2,     ///< Tag collections
+        LIBRARY_VIEW_SHELF = 3,    ///< Cover-first shelf
         LIBRARY_VIEW_MODE_COUNT
     };
 

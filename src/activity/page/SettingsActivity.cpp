@@ -76,6 +76,7 @@ const SettingInfo systemPageSettings[] = {
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),

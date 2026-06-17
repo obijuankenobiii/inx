@@ -22,6 +22,7 @@
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
 #include "SleepImagePickerActivity.h"
+#include "ThumbnailGeneratorActivity.h"
 #include "TimeSyncActivity.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
@@ -263,6 +264,14 @@ void CategorySettingsActivity::setupMenu() {
               if (onIndexLibrary) {
                 onIndexLibrary();
               }
+              return;
+            }
+            if (strcmp(setting.name, "Generate thumbnails") == 0) {
+              exitActivity();
+              enterNewActivity(new ThumbnailGeneratorActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
               return;
             }
             if (strcmp(setting.name, "About") == 0) {
@@ -812,6 +821,11 @@ void CategorySettingsActivity::render() {
       headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
+  const int versionW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, INX_VERSION);
+  const int versionY =
+      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - versionW - 20, versionY + 5, INX_VERSION, true,
+                       EpdFontFamily::REGULAR);
 
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
@@ -896,19 +910,6 @@ void CategorySettingsActivity::render() {
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();
     int thumbY = startY + (scrollOffset * listHeight) / menuItems.size();
     renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
-  }
-
-  {
-    const GfxRenderer::Orientation orientationBeforeHints = renderer.getOrientation();
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
-    const int pageHeight = renderer.getScreenHeight();
-    constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-    const int lineH = renderer.text.getLineHeight(fontId);
-    constexpr int kHintBarInsetFromBottom = 40;
-    constexpr int kGapAboveHints = 8;
-    const int versionRowTop = pageHeight - kHintBarInsetFromBottom - kGapAboveHints - lineH;
-    renderer.text.centered(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
-    renderer.setOrientation(orientationBeforeHints);
   }
 
   if (selectorOpen) {

@@ -49,7 +49,8 @@ class LibraryActivity final : public Activity, public Menu {
   enum class ViewMode {
     FOLDER_VIEW,    ///< Hierarchical folder navigation
     BOOK_LIST_VIEW, ///< Flat list of all books
-    TAG_VIEW        ///< Indexed books grouped into user tag collections
+    TAG_VIEW,       ///< Indexed books grouped into user tag collections
+    SHELF_VIEW      ///< Cover-first shelf view
   };
 
   /**
@@ -72,6 +73,7 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view
   static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
   static constexpr int GRID_ITEMS_PER_PAGE = 12;    ///< Items per page for grid folder view
+  static constexpr int SHELF_ITEMS_PER_PAGE = 4;    ///< Items per page for shelf view
   static constexpr int GRID_ICON_SIZE = 150;        ///< Icon frame size for grid folders
 
   /**
@@ -178,12 +180,14 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Toggle between folder view and book list view
    */
   void toggleViewMode();
+  void switchToBookListView();
 
   /**
    * @brief Switch to folder view mode
    */
   void switchToFolderView();
   void switchToTagView();
+  void switchToShelfView();
   void startLibraryIndexing();
   bool shouldShowIndexButton() const;
   void showIndexingPopup() const;
@@ -504,6 +508,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @param startY Starting Y position for the list
    */
   void renderLibraryList(int startY) const;
+  void renderLibraryShelf(int startY) const;
 
   /**
    * @brief Render the folder browser as a 3x4 icon grid
