@@ -954,6 +954,7 @@ void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& t
   if (currentPage < 0) currentPage = 0;
 
   currentPageItems.clear();
+  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
   int startIdx = currentPage * itemsPerPage;
   int endIdx = std::min(startIdx + itemsPerPage, totalItems);
 
@@ -1035,20 +1036,9 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
  */
 void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& tempFolders,
                                               const std::vector<TempBookEntry>& tempBooks) {
-  std::vector<LibraryItem> allItems;
-  allItems.insert(allItems.end(), tempFolders.begin(), tempFolders.end());
-
-  for (const auto& temp : tempBooks) {
-    LibraryItem item;
-    item.type = LibraryItem::Type::BOOK;
-    item.name = getBaseFilename(temp.path);
-    item.path = temp.path;
-    item.displayName = temp.displayName;
-    item.folderPath = temp.folderPath;
-    allItems.push_back(item);
-  }
-
-  int totalItems = allItems.size();
+  const int totalFolders = static_cast<int>(tempFolders.size());
+  const int totalBooks = static_cast<int>(tempBooks.size());
+  const int totalItems = totalFolders + totalBooks;
   itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE : FOLDER_ITEMS_PER_PAGE;
   totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
   if (totalPages == 0) totalPages = 1;
@@ -1057,11 +1047,24 @@ void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& te
   if (currentPage < 0) currentPage = 0;
 
   currentPageItems.clear();
-  int startIdx = currentPage * itemsPerPage;
-  int endIdx = std::min(startIdx + itemsPerPage, totalItems);
+  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
+  const int startIdx = currentPage * itemsPerPage;
+  const int endIdx = std::min(startIdx + itemsPerPage, totalItems);
 
-  for (int i = startIdx; i < endIdx; i++) {
-    currentPageItems.push_back(allItems[i]);
+  for (int i = startIdx; i < endIdx; ++i) {
+    if (i < totalFolders) {
+      currentPageItems.push_back(tempFolders[static_cast<size_t>(i)]);
+      continue;
+    }
+
+    const auto& temp = tempBooks[static_cast<size_t>(i - totalFolders)];
+    LibraryItem item;
+    item.type = LibraryItem::Type::BOOK;
+    item.name = getBaseFilename(temp.path);
+    item.path = temp.path;
+    item.displayName = temp.displayName;
+    item.folderPath = temp.folderPath;
+    currentPageItems.push_back(std::move(item));
   }
 }
 
@@ -1386,6 +1389,8 @@ void LibraryActivity::onEnter() {
 
   currentViewMode = storageToViewMode(SETTINGS.libraryViewMode, SETTINGS.useLibraryIndex != 0);
   selectedTagKey_.clear();
+  cachedTagEntries_.clear();
+  cachedTagEntriesLoaded_ = false;
   if (currentViewMode != ViewMode::FOLDER_VIEW) {
     savedFolderPath = basepath;
     basepath = "/";
@@ -1432,6 +1437,8 @@ void LibraryActivity::onExit() {
   }
 
   resetLibraryView();
+  cachedTagEntries_.clear();
+  cachedTagEntriesLoaded_ = false;
 }
 
 /**
@@ -2268,8 +2275,6 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
  * @brief Load library items from index file (optimized for performance)
  */
 void LibraryActivity::loadLibraryFromIndex() {
-  allBooksList.clear();
-  libraryItems.clear();
   currentPageItems.clear();
 
   FsFile idxFile = SdMan.open("/.metadata/library/library.idx", O_READ);
@@ -2290,6 +2295,19 @@ void LibraryActivity::loadLibraryFromIndex() {
   idxFile.close();
 }
 
+void LibraryActivity::ensureTagEntriesLoaded() {
+  if (cachedTagEntriesLoaded_) {
+    return;
+  }
+  cachedTagEntries_.clear();
+  BookTags::load(cachedTagEntries_);
+  cachedTagEntriesLoaded_ = true;
+}
+
+std::string LibraryActivity::findCachedTag(const std::string& path) const {
+  return BookTags::find(cachedTagEntries_, path);
+}
+
 /**
  * @brief Load books from index file for book list view
  * @param idxFile Open index file
@@ -2297,10 +2315,9 @@ void LibraryActivity::loadLibraryFromIndex() {
  */
 void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<TempBookEntry> tempBooks;
-  std::vector<BookTags::Entry> tags;
   const bool useTags = isTagViewMode() || currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
-    BookTags::load(tags);
+    ensureTagEntriesLoaded();
   }
   std::vector<LibraryItem> tagFolders;
   size_t indexEntries = 0;
@@ -2312,7 +2329,7 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
     if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
-        tempEntry.tag = BookTags::find(tags, tempEntry.path);
+        tempEntry.tag = findCachedTag(tempEntry.path);
         tempEntry.folderPath = tempEntry.tag.empty() ? tempEntry.folderPath : tempEntry.tag;
       }
 
@@ -2384,10 +2401,9 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
 void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
-  std::vector<BookTags::Entry> tags;
   const bool useTags = currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
-    BookTags::load(tags);
+    ensureTagEntriesLoaded();
   }
   size_t indexEntries = 0;
 
@@ -2398,7 +2414,7 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
     if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
-        tempEntry.tag = BookTags::find(tags, tempEntry.path);
+        tempEntry.tag = findCachedTag(tempEntry.path);
         tempEntry.folderPath = tempEntry.tag.empty() ? "Others" : tempEntry.tag;
       }
 
@@ -2439,9 +2455,10 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 
   uint16_t pLen;
   idxFile.read(&pLen, sizeof(pLen));
-  std::vector<char> pBuf(pLen + 1, 0);
-  idxFile.read(pBuf.data(), pLen);
-  tempEntry.path = std::string(pBuf.data(), pLen);
+  tempEntry.path.resize(pLen);
+  if (pLen > 0) {
+    idxFile.read(&tempEntry.path[0], pLen);
+  }
 
   uint8_t nLen;
   idxFile.read(&nLen, sizeof(nLen));
@@ -2449,15 +2466,17 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 
   uint8_t dLen;
   idxFile.read(&dLen, sizeof(dLen));
-  std::vector<char> dBuf(dLen + 1, 0);
-  idxFile.read(dBuf.data(), dLen);
-  tempEntry.displayName = std::string(dBuf.data(), dLen);
+  tempEntry.displayName.resize(dLen);
+  if (dLen > 0) {
+    idxFile.read(&tempEntry.displayName[0], dLen);
+  }
 
   uint8_t fLen;
   idxFile.read(&fLen, sizeof(fLen));
-  std::vector<char> fBuf(fLen + 1, 0);
-  idxFile.read(fBuf.data(), fLen);
-  tempEntry.folderPath = std::string(fBuf.data(), fLen);
+  tempEntry.folderPath.resize(fLen);
+  if (fLen > 0) {
+    idxFile.read(&tempEntry.folderPath[0], fLen);
+  }
 
   size_t pos;
   while ((pos = tempEntry.path.find("’")) != std::string::npos) {
@@ -2479,9 +2498,11 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 LibraryItem LibraryActivity::readDirectoryEntryFromIndex(FsFile& idxFile) {
   uint16_t pathLen;
   idxFile.read(&pathLen, sizeof(pathLen));
-  std::vector<char> pathBuf(pathLen + 1, 0);
-  idxFile.read(pathBuf.data(), pathLen);
-  std::string dirPath = std::string(pathBuf.data(), pathLen);
+  std::string dirPath;
+  dirPath.resize(pathLen);
+  if (pathLen > 0) {
+    idxFile.read(&dirPath[0], pathLen);
+  }
 
   uint16_t entryCount;
   idxFile.read(&entryCount, sizeof(entryCount));

@@ -160,6 +160,9 @@ void SettingsActivity::onEnter() {
   showingAbout = false;
   indexingProgress = 0;
   indexingTotal = 0;
+  lastRenderedIndexingProgress = -1;
+  lastRenderedIndexingTotal = -1;
+  nextIndexingRenderMs = 0;
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
 
   openCurrentPanel();
@@ -199,8 +202,16 @@ void SettingsActivity::loop() {
   }
 
   if (isIndexing) {
-    showIndexingProgress();
-    vTaskDelay(pdMS_TO_TICKS(100));
+    const bool progressChanged =
+        indexingProgress != lastRenderedIndexingProgress || indexingTotal != lastRenderedIndexingTotal;
+    const unsigned long now = millis();
+    if (progressChanged || now >= nextIndexingRenderMs) {
+      showIndexingProgress();
+      lastRenderedIndexingProgress = indexingProgress;
+      lastRenderedIndexingTotal = indexingTotal;
+      nextIndexingRenderMs = now + 250;
+    }
+    vTaskDelay(pdMS_TO_TICKS(40));
     return;
   }
 
@@ -285,6 +296,9 @@ void SettingsActivity::startLibraryIndexing() {
   isIndexing = true;
   indexingProgress = 0;
   indexingTotal = 0;
+  lastRenderedIndexingProgress = -1;
+  lastRenderedIndexingTotal = -1;
+  nextIndexingRenderMs = 0;
   memset(currentIndexingPath, 0, sizeof(currentIndexingPath));
 
   showIndexingProgress();

@@ -15,6 +15,7 @@
 
 #include "../Activity.h"
 #include "../Menu.h"
+#include "state/BookTags.h"
 #include "state/RecentBooks.h"
 
 /**
@@ -112,6 +113,8 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load library items from index file (optimized mode)
    */
   void loadLibraryFromIndex();
+  void ensureTagEntriesLoaded();
+  std::string findCachedTag(const std::string& path) const;
 
   /**
    * @brief Get book comparator for reading status sorting
@@ -154,9 +157,8 @@ class LibraryActivity final : public Activity, public Menu {
   int totalPages;                             ///< Total number of pages
   std::vector<LibraryItem> currentPageItems;  ///< Items for current page
 
-  
-  std::vector<LibraryItem> libraryItems;  ///< Cached library items (index mode)
-  std::vector<LibraryItem> allBooksList;  ///< Cached all books list (index mode)
+  std::vector<BookTags::Entry> cachedTagEntries_;
+  bool cachedTagEntriesLoaded_ = false;
 
   
   const std::function<void()> onGoToRecent;                         ///< Callback to go to recent books

@@ -26,6 +26,9 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   int indexingProgress = 0;
   int indexingTotal = 0;
   char currentIndexingPath[256] = {0};
+  int lastRenderedIndexingProgress = -1;
+  int lastRenderedIndexingTotal = -1;
+  unsigned long nextIndexingRenderMs = 0;
   bool showingAbout = false;
   int selectedAboutIndex = 0;
 

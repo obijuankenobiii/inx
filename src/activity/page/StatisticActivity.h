@@ -6,7 +6,6 @@
  */
 
 #include <functional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,7 +30,7 @@ private:
     bool updateRequired = false;
 
     std::vector<BookReadingStats> allBooksStats;
-    std::set<std::string> loadedBookStatsPaths;
+    std::vector<uint8_t> loadedBookStatsFlags_;
     GlobalReadingStats globalStats;
 
     const std::function<void()> onGoToRecent;

@@ -427,12 +427,7 @@ void StatisticActivity::loadStats() {
   ScreenComponents::LoadingProgressLayout layout =
       ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 12);
   allBooksStats = getAllBooksStats();
-  loadedBookStatsPaths.clear();
-  for (const auto& stats : allBooksStats) {
-    if (!stats.path.empty()) {
-      loadedBookStatsPaths.insert(stats.path);
-    }
-  }
+  loadedBookStatsFlags_.assign(allBooksStats.size(), 1);
   ScreenComponents::LoadingProgress::setProgress(renderer, layout, 40);
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
@@ -449,12 +444,13 @@ void StatisticActivity::hydrateFromStorage() {
     globalStats = GlobalReadingStats();
   }
   allBooksStats.clear();
-  loadedBookStatsPaths.clear();
+  loadedBookStatsFlags_.clear();
   indexBookStatsPaths();
 }
 
 void StatisticActivity::indexBookStatsPaths() {
   std::set<std::string> seen;
+  loadedBookStatsFlags_.clear();
   auto addCachePath = [&](const std::string& cachePath, const RecentBook* recent) {
     if (cachePath.empty() || seen.count(cachePath) != 0 || !statsFileExistsForCachePath(cachePath)) {
       return;
@@ -469,6 +465,7 @@ void StatisticActivity::indexBookStatsPaths() {
       }
     }
     allBooksStats.push_back(placeholder);
+    loadedBookStatsFlags_.push_back(0);
     seen.insert(cachePath);
   };
 
@@ -514,18 +511,20 @@ bool StatisticActivity::ensureBookStatsLoaded(const int bookIdx) {
   if (bookIdx < 0 || bookIdx >= static_cast<int>(allBooksStats.size())) {
     return false;
   }
-  BookReadingStats& slot = allBooksStats[static_cast<size_t>(bookIdx)];
-  const std::string cachePath = slot.path;
-  if (loadedBookStatsPaths.count(cachePath) != 0) {
+  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size()) && loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] != 0) {
     return true;
   }
+  BookReadingStats& slot = allBooksStats[static_cast<size_t>(bookIdx)];
+  const std::string cachePath = slot.path;
   BookReadingStats loaded;
   if (!loadBookStats(cachePath.c_str(), loaded)) {
     return false;
   }
   loaded.path = cachePath;
   slot = loaded;
-  loadedBookStatsPaths.insert(cachePath);
+  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size())) {
+    loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] = 1;
+  }
   return true;
 }
 
@@ -695,7 +694,8 @@ void StatisticActivity::onExit() {
 
   allBooksStats.clear();
   allBooksStats.shrink_to_fit();
-  loadedBookStatsPaths.clear();
+  loadedBookStatsFlags_.clear();
+  loadedBookStatsFlags_.shrink_to_fit();
 }
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {

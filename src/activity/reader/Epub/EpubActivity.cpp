@@ -621,7 +621,7 @@ void EpubActivity::onEnter() {
   
   const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
   bool hasProgress = bookProgress->exists();
-  const bool useFastPath = epub->isLoaded() && book && hasProgress;
+  const bool useFastPath = (epub->isLoaded() || epub->hasMetadataCache()) && book && hasProgress;
 
   if (!useFastPath) {
     renderer.clearScreen(0xff);

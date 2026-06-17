@@ -120,41 +120,44 @@ static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, in
     }
   }
 
-  std::vector<std::string> words;
-  std::string remaining = title;
-  while (!remaining.empty()) {
-    size_t sp = remaining.find(' ');
-    if (sp == std::string::npos) {
-      words.push_back(remaining);
-      break;
-    }
-    if (sp > 0) {
-      words.push_back(remaining.substr(0, sp));
-    }
-    remaining = (sp + 1 < remaining.size()) ? remaining.substr(sp + 1) : std::string();
-  }
-  if (words.empty()) {
-    return;
-  }
-
   const int lh = renderer.text.getLineHeight(fontId);
   const int maxLines = std::max(1, (h - 12) / std::max(1, lh));
-  if (static_cast<int>(words.size()) > maxLines) {
-    words.resize(static_cast<size_t>(maxLines));
+  int wordCount = 0;
+  bool inWord = false;
+  for (char c : title) {
+    if (std::isspace(static_cast<unsigned char>(c))) {
+      inWord = false;
+    } else if (!inWord) {
+      inWord = true;
+      ++wordCount;
+    }
   }
-  const int totalTextH = static_cast<int>(words.size()) * lh;
+  if (wordCount <= 0) {
+    return;
+  }
+  const int linesToDraw = std::min(maxLines, wordCount);
+  const int totalTextH = linesToDraw * lh;
   int lineY = y + std::max(4, (h - totalTextH) / 2);
   const int innerPad = 6;
   const int maxWordW = std::max(8, w - 2 * innerPad);
 
-  for (const auto& word : words) {
-    std::string wshow = word;
+  size_t pos = 0;
+  for (int line = 0; line < linesToDraw; ++line) {
+    while (pos < title.size() && std::isspace(static_cast<unsigned char>(title[pos]))) {
+      ++pos;
+    }
+    size_t end = pos;
+    while (end < title.size() && !std::isspace(static_cast<unsigned char>(title[end]))) {
+      ++end;
+    }
+    std::string wshow = title.substr(pos, end - pos);
     if (renderer.text.getWidth(fontId, wshow.c_str()) > maxWordW) {
       wshow = renderer.text.truncate(fontId, wshow.c_str(), maxWordW, EpdFontFamily::REGULAR);
     }
     const int tw = renderer.text.getWidth(fontId, wshow.c_str());
     renderer.text.render(fontId, x + (w - tw) / 2, lineY, wshow.c_str(), true, EpdFontFamily::REGULAR);
     lineY += lh;
+    pos = end;
   }
 }
 
@@ -617,8 +620,6 @@ int RecentActivity::getVisibleRows() const {
 void RecentActivity::loadRecentBooks(const bool resetScroll) {
   recentBooks.clear();
   recentStats_.clear();
-  thumbnailPathCache_.clear();
-  coverPathCache_.clear();
   recentBooks.reserve(MAX_RECENT_BOOKS);
   recentStats_.reserve(MAX_RECENT_BOOKS);
   const int maxShow =
@@ -696,6 +697,7 @@ const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(con
 
 void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {
   simpleUiFavorites_.clear();
+  simpleUiFavorites_.reserve(std::min<int>(kSimpleUiFavoritesMaxCount, static_cast<int>(favorites.size())));
   int added = 0;
   for (const auto& fb : favorites) {
     if (!SdMan.exists(fb.path.c_str())) {
@@ -735,6 +737,7 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
  */
 void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites) {
   listStatsFavoriteOnly_.clear();
+  listStatsFavoriteOnly_.reserve(1);
   if (!recentBooks.empty()) {
     return;
   }
