@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../../Epub.h"
 #include "../ParsedText.h"
@@ -59,6 +60,8 @@ class ChapterHtmlSlimParser {
   
   bool inDropCap = false;
   int dropCapDepth = INT_MAX;
+  bool dropCapConsumeWholeContainer = false;
+  uint8_t dropCapLineCount = 3;
 
   char partWordBuffer[MAX_WORD_SIZE + 1] = {};
   int partWordBufferIndex = 0;
@@ -83,6 +86,9 @@ class ChapterHtmlSlimParser {
 
   CssParser cssParser;
   bool cssLoaded;
+  std::vector<TextBlock::Style> cssAlignmentStack;
+  int currentBlockBottomSpacingPx = 0;
+  bool currentBlockSpacingFromCss = false;
 
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;
@@ -97,6 +103,7 @@ class ChapterHtmlSlimParser {
    * Creates a new text block with the specified style.
    */
   void startNewTextBlock(TextBlock::Style style);
+  void applyVerticalSpacing(int px);
 
   /**
    * Flushes the accumulated word buffer.
@@ -133,7 +140,8 @@ class ChapterHtmlSlimParser {
   void loadCssRules();
 
   /** Resolves text-align for the current block element when paragraph alignment is FOLLOW_CSS. */
-  TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts) const;
+  TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,
+                                                  TextBlock::Style inheritedStyle) const;
 
   /**
    * Processes an img element with CSS class support.

@@ -39,6 +39,93 @@ bool hasPngExt(const std::string& path) {
   return StringUtils::checkFileExtension(path, ".png");
 }
 
+bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
+  if (needle == nullptr || *needle == '\0') {
+    return true;
+  }
+  const size_t needleLen = std::strlen(needle);
+  if (haystack.size() < needleLen) {
+    return false;
+  }
+  for (size_t i = 0; i + needleLen <= haystack.size(); ++i) {
+    size_t j = 0;
+    while (j < needleLen) {
+      const unsigned char hc = static_cast<unsigned char>(haystack[i + j]);
+      const unsigned char nc = static_cast<unsigned char>(needle[j]);
+      if (std::tolower(hc) != std::tolower(nc)) {
+        break;
+      }
+      ++j;
+    }
+    if (j == needleLen) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int utf8CodepointByteLength(const unsigned char lead) {
+  if ((lead & 0x80) == 0x00) return 1;
+  if ((lead & 0xE0) == 0xC0) return 2;
+  if ((lead & 0xF0) == 0xE0) return 3;
+  if ((lead & 0xF8) == 0xF0) return 4;
+  return 1;
+}
+
+bool endsWithCompleteUtf8Codepoint(const char* s, int byteLen) {
+  if (s == nullptr || byteLen <= 0) {
+    return false;
+  }
+  int start = byteLen - 1;
+  while (start > 0 && (static_cast<unsigned char>(s[start]) & 0xC0) == 0x80) {
+    --start;
+  }
+  const int expected = utf8CodepointByteLength(static_cast<unsigned char>(s[start]));
+  return (byteLen - start) >= expected;
+}
+
+bool hasDropCapHint(const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr) {
+  return containsAsciiInsensitive(classAttr, "dropcap") || containsAsciiInsensitive(classAttr, "drop-cap") ||
+         containsAsciiInsensitive(classAttr, "initial-letter") || containsAsciiInsensitive(idAttr, "dropcap") ||
+         containsAsciiInsensitive(idAttr, "drop-cap") || containsAsciiInsensitive(idAttr, "initial-letter") ||
+         containsAsciiInsensitive(styleAttr, "initial-letter");
+}
+
+uint8_t detectDropCapLineCount(const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr) {
+  auto parseSource = [](const std::string& src) -> uint8_t {
+    for (size_t i = 0; i < src.size(); ++i) {
+      if (std::isdigit(static_cast<unsigned char>(src[i])) == 0) {
+        continue;
+      }
+      size_t j = i;
+      while (j < src.size() && std::isdigit(static_cast<unsigned char>(src[j])) != 0) {
+        ++j;
+      }
+      if (j < src.size() && containsAsciiInsensitive(src.substr(j), "line")) {
+        const int value = std::atoi(src.substr(i, j - i).c_str());
+        if (value >= 1 && value <= 9) {
+          return static_cast<uint8_t>(value);
+        }
+      }
+      if (i >= 4 && containsAsciiInsensitive(src.substr(i - 4, 4), "line")) {
+        const int value = std::atoi(src.substr(i, j - i).c_str());
+        if (value >= 1 && value <= 9) {
+          return static_cast<uint8_t>(value);
+        }
+      }
+    }
+    return 0;
+  };
+
+  uint8_t v = parseSource(classAttr);
+  if (v != 0) return v;
+  v = parseSource(idAttr);
+  if (v != 0) return v;
+  v = parseSource(styleAttr);
+  if (v != 0) return v;
+  return 3;
+}
+
 int countUtf8Codepoints(const char* s, int byteLen) {
   const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
   const unsigned char* const end = p + static_cast<size_t>(byteLen);
@@ -48,6 +135,42 @@ int countUtf8Codepoints(const char* s, int byteLen) {
     ++n;
   }
   return n;
+}
+
+bool isLeadingDropCapPunctuation(const uint32_t cp) {
+  switch (cp) {
+    case '"':
+    case '\'':
+    case '(':
+    case '[':
+    case '{':
+    case 0x00AB:
+    case 0x00BB:
+    case 0x2018:
+    case 0x2019:
+    case 0x201A:
+    case 0x201B:
+    case 0x201C:
+    case 0x201D:
+    case 0x201E:
+    case 0x201F:
+      return true;
+    default:
+      return false;
+  }
+}
+
+int desiredDropCapCodepoints(const char* s, int byteLen, const bool consumeWholeContainer) {
+  if (consumeWholeContainer) {
+    return countUtf8Codepoints(s, byteLen);
+  }
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  if (p >= end) {
+    return 1;
+  }
+  const uint32_t first = utf8NextCodepoint(&p);
+  return isLeadingDropCapPunctuation(first) ? 2 : 1;
 }
 
 }  
@@ -101,10 +224,15 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   inHeader = false;
   inDropCap = false;
   dropCapDepth = INT_MAX;
+  dropCapConsumeWholeContainer = false;
+  dropCapLineCount = 3;
   partWordBufferIndex = 0;
   currentTextBlock.reset();
   currentPage.reset();
   currentPageNextY = 0;
+  cssAlignmentStack.clear();
+  currentBlockBottomSpacingPx = 0;
+  currentBlockSpacingFromCss = false;
 }
 
 void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
@@ -269,6 +397,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
   bool widthIsPercentage = false;
   bool heightIsPercentage = false;
+  const bool followCssParagraphLayout = (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS);
 
   
   if (imgWidth == 0 || imgHeight == 0) {
@@ -414,7 +543,23 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
+    if (followCssParagraphLayout &&
+        cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+      if (currentPageNextY > 0) {
+        applyVerticalSpacing(
+            cssParser.getParagraphSpacingTopPx("img", classAttr, idAttr, styleAttr, viewportWidth, viewportHeight));
+      }
+    }
     addImageToPage(cacheImgPath, imgWidth, imgHeight);
+    if (followCssParagraphLayout &&
+        cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+      const int defaultGap = renderer.text.getLineHeight(fontId) / 2;
+      const int cssBottom = cssParser.getParagraphSpacingBottomPx("img", classAttr, idAttr, styleAttr, viewportWidth,
+                                                                  viewportHeight);
+      if (cssBottom > defaultGap) {
+        applyVerticalSpacing(cssBottom - defaultGap);
+      }
+    }
   } else {
     Serial.printf("[%lu] [EBP-IMG] <img> not placed src=%s resolved=%s cache=%s skipImages=%d\n",
                   static_cast<unsigned long>(millis()), src.c_str(), fullInternalPath.c_str(), cacheImgPath.c_str(),
@@ -440,11 +585,13 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     int dropCapWidth = renderer.text.getWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
 
     if (currentTextBlock) {
-      currentTextBlock->setLeftIndent(dropCapWidth, 3);
+      currentTextBlock->setLeftIndent(dropCapWidth, dropCapLineCount);
     }
 
     partWordBufferIndex = 0;
     inDropCap = false;
+    dropCapConsumeWholeContainer = false;
+    dropCapLineCount = 3;
     return;
   }
 
@@ -461,6 +608,21 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   partWordBufferIndex = 0;
 }
 
+void ChapterHtmlSlimParser::applyVerticalSpacing(const int px) {
+  if (px <= 0) {
+    return;
+  }
+  if (currentPageNextY + px > viewportHeight) {
+    if (currentPage && !currentPage->elements.empty()) {
+      completePageFn(std::move(currentPage));
+    }
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+    return;
+  }
+  currentPageNextY += px;
+}
+
 /**
  * Creates a new text block with the specified style.
  * If there is an existing non-empty text block, it is first converted to pages.
@@ -468,7 +630,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
  * @param style The alignment style for the new text block
  */
 TextBlock::Style ChapterHtmlSlimParser::resolveTextAlignFromAttributes(const XML_Char* elementName,
-                                                                       const XML_Char** atts) const {
+                                                                       const XML_Char** atts,
+                                                                       const TextBlock::Style inheritedStyle) const {
   std::string classAttr;
   std::string idAttr;
   std::string styleAttr;
@@ -489,12 +652,16 @@ TextBlock::Style ChapterHtmlSlimParser::resolveTextAlignFromAttributes(const XML
       tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
     }
   }
+  if (!cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+    return inheritedStyle;
+  }
   return static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment(classAttr, idAttr, styleAttr, tagLower));
 }
 
 void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
+      currentTextBlock->resetParagraphLayoutHints();
       currentTextBlock->setStyle(style);
       currentTextBlock->setRespectParagraphIndent(respectCssParagraphIndent);
       return;
@@ -513,7 +680,33 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
  */
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-
+  const bool followCssParagraphLayout = (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS);
+  const TextBlock::Style inheritedCssStyle =
+      self->cssAlignmentStack.empty() ? TextBlock::LEFT_ALIGN : self->cssAlignmentStack.back();
+  TextBlock::Style elementCssStyle = inheritedCssStyle;
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    elementCssStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
+  }
+  std::string classAttr;
+  std::string idAttr;
+  std::string styleAttr;
+  std::string tagLower;
+  if (name != nullptr) {
+    for (const XML_Char* p = name; *p; ++p) {
+      tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
+    }
+  }
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "class") == 0) {
+        classAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "id") == 0) {
+        idAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "style") == 0) {
+        styleAttr = atts[i + 1];
+      }
+    }
+  }
   if (self->imagePrefetchPassOnly_) {
     if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
       self->prefetchImageFromImgAttributes(atts);
@@ -531,15 +724,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
-  if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
-    for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
-        self->flushPartWordBuffer();
-        self->inDropCap = true;
-        self->dropCapDepth = self->depth;
-        break;
-      }
-    }
+  if (atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr)) {
+    self->flushPartWordBuffer();
+    self->inDropCap = true;
+    self->dropCapDepth = self->depth;
+    self->dropCapConsumeWholeContainer = (strcmp(name, "span") == 0);
+    self->dropCapLineCount = detectDropCapLineCount(classAttr, idAttr, styleAttr);
   }
 
   
@@ -575,40 +765,29 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
       TextBlock::Style blockStyle;
-      std::string tagLower;
-      if (name != nullptr) {
-        for (const XML_Char* p = name; *p; ++p) {
-          tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
-        }
-      }
       if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
-        blockStyle = self->resolveTextAlignFromAttributes(name, atts);
+        blockStyle = elementCssStyle;
       } else {
         blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
       }
       self->startNewTextBlock(blockStyle);
-      std::string classAttr;
-      std::string idAttr;
-      std::string styleAttr;
-      if (atts != nullptr) {
-        for (int i = 0; atts[i]; i += 2) {
-          if (strcmp(atts[i], "class") == 0) {
-            classAttr = atts[i + 1];
-          } else if (strcmp(atts[i], "id") == 0) {
-            idAttr = atts[i + 1];
-          } else if (strcmp(atts[i], "style") == 0) {
-            styleAttr = atts[i + 1];
-          }
-        }
+      const bool hasCssSpacing =
+          self->cssParser.hasParagraphSpacingSpecified(tagLower, classAttr, idAttr, styleAttr);
+      self->currentBlockSpacingFromCss = hasCssSpacing;
+      self->currentBlockBottomSpacingPx = hasCssSpacing
+                                              ? self->cssParser.getParagraphSpacingBottomPx(
+                                                    tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                                    self->viewportHeight)
+                                              : 0;
+      if (hasCssSpacing && self->currentPageNextY > 0) {
+        self->applyVerticalSpacing(self->cssParser.getParagraphSpacingTopPx(
+            tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight));
       }
-      if (self->currentTextBlock && self->respectCssParagraphIndent &&
+      if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
           self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
                                                        self->viewportHeight);
-        if (px > 0) {
-          const int clamped = std::min(px, 65535);
-          self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(clamped), 1);
-        }
+        self->currentTextBlock->setCssTextIndentFromCascade(px);
       }
     }
   }
@@ -617,6 +796,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->skipUntilDepth = self->depth;
   }
 
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    self->cssAlignmentStack.push_back(elementCssStyle);
+  }
   self->depth += 1;
 }
 
@@ -674,7 +856,10 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     }
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
-    if (self->inDropCap && countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >= 2) {
+    if (self->inDropCap && endsWithCompleteUtf8Codepoint(self->partWordBuffer, self->partWordBufferIndex) &&
+        countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >=
+            desiredDropCapCodepoints(self->partWordBuffer, self->partWordBufferIndex,
+                                     self->dropCapConsumeWholeContainer)) {
       self->flushPartWordBuffer();
     }
   }
@@ -719,6 +904,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   self->depth -= 1;
 
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && !self->cssAlignmentStack.empty()) {
+    self->cssAlignmentStack.pop_back();
+  }
+
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
@@ -729,6 +918,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     }
     self->inDropCap = false;
     self->dropCapDepth = INT_MAX;
+    self->dropCapConsumeWholeContainer = false;
+    self->dropCapLineCount = 3;
   }
 }
 
@@ -790,8 +981,10 @@ void ChapterHtmlSlimParser::makePages() {
       renderer, inHeader ? headerFontId : fontId, viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
-  if (extraParagraphSpacing) {
-    currentPageNextY += lineHeight / 2;
+  if (currentBlockSpacingFromCss) {
+    applyVerticalSpacing(currentBlockBottomSpacingPx);
+  } else if (extraParagraphSpacing) {
+    applyVerticalSpacing(lineHeight / 2);
   }
 }
 
@@ -927,7 +1120,11 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
+  dropCapConsumeWholeContainer = false;
+  dropCapLineCount = 3;
   cssLoaded = false;
+  currentBlockBottomSpacingPx = 0;
+  currentBlockSpacingFromCss = false;
 
   loadCssRules();
 
@@ -936,6 +1133,9 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
     initialBlockStyle = static_cast<TextBlock::Style>(paragraphAlignment);
   } else if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
     initialBlockStyle = static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment("", "", "", "body"));
+  }
+  if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    cssAlignmentStack.push_back(initialBlockStyle);
   }
   startNewTextBlock(initialBlockStyle);
 

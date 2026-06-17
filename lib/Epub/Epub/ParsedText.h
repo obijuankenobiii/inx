@@ -61,6 +61,11 @@ class ParsedText {
   void addWord(std::string word, EpdFontFamily::Style fontStyle);
   void setStyle(const TextBlock::Style style) { this->style = style; }
   void setRespectParagraphIndent(bool v) { respectParagraphIndent_ = v; }
+  void resetParagraphLayoutHints() {
+    cssTextIndentPx = -1;
+    leftIndentWidth = 0;
+    leftIndentLineCount = 0;
+  }
   
   
   void setLeftIndent(uint16_t width, uint16_t lineCount) {

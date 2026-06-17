@@ -382,28 +382,15 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  if (!respectParagraphIndent_) {
+  if (cssTextIndentPx >= 0) {
+    if (cssTextIndentPx > 0) {
+      leftIndentWidth = static_cast<uint16_t>(std::min(cssTextIndentPx, 65535));
+      leftIndentLineCount = 1;
+    }
     return;
   }
 
-  if (cssTextIndentPx >= 0) {
-    if (cssTextIndentPx > 0) {
-      static const char em[] = "\xe2\x80\x83";
-      const EpdFontFamily::Style emStyle = wordStyles.empty() ? EpdFontFamily::REGULAR : wordStyles.front();
-      const int emw = renderer.text.getWidth(fontId, em, emStyle);
-      if (emw > 0) {
-        const int n = std::min(80, (cssTextIndentPx + emw - 1) / emw);
-        std::string pad;
-        pad.reserve(static_cast<size_t>(n) * 3);
-        for (int i = 0; i < n; ++i) {
-          pad += em;
-        }
-        words.front().insert(0, pad);
-        if (!bionicPrefixBytes.empty()) {
-          bionicPrefixBytes.front() = 0;
-        }
-      }
-    }
+  if (!respectParagraphIndent_) {
     return;
   }
 

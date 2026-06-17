@@ -53,6 +53,16 @@ class CssParser {
   uint8_t computeParagraphAlignment(const std::string& className, const std::string& id, const std::string& styleAttr,
                                     const std::string& elementTagLower = "") const;
 
+  /** True if `text-align` is specified inline or by matching stylesheet rules for this element. */
+  bool hasTextAlignSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                             const std::string& styleAttr) const;
+
+  /** Resolved inherited CSS font emphasis for the current element. */
+  bool resolveFontBold(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, bool inheritedBold) const;
+  bool resolveFontItalic(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                         const std::string& styleAttr, bool inheritedItalic) const;
+
   /** Resolved first-line text-indent in pixels (>= 0) from inline then stylesheet, including type selectors. */
   int getTextIndentPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
@@ -60,6 +70,15 @@ class CssParser {
   /** True if `text-indent` appears in inline style or matching stylesheet rules (including value 0). */
   bool hasTextIndentSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
                               const std::string& styleAttr) const;
+
+  /** Resolved paragraph spacing from CSS block margins/padding in pixels. */
+  int getParagraphSpacingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getParagraphSpacingBottomPx(const std::string& elementTagLower, const std::string& className,
+                                  const std::string& id, const std::string& styleAttr, int viewportWidth,
+                                  int viewportHeight) const;
+  bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
+                                    const std::string& id, const std::string& styleAttr) const;
 
   size_t getRuleCount() const { return rules.size(); }
 
@@ -80,6 +99,11 @@ class CssParser {
   void parseInlineStyle(const std::string& styleAttr, std::map<std::string, std::string>& out) const;
   int getInlineOrSheetLength(const std::string& propName, const std::string& className, const std::string& id,
                              const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getSpacingEdgePx(const std::string& propName, const std::string& shorthandName, const std::string& className,
+                       const std::string& id, const std::string& styleAttr, int viewportWidth,
+                       int viewportHeight) const;
+  bool hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
+                            const std::string& styleAttr, const std::string& elementTagLower = "") const;
 
   static bool selectorHasIdToken(const std::string& selectorLower, const std::string& idLower);
   static bool selectorHasClassToken(const std::string& selectorLower, const std::string& classTokenLower);
