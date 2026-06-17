@@ -122,6 +122,18 @@ private:
     int lastGoodPageNumber_ = 0;
     bool chapterRecoveryAttempted_ = false;
 
+    struct DeferredImageGrayscalePass {
+      bool pending = false;
+      int spineIndex = -1;
+      int pageNumber = -1;
+      int fontId = 0;
+      int marginLeft = 0;
+      int marginTop = 0;
+      unsigned long earliestRunMs = 0;
+    };
+
+    DeferredImageGrayscalePass deferredImageGrayscalePass_;
+
     SettingsDrawer* settingsDrawer = nullptr;
     bool settingsDrawerVisible = false;
     MenuDrawer* menuDrawer = nullptr;
@@ -158,6 +170,10 @@ private:
                         int orientedMarginRight,
                         int orientedMarginBottom, 
                         int orientedMarginLeft);
+
+    void cancelDeferredImageGrayscalePass();
+    void scheduleDeferredImageGrayscalePass(int fontId, int orientedMarginLeft, int orientedMarginTop);
+    bool runDeferredImageGrayscalePass();
     
     /**
      * Renders the status bar with configurable sections.

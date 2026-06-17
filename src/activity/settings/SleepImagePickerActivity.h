@@ -42,6 +42,7 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
 
   std::vector<Row> rows;
   int selectedIndex = 0;
+  bool randomEnabled = false;
 
   const std::function<void()> onBack;
 

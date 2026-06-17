@@ -26,6 +26,8 @@
 namespace {
 constexpr int kSourceItemHeight = 56;
 constexpr int kFirmwareItemHeight = 46;
+constexpr int kUpdateCardMargin = 24;
+constexpr int kUpdateCardBarHeight = 10;
 const std::string kEmptyPath;
 
 bool hasBinExtension(const std::string& path) {
@@ -53,6 +55,47 @@ std::string joinSdPath(const char* dirPath, const char* name) {
     return d + n;
   }
   return d + "/" + n;
+}
+
+void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, const int bodyTop, const int screenHeight,
+                            const float progress, const size_t processedBytes, const size_t totalBytes) {
+  const int cardX = kUpdateCardMargin;
+  const int cardW = pageWidth - (kUpdateCardMargin * 2);
+  const int cardY = bodyTop + 22;
+  const int cardH = std::min(144, screenHeight - cardY - 58);
+
+  renderer.rectangle.fill(cardX, cardY, cardW, cardH, false, true);
+  renderer.rectangle.render(cardX, cardY, cardW, cardH, true);
+
+  const int titleY = cardY + 18;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, cardX + 18, titleY, "Installing firmware", true,
+                       EpdFontFamily::BOLD);
+
+  const int statusY = titleY + 28;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, cardX + 18, statusY, "Please keep the device powered on.",
+                       true, EpdFontFamily::REGULAR);
+
+  const int barX = cardX + 18;
+  const int barY = statusY + 28;
+  const int barW = cardW - 36;
+  renderer.rectangle.render(barX, barY, barW, kUpdateCardBarHeight, true);
+
+  const int clamped = std::max(0, std::min(100, static_cast<int>(progress * 100.0f + 0.5f)));
+  const int innerW = std::max(1, barW - 2);
+  const int fillW = innerW * clamped / 100;
+  renderer.rectangle.fill(barX + 1, barY + 1, innerW, kUpdateCardBarHeight - 2, false);
+  if (fillW > 0) {
+    renderer.rectangle.fill(barX + 1, barY + 1, fillW, kUpdateCardBarHeight - 2, true);
+  }
+
+  std::string metaLine;
+  if (totalBytes > 0) {
+    metaLine = std::to_string(processedBytes) + " / " + std::to_string(totalBytes);
+  } else {
+    metaLine = "Preparing package";
+  }
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, cardX + 18, barY + 24, metaLine.c_str(), true,
+                       EpdFontFamily::REGULAR);
 }
 }
 
@@ -356,14 +399,8 @@ void OtaUpdateActivity::render() {
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == UPDATE_IN_PROGRESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 8, "Updating...", true, EpdFontFamily::BOLD);
-    renderer.rectangle.render(20, bodyTop + 36, pageWidth - 40, 50);
-    renderer.rectangle.fill(24, bodyTop + 40, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 106,
-                              (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 130,
-                              (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize()))
-                                  .c_str());
+    drawUpdateProgressCard(renderer, pageWidth, bodyTop, screenHeight, updaterProgress, updater.getProcessedSize(),
+                           updater.getTotalSize());
   } else if (state == NO_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true,

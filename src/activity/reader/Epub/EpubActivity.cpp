@@ -66,6 +66,7 @@ constexpr unsigned long skipChapterMs = 700;
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
+constexpr unsigned long kDeferredImageGrayscaleDelayMs = 180;
 constexpr unsigned long bookmarkHoldMs = 1000;
 
 /**
@@ -183,7 +184,7 @@ ViewportInfo EpubActivity::calculateViewport() {
 
 void EpubActivity::drawLoadingScreen() {
   const int barWidth = renderer.getScreenWidth();
-  const int barHeight = 25;
+  const int barHeight = 8;
   const int barX = 0;
   const int barY = renderer.getScreenHeight() - barHeight;
 
@@ -193,20 +194,9 @@ void EpubActivity::drawLoadingScreen() {
   if (loadingProgress > 0) {
     int fillWidth = barWidth * loadingProgress / 100;
     if (fillWidth > 0) {
-      renderer.rectangle.fill(barX + 2, barY + 2, fillWidth - 4, barHeight - 4, true);
+      fillWidth = std::max(1, fillWidth);
+      renderer.rectangle.fill(barX + 1, barY + 1, std::max(1, fillWidth - 2), barHeight - 2, true);
     }
-  }
-
-  char percentStr[8];
-  snprintf(percentStr, sizeof(percentStr), "%d%%", loadingProgress);
-  int percentWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, percentStr);
-  int percentX = barX + (barWidth - percentWidth) / 2;
-  int percentY = barY + (barHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
-  if (loadingProgress > 50) {
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, false);
-  } else {
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, percentY, percentStr, true);
   }
 
   renderer.displayBuffer();
@@ -226,6 +216,66 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
   if (repaintReaderScreen) {
     renderScreen();
   }
+}
+
+void EpubActivity::cancelDeferredImageGrayscalePass() {
+  deferredImageGrayscalePass_ = {};
+}
+
+void EpubActivity::scheduleDeferredImageGrayscalePass(const int fontId, const int orientedMarginLeft,
+                                                      const int orientedMarginTop) {
+  deferredImageGrayscalePass_.pending = true;
+  deferredImageGrayscalePass_.spineIndex = currentSpineIndex;
+  deferredImageGrayscalePass_.pageNumber = section ? section->currentPage : nextPageNumber;
+  deferredImageGrayscalePass_.fontId = fontId;
+  deferredImageGrayscalePass_.marginLeft = orientedMarginLeft;
+  deferredImageGrayscalePass_.marginTop = orientedMarginTop;
+  deferredImageGrayscalePass_.earliestRunMs = millis() + kDeferredImageGrayscaleDelayMs;
+}
+
+bool EpubActivity::runDeferredImageGrayscalePass() {
+  if (!deferredImageGrayscalePass_.pending || !section || !epub || menuDrawerVisible || settingsDrawerVisible ||
+      annUi_.isActive()) {
+    return false;
+  }
+  if (millis() < deferredImageGrayscalePass_.earliestRunMs) {
+    return false;
+  }
+  if (deferredImageGrayscalePass_.spineIndex != currentSpineIndex ||
+      deferredImageGrayscalePass_.pageNumber != section->currentPage || SETTINGS.readerImageGrayscale == 0) {
+    cancelDeferredImageGrayscalePass();
+    return false;
+  }
+
+  auto page = section->loadPageFromSectionFile();
+  if (!page || !page->hasImages()) {
+    cancelDeferredImageGrayscalePass();
+    return false;
+  }
+
+  const bool storedBwBuffer = renderer.storeBwBuffer();
+  renderer.clearScreen(0x00);
+  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+  page->renderImages(renderer, deferredImageGrayscalePass_.fontId, deferredImageGrayscalePass_.marginLeft,
+                     deferredImageGrayscalePass_.marginTop, ImageRenderMode::TwoBit);
+  renderer.copyGrayscaleLsbBuffers();
+
+  renderer.clearScreen(0x00);
+  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+  page->renderImages(renderer, deferredImageGrayscalePass_.fontId, deferredImageGrayscalePass_.marginLeft,
+                     deferredImageGrayscalePass_.marginTop, ImageRenderMode::TwoBit);
+  renderer.copyGrayscaleMsbBuffers();
+
+  renderer.displayGrayBuffer();
+  renderer.setRenderMode(GfxRenderer::BW);
+  if (storedBwBuffer) {
+    renderer.restoreBwBuffer();
+  } else {
+    renderer.cleanupGrayscaleWithFrameBuffer();
+  }
+
+  cancelDeferredImageGrayscalePass();
+  return true;
 }
 
 void EpubActivity::readerPopup(const char* message) {
@@ -659,6 +709,7 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
+  cancelDeferredImageGrayscalePass();
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;
@@ -950,6 +1001,10 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (runDeferredImageGrayscalePass()) {
+    return;
+  }
+
 }
 
 /**
@@ -957,6 +1012,7 @@ void EpubActivity::loop() {
  * @param spineIndex The spine index to navigate to
  */
 void EpubActivity::onTocChapterSelected(int spineIndex) {
+  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   currentSpineIndex = spineIndex;
   nextPageNumber = 0;
@@ -967,12 +1023,14 @@ void EpubActivity::onTocChapterSelected(int spineIndex) {
 }
 
 void EpubActivity::onBookmarkDrawerSelected(int storageIndex) {
+  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   goToBookmark(storageIndex);
   startPageTimer();
 }
 
 void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
+  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   const int spine = storageIndex / kAnnotationNavPack;
   const int page = storageIndex % kAnnotationNavPack;
@@ -1041,6 +1099,7 @@ void EpubActivity::onFootnoteDrawerSelected(int storageIndex) {
  * @brief Toggles the menu drawer visibility
  */
 void EpubActivity::toggleMenuDrawer() {
+  cancelDeferredImageGrayscalePass();
   if (!menuDrawer) {
     menuDrawer = new MenuDrawer(
         renderer,
@@ -1214,6 +1273,7 @@ void EpubActivity::toggleMenuDrawer() {
  * @brief Toggles the settings drawer visibility
  */
 void EpubActivity::toggleSettingsDrawer() {
+  cancelDeferredImageGrayscalePass();
   if (!settingsDrawer) {
     settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
     settingsDrawer->setMappedInputForHints(&mappedInput);
@@ -1543,6 +1603,7 @@ void EpubActivity::jumpToPercent(int percent) {
  * @param forward True for forward page turn, false for backward
  */
 void EpubActivity::pageTurn(bool forward) {
+  cancelDeferredImageGrayscalePass();
   if (!epub) {
     updateRequired = true;
     return;
@@ -1838,28 +1899,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   };
 
   auto runImageGrayscalePass = [&]() {
-    if (!needsImageGrayscale) {
+    if (!needsImageGrayscale || annUi_.isActive()) {
+      cancelDeferredImageGrayscalePass();
       return;
     }
-    const bool storedBwBuffer = renderer.storeBwBuffer();
-
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.copyGrayscaleLsbBuffers();
-
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.copyGrayscaleMsbBuffers();
-
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
-    if (storedBwBuffer) {
-      renderer.restoreBwBuffer();
-    } else {
-      renderer.cleanupGrayscaleWithFrameBuffer();
-    }
+    scheduleDeferredImageGrayscalePass(fontId, orientedMarginLeft, orientedMarginTop);
   };
 
   if (pagesUntilFullRefresh <= 1) {

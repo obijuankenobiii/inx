@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <iterator>
 
 #include "state/SystemSetting.h"
@@ -23,24 +22,6 @@ namespace {
 // Preview image occupies 70% of the screen, centered, like a single-item carousel.
 constexpr int PREVIEW_PERCENT = 70;
 
-void truncateLabelToWidth(const GfxRenderer& renderer, int fontId, int maxWidth, const char* text, char* out,
-                          size_t outSize) {
-  if (outSize == 0) {
-    return;
-  }
-  strncpy(out, text, outSize - 1);
-  out[outSize - 1] = '\0';
-  if (renderer.text.getWidth(fontId, out) <= maxWidth) {
-    return;
-  }
-  const char* ell = "...";
-  const int ellW = renderer.text.getWidth(fontId, ell);
-  size_t n = strlen(out);
-  while (n > 0 && renderer.text.getWidth(fontId, out) + ellW > maxWidth) {
-    out[--n] = '\0';
-  }
-  strncat(out, ell, outSize - strlen(out) - 1);
-}
 }  
 
 void SleepImagePickerActivity::taskTrampoline(void* param) {
@@ -54,6 +35,7 @@ void SleepImagePickerActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
   rebuildRows();
 
+  randomEnabled = SETTINGS.sleepCustomBmp[0] == '\0';
   selectedIndex = 0;
   for (size_t i = 0; i < rows.size(); i++) {
     if (rows[i].value == SETTINGS.sleepCustomBmp) {
@@ -69,7 +51,6 @@ void SleepImagePickerActivity::onEnter() {
 
 void SleepImagePickerActivity::rebuildRows() {
   rows.clear();
-  rows.push_back({"Random (each sleep)", "", ""});
 
   std::vector<Row> folderImages;
   auto dir = SdMan.open("/sleep");
@@ -133,12 +114,8 @@ void SleepImagePickerActivity::render() {
 
   renderer.clearScreen();
 
-  if (rows.empty()) {
-    renderer.displayBuffer();
-    return;
-  }
-
-  const auto& row = rows[static_cast<size_t>(selectedIndex)];
+  const bool hasImages = !rows.empty();
+  const Row* row = hasImages ? &rows[static_cast<size_t>(selectedIndex)] : nullptr;
 
   // Centered preview occupying PREVIEW_PERCENT of the screen.
   const int previewW = pageWidth * PREVIEW_PERCENT / 100;
@@ -147,45 +124,61 @@ void SleepImagePickerActivity::render() {
   const int previewY = (pageHeight - previewH) / 2;
 
   bool rendered = false;
-  if (!row.previewPath.empty()) {
+  if (row != nullptr && !row->previewPath.empty()) {
     ImageRender::Options options;
     options.mode = ImageRenderMode::OneBit;
     options.cropToFill = true;
     options.useDisplayCache = true;
     rendered =
-        ImageRender::create(renderer, row.previewPath).render(previewX, previewY, previewW, previewH, options);
+        ImageRender::create(renderer, row->previewPath).render(previewX, previewY, previewW, previewH, options);
   }
 
   if (rendered) {
     renderer.rectangle.render(previewX - 1, previewY - 1, previewW + 2, previewH + 2, true);
   } else {
-    // "Random" entry or an image that failed to load: show a framed placeholder message.
     renderer.rectangle.render(previewX, previewY, previewW, previewH, true);
-    const char* msg = row.value.empty() ? "Random each sleep" : "No preview";
+    const char* msg = hasImages ? "No preview" : "No sleep images";
     const int msgFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
     const int msgW = renderer.text.getWidth(msgFont, msg);
     renderer.text.render(msgFont, previewX + (previewW - msgW) / 2,
                          previewY + (previewH - renderer.text.getLineHeight(msgFont)) / 2, msg, true);
   }
 
-  // Top bar: image name (left) and position counter (right), matching the clock picker.
   renderer.rectangle.fill(0, 0, pageWidth, 24, false);
-  char label[128];
-  truncateLabelToWidth(renderer, ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageWidth - 70, row.label.c_str(), label,
-                       sizeof(label));
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 8, 6, label, true, EpdFontFamily::BOLD);
-  char countText[8];
-  std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, static_cast<int>(rows.size()));
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
-                       pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8, 6,
-                       countText, true);
+  if (hasImages) {
+    char countText[8];
+    std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, static_cast<int>(rows.size()));
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
+                         pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8,
+                         6, countText, true);
+  }
 
-  const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "Prev", "Next");
+  const int buttonW = 178;
+  const int buttonH = 28;
+  const int buttonX = (pageWidth - buttonW) / 2;
+  const int buttonY = std::min(pageHeight - 52, previewY + previewH + 16);
+  renderer.rectangle.fill(buttonX, buttonY, buttonW, buttonH, false);
+  renderer.rectangle.render(buttonX, buttonY, buttonW, buttonH, true);
+  const char* buttonText = randomEnabled ? "Random: On" : "Random: Off";
+  const int buttonTextW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, buttonText);
+  const int buttonTextX = buttonX + (buttonW - buttonTextW) / 2;
+  const int buttonTextY =
+      buttonY + (buttonH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, buttonTextX, buttonTextY, buttonText, true,
+                       EpdFontFamily::BOLD);
+
+  const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "Random", "Next");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
 
 void SleepImagePickerActivity::applySelection() {
+  if (randomEnabled) {
+    SETTINGS.setSleepCustomBmpFromInput("");
+    SETTINGS.saveToFile();
+    onBack();
+    return;
+  }
   if (selectedIndex < 0 || selectedIndex >= static_cast<int>(rows.size())) {
     return;
   }
@@ -207,24 +200,28 @@ void SleepImagePickerActivity::loop() {
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    randomEnabled = false;
     applySelection();
     return;
   }
 
-  if (rows.empty()) {
-    return;
-  }
-
-  const int count = static_cast<int>(rows.size());
   bool needRedraw = false;
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-      mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-    selectedIndex = (selectedIndex + count - 1) % count;
+  if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    randomEnabled = !randomEnabled;
+    SETTINGS.setSleepCustomBmpFromInput(randomEnabled ? "" : (rows.empty() ? "" : rows[static_cast<size_t>(selectedIndex)].value.c_str()));
+    SETTINGS.saveToFile();
     needRedraw = true;
-  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-    selectedIndex = (selectedIndex + 1) % count;
+  } else if (!rows.empty() &&
+             (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+              mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+              mappedInput.wasPressed(MappedInputManager::Button::Right))) {
+    const int count = static_cast<int>(rows.size());
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+      selectedIndex = (selectedIndex + count - 1) % count;
+    } else {
+      selectedIndex = (selectedIndex + 1) % count;
+    }
     needRedraw = true;
   }
 
