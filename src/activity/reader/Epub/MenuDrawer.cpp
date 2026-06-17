@@ -286,25 +286,30 @@ void MenuDrawer::drawMenuItems() {
   int startY = drawerY + 65;
 
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(menuItems.size()); i++) {
-    int index = i + scrollOffset;
-    int itemY = startY + (i * itemHeight);
-    const auto& item = menuItems[index];
-    bool isSelected = (index == selectedIndex);
-
-    if (isSelected) {
-      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-
-    int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
-
-    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    drawMenuItemRow(i, i + scrollOffset);
   }
+}
+
+void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
+  if (menuIndex < 0 || menuIndex >= static_cast<int>(menuItems.size())) {
+    return;
+  }
+
+  const int startY = drawerY + 65;
+  const int itemY = startY + (visibleRow * itemHeight);
+  const auto& item = menuItems[static_cast<size_t>(menuIndex)];
+  const bool isSelected = (menuIndex == selectedIndex);
+
+  renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight,
+                          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+
+  const int textX = drawerX + 23;
+  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
 }
 
 /**
@@ -320,6 +325,33 @@ void MenuDrawer::drawScrollIndicator() {
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
   renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+}
+
+void MenuDrawer::clearScrollIndicatorArea() {
+  const int startY = drawerY + 80;
+  const int listHeight = itemsPerPage * itemHeight;
+  renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
+}
+
+void MenuDrawer::refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator) {
+  if (!visible || showingToc || showingBookmarks || showingFootnotes || showingAnnotations) {
+    return;
+  }
+
+  if (previousIndex >= scrollOffset && previousIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(previousIndex - scrollOffset, previousIndex);
+  }
+
+  if (selectedIndex >= scrollOffset && selectedIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(selectedIndex - scrollOffset, selectedIndex);
+  }
+
+  if (redrawScrollIndicator) {
+    clearScrollIndicatorArea();
+    drawScrollIndicator();
+  }
+
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
 /**
@@ -1037,21 +1069,35 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
   }
 
   if (readDrawerListPrev(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex > 0) {
       selectedIndex--;
-      if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
+      const bool scrolled = selectedIndex < scrollOffset;
+      if (scrolled) {
+        scrollOffset = selectedIndex;
+      }
       lastInputTime = currentTime;
-      renderWithRefresh();
+      if (scrolled) {
+        renderWithRefresh();
+      } else {
+        refreshMainMenuSelection(previousIndex, false);
+      }
     }
   } else if (readDrawerListNext(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+      const bool scrolled = selectedIndex > scrollOffset + itemsPerPage - 1;
+      if (scrolled) {
         scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
       }
       lastInputTime = currentTime;
-      renderWithRefresh();
+      if (scrolled) {
+        renderWithRefresh();
+      } else {
+        refreshMainMenuSelection(previousIndex, false);
+      }
     }
   }
 }

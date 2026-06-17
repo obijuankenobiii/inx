@@ -594,7 +594,7 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
     }
   }
-  renderer.displayBuffer();
+  renderer.displayBuffer(mode);
 }
 
 /**
@@ -622,105 +622,107 @@ void SettingsDrawer::drawMenuItems() {
   int startY = drawerY + 65;
 
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(menuItems.size()); i++) {
-    int index = i + scrollOffset;
-    int itemY = startY + (i * itemHeight);
-    const auto& entry = menuItems[index];
-    bool isSelected = (index == selectedIndex);
+    drawMenuItemRow(i, i + scrollOffset);
+  }
+}
 
-    if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
-      if (isSelected) {
-        renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
-      }
+void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
+  if (menuIndex < 0 || menuIndex >= static_cast<int>(menuItems.size())) {
+    return;
+  }
 
-      int textX = drawerX + 15;
-      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+  const int startY = drawerY + 65;
+  const int itemY = startY + (visibleRow * itemHeight);
+  const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
+  const bool isSelected = (menuIndex == selectedIndex);
 
-      const char* indicator = entry.getValueText(settings);
-      if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
-                          indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
-      }
+  renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight,
+                          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
 
-      renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
-      continue;
-    }
-
-    if (isSelected) {
-      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-
-    int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
+  if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
+    const int textX = drawerX + 15;
+    const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
-    const int valueColumnRight = drawerX + drawerWidth - 24;
-    if (entry.item == MenuItem::FontFamily) {
-      const char* val = entry.getValueText(settings);
-      if (val && val[0] != '\0') {
-        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
-                                                       itemHeight, isSelected, val);
-      }
-    } else if (entry.item == MenuItem::FontSize) {
-      const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
-      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
-                                                         valueAreaLeft, valueColumnRight, itemY, itemHeight,
-                                                         isSelected);
-    } else {
-      bool checkbox = false;
-      bool checked = false;
-      switch (entry.item) {
-        case MenuItem::ExtraParagraphSpacing:
-          checkbox = true;
-          checked = settings.extraParagraphSpacing != 0;
-          break;
-        case MenuItem::ParagraphCssIndent:
-          checkbox = true;
-          checked = settings.paragraphCssIndentEnabled != 0;
-          break;
-        case MenuItem::Hyphenation:
-          checkbox = true;
-          checked = settings.hyphenationEnabled != 0;
-          break;
-        case MenuItem::BionicReading:
-          checkbox = true;
-          checked = settings.bionicReadingEnabled != 0;
-          break;
-        case MenuItem::ReaderImageGrayscale:
-          checkbox = true;
-          checked = SETTINGS.readerImageGrayscale != 0;
-          break;
-        case MenuItem::ReaderSmartImageRefresh:
-          checkbox = true;
-          checked = SETTINGS.readerSmartRefreshOnImages != 0;
-          break;
-        case MenuItem::AntiAliasing:
-          checkbox = true;
-          checked = settings.textAntiAliasing != 0;
-          break;
-        case MenuItem::ChapterSkip:
-          checkbox = false;
-          break;
-        default:
-          break;
-      }
-      if (checkbox) {
-        ReaderFontSettingsDraw::drawToggleCheckbox(renderer, valueColumnRight, itemY, itemHeight, isSelected,
-                                                   checked);
-      } else {
-        const char* val = entry.getValueText(settings);
-        if (val && val[0] != '\0') {
-          int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-          renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
-                            isSelected ? 0 : 1);
-        }
-      }
+    const char* indicator = entry.getValueText(settings);
+    if (indicator && indicator[0] != '\0') {
+      const int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
+                           indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
     renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    return;
   }
+
+  const int textX = drawerX + 23;
+  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+
+  const int valueColumnRight = drawerX + drawerWidth - 24;
+  if (entry.item == MenuItem::FontFamily) {
+    const char* val = entry.getValueText(settings);
+    if (val && val[0] != '\0') {
+      ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
+                                                     itemHeight, isSelected, val);
+    }
+  } else if (entry.item == MenuItem::FontSize) {
+    const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
+    ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
+                                                       valueAreaLeft, valueColumnRight, itemY, itemHeight,
+                                                       isSelected);
+  } else {
+    bool checkbox = false;
+    bool checked = false;
+    switch (entry.item) {
+      case MenuItem::ExtraParagraphSpacing:
+        checkbox = true;
+        checked = settings.extraParagraphSpacing != 0;
+        break;
+      case MenuItem::ParagraphCssIndent:
+        checkbox = true;
+        checked = settings.paragraphCssIndentEnabled != 0;
+        break;
+      case MenuItem::Hyphenation:
+        checkbox = true;
+        checked = settings.hyphenationEnabled != 0;
+        break;
+      case MenuItem::BionicReading:
+        checkbox = true;
+        checked = settings.bionicReadingEnabled != 0;
+        break;
+      case MenuItem::ReaderImageGrayscale:
+        checkbox = true;
+        checked = SETTINGS.readerImageGrayscale != 0;
+        break;
+      case MenuItem::ReaderSmartImageRefresh:
+        checkbox = true;
+        checked = SETTINGS.readerSmartRefreshOnImages != 0;
+        break;
+      case MenuItem::AntiAliasing:
+        checkbox = true;
+        checked = settings.textAntiAliasing != 0;
+        break;
+      case MenuItem::ChapterSkip:
+        checkbox = false;
+        break;
+      default:
+        break;
+    }
+    if (checkbox) {
+      ReaderFontSettingsDraw::drawToggleCheckbox(renderer, valueColumnRight, itemY, itemHeight, isSelected, checked);
+    } else {
+      const char* val = entry.getValueText(settings);
+      if (val && val[0] != '\0') {
+        const int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
+                             isSelected ? 0 : 1);
+      }
+    }
+  }
+
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
 }
 
 /**
@@ -736,6 +738,33 @@ void SettingsDrawer::drawScrollIndicator() {
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
   renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+}
+
+void SettingsDrawer::clearScrollIndicatorArea() {
+  const int startY = drawerY + 80;
+  const int listHeight = itemsPerPage * itemHeight;
+  renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
+}
+
+void SettingsDrawer::refreshSelectionRows(int previousIndex, bool redrawScrollIndicator) {
+  if (!visible) {
+    return;
+  }
+
+  if (previousIndex >= scrollOffset && previousIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(previousIndex - scrollOffset, previousIndex);
+  }
+
+  if (selectedIndex >= scrollOffset && selectedIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(selectedIndex - scrollOffset, selectedIndex);
+  }
+
+  if (redrawScrollIndicator) {
+    clearScrollIndicatorArea();
+    drawScrollIndicator();
+  }
+
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
 /**
@@ -775,21 +804,35 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
   bool needRedraw = false;
 
   if (readSettingsListPrev(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex > 0) {
       selectedIndex--;
-      if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
-      needRedraw = true;
+      const bool scrolled = selectedIndex < scrollOffset;
+      if (scrolled) {
+        scrollOffset = selectedIndex;
+        needRedraw = true;
+      } else {
+        lastInputTime = currentTime;
+        refreshSelectionRows(previousIndex, false);
+        return;
+      }
     }
   }
 
   if (readSettingsListNext(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, static_cast<int>(menuItems.size()) - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+      const bool scrolled = selectedIndex > scrollOffset + itemsPerPage - 1;
+      if (scrolled) {
         scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
+        needRedraw = true;
+      } else {
+        lastInputTime = currentTime;
+        refreshSelectionRows(previousIndex, false);
+        return;
       }
-      needRedraw = true;
     }
   }
 

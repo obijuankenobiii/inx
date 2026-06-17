@@ -185,13 +185,19 @@ private:
      * @brief Draws all menu items
      */
     void drawMenuItems();
+
+    void drawMenuItemRow(int visibleRow, int menuIndex);
     
     /**
      * @brief Draws the scroll indicator
      */
     void drawScrollIndicator();
 
+    void clearScrollIndicatorArea();
+
     void syncLayoutFromRenderer();
+
+    void refreshSelectionRows(int previousIndex, bool redrawScrollIndicator);
     
     /**
      * @brief Applies a delta change to the selected menu item

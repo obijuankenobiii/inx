@@ -153,11 +153,15 @@ private:
      * @brief Draws all menu items
      */
     void drawMenuItems();
+
+    void drawMenuItemRow(int visibleRow, int menuIndex);
     
     /**
      * @brief Draws scroll indicator when needed
      */
     void drawScrollIndicator();
+
+    void clearScrollIndicatorArea();
     
     /**
      * @brief Renders the Table of Contents view as a drawer
@@ -169,6 +173,8 @@ private:
     void renderFootnotes();
 
     void renderAnnotations();
+
+    void refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator);
 
     /**
      * @brief Draws the TOC background with drawer effect

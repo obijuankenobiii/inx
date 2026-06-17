@@ -1206,8 +1206,8 @@ void EpubActivity::toggleMenuDrawer() {
     menuDrawer->show();
   } else {
     menuDrawer->hide();
+    updateRequired = true;
   }
-  updateRequired = true;
 }
 
 /**
@@ -1225,7 +1225,6 @@ void EpubActivity::toggleSettingsDrawer() {
     syncOrientationFromGlobalIfNeeded();
     
     settingsDrawer->show();
-    updateRequired = true;
     return;
   }
 
