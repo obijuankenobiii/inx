@@ -150,7 +150,8 @@ void SleepImagePickerActivity::render() {
   if (!row.previewPath.empty()) {
     ImageRender::Options options;
     options.mode = ImageRenderMode::OneBit;
-    options.useDisplayCache = false;
+    options.cropToFill = true;
+    options.useDisplayCache = true;
     rendered =
         ImageRender::create(renderer, row.previewPath).render(previewX, previewY, previewW, previewH, options);
   }
