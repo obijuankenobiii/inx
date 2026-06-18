@@ -20,6 +20,7 @@ enum PageElementTag : uint8_t {
   TAG_PageHeader = 2,
   TAG_PageImage = 3,
   TAG_PageDropCap = 4, 
+  TAG_PageTable = 5,
 };
 
 /**
@@ -155,6 +156,42 @@ class PageImage final : public PageElement {
   const std::string& getPath() const { return cachePath; }
   int16_t getWidth() const { return width; }
   int16_t getHeight() const { return height; }
+};
+
+class PageTable final : public PageElement {
+ public:
+  struct Cell {
+    bool header = false;
+    std::vector<std::string> lines;
+  };
+
+ private:
+  int16_t tableWidth;
+  int16_t tableHeight;
+  bool showBorders;
+  std::vector<uint16_t> columnWidths;
+  std::vector<uint16_t> rowHeights;
+  std::vector<std::vector<Cell>> rows;
+
+ public:
+  PageTable(std::vector<std::vector<Cell>> rows, std::vector<uint16_t> columnWidths, std::vector<uint16_t> rowHeights,
+            const bool showBorders, const int16_t tableWidth, const int16_t tableHeight, const int16_t xPos,
+            const int16_t yPos)
+      : PageElement(xPos, yPos),
+        tableWidth(tableWidth),
+        tableHeight(tableHeight),
+        showBorders(showBorders),
+        columnWidths(std::move(columnWidths)),
+        rowHeights(std::move(rowHeights)),
+        rows(std::move(rows)) {}
+
+  PageElementTag getTag() const override { return TAG_PageTable; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageTable> deserialize(FsFile& file);
+
+  int16_t getHeight() const { return tableHeight; }
 };
 
 /**

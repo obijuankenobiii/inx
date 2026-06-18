@@ -10,6 +10,7 @@
 #include <climits>
 #include <functional>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,20 @@ class ChapterHtmlSlimParser {
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;
 
+  struct TableCellCapture {
+    bool header = false;
+    std::string text;
+  };
+  bool inTable_ = false;
+  bool tableShowBorders_ = false;
+  int tableDepth_ = INT_MAX;
+  int tableRowDepth_ = INT_MAX;
+  int tableCellDepth_ = INT_MAX;
+  bool tableLastWasSpace_ = true;
+  std::vector<std::vector<TableCellCapture>> tableRows_;
+  std::vector<TableCellCapture> currentTableRow_;
+  std::unique_ptr<TableCellCapture> currentTableCell_;
+
   void resetStructuralStateForParsePass();
 
   void prefetchImageFromImgAttributes(const XML_Char** atts);
@@ -104,6 +119,10 @@ class ChapterHtmlSlimParser {
    */
   void startNewTextBlock(TextBlock::Style style);
   void applyVerticalSpacing(int px);
+  void flushCurrentTableCell();
+  void flushCurrentTableRow();
+  void appendTableText(const XML_Char* s, int len);
+  void addTableToPage();
 
   /**
    * Flushes the accumulated word buffer.

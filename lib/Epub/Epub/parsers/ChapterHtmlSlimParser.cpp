@@ -213,6 +213,18 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
   return false;
 }
 
+std::string trimAsciiWs(const std::string& in) {
+  size_t start = 0;
+  while (start < in.size() && std::isspace(static_cast<unsigned char>(in[start]))) {
+    ++start;
+  }
+  size_t end = in.size();
+  while (end > start && std::isspace(static_cast<unsigned char>(in[end - 1]))) {
+    --end;
+  }
+  return in.substr(start, end - start);
+}
+
 /**
  * Loads all CSS rules from the EPUB cache using CssParser
  */
@@ -233,6 +245,15 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   cssAlignmentStack.clear();
   currentBlockBottomSpacingPx = 0;
   currentBlockSpacingFromCss = false;
+  inTable_ = false;
+  tableShowBorders_ = false;
+  tableDepth_ = INT_MAX;
+  tableRowDepth_ = INT_MAX;
+  tableCellDepth_ = INT_MAX;
+  tableLastWasSpace_ = true;
+  tableRows_.clear();
+  currentTableRow_.clear();
+  currentTableCell_.reset();
 }
 
 void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
@@ -623,6 +644,185 @@ void ChapterHtmlSlimParser::applyVerticalSpacing(const int px) {
   currentPageNextY += px;
 }
 
+void ChapterHtmlSlimParser::flushCurrentTableCell() {
+  if (!currentTableCell_) {
+    return;
+  }
+  currentTableCell_->text = trimAsciiWs(currentTableCell_->text);
+  currentTableRow_.push_back(std::move(*currentTableCell_));
+  currentTableCell_.reset();
+  tableLastWasSpace_ = true;
+}
+
+void ChapterHtmlSlimParser::flushCurrentTableRow() {
+  flushCurrentTableCell();
+  if (!currentTableRow_.empty()) {
+    tableRows_.push_back(std::move(currentTableRow_));
+    currentTableRow_.clear();
+  }
+}
+
+void ChapterHtmlSlimParser::appendTableText(const XML_Char* s, const int len) {
+  if (!currentTableCell_ || s == nullptr || len <= 0) {
+    return;
+  }
+  for (int i = 0; i < len; ++i) {
+    const unsigned char ch = static_cast<unsigned char>(s[i]);
+    if (std::isspace(ch)) {
+      if (!tableLastWasSpace_ && !currentTableCell_->text.empty()) {
+        currentTableCell_->text.push_back(' ');
+      }
+      tableLastWasSpace_ = true;
+      continue;
+    }
+    currentTableCell_->text.push_back(static_cast<char>(ch));
+    tableLastWasSpace_ = false;
+  }
+}
+
+void ChapterHtmlSlimParser::addTableToPage() {
+  flushCurrentTableRow();
+  if (tableRows_.empty()) {
+    return;
+  }
+
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  size_t columnCount = 0;
+  for (const auto& row : tableRows_) {
+    columnCount = std::max(columnCount, row.size());
+  }
+  if (columnCount == 0) {
+    tableRows_.clear();
+    return;
+  }
+
+  constexpr int kCellPadX = 4;
+  constexpr int kCellPadY = 3;
+  const int lineHeight = renderer.text.getLineHeight(fontId);
+  const int tableWidth = viewportWidth;
+  std::vector<uint16_t> columnWidths(columnCount, static_cast<uint16_t>(std::max<int>(24, tableWidth / columnCount)));
+  int assignedWidth = 0;
+  for (size_t i = 0; i < columnWidths.size(); ++i) {
+    if (i + 1 == columnWidths.size()) {
+      columnWidths[i] = static_cast<uint16_t>(std::max(1, tableWidth - assignedWidth));
+    }
+    assignedWidth += columnWidths[i];
+  }
+
+  auto wrapCell = [&](const TableCellCapture& cell, const int colWidth) {
+    std::vector<std::string> lines;
+    const int maxTextWidth = std::max(8, colWidth - 2 * kCellPadX);
+    const auto style = cell.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    const std::string text = cell.text.empty() ? " " : cell.text;
+    std::string current;
+    size_t pos = 0;
+    while (pos < text.size()) {
+      while (pos < text.size() && text[pos] == ' ') {
+        ++pos;
+      }
+      if (pos >= text.size()) {
+        break;
+      }
+      const size_t next = text.find(' ', pos);
+      const std::string word = text.substr(pos, next == std::string::npos ? std::string::npos : next - pos);
+      const std::string candidate = current.empty() ? word : current + " " + word;
+      if (!current.empty() && renderer.text.getWidth(fontId, candidate.c_str(), style) > maxTextWidth) {
+        lines.push_back(current);
+        current = word;
+      } else if (current.empty() && renderer.text.getWidth(fontId, word.c_str(), style) > maxTextWidth) {
+        std::string chunk;
+        for (const char c : word) {
+          std::string tryChunk = chunk;
+          tryChunk.push_back(c);
+          if (!chunk.empty() && renderer.text.getWidth(fontId, tryChunk.c_str(), style) > maxTextWidth) {
+            lines.push_back(chunk);
+            chunk.assign(1, c);
+          } else {
+            chunk = tryChunk;
+          }
+        }
+        current = chunk;
+      } else {
+        current = candidate;
+      }
+      pos = (next == std::string::npos) ? text.size() : next + 1;
+    }
+    if (!current.empty()) {
+      lines.push_back(current);
+    }
+    if (lines.empty()) {
+      lines.push_back(" ");
+    }
+    return lines;
+  };
+
+  std::vector<std::vector<PageTable::Cell>> pageRows;
+  std::vector<uint16_t> pageRowHeights;
+  int pageTableHeight = 1;
+
+  auto emitCurrentPageTable = [&]() {
+    if (pageRows.empty()) {
+      return;
+    }
+    if (!currentPage) {
+      currentPage.reset(new Page());
+    }
+    if (currentPageNextY + pageTableHeight > viewportHeight && currentPage && !currentPage->elements.empty()) {
+      completePageFn(std::move(currentPage));
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+    currentPage->elements.push_back(std::make_shared<PageTable>(std::move(pageRows), columnWidths, pageRowHeights,
+                                                                tableShowBorders_, static_cast<int16_t>(tableWidth),
+                                                                static_cast<int16_t>(pageTableHeight), 0,
+                                                                currentPageNextY));
+    currentPageNextY += pageTableHeight + lineHeight / 2;
+    pageRows.clear();
+    pageRowHeights.clear();
+    pageTableHeight = 1;
+  };
+
+  for (const auto& row : tableRows_) {
+    std::vector<PageTable::Cell> renderedRow;
+    renderedRow.reserve(columnCount);
+    int rowHeight = lineHeight + 2 * kCellPadY;
+    for (size_t col = 0; col < columnCount; ++col) {
+      TableCellCapture source;
+      if (col < row.size()) {
+        source = row[col];
+      }
+      PageTable::Cell cell;
+      cell.header = source.header;
+      cell.lines = wrapCell(source, columnWidths[col]);
+      rowHeight = std::max(rowHeight, static_cast<int>(cell.lines.size()) * lineHeight + 2 * kCellPadY);
+      renderedRow.push_back(std::move(cell));
+    }
+
+    const int projectedHeight = pageTableHeight + rowHeight + (pageRows.empty() ? 0 : 1);
+    if (!pageRows.empty() && currentPageNextY + projectedHeight > viewportHeight) {
+      emitCurrentPageTable();
+      if (currentPage && !currentPage->elements.empty()) {
+        completePageFn(std::move(currentPage));
+      }
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+
+    pageTableHeight += rowHeight + (pageRows.empty() ? 0 : 1);
+    pageRows.push_back(std::move(renderedRow));
+    pageRowHeights.push_back(static_cast<uint16_t>(rowHeight));
+  }
+
+  emitCurrentPageTable();
+  tableRows_.clear();
+  currentTableRow_.clear();
+  currentTableCell_.reset();
+  tableShowBorders_ = false;
+}
+
 /**
  * Creates a new text block with the specified style.
  * If there is an existing non-empty text block, it is first converted to pages.
@@ -724,6 +924,63 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
+  if (strcmp(name, "table") == 0) {
+    self->flushPartWordBuffer();
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
+    self->inTable_ = true;
+    self->tableDepth_ = self->depth;
+    self->tableRowDepth_ = INT_MAX;
+    self->tableCellDepth_ = INT_MAX;
+    self->tableLastWasSpace_ = true;
+    self->tableShowBorders_ = self->cssParser.hasBorderSpecified("table", classAttr, idAttr, styleAttr);
+    if (atts != nullptr) {
+      for (int i = 0; atts[i]; i += 2) {
+        if (strcmp(atts[i], "border") == 0 && atts[i + 1] != nullptr && atts[i + 1][0] != '\0' &&
+            strcmp(atts[i + 1], "0") != 0) {
+          self->tableShowBorders_ = true;
+        }
+      }
+    }
+    self->tableRows_.clear();
+    self->currentTableRow_.clear();
+    self->currentTableCell_.reset();
+    self->depth += 1;
+    return;
+  }
+
+  if (self->inTable_) {
+    if (strcmp(name, "tr") == 0) {
+      self->flushCurrentTableRow();
+      self->tableRowDepth_ = self->depth;
+    } else if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      self->flushCurrentTableCell();
+      self->currentTableCell_.reset(new TableCellCapture());
+      self->currentTableCell_->header = (strcmp(name, "th") == 0);
+      if (self->cssParser.hasBorderSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+        self->tableShowBorders_ = true;
+      }
+      if (atts != nullptr) {
+        for (int i = 0; atts[i]; i += 2) {
+          if (strcmp(atts[i], "border") == 0 && atts[i + 1] != nullptr && atts[i + 1][0] != '\0' &&
+              strcmp(atts[i + 1], "0") != 0) {
+            self->tableShowBorders_ = true;
+          }
+        }
+      }
+      self->tableCellDepth_ = self->depth;
+      self->tableLastWasSpace_ = true;
+    } else if (strcmp(name, "br") == 0 && self->currentTableCell_) {
+      if (!self->currentTableCell_->text.empty() && self->currentTableCell_->text.back() != ' ') {
+        self->currentTableCell_->text.push_back(' ');
+      }
+      self->tableLastWasSpace_ = true;
+    }
+    self->depth += 1;
+    return;
+  }
+
   if (atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr)) {
     self->flushPartWordBuffer();
     self->inDropCap = true;
@@ -756,10 +1013,6 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inHeader = true;
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
-    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
-      self->currentTextBlock->addWord("\xe2\x80\x83\xe2\x80\x83", EpdFontFamily::REGULAR);
-    }
-
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
@@ -832,6 +1085,10 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   if (self->imagePrefetchPassOnly_) {
     return;
   }
+  if (self->inTable_) {
+    self->appendTableText(s, len);
+    return;
+  }
   if (self->skipUntilDepth < self->depth) return;
 
   for (int i = 0; i < len; i++) {
@@ -884,6 +1141,25 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     self->depth -= 1;
     if (self->skipUntilDepth == self->depth) {
       self->skipUntilDepth = INT_MAX;
+    }
+    return;
+  }
+
+  if (self->inTable_) {
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      self->flushCurrentTableCell();
+      self->tableCellDepth_ = INT_MAX;
+    } else if (strcmp(name, "tr") == 0) {
+      self->flushCurrentTableRow();
+      self->tableRowDepth_ = INT_MAX;
+    }
+    self->depth -= 1;
+    if (strcmp(name, "table") == 0 && self->tableDepth_ == self->depth) {
+      self->inTable_ = false;
+      self->tableDepth_ = INT_MAX;
+      self->tableRowDepth_ = INT_MAX;
+      self->tableCellDepth_ = INT_MAX;
+      self->addTableToPage();
     }
     return;
   }

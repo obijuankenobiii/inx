@@ -297,6 +297,16 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
     return lineBreakIndices;
   }
 
+  /**
+   * CSS first-line indent now routes through the same left-indent fields as drop caps.
+   * Running the drop-indent DP for every ordinary indented paragraph is expensive and
+   * can fragment / exhaust heap on real books. For one-line indents, greedy layout is
+   * plenty stable and avoids the quadratic allocation entirely.
+   */
+  if (dropIndentLines <= 1) {
+    return computeGreedyLineBreaksWithDropIndent(pageWidth, spaceWidth, wordWidths, dropIndentW, dropIndentLines);
+  }
+
   /** Drop-indent optimal DP is (n+1)*(n+2) cells * ~12 B — fails on long blocks (bad_alloc / abort). */
   constexpr size_t kMaxDropIndentDpCells = 4800;
   const size_t gridCells = static_cast<size_t>(n + 1) * static_cast<size_t>(n + 2);

@@ -79,6 +79,8 @@ class CssParser {
                                   int viewportHeight) const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
+  bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                          const std::string& styleAttr) const;
 
   size_t getRuleCount() const { return rules.size(); }
 

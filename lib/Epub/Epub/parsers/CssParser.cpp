@@ -278,7 +278,9 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
                                       "max-inline-size","min-inline-size","max-block-size", "min-block-size",
                                       "text-align",     "text-indent",    "font-weight",    "font-style",
                                       "margin-top",     "margin-bottom",  "margin",         "padding-top",
-                                      "padding-bottom", "padding"};
+                                      "padding-bottom", "padding",        "border",         "border-top",
+                                      "border-right",   "border-bottom",  "border-left",    "border-width",
+                                      "border-style"};
     bool wanted = false;
     for (const char* p : kDimProps) {
       if (propName == p) {
@@ -1003,6 +1005,17 @@ bool CssParser::hasParagraphSpacingSpecified(const std::string& elementTagLower,
          hasPropertySpecified("padding-top", className, id, styleAttr) ||
          hasPropertySpecified("padding-bottom", className, id, styleAttr) ||
          hasPropertySpecified("padding", className, id, styleAttr);
+}
+
+bool CssParser::hasBorderSpecified(const std::string& elementTagLower, const std::string& className,
+                                   const std::string& id, const std::string& styleAttr) const {
+  return hasPropertySpecified("border", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-top", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-right", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-bottom", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-left", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-width", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("border-style", className, id, styleAttr, elementTagLower);
 }
 
 std::string CssParser::trim(const std::string& str) const {
