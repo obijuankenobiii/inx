@@ -24,15 +24,8 @@ constexpr int PREVIEW_PERCENT = 70;
 
 }  
 
-void SleepImagePickerActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<SleepImagePickerActivity*>(param);
-  self->displayTaskLoop();
-}
-
 void SleepImagePickerActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
-
-  renderingMutex = xSemaphoreCreateMutex();
   rebuildRows();
 
   randomEnabled = SETTINGS.sleepCustomBmp[0] == '\0';
@@ -44,9 +37,7 @@ void SleepImagePickerActivity::onEnter() {
     }
   }
 
-  updateRequired = true;
-
-  xTaskCreate(&SleepImagePickerActivity::taskTrampoline, "SleepImagePickerTask", 4096, this, 1, &displayTaskHandle);
+  requestRedraw();
 }
 
 void SleepImagePickerActivity::rebuildRows() {
@@ -86,36 +77,26 @@ void SleepImagePickerActivity::rebuildRows() {
 
 void SleepImagePickerActivity::onExit() {
   ActivityWithSubactivity::onExit();
-
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
-}
-
-void SleepImagePickerActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired && !subActivity) {
-      updateRequired = false;
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-      render();
-      xSemaphoreGive(renderingMutex);
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
 }
 
 void SleepImagePickerActivity::render() {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
 
+  const int rowCount = static_cast<int>(rows.size());
+  int localSelectedIndex = selectedIndex;
+  if (localSelectedIndex < 0) {
+    localSelectedIndex = 0;
+  }
+  if (rowCount > 0 && localSelectedIndex >= rowCount) {
+    localSelectedIndex = rowCount - 1;
+  }
+  const bool localRandomEnabled = randomEnabled;
+
   renderer.clearScreen();
 
-  const bool hasImages = !rows.empty();
-  const Row* row = hasImages ? &rows[static_cast<size_t>(selectedIndex)] : nullptr;
+  const bool hasImages = rowCount > 0;
+  const Row* row = hasImages ? &rows[static_cast<size_t>(localSelectedIndex)] : nullptr;
 
   // Centered preview occupying PREVIEW_PERCENT of the screen.
   const int previewW = pageWidth * PREVIEW_PERCENT / 100;
@@ -147,7 +128,7 @@ void SleepImagePickerActivity::render() {
   renderer.rectangle.fill(0, 0, pageWidth, 24, false);
   if (hasImages) {
     char countText[8];
-    std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, static_cast<int>(rows.size()));
+    std::snprintf(countText, sizeof(countText), "%d/%d", localSelectedIndex + 1, rowCount);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
                          pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8,
                          6, countText, true);
@@ -159,7 +140,7 @@ void SleepImagePickerActivity::render() {
   const int buttonY = std::min(pageHeight - 52, previewY + previewH + 16);
   renderer.rectangle.fill(buttonX, buttonY, buttonW, buttonH, false);
   renderer.rectangle.render(buttonX, buttonY, buttonW, buttonH, true);
-  const char* buttonText = randomEnabled ? "Random: On" : "Random: Off";
+  const char* buttonText = localRandomEnabled ? "Random: On" : "Random: Off";
   const int buttonTextW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, buttonText);
   const int buttonTextX = buttonX + (buttonW - buttonTextW) / 2;
   const int buttonTextY =
@@ -188,10 +169,28 @@ void SleepImagePickerActivity::applySelection() {
   onBack();
 }
 
+void SleepImagePickerActivity::requestRedraw() {
+  if (!rows.empty()) {
+    if (selectedIndex < 0) {
+      selectedIndex = 0;
+    } else if (selectedIndex >= static_cast<int>(rows.size())) {
+      selectedIndex = static_cast<int>(rows.size()) - 1;
+    }
+  } else {
+    selectedIndex = 0;
+  }
+  updateRequired = true;
+}
+
 void SleepImagePickerActivity::loop() {
   if (subActivity) {
     subActivity->loop();
     return;
+  }
+
+  if (updateRequired) {
+    updateRequired = false;
+    render();
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
@@ -226,6 +225,6 @@ void SleepImagePickerActivity::loop() {
   }
 
   if (needRedraw) {
-    updateRequired = true;
+    requestRedraw();
   }
 }

@@ -5,10 +5,6 @@
  * @brief Public interface and types for SleepImagePickerActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
 #include <string>
 #include <vector>
@@ -36,8 +32,6 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
     std::string previewPath;
   };
 
-  TaskHandle_t displayTaskHandle = nullptr;
-  SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
 
   std::vector<Row> rows;
@@ -46,9 +40,8 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
 
   const std::function<void()> onBack;
 
-  static void taskTrampoline(void* param);
-  [[noreturn]] void displayTaskLoop();
   void rebuildRows();
   void render();
   void applySelection();
+  void requestRedraw();
 };
