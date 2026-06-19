@@ -243,6 +243,8 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   currentPage.reset();
   currentPageNextY = 0;
   cssAlignmentStack.clear();
+  smallCapsStack.clear();
+  smallCapsDepths.clear();
   currentBlockBottomSpacingPx = 0;
   currentBlockSpacingFromCss = false;
   inTable_ = false;
@@ -625,7 +627,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     fontStyle = EpdFontFamily::ITALIC;
   }
 
-  currentTextBlock->addWord(partWordBuffer, fontStyle);
+  const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
+  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive);
   partWordBufferIndex = 0;
 }
 
@@ -981,6 +984,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
+  const bool inheritedSmallCaps = !self->smallCapsStack.empty() && self->smallCapsStack.back();
+  const bool resolvedSmallCaps =
+      self->cssParser.resolveSmallCaps(tagLower, classAttr, idAttr, styleAttr, inheritedSmallCaps);
+  self->smallCapsStack.push_back(resolvedSmallCaps);
+  self->smallCapsDepths.push_back(self->depth);
+
   if (atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr)) {
     self->flushPartWordBuffer();
     self->inDropCap = true;
@@ -1182,6 +1191,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && !self->cssAlignmentStack.empty()) {
     self->cssAlignmentStack.pop_back();
+  }
+  if (!self->smallCapsDepths.empty() && self->smallCapsDepths.back() == self->depth) {
+    self->smallCapsDepths.pop_back();
+    self->smallCapsStack.pop_back();
   }
 
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
@@ -1413,6 +1426,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
     cssAlignmentStack.push_back(initialBlockStyle);
   }
+  smallCapsStack.push_back(false);
+  smallCapsDepths.push_back(-1);
   startNewTextBlock(initialBlockStyle);
 
   if (!parseHtmlThroughExpat(true)) {

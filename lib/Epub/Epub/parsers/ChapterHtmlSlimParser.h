@@ -88,6 +88,8 @@ class ChapterHtmlSlimParser {
   CssParser cssParser;
   bool cssLoaded;
   std::vector<TextBlock::Style> cssAlignmentStack;
+  std::vector<bool> smallCapsStack;
+  std::vector<int> smallCapsDepths;
   int currentBlockBottomSpacingPx = 0;
   bool currentBlockSpacingFromCss = false;
 

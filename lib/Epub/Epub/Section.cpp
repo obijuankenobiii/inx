@@ -13,7 +13,7 @@
 #include <FsHelpers.h> 
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 13;
+constexpr uint8_t SECTION_FILE_VERSION = 16;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
                                  sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint16_t) + sizeof(uint32_t);
@@ -162,8 +162,9 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
  * @param skipImages If true, skip processing new images and only use existing cached images
  * @return true if section file was successfully created, false otherwise
  */
-bool Section::createSectionFile(const int fontId, const int headerFontId, const int maxFontId, const float lineCompression,
-                                const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
+bool Section::createSectionFile(const int fontId, const int headerFontId, const int maxFontId,
+                                const float lineCompression, const bool extraParagraphSpacing,
+                                const uint8_t paragraphAlignment,
                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
                                 const bool hyphenationEnabled, const bool respectCssParagraphIndent,
                                 const bool bionicReadingEnabled,

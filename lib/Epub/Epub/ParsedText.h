@@ -22,6 +22,7 @@ class ParsedText {
   std::list<std::string> words;
   std::list<EpdFontFamily::Style> wordStyles;
   std::list<uint8_t> bionicPrefixBytes;
+  std::list<uint8_t> wordSmallCaps;
   TextBlock::Style style;
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
@@ -34,7 +35,6 @@ class ParsedText {
   
   uint16_t leftIndentWidth = 0;
   uint16_t leftIndentLineCount = 0;
-
   void applyParagraphIndent(const GfxRenderer& renderer, int fontId);
   std::vector<size_t> computeLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth, int spaceWidth,
                                         std::vector<uint16_t>& wordWidths, int dropIndentW, int dropIndentLines);
@@ -58,7 +58,7 @@ class ParsedText {
         respectParagraphIndent_(respectParagraphIndent) {}
   ~ParsedText() = default;
 
-  void addWord(std::string word, EpdFontFamily::Style fontStyle);
+  void addWord(std::string word, EpdFontFamily::Style fontStyle, bool smallCaps = false);
   void setStyle(const TextBlock::Style style) { this->style = style; }
   void setRespectParagraphIndent(bool v) { respectParagraphIndent_ = v; }
   void resetParagraphLayoutHints() {

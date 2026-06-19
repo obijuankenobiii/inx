@@ -445,16 +445,20 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
   return true;
 }
 
-void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
-                  bool skipImages, const ImageRenderMode imageMode) const {
+void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset,
+                  const int yOffset, bool skipImages, const ImageRenderMode imageMode) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       continue;
     }
 
     uint8_t tag = element->getTag();
-    if (tag == TAG_PageHeader) {
-      element->render(renderer, headerFontId, xOffset, yOffset, imageMode);
+    if (tag == TAG_PageLine) {
+      const auto* line = static_cast<const PageLine*>(element.get());
+      line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
+    } else if (tag == TAG_PageHeader) {
+      const auto* header = static_cast<const PageHeader*>(element.get());
+      header->getTextBlock().render(renderer, headerFontId, header->xPos + xOffset, header->yPos + yOffset);
     } else {
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }

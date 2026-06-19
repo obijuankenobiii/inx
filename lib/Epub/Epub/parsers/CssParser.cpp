@@ -277,6 +277,7 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
                                       "min-width",      "min-height",     "inline-size",    "block-size",
                                       "max-inline-size","min-inline-size","max-block-size", "min-block-size",
                                       "text-align",     "text-indent",    "font-weight",    "font-style",
+                                      "font-variant",   "font-variant-caps",
                                       "margin-top",     "margin-bottom",  "margin",         "padding-top",
                                       "padding-bottom", "padding",        "border",         "border-top",
                                       "border-right",   "border-bottom",  "border-left",    "border-width",
@@ -934,6 +935,49 @@ bool CssParser::resolveFontItalic(const std::string& elementTagLower, const std:
     return mapStyle(sheet, inheritedItalic);
   }
   return inheritedItalic;
+}
+
+bool CssParser::resolveSmallCaps(const std::string& elementTagLower, const std::string& className,
+                                 const std::string& id, const std::string& styleAttr,
+                                 const bool inheritedSmallCaps) const {
+  auto mapVariant = [](std::string raw, const bool inherited) {
+    raw = trimCssWs(raw);
+    std::transform(raw.begin(), raw.end(), raw.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (raw.empty() || raw == "inherit") {
+      return inherited;
+    }
+    if (raw.find("small-caps") != std::string::npos) {
+      return true;
+    }
+    if (raw == "normal" || raw.find("all-normal") != std::string::npos) {
+      return false;
+    }
+    return inherited;
+  };
+
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+
+  const auto inlineCapsIt = inlineMap.find("font-variant-caps");
+  if (inlineCapsIt != inlineMap.end()) {
+    return mapVariant(inlineCapsIt->second, inheritedSmallCaps);
+  }
+  const auto inlineVariantIt = inlineMap.find("font-variant");
+  if (inlineVariantIt != inlineMap.end()) {
+    return mapVariant(inlineVariantIt->second, inheritedSmallCaps);
+  }
+
+  const std::string sheetCaps = getCascadedPropertyValue("font-variant-caps", className, id, styleAttr, elementTagLower);
+  if (!sheetCaps.empty()) {
+    return mapVariant(sheetCaps, inheritedSmallCaps);
+  }
+  const std::string sheetVariant = getCascadedPropertyValue("font-variant", className, id, styleAttr, elementTagLower);
+  if (!sheetVariant.empty()) {
+    return mapVariant(sheetVariant, inheritedSmallCaps);
+  }
+
+  return inheritedSmallCaps;
 }
 
 int CssParser::getTextIndentPx(const std::string& elementTagLower, const std::string& className, const std::string& id,

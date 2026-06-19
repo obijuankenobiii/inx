@@ -62,6 +62,8 @@ class CssParser {
                        const std::string& styleAttr, bool inheritedBold) const;
   bool resolveFontItalic(const std::string& elementTagLower, const std::string& className, const std::string& id,
                          const std::string& styleAttr, bool inheritedItalic) const;
+  bool resolveSmallCaps(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, bool inheritedSmallCaps) const;
 
   /** Resolved first-line text-indent in pixels (>= 0) from inline then stylesheet, including type selectors. */
   int getTextIndentPx(const std::string& elementTagLower, const std::string& className, const std::string& id,

@@ -32,6 +32,7 @@ class TextBlock final : public Block {
   std::list<uint16_t> wordXpos;
   std::list<EpdFontFamily::Style> wordStyles;
   std::list<uint8_t> bionicPrefixBytes;
+  std::list<uint8_t> wordSmallCaps;
   Style style;
 
  public:
@@ -44,17 +45,20 @@ class TextBlock final : public Block {
    * @param style Alignment style for the line
    */
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
-                     std::list<EpdFontFamily::Style> word_styles, const Style style)
+                     std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> word_small_caps,
+                     const Style style)
       : words(std::move(words)), wordXpos(std::move(word_xpos)), 
-        wordStyles(std::move(word_styles)), style(style) {}
+        wordStyles(std::move(word_styles)), wordSmallCaps(std::move(word_small_caps)), style(style) {}
 
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
                      std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> bionic_prefix_bytes,
+                     std::list<uint8_t> word_small_caps,
                      const Style style)
       : words(std::move(words)),
         wordXpos(std::move(word_xpos)),
         wordStyles(std::move(word_styles)),
         bionicPrefixBytes(std::move(bionic_prefix_bytes)),
+        wordSmallCaps(std::move(word_small_caps)),
         style(style) {}
   
   ~TextBlock() override = default;
