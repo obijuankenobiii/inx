@@ -5,6 +5,7 @@
 
 #include "CssParser.h"
 
+#include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 
@@ -137,6 +138,33 @@ bool selectorTargetsPseudoElement(const std::string& selectorLower) {
          selectorLower.find(":first-line") != std::string::npos;
 }
 
+std::string extractCssUrl(const std::string& raw) {
+  std::string lowered = raw;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  const size_t urlPos = lowered.find("url(");
+  if (urlPos == std::string::npos) {
+    return {};
+  }
+  size_t start = urlPos + 4;
+  while (start < raw.size() && std::isspace(static_cast<unsigned char>(raw[start])) != 0) {
+    ++start;
+  }
+  const size_t end = raw.find(')', start);
+  if (end == std::string::npos || end <= start) {
+    return {};
+  }
+  std::string url = trimCssWs(raw.substr(start, end - start));
+  if (url.size() >= 2 && ((url.front() == '"' && url.back() == '"') || (url.front() == '\'' && url.back() == '\''))) {
+    url = url.substr(1, url.size() - 2);
+  }
+  if (url.rfind("blob:", 0) == 0 || url.rfind("data:", 0) == 0 || url.rfind("http:", 0) == 0 ||
+      url.rfind("https:", 0) == 0) {
+    return {};
+  }
+  return url;
+}
+
 }  
 
 CssParser::CssParser() {}
@@ -148,7 +176,7 @@ void CssParser::clear() {
   bodyTextAlignRaw.clear();
 }
 
-void CssParser::parse(const std::string& cssContent) {
+void CssParser::parse(const std::string& cssContent, const std::string& sourcePath) {
   if (cssContent.length() > 50 * 1024) {
     Serial.printf("[CSSP] Skipping large CSS content (%d bytes)\n", (int)cssContent.length());
     return;
@@ -234,6 +262,7 @@ void CssParser::parse(const std::string& cssContent) {
     CssRule rule;
     rule.selector = selector;
     rule.selectorLower = toLower(selector);
+    rule.sourcePath = sourcePath;
 
     parsePropertiesForDimensions(propertiesStr, rule.properties);
 
@@ -281,7 +310,7 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
                                       "margin-top",     "margin-bottom",  "margin",         "padding-top",
                                       "padding-bottom", "padding",        "border",         "border-top",
                                       "border-right",   "border-bottom",  "border-left",    "border-width",
-                                      "border-style"};
+                                      "border-style",   "background",     "background-image"};
     bool wanted = false;
     for (const char* p : kDimProps) {
       if (propName == p) {
@@ -781,6 +810,76 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
   return "";
 }
 
+bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, const std::string& className,
+                                                  const std::string& id, const std::string& styleAttr,
+                                                  const std::string& elementTagLower, std::string* outValue,
+                                                  std::string* outSourcePath) const {
+  if (outValue) *outValue = "";
+  if (outSourcePath) *outSourcePath = "";
+
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+  const auto itIn = inlineMap.find(propName);
+  if (itIn != inlineMap.end()) {
+    if (outValue) *outValue = itIn->second;
+    return true;
+  }
+
+  const CssRule* idRule = nullptr;
+  const CssRule* clsRule = nullptr;
+  const CssRule* typeRule = nullptr;
+
+  std::string idLower = toLower(trim(id));
+  std::vector<std::string> classTokens;
+  splitClassTokens(className, classTokens);
+  for (auto& t : classTokens) {
+    t = toLower(trim(t));
+  }
+
+  for (const auto& rule : rules) {
+    const std::string& selLower = rule.selectorLower;
+    if (selectorTargetsPseudoElement(selLower)) {
+      continue;
+    }
+    const auto pit = rule.properties.find(propName);
+    if (pit == rule.properties.end()) {
+      continue;
+    }
+
+    const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
+    bool classMatch = false;
+    if (!idMatch) {
+      for (const auto& tok : classTokens) {
+        if (!tok.empty() && selectorHasClassToken(selLower, tok)) {
+          classMatch = true;
+          break;
+        }
+      }
+    }
+    const bool tagMatch = !elementTagLower.empty() && selectorListMatchesElementType(selLower, elementTagLower);
+
+    if (idMatch) {
+      idRule = &rule;
+    } else if (classMatch) {
+      clsRule = &rule;
+    } else if (tagMatch) {
+      typeRule = &rule;
+    }
+  }
+
+  const CssRule* winner = idRule ? idRule : (clsRule ? clsRule : typeRule);
+  if (!winner) {
+    return false;
+  }
+  const auto it = winner->properties.find(propName);
+  if (it == winner->properties.end()) {
+    return false;
+  }
+  if (outValue) *outValue = it->second;
+  if (outSourcePath) *outSourcePath = winner->sourcePath;
+  return true;
+}
+
 int CssParser::mapTextAlignToStyleIndex(const std::string& rawValue) const {
   std::string s = trim(rawValue);
   const size_t cut = s.find_first_of(" \t\r\n;");
@@ -1081,6 +1180,47 @@ bool CssParser::hasBorderSpecified(const std::string& elementTagLower, const std
          hasPropertySpecified("border-left", className, id, styleAttr, elementTagLower) ||
          hasPropertySpecified("border-width", className, id, styleAttr, elementTagLower) ||
          hasPropertySpecified("border-style", className, id, styleAttr, elementTagLower);
+}
+
+std::string CssParser::getBackgroundImagePath(const std::string& elementTagLower, const std::string& className,
+                                              const std::string& id, const std::string& styleAttr,
+                                              const std::string& currentFilePath) const {
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+  auto resolveUrl = [&](const std::string& raw, const std::string& sourcePath) -> std::string {
+    const std::string url = extractCssUrl(raw);
+    if (url.empty()) {
+      return {};
+    }
+    const std::string base = sourcePath.empty() ? currentFilePath : sourcePath;
+    return FsHelpers::resolveRelativePath(base, url);
+  };
+
+  const auto inlineBgImage = inlineMap.find("background-image");
+  if (inlineBgImage != inlineMap.end()) {
+    return resolveUrl(inlineBgImage->second, currentFilePath);
+  }
+  const auto inlineBg = inlineMap.find("background");
+  if (inlineBg != inlineMap.end()) {
+    return resolveUrl(inlineBg->second, currentFilePath);
+  }
+
+  std::string raw;
+  std::string sourcePath;
+  if (getCascadedPropertyValueAndSource("background-image", className, id, styleAttr, elementTagLower, &raw,
+                                        &sourcePath)) {
+    const std::string resolved = resolveUrl(raw, sourcePath);
+    if (!resolved.empty()) {
+      return resolved;
+    }
+  }
+  raw.clear();
+  sourcePath.clear();
+  if (getCascadedPropertyValueAndSource("background", className, id, styleAttr, elementTagLower, &raw,
+                                        &sourcePath)) {
+    return resolveUrl(raw, sourcePath);
+  }
+  return {};
 }
 
 std::string CssParser::trim(const std::string& str) const {

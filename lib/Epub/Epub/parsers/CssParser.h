@@ -15,13 +15,14 @@ class CssParser {
     std::string selector;
     /** Lowercase selector; filled at parse time so hot paths do not reallocate/transform on every lookup. */
     std::string selectorLower;
+    std::string sourcePath;
     std::map<std::string, std::string> properties;
   };
 
   CssParser();
   ~CssParser();
 
-  void parse(const std::string& cssContent);
+  void parse(const std::string& cssContent, const std::string& sourcePath = "");
   void parseFile(const std::string& filepath);
   void clear();
 
@@ -85,6 +86,9 @@ class CssParser {
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
                           const std::string& styleAttr) const;
+  std::string getBackgroundImagePath(const std::string& elementTagLower, const std::string& className,
+                                     const std::string& id, const std::string& styleAttr,
+                                     const std::string& currentFilePath) const;
 
   size_t getRuleCount() const { return rules.size(); }
 
@@ -96,6 +100,10 @@ class CssParser {
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
                                        const std::string& id, const std::string& styleAttr,
                                        const std::string& elementTagLower = "") const;
+  bool getCascadedPropertyValueAndSource(const std::string& propName, const std::string& className,
+                                         const std::string& id, const std::string& styleAttr,
+                                         const std::string& elementTagLower, std::string* outValue,
+                                         std::string* outSourcePath) const;
   int mapTextAlignToStyleIndex(const std::string& rawValue) const;
 
   void parsePropertiesForDimensions(const std::string& propertiesStr, std::map<std::string, std::string>& properties) const;

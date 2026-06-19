@@ -376,7 +376,7 @@ void ChapterHtmlSlimParser::loadCssRules() {
       }
 
       totalCssSize += cssEntry.content.size();
-      cssParser.parse(cssEntry.content);
+      cssParser.parse(cssEntry.content, cssEntry.path);
 
       Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(), (int)cssEntry.content.size(),
                     (int)totalCssSize);
@@ -922,6 +922,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   const TextBlock::Style inheritedCssStyle =
       self->cssAlignmentStack.empty() ? TextBlock::LEFT_ALIGN : self->cssAlignmentStack.back();
   TextBlock::Style elementCssStyle = inheritedCssStyle;
+  bool elementHasExplicitTextAlign = false;
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
     elementCssStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
   }
@@ -945,6 +946,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       }
     }
   }
+  elementHasExplicitTextAlign = self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
   if (self->imagePrefetchPassOnly_) {
     if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
       self->prefetchImageFromImgAttributes(atts);
@@ -1037,6 +1039,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     TextBlock::Style blockStyle;
     if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
       blockStyle = elementCssStyle;
+    } else if (elementHasExplicitTextAlign) {
+      blockStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
     } else {
       blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
     }
@@ -1063,7 +1067,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (strcmp(name, "hr") == 0) {
     self->flushPartWordBuffer();
-    self->addHorizontalRule();
+    self->addHorizontalRule(tagLower, classAttr, idAttr, styleAttr);
     self->depth += 1;
     return;
   }
@@ -1096,6 +1100,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       TextBlock::Style blockStyle;
       if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
         blockStyle = elementCssStyle;
+      } else if (elementHasExplicitTextAlign) {
+        blockStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
       } else {
         blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
       }
@@ -1349,27 +1355,43 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
   applyVerticalSpacing(spacer);
 }
 
-void ChapterHtmlSlimParser::addHorizontalRule() {
-  if (currentTextBlock && !currentTextBlock->isEmpty()) {
-    makePages();
+void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const std::string& classAttr,
+                                              const std::string& idAttr, const std::string& styleAttr) {
+  const int spacingTop =
+      cssParser.getParagraphSpacingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int spacingBottom =
+      cssParser.getParagraphSpacingBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  if (spacingTop > 0 && currentPageNextY > 0) {
+    applyVerticalSpacing(spacingTop);
   }
 
-  if (!currentPage) {
-    currentPage.reset(new Page());
-    currentPageNextY = 0;
+  const std::string bgInternalPath = cssParser.getBackgroundImagePath(tagLower, classAttr, idAttr, styleAttr, internalPath);
+  if (!bgInternalPath.empty()) {
+    const std::string cacheImgPath = epub.getCacheImgPath(bgInternalPath);
+    int imgW = 0;
+    int imgH = 0;
+    if (ensureImageCached(bgInternalPath, cacheImgPath, &imgW, &imgH)) {
+      const int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      const int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      if (imgW > 0 && imgH > 0 && (cssWidth > 0 || cssHeight > 0)) {
+        if (cssWidth > 0 && cssHeight > 0) {
+          imgW = cssWidth;
+          imgH = cssHeight;
+        } else if (cssWidth > 0) {
+          imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * cssWidth) / std::max(1, imgW)));
+          imgW = cssWidth;
+        } else if (cssHeight > 0) {
+          imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * cssHeight) / std::max(1, imgH)));
+          imgH = cssHeight;
+        }
+      }
+      addImageToPage(cacheImgPath, imgW, imgH);
+    }
   }
 
-  const int activeFontId = inHeader ? headerFontId : fontId;
-  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
-  const int spacer = std::max(6, lineHeight / 2);
-  applyVerticalSpacing(spacer);
-
-  const int xPos = std::max<int>(0, (static_cast<int>(viewportWidth) - PageHorizontalRule::WIDTH) / 2);
-  currentPage->elements.push_back(
-      std::make_shared<PageHorizontalRule>(static_cast<int16_t>(xPos), currentPageNextY));
-  currentPageNextY += PageHorizontalRule::HEIGHT;
-
-  applyVerticalSpacing(spacer);
+  if (spacingBottom > 0) {
+    applyVerticalSpacing(spacingBottom);
+  }
 }
 
 /**

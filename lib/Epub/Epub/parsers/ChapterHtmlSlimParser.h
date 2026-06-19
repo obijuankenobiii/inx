@@ -146,7 +146,8 @@ class ChapterHtmlSlimParser {
    */
   void addLineToPage(std::shared_ptr<TextBlock> line);
   void addCenteredDivider(const char* text);
-  void addHorizontalRule();
+  void addHorizontalRule(const std::string& tagLower = "hr", const std::string& classAttr = "",
+                         const std::string& idAttr = "", const std::string& styleAttr = "");
 
   /**
    * Adds an image to the current page layout.
