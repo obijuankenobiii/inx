@@ -619,8 +619,6 @@ void SettingsDrawer::drawBackground() {
  * @brief Draws all menu items in the current scroll view
  */
 void SettingsDrawer::drawMenuItems() {
-  int startY = drawerY + 65;
-
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(menuItems.size()); i++) {
     drawMenuItemRow(i, i + scrollOffset);
   }

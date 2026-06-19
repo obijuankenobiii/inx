@@ -115,7 +115,6 @@ bool ZipFile::loadFileStatSlim(const char* filename, FileStatSlim* fileStat) {
 
   
   uint32_t startPos = lastCentralDirPosValid ? lastCentralDirPos : zipDetails.centralDirOffset;
-  uint32_t wrapPos = zipDetails.centralDirOffset;
   bool wrapped = false;
   bool found = false;
 

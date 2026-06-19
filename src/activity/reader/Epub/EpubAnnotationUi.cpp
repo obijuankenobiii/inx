@@ -589,7 +589,6 @@ void EpubAnnotationUi::moveFocusLine(const int delta) {
       return;
     }
     lineIdx--;
-    const size_t start = lineFirst_[lineIdx];
     const size_t end = lineFirst_[lineIdx + 1];
     focus_ = end - 1;
   } else {

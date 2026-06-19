@@ -321,27 +321,6 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
 }
 
 /**
- * Bottom summary block (480×800): donut on the left, caption lines to the right; rule + two metrics below.
- * y = top of that block (caller leaves a small gap from the row above).
- */
-int drawAllItems480x800(const GfxRenderer& renderer, int innerLeft, int innerRight, int y, int yContentEnd,
-                         float finishedRatio01, uint32_t booksFinished, uint32_t booksOpened) {
-  const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
-  drawGlobalAllItemsGaugeRow(renderer, innerLeft, innerRight, y, finishedRatio01, g);
-  constexpr int kRuleGap = 10;
-  const int yRule = y + g.rowH + kRuleGap;
-  return drawGlobalAllItemsSecondBand(renderer, innerLeft, innerRight, yRule, yRule, yContentEnd, booksFinished, booksOpened,
-                                       g);
-}
-
-/** Must match drawAllItems480x800 geometry (global bottom block, single combined call). */
-int measureAllItemsBodyHeight(const GfxRenderer& renderer) {
-  const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
-  constexpr int kRuleGap = 10;
-  return g.rowH + kRuleGap + 1 + g.kMetricsH;
-}
-
-/**
  * Two-column grid with `numRows` rows: value (serif lg) + label (sans sm) per cell.
  * Each column width stops short of the center rule so labels never bleed across.
  * Row 0 is shifted up by `row0LiftPx` only; other rows unchanged. Horizontal rules between rows.

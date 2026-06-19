@@ -58,28 +58,6 @@ uint8_t bionicPrefixLengthBytes(const std::string& word) {
   return static_cast<uint8_t>(std::min<size_t>(offset, 255));
 }
 
-bool isAsciiLower(const uint32_t cp) { return cp >= 'a' && cp <= 'z'; }
-
-uint32_t toAsciiUpper(const uint32_t cp) { return isAsciiLower(cp) ? (cp - ('a' - 'A')) : cp; }
-
-void appendUtf8Codepoint(std::string& out, const uint32_t cp) {
-  if (cp <= 0x7F) {
-    out.push_back(static_cast<char>(cp));
-  } else if (cp <= 0x7FF) {
-    out.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  } else if (cp <= 0xFFFF) {
-    out.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  } else {
-    out.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  }
-}
-
 uint16_t measureSmallCapsWordWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
                                    const EpdFontFamily::Style style) {
   return static_cast<uint16_t>(std::max(0, renderer.text.getSmallCapsWidth(fontId, word.c_str(), style)));

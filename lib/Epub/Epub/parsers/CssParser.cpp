@@ -1443,20 +1443,6 @@ int CssParser::getPaddingBottomPx(const std::string& elementTagLower, const std:
   return getSpacingEdgePx("padding-bottom", "padding", className, id, styleAttr, viewportWidth, viewportHeight);
 }
 
-int CssParser::getPaddingLeftPx(const std::string& elementTagLower, const std::string& className,
-                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                                const int viewportHeight) const {
-  (void)elementTagLower;
-  return getSpacingEdgePx("padding-left", "padding", className, id, styleAttr, viewportWidth, viewportHeight);
-}
-
-int CssParser::getPaddingRightPx(const std::string& elementTagLower, const std::string& className,
-                                 const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                                 const int viewportHeight) const {
-  (void)elementTagLower;
-  return getSpacingEdgePx("padding-right", "padding", className, id, styleAttr, viewportWidth, viewportHeight);
-}
-
 int CssParser::getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                               const std::string& styleAttr, const int viewportWidth,
                               const int viewportHeight) const {

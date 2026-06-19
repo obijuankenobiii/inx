@@ -10,10 +10,7 @@
 
 namespace {
 
-constexpr const char* WEEKDAYS[] = {"", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
 constexpr const char* WEEKDAYS_SHORT[] = {"", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-constexpr const char* MONTHS[] = {"",    "January", "February", "March", "April", "May", "June",
-                                  "July", "August",  "September", "October", "November", "December"};
 constexpr const char* MONTHS_SHORT[] = {"",    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -26,9 +23,7 @@ constexpr int TINY_FONT = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
 constexpr int CLOCK_VISIBLE_HEIGHT = 106;
 constexpr int CLOCK_GLYPH_TOP = 104;
 
-const char* weekdayName(uint8_t weekday) { return weekday >= 1 && weekday <= 7 ? WEEKDAYS[weekday] : ""; }
 const char* weekdayShort(uint8_t weekday) { return weekday >= 1 && weekday <= 7 ? WEEKDAYS_SHORT[weekday] : ""; }
-const char* monthName(uint8_t month) { return month >= 1 && month <= 12 ? MONTHS[month] : ""; }
 const char* monthShort(uint8_t month) { return month >= 1 && month <= 12 ? MONTHS_SHORT[month] : ""; }
 
 int textW(GfxRenderer& renderer, int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
@@ -54,10 +49,6 @@ const char* meridiem(const SleepClockRenderer::DateTimeView& dt) { return dt.hou
 
 void formatTime(const SleepClockRenderer::DateTimeView& dt, char* out, size_t outSize) {
   std::snprintf(out, outSize, "%02u:%02u", displayHour(dt), dt.minute);
-}
-
-void formatDateComma(const SleepClockRenderer::DateTimeView& dt, char* out, size_t outSize) {
-  std::snprintf(out, outSize, "%s, %02u %s", weekdayShort(dt.weekday), dt.day, monthShort(dt.month));
 }
 
 void formatDateFull(const SleepClockRenderer::DateTimeView& dt, char* out, size_t outSize) {

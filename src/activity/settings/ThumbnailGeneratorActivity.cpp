@@ -237,7 +237,6 @@ void ThumbnailGeneratorActivity::render() {
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 16, "Generate thumbnails", true, EpdFontFamily::BOLD);
 
   const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
   const int bodyY = 70;
   char line[64];
 

@@ -22,7 +22,6 @@ class TextRender {
   void render(int fontId, int x, int y, const char* text, bool black = true,
             EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getSmallCapsWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-  int getSmallCapsAscender(int fontId) const;
   void prewarmSmallCaps(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,
                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;

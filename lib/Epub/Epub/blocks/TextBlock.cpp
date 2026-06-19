@@ -28,38 +28,6 @@ EpdFontFamily::Style bionicStyleFor(EpdFontFamily::Style style) {
   }
 }
 
-bool isAsciiLower(const uint32_t cp) { return cp >= 'a' && cp <= 'z'; }
-
-uint32_t toAsciiUpper(const uint32_t cp) { return isAsciiLower(cp) ? (cp - ('a' - 'A')) : cp; }
-
-void appendUtf8Codepoint(std::string& out, const uint32_t cp) {
-  if (cp <= 0x7F) {
-    out.push_back(static_cast<char>(cp));
-  } else if (cp <= 0x7FF) {
-    out.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  } else if (cp <= 0xFFFF) {
-    out.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  } else {
-    out.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-  }
-}
-
-std::string toUpperUtf8(const std::string& text) {
-  std::string upper;
-  upper.reserve(text.size());
-  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(text.c_str());
-  while (const uint32_t cp = utf8NextCodepoint(&ptr)) {
-    appendUtf8Codepoint(upper, toAsciiUpper(cp));
-  }
-  return upper;
-}
-
 int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y,
                            const std::string& text, const EpdFontFamily::Style style) {
   if (text.empty()) {

@@ -167,10 +167,6 @@ int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdF
   return totalWidth;
 }
 
-int TextRender::getSmallCapsAscender(const int fontId) const {
-  return scaleMetricRound(getFontAscenderSize(fontId), kSmallCapsScalePct);
-}
-
 void TextRender::prewarmSmallCaps(const int fontId, const char* text, const EpdFontFamily::Style style) const {
   if (!text || *text == '\0') {
     return;
