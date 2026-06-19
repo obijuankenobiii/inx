@@ -96,7 +96,7 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
  */
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                       ImageRenderMode ) {
-  block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
+  block->render(renderer, fontId, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
  * Serializes a PageLine to a file.
@@ -125,6 +125,32 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 }
 
 /**
+ * Renders a small-caps line. Normal words use the body fontId; small-caps words use the stored
+ * (smaller) smallCapsFontId. Mirrors PageHeader carrying its own font.
+ */
+void PageSmallCaps::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                           ImageRenderMode ) {
+  block->render(renderer, fontId, smallCapsFontId, xPos + xOffset, yPos + yOffset);
+}
+
+bool PageSmallCaps::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, smallCapsFontId);
+  return block->serialize(file);
+}
+
+std::unique_ptr<PageSmallCaps> PageSmallCaps::deserialize(FsFile& file) {
+  int16_t x, y;
+  int scId = 0;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, scId);
+  auto tb = TextBlock::deserialize(file);
+  return std::unique_ptr<PageSmallCaps>(new PageSmallCaps(std::move(tb), x, y, scId));
+}
+
+/**
  * Renders a header on the screen.
  * Uses the stored headerFontId for rendering.
  *
@@ -135,7 +161,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                         ImageRenderMode ) {
-  block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
+  block->render(renderer, headerFontId, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
 /**
@@ -258,26 +284,34 @@ void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffse
       renderer.line.render(originX, yCursor, originX + tableWidth - 1, yCursor, true);
     }
 
-    for (size_t colIndex = 0; colIndex < columnWidths.size(); ++colIndex) {
-      const int colWidth = columnWidths[colIndex];
-      if (showBorders && colIndex > 0) {
+    size_t gridCol = 0;
+    for (size_t cellIndex = 0; cellIndex < row.size() && gridCol < columnWidths.size(); ++cellIndex) {
+      const auto& cell = row[cellIndex];
+      int span = std::max<uint16_t>(1, cell.colspan);
+      if (gridCol + static_cast<size_t>(span) > columnWidths.size()) {
+        span = static_cast<int>(columnWidths.size() - gridCol);
+      }
+      int colWidth = 0;
+      for (int s = 0; s < span; ++s) {
+        colWidth += columnWidths[gridCol + s];
+      }
+
+      if (showBorders && gridCol > 0) {
         renderer.line.render(xCursor, yCursor, xCursor, yCursor + rowHeight, true);
       }
 
-      if (colIndex < row.size()) {
-        const auto& cell = row[colIndex];
-        const auto style = cell.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
-        int textY = yCursor + kCellPadY;
-        for (const auto& line : cell.lines) {
-          renderer.text.render(fontId, xCursor + kCellPadX, textY, line.c_str(), true, style);
-          textY += lineHeight;
-          if (textY > yCursor + rowHeight - kCellPadY) {
-            break;
-          }
+      const auto style = cell.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      int textY = yCursor + kCellPadY;
+      for (const auto& line : cell.lines) {
+        renderer.text.render(fontId, xCursor + kCellPadX, textY, line.c_str(), true, style);
+        textY += lineHeight;
+        if (textY > yCursor + rowHeight - kCellPadY) {
+          break;
         }
       }
 
       xCursor += colWidth;
+      gridCol += span;
     }
 
     yCursor += rowHeight;
@@ -343,6 +377,7 @@ bool PageTable::serialize(FsFile& file) {
     serialization::writePod(file, static_cast<uint16_t>(row.size()));
     for (const auto& cell : row) {
       serialization::writePod(file, static_cast<uint8_t>(cell.header ? 1 : 0));
+      serialization::writePod(file, static_cast<uint16_t>(cell.colspan));
       serialization::writePod(file, static_cast<uint16_t>(cell.lines.size()));
       for (const auto& line : cell.lines) {
         serialization::writeString(file, line);
@@ -392,6 +427,9 @@ std::unique_ptr<PageTable> PageTable::deserialize(FsFile& file) {
       uint8_t header = 0;
       serialization::readPod(file, header);
       cell.header = header != 0;
+      uint16_t colspan = 1;
+      serialization::readPod(file, colspan);
+      cell.colspan = colspan < 1 ? 1 : colspan;
       uint16_t lineCount = 0;
       serialization::readPod(file, lineCount);
       cell.lines.resize(lineCount);
@@ -479,11 +517,14 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     uint8_t tag = element->getTag();
     if (tag == TAG_PageLine) {
       const auto* line = static_cast<const PageLine*>(element.get());
-      line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
+      line->getTextBlock().render(renderer, fontId, fontId, line->xPos + xOffset, line->yPos + yOffset);
     } else if (tag == TAG_PageHeader) {
       const auto* header = static_cast<const PageHeader*>(element.get());
-      header->getTextBlock().render(renderer, headerFontId, header->xPos + xOffset, header->yPos + yOffset);
+      // Headers use their own font and do not shrink small caps further.
+      header->getTextBlock().render(renderer, headerFontId, headerFontId, header->xPos + xOffset,
+                                    header->yPos + yOffset);
     } else {
+      // PageSmallCaps (and PageDropCap, images, tables…) render themselves with the font they stored.
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }
   }
@@ -504,12 +545,17 @@ void Page::prewarmText(GfxRenderer& renderer, const int fontId, const int header
     switch (element->getTag()) {
       case TAG_PageLine: {
         const auto* line = static_cast<const PageLine*>(element.get());
-        line->getTextBlock().prewarm(renderer, fontId);
+        line->getTextBlock().prewarm(renderer, fontId, fontId);
+        break;
+      }
+      case TAG_PageSmallCaps: {
+        const auto* sc = static_cast<const PageSmallCaps*>(element.get());
+        sc->getTextBlock().prewarm(renderer, fontId, sc->getSmallCapsFontId());
         break;
       }
       case TAG_PageHeader: {
         const auto* header = static_cast<const PageHeader*>(element.get());
-        header->getTextBlock().prewarm(renderer, headerFontId);
+        header->getTextBlock().prewarm(renderer, headerFontId, headerFontId);
         break;
       }
       case TAG_PageDropCap: {
@@ -559,6 +605,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
     serialization::readPod(file, tag);
     if (tag == TAG_PageLine) {
       page->elements.push_back(PageLine::deserialize(file));
+    } else if (tag == TAG_PageSmallCaps) {
+      page->elements.push_back(PageSmallCaps::deserialize(file));
     } else if (tag == TAG_PageHeader) {
       page->elements.push_back(PageHeader::deserialize(file));
     } else if (tag == TAG_PageImage) {

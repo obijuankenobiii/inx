@@ -19,14 +19,28 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
   for (size_t ei = 0; ei < page.elements.size(); ++ei) {
     const auto& el = page.elements[ei];
     switch (el->getTag()) {
+      case TAG_PageSmallCaps:
       case TAG_PageLine: {
-        const auto* pl = static_cast<const PageLine*>(el.get());
-        const TextBlock& tb = pl->getTextBlock();
+        const TextBlock* tbPtr = nullptr;
+        int16_t elemX = 0;
+        int16_t elemY = 0;
+        if (el->getTag() == TAG_PageSmallCaps) {
+          const auto* sc = static_cast<const PageSmallCaps*>(el.get());
+          tbPtr = &sc->getTextBlock();
+          elemX = sc->xPos;
+          elemY = sc->yPos;
+        } else {
+          const auto* pl = static_cast<const PageLine*>(el.get());
+          tbPtr = &pl->getTextBlock();
+          elemX = pl->xPos;
+          elemY = pl->yPos;
+        }
+        const TextBlock& tb = *tbPtr;
         if (lineStartsOut) {
           lineStartsOut->push_back(out.size());
         }
-        const int baseX = pl->xPos + marginLeft;
-        const int baseY = pl->yPos + marginTop;
+        const int baseX = elemX + marginLeft;
+        const int baseY = elemY + marginTop;
         const size_t wc = tb.getWordCount();
         for (size_t wi = 0; wi < wc; ++wi) {
           PageWordHit h;

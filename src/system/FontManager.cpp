@@ -244,6 +244,44 @@ int FontManager::getNextFont(int currentFontId) {
   return currentFontId;
 }
 
+int FontManager::getPrevFont(int currentFontId) {
+  static const std::unordered_map<int, int> PREV_FONT = {
+      {LITERATA_12_FONT_ID, LITERATA_10_FONT_ID},
+      {LITERATA_14_FONT_ID, LITERATA_12_FONT_ID},
+      {LITERATA_16_FONT_ID, LITERATA_14_FONT_ID},
+      {LITERATA_18_FONT_ID, LITERATA_16_FONT_ID},
+      {ATKINSON_HYPERLEGIBLE_10_FONT_ID, ATKINSON_HYPERLEGIBLE_8_FONT_ID},
+      {ATKINSON_HYPERLEGIBLE_12_FONT_ID, ATKINSON_HYPERLEGIBLE_10_FONT_ID},
+      {ATKINSON_HYPERLEGIBLE_14_FONT_ID, ATKINSON_HYPERLEGIBLE_12_FONT_ID},
+      {ATKINSON_HYPERLEGIBLE_16_FONT_ID, ATKINSON_HYPERLEGIBLE_14_FONT_ID},
+      {ATKINSON_HYPERLEGIBLE_18_FONT_ID, ATKINSON_HYPERLEGIBLE_16_FONT_ID},
+  };
+
+  auto it = PREV_FONT.find(currentFontId);
+  if (it != PREV_FONT.end()) {
+    return it->second;
+  }
+
+  for (const auto& entry : g_sdFonts) {
+    if (entry.id == currentFontId) {
+      int prevId = -1;
+      int prevSize = INT_MIN;
+      for (const auto& e : g_sdFonts) {
+        if (e.family == entry.family && e.size < entry.size && e.size > prevSize) {
+          prevSize = e.size;
+          prevId = e.id;
+        }
+      }
+      if (prevId >= 0) {
+        return prevId;
+      }
+      return currentFontId;
+    }
+  }
+
+  return currentFontId;
+}
+
 /**
  * @brief Scans SD card for font files
  */
@@ -553,6 +591,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
 void FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
   ensureFontReady(bodyFontId, renderer);
   ensureFontReady(getNextFont(bodyFontId), renderer);
+  ensureFontReady(getPrevFont(bodyFontId), renderer);  // small-caps font
   ensureFontReady(getMaxFontId(bodyFontId), renderer);
 }
 

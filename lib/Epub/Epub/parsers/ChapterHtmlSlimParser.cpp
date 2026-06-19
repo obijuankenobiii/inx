@@ -188,7 +188,8 @@ int desiredDropCapCodepoints(const char* s, int byteLen, const bool consumeWhole
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
-const char* BOLD_TAGS[] = {"b", "strong"};
+// <a> links render bold (and underlined, see underlineUntilDepth).
+const char* BOLD_TAGS[] = {"b", "strong", "a"};
 constexpr int NUM_BOLD_TAGS = sizeof(BOLD_TAGS) / sizeof(BOLD_TAGS[0]);
 
 const char* ITALIC_TAGS[] = {"i", "em"};
@@ -243,6 +244,7 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   skipUntilDepth = INT_MAX;
   boldUntilDepth = INT_MAX;
   italicUntilDepth = INT_MAX;
+  underlineUntilDepth = INT_MAX;
   inHeader = false;
   inDropCap = false;
   dropCapDepth = INT_MAX;
@@ -646,7 +648,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   }
 
   const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
-  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive);
+  const bool underlineActive = underlineUntilDepth < depth;
+  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive);
   partWordBufferIndex = 0;
 }
 
@@ -713,7 +716,11 @@ void ChapterHtmlSlimParser::addTableToPage() {
 
   size_t columnCount = 0;
   for (const auto& row : tableRows_) {
-    columnCount = std::max(columnCount, row.size());
+    size_t spanSum = 0;
+    for (const auto& cell : row) {
+      spanSum += std::max(1, cell.colspan);
+    }
+    columnCount = std::max(columnCount, spanSum);
   }
   if (columnCount == 0) {
     tableRows_.clear();
@@ -808,18 +815,28 @@ void ChapterHtmlSlimParser::addTableToPage() {
 
   for (const auto& row : tableRows_) {
     std::vector<PageTable::Cell> renderedRow;
-    renderedRow.reserve(columnCount);
+    renderedRow.reserve(row.size());
     int rowHeight = lineHeight + 2 * kCellPadY;
-    for (size_t col = 0; col < columnCount; ++col) {
-      TableCellCapture source;
-      if (col < row.size()) {
-        source = row[col];
+    size_t gridCol = 0;
+    for (const auto& source : row) {
+      if (gridCol >= columnCount) {
+        break;
+      }
+      int span = std::max(1, source.colspan);
+      if (gridCol + static_cast<size_t>(span) > columnCount) {
+        span = static_cast<int>(columnCount - gridCol);
+      }
+      int spannedWidth = 0;
+      for (int s = 0; s < span; ++s) {
+        spannedWidth += columnWidths[gridCol + s];
       }
       PageTable::Cell cell;
       cell.header = source.header;
-      cell.lines = wrapCell(source, columnWidths[col]);
+      cell.colspan = static_cast<uint16_t>(span);
+      cell.lines = wrapCell(source, spannedWidth);
       rowHeight = std::max(rowHeight, static_cast<int>(cell.lines.size()) * lineHeight + 2 * kCellPadY);
       renderedRow.push_back(std::move(cell));
+      gridCol += span;
     }
 
     const int projectedHeight = pageTableHeight + rowHeight + (pageRows.empty() ? 0 : 1);
@@ -987,6 +1004,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           if (strcmp(atts[i], "border") == 0 && atts[i + 1] != nullptr && atts[i + 1][0] != '\0' &&
               strcmp(atts[i + 1], "0") != 0) {
             self->tableShowBorders_ = true;
+          } else if (strcmp(atts[i], "colspan") == 0 && atts[i + 1] != nullptr) {
+            const int span = atoi(atts[i + 1]);
+            self->currentTableCell_->colspan = (span > 1) ? std::min(span, 64) : 1;
           }
         }
       }
@@ -1005,6 +1025,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   const bool inheritedSmallCaps = !self->smallCapsStack.empty() && self->smallCapsStack.back();
   const bool resolvedSmallCaps =
       inheritedSmallCaps || hasExplicitSmallCapsHint(name, classAttr, idAttr, styleAttr);
+  // Flush any pending word before the small-caps state changes so the preceding text keeps its flag.
+  if (resolvedSmallCaps != inheritedSmallCaps && self->partWordBufferIndex > 0) {
+    self->flushPartWordBuffer();
+  }
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
 
@@ -1051,6 +1075,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
     self->boldUntilDepth = self->depth;
+  }
+
+  if (strcmp(name, "a") == 0) {
+    self->underlineUntilDepth = self->depth;
   }
 
   if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
@@ -1171,7 +1199,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
   if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
     self->currentTextBlock->layoutAndExtractLines(
-        self->renderer, self->fontId, self->viewportWidth,
+        self->renderer, self->fontId, self->smallCapsFontId, self->viewportWidth,
         [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
   }
 }
@@ -1232,6 +1260,14 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     self->cssAlignmentStack.pop_back();
   }
   if (!self->smallCapsDepths.empty() && self->smallCapsDepths.back() == self->depth) {
+    const bool wasSmallCaps = self->smallCapsStack.back();
+    const size_t depthCount = self->smallCapsStack.size();
+    const bool nowSmallCaps = depthCount >= 2 && self->smallCapsStack[depthCount - 2];
+    // Flush the trailing word (e.g. "note" in "<span class=smallcaps>author's note</span>") while the
+    // small-caps flag is still active, before the scope is popped.
+    if (wasSmallCaps != nowSmallCaps && self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+    }
     self->smallCapsDepths.pop_back();
     self->smallCapsStack.pop_back();
   }
@@ -1239,6 +1275,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
+  if (self->underlineUntilDepth == self->depth) self->underlineUntilDepth = INT_MAX;
 
   if (self->dropCapDepth == self->depth) {
     if (self->inDropCap && self->partWordBufferIndex > 0) {
@@ -1285,6 +1322,8 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
 
   if (inHeader) {
     currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, headerFontId));
+  } else if (line->hasSmallCaps()) {
+    currentPage->elements.push_back(std::make_shared<PageSmallCaps>(line, 0, currentPageNextY, smallCapsFontId));
   } else {
     currentPage->elements.push_back(std::make_shared<PageLine>(line, 0, currentPageNextY));
   }
@@ -1304,7 +1343,7 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
 
   auto divider = std::make_shared<ParsedText>(TextBlock::CENTER_ALIGN, false, false, false, false);
   divider->addWord(text, EpdFontFamily::BOLD, false);
-  divider->layoutAndExtractLines(renderer, activeFontId, viewportWidth,
+  divider->layoutAndExtractLines(renderer, activeFontId, activeFontId, viewportWidth,
                                  [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   applyVerticalSpacing(spacer);
@@ -1348,7 +1387,7 @@ void ChapterHtmlSlimParser::makePages() {
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   currentTextBlock->layoutAndExtractLines(
-      renderer, inHeader ? headerFontId : fontId, viewportWidth,
+      renderer, inHeader ? headerFontId : fontId, inHeader ? headerFontId : smallCapsFontId, viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   if (currentBlockSpacingFromCss) {

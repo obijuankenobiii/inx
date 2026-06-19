@@ -96,6 +96,7 @@ class Section {
    * @param fontId Font identifier for text rendering
    * @param headerFontId Font identifier for header rendering
    * @param maxFontId Font identifier for header rendering
+   * @param smallCapsFontId Smaller font identifier for shrunken small-cap letters
    * @param lineCompression Line spacing factor
    * @param extraParagraphSpacing Whether to add extra spacing between paragraphs
    * @param paragraphAlignment Default paragraph alignment
@@ -106,10 +107,11 @@ class Section {
    * @param skipImages If true, skip processing new images and only use existing cached images
    * @return true if section file was successfully created
    */
-  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, bool extraParagraphSpacing,
-                         uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                         bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled,
-                         const std::function<void()>& popupFn = nullptr, bool skipImages = false);
+  bool createSectionFile(int fontId, int headerFontId, int maxFontId, int smallCapsFontId, float lineCompression,
+                         bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
+                         uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
+                         bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,
+                         bool skipImages = false);
 
   /**
    * Loads a specific page from the section file.

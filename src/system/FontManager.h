@@ -32,6 +32,8 @@ class FontManager {
   static void initialize(GfxRenderer& renderer);
 
   static int getNextFont(int currentFontId);
+  /** Font one size smaller in the same family (used for small-caps); returns currentFontId if none smaller. */
+  static int getPrevFont(int currentFontId);
   static int getMaxFontId(int currentFontId);
 
   static bool scanSDFonts(const char* sdPath = "/fonts", bool forceRescan = false);

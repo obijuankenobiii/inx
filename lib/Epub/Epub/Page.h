@@ -19,9 +19,10 @@ enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
   TAG_PageHeader = 2,
   TAG_PageImage = 3,
-  TAG_PageDropCap = 4, 
+  TAG_PageDropCap = 4,
   TAG_PageTable = 5,
   TAG_PageHorizontalRule = 6,
+  TAG_PageSmallCaps = 7,
 };
 
 /**
@@ -109,6 +110,29 @@ class PageHeader final : public PageElement {
 };
 
 /**
+ * Represents a line of text containing small-caps words.
+ * Carries the smaller smallCapsFontId so the TextBlock can draw small-caps words shrunk,
+ * the same way PageHeader carries headerFontId.
+ */
+class PageSmallCaps final : public PageElement {
+  std::shared_ptr<TextBlock> block;
+  int smallCapsFontId;
+
+ public:
+  PageSmallCaps(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos, int fontId)
+      : PageElement(xPos, yPos), block(std::move(block)), smallCapsFontId(fontId) {}
+
+  const TextBlock& getTextBlock() const { return *block; }
+  int getSmallCapsFontId() const { return smallCapsFontId; }
+
+  PageElementTag getTag() const override { return TAG_PageSmallCaps; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageSmallCaps> deserialize(FsFile& file);
+};
+
+/**
  * Represents a large first letter (drop cap) at the start of a chapter or paragraph.
  */
 class PageDropCap final : public PageElement {
@@ -163,6 +187,7 @@ class PageTable final : public PageElement {
  public:
   struct Cell {
     bool header = false;
+    uint16_t colspan = 1;
     std::vector<std::string> lines;
   };
 
