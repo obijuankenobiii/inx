@@ -276,7 +276,7 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
     static const char* kDimProps[] = {"width",          "height",         "max-width",      "max-height",
                                       "min-width",      "min-height",     "inline-size",    "block-size",
                                       "max-inline-size","min-inline-size","max-block-size", "min-block-size",
-                                      "text-align",     "text-indent",    "font-weight",    "font-style",
+                                      "display",        "text-align",     "text-indent",    "font-weight",    "font-style",
                                       "font-variant",   "font-variant-caps",
                                       "margin-top",     "margin-bottom",  "margin",         "padding-top",
                                       "padding-bottom", "padding",        "border",         "border-top",
@@ -849,6 +849,25 @@ bool CssParser::hasTextAlignSpecified(const std::string& elementTagLower, const 
   return !sheet.empty();
 }
 
+bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::string& className,
+                               const std::string& id, const std::string& styleAttr) const {
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+
+  std::string raw;
+  const auto inlineDisplayIt = inlineMap.find("display");
+  if (inlineDisplayIt != inlineMap.end()) {
+    raw = inlineDisplayIt->second;
+  } else {
+    raw = getCascadedPropertyValue("display", className, id, styleAttr, elementTagLower);
+  }
+
+  raw = trimCssWs(raw);
+  std::transform(raw.begin(), raw.end(), raw.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return raw == "block";
+}
+
 bool CssParser::hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
                                      const std::string& styleAttr, const std::string& elementTagLower) const {
   std::map<std::string, std::string> inlineMap;
@@ -950,7 +969,9 @@ bool CssParser::resolveSmallCaps(const std::string& elementTagLower, const std::
     if (raw.find("small-caps") != std::string::npos) {
       return true;
     }
-    if (raw == "normal" || raw.find("all-normal") != std::string::npos) {
+    if (raw == "normal" || raw == "initial" || raw == "unset" || raw == "revert" || raw == "revert-layer" ||
+        raw.find(" normal") != std::string::npos || raw.find("normal ") != std::string::npos ||
+        raw.find("all-normal") != std::string::npos) {
       return false;
     }
     return inherited;

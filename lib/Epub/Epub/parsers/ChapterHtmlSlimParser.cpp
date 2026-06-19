@@ -91,6 +91,16 @@ bool hasDropCapHint(const std::string& classAttr, const std::string& idAttr, con
          containsAsciiInsensitive(styleAttr, "initial-letter");
 }
 
+bool hasExplicitSmallCapsHint(const char* tagName, const std::string& classAttr, const std::string& idAttr,
+                              const std::string& styleAttr) {
+  if (tagName == nullptr || std::strcmp(tagName, "span") != 0) {
+    return false;
+  }
+  return containsAsciiInsensitive(classAttr, "smallcaps") || containsAsciiInsensitive(classAttr, "small-caps") ||
+         containsAsciiInsensitive(idAttr, "smallcaps") || containsAsciiInsensitive(idAttr, "small-caps") ||
+         containsAsciiInsensitive(styleAttr, "small-caps");
+}
+
 uint8_t detectDropCapLineCount(const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr) {
   auto parseSource = [](const std::string& src) -> uint8_t {
     for (size_t i = 0; i < src.size(); ++i) {
@@ -986,9 +996,23 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   const bool inheritedSmallCaps = !self->smallCapsStack.empty() && self->smallCapsStack.back();
   const bool resolvedSmallCaps =
-      self->cssParser.resolveSmallCaps(tagLower, classAttr, idAttr, styleAttr, inheritedSmallCaps);
+      inheritedSmallCaps || hasExplicitSmallCapsHint(name, classAttr, idAttr, styleAttr);
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
+
+  if (self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr)) {
+    self->flushPartWordBuffer();
+    TextBlock::Style blockStyle;
+    if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+      blockStyle = elementCssStyle;
+    } else {
+      blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
+    }
+    if (self->inHeader) {
+      blockStyle = TextBlock::CENTER_ALIGN;
+    }
+    self->startNewTextBlock(blockStyle);
+  }
 
   if (atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr)) {
     self->flushPartWordBuffer();
@@ -1001,6 +1025,13 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
     self->processImageElement(atts);
+    self->depth += 1;
+    return;
+  }
+
+  if (strcmp(name, "hr") == 0) {
+    self->flushPartWordBuffer();
+    self->addHorizontalRule();
     self->depth += 1;
     return;
   }
@@ -1251,6 +1282,25 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
 
   currentPageNextY += lineHeight;
 }
+
+void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const int spacer = std::max(6, lineHeight / 2);
+  applyVerticalSpacing(spacer);
+
+  auto divider = std::make_shared<ParsedText>(TextBlock::CENTER_ALIGN, false, false, false, false);
+  divider->addWord(text, EpdFontFamily::REGULAR, false);
+  divider->layoutAndExtractLines(renderer, fontId, viewportWidth,
+                                 [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
+
+  applyVerticalSpacing(spacer);
+}
+
+void ChapterHtmlSlimParser::addHorizontalRule() { addCenteredDivider("..."); }
 
 /**
  * Converts the current text block into page lines.

@@ -665,11 +665,7 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
     return false;
   }
 
-  auto* book = BOOK_STATE.findBookByPath(path);
-  if (!book) {
-    BOOK_STATE.addOrUpdateBook(path, title.empty() ? formatTitle(getBaseFilename(path)) : title, author);
-  }
-  BOOK_STATE.setReading(path, true);
+
 
   bookSelected = true;
   onSelectBook(path);
@@ -1311,6 +1307,8 @@ void RecentActivity::loop() {
   bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
   bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
   bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Open on press instead of release so heavy cover redraws do not swallow the
+  // confirm edge, especially in Flow and other image-heavy recent views.
   bool confirmPressed = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
 
   if (ignoreBackReleaseOnEnter_) {

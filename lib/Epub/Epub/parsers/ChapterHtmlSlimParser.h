@@ -141,6 +141,8 @@ class ChapterHtmlSlimParser {
    * Adds a single text line to the current page.
    */
   void addLineToPage(std::shared_ptr<TextBlock> line);
+  void addCenteredDivider(const char* text);
+  void addHorizontalRule();
 
   /**
    * Adds an image to the current page layout.

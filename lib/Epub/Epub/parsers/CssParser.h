@@ -56,6 +56,8 @@ class CssParser {
   /** True if `text-align` is specified inline or by matching stylesheet rules for this element. */
   bool hasTextAlignSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
                              const std::string& styleAttr) const;
+  bool isDisplayBlock(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr) const;
 
   /** Resolved inherited CSS font emphasis for the current element. */
   bool resolveFontBold(const std::string& elementTagLower, const std::string& className, const std::string& id,
