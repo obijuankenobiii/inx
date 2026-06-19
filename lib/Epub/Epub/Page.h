@@ -21,6 +21,7 @@ enum PageElementTag : uint8_t {
   TAG_PageImage = 3,
   TAG_PageDropCap = 4, 
   TAG_PageTable = 5,
+  TAG_PageHorizontalRule = 6,
 };
 
 /**
@@ -192,6 +193,20 @@ class PageTable final : public PageElement {
   static std::unique_ptr<PageTable> deserialize(FsFile& file);
 
   int16_t getHeight() const { return tableHeight; }
+};
+
+class PageHorizontalRule final : public PageElement {
+ public:
+  static constexpr int16_t WIDTH = 180;
+  static constexpr int16_t HEIGHT = 15;
+
+  PageHorizontalRule(const int16_t xPos, const int16_t yPos) : PageElement(xPos, yPos) {}
+
+  PageElementTag getTag() const override { return TAG_PageHorizontalRule; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
 };
 
 /**

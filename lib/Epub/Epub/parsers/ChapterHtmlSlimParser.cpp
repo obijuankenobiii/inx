@@ -637,6 +637,14 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     fontStyle = EpdFontFamily::ITALIC;
   }
 
+  if (inHeader) {
+    if (fontStyle == EpdFontFamily::REGULAR) {
+      fontStyle = EpdFontFamily::BOLD;
+    } else if (fontStyle == EpdFontFamily::ITALIC) {
+      fontStyle = EpdFontFamily::BOLD_ITALIC;
+    }
+  }
+
   const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
   currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive);
   partWordBufferIndex = 0;
@@ -1262,7 +1270,8 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
  * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
-  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
 
   if (!line || line->isEmpty()) return;
 
@@ -1288,19 +1297,41 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
     makePages();
   }
 
-  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
   const int spacer = std::max(6, lineHeight / 2);
   applyVerticalSpacing(spacer);
 
   auto divider = std::make_shared<ParsedText>(TextBlock::CENTER_ALIGN, false, false, false, false);
-  divider->addWord(text, EpdFontFamily::REGULAR, false);
-  divider->layoutAndExtractLines(renderer, fontId, viewportWidth,
+  divider->addWord(text, EpdFontFamily::BOLD, false);
+  divider->layoutAndExtractLines(renderer, activeFontId, viewportWidth,
                                  [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   applyVerticalSpacing(spacer);
 }
 
-void ChapterHtmlSlimParser::addHorizontalRule() { addCenteredDivider("..."); }
+void ChapterHtmlSlimParser::addHorizontalRule() {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  if (!currentPage) {
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+  }
+
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
+  const int spacer = std::max(6, lineHeight / 2);
+  applyVerticalSpacing(spacer);
+
+  const int xPos = std::max<int>(0, (static_cast<int>(viewportWidth) - PageHorizontalRule::WIDTH) / 2);
+  currentPage->elements.push_back(
+      std::make_shared<PageHorizontalRule>(static_cast<int16_t>(xPos), currentPageNextY));
+  currentPageNextY += PageHorizontalRule::HEIGHT;
+
+  applyVerticalSpacing(spacer);
+}
 
 /**
  * Converts the current text block into page lines.

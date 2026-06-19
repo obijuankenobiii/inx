@@ -15,6 +15,8 @@
 #include <cmath>
 #include <algorithm>
 
+#include "../../../src/images/Hr.h"
+
 namespace {
 
 constexpr float kImgScaleEps = 1e-5f;
@@ -282,6 +284,14 @@ void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffse
   }
 }
 
+void PageHorizontalRule::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                                ImageRenderMode) {
+  (void)fontId;
+  const int renderX = xPos + xOffset;
+  const int renderY = yPos + yOffset;
+  renderer.bitmap.icon(Hr, renderX, renderY, WIDTH, HEIGHT);
+}
+
 /**
  * Serializes a PageImage to a file.
  *
@@ -342,6 +352,12 @@ bool PageTable::serialize(FsFile& file) {
   return true;
 }
 
+bool PageHorizontalRule::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  return true;
+}
+
 std::unique_ptr<PageTable> PageTable::deserialize(FsFile& file) {
   int16_t x = 0, y = 0, width = 0, height = 0;
   serialization::readPod(file, x);
@@ -386,6 +402,14 @@ std::unique_ptr<PageTable> PageTable::deserialize(FsFile& file) {
   }
   return std::unique_ptr<PageTable>(new PageTable(std::move(rows), std::move(colWidths), std::move(rowHeights),
                                                   showBordersValue != 0, width, height, x, y));
+}
+
+std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file) {
+  int16_t x = 0;
+  int16_t y = 0;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  return std::unique_ptr<PageHorizontalRule>(new PageHorizontalRule(x, y));
 }
 
 /**
@@ -543,6 +567,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageDropCap::deserialize(file));
     } else if (tag == TAG_PageTable) {
       page->elements.push_back(PageTable::deserialize(file));
+    } else if (tag == TAG_PageHorizontalRule) {
+      page->elements.push_back(PageHorizontalRule::deserialize(file));
     }
   }
   return page;
