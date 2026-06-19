@@ -118,6 +118,23 @@ class CssParser {
   uint16_t internSourcePath(const std::string& path);
   std::string bodyTextAlignRaw;
 
+  /**
+   * Per-element matched-rule cache. A single element triggers ~12 getCascadedPropertyValue() calls with the
+   * same (tag, class, id); without this each would re-tokenize and re-scan every rule (N+1). The first call
+   * builds the match set, the rest reuse it. Invalidated whenever the rule set changes.
+   */
+  struct MatchedRule {
+    const CssRule* rule;
+    uint8_t tier;  // 2 = id selector, 1 = class selector, 0 = type selector
+  };
+  mutable std::string mcTag_;
+  mutable std::string mcClass_;
+  mutable std::string mcId_;
+  mutable std::vector<MatchedRule> mcMatched_;
+  mutable bool mcValid_ = false;
+  const std::vector<MatchedRule>& matchedRulesFor(const std::string& elementTagLower, const std::string& className,
+                                                  const std::string& id) const;
+
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
                                        const std::string& id, const std::string& styleAttr,

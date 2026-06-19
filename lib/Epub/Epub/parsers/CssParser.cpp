@@ -290,6 +290,8 @@ void CssParser::clear() {
   rules.clear();
   sourcePaths_.clear();
   bodyTextAlignRaw.clear();
+  mcValid_ = false;
+  mcMatched_.clear();
 }
 
 uint16_t CssParser::internSourcePath(const std::string& path) {
@@ -403,6 +405,10 @@ void CssParser::parse(const std::string& cssContent, const std::string& sourcePa
       }
     }
   }
+
+  // Rule set (and thus rule pointers) changed; drop the per-element match cache.
+  mcValid_ = false;
+  mcMatched_.clear();
 
   Serial.printf("[CSSP] Parsed %zu CSS rules\n", rules.size());
 }
@@ -905,6 +911,45 @@ void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw,
   }
 }
 
+const std::vector<CssParser::MatchedRule>& CssParser::matchedRulesFor(const std::string& elementTagLower,
+                                                                      const std::string& className,
+                                                                      const std::string& id) const {
+  if (mcValid_ && mcTag_ == elementTagLower && mcClass_ == className && mcId_ == id) {
+    return mcMatched_;
+  }
+  mcTag_ = elementTagLower;
+  mcClass_ = className;
+  mcId_ = id;
+  mcMatched_.clear();
+
+  const std::string idLower = toLower(trim(id));
+  std::vector<std::string> classTokens;
+  splitClassTokens(className, classTokens);
+  for (auto& t : classTokens) {
+    t = toLower(trim(t));
+  }
+
+  for (const auto& rule : rules) {
+    if (rule.isPseudoElement) {
+      continue;
+    }
+    const SelectorMatchInfo matchInfo = matchSelectorList(rule.selectorLower, elementTagLower, classTokens, idLower, false);
+    if (!matchInfo.matched) {
+      continue;
+    }
+    // Universal-only matches (no id/class/type) never contributed a cascaded value, so skip them.
+    if (matchInfo.hasId) {
+      mcMatched_.push_back({&rule, 2});
+    } else if (matchInfo.hasClass) {
+      mcMatched_.push_back({&rule, 1});
+    } else if (matchInfo.hasType) {
+      mcMatched_.push_back({&rule, 0});
+    }
+  }
+  mcValid_ = true;
+  return mcMatched_;
+}
+
 std::string CssParser::getCascadedPropertyValue(const std::string& propName, const std::string& className,
                                                 const std::string& id, const std::string& styleAttr,
                                                 const std::string& elementTagLower) const {
@@ -923,36 +968,18 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
   bool hasClsLast = false;
   bool hasTypeLast = false;
 
-  std::string idLower = toLower(trim(id));
-  std::vector<std::string> classTokens;
-  splitClassTokens(className, classTokens);
-  for (auto& t : classTokens) {
-    t = toLower(trim(t));
-  }
-
-  for (const auto& rule : rules) {
-    const std::string& selLower = rule.selectorLower;
-    if (rule.isPseudoElement) {
+  for (const auto& m : matchedRulesFor(elementTagLower, className, id)) {
+    const auto pit = m.rule->properties.find(propName);
+    if (pit == m.rule->properties.end()) {
       continue;
     }
-    const SelectorMatchInfo matchInfo =
-        matchSelectorList(selLower, elementTagLower, classTokens, idLower, false);
-    if (!matchInfo.matched) {
-      continue;
-    }
-
-    const auto pit = rule.properties.find(propName);
-    if (pit == rule.properties.end()) {
-      continue;
-    }
-
-    if (matchInfo.hasId) {
+    if (m.tier == 2) {
       idLast = pit->second;
       hasIdLast = true;
-    } else if (matchInfo.hasClass) {
+    } else if (m.tier == 1) {
       clsLast = pit->second;
       hasClsLast = true;
-    } else if (matchInfo.hasType) {
+    } else {
       typeLast = pit->second;
       hasTypeLast = true;
     }
