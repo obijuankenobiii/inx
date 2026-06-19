@@ -113,8 +113,8 @@ class TextBlock final : public Block {
    * @param y Base Y coordinate
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
-  void render(const GfxRenderer& renderer, int fontId, int smallCapsFontId, int x, int y) const;
-  void prewarm(const GfxRenderer& renderer, int fontId, int smallCapsFontId) const;
+  void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
+  void prewarm(const GfxRenderer& renderer, int fontId) const;
   
   /**
    * Gets the block type identifier.

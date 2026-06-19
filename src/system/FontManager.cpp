@@ -591,7 +591,6 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
 void FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
   ensureFontReady(bodyFontId, renderer);
   ensureFontReady(getNextFont(bodyFontId), renderer);
-  ensureFontReady(getPrevFont(bodyFontId), renderer);  // small-caps font
   ensureFontReady(getMaxFontId(bodyFontId), renderer);
 }
 

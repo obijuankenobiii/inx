@@ -24,8 +24,6 @@ class ParsedText {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
-  /** Smaller font used to measure/draw shrunken small-cap letters; set in layoutAndExtractLines. */
-  int smallCapsFontId_ = -1;
   TextBlock::Style style;
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
@@ -82,7 +80,7 @@ class ParsedText {
   TextBlock::Style getStyle() const { return style; }
   size_t size() const { return words.size(); }
   bool isEmpty() const { return words.empty(); }
-  void layoutAndExtractLines(const GfxRenderer& renderer, int fontId, int smallCapsFontId, uint16_t viewportWidth,
+  void layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
                              const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                              bool includeLastLine = true);
 };

@@ -96,7 +96,7 @@ bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int
  */
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                       ImageRenderMode ) {
-  block->render(renderer, fontId, fontId, xPos + xOffset, yPos + yOffset);
+  block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
  * Serializes a PageLine to a file.
@@ -125,18 +125,17 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 }
 
 /**
- * Renders a small-caps line. Normal words use the body fontId; small-caps words use the stored
- * (smaller) smallCapsFontId. Mirrors PageHeader carrying its own font.
+ * Renders a small-caps line using the active body font; small-caps are synthesized from that font.
  */
 void PageSmallCaps::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                            ImageRenderMode ) {
-  block->render(renderer, fontId, smallCapsFontId, xPos + xOffset, yPos + yOffset);
+  block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 
 bool PageSmallCaps::serialize(FsFile& file) {
   serialization::writePod(file, xPos);
   serialization::writePod(file, yPos);
-  serialization::writePod(file, smallCapsFontId);
+  serialization::writePod(file, compatFontId);
   return block->serialize(file);
 }
 
@@ -161,7 +160,7 @@ std::unique_ptr<PageSmallCaps> PageSmallCaps::deserialize(FsFile& file) {
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                         ImageRenderMode ) {
-  block->render(renderer, headerFontId, headerFontId, xPos + xOffset, yPos + yOffset);
+  block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
 /**
@@ -517,12 +516,11 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     uint8_t tag = element->getTag();
     if (tag == TAG_PageLine) {
       const auto* line = static_cast<const PageLine*>(element.get());
-      line->getTextBlock().render(renderer, fontId, fontId, line->xPos + xOffset, line->yPos + yOffset);
+      line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
     } else if (tag == TAG_PageHeader) {
       const auto* header = static_cast<const PageHeader*>(element.get());
       // Headers use their own font and do not shrink small caps further.
-      header->getTextBlock().render(renderer, headerFontId, headerFontId, header->xPos + xOffset,
-                                    header->yPos + yOffset);
+      header->getTextBlock().render(renderer, headerFontId, header->xPos + xOffset, header->yPos + yOffset);
     } else {
       // PageSmallCaps (and PageDropCap, images, tables…) render themselves with the font they stored.
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
@@ -545,17 +543,17 @@ void Page::prewarmText(GfxRenderer& renderer, const int fontId, const int header
     switch (element->getTag()) {
       case TAG_PageLine: {
         const auto* line = static_cast<const PageLine*>(element.get());
-        line->getTextBlock().prewarm(renderer, fontId, fontId);
+        line->getTextBlock().prewarm(renderer, fontId);
         break;
       }
       case TAG_PageSmallCaps: {
         const auto* sc = static_cast<const PageSmallCaps*>(element.get());
-        sc->getTextBlock().prewarm(renderer, fontId, sc->getSmallCapsFontId());
+        sc->getTextBlock().prewarm(renderer, fontId);
         break;
       }
       case TAG_PageHeader: {
         const auto* header = static_cast<const PageHeader*>(element.get());
-        header->getTextBlock().prewarm(renderer, headerFontId, headerFontId);
+        header->getTextBlock().prewarm(renderer, headerFontId);
         break;
       }
       case TAG_PageDropCap: {

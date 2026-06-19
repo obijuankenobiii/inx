@@ -60,27 +60,21 @@ std::string toUpperUtf8(const std::string& text) {
   return upper;
 }
 
-// Small caps render as the uppercased text in the smaller smallCapsFontId, dropped so the baseline still
-// matches the surrounding body text.
-int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const int smallCapsFontId, const int x,
-                           const int y, const std::string& text, const EpdFontFamily::Style style) {
+int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y,
+                           const std::string& text, const EpdFontFamily::Style style) {
   if (text.empty()) {
     return x;
   }
-  const int scFont = smallCapsFontId > 0 ? smallCapsFontId : fontId;
-  const std::string upper = toUpperUtf8(text);
-  const int yOffset = renderer.text.getFontAscenderSize(fontId) - renderer.text.getFontAscenderSize(scFont);
-  renderer.text.render(scFont, x, y + yOffset, upper.c_str(), true, style);
-  return x + renderer.text.getWidth(scFont, upper.c_str(), style);
+  renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
+  return x + renderer.text.getSmallCapsWidth(fontId, text.c_str(), style);
 }
 
-void prewarmSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const int smallCapsFontId,
-                             const std::string& text, const EpdFontFamily::Style style) {
+void prewarmSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const std::string& text,
+                             const EpdFontFamily::Style style) {
   if (text.empty()) {
     return;
   }
-  const int scFont = smallCapsFontId > 0 ? smallCapsFontId : fontId;
-  renderer.text.prewarm(scFont, toUpperUtf8(text).c_str(), style);
+  renderer.text.prewarmSmallCaps(fontId, text.c_str(), style);
 }
 
 }  // namespace
@@ -106,8 +100,7 @@ EpdFontFamily::Style TextBlock::getWordStyleAt(size_t index) const {
   return *it;
 }
 
-void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int smallCapsFontId, const int x,
-                       const int y) const {
+void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y) const {
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||
       (!bionicPrefixBytes.empty() && bionicPrefixBytes.size() != words.size()) ||
       (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size())) {
@@ -135,7 +128,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     int endX = startX;
     if (prefixBytes == 0 || prefixBytes >= wordIt->size()) {
       if (smallCaps) {
-        endX = renderSmallCapsSegment(renderer, fontId, smallCapsFontId, startX, y, *wordIt, *styleIt);
+        endX = renderSmallCapsSegment(renderer, fontId, startX, y, *wordIt, *styleIt);
       } else {
         renderer.text.render(fontId, startX, y, wordIt->c_str(), true, *styleIt);
         endX = startX + renderer.text.getWidth(fontId, wordIt->c_str(), *styleIt);
@@ -145,8 +138,8 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
       const std::string suffix = wordIt->substr(prefixBytes);
       const auto prefixStyle = bionicStyleFor(*styleIt);
       if (smallCaps) {
-        const int suffixX = renderSmallCapsSegment(renderer, fontId, smallCapsFontId, startX, y, prefix, prefixStyle);
-        endX = renderSmallCapsSegment(renderer, fontId, smallCapsFontId, suffixX, y, suffix, *styleIt);
+        const int suffixX = renderSmallCapsSegment(renderer, fontId, startX, y, prefix, prefixStyle);
+        endX = renderSmallCapsSegment(renderer, fontId, suffixX, y, suffix, *styleIt);
       } else {
         renderer.text.render(fontId, startX, y, prefix.c_str(), true, prefixStyle);
         const int suffixX = startX + renderer.text.getWidth(fontId, prefix.c_str(), prefixStyle);
@@ -169,7 +162,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   }
 }
 
-void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId, const int smallCapsFontId) const {
+void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId) const {
   if (words.size() != wordStyles.size() || (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size())) {
     return;
   }
@@ -183,7 +176,7 @@ void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId, const int
     const bool smallCaps = !wordSmallCaps.empty() && (*smallCapsIt != 0);
     if (prefixBytes == 0 || prefixBytes >= wordIt->size()) {
       if (smallCaps) {
-        prewarmSmallCapsSegment(renderer, fontId, smallCapsFontId, *wordIt, *styleIt);
+        prewarmSmallCapsSegment(renderer, fontId, *wordIt, *styleIt);
       } else {
         renderer.text.prewarm(fontId, wordIt->c_str(), *styleIt);
       }
@@ -192,8 +185,8 @@ void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId, const int
       const std::string suffix = wordIt->substr(prefixBytes);
       const auto prefixStyle = bionicStyleFor(*styleIt);
       if (smallCaps) {
-        prewarmSmallCapsSegment(renderer, fontId, smallCapsFontId, prefix, prefixStyle);
-        prewarmSmallCapsSegment(renderer, fontId, smallCapsFontId, suffix, *styleIt);
+        prewarmSmallCapsSegment(renderer, fontId, prefix, prefixStyle);
+        prewarmSmallCapsSegment(renderer, fontId, suffix, *styleIt);
       } else {
         renderer.text.prewarm(fontId, prefix.c_str(), prefixStyle);
         renderer.text.prewarm(fontId, suffix.c_str(), *styleIt);

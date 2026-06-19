@@ -349,7 +349,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         info.fontId,
         FontManager::getNextFont(info.fontId),
         FontManager::getMaxFontId(info.fontId),
-        FontManager::getPrevFont(info.fontId),
         info.lineCompression,
         bookSettings.extraParagraphSpacing,
         bookSettings.paragraphAlignment,

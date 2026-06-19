@@ -111,19 +111,19 @@ class PageHeader final : public PageElement {
 
 /**
  * Represents a line of text containing small-caps words.
- * Carries the smaller smallCapsFontId so the TextBlock can draw small-caps words shrunk,
- * the same way PageHeader carries headerFontId.
+ * Small-caps now render from the active body font, but we keep the stored int for
+ * serialized page compatibility with older cache files.
  */
 class PageSmallCaps final : public PageElement {
   std::shared_ptr<TextBlock> block;
-  int smallCapsFontId;
+  int compatFontId;
 
  public:
   PageSmallCaps(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos, int fontId)
-      : PageElement(xPos, yPos), block(std::move(block)), smallCapsFontId(fontId) {}
+      : PageElement(xPos, yPos), block(std::move(block)), compatFontId(fontId) {}
 
   const TextBlock& getTextBlock() const { return *block; }
-  int getSmallCapsFontId() const { return smallCapsFontId; }
+  int getCompatFontId() const { return compatFontId; }
 
   PageElementTag getTag() const override { return TAG_PageSmallCaps; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,

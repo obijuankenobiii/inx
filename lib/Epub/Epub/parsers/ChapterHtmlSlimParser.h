@@ -55,8 +55,6 @@ class ChapterHtmlSlimParser {
   int fontId;
   int headerFontId;
   int maxFontId;
-  /** Smaller font used for shrunken small-cap letters in body text. */
-  int smallCapsFontId;
 
   
   bool inHeader = false;
@@ -191,7 +189,7 @@ class ChapterHtmlSlimParser {
    */
   explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
                                  const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId, const int maxFontId, const int smallCapsFontId,
+                                 const int headerFontId, const int maxFontId,
                                  const float lineCompression,
                                  const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
                                  const uint16_t viewportWidth, const uint16_t viewportHeight,
@@ -207,7 +205,6 @@ class ChapterHtmlSlimParser {
         fontId(fontId),
         headerFontId(headerFontId),
         maxFontId(maxFontId),
-        smallCapsFontId(smallCapsFontId),
         lineCompression(lineCompression),
         extraParagraphSpacing(extraParagraphSpacing),
         paragraphAlignment(paragraphAlignment),

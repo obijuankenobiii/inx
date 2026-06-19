@@ -163,7 +163,6 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
  * @return true if section file was successfully created, false otherwise
  */
 bool Section::createSectionFile(const int fontId, const int headerFontId, const int maxFontId,
-                                const int smallCapsFontId,
                                 const float lineCompression, const bool extraParagraphSpacing,
                                 const uint8_t paragraphAlignment,
                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
@@ -212,7 +211,6 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       fontId,
       headerFontId,
       maxFontId,
-      smallCapsFontId,
       lineCompression,
       extraParagraphSpacing,
       paragraphAlignment,

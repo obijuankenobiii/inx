@@ -1256,7 +1256,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
   if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
     self->currentTextBlock->layoutAndExtractLines(
-        self->renderer, self->fontId, self->smallCapsFontId, self->viewportWidth,
+        self->renderer, self->fontId, self->viewportWidth,
         [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
   }
 }
@@ -1380,7 +1380,7 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   if (inHeader) {
     currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, headerFontId));
   } else if (line->hasSmallCaps()) {
-    currentPage->elements.push_back(std::make_shared<PageSmallCaps>(line, 0, currentPageNextY, smallCapsFontId));
+    currentPage->elements.push_back(std::make_shared<PageSmallCaps>(line, 0, currentPageNextY, fontId));
   } else {
     currentPage->elements.push_back(std::make_shared<PageLine>(line, 0, currentPageNextY));
   }
@@ -1400,7 +1400,7 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
 
   auto divider = std::make_shared<ParsedText>(TextBlock::CENTER_ALIGN, false, false, false, false);
   divider->addWord(text, EpdFontFamily::BOLD, false);
-  divider->layoutAndExtractLines(renderer, activeFontId, activeFontId, viewportWidth,
+  divider->layoutAndExtractLines(renderer, activeFontId, viewportWidth,
                                  [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   applyVerticalSpacing(spacer);
@@ -1460,7 +1460,7 @@ void ChapterHtmlSlimParser::makePages() {
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
 
   currentTextBlock->layoutAndExtractLines(
-      renderer, inHeader ? headerFontId : fontId, inHeader ? headerFontId : smallCapsFontId, viewportWidth,
+      renderer, inHeader ? headerFontId : fontId, viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   if (currentBlockSpacingFromCss) {

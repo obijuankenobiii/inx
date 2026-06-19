@@ -21,12 +21,19 @@ class TextRender {
                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void render(int fontId, int x, int y, const char* text, bool black = true,
             EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int getSmallCapsWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int getSmallCapsAscender(int fontId) const;
+  void prewarmSmallCaps(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  void renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,
+                       EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void centered(int fontId, int y, const char* text, bool black = true,
                     EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
 
  private:
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
+  void renderScaledChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
+                        EpdFontFamily::Style style, uint8_t scalePct, bool thinStroke) const;
   int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
   GfxRenderer& gfx;
 };
