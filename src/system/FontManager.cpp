@@ -18,8 +18,6 @@
 std::vector<FontManager::SDFontEntry> FontManager::g_sdFonts;
 int FontManager::g_nextSDFontId = FontManager::SD_FONT_START_ID;
 GfxRenderer* FontManager::g_renderer = nullptr;
-FontManager::ProgressCallback FontManager::g_progressCallback = nullptr;
-
 std::vector<std::unique_ptr<EpdFontFamily>> FontManager::g_fontFamilyStorage;
 std::vector<std::unique_ptr<EpdFont>> FontManager::g_fontStorage;
 
@@ -244,43 +242,6 @@ int FontManager::getNextFont(int currentFontId) {
   return currentFontId;
 }
 
-int FontManager::getPrevFont(int currentFontId) {
-  static const std::unordered_map<int, int> PREV_FONT = {
-      {LITERATA_12_FONT_ID, LITERATA_10_FONT_ID},
-      {LITERATA_14_FONT_ID, LITERATA_12_FONT_ID},
-      {LITERATA_16_FONT_ID, LITERATA_14_FONT_ID},
-      {LITERATA_18_FONT_ID, LITERATA_16_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_10_FONT_ID, ATKINSON_HYPERLEGIBLE_8_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_12_FONT_ID, ATKINSON_HYPERLEGIBLE_10_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_14_FONT_ID, ATKINSON_HYPERLEGIBLE_12_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_16_FONT_ID, ATKINSON_HYPERLEGIBLE_14_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_18_FONT_ID, ATKINSON_HYPERLEGIBLE_16_FONT_ID},
-  };
-
-  auto it = PREV_FONT.find(currentFontId);
-  if (it != PREV_FONT.end()) {
-    return it->second;
-  }
-
-  for (const auto& entry : g_sdFonts) {
-    if (entry.id == currentFontId) {
-      int prevId = -1;
-      int prevSize = INT_MIN;
-      for (const auto& e : g_sdFonts) {
-        if (e.family == entry.family && e.size < entry.size && e.size > prevSize) {
-          prevSize = e.size;
-          prevId = e.id;
-        }
-      }
-      if (prevId >= 0) {
-        return prevId;
-      }
-      return currentFontId;
-    }
-  }
-
-  return currentFontId;
-}
 
 /**
  * @brief Scans SD card for font files
@@ -475,8 +436,6 @@ void FontManager::updateFontLRU(int fontId) {
 /**
  * @brief Gets free heap memory
  */
-size_t FontManager::getFreeHeap() { return ESP.getFreeHeap(); }
-
 /**
  * @brief Sets maximum number of fonts to keep loaded
  */
@@ -590,7 +549,6 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
 
 void FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
   ensureFontReady(bodyFontId, renderer);
-  ensureFontReady(getNextFont(bodyFontId), renderer);
   ensureFontReady(getMaxFontId(bodyFontId), renderer);
 }
 
@@ -842,11 +800,6 @@ bool FontManager::isFontLoaded(int fontId) {
 }
 
 /**
- * @brief Sets the progress callback for font operations
- */
-void FontManager::setProgressCallback(ProgressCallback callback) { g_progressCallback = callback; }
-
-/**
  * @brief Prints font manager statistics to serial output
  */
 void FontManager::printFontStats() {
@@ -874,7 +827,8 @@ void FontManager::printFontStats() {
  */
 void FontManager::printMemoryUsage() {
   Serial.println("=== Memory Usage ===");
-  Serial.printf("Free heap: %u bytes (%u KB)\n", getFreeHeap(), getFreeHeap() / 1024);
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("Free heap: %u bytes (%u KB)\n", freeHeap, freeHeap / 1024);
   Serial.printf("Largest free block: %u bytes\n", ESP.getMaxAllocHeap());
   Serial.printf("Font families loaded: %d\n", (int)g_fontFamilyStorage.size());
   Serial.printf("Fonts loaded: %d\n", (int)g_fontStorage.size());

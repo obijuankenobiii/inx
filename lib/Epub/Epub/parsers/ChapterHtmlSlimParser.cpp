@@ -29,6 +29,7 @@ const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
+constexpr size_t STREAMING_TEXTBLOCK_WORD_LIMIT = 320;
 
 namespace {
 
@@ -305,9 +306,6 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   smallCapsDepths.clear();
   currentBlockBottomSpacingPx = 0;
   currentBlockSpacingFromCss = false;
-  currentBlockMarginBottomPx = 0;
-  currentBlockPaddingBottomPx = 0;
-  currentBlockBorderBottomPx = 0;
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;
   currentBlockBorderBottomPx = 0;
@@ -711,6 +709,11 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
 
   const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
   const bool underlineActive = underlineUntilDepth < depth;
+  if (currentTextBlock && currentTextBlock->size() >= STREAMING_TEXTBLOCK_WORD_LIMIT) {
+    currentTextBlock->layoutAndExtractLines(
+        renderer, inHeader ? headerFontId : fontId, viewportWidth,
+        [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
+  }
   currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive);
   partWordBufferIndex = 0;
 }
@@ -1023,7 +1026,15 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       }
     }
   }
-  elementHasExplicitTextAlign = self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
+  const bool isHeaderTag = matches(name, HEADER_TAGS, NUM_HEADER_TAGS);
+  const bool isBlockTag = matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS);
+  const bool hasSelectorAttrs = !classAttr.empty() || !idAttr.empty() || !styleAttr.empty();
+  const bool isCustomDisplayBlock =
+      hasSelectorAttrs && !isBlockTag && !isHeaderTag && self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr);
+  const bool isBlockLikeElement = isHeaderTag || isBlockTag || isCustomDisplayBlock;
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && isBlockLikeElement) {
+    elementHasExplicitTextAlign = self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
+  }
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && elementHasExplicitTextAlign) {
     elementCssStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
   }
@@ -1114,8 +1125,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
 
-  if (self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr) &&
-      !matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) && !matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
+  if (isCustomDisplayBlock) {
     self->flushPartWordBuffer();
     const int marginTop =
         self->cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
@@ -1198,7 +1208,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->italicUntilDepth = self->depth;
   }
 
-  if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
+  if (isHeaderTag) {
     self->inHeader = true;
     const int marginTop =
         self->cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
@@ -1224,7 +1234,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->applyVerticalSpacing(paddingTop);
     }
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
-  } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
+  } else if (isBlockTag) {
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
@@ -1275,7 +1285,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
-    self->cssAlignmentStack.push_back(elementCssStyle);
+    const TextBlock::Style pushedCssStyle =
+        isBlockLikeElement ? (elementHasExplicitTextAlign ? elementCssStyle : TextBlock::JUSTIFIED) : inheritedCssStyle;
+    self->cssAlignmentStack.push_back(pushedCssStyle);
   }
   self->depth += 1;
 }
@@ -1346,7 +1358,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     }
   }
 
-  if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
+  if (self->currentTextBlock && self->currentTextBlock->size() > STREAMING_TEXTBLOCK_WORD_LIMIT) {
     self->currentTextBlock->layoutAndExtractLines(
         self->renderer, self->fontId, self->viewportWidth,
         [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);

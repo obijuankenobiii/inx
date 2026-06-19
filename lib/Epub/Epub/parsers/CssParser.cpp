@@ -52,6 +52,31 @@ std::string trimCssWs(const std::string& str) {
   return str.substr(start, end - start);
 }
 
+struct TextSlice {
+  const char* data = nullptr;
+  size_t size = 0;
+
+  TextSlice() = default;
+  TextSlice(const char* d, const size_t s) : data(d), size(s) {}
+
+  bool empty() const { return size == 0; }
+  char operator[](const size_t index) const { return data[index]; }
+};
+
+TextSlice makeSlice(const std::string& str) { return {str.data(), str.size()}; }
+
+TextSlice trimCssWsView(TextSlice str) {
+  size_t start = 0;
+  while (start < str.size && std::isspace(static_cast<unsigned char>(str.data[start])) != 0) {
+    ++start;
+  }
+  size_t end = str.size;
+  while (end > start && std::isspace(static_cast<unsigned char>(str.data[end - 1])) != 0) {
+    --end;
+  }
+  return {str.data + start, end - start};
+}
+
 std::vector<std::string> splitCssWhitespaceList(const std::string& raw) {
   std::vector<std::string> out;
   std::string cur;
@@ -71,68 +96,151 @@ std::vector<std::string> splitCssWhitespaceList(const std::string& raw) {
   return out;
 }
 
-/** Last compound selector in a clause (e.g. "div > p" -> "p"). Input should be lowercased. */
-std::string lastCompoundInClauseLower(const std::string& clauseLower) {
-  std::string s = trimCssWs(clauseLower);
-  if (s.empty()) {
-    return s;
-  }
-  const size_t pseudoPos = s.find("::");
-  if (pseudoPos != std::string::npos) {
-    s = trimCssWs(s.substr(0, pseudoPos));
-  }
-  const size_t pos = s.find_last_of(">+~\t\n\r ");
-  if (pos == std::string::npos || pos + 1 >= s.size()) {
-    return s;
-  }
-  return trimCssWs(s.substr(pos + 1));
+struct SelectorMatchInfo {
+  bool matched = false;
+  bool hasId = false;
+  bool hasClass = false;
+  bool hasType = false;
+  bool firstLetter = false;
+};
+
+bool sliceEqualsString(const TextSlice slice, const std::string& str) {
+  return slice.size == str.size() && std::equal(str.begin(), str.end(), slice.data);
 }
 
-/** Type selector prefix of a compound (e.g. "p.foo" -> "p"). Empty if universal/class/id only. */
-std::string typeNameFromCompoundLower(const std::string& compoundLower) {
-  std::string s = trimCssWs(compoundLower);
-  if (s.empty()) {
-    return {};
-  }
-  const char c0 = s[0];
-  if (c0 == '.' || c0 == '#' || c0 == '[' || c0 == '*' || c0 == '+' || c0 == '~' || c0 == '>') {
-    return {};
-  }
-  size_t i = 0;
-  while (i < s.size()) {
-    const unsigned char uc = static_cast<unsigned char>(s[i]);
-    if (std::isalpha(uc) != 0 || s[i] == '_' || s[i] == '-' || std::isdigit(uc) != 0) {
-      ++i;
-      continue;
-    }
-    break;
-  }
-  if (i == 0) {
-    return {};
-  }
-  return s.substr(0, i);
-}
-
-bool selectorListMatchesElementType(const std::string& fullSelectorLower, const std::string& elementTagLower) {
-  if (elementTagLower.empty()) {
-    return false;
-  }
-  size_t start = 0;
-  while (start < fullSelectorLower.size()) {
-    const size_t comma = fullSelectorLower.find(',', start);
-    const std::string clause = trimCssWs(fullSelectorLower.substr(
-        start, comma == std::string::npos ? std::string::npos : comma - start));
-    const std::string last = lastCompoundInClauseLower(clause);
-    const std::string tag = typeNameFromCompoundLower(last);
-    if (!tag.empty() && tag == elementTagLower) {
+bool classTokenListContains(const std::vector<std::string>& classTokensLower, const TextSlice token) {
+  for (const auto& tok : classTokensLower) {
+    if (sliceEqualsString(token, tok)) {
       return true;
     }
+  }
+  return false;
+}
+
+TextSlice lastCompoundView(TextSlice clauseLower) {
+  clauseLower = trimCssWsView(clauseLower);
+  if (clauseLower.empty()) {
+    return {};
+  }
+  size_t end = clauseLower.size;
+  while (end > 0 && std::isspace(static_cast<unsigned char>(clauseLower.data[end - 1])) != 0) {
+    --end;
+  }
+  if (end == 0) {
+    return {};
+  }
+
+  size_t start = end;
+  while (start > 0) {
+    const char c = clauseLower.data[start - 1];
+    if (c == '>' || c == '+' || c == '~' || std::isspace(static_cast<unsigned char>(c)) != 0) {
+      break;
+    }
+    --start;
+  }
+  return trimCssWsView({clauseLower.data + start, end - start});
+}
+
+bool compoundMatchesElement(TextSlice compoundLower, const std::string& elementTagLower,
+                            const std::vector<std::string>& classTokensLower, const std::string& idLower,
+                            SelectorMatchInfo* outInfo) {
+  compoundLower = trimCssWsView(compoundLower);
+  if (compoundLower.empty()) {
+    return false;
+  }
+
+  SelectorMatchInfo info;
+  size_t i = 0;
+
+  if (compoundLower[0] != '.' && compoundLower[0] != '#' && compoundLower[0] != '[' && compoundLower[0] != '*' &&
+      compoundLower[0] != ':' && compoundLower[0] != '>') {
+    size_t typeEnd = 0;
+    while (typeEnd < compoundLower.size) {
+      const unsigned char uc = static_cast<unsigned char>(compoundLower.data[typeEnd]);
+      if (std::isalnum(uc) != 0 || compoundLower.data[typeEnd] == '_' || compoundLower.data[typeEnd] == '-') {
+        ++typeEnd;
+        continue;
+      }
+      break;
+    }
+    if (typeEnd > 0) {
+      info.hasType = true;
+      const TextSlice typeName{compoundLower.data, typeEnd};
+      const bool isUniversal = typeName.size == 1 && typeName.data[0] == '*';
+      if (!isUniversal && !sliceEqualsString(typeName, elementTagLower)) {
+        return false;
+      }
+      i = typeEnd;
+    }
+  }
+
+  while (i < compoundLower.size) {
+    const char c = compoundLower.data[i];
+    if (c == ':') {
+      break;
+    }
+    if (c == '.' || c == '#') {
+      size_t j = i + 1;
+      while (j < compoundLower.size && isIdentCont(static_cast<unsigned char>(compoundLower.data[j]))) {
+        ++j;
+      }
+      const TextSlice token{compoundLower.data + i + 1, j - i - 1};
+      if (!token.empty()) {
+        if (c == '#') {
+          info.hasId = true;
+          if (!sliceEqualsString(token, idLower)) {
+            return false;
+          }
+        } else {
+          info.hasClass = true;
+          if (!classTokenListContains(classTokensLower, token)) {
+            return false;
+          }
+        }
+      }
+      i = j;
+      continue;
+    }
+    ++i;
+  }
+
+  info.matched = true;
+  if (outInfo != nullptr) {
+    *outInfo = info;
+  }
+  return true;
+}
+
+SelectorMatchInfo matchSelectorList(const std::string& fullSelectorLower, const std::string& elementTagLower,
+                                    const std::vector<std::string>& classTokensLower, const std::string& idLower,
+                                    const bool requireFirstLetterPseudo = false) {
+  SelectorMatchInfo result;
+  size_t start = 0;
+
+  while (start < fullSelectorLower.size()) {
+    size_t comma = fullSelectorLower.find(',', start);
+    const size_t clauseLen = comma == std::string::npos ? fullSelectorLower.size() - start : comma - start;
+    TextSlice clause = trimCssWsView({fullSelectorLower.data() + start, clauseLen});
+    if (!clause.empty()) {
+      const std::string clauseStr(clause.data, clause.size);
+      const bool clauseFirstLetter = clauseStr.find(":first-letter") != std::string::npos ||
+                                     clauseStr.find("::first-letter") != std::string::npos;
+      if (!requireFirstLetterPseudo || clauseFirstLetter) {
+        SelectorMatchInfo clauseInfo;
+        if (compoundMatchesElement(lastCompoundView(clause), elementTagLower, classTokensLower, idLower, &clauseInfo)) {
+          clauseInfo.firstLetter = clauseFirstLetter;
+          return clauseInfo;
+        }
+      }
+    }
+
     if (comma == std::string::npos) {
       break;
     }
     start = comma + 1;
   }
-  return false;
+
+  return result;
 }
 
 bool selectorTargetsPseudoElement(const std::string& selectorLower) {
@@ -143,75 +251,6 @@ bool selectorTargetsPseudoElement(const std::string& selectorLower) {
 bool selectorTargetsFirstLetterPseudo(const std::string& selectorLower) {
   return selectorLower.find(":first-letter") != std::string::npos ||
          selectorLower.find("::first-letter") != std::string::npos;
-}
-
-bool selectorClauseMatchesElementForPseudo(const std::string& clauseLower, const std::string& elementTagLower,
-                                           const std::vector<std::string>& classTokensLower,
-                                           const std::string& idLower) {
-  const std::string compound = lastCompoundInClauseLower(clauseLower);
-  if (compound.empty()) {
-    return false;
-  }
-
-  // A compound selector (e.g. "p.dropcaps2line::first-letter") requires the element to satisfy ALL of its
-  // parts: the type AND every class AND any id. Matching on any single part (OR) makes a class-scoped
-  // rule apply to every element of that type — drop-capping every paragraph.
-  const std::string typeName = typeNameFromCompoundLower(compound);
-  if (!typeName.empty() && typeName != "*" && typeName != elementTagLower) {
-    return false;
-  }
-
-  for (size_t i = 0; i < compound.size();) {
-    const char c = compound[i];
-    if (c == ':') {
-      break;  // start of the pseudo-element; nothing past here constrains the subject element
-    }
-    if (c == '.' || c == '#') {
-      size_t j = i + 1;
-      while (j < compound.size() && isIdentCont(static_cast<unsigned char>(compound[j]))) {
-        ++j;
-      }
-      const std::string token = compound.substr(i + 1, j - i - 1);
-      if (!token.empty()) {
-        if (c == '#') {
-          if (idLower != token) return false;
-        } else {
-          bool hasClass = false;
-          for (const auto& tok : classTokensLower) {
-            if (tok == token) {
-              hasClass = true;
-              break;
-            }
-          }
-          if (!hasClass) return false;
-        }
-      }
-      i = j;
-    } else {
-      ++i;
-    }
-  }
-  return true;
-}
-
-bool selectorListMatchesElementForFirstLetter(const std::string& fullSelectorLower, const std::string& elementTagLower,
-                                              const std::vector<std::string>& classTokensLower,
-                                              const std::string& idLower) {
-  size_t start = 0;
-  while (start < fullSelectorLower.size()) {
-    const size_t comma = fullSelectorLower.find(',', start);
-    const std::string clause = trimCssWs(fullSelectorLower.substr(
-        start, comma == std::string::npos ? std::string::npos : comma - start));
-    if (selectorTargetsFirstLetterPseudo(clause) &&
-        selectorClauseMatchesElementForPseudo(clause, elementTagLower, classTokensLower, idLower)) {
-      return true;
-    }
-    if (comma == std::string::npos) {
-      break;
-    }
-    start = comma + 1;
-  }
-  return false;
 }
 
 std::string extractCssUrl(const std::string& raw) {
@@ -250,7 +289,6 @@ CssParser::~CssParser() { clear(); }
 void CssParser::clear() {
   rules.clear();
   sourcePaths_.clear();
-  hasAnyFirstLetterRule_ = false;
   bodyTextAlignRaw.clear();
 }
 
@@ -358,9 +396,6 @@ void CssParser::parse(const std::string& cssContent, const std::string& sourcePa
         rule.sourcePathIndex = internSourcePath(sourcePath);
         rule.isPseudoElement = selectorTargetsPseudoElement(rule.selectorLower);
         rule.isFirstLetterPseudo = selectorTargetsFirstLetterPseudo(rule.selectorLower);
-        if (rule.isFirstLetterPseudo) {
-          hasAnyFirstLetterRule_ = true;
-        }
         rules.push_back(std::move(rule));
       } else {
         Serial.printf("[CSSP] Reached max rules limit (%u)\n", static_cast<unsigned>(kMaxCssRules));
@@ -442,57 +477,6 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
 
     if (pos < len) pos++;
   }
-}
-
-bool CssParser::selectorHasIdToken(const std::string& selectorLower, const std::string& idLower) {
-  if (idLower.empty()) return false;
-  const std::string needle = "#" + idLower;
-  size_t pos = 0;
-  while ((pos = selectorLower.find(needle, pos)) != std::string::npos) {
-    size_t after = pos + needle.size();
-    if (after >= selectorLower.size()) return true;
-    unsigned char c = static_cast<unsigned char>(selectorLower[after]);
-    if (!isIdentCont(c)) return true;
-    pos = after;
-  }
-  return false;
-}
-
-bool CssParser::selectorHasClassToken(const std::string& selectorLower, const std::string& classTokenLower) {
-  if (classTokenLower.empty()) return false;
-  const std::string needle = "." + classTokenLower;
-  size_t pos = 0;
-  while ((pos = selectorLower.find(needle, pos)) != std::string::npos) {
-    size_t after = pos + needle.size();
-    if (after >= selectorLower.size()) return true;
-    unsigned char c = static_cast<unsigned char>(selectorLower[after]);
-    if (!isIdentCont(c)) return true;
-    pos = after;
-  }
-  return false;
-}
-
-bool CssParser::ruleMatchesElement(const CssRule& rule, const std::string& classAttr, const std::string& idAttr) const {
-  const std::string& selLower = rule.selectorLower;
-
-  std::string idKey = trim(idAttr);
-  std::transform(idKey.begin(), idKey.end(), idKey.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  if (!idKey.empty() && selectorHasIdToken(selLower, idKey)) {
-    return true;
-  }
-
-  std::vector<std::string> tokens;
-  splitClassTokens(classAttr, tokens);
-  for (const auto& tok : tokens) {
-    std::string tl = trim(tok);
-    std::transform(tl.begin(), tl.end(), tl.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (!tl.empty() && selectorHasClassToken(selLower, tl)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void CssParser::parseInlineStyle(const std::string& styleAttr, std::map<std::string, std::string>& out) const {
@@ -662,8 +646,12 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
     return parseDimensionValue(itIn->second, viewportWidth, viewportHeight, pct);
   }
 
-  std::map<std::string, std::string> idLast;
-  std::map<std::string, std::string> clsLast;
+  std::string idLast;
+  std::string clsLast;
+  std::string typeLast;
+  bool hasIdLast = false;
+  bool hasClsLast = false;
+  bool hasTypeLast = false;
 
   std::string idLower = toLower(trim(id));
   std::vector<std::string> classTokens;
@@ -673,41 +661,40 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
   }
 
   for (const auto& rule : rules) {
-    const std::string& selLower = rule.selectorLower;
-    if (selectorTargetsPseudoElement(selLower)) {
+    if (rule.isPseudoElement) {
+      continue;
+    }
+    const SelectorMatchInfo matchInfo =
+        matchSelectorList(rule.selectorLower, "", classTokens, idLower, false);
+    if (!matchInfo.matched) {
       continue;
     }
 
-    const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
-    bool classMatch = false;
-    if (!idMatch) {
-      for (const auto& tok : classTokens) {
-        if (!tok.empty() && selectorHasClassToken(selLower, tok)) {
-          classMatch = true;
-          break;
-        }
-      }
-    }
-
-    auto pit = rule.properties.find(propName);
+    const auto pit = rule.properties.find(propName);
     if (pit == rule.properties.end()) {
       continue;
     }
 
-    if (idMatch) {
-      idLast[propName] = pit->second;
-    } else if (classMatch) {
-      clsLast[propName] = pit->second;
+    if (matchInfo.hasId) {
+      idLast = pit->second;
+      hasIdLast = true;
+    } else if (matchInfo.hasClass) {
+      clsLast = pit->second;
+      hasClsLast = true;
+    } else if (matchInfo.hasType) {
+      typeLast = pit->second;
+      hasTypeLast = true;
     }
   }
 
-  auto jt = idLast.find(propName);
-  if (jt != idLast.end()) {
-    return parseDimensionValue(jt->second, viewportWidth, viewportHeight, pct);
+  if (hasIdLast) {
+    return parseDimensionValue(idLast, viewportWidth, viewportHeight, pct);
   }
-  auto kt = clsLast.find(propName);
-  if (kt != clsLast.end()) {
-    return parseDimensionValue(kt->second, viewportWidth, viewportHeight, pct);
+  if (hasClsLast) {
+    return parseDimensionValue(clsLast, viewportWidth, viewportHeight, pct);
+  }
+  if (hasTypeLast) {
+    return parseDimensionValue(typeLast, viewportWidth, viewportHeight, pct);
   }
   return 0;
 }
@@ -889,12 +876,26 @@ void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw,
   size_t start = 0;
   while (start < selectorRaw.size()) {
     const size_t comma = selectorRaw.find(',', start);
-    const std::string part =
-        trim(selectorRaw.substr(start, comma == std::string::npos ? std::string::npos : comma - start));
-    const std::string pl = toLower(part);
-    const std::string last = lastCompoundInClauseLower(pl);
-    const std::string tag = typeNameFromCompoundLower(last);
-    if (pl == "body" || pl == "html" || tag == "body" || tag == "html") {
+    const size_t clauseLen = comma == std::string::npos ? selectorRaw.size() - start : comma - start;
+    std::string clause = toLower(trim(std::string(selectorRaw.data() + start, clauseLen)));
+    const TextSlice compound = lastCompoundView(makeSlice(clause));
+    bool matchesBodyHtml = clause == "body" || clause == "html";
+    if (!matchesBodyHtml && !compound.empty()) {
+      size_t typeEnd = 0;
+      while (typeEnd < compound.size) {
+        const unsigned char uc = static_cast<unsigned char>(compound.data[typeEnd]);
+        if (std::isalnum(uc) != 0 || compound.data[typeEnd] == '_' || compound.data[typeEnd] == '-') {
+          ++typeEnd;
+          continue;
+        }
+        break;
+      }
+      if (typeEnd == 4) {
+        matchesBodyHtml = std::equal(compound.data, compound.data + 4, "body") ||
+                          std::equal(compound.data, compound.data + 4, "html");
+      }
+    }
+    if (matchesBodyHtml) {
       bodyTextAlignRaw = val;
     }
     if (comma == std::string::npos) {
@@ -915,9 +916,12 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
     return itIn->second;
   }
 
-  std::map<std::string, std::string> idLast;
-  std::map<std::string, std::string> clsLast;
-  std::map<std::string, std::string> typeLast;
+  std::string idLast;
+  std::string clsLast;
+  std::string typeLast;
+  bool hasIdLast = false;
+  bool hasClsLast = false;
+  bool hasTypeLast = false;
 
   std::string idLower = toLower(trim(id));
   std::vector<std::string> classTokens;
@@ -928,48 +932,40 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
 
   for (const auto& rule : rules) {
     const std::string& selLower = rule.selectorLower;
-    if (selectorTargetsPseudoElement(selLower)) {
+    if (rule.isPseudoElement) {
       continue;
     }
-
-    const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
-    bool classMatch = false;
-    if (!idMatch) {
-      for (const auto& tok : classTokens) {
-        if (!tok.empty() && selectorHasClassToken(selLower, tok)) {
-          classMatch = true;
-          break;
-        }
-      }
+    const SelectorMatchInfo matchInfo =
+        matchSelectorList(selLower, elementTagLower, classTokens, idLower, false);
+    if (!matchInfo.matched) {
+      continue;
     }
-
-    const bool tagMatch = !elementTagLower.empty() && selectorListMatchesElementType(selLower, elementTagLower);
 
     const auto pit = rule.properties.find(propName);
     if (pit == rule.properties.end()) {
       continue;
     }
 
-    if (idMatch) {
-      idLast[propName] = pit->second;
-    } else if (classMatch) {
-      clsLast[propName] = pit->second;
-    } else if (tagMatch) {
-      typeLast[propName] = pit->second;
+    if (matchInfo.hasId) {
+      idLast = pit->second;
+      hasIdLast = true;
+    } else if (matchInfo.hasClass) {
+      clsLast = pit->second;
+      hasClsLast = true;
+    } else if (matchInfo.hasType) {
+      typeLast = pit->second;
+      hasTypeLast = true;
     }
   }
 
-  const auto jt = idLast.find(propName);
-  if (jt != idLast.end()) {
-    return jt->second;
+  if (hasIdLast) {
+    return idLast;
   }
-  const auto kt = clsLast.find(propName);
-  if (kt != clsLast.end()) {
-    return kt->second;
+  if (hasClsLast) {
+    return clsLast;
   }
-  const auto tt = typeLast.find(propName);
-  if (tt != typeLast.end()) {
-    return tt->second;
+  if (hasTypeLast) {
+    return typeLast;
   }
   return "";
 }
@@ -1002,7 +998,7 @@ bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, c
 
   for (const auto& rule : rules) {
     const std::string& selLower = rule.selectorLower;
-    if (selectorTargetsPseudoElement(selLower)) {
+    if (rule.isPseudoElement) {
       continue;
     }
     const auto pit = rule.properties.find(propName);
@@ -1010,23 +1006,17 @@ bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, c
       continue;
     }
 
-    const bool idMatch = !idLower.empty() && selectorHasIdToken(selLower, idLower);
-    bool classMatch = false;
-    if (!idMatch) {
-      for (const auto& tok : classTokens) {
-        if (!tok.empty() && selectorHasClassToken(selLower, tok)) {
-          classMatch = true;
-          break;
-        }
-      }
+    const SelectorMatchInfo matchInfo =
+        matchSelectorList(selLower, elementTagLower, classTokens, idLower, false);
+    if (!matchInfo.matched) {
+      continue;
     }
-    const bool tagMatch = !elementTagLower.empty() && selectorListMatchesElementType(selLower, elementTagLower);
 
-    if (idMatch) {
+    if (matchInfo.hasId) {
       idRule = &rule;
-    } else if (classMatch) {
+    } else if (matchInfo.hasClass) {
       clsRule = &rule;
-    } else if (tagMatch) {
+    } else if (matchInfo.hasType) {
       typeRule = &rule;
     }
   }
@@ -1284,10 +1274,10 @@ bool CssParser::hasFirstLetterDropCapHint(const std::string& elementTagLower, co
   }
 
   for (const auto& rule : rules) {
-    if (!selectorTargetsFirstLetterPseudo(rule.selectorLower)) {
+    if (!rule.isFirstLetterPseudo) {
       continue;
     }
-    if (!selectorListMatchesElementForFirstLetter(rule.selectorLower, elementTagLower, classTokens, idLower)) {
+    if (!matchSelectorList(rule.selectorLower, elementTagLower, classTokens, idLower, true).matched) {
       continue;
     }
     if (rule.properties.find("initial-letter") != rule.properties.end()) {
@@ -1346,10 +1336,10 @@ uint8_t CssParser::getFirstLetterDropCapLineCount(const std::string& elementTagL
   }
 
   for (const auto& rule : rules) {
-    if (!selectorTargetsFirstLetterPseudo(rule.selectorLower)) {
+    if (!rule.isFirstLetterPseudo) {
       continue;
     }
-    if (!selectorListMatchesElementForFirstLetter(rule.selectorLower, elementTagLower, classTokens, idLower)) {
+    if (!matchSelectorList(rule.selectorLower, elementTagLower, classTokens, idLower, true).matched) {
       continue;
     }
     const auto it = rule.properties.find("initial-letter");
@@ -1561,27 +1551,5 @@ std::string CssParser::trim(const std::string& str) const {
 std::string CssParser::toLower(const std::string& str) const {
   std::string result = str;
   std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return result;
-}
-
-void CssParser::parseFile(const std::string& filepath) { (void)filepath; }
-
-std::map<std::string, std::string> CssParser::getCombinedPropertiesForElement(const std::string& elementName,
-                                                                              const std::string& className,
-                                                                              const std::string& id) const {
-  std::map<std::string, std::string> result;
-  (void)elementName;
-  if (className.empty() && id.empty()) return result;
-
-  for (const auto& rule : rules) {
-    if (selectorTargetsPseudoElement(rule.selectorLower)) {
-      continue;
-    }
-    if (ruleMatchesElement(rule, className, id)) {
-      for (const auto& prop : rule.properties) {
-        result[prop.first] = prop.second;
-      }
-    }
-  }
   return result;
 }

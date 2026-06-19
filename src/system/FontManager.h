@@ -32,8 +32,7 @@ class FontManager {
   static void initialize(GfxRenderer& renderer);
 
   static int getNextFont(int currentFontId);
-  /** Font one size smaller in the same family (used for small-caps); returns currentFontId if none smaller. */
-  static int getPrevFont(int currentFontId);
+  
   static int getMaxFontId(int currentFontId);
 
   static bool scanSDFonts(const char* sdPath = "/fonts", bool forceRescan = false);
@@ -65,12 +64,8 @@ class FontManager {
   static bool isFontLoaded(int fontId);
   static int getFontId(const std::string& family, int size);
 
-  using ProgressCallback = std::function<void(const std::string& family, int current, int total)>;
-  static void setProgressCallback(ProgressCallback callback);
-
   static void printMemoryUsage();
   static void printFontStats();
-  static size_t getFreeHeap();
 
   static void setMaxLoadedFonts(int maxFonts);
   static int getMaxLoadedFonts();
@@ -100,7 +95,6 @@ class FontManager {
   static std::vector<SDFontEntry> g_sdFonts;
   static int g_nextSDFontId;
   static GfxRenderer* g_renderer;
-  static ProgressCallback g_progressCallback;
   static std::vector<std::unique_ptr<EpdFontFamily>> g_fontFamilyStorage;
   static std::vector<std::unique_ptr<EpdFont>> g_fontStorage;
   static int g_maxLoadedFonts;

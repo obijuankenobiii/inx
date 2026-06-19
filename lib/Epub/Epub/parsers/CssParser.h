@@ -27,7 +27,6 @@ class CssParser {
   ~CssParser();
 
   void parse(const std::string& cssContent, const std::string& sourcePath = "");
-  void parseFile(const std::string& filepath);
   void clear();
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
@@ -121,8 +120,6 @@ class CssParser {
   /** Interned CSS file paths; CssRule::sourcePathIndex points here (used to resolve background-image URLs). */
   std::vector<std::string> sourcePaths_;
   uint16_t internSourcePath(const std::string& path);
-  /** True if any parsed rule targets ::first-letter — lets per-element drop-cap checks short-circuit. */
-  bool hasAnyFirstLetterRule_ = false;
   std::string bodyTextAlignRaw;
 
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
@@ -150,14 +147,6 @@ class CssParser {
   bool hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
                             const std::string& styleAttr, const std::string& elementTagLower = "") const;
 
-  static bool selectorHasIdToken(const std::string& selectorLower, const std::string& idLower);
-  static bool selectorHasClassToken(const std::string& selectorLower, const std::string& classTokenLower);
-  bool ruleMatchesElement(const CssRule& rule, const std::string& classAttr, const std::string& idAttr) const;
-
   std::string trim(const std::string& str) const;
   std::string toLower(const std::string& str) const;
-
-  std::map<std::string, std::string> getCombinedPropertiesForElement(const std::string& elementName,
-                                                                     const std::string& className,
-                                                                     const std::string& id) const;
 };
