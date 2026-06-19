@@ -201,6 +201,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                          ImageRenderMode ) {
+  // Align the drop cap's top with the first text line (previously lifted 5px, which sat too high).
   renderer.text.render(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
 }
 
@@ -449,6 +450,35 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file
   return std::unique_ptr<PageHorizontalRule>(new PageHorizontalRule(x, y));
 }
 
+void PageCssBorderLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                               ImageRenderMode) {
+  (void)fontId;
+  const int left = xPos + xOffset;
+  const int top = yPos + yOffset;
+  const int drawWidth = std::max<int>(1, width);
+  const int drawThickness = std::max<int>(1, thickness);
+  for (int i = 0; i < drawThickness; ++i) {
+    renderer.line.render(left, top + i, left + drawWidth - 1, top + i, true);
+  }
+}
+
+bool PageCssBorderLine::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, width);
+  serialization::writePod(file, thickness);
+  return true;
+}
+
+std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) {
+  int16_t x = 0, y = 0, width = 0, thickness = 1;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, width);
+  serialization::readPod(file, thickness);
+  return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness));
+}
+
 /**
  * Renders all elements on the page.
  *
@@ -615,6 +645,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageTable::deserialize(file));
     } else if (tag == TAG_PageHorizontalRule) {
       page->elements.push_back(PageHorizontalRule::deserialize(file));
+    } else if (tag == TAG_PageCssBorderLine) {
+      page->elements.push_back(PageCssBorderLine::deserialize(file));
     }
   }
   return page;

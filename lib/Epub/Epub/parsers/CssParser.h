@@ -5,6 +5,7 @@
  * @brief Public interface and types for CssParser.
  */
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -12,10 +13,13 @@
 class CssParser {
  public:
   struct CssRule {
-    std::string selector;
     /** Lowercase selector; filled at parse time so hot paths do not reallocate/transform on every lookup. */
     std::string selectorLower;
-    std::string sourcePath;
+    /** Index into sourcePaths_ (interned) — avoids storing the full CSS file path on every rule. */
+    uint16_t sourcePathIndex = 0;
+    /** Precomputed selector classifications so per-element scans avoid re-running string searches. */
+    bool isPseudoElement = false;
+    bool isFirstLetterPseudo = false;
     std::map<std::string, std::string> properties;
   };
 
@@ -86,6 +90,22 @@ class CssParser {
   int getParagraphSpacingBottomPx(const std::string& elementTagLower, const std::string& className,
                                   const std::string& id, const std::string& styleAttr, int viewportWidth,
                                   int viewportHeight) const;
+  int getMarginTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                     const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getMarginBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                         const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                     const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getBorderBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
@@ -98,6 +118,11 @@ class CssParser {
 
  private:
   std::vector<CssRule> rules;
+  /** Interned CSS file paths; CssRule::sourcePathIndex points here (used to resolve background-image URLs). */
+  std::vector<std::string> sourcePaths_;
+  uint16_t internSourcePath(const std::string& path);
+  /** True if any parsed rule targets ::first-letter — lets per-element drop-cap checks short-circuit. */
+  bool hasAnyFirstLetterRule_ = false;
   std::string bodyTextAlignRaw;
 
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
@@ -120,6 +145,8 @@ class CssParser {
   int getSpacingEdgePx(const std::string& propName, const std::string& shorthandName, const std::string& className,
                        const std::string& id, const std::string& styleAttr, int viewportWidth,
                        int viewportHeight) const;
+  int getBorderEdgePx(const std::string& edgePropName, const std::string& className, const std::string& id,
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   bool hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
                             const std::string& styleAttr, const std::string& elementTagLower = "") const;
 

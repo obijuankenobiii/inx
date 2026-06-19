@@ -93,6 +93,9 @@ class ChapterHtmlSlimParser {
   std::vector<int> smallCapsDepths;
   int currentBlockBottomSpacingPx = 0;
   bool currentBlockSpacingFromCss = false;
+  int currentBlockMarginBottomPx = 0;
+  int currentBlockPaddingBottomPx = 0;
+  int currentBlockBorderBottomPx = 0;
 
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;
@@ -146,6 +149,7 @@ class ChapterHtmlSlimParser {
   void addCenteredDivider(const char* text);
   void addHorizontalRule(const std::string& tagLower = "hr", const std::string& classAttr = "",
                          const std::string& idAttr = "", const std::string& styleAttr = "");
+  void addCssBorderLine(int thicknessPx);
 
   /**
    * Adds an image to the current page layout.

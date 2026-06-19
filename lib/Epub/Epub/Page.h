@@ -23,6 +23,7 @@ enum PageElementTag : uint8_t {
   TAG_PageTable = 5,
   TAG_PageHorizontalRule = 6,
   TAG_PageSmallCaps = 7,
+  TAG_PageCssBorderLine = 8,
 };
 
 /**
@@ -232,6 +233,21 @@ class PageHorizontalRule final : public PageElement {
               ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
+};
+
+class PageCssBorderLine final : public PageElement {
+  int16_t width;
+  int16_t thickness;
+
+ public:
+  PageCssBorderLine(const int16_t xPos, const int16_t yPos, const int16_t width, const int16_t thickness)
+      : PageElement(xPos, yPos), width(width), thickness(thickness) {}
+
+  PageElementTag getTag() const override { return TAG_PageCssBorderLine; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageCssBorderLine> deserialize(FsFile& file);
 };
 
 /**
