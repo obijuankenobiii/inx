@@ -9,7 +9,7 @@
 
 namespace {
 
-constexpr uint8_t kSmallCapsScalePct = 82;
+constexpr uint8_t kSmallCapsScalePct = 77;
 constexpr int kScaleRoundBias = 50;
 
 bool isAsciiLower(const uint32_t cp) { return cp >= 'a' && cp <= 'z'; }
@@ -318,16 +318,14 @@ void TextRender::renderSmallCaps(const int fontId, const int x, const int y, con
   const auto font = gfx.fontMap.at(fontId);
   const std::string upper = toUpperUtf8(text);
   const char* ptr = upper.c_str();
-  const int fullAscender = getFontAscenderSize(fontId);
-  const int scaledAscender = getSmallCapsAscender(fontId);
-  const int yPos = y + fullAscender;
-  const int baselineAdjust = std::max(0, fullAscender - scaledAscender);
+  // Sit the small caps on the same baseline as the surrounding full-size text.
+  const int yPos = y + getFontAscenderSize(fontId);
   int xpos = x;
-  int yCursor = yPos - baselineAdjust;
+  int yCursor = yPos;
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&ptr)))) {
-    renderScaledChar(font, cp, &xpos, &yCursor, black, style, kSmallCapsScalePct, true);
+    renderScaledChar(font, cp, &xpos, &yCursor, black, style, kSmallCapsScalePct);
   }
 }
 
@@ -460,8 +458,8 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
 }
 
 void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_t cp, int* x, const int* y,
-                                  const bool pixelState, const EpdFontFamily::Style style, const uint8_t scalePct,
-                                  const bool thinStroke) const {
+                                  const bool pixelState, const EpdFontFamily::Style style,
+                                  const uint8_t scalePct) const {
   EpdGlyph glyphStorage;
   const EpdGlyph* glyph = nullptr;
   const EpdFontData* fontData = fontFamily.getData(style);
@@ -525,15 +523,19 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
         }
         const int screenY = *y - scaledTop + outY;
         for (int outX = 0; outX < scaledW; ++outX) {
-          if (thinStroke && scaledW >= 5 && ((outX + outY) & 3) == 3) {
-            continue;
-          }
-          const int srcX = std::min<int>(width - 1, (outX * static_cast<int>(width)) / scaledW);
+          int sx0 = (outX * static_cast<int>(width)) / scaledW;
+          int sx1 = ((outX + 1) * static_cast<int>(width)) / scaledW;
+          if (sx1 <= sx0) sx1 = sx0 + 1;
+          sx1 = std::min<int>(sx1, width);
           const int screenX = *x + scaledLeft + outX;
+          // Keep the darkest source pixel in the horizontal footprint so vertical strokes survive.
           if (is2Bit) {
-            const uint8_t byte = rowBuf[srcX / 4];
-            const uint8_t bitIndex = (3 - (srcX % 4)) * 2;
-            const uint8_t bmpVal = 3 - ((byte >> bitIndex) & 0x3);
+            uint8_t rawMax = 0;
+            for (int sx = sx0; sx < sx1; ++sx) {
+              const uint8_t raw = (rowBuf[sx / 4] >> ((3 - (sx % 4)) * 2)) & 0x3;
+              if (raw > rawMax) rawMax = raw;
+            }
+            const uint8_t bmpVal = 3 - rawMax;
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, pixelState);
             } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
@@ -542,9 +544,14 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
               gfx.drawPixel(screenX, screenY, false);
             }
           } else {
-            const uint8_t byte = rowBuf[srcX / 8];
-            const uint8_t bitIndex = 7 - (srcX % 8);
-            if ((byte >> bitIndex) & 1) {
+            bool ink = false;
+            for (int sx = sx0; sx < sx1; ++sx) {
+              if ((rowBuf[sx / 8] >> (7 - (sx % 8))) & 1) {
+                ink = true;
+                break;
+              }
+            }
+            if (ink) {
               gfx.drawPixel(screenX, screenY, pixelState);
             }
           }
@@ -557,19 +564,28 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
 
   if (bitmap != nullptr) {
     for (int outY = 0; outY < scaledH; ++outY) {
-      const int srcY = std::min<int>(height - 1, (outY * static_cast<int>(height)) / scaledH);
+      int sy0 = (outY * static_cast<int>(height)) / scaledH;
+      int sy1 = ((outY + 1) * static_cast<int>(height)) / scaledH;
+      if (sy1 <= sy0) sy1 = sy0 + 1;
+      sy1 = std::min<int>(sy1, height);
       const int screenY = *y - scaledTop + outY;
       for (int outX = 0; outX < scaledW; ++outX) {
-        if (thinStroke && scaledW >= 5 && ((outX + outY) & 3) == 3) {
-          continue;
-        }
-        const int srcX = std::min<int>(width - 1, (outX * static_cast<int>(width)) / scaledW);
+        int sx0 = (outX * static_cast<int>(width)) / scaledW;
+        int sx1 = ((outX + 1) * static_cast<int>(width)) / scaledW;
+        if (sx1 <= sx0) sx1 = sx0 + 1;
+        sx1 = std::min<int>(sx1, width);
         const int screenX = *x + scaledLeft + outX;
-        const int pixelPosition = srcY * width + srcX;
+        // Keep the darkest source pixel in the footprint so thin strokes survive downscaling.
         if (is2Bit) {
-          const uint8_t byte = bitmap[pixelPosition / 4];
-          const uint8_t bitIndex = (3 - (pixelPosition % 4)) * 2;
-          const uint8_t bmpVal = 3 - ((byte >> bitIndex) & 0x3);
+          uint8_t rawMax = 0;
+          for (int sy = sy0; sy < sy1; ++sy) {
+            for (int sx = sx0; sx < sx1; ++sx) {
+              const int pp = sy * width + sx;
+              const uint8_t raw = (bitmap[pp / 4] >> ((3 - (pp % 4)) * 2)) & 0x3;
+              if (raw > rawMax) rawMax = raw;
+            }
+          }
+          const uint8_t bmpVal = 3 - rawMax;
           if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
             gfx.drawPixel(screenX, screenY, pixelState);
           } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
@@ -578,9 +594,17 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
             gfx.drawPixel(screenX, screenY, false);
           }
         } else {
-          const uint8_t byte = bitmap[pixelPosition / 8];
-          const uint8_t bitIndex = 7 - (pixelPosition % 8);
-          if ((byte >> bitIndex) & 1) {
+          bool ink = false;
+          for (int sy = sy0; sy < sy1 && !ink; ++sy) {
+            for (int sx = sx0; sx < sx1; ++sx) {
+              const int pp = sy * width + sx;
+              if ((bitmap[pp / 8] >> (7 - (pp % 8))) & 1) {
+                ink = true;
+                break;
+              }
+            }
+          }
+          if (ink) {
             gfx.drawPixel(screenX, screenY, pixelState);
           }
         }

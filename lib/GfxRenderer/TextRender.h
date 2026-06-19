@@ -33,7 +33,7 @@ class TextRender {
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
   void renderScaledChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
-                        EpdFontFamily::Style style, uint8_t scalePct, bool thinStroke) const;
+                        EpdFontFamily::Style style, uint8_t scalePct) const;
   int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;
   GfxRenderer& gfx;
 };
