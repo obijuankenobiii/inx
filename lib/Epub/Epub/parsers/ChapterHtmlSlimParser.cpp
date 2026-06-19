@@ -64,6 +64,30 @@ bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
   return false;
 }
 
+bool isAsciiLower(const uint32_t cp) { return cp >= 'a' && cp <= 'z'; }
+
+bool isAsciiAlpha(const uint32_t cp) { return (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z'); }
+
+uint32_t toAsciiUpper(const uint32_t cp) { return isAsciiLower(cp) ? (cp - ('a' - 'A')) : cp; }
+
+void appendUtf8Codepoint(std::string& out, const uint32_t cp) {
+  if (cp <= 0x7F) {
+    out.push_back(static_cast<char>(cp));
+  } else if (cp <= 0x7FF) {
+    out.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else if (cp <= 0xFFFF) {
+    out.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else {
+    out.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  }
+}
+
 int utf8CodepointByteLength(const unsigned char lead) {
   if ((lead & 0x80) == 0x00) return 1;
   if ((lead & 0xE0) == 0xC0) return 2;
@@ -181,6 +205,27 @@ int desiredDropCapCodepoints(const char* s, int byteLen, const bool consumeWhole
   }
   const uint32_t first = utf8NextCodepoint(&p);
   return isLeadingDropCapPunctuation(first) ? 2 : 1;
+}
+
+std::string uppercaseSingleLetterDropCap(const char* s, const int byteLen) {
+  std::string out;
+  out.reserve(static_cast<size_t>(byteLen));
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  int alphaCount = 0;
+  while (p < end) {
+    const uint32_t cp = utf8NextCodepoint(&p);
+    if (isAsciiAlpha(cp)) {
+      ++alphaCount;
+    }
+  }
+
+  p = reinterpret_cast<const unsigned char*>(s);
+  while (p < end) {
+    const uint32_t cp = utf8NextCodepoint(&p);
+    appendUtf8Codepoint(out, alphaCount == 1 ? toAsciiUpper(cp) : cp);
+  }
+  return out;
 }
 
 }  
@@ -613,11 +658,12 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   if (inDropCap) {
     if (!currentPage) currentPage.reset(new Page());
 
-    auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
+    const std::string dropCapText = uppercaseSingleLetterDropCap(partWordBuffer, partWordBufferIndex);
+    auto dropCapElem = std::make_shared<PageDropCap>(dropCapText, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
     const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10);
-    int dropCapWidth = renderer.text.getWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
+    int dropCapWidth = renderer.text.getWidth(maxFontId, dropCapText.c_str(), EpdFontFamily::BOLD) + gutter;
 
     if (currentTextBlock) {
       currentTextBlock->setLeftIndent(dropCapWidth, dropCapLineCount);
@@ -1050,12 +1096,17 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->startNewTextBlock(blockStyle);
   }
 
-  if (atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr)) {
+  const bool hasAttributeDropCapHint = atts != nullptr && hasDropCapHint(classAttr, idAttr, styleAttr);
+  const bool hasPseudoFirstLetterDropCapHint =
+      self->cssParser.hasFirstLetterDropCapHint(tagLower, classAttr, idAttr, styleAttr);
+  if (hasAttributeDropCapHint || hasPseudoFirstLetterDropCapHint) {
     self->flushPartWordBuffer();
     self->inDropCap = true;
     self->dropCapDepth = self->depth;
     self->dropCapConsumeWholeContainer = (strcmp(name, "span") == 0);
-    self->dropCapLineCount = detectDropCapLineCount(classAttr, idAttr, styleAttr);
+    self->dropCapLineCount = hasAttributeDropCapHint
+                                 ? detectDropCapLineCount(classAttr, idAttr, styleAttr)
+                                 : self->cssParser.getFirstLetterDropCapLineCount(tagLower, classAttr, idAttr, styleAttr);
   }
 
   

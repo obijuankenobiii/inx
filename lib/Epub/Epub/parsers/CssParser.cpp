@@ -138,6 +138,81 @@ bool selectorTargetsPseudoElement(const std::string& selectorLower) {
          selectorLower.find(":first-line") != std::string::npos;
 }
 
+bool selectorTargetsFirstLetterPseudo(const std::string& selectorLower) {
+  return selectorLower.find(":first-letter") != std::string::npos ||
+         selectorLower.find("::first-letter") != std::string::npos;
+}
+
+bool selectorHasIdTokenLocal(const std::string& selectorLower, const std::string& idLower) {
+  if (idLower.empty()) return false;
+  const std::string needle = "#" + idLower;
+  size_t pos = 0;
+  while ((pos = selectorLower.find(needle, pos)) != std::string::npos) {
+    size_t after = pos + needle.size();
+    if (after >= selectorLower.size()) return true;
+    unsigned char c = static_cast<unsigned char>(selectorLower[after]);
+    if (!isIdentCont(c)) return true;
+    pos = after;
+  }
+  return false;
+}
+
+bool selectorHasClassTokenLocal(const std::string& selectorLower, const std::string& classTokenLower) {
+  if (classTokenLower.empty()) return false;
+  const std::string needle = "." + classTokenLower;
+  size_t pos = 0;
+  while ((pos = selectorLower.find(needle, pos)) != std::string::npos) {
+    size_t after = pos + needle.size();
+    if (after >= selectorLower.size()) return true;
+    unsigned char c = static_cast<unsigned char>(selectorLower[after]);
+    if (!isIdentCont(c)) return true;
+    pos = after;
+  }
+  return false;
+}
+
+bool selectorClauseMatchesElementForPseudo(const std::string& clauseLower, const std::string& elementTagLower,
+                                           const std::vector<std::string>& classTokensLower,
+                                           const std::string& idLower) {
+  const std::string compound = lastCompoundInClauseLower(clauseLower);
+  if (compound.empty()) {
+    return false;
+  }
+
+  if (!idLower.empty() && selectorHasIdTokenLocal(compound, idLower)) {
+    return true;
+  }
+
+  for (const auto& tok : classTokensLower) {
+    if (!tok.empty() && selectorHasClassTokenLocal(compound, tok)) {
+      return true;
+    }
+  }
+
+  const std::string typeName = typeNameFromCompoundLower(compound);
+  return !elementTagLower.empty() && !typeName.empty() && typeName == elementTagLower;
+}
+
+bool selectorListMatchesElementForFirstLetter(const std::string& fullSelectorLower, const std::string& elementTagLower,
+                                              const std::vector<std::string>& classTokensLower,
+                                              const std::string& idLower) {
+  size_t start = 0;
+  while (start < fullSelectorLower.size()) {
+    const size_t comma = fullSelectorLower.find(',', start);
+    const std::string clause = trimCssWs(fullSelectorLower.substr(
+        start, comma == std::string::npos ? std::string::npos : comma - start));
+    if (selectorTargetsFirstLetterPseudo(clause) &&
+        selectorClauseMatchesElementForPseudo(clause, elementTagLower, classTokensLower, idLower)) {
+      return true;
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  return false;
+}
+
 std::string extractCssUrl(const std::string& raw) {
   std::string lowered = raw;
   std::transform(lowered.begin(), lowered.end(), lowered.begin(),
@@ -305,8 +380,8 @@ void CssParser::parsePropertiesForDimensions(const std::string& propertiesStr,
     static const char* kDimProps[] = {"width",          "height",         "max-width",      "max-height",
                                       "min-width",      "min-height",     "inline-size",    "block-size",
                                       "max-inline-size","min-inline-size","max-block-size", "min-block-size",
-                                      "display",        "text-align",     "text-indent",    "font-weight",    "font-style",
-                                      "font-variant",   "font-variant-caps",
+                                      "display",        "text-align",     "text-indent",    "font-size",      "line-height",
+                                      "font-weight",    "font-style",     "initial-letter", "font-variant",   "font-variant-caps",
                                       "margin-top",     "margin-bottom",  "margin",         "padding-top",
                                       "padding-bottom", "padding",        "border",         "border-top",
                                       "border-right",   "border-bottom",  "border-left",    "border-width",
@@ -1098,6 +1173,104 @@ bool CssParser::resolveSmallCaps(const std::string& elementTagLower, const std::
   }
 
   return inheritedSmallCaps;
+}
+
+bool CssParser::hasFirstLetterDropCapHint(const std::string& elementTagLower, const std::string& className,
+                                          const std::string& id, const std::string& styleAttr) const {
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+  const auto inlineInitialLetter = inlineMap.find("initial-letter");
+  if (inlineInitialLetter != inlineMap.end() && !trimCssWs(inlineInitialLetter->second).empty()) {
+    return true;
+  }
+
+  std::string idLower = toLower(trim(id));
+  std::vector<std::string> classTokens;
+  splitClassTokens(className, classTokens);
+  for (auto& t : classTokens) {
+    t = toLower(trim(t));
+  }
+
+  for (const auto& rule : rules) {
+    if (!selectorTargetsFirstLetterPseudo(rule.selectorLower)) {
+      continue;
+    }
+    if (!selectorListMatchesElementForFirstLetter(rule.selectorLower, elementTagLower, classTokens, idLower)) {
+      continue;
+    }
+    if (rule.properties.find("initial-letter") != rule.properties.end()) {
+      return true;
+    }
+    if (rule.properties.find("font-size") != rule.properties.end()) {
+      return true;
+    }
+    if (rule.properties.find("line-height") != rule.properties.end()) {
+      return true;
+    }
+    if (rule.properties.find("font-weight") != rule.properties.end()) {
+      return true;
+    }
+    if (rule.properties.find("font-style") != rule.properties.end()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+uint8_t CssParser::getFirstLetterDropCapLineCount(const std::string& elementTagLower, const std::string& className,
+                                                  const std::string& id, const std::string& styleAttr) const {
+  auto parseInitialLetterValue = [](std::string raw) -> uint8_t {
+    raw = trimCssWs(raw);
+    if (raw.empty()) {
+      return 0;
+    }
+    const size_t cut = raw.find_first_of(" \t\r\n/;");
+    if (cut != std::string::npos) {
+      raw = trimCssWs(raw.substr(0, cut));
+    }
+    char* end = nullptr;
+    const long value = std::strtol(raw.c_str(), &end, 10);
+    if (end == raw.c_str() || value < 1 || value > 9) {
+      return 0;
+    }
+    return static_cast<uint8_t>(value);
+  };
+
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+  const auto inlineInitialLetter = inlineMap.find("initial-letter");
+  if (inlineInitialLetter != inlineMap.end()) {
+    const uint8_t parsed = parseInitialLetterValue(inlineInitialLetter->second);
+    if (parsed != 0) {
+      return parsed;
+    }
+  }
+
+  std::string idLower = toLower(trim(id));
+  std::vector<std::string> classTokens;
+  splitClassTokens(className, classTokens);
+  for (auto& t : classTokens) {
+    t = toLower(trim(t));
+  }
+
+  for (const auto& rule : rules) {
+    if (!selectorTargetsFirstLetterPseudo(rule.selectorLower)) {
+      continue;
+    }
+    if (!selectorListMatchesElementForFirstLetter(rule.selectorLower, elementTagLower, classTokens, idLower)) {
+      continue;
+    }
+    const auto it = rule.properties.find("initial-letter");
+    if (it == rule.properties.end()) {
+      continue;
+    }
+    const uint8_t parsed = parseInitialLetterValue(it->second);
+    if (parsed != 0) {
+      return parsed;
+    }
+  }
+
+  return 3;
 }
 
 int CssParser::getTextIndentPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
