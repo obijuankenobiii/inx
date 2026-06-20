@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 /**
@@ -63,6 +64,13 @@ class JpegToBmpConverter {
    */
   bool jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth = 225,
                                int targetMaxHeight = 340, uint8_t quality = 82);
+
+  /**
+   * Single decode pass for jpegFileToThumbnailJpeg. `maxColorBudget` (bytes, 0 = no extra cap)
+   * bounds the output buffer so the allocation fits a fragmented heap on the fallback pass.
+   */
+  bool jpegFileToThumbnailJpegPass(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth, int targetMaxHeight,
+                                   uint8_t quality, size_t maxColorBudget);
 
   /**
    * Convert JPEG to 1-bit BMP with clean thresholding (no dithering)

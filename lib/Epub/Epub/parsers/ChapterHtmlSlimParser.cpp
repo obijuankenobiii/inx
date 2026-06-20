@@ -1555,7 +1555,7 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
       } else {
         // No explicit size: a decorative background image should span the content width, not sit tiny.
         imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
-        imgW = viewportWidth * .5;
+        imgW = viewportWidth * .4;
       }
       // Keep it within the page.
       if (imgW > viewportWidth) {

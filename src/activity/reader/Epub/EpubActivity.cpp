@@ -514,7 +514,10 @@ void EpubActivity::ensureThumbnailExists() {
   const std::string thumbJpegPath = epub->getThumbJpegPath();
   const std::string thumbBmpPath = epub->getThumbBmpPath();
   if (!SdMan.exists(thumbJpegPath.c_str()) && !SdMan.exists(thumbBmpPath.c_str())) {
-    epub->generateThumbBmp();
+    // JPEG decode/encode needs a large contiguous buffer; an SD streaming reader font holds enough heap to
+    // make it fail. Release the SD font for the duration and reload it afterward.
+    FontManager::withSdFontsReleasedForHeapIntensiveWork(bookSettings.getReaderFontId(),
+                                                         [this]() { epub->generateThumbBmp(); });
   }
 }
 
@@ -525,7 +528,9 @@ void EpubActivity::displayCoverOrTitle() {
   const std::string coverJpegPath = epub->getCoverJpegPath(false);
   std::string coverPath = epub->getCoverBmpPath(false);
   if (!SdMan.exists(coverPath.c_str()) && !SdMan.exists(coverJpegPath.c_str())) {
-    epub->generateCoverBmp(false);
+    // Same heap-intensive JPEG path as the thumbnail; free the SD reader font around it (then reload).
+    FontManager::withSdFontsReleasedForHeapIntensiveWork(bookSettings.getReaderFontId(),
+                                                         [this]() { epub->generateCoverBmp(false); });
   }
 
   if (SdMan.exists(coverJpegPath.c_str())) {
@@ -607,7 +612,7 @@ void EpubActivity::updateExternalState() {
  */
 void EpubActivity::fastPath() {
   loadProgress();
-
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   int totalSpineItems = epub->getSpineItemsCount();
   if (currentSpineIndex >= totalSpineItems) {
     currentSpineIndex = 0;
@@ -639,6 +644,7 @@ bool EpubActivity::slowPath() {
   currentSpineIndex = epub->getSpineIndexForInitialOpen() != 0 ?  epub->getSpineIndexForInitialOpen(): 1;
   nextPageNumber = 0;
 
+  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
 
   preloadChapters();
@@ -679,8 +685,6 @@ void EpubActivity::onEnter() {
     ScreenComponents::drawPopup(renderer, "Preparing book...");
     renderer.displayBuffer();
   }
-
-  FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
 
   if (useFastPath) {
     fastPath();
@@ -1483,7 +1487,10 @@ void EpubActivity::regenerateThumbnail() {
   SdMan.remove(thumbJpegPath.c_str());
   SdMan.remove(smallThumbPath.c_str());
 
-  const bool ok = epub->generateThumbBmp();
+  // Free the SD reader font around the heap-intensive JPEG resize so it can't OOM (then reload it).
+  bool ok = false;
+  FontManager::withSdFontsReleasedForHeapIntensiveWork(bookSettings.getReaderFontId(),
+                                                       [this, &ok]() { ok = epub->generateThumbBmp(); });
   readerPopup(ok ? "Thumbnail updated" : "Thumbnail failed");
   renderer.displayBuffer();
   vTaskDelay(pdMS_TO_TICKS(ok ? 800 : 1200));
