@@ -37,7 +37,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 24;
-constexpr uint8_t SETTINGS_COUNT = 58;
+constexpr uint8_t SETTINGS_COUNT = 59;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -118,7 +118,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, sideButtonLayout);
   serialization::writePod(outputFile, fontFamilyToSave);
   serialization::writePod(outputFile, fontSize);
-  serialization::writePod(outputFile, lineSpacing);
+  serialization::writePod(outputFile, lineHeight);
   serialization::writePod(outputFile, paragraphAlignment);
   serialization::writePod(outputFile, sleepTimeout);
   serialization::writePod(outputFile, refreshFrequency);
@@ -167,6 +167,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, sleepClockStyle);
   serialization::writePod(outputFile, sleepClockTimeFormat);
   serialization::writePod(outputFile, timeZoneQuarterOffset);
+  serialization::writePod(outputFile, textSpace);
 
   outputFile.close();
 
@@ -247,7 +248,10 @@ bool SystemSetting::loadFromFile() {
     readAndValidate(inputFile, fontSize, FONT_SIZE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
 
-    readAndValidate(inputFile, lineSpacing, LINE_COMPRESSION_COUNT);
+    // This slot historically held the lineSpacing enum (0-4). It now holds a numeric line height
+    // percentage (10-200). Values below 10 are legacy enums and migrate to the default 100.
+    serialization::readPod(inputFile, lineHeight);
+    if (lineHeight < 10 || lineHeight > 200) lineHeight = 100;
     if (++settingsRead >= fileSettingsCount) break;
 
     readAndValidate(inputFile, paragraphAlignment, PARAGRAPH_ALIGNMENT_COUNT);
@@ -543,6 +547,11 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, textSpace);
+      if (textSpace < 10 || textSpace > 200) textSpace = 100;
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -626,55 +635,17 @@ bool SystemSetting::loadFromFile() {
  * @return Line compression multiplier
  */
 float SystemSetting::getReaderLineCompression() const {
-  if (fontFamily >= FONT_FAMILY_BUILTIN_COUNT) {
-    switch (lineSpacing) {
-      case TIGHT:
-        return 0.95f;
-      case NORMAL:
-        return 1.05f;
-      case WIDE:
-        return 1.15f;
-      case EXTRA_WIDE:
-        return 1.26f;
-      case LOOSE:
-        return 1.38f;
-      default:
-        return 1.05f;
-    }
-  }
-  switch (fontFamily) {
-    case ATKINSON_HYPERLEGIBLE:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.90f;
-        case NORMAL:
-          return 0.95f;
-        case WIDE:
-          return 1.0f;
-        case EXTRA_WIDE:
-          return 1.10f;
-        case LOOSE:
-          return 1.22f;
-        default:
-          return 0.95f;
-      }
-    case LITERATA:
-    default:
-      switch (lineSpacing) {
-        case TIGHT:
-          return 0.95f;
-        case NORMAL:
-          return 1.05f;
-        case WIDE:
-          return 1.15f;
-        case EXTRA_WIDE:
-          return 1.26f;
-        case LOOSE:
-          return 1.38f;
-        default:
-          return 1.05f;
-      }
-  }
+  // lineHeight is a percentage of the font's natural line height (100 = normal). Clamp 10-200.
+  uint8_t lh = lineHeight;
+  if (lh < 10 || lh > 200) lh = 100;
+  return static_cast<float>(lh) / 100.0f;
+}
+
+float SystemSetting::getReaderWordSpacingFactor() const {
+  // textSpace is a percentage of the natural inter-word space (100 = normal). Clamp 10-200.
+  uint8_t ts = textSpace;
+  if (ts < 10 || ts > 200) ts = 100;
+  return static_cast<float>(ts) / 100.0f;
 }
 
 /**

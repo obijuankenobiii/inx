@@ -72,6 +72,7 @@ class ChapterHtmlSlimParser {
   int16_t currentPageNextY = 0;
 
   float lineCompression;
+  float wordSpacingFactor;
   bool extraParagraphSpacing;
   uint8_t paragraphAlignment;
   uint16_t viewportWidth;
@@ -194,7 +195,7 @@ class ChapterHtmlSlimParser {
   explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
                                  const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
                                  const int headerFontId, const int maxFontId,
-                                 const float lineCompression,
+                                 const float lineCompression, const float wordSpacingFactor,
                                  const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
                                  const uint16_t viewportWidth, const uint16_t viewportHeight,
                                  const bool hyphenationEnabled, const bool respectCssParagraphIndent,
@@ -210,6 +211,7 @@ class ChapterHtmlSlimParser {
         headerFontId(headerFontId),
         maxFontId(maxFontId),
         lineCompression(lineCompression),
+        wordSpacingFactor(wordSpacingFactor),
         extraParagraphSpacing(extraParagraphSpacing),
         paragraphAlignment(paragraphAlignment),
         viewportWidth(viewportWidth),

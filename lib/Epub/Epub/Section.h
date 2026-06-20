@@ -35,9 +35,9 @@ class Section {
    * @param viewportHeight Available height for layout
    * @param hyphenationEnabled Whether hyphenation is enabled
    */
-  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                              bool respectCssParagraphIndent, bool bionicReadingEnabled);
+  void writeSectionFileHeader(int fontId, float lineCompression, float wordSpacing, bool extraParagraphSpacing,
+                              uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                              bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled);
 
   /**
    * Handles completion of a page during section creation.
@@ -78,9 +78,9 @@ class Section {
    * @param hyphenationEnabled Hyphenation setting to verify against
    * @return true if section file exists and settings match
    */
-  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                       bool respectCssParagraphIndent, bool bionicReadingEnabled);
+  bool loadSectionFile(int fontId, float lineCompression, float wordSpacing, bool extraParagraphSpacing,
+                       uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                       bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled);
 
   /**
    * Removes the section file from the filesystem.
@@ -106,7 +106,7 @@ class Section {
    * @param skipImages If true, skip processing new images and only use existing cached images
    * @return true if section file was successfully created
    */
-  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression,
+  bool createSectionFile(int fontId, int headerFontId, int maxFontId, float lineCompression, float wordSpacing,
                          bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
                          bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,

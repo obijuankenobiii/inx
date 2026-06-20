@@ -1353,7 +1353,8 @@ void LocalServer::handleSettingsGet() const {
   doc["fontSize"] = SETTINGS.fontSize;
   
   
-  doc["lineSpacing"] = SETTINGS.lineSpacing;
+  doc["lineHeight"] = SETTINGS.lineHeight;
+  doc["textSpace"] = SETTINGS.textSpace;
   doc["screenMargin"] = SETTINGS.screenMargin;
   doc["paragraphAlignment"] = SETTINGS.paragraphAlignment;
   doc["paragraphCssIndentEnabled"] = SETTINGS.paragraphCssIndentEnabled;
@@ -1521,11 +1522,14 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.fontSize = (uint8_t)value;
       changed = true;
     }
-    else if (strcmp(key, "lineSpacing") == 0) {
-      SETTINGS.lineSpacing = (uint8_t)value;
-      if (SETTINGS.lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
-        SETTINGS.lineSpacing = SystemSetting::NORMAL;
-      }
+    else if (strcmp(key, "lineHeight") == 0) {
+      uint8_t v = (uint8_t)value;
+      SETTINGS.lineHeight = (v < 10 || v > 200) ? 100 : v;
+      changed = true;
+    }
+    else if (strcmp(key, "textSpace") == 0) {
+      uint8_t v = (uint8_t)value;
+      SETTINGS.textSpace = (v < 10 || v > 200) ? 100 : v;
       changed = true;
     }
     else if (strcmp(key, "screenMargin") == 0) {

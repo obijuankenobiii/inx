@@ -178,6 +178,7 @@ ViewportInfo EpubActivity::calculateViewport() {
 
   info.fontId = bookSettings.getReaderFontId();
   info.lineCompression = bookSettings.getReaderLineCompression();
+  info.wordSpacing = bookSettings.getReaderWordSpacingFactor();
 
   return info;
 }
@@ -350,6 +351,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
         FontManager::getNextFont(info.fontId),
         FontManager::getMaxFontId(info.fontId),
         info.lineCompression,
+        info.wordSpacing,
         bookSettings.extraParagraphSpacing,
         bookSettings.paragraphAlignment,
         info.width,
@@ -381,7 +383,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
   auto loadedSection = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
 
-  bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+  bool isCached = loadedSection->loadSectionFile(info.fontId, info.lineCompression, info.wordSpacing,
+                                                 bookSettings.extraParagraphSpacing,
                                                  bookSettings.paragraphAlignment, info.width, info.height,
                                                  bookSettings.hyphenationEnabled,
                                                  bookSettings.paragraphCssIndentEnabled != 0,
@@ -391,7 +394,8 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
     if (!buildSection(spineIndex, info, true, false)) {
       return nullptr;
     }
-    if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, bookSettings.extraParagraphSpacing,
+    if (!loadedSection->loadSectionFile(info.fontId, info.lineCompression, info.wordSpacing,
+                                        bookSettings.extraParagraphSpacing,
                                         bookSettings.paragraphAlignment, info.width, info.height,
                                         bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
                                         bookSettings.bionicReadingEnabled != 0)) {

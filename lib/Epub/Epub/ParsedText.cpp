@@ -197,7 +197,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   applyParagraphIndent(renderer, fontId);
 
   const int pageWidth = viewportWidth;
-  const int spaceWidth = renderer.text.getSpaceWidth(fontId);
+  // The word-spacing setting scales the natural inter-word space; it is baked into the line layout (xpos).
+  const int spaceWidth =
+      std::max(1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) * wordSpacingFactor_)));
   auto wordWidths = calculateWordWidths(renderer, fontId);
   std::vector<size_t> lineBreakIndices;
   const int dropW = static_cast<int>(leftIndentWidth);

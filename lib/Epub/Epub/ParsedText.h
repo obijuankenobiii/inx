@@ -30,6 +30,8 @@ class ParsedText {
   bool bionicReadingEnabled;
   /** Reader "Indent" / book setting: legacy first-line em and em-based CSS indent simulation. */
   bool respectParagraphIndent_ = true;
+  /** Word-spacing multiplier (textSpace/100); scales the inter-word space used for layout. */
+  float wordSpacingFactor_ = 1.0f;
 
   int cssTextIndentPx = -1;
 
@@ -51,12 +53,14 @@ class ParsedText {
 
  public:
   explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing, const bool hyphenationEnabled,
-                      const bool respectParagraphIndent = true, const bool bionicReadingEnabled = false)
+                      const bool respectParagraphIndent = true, const bool bionicReadingEnabled = false,
+                      const float wordSpacingFactor = 1.0f)
       : style(style),
         extraParagraphSpacing(extraParagraphSpacing),
         hyphenationEnabled(hyphenationEnabled),
         bionicReadingEnabled(bionicReadingEnabled),
-        respectParagraphIndent_(respectParagraphIndent) {}
+        respectParagraphIndent_(respectParagraphIndent),
+        wordSpacingFactor_(wordSpacingFactor) {}
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool smallCaps = false, bool underline = false);

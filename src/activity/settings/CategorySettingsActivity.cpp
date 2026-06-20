@@ -819,10 +819,10 @@ void CategorySettingsActivity::render() {
       headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
-  const int versionW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, INX_VERSION);
+  const int versionW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, INX_VERSION);
   const int versionY =
-      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - versionW - 20, versionY + 5, INX_VERSION, true,
+      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - versionW - 40, versionY, INX_VERSION, true,
                        EpdFontFamily::REGULAR);
 
   const int dividerY = headerY + headerHeight;

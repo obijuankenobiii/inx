@@ -380,7 +380,8 @@ public:
     
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
-    uint8_t lineSpacing = TIGHT;                                ///< Reader line height (LINE_COMPRESSION)
+    uint8_t lineHeight = 100;                                   ///< Reader line height, % of natural (10-200)
+    uint8_t textSpace = 100;                                    ///< Reader word spacing, % of natural (10-200)
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
     /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
     uint8_t paragraphCssIndentEnabled = 0;
@@ -516,7 +517,10 @@ public:
      * @return Line compression multiplier
      */
     float getReaderLineCompression() const;
-    
+
+    /** Word-spacing multiplier (textSpace/100, 100 = natural inter-word space). */
+    float getReaderWordSpacingFactor() const;
+
     /**
      * @brief Gets sleep timeout in milliseconds
      * @return Sleep timeout in milliseconds

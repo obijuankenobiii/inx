@@ -32,6 +32,7 @@ struct ViewportInfo {
   uint16_t height;
   int fontId;
   float lineCompression;
+  float wordSpacing;
 };
 
 /**

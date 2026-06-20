@@ -125,7 +125,8 @@ private:
         FontSize,            ///< Font size selection
         
         
-        LineSpacing,         ///< Line spacing adjustment
+        LineHeight,          ///< Line height (% of natural, 10-200)
+        TextSpace,           ///< Word spacing (% of natural, 10-200)
         Alignment,           ///< Paragraph alignment
         ExtraParagraphSpacing, ///< Additional spacing between paragraphs
         ParagraphCssIndent,  ///< CSS `text-indent` on/off (labeled "Indent" in UI)

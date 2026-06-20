@@ -234,24 +234,41 @@ void SettingsDrawer::setupMenu() {
   menuItems.push_back(layoutSeparator);
 
   if (groupExpanded[GroupType::LAYOUT]) {
-    MenuEntry lineEntry;
-    lineEntry.item = MenuItem::LineSpacing;
-    lineEntry.group = GroupType::LAYOUT;
-    lineEntry.name = "Line spacing";
-    lineEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* spacing[] = {"Tight", "Normal", "Wide", "Wider", "Loose"};
-      int index = s.lineSpacing;
-      if (index > 4) index = 1;
-      return spacing[index];
+    MenuEntry lineHeightEntry;
+    lineHeightEntry.item = MenuItem::LineHeight;
+    lineHeightEntry.group = GroupType::LAYOUT;
+    lineHeightEntry.name = "Line height";
+    lineHeightEntry.getValueText = [](const BookSettings& s) -> const char* {
+      static char buf[8];
+      snprintf(buf, sizeof(buf), "%d%%", s.lineHeight);
+      return buf;
     };
-    lineEntry.change = [](BookSettings& s, int delta) {
-      int newVal = s.lineSpacing + delta;
-      if (newVal >= 0 && newVal <= 4) {
-        s.lineSpacing = newVal;
-        s.useCustomSettings = true;
-      }
+    lineHeightEntry.change = [](BookSettings& s, int delta) {
+      int newVal = static_cast<int>(s.lineHeight) + delta * 5;
+      if (newVal < 10) newVal = 10;
+      if (newVal > 200) newVal = 200;
+      s.lineHeight = static_cast<uint8_t>(newVal);
+      s.useCustomSettings = true;
     };
-    menuItems.push_back(lineEntry);
+    menuItems.push_back(lineHeightEntry);
+
+    MenuEntry textSpaceEntry;
+    textSpaceEntry.item = MenuItem::TextSpace;
+    textSpaceEntry.group = GroupType::LAYOUT;
+    textSpaceEntry.name = "Text space";
+    textSpaceEntry.getValueText = [](const BookSettings& s) -> const char* {
+      static char buf[8];
+      snprintf(buf, sizeof(buf), "%d%%", s.textSpace);
+      return buf;
+    };
+    textSpaceEntry.change = [](BookSettings& s, int delta) {
+      int newVal = static_cast<int>(s.textSpace) + delta * 5;
+      if (newVal < 10) newVal = 10;
+      if (newVal > 200) newVal = 200;
+      s.textSpace = static_cast<uint8_t>(newVal);
+      s.useCustomSettings = true;
+    };
+    menuItems.push_back(textSpaceEntry);
 
     MenuEntry alignEntry;
     alignEntry.item = MenuItem::Alignment;
@@ -939,7 +956,8 @@ void SettingsDrawer::applyChange(int delta) {
 
   switch (selected.item) {
     case MenuItem::FontSize:
-    case MenuItem::LineSpacing:
+    case MenuItem::LineHeight:
+    case MenuItem::TextSpace:
     case MenuItem::ScreenMargin:
     case MenuItem::Alignment:
     case MenuItem::ExtraParagraphSpacing:

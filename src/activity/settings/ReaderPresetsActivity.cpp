@@ -102,7 +102,7 @@ void ReaderPresetsActivity::render() {
       } else {
         renderer.rectangle.fill(0, itemY, screenW, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Paper));
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected, EpdFontFamily::BOLD);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected, EpdFontFamily::REGULAR);
 
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
       continue;
@@ -122,7 +122,7 @@ void ReaderPresetsActivity::render() {
     renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
   }
 
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "\xC2\xAB", "\xC2\xBB");
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "");
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   enteredHalfRefresh_ = true;

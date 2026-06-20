@@ -83,7 +83,8 @@ struct BookSettings {
   
   uint8_t fontFamily = SystemSetting::LITERATA;           ///< Font family
   uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
-  uint8_t lineSpacing = SystemSetting::NORMAL;            ///< Line spacing
+  uint8_t lineHeight = 100;                              ///< Line height, % of natural (10-200)
+  uint8_t textSpace = 100;                               ///< Word spacing, % of natural (10-200)
   uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
   /** Honor CSS `text-indent` when on (mirrors global "Indent" when unset in per-book file). */
   uint8_t paragraphCssIndentEnabled = 0;
@@ -148,7 +149,7 @@ struct BookSettings {
   /**
    * @brief Number of bytes a serialized BookSettings record occupies.
    */
-  static constexpr size_t kSerializedSize = 17;
+  static constexpr size_t kSerializedSize = 18;
 
   /**
    * @brief Writes the settings fields into a byte buffer (shared by settings.bin and the preset store).
@@ -158,7 +159,7 @@ struct BookSettings {
   void serialize(uint8_t* data, size_t& offset) const {
     data[offset++] = fontFamily;
     data[offset++] = fontSize;
-    data[offset++] = lineSpacing;
+    data[offset++] = lineHeight;
     data[offset++] = extraParagraphSpacing;
     data[offset++] = paragraphAlignment;
     data[offset++] = hyphenationEnabled;
@@ -175,6 +176,7 @@ struct BookSettings {
     data[offset++] = pageAutoTurnSeconds;
     data[offset++] = paragraphCssIndentEnabled;
     data[offset++] = bionicReadingEnabled;
+    data[offset++] = textSpace;
   }
 
   /**
@@ -198,9 +200,10 @@ struct BookSettings {
     }
     FontManager::clampReaderFontFamilySlot(fontFamily);
     fontSize = data[offset++];
-    lineSpacing = data[offset++];
-    if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
-      lineSpacing = SystemSetting::NORMAL;
+    // Legacy files stored the lineSpacing enum (0-4) in this slot; migrate those to default 100.
+    lineHeight = data[offset++];
+    if (lineHeight < 10 || lineHeight > 200) {
+      lineHeight = 100;
     }
     extraParagraphSpacing = data[offset++];
     paragraphAlignment = data[offset++];
@@ -244,6 +247,15 @@ struct BookSettings {
       bionicReadingEnabled = 0;
     }
 
+    if (bytesAvailable >= offset + 1) {
+      textSpace = data[offset++];
+      if (textSpace < 10 || textSpace > 200) {
+        textSpace = 100;
+      }
+    } else {
+      textSpace = 100;
+    }
+
     return true;
   }
 
@@ -283,9 +295,8 @@ struct BookSettings {
    */
   bool saveToFile(const std::string& bookCachePath) {
     FontManager::clampReaderFontFamilySlot(fontFamily);
-    if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
-      lineSpacing = SystemSetting::NORMAL;
-    }
+    if (lineHeight < 10 || lineHeight > 200) lineHeight = 100;
+    if (textSpace < 10 || textSpace > 200) textSpace = 100;
     std::string settingsPath = bookCachePath + "/settings.bin";
     FsFile f;
     if (SdMan.openFileForWrite("BST", settingsPath.c_str(), f)) {
@@ -311,7 +322,8 @@ struct BookSettings {
     SystemSetting& global = SystemSetting::getInstance();
     fontFamily = global.fontFamily;
     fontSize = global.fontSize;
-    lineSpacing = global.lineSpacing;
+    lineHeight = global.lineHeight;
+    textSpace = global.textSpace;
     extraParagraphSpacing = global.extraParagraphSpacing;
     paragraphAlignment = global.paragraphAlignment;
     paragraphCssIndentEnabled = global.paragraphCssIndentEnabled;
@@ -358,7 +370,8 @@ struct BookSettings {
     SystemSetting& global = SystemSetting::getInstance();
     global.fontFamily = fontFamily;
     global.fontSize = fontSize;
-    global.lineSpacing = lineSpacing;
+    global.lineHeight = lineHeight;
+    global.textSpace = textSpace;
     global.extraParagraphSpacing = extraParagraphSpacing;
     global.paragraphAlignment = paragraphAlignment;
     global.paragraphCssIndentEnabled = paragraphCssIndentEnabled;
@@ -412,19 +425,21 @@ struct BookSettings {
   }
 
   /**
-   * @brief Gets line compression factor based on current settings
-   * @return Line compression multiplier
+   * @brief Line compression factor (lineHeight/100, 100 = the font's natural line height).
    */
   float getReaderLineCompression() const {
-    SystemSetting& global = SystemSetting::getInstance();
-    uint8_t oldFam = global.fontFamily;
-    uint8_t oldSpacing = global.lineSpacing;
-    global.fontFamily = this->fontFamily;
-    global.lineSpacing = this->lineSpacing;
-    float comp = global.getReaderLineCompression();
-    global.fontFamily = oldFam;
-    global.lineSpacing = oldSpacing;
-    return comp;
+    uint8_t lh = lineHeight;
+    if (lh < 10 || lh > 200) lh = 100;
+    return static_cast<float>(lh) / 100.0f;
+  }
+
+  /**
+   * @brief Word-spacing factor (textSpace/100, 100 = the natural inter-word space).
+   */
+  float getReaderWordSpacingFactor() const {
+    uint8_t ts = textSpace;
+    if (ts < 10 || ts > 200) ts = 100;
+    return static_cast<float>(ts) / 100.0f;
   }
 
   /**
@@ -433,7 +448,8 @@ struct BookSettings {
    * @return true if all settings match
    */
   bool operator==(const BookSettings& other) const {
-    return fontFamily == other.fontFamily && fontSize == other.fontSize && lineSpacing == other.lineSpacing &&
+    return fontFamily == other.fontFamily && fontSize == other.fontSize && lineHeight == other.lineHeight &&
+           textSpace == other.textSpace &&
            paragraphAlignment == other.paragraphAlignment &&
            paragraphCssIndentEnabled == other.paragraphCssIndentEnabled &&
            extraParagraphSpacing == other.extraParagraphSpacing &&
