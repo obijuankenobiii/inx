@@ -33,8 +33,8 @@ int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const 
   if (text.empty()) {
     return x;
   }
-  renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
-  return x + renderer.text.getSmallCapsWidth(fontId, text.c_str(), style);
+  // renderSmallCaps returns its advance, so no separate width measurement pass is needed.
+  return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
 }
 
 void prewarmSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const std::string& text,
@@ -99,7 +99,10 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
         endX = renderSmallCapsSegment(renderer, fontId, startX, y, *wordIt, *styleIt);
       } else {
         renderer.text.render(fontId, startX, y, wordIt->c_str(), true, *styleIt);
-        endX = startX + renderer.text.getWidth(fontId, wordIt->c_str(), *styleIt);
+        // Word width is only needed to draw the underline — skip the extra measure pass otherwise.
+        if (underline) {
+          endX = startX + renderer.text.getWidth(fontId, wordIt->c_str(), *styleIt);
+        }
       }
     } else {
       const std::string prefix = wordIt->substr(0, prefixBytes);
@@ -112,7 +115,9 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
         renderer.text.render(fontId, startX, y, prefix.c_str(), true, prefixStyle);
         const int suffixX = startX + renderer.text.getWidth(fontId, prefix.c_str(), prefixStyle);
         renderer.text.render(fontId, suffixX, y, suffix.c_str(), true, *styleIt);
-        endX = suffixX + renderer.text.getWidth(fontId, suffix.c_str(), *styleIt);
+        if (underline) {
+          endX = suffixX + renderer.text.getWidth(fontId, suffix.c_str(), *styleIt);
+        }
       }
     }
     if (underline && endX > startX) {

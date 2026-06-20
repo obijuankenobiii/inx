@@ -23,8 +23,9 @@ class TextRender {
             EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getSmallCapsWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void prewarmSmallCaps(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
-  void renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,
-                       EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  /** Renders small caps and returns the x position after the text (its advance), so callers don't re-measure. */
+  int renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,
+                      EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void centered(int fontId, int y, const char* text, bool black = true,
                     EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
 

@@ -41,25 +41,23 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
         }
         const int baseX = elemX + marginLeft;
         const int baseY = elemY + marginTop;
-        const size_t wc = tb.getWordCount();
-        for (size_t wi = 0; wi < wc; ++wi) {
+        const int lineHeight = renderer.text.getLineHeight(bodyFontId);
+        tb.forEachWord([&](const size_t wi, const std::string& wtext, const uint16_t relX,
+                           const EpdFontFamily::Style st) {
           PageWordHit h;
           h.elementIndex = ei;
           h.wordIndexInElement = wi;
           h.fontId = bodyFontId;
-          const EpdFontFamily::Style st = tb.getWordStyleAt(wi);
-          const uint16_t relX = tb.getWordXAt(wi);
-          const std::string wtext = tb.getWordAt(wi);
           if (!omitStoredWordStrings) {
             h.text = wtext;
           }
           h.screenX = baseX + relX;
           h.screenY = baseY;
           h.screenW = std::max(1, renderer.text.getWidth(bodyFontId, wtext.c_str(), st));
-          h.screenH = renderer.text.getLineHeight(bodyFontId);
+          h.screenH = lineHeight;
           h.isDropCap = false;
           out.push_back(std::move(h));
-        }
+        });
         break;
       }
       case TAG_PageHeader: {
@@ -71,25 +69,23 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
         const int hdrFont = ph->getHeaderFontId();
         const int baseX = ph->xPos + marginLeft;
         const int baseY = ph->yPos + marginTop;
-        const size_t wc = tb.getWordCount();
-        for (size_t wi = 0; wi < wc; ++wi) {
+        const int lineHeight = renderer.text.getLineHeight(hdrFont);
+        tb.forEachWord([&](const size_t wi, const std::string& wtext, const uint16_t relX,
+                           const EpdFontFamily::Style st) {
           PageWordHit h;
           h.elementIndex = ei;
           h.wordIndexInElement = wi;
           h.fontId = hdrFont;
-          const EpdFontFamily::Style st = tb.getWordStyleAt(wi);
-          const uint16_t relX = tb.getWordXAt(wi);
-          const std::string wtext = tb.getWordAt(wi);
           if (!omitStoredWordStrings) {
             h.text = wtext;
           }
           h.screenX = baseX + relX;
           h.screenY = baseY;
           h.screenW = std::max(1, renderer.text.getWidth(hdrFont, wtext.c_str(), st));
-          h.screenH = renderer.text.getLineHeight(hdrFont);
+          h.screenH = lineHeight;
           h.isDropCap = false;
           out.push_back(std::move(h));
-        }
+        });
         break;
       }
       case TAG_PageDropCap: {

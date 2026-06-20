@@ -98,6 +98,22 @@ class TextBlock final : public Block {
   std::string getWordAt(size_t index) const;
   uint16_t getWordXAt(size_t index) const;
   EpdFontFamily::Style getWordStyleAt(size_t index) const;
+
+  /**
+   * Single O(n) pass over the words. Avoids the O(n^2) indexed accessors (each std::advance walks the list)
+   * and the per-word string copy when callers need every word's text, x position and style.
+   * Callback signature: (size_t index, const std::string& word, uint16_t xpos, EpdFontFamily::Style style).
+   */
+  template <typename Fn>
+  void forEachWord(Fn&& fn) const {
+    auto wordIt = words.begin();
+    auto xIt = wordXpos.begin();
+    auto styleIt = wordStyles.begin();
+    for (size_t i = 0; wordIt != words.end() && xIt != wordXpos.end() && styleIt != wordStyles.end();
+         ++i, ++wordIt, ++xIt, ++styleIt) {
+      fn(i, *wordIt, *xIt, *styleIt);
+    }
+  }
   
   /**
    * Layout is pre-calculated during parsing.

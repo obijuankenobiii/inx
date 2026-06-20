@@ -301,14 +301,14 @@ void TextRender::render(const int fontId, const int x, const int y, const char* 
   }
 }
 
-void TextRender::renderSmallCaps(const int fontId, const int x, const int y, const char* text, const bool black,
-                                 const EpdFontFamily::Style style) const {
+int TextRender::renderSmallCaps(const int fontId, const int x, const int y, const char* text, const bool black,
+                                const EpdFontFamily::Style style) const {
   if (text == nullptr || *text == '\0') {
-    return;
+    return x;
   }
   if (gfx.fontMap.count(fontId) == 0) {
     Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
-    return;
+    return x;
   }
 
   const auto font = gfx.fontMap.at(fontId);
@@ -323,6 +323,7 @@ void TextRender::renderSmallCaps(const int fontId, const int x, const int y, con
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&ptr)))) {
     renderScaledChar(font, cp, &xpos, &yCursor, black, style, kSmallCapsScalePct);
   }
+  return xpos;
 }
 
 void TextRender::centered(const int fontId, const int y, const char* text, const bool black,
