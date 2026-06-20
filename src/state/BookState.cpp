@@ -39,6 +39,17 @@ void BookState::rebuildFavoriteIndices() {
             [this](size_t ia, size_t ib) { return books[ia].id > books[ib].id; });
 }
 
+void BookState::compactIdleMetadata() {
+  for (auto& book : books) {
+    // Keep display titles only for books that still have a dedicated flag-driven surface.
+    if (!book.isFavorite && !book.isReading) {
+      std::string().swap(book.title);
+    }
+    // Idle state never needs author strings from BookState; recents/stats keep their own copies.
+    std::string().swap(book.author);
+  }
+}
+
 void BookState::addOrUpdateBook(const std::string& path, 
                                 const std::string& title,
                                 const std::string& author) {
@@ -52,14 +63,15 @@ void BookState::addOrUpdateBook(const std::string& path,
   }
 
   saveToFile();
+  compactIdleMetadata();
 }
 
 std::vector<BookState::Book> BookState::getFavoriteBooks() const {
   std::vector<Book> result;
-  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
-               [](const Book& book) { return book.isFavorite; });
-  std::sort(result.begin(), result.end(),
-            [](const Book& a, const Book& b) { return a.id > b.id; });
+  result.reserve(favoriteIndices_.size());
+  for (size_t idx : favoriteIndices_) {
+    result.push_back(books[idx]);
+  }
   return result;
 }
 
@@ -105,6 +117,7 @@ void BookState::toggleFavorite(const std::string& path) {
     b->isFavorite = !b->isFavorite;
     rebuildFavoriteIndices();
     saveToFile();
+    compactIdleMetadata();
   }
 }
 
@@ -113,6 +126,7 @@ void BookState::setReading(const std::string& path, bool reading) {
   if (b != nullptr) {
     b->isReading = reading;
     saveToFile();
+    compactIdleMetadata();
   }
 }
 
@@ -121,7 +135,9 @@ void BookState::setFinished(const std::string& path, bool finished) {
   if (b != nullptr) {
     b->isFinished = finished;
     if (finished) b->isReading = false;
+    rebuildFavoriteIndices();
     saveToFile();
+    compactIdleMetadata();
   }
 }
 
@@ -230,5 +246,10 @@ bool BookState::loadFromFile() {
   inputFile.close();
   rebuildPathIndex();
   rebuildFavoriteIndices();
+  compactIdleMetadata();
   return true;
+}
+
+void BookState::compactForIdle() {
+  compactIdleMetadata();
 }

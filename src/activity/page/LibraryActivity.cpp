@@ -1210,7 +1210,7 @@ void LibraryActivity::render() const {
                     EpdFontFamily::BOLD);
   int headerButtonRightX = drawSortButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, screenWidth);
   if (showIndexButton) {
-    drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
+drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
   }
 
   renderer.line.render(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
@@ -1437,8 +1437,11 @@ void LibraryActivity::onExit() {
   }
 
   resetLibraryView();
-  cachedTagEntries_.clear();
+  std::vector<LibraryItem>().swap(currentPageItems);
+  std::vector<BookTags::Entry>().swap(cachedTagEntries_);
   cachedTagEntriesLoaded_ = false;
+  std::string().swap(savedFolderPath);
+  std::string().swap(selectedTagKey_);
 }
 
 /**
@@ -1633,9 +1636,16 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
         if (book) {
           book->isFavorite = true;
           BOOK_STATE.saveToFile();
+          BOOK_STATE.compactForIdle();
         }
       } else {
-        BOOK_STATE.toggleFavorite(item.path);
+        const bool makeFavorite = !book->isFavorite;
+        book->isFavorite = makeFavorite;
+        if (makeFavorite && book->title.empty()) {
+          book->title = item.displayName;
+        }
+        BOOK_STATE.saveToFile();
+        BOOK_STATE.compactForIdle();
       }
 
       updateRequired = true;
@@ -1815,10 +1825,14 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
         book->isReading = true;
       }
     } else {
-      BOOK_STATE.setReading(item.path, true);
+      book->isReading = true;
+      if (book->title.empty()) {
+        book->title = item.displayName;
+      }
     }
 
     BOOK_STATE.saveToFile();
+    BOOK_STATE.compactForIdle();
     onSelectBook(item.path);
   }
 }

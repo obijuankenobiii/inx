@@ -36,6 +36,7 @@ private:
   std::vector<size_t> favoriteIndices_;
   void rebuildPathIndex();
   void rebuildFavoriteIndices();
+  void compactIdleMetadata();
 
 public:
   std::vector<Book> books;
@@ -59,6 +60,7 @@ public:
   void setReading(const std::string& path, bool isReading);
   void setFinished(const std::string& path, bool isFinished);
   void clear(bool saveNow = true);
+  void compactForIdle();
 
   bool saveToFile() const;
   bool loadFromFile();
