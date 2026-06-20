@@ -10,6 +10,7 @@
 #include <string>
 
 #include "../../settings/ReaderFontSettingsDraw.h"
+#include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -19,6 +20,11 @@
 constexpr int LIST_ITEM_HEIGHT = 60;
 
 namespace {
+constexpr int kDrawerListTop = 64;
+constexpr int kDrawerListBottomPadding = 8;
+constexpr int kDrawerHeaderTitleY = 10;
+constexpr int kDrawerHeaderTagGap = 20;
+constexpr int kDrawerHeaderDividerGap = 28;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -91,7 +97,29 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
  */
 SettingsDrawer::~SettingsDrawer() {}
 
+void SettingsDrawer::setEmbeddedRegion(int x, int y, int w, int h) {
+  embedded_ = true;
+  drawerX = x;
+  drawerY = y;
+  drawerWidth = w;
+  drawerHeight = h;
+  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
+}
+
+int SettingsDrawer::snapEmbeddedHeight(int maxHeight) const {
+  // Largest height <= maxHeight that fits a whole number of rows under the header, so the embedded
+  // drawer has no dead space below the last row.
+  const int usable = maxHeight - kDrawerListTop - kDrawerListBottomPadding;
+  const int rows = std::max(1, usable / itemHeight);
+  return kDrawerListTop + rows * itemHeight + kDrawerListBottomPadding;
+}
+
 void SettingsDrawer::syncLayoutFromRenderer() {
+  if (embedded_) {
+    // Keep the host-provided region; just recompute how many rows fit.
+    itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
+    return;
+  }
   const int sw = renderer.getScreenWidth();
   const int sh = renderer.getScreenHeight();
   if (isLandscapeReader(renderer)) {
@@ -105,7 +133,7 @@ void SettingsDrawer::syncLayoutFromRenderer() {
     drawerHeight = sh * 60 / 100;
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
 }
 
 /**
@@ -113,6 +141,25 @@ void SettingsDrawer::syncLayoutFromRenderer() {
  */
 void SettingsDrawer::setupMenu() {
   menuItems.clear();
+
+  // Per-book preset picker (hidden inside the preset editor, where settings ARE the preset being edited).
+  if (!embedded_) {
+    MenuEntry presetEntry;
+    presetEntry.item = MenuItem::PresetPicker;
+    presetEntry.group = GroupType::FONT;
+    presetEntry.name = "Apply preset";
+    presetEntry.getValueText = [this](const BookSettings&) -> const char* {
+      thread_local std::string tls;
+      tls = ReaderPresetStore::getInstance().nameOf(presetPickIndex_);
+      return tls.c_str();
+    };
+    presetEntry.change = [this](BookSettings&, int delta) {
+      const int n = ReaderPresetStore::getInstance().count();
+      if (n <= 0) return;
+      presetPickIndex_ = ((presetPickIndex_ + delta) % n + n) % n;
+    };
+    menuItems.push_back(presetEntry);
+  }
 
   MenuEntry fontSeparator;
   fontSeparator.item = MenuItem::Separator;
@@ -584,6 +631,11 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   drawBackground();
   drawMenuItems();
   drawScrollIndicator();
+  if (embedded_) {
+    // Host owns the rest of the screen and the display push.
+    if (onEmbeddedInvalidate_) onEmbeddedInvalidate_();
+    return;
+  }
   if (!isLandscapeReader(renderer)) {
     if (mappedInputForHints_ != nullptr) {
       const auto labels =
@@ -604,14 +656,14 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
-  int currentY = drawerY + 10;
+  int currentY = drawerY + kDrawerHeaderTitleY;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
-  currentY += 25;
+  currentY += kDrawerHeaderTagGap + 5;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
 
-  int dividerY = currentY + 30;
+  int dividerY = currentY + kDrawerHeaderDividerGap;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -629,7 +681,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + 65;
+  const int startY = drawerY + kDrawerListTop;
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -762,6 +814,10 @@ void SettingsDrawer::refreshSelectionRows(int previousIndex, bool redrawScrollIn
     drawScrollIndicator();
   }
 
+  if (embedded_) {
+    if (onEmbeddedInvalidate_) onEmbeddedInvalidate_();
+    return;
+  }
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -850,6 +906,13 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
         needRedraw = true;
+      } else if (selected.item == MenuItem::PresetPicker) {
+        // Snapshot-apply the highlighted preset onto this book, then rebuild rows to reflect new values.
+        ReaderPresetStore::getInstance().applyToBook(presetPickIndex_, settings);
+        setupMenu();
+        settingsUpdated = true;
+        if (onSettingsChanged) onSettingsChanged();
+        needRedraw = true;
       }
     }
   }
@@ -899,6 +962,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::NavigationLock:
     case MenuItem::Separator:
     case MenuItem::StatusBarSeparator:
+    case MenuItem::PresetPicker:
       break;
   }
 

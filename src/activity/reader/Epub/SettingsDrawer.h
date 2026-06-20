@@ -79,6 +79,24 @@ public:
     /** Enables Navigation → Button Layout for bottom hint row (see MappedInputManager::mapLabels). */
     void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints_ = input; }
 
+    /**
+     * @brief Renders the drawer inside a fixed sub-region instead of the default full-screen overlay.
+     *
+     * Used by the preset editor to place the settings list in the bottom half of the screen. While an
+     * embedded region is set, the drawer does NOT push its own display refresh or draw button hints —
+     * the host composites the rest of the screen and pushes once via the invalidate callback.
+     */
+    void setEmbeddedRegion(int x, int y, int w, int h);
+
+    /** Largest height <= maxHeight that fits a whole number of menu rows (no dead space below the list). */
+    int snapEmbeddedHeight(int maxHeight) const;
+
+    /** Host callback invoked (instead of displayBuffer) whenever the embedded drawer needs the screen pushed. */
+    void setEmbeddedInvalidate(std::function<void()> cb) { onEmbeddedInvalidate_ = std::move(cb); }
+
+    /** True while an embedded region is active. */
+    bool isEmbedded() const { return embedded_; }
+
 private:
     /**
      * @enum GroupType
@@ -97,9 +115,10 @@ private:
      * @brief All available menu items in the settings drawer
      */
     enum class MenuItem {
-        
+
         Separator,           ///< Generic separator for Font, Layout, Controls groups
         StatusBarSeparator,  ///< Special separator for Status Bar group
+        PresetPicker,        ///< Per-book: pick a saved preset to snapshot-apply (Confirm applies)
         
         
         FontFamily,          ///< Font style selection
@@ -147,6 +166,10 @@ private:
     BookSettings& settings;                    ///< Book settings reference
     std::function<void()> onSettingsChanged;   ///< Settings change callback
     MappedInputManager* mappedInputForHints_ = nullptr;
+
+    bool embedded_ = false;                       ///< Render within a fixed sub-region (preset editor)
+    std::function<void()> onEmbeddedInvalidate_;  ///< Host push callback used instead of displayBuffer when embedded
+    int presetPickIndex_ = 0;                     ///< Highlighted preset for the per-book PresetPicker row
 
     bool visible = false;                      ///< Drawer visibility state
     bool dismissed = false;                    ///< Drawer dismissed state

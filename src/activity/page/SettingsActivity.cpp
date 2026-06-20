@@ -14,6 +14,7 @@
 
 #include"../settings/CategorySettingsActivity.h"
 #include"../settings/LibraryIndexer.h"
+#include"../settings/ReaderPresetsActivity.h"
 #include"state/SystemSetting.h"
 #include"system/Fonts.h"
 #include"system/MappedInputManager.h"
@@ -84,66 +85,7 @@ const SettingInfo systemPageSettings[] = {
     SettingInfo::Action("About", GroupType::NONE)};
 constexpr int systemPageSettingsCount = sizeof(systemPageSettings) / sizeof(systemPageSettings[0]);
 
-const SettingInfo readerSettings[] = {
-    SettingInfo::Separator("Font", GroupType::FONT),
-    SettingInfo::Enum("Font Family", &SystemSetting::fontFamily, {"Literata", "Atkinson Hyperlegible"},
-                      GroupType::FONT),
-    SettingInfo::Enum("Font Size", &SystemSetting::fontSize, {"Extra Small","Small","Medium","Large","X Large"},
-                      GroupType::FONT),
-
-    SettingInfo::Separator("Layout", GroupType::LAYOUT),
-    SettingInfo::Enum("Line spacing", &SystemSetting::lineSpacing, {"Tight", "Normal", "Wide", "Wider", "Loose"},
-                      GroupType::LAYOUT),
-    SettingInfo::Value("Screen Margin", &SystemSetting::screenMargin, {5, 80, 5}, GroupType::LAYOUT),
-    SettingInfo::Enum("Paragraph Alignment", &SystemSetting::paragraphAlignment,
-                      {"Justify", "Left", "Center", "Right", "Css"},
-                      GroupType::LAYOUT),
-    SettingInfo::Toggle("Extra Paragraph Spacing", &SystemSetting::extraParagraphSpacing, GroupType::LAYOUT),
-    SettingInfo::Toggle("Indent", &SystemSetting::paragraphCssIndentEnabled, GroupType::LAYOUT),
-    SettingInfo::Enum("Reading Orientation", &SystemSetting::orientation,
-                      {"Portrait","Landscape CW","Inverted","Landscape CCW"}, GroupType::LAYOUT),
-    SettingInfo::Toggle("Hyphenation", &SystemSetting::hyphenationEnabled, GroupType::LAYOUT),
-    SettingInfo::Toggle("Bionic Reading", &SystemSetting::bionicReadingEnabled, GroupType::LAYOUT),
-
-    SettingInfo::Separator("Buttons", GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Next & Previous Mapping", &SystemSetting::readerDirectionMapping,
-                      {"Left/Right","Right/Left","Up/Down","Down/Up","None"}, GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Book Settings Toggle", &SystemSetting::readerMenuButton,
-                      {"Up","Down","Left","Right","Confirm"}, GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Long press", &SystemSetting::longPressChapterSkip,
-                      {"Off", "Chapter skip", "Skip 5 pages"}, GroupType::READER_CONTROLS),
-    SettingInfo::Enum("Short Power Button", &SystemSetting::readerShortPwrBtn, {"Page Turn", "Page Refresh", "Annotate"},
-                      GroupType::READER_CONTROLS),
-    SettingInfo::Value("Page Auto Turn", &SystemSetting::pageAutoTurnSeconds, {0, 180, 10}, GroupType::READER_CONTROLS),
-
-    SettingInfo::Separator("System", GroupType::SYSTEM),
-    SettingInfo::Toggle("Text Anti-Aliasing", &SystemSetting::textAntiAliasing, GroupType::SYSTEM),
-    SettingInfo::Enum("Refresh Frequency", &SystemSetting::refreshFrequency,
-                      {"1 page","5 pages","10 pages","15 pages","30 pages"}, GroupType::SYSTEM),
-
-    SettingInfo::Separator("Image", GroupType::IMAGE),
-    SettingInfo::Toggle("Image 2-bit Mode", &SystemSetting::readerImageGrayscale, GroupType::IMAGE),
-    SettingInfo::Toggle("Smart Refresh (Images)", &SystemSetting::readerSmartRefreshOnImages, GroupType::IMAGE),
-    SettingInfo::Separator("Status Bar", GroupType::STATUS_BAR),
-    SettingInfo::Enum("Status Bar Mode", &SystemSetting::statusBar,
-                      {"None","No Progress","Full w/ Percentage","Full w/ Progress Bar","Progress Bar","Battery %",
-                      "Percentage","Page Bars"},
-                      GroupType::STATUS_BAR),
-    SettingInfo::Enum("Left Section", &SystemSetting::statusBarLeft,
-                      {"None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %",
-                      "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
-                      GroupType::STATUS_BAR),
-    SettingInfo::Enum("Middle Section", &SystemSetting::statusBarMiddle,
-                      {"None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %",
-                      "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
-                      GroupType::STATUS_BAR),
-    SettingInfo::Enum("Right Section", &SystemSetting::statusBarRight,
-                      {"None","Page Numbers","Percentage","Chapter Title","Battery Icon","Battery %",
-                      "Battery Icon+%","Progress Bar","Progress Bar+%","Page Bars","Book Title","Author Name"},
-                      GroupType::STATUS_BAR)};
-constexpr int readerSettingsCount = sizeof(readerSettings) / sizeof(readerSettings[0]);
-
-}  
+}
 
 /**
  * @brief Initializes the settings activity when it becomes active.
@@ -253,9 +195,28 @@ void SettingsActivity::swapPanelAndReopen() {
 }
 
 void SettingsActivity::openCurrentPanel() {
-  const char* title = (currentPanel == SettingsPanel::System) ? "System settings" : "Reader settings";
-  const SettingInfo* list = (currentPanel == SettingsPanel::System) ? systemPageSettings : readerSettings;
-  const int count = (currentPanel == SettingsPanel::System) ? systemPageSettingsCount : readerSettingsCount;
+  if (currentPanel == SettingsPanel::Reader) {
+    // The Reader panel is now a list of named presets (with a live-preview editor) instead of a flat list.
+    enterNewActivity(new ReaderPresetsActivity(
+        renderer, mappedInput, [this] { swapPanelAndReopen(); },
+        [this] {
+          if (onRecentOpen) onRecentOpen();
+        },
+        [this] {
+          if (onLibraryOpen) onLibraryOpen();
+        },
+        [this] {
+          if (onSyncOpen) onSyncOpen();
+        },
+        [this] {
+          if (onStatisticsOpen) onStatisticsOpen();
+        }));
+    return;
+  }
+
+  const char* title = "System settings";
+  const SettingInfo* list = systemPageSettings;
+  const int count = systemPageSettingsCount;
 
   enterNewActivity(new CategorySettingsActivity(
       renderer, mappedInput, title, list, count, [this] { swapPanelAndReopen(); },

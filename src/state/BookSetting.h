@@ -146,6 +146,108 @@ struct BookSettings {
   }
 
   /**
+   * @brief Number of bytes a serialized BookSettings record occupies.
+   */
+  static constexpr size_t kSerializedSize = 17;
+
+  /**
+   * @brief Writes the settings fields into a byte buffer (shared by settings.bin and the preset store).
+   * @param data Output buffer (needs at least kSerializedSize bytes free at offset)
+   * @param offset Current offset, advanced past the written bytes
+   */
+  void serialize(uint8_t* data, size_t& offset) const {
+    data[offset++] = fontFamily;
+    data[offset++] = fontSize;
+    data[offset++] = lineSpacing;
+    data[offset++] = extraParagraphSpacing;
+    data[offset++] = paragraphAlignment;
+    data[offset++] = hyphenationEnabled;
+    data[offset++] = screenMargin;
+    data[offset++] = refreshFrequency;
+    data[offset++] = longPressChapterSkip;
+    data[offset++] = textAntiAliasing;
+    data[offset++] = orientation;
+
+    statusBarLeft.toBytes(data, offset);
+    statusBarMiddle.toBytes(data, offset);
+    statusBarRight.toBytes(data, offset);
+
+    data[offset++] = pageAutoTurnSeconds;
+    data[offset++] = paragraphCssIndentEnabled;
+    data[offset++] = bionicReadingEnabled;
+  }
+
+  /**
+   * @brief Reads settings fields from a byte buffer, clamping/back-filling like the legacy file loader.
+   * @param data Input buffer
+   * @param bytesAvailable Number of valid bytes in the buffer
+   * @param offset Current offset, advanced past the consumed bytes
+   * @return true if at least the 11-byte baseline was parsed
+   */
+  bool deserialize(const uint8_t* data, size_t bytesAvailable, size_t& offset) {
+    if (bytesAvailable < offset + 11) {
+      return false;
+    }
+
+    fontFamily = data[offset++];
+    if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
+      /** Legacy enum had Bookerly=0, Atkinson=1, Literata=2; map non-Atkinson to Literata (0). */
+      if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
+        fontFamily = SystemSetting::LITERATA;
+      }
+    }
+    FontManager::clampReaderFontFamilySlot(fontFamily);
+    fontSize = data[offset++];
+    lineSpacing = data[offset++];
+    if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
+      lineSpacing = SystemSetting::NORMAL;
+    }
+    extraParagraphSpacing = data[offset++];
+    paragraphAlignment = data[offset++];
+    hyphenationEnabled = data[offset++];
+    screenMargin = data[offset++];
+    refreshFrequency = data[offset++];
+    longPressChapterSkip = data[offset++];
+    if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+      longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
+    }
+    textAntiAliasing = data[offset++];
+    orientation = data[offset++];
+
+    if (bytesAvailable >= offset + 3) {
+      statusBarLeft.fromBytes(data, offset);
+      statusBarMiddle.fromBytes(data, offset);
+      statusBarRight.fromBytes(data, offset);
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      pageAutoTurnSeconds = data[offset++];
+      if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
+        pageAutoTurnSeconds = 0;
+      }
+    } else {
+      pageAutoTurnSeconds = 0;
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      paragraphCssIndentEnabled = data[offset++];
+      if (paragraphCssIndentEnabled > 1) {
+        paragraphCssIndentEnabled = 1;
+      }
+    } else {
+      paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      bionicReadingEnabled = data[offset++] ? 1 : 0;
+    } else {
+      bionicReadingEnabled = 0;
+    }
+
+    return true;
+  }
+
+  /**
    * @brief Loads book settings from file
    * @param bookCachePath Path to book cache directory
    * @return true if load successful
@@ -159,65 +261,8 @@ struct BookSettings {
       if (fileSize >= 11) {
         uint8_t data[64];
         size_t bytesRead = f.read(data, std::min(fileSize, sizeof(data)));
-
-        if (bytesRead >= 11) {
-          size_t offset = 0;
-
-          fontFamily = data[offset++];
-          if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
-            /** Legacy enum had Bookerly=0, Atkinson=1, Literata=2; map non-Atkinson to Literata (0). */
-            if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
-              fontFamily = SystemSetting::LITERATA;
-            }
-          }
-          FontManager::clampReaderFontFamilySlot(fontFamily);
-          fontSize = data[offset++];
-          lineSpacing = data[offset++];
-          if (lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
-            lineSpacing = SystemSetting::NORMAL;
-          }
-          extraParagraphSpacing = data[offset++];
-          paragraphAlignment = data[offset++];
-          hyphenationEnabled = data[offset++];
-          screenMargin = data[offset++];
-          refreshFrequency = data[offset++];
-          longPressChapterSkip = data[offset++];
-          if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
-            longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
-          }
-          textAntiAliasing = data[offset++];
-          orientation = data[offset++];
-
-          if (bytesRead >= offset + 3) {
-            statusBarLeft.fromBytes(data, offset);
-            statusBarMiddle.fromBytes(data, offset);
-            statusBarRight.fromBytes(data, offset);
-          }
-
-          if (bytesRead >= offset + 1) {
-            pageAutoTurnSeconds = data[offset++];
-            if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
-              pageAutoTurnSeconds = 0;
-            }
-          } else {
-            pageAutoTurnSeconds = 0;
-          }
-
-          if (bytesRead >= offset + 1) {
-            paragraphCssIndentEnabled = data[offset++];
-            if (paragraphCssIndentEnabled > 1) {
-              paragraphCssIndentEnabled = 1;
-            }
-          } else {
-            paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
-          }
-
-          if (bytesRead >= offset + 1) {
-            bionicReadingEnabled = data[offset++] ? 1 : 0;
-          } else {
-            bionicReadingEnabled = 0;
-          }
-
+        size_t offset = 0;
+        if (deserialize(data, bytesRead, offset)) {
           useCustomSettings = true;
           f.close();
           return true;
@@ -246,26 +291,7 @@ struct BookSettings {
     if (SdMan.openFileForWrite("BST", settingsPath.c_str(), f)) {
       uint8_t data[32];
       size_t offset = 0;
-
-      data[offset++] = fontFamily;
-      data[offset++] = fontSize;
-      data[offset++] = lineSpacing;
-      data[offset++] = extraParagraphSpacing;
-      data[offset++] = paragraphAlignment;
-      data[offset++] = hyphenationEnabled;
-      data[offset++] = screenMargin;
-      data[offset++] = refreshFrequency;
-      data[offset++] = longPressChapterSkip;
-      data[offset++] = textAntiAliasing;
-      data[offset++] = orientation;
-
-      statusBarLeft.toBytes(data, offset);
-      statusBarMiddle.toBytes(data, offset);
-      statusBarRight.toBytes(data, offset);
-
-      data[offset++] = pageAutoTurnSeconds;
-      data[offset++] = paragraphCssIndentEnabled;
-      data[offset++] = bionicReadingEnabled;
+      serialize(data, offset);
 
       bool success = (f.write(data, offset) == offset);
       f.close();
@@ -322,6 +348,51 @@ struct BookSettings {
     statusBarLeft.item = static_cast<StatusBarItem>(global.statusBarLeft);
     statusBarMiddle.item = static_cast<StatusBarItem>(global.statusBarMiddle);
     statusBarRight.item = static_cast<StatusBarItem>(global.statusBarRight);
+  }
+
+  /**
+   * @brief Writes these settings back into the global SystemSetting reader fields (inverse of
+   *        loadFromGlobalSettings). Does NOT persist — caller should SETTINGS.saveToFile().
+   */
+  void applyToGlobalSettings() const {
+    SystemSetting& global = SystemSetting::getInstance();
+    global.fontFamily = fontFamily;
+    global.fontSize = fontSize;
+    global.lineSpacing = lineSpacing;
+    global.extraParagraphSpacing = extraParagraphSpacing;
+    global.paragraphAlignment = paragraphAlignment;
+    global.paragraphCssIndentEnabled = paragraphCssIndentEnabled;
+    global.hyphenationEnabled = hyphenationEnabled;
+    global.bionicReadingEnabled = bionicReadingEnabled;
+    global.screenMargin = screenMargin;
+
+    switch (refreshFrequency) {
+      case 1:
+        global.refreshFrequency = SystemSetting::REFRESH_1;
+        break;
+      case 5:
+        global.refreshFrequency = SystemSetting::REFRESH_5;
+        break;
+      case 10:
+        global.refreshFrequency = SystemSetting::REFRESH_10;
+        break;
+      case 30:
+        global.refreshFrequency = SystemSetting::REFRESH_30;
+        break;
+      case 15:
+      default:
+        global.refreshFrequency = SystemSetting::REFRESH_15;
+        break;
+    }
+
+    global.longPressChapterSkip = longPressChapterSkip;
+    global.textAntiAliasing = textAntiAliasing;
+    global.orientation = orientation;
+    global.pageAutoTurnSeconds = pageAutoTurnSeconds;
+
+    global.statusBarLeft = static_cast<uint8_t>(statusBarLeft.item);
+    global.statusBarMiddle = static_cast<uint8_t>(statusBarMiddle.item);
+    global.statusBarRight = static_cast<uint8_t>(statusBarRight.item);
   }
 
   /**

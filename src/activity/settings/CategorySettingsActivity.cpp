@@ -761,19 +761,17 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   const int panelX = (pageWidth - panelW) / 2;
   const int panelY = std::max(TAB_BAR_HEIGHT + 8, (pageHeight - panelH) / 2);
 
-  renderer.rectangle.fill(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true);
   renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
   renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
-  renderer.rectangle.fill(panelX, panelY, panelW, headerHeight, true);
 
   const char* title = "Select";
   if (selectorSourceIndex >= 0 && selectorSourceIndex < static_cast<int>(menuItems.size()) &&
       menuItems[selectorSourceIndex].name) {
     title = menuItems[selectorSourceIndex].name;
   }
-  const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 28, EpdFontFamily::BOLD);
-  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2;
-  renderer.text.render(titleFont, panelX + 14, titleY, shownTitle.c_str(), false, EpdFontFamily::BOLD);
+  const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 32, EpdFontFamily::BOLD);
+  renderer.text.render(titleFont, panelX + 16, panelY + 12, shownTitle.c_str(), true, EpdFontFamily::BOLD);
+  renderer.line.render(panelX, panelY + headerHeight - 4, panelX + panelW, panelY + headerHeight - 4, true);
 
   const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - rows);
   selectorScrollOffset = std::max(0, std::min(selectorScrollOffset, maxScroll));
