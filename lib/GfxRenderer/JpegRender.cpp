@@ -84,6 +84,22 @@ constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 255;  // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 10;   // Snap dark tones to clean black instead of dithering them to gray
 constexpr int kJpegTwoBitSolidWhiteMin = 224;  // Keep upper mids from blowing out to white too early
+constexpr int kJpegTwoBitContrastPercent = 128; // Restore midtone separation closer to the quality render
+constexpr int kJpegTwoBitSharpenThreshold = 18;
+constexpr int kJpegTwoBitSharpenPercent = 80;
+constexpr int kJpegTwoBitSharpenMax = 130;
+constexpr int kJpegTwoBitEdgeThreshold = 0;
+constexpr int kJpegTwoBitEdgeMaxDarken = 0;    // Reduced from 36
+constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
+constexpr int kJpegTwoBitHighlightMaxLift = 50;  // Reduced from 100 - less over-lifting
+constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
+constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
+constexpr int kJpegTwoBitShadowTextureLiftMin = 52;
+constexpr int kJpegTwoBitShadowTextureLiftMax = 126;
+constexpr int kJpegTwoBitShadowTextureLift = 6;
+constexpr int kJpegTwoBitMidtoneLiftMin = 104;
+constexpr int kJpegTwoBitMidtoneLiftMax = 188;
+constexpr int kJpegTwoBitMidtoneLift = 8;
 constexpr int kJpegTwoBitMediumMixStart = 96;
 constexpr int kJpegTwoBitMediumMixFull = 148;
 constexpr int kJpegTwoBitMediumMixDetailMin = 2;
@@ -103,6 +119,46 @@ constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
 constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
 
+
+int jpegTwoBitTone(const int gray) {
+  const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
+  return std::max(0, std::min(255, adjusted));
+}
+
+int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray, const int x, const int y) {
+  const int neighbor = (leftGray + rightGray) / 2;
+  const int detail = gray - neighbor;
+  const int darkEdge = neighbor - gray;
+  const int lightEdge = gray - neighbor;
+  int sharpenedGray = gray;
+  if (std::abs(detail) > kJpegTwoBitSharpenThreshold) {
+    const int boost = std::max(-kJpegTwoBitSharpenMax,
+                               std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
+    sharpenedGray = std::max(0, std::min(255, gray + boost));
+  }
+
+  int tone = jpegTwoBitTone(sharpenedGray);
+  if (gray < kJpegTwoBitShadowStart) {
+    const int shadowDarken =
+        ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
+    tone = std::max(0, tone - shadowDarken);
+  }
+  if (lightEdge > kJpegTwoBitHighlightThreshold) {
+    const int lift = std::min(kJpegTwoBitHighlightMaxLift, (lightEdge - kJpegTwoBitHighlightThreshold) * 3);
+    tone = std::max(tone, jpegTwoBitTone(std::min(255, gray + lift)));
+  }
+  if (darkEdge > kJpegTwoBitEdgeThreshold) {
+    const int edgeDarken = std::min(kJpegTwoBitEdgeMaxDarken, darkEdge - kJpegTwoBitEdgeThreshold);
+    tone = std::max(0, tone - edgeDarken);
+  }
+  if (gray >= kJpegTwoBitShadowTextureLiftMin && gray <= kJpegTwoBitShadowTextureLiftMax) {
+    tone = std::min(255, tone + kJpegTwoBitShadowTextureLift);
+  }
+  if (gray >= kJpegTwoBitMidtoneLiftMin && gray <= kJpegTwoBitMidtoneLiftMax) {
+    tone = std::min(255, tone + kJpegTwoBitMidtoneLift);
+  }
+  return std::max(0, std::min(255, tone));
+}
 
 int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y,
                           const bool isX3) {
@@ -361,8 +417,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           const int tone = quality
                                ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
                                                        deviceIsX3)
-                               : jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
-                                                       deviceIsX3);
+                               : jpegTwoBitDetailTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY);
           q = (quality ? twoBitDitherer->processQuality(tone, step)
                        : twoBitDitherer->process(tone, step))
                   .value;
