@@ -140,5 +140,4 @@ class EInkDisplay {
   void writeRamBuffer(uint8_t ramBuffer, const uint8_t* data, uint32_t size);
 };
 
-extern const unsigned char lut_x4_quality_fast[];
 extern const unsigned char lut_x4_quality[];
