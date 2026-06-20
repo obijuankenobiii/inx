@@ -10,6 +10,7 @@
 #include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
+#include <Utf8.h>
 
 #include <climits>
 #include <cmath>
@@ -201,8 +202,14 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                          ImageRenderMode ) {
-  // Align the drop cap's top with the first text line (previously lifted 5px, which sat too high).
-  renderer.text.render(dropCapFontId, xPos + xOffset, yPos + yOffset - 5, text.c_str(), EpdFontFamily::BOLD);
+  // The drop cap and the first body line both start at yPos, but their fonts have different space above the
+  // caps (ascender - glyph.top). Align the drop cap's cap-top with the body cap-top by that inset difference.
+  const uint8_t* p = reinterpret_cast<const uint8_t*>(text.c_str());
+  const uint32_t dropCp = utf8NextCodepoint(&p);
+  const int dropInset = renderer.text.getGlyphTopInset(dropCapFontId, dropCp, EpdFontFamily::BOLD);
+  const int bodyInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
+  const int alignY = yPos + yOffset + (bodyInset - dropInset);
+  renderer.text.render(dropCapFontId, xPos + xOffset, alignY, text.c_str(), EpdFontFamily::BOLD);
 }
 
 /**

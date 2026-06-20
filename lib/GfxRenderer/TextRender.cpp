@@ -80,6 +80,31 @@ int TextRender::getFontAscenderSize(const int fontId) const {
   return gfx.fontMap.at(fontId).getData(EpdFontFamily::REGULAR)->ascender;
 }
 
+int TextRender::getGlyphTopInset(const int fontId, const uint32_t cp, const EpdFontFamily::Style style) const {
+  if (gfx.fontMap.count(fontId) == 0) {
+    return 0;
+  }
+  const auto& family = gfx.fontMap.at(fontId);
+  const EpdFontData* data = family.getData(style);
+  if (!data) {
+    return 0;
+  }
+  EpdGlyph storage;
+  const EpdGlyph* glyph = nullptr;
+  const auto streamIt = gfx.streamingFonts.find(data);
+  if (streamIt != gfx.streamingFonts.end()) {
+    if (streamIt->second->getGlyphMetadata(cp, storage)) {
+      glyph = &storage;
+    }
+  } else {
+    glyph = family.getGlyph(cp, style);
+  }
+  if (!glyph) {
+    return 0;
+  }
+  return data->ascender - glyph->top;
+}
+
 int TextRender::getLineHeight(const int fontId) const {
   if (gfx.fontMap.count(fontId) == 0) {
     Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);

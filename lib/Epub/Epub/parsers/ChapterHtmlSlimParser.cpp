@@ -676,7 +676,7 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     auto dropCapElem = std::make_shared<PageDropCap>(dropCapText, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
-    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10) - 4;
+    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10) - 2;
     int dropCapWidth = renderer.text.getWidth(maxFontId, dropCapText.c_str(), EpdFontFamily::BOLD) + gutter;
 
     if (currentTextBlock) {
@@ -1540,20 +1540,35 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
     const std::string cacheImgPath = epub.getCacheImgPath(bgInternalPath);
     int imgW = 0;
     int imgH = 0;
-    if (ensureImageCached(bgInternalPath, cacheImgPath, &imgW, &imgH)) {
+    if (ensureImageCached(bgInternalPath, cacheImgPath, &imgW, &imgH) && imgW > 0 && imgH > 0) {
       const int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
       const int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-      if (imgW > 0 && imgH > 0 && (cssWidth > 0 || cssHeight > 0)) {
-        if (cssWidth > 0 && cssHeight > 0) {
-          imgW = cssWidth;
-          imgH = cssHeight;
-        } else if (cssWidth > 0) {
-          imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * cssWidth) / std::max(1, imgW)));
-          imgW = cssWidth;
-        } else if (cssHeight > 0) {
-          imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * cssHeight) / std::max(1, imgH)));
-          imgH = cssHeight;
-        }
+      if (cssWidth > 0 && cssHeight > 0) {
+        imgW = cssWidth;
+        imgH = cssHeight;
+      } else if (cssWidth > 0) {
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * cssWidth) / std::max(1, imgW)));
+        imgW = cssWidth;
+      } else if (cssHeight > 0) {
+        imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * cssHeight) / std::max(1, imgH)));
+        imgH = cssHeight;
+      } else {
+        // No explicit size: a decorative background image should span the content width, not sit tiny.
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
+        imgW = viewportWidth * .5;
+      }
+      // Keep it within the page.
+      if (imgW > viewportWidth) {
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
+        imgW = viewportWidth;
+      }
+      if (imgH > viewportHeight) {
+        imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * viewportHeight) / std::max(1, imgH)));
+        imgH = viewportHeight;
+      }
+      // Default top margin when CSS didn't specify one (addImageToPage already adds a gap below).
+      if (spacingTop <= 0 && currentPageNextY > 0) {
+        applyVerticalSpacing((renderer.text.getLineHeight(fontId) / 2) + 5);
       }
       addImageToPage(cacheImgPath, imgW, imgH);
     }

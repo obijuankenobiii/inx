@@ -276,7 +276,11 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
       for (size_t j = static_cast<size_t>(i); j < totalWordCount; ++j) {
         currlen += wordWidths[j] + spaceWidth;
-        if (currlen > pageWidth) {
+        // Only justified rendering compresses spaces; for left/center/right the line is drawn at natural
+        // spacing, so over-packing it would overflow (and centering would shove the first words off-screen).
+        const int compressBudget =
+            (style == TextBlock::JUSTIFIED) ? (static_cast<int>(j - static_cast<size_t>(i)) * spaceWidth * 2) / 5 : 0;
+        if (currlen > pageWidth + compressBudget) {
           break;
         }
         int cost;
@@ -284,8 +288,10 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
           cost = 0;
         } else {
           const int remainingSpace = pageWidth - currlen;
-          const long long cost_ll =
-              static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
+          // Penalize stretched lines (positive remaining = unnatural gaps) more than compressed ones so the
+          // layout favors packing words tightly, while the budget above keeps spaces readable.
+          const int penalty = remainingSpace >= 0 ? remainingSpace : (-remainingSpace) / 3;
+          const long long cost_ll = static_cast<long long>(penalty) * penalty + dp[j + 1];
           cost = (cost_ll > MAX_COST) ? MAX_COST : static_cast<int>(cost_ll);
         }
         if (cost < dp[static_cast<size_t>(i)]) {
@@ -456,8 +462,11 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
       const int spacing = isFirstWord ? 0 : spaceWidth;
       const int candidateWidth = spacing + wordWidths[currentIndex];
 
-      
-      if (lineWidth + candidateWidth <= lineW) {
+      // Only justified rendering compresses spaces (see computeLineBreaks); other alignments draw at natural
+      // spacing, so over-packing would overflow / push centered words off-screen.
+      const int compressBudget =
+          (style == TextBlock::JUSTIFIED) ? (static_cast<int>(currentIndex - lineStart) * spaceWidth * 2) / 5 : 0;
+      if (lineWidth + candidateWidth <= lineW + compressBudget) {
         lineWidth += candidateWidth;
         ++currentIndex;
         continue;

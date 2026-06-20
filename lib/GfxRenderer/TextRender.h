@@ -14,6 +14,9 @@ class TextRender {
   int getFontAscenderSize(int fontId) const;
   int getLineHeight(int fontId) const;
   int getSpaceWidth(int fontId) const;
+  /** Pixels between a glyph's top edge and the font's ascender line (ascender - glyph.top). Used to align
+   *  a drop cap's cap-top with the surrounding body text, whose font has a different inset. */
+  int getGlyphTopInset(int fontId, uint32_t codepoint, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   std::string truncate(int fontId, const char* text, int maxWidth,
                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void rotated90CW(int fontId, int x, int y, const char* text, bool black = true,
