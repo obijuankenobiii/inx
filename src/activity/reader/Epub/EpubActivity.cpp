@@ -1767,7 +1767,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const int fontId = bookSettings.getReaderFontId();
   const int headerFontId = FontManager::getNextFont(fontId);
   const bool pageHasImages = page->hasImages();
-  page->prewarmText(renderer, fontId, headerFontId);
 
   annUi_.ensureDiskListLoaded(*this);
 

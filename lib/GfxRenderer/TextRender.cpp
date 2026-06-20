@@ -119,16 +119,6 @@ int TextRender::getSpaceWidth(const int fontId) const {
   return glyph ? glyph->advanceX : 0;
 }
 
-void TextRender::prewarm(const int fontId, const char* text, const EpdFontFamily::Style style) const {
-  if (!text || *text == '\0' || gfx.fontMap.count(fontId) == 0) {
-    return;
-  }
-  const EpdFontData* data = gfx.fontMap.at(fontId).getData(style);
-  const auto it = gfx.streamingFonts.find(data);
-  if (it != gfx.streamingFonts.end()) {
-    it->second->prewarmText(text);
-  }
-}
 
 int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdFontFamily::Style style) const {
   if (!text || *text == '\0' || gfx.fontMap.count(fontId) == 0) {
@@ -167,13 +157,6 @@ int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdF
   return totalWidth;
 }
 
-void TextRender::prewarmSmallCaps(const int fontId, const char* text, const EpdFontFamily::Style style) const {
-  if (!text || *text == '\0') {
-    return;
-  }
-  const std::string upper = toUpperUtf8(text);
-  prewarm(fontId, upper.c_str(), style);
-}
 
 std::string TextRender::truncate(const int fontId, const char* text, const int maxWidth,
                                  const EpdFontFamily::Style style) const {

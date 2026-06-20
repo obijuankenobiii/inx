@@ -37,14 +37,6 @@ int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const 
   return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
 }
 
-void prewarmSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const std::string& text,
-                             const EpdFontFamily::Style style) {
-  if (text.empty()) {
-    return;
-  }
-  renderer.text.prewarmSmallCaps(fontId, text.c_str(), style);
-}
-
 }  // namespace
 
 std::string TextBlock::getWordAt(size_t index) const {
@@ -135,44 +127,6 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   }
 }
 
-void TextBlock::prewarm(const GfxRenderer& renderer, const int fontId) const {
-  if (words.size() != wordStyles.size() || (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size())) {
-    return;
-  }
-
-  auto wordIt = words.begin();
-  auto styleIt = wordStyles.begin();
-  auto prefixIt = bionicPrefixBytes.begin();
-  auto smallCapsIt = wordSmallCaps.begin();
-  for (; wordIt != words.end() && styleIt != wordStyles.end(); ++wordIt, ++styleIt) {
-    const uint8_t prefixBytes = bionicPrefixBytes.empty() ? 0 : *prefixIt;
-    const bool smallCaps = !wordSmallCaps.empty() && (*smallCapsIt != 0);
-    if (prefixBytes == 0 || prefixBytes >= wordIt->size()) {
-      if (smallCaps) {
-        prewarmSmallCapsSegment(renderer, fontId, *wordIt, *styleIt);
-      } else {
-        renderer.text.prewarm(fontId, wordIt->c_str(), *styleIt);
-      }
-    } else {
-      const std::string prefix = wordIt->substr(0, prefixBytes);
-      const std::string suffix = wordIt->substr(prefixBytes);
-      const auto prefixStyle = bionicStyleFor(*styleIt);
-      if (smallCaps) {
-        prewarmSmallCapsSegment(renderer, fontId, prefix, prefixStyle);
-        prewarmSmallCapsSegment(renderer, fontId, suffix, *styleIt);
-      } else {
-        renderer.text.prewarm(fontId, prefix.c_str(), prefixStyle);
-        renderer.text.prewarm(fontId, suffix.c_str(), *styleIt);
-      }
-    }
-    if (!bionicPrefixBytes.empty()) {
-      ++prefixIt;
-    }
-    if (!wordSmallCaps.empty()) {
-      ++smallCapsIt;
-    }
-  }
-}
 
 bool TextBlock::serialize(FsFile& file) const {
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||

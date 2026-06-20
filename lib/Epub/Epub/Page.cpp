@@ -568,39 +568,6 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
   }
 }
 
-void Page::prewarmText(GfxRenderer& renderer, const int fontId, const int headerFontId) const {
-  for (const auto& element : elements) {
-    switch (element->getTag()) {
-      case TAG_PageLine: {
-        const auto* line = static_cast<const PageLine*>(element.get());
-        line->getTextBlock().prewarm(renderer, fontId);
-        break;
-      }
-      case TAG_PageSmallCaps: {
-        const auto* sc = static_cast<const PageSmallCaps*>(element.get());
-        sc->getTextBlock().prewarm(renderer, fontId);
-        break;
-      }
-      case TAG_PageHeader: {
-        const auto* header = static_cast<const PageHeader*>(element.get());
-        header->getTextBlock().prewarm(renderer, headerFontId);
-        break;
-      }
-      case TAG_PageDropCap: {
-        const auto* dropCap = static_cast<const PageDropCap*>(element.get());
-        renderer.text.prewarm(dropCap->getDropCapFontId(), dropCap->getDropCapText().c_str(), EpdFontFamily::BOLD);
-        break;
-      }
-      case TAG_PageTable: {
-        const auto* table = static_cast<const PageTable*>(element.get());
-        (void)table;
-        break;
-      }
-      default:
-        break;
-    }
-  }
-}
 
 /**
  * Serializes a Page to a file.
