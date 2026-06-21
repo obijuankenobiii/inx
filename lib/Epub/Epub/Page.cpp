@@ -190,11 +190,14 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  */
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                        const ImageRenderMode imageMode) {
-  (void)xOffset;  
-  (void)fontId;
+  (void)xOffset;
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
-  int renderY = yPos + yOffset;
+  // The viewport top margin is reduced by the font's glyph top inset so text starts at the visual margin
+  // (glyphs carry that whitespace themselves). Images have no such whitespace, so add the inset back here —
+  // otherwise an image at the top of a page sits flush against the margin with no gap above it.
+  const int topInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
+  int renderY = yPos + yOffset + topInset;
   if (renderX < 0) renderX = 0;
   if (renderY < 0) renderY = 0;
 
@@ -482,10 +485,8 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
       line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
     } else if (tag == TAG_PageHeader) {
       const auto* header = static_cast<const PageHeader*>(element.get());
-      // Headers use their own font and do not shrink small caps further.
       header->getTextBlock().render(renderer, headerFontId, header->xPos + xOffset, header->yPos + yOffset);
     } else {
-      // PageSmallCaps (and PageDropCap, images, tables…) render themselves with the font they stored.
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }
   }
