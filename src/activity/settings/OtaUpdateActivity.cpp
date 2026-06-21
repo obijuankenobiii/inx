@@ -65,7 +65,6 @@ void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, co
   const int cardH = std::min(144, screenHeight - cardY - 58);
 
   renderer.rectangle.fill(cardX, cardY, cardW, cardH, false, true);
-  renderer.rectangle.render(cardX, cardY, cardW, cardH, true);
 
   const int titleY = cardY + 18;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, cardX + 18, titleY, "Installing firmware", true,
@@ -260,47 +259,9 @@ void OtaUpdateActivity::render() {
 
   const char* headerText = "Update";
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, headerText, true, EpdFontFamily::BOLD);
 
-  const char* subtitleText = "";
-  switch (state) {
-    case SOURCE_SELECTION:
-      subtitleText = "Choose update source";
-      break;
-    case WIFI_SELECTION:
-      subtitleText = "Select Wi-Fi to continue";
-      break;
-    case CHECKING_FOR_UPDATE:
-      subtitleText = "Checking for update...";
-      break;
-    case WAITING_CONFIRMATION:
-      subtitleText = "New update available!";
-      break;
-    case WAITING_SD_SELECTION:
-      subtitleText = "Choose firmware file";
-      break;
-    case WAITING_SD_CONFIRMATION:
-      subtitleText = "Install firmware from SD";
-      break;
-    case UPDATE_IN_PROGRESS:
-      subtitleText = "Installing firmware...";
-      break;
-    case NO_UPDATE:
-      subtitleText = "No update available";
-      break;
-    case FAILED:
-      subtitleText = "Update failed";
-      break;
-    case FINISHED:
-    case SHUTTING_DOWN:
-      subtitleText = "Update complete";
-      break;
-  }
-
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true, EpdFontFamily::REGULAR);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
 
   const int bodyTop = dividerY;

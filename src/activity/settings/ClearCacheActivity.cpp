@@ -94,24 +94,25 @@ void ClearCacheActivity::render() {
       const bool focused = i == selectedGroup;
       if (focused) {
         renderer.rectangle.fill(left - 8, y - 8, right - left + 16, rowH - 4,
-                                static_cast<int>(GfxRenderer::FillTone::Gray), false);
+                                static_cast<int>(GfxRenderer::FillTone::Ink), false);
       }
-      renderer.rectangle.render(left, y, boxSize, boxSize, true);
+      renderer.rectangle.render(left, y, boxSize, boxSize, !focused);
       if (selectedGroups[i]) {
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + 5, y - 3, "x");
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + 5, y - 3, "x", !focused);
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + boxSize + 14, y - 2, names[i], true,
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + boxSize + 14, y - 2, names[i], !focused,
                            focused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + boxSize + 14, y + 24, descriptions[i]);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + boxSize + 14, y + 24, descriptions[i], !focused);
     }
 
     const int actionY = listTop + GROUP_COUNT * rowH + 8;
     const bool actionFocused = selectedGroup == GROUP_COUNT;
     if (actionFocused) {
       renderer.rectangle.fill(left - 8, actionY - 8, right - left + 16, 44,
-                              static_cast<int>(GfxRenderer::FillTone::Gray), false);
+                              static_cast<int>(GfxRenderer::FillTone::Ink), false);
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left, actionY, "Clear selected", anyGroupSelected(),
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left, actionY, "Clear selected",
+                         actionFocused ? false : anyGroupSelected(),
                          actionFocused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     if (!anyGroupSelected()) {
