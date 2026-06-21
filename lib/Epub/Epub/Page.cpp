@@ -273,7 +273,9 @@ void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffse
                        ImageRenderMode) {
   const int originX = xPos + xOffset;
   const int originY = yPos + yOffset;
-  const int lineHeight = renderer.text.getLineHeight(fontId);
+  // Use the effective line height baked at layout time (respects the line-spacing setting); fall back
+  // to the raw font line height for older caches that didn't store it.
+  const int lineHeight = this->lineHeight > 0 ? this->lineHeight : renderer.text.getLineHeight(fontId);
   constexpr int kCellPadX = 4;
   constexpr int kCellPadY = 3;
 
@@ -370,6 +372,7 @@ bool PageTable::serialize(FsFile& file) {
   serialization::writePod(file, yPos);
   serialization::writePod(file, tableWidth);
   serialization::writePod(file, tableHeight);
+  serialization::writePod(file, lineHeight);
   serialization::writePod(file, static_cast<uint8_t>(showBorders ? 1 : 0));
   serialization::writePod(file, static_cast<uint16_t>(columnWidths.size()));
   for (const auto width : columnWidths) {
@@ -406,6 +409,8 @@ std::unique_ptr<PageTable> PageTable::deserialize(FsFile& file) {
   serialization::readPod(file, y);
   serialization::readPod(file, width);
   serialization::readPod(file, height);
+  int16_t lineHeight = 0;
+  serialization::readPod(file, lineHeight);
   uint8_t showBordersValue = 0;
   serialization::readPod(file, showBordersValue);
 
@@ -446,7 +451,7 @@ std::unique_ptr<PageTable> PageTable::deserialize(FsFile& file) {
     }
   }
   return std::unique_ptr<PageTable>(new PageTable(std::move(rows), std::move(colWidths), std::move(rowHeights),
-                                                  showBordersValue != 0, width, height, x, y));
+                                                  showBordersValue != 0, width, height, lineHeight, x, y));
 }
 
 std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file) {

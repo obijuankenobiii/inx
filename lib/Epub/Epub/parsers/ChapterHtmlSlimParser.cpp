@@ -236,7 +236,7 @@ const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"}
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 // <a> links render bold (and underlined, see underlineUntilDepth).
-const char* BOLD_TAGS[] = {"b", "strong", "a"};
+const char* BOLD_TAGS[] = {"b", "strong"};
 constexpr int NUM_BOLD_TAGS = sizeof(BOLD_TAGS) / sizeof(BOLD_TAGS[0]);
 
 const char* ITALIC_TAGS[] = {"i", "em"};
@@ -794,7 +794,9 @@ void ChapterHtmlSlimParser::addTableToPage() {
 
   constexpr int kCellPadX = 4;
   constexpr int kCellPadY = 3;
-  const int lineHeight = renderer.text.getLineHeight(fontId);
+  // Respect the reader's line-spacing setting for table contents (was using the raw font line height,
+  // which made rows too tight relative to body text).
+  const int lineHeight = std::max(1, static_cast<int>(renderer.text.getLineHeight(fontId) * lineCompression));
   const int tableWidth = viewportWidth;
 
   std::vector<uint16_t> columnWidths(columnCount, 0);
@@ -894,7 +896,8 @@ void ChapterHtmlSlimParser::addTableToPage() {
     }
     currentPage->elements.push_back(std::make_shared<PageTable>(std::move(pageRows), columnWidths, pageRowHeights,
                                                                 tableShowBorders_, static_cast<int16_t>(tableWidth),
-                                                                static_cast<int16_t>(pageTableHeight), 0,
+                                                                static_cast<int16_t>(pageTableHeight),
+                                                                static_cast<int16_t>(lineHeight), 0,
                                                                 currentPageNextY));
     currentPageNextY += pageTableHeight + lineHeight / 2;
     pageRows.clear();
@@ -929,13 +932,15 @@ void ChapterHtmlSlimParser::addTableToPage() {
     }
 
     const int projectedHeight = pageTableHeight + rowHeight + (pageRows.empty() ? 0 : 1);
-    if (!pageRows.empty() && currentPageNextY + projectedHeight > viewportHeight) {
-      emitCurrentPageTable();
+    // Break before any row that would run past the content area (which already excludes the status bar).
+    // This applies to the first row too, so a table following text doesn't spill into the status bar.
+    if (currentPageNextY + projectedHeight > viewportHeight) {
+      emitCurrentPageTable();  // flush rows already accumulated on this page (no-op if none)
       if (currentPage && !currentPage->elements.empty()) {
         completePageFn(std::move(currentPage));
+        currentPage.reset(new Page());
+        currentPageNextY = 0;
       }
-      currentPage.reset(new Page());
-      currentPageNextY = 0;
     }
 
     pageTableHeight += rowHeight + (pageRows.empty() ? 0 : 1);

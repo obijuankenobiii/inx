@@ -195,6 +195,7 @@ class PageTable final : public PageElement {
  private:
   int16_t tableWidth;
   int16_t tableHeight;
+  int16_t lineHeight;  ///< Effective per-text-line height (font line height * line spacing setting)
   bool showBorders;
   std::vector<uint16_t> columnWidths;
   std::vector<uint16_t> rowHeights;
@@ -202,11 +203,12 @@ class PageTable final : public PageElement {
 
  public:
   PageTable(std::vector<std::vector<Cell>> rows, std::vector<uint16_t> columnWidths, std::vector<uint16_t> rowHeights,
-            const bool showBorders, const int16_t tableWidth, const int16_t tableHeight, const int16_t xPos,
-            const int16_t yPos)
+            const bool showBorders, const int16_t tableWidth, const int16_t tableHeight, const int16_t lineHeight,
+            const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos),
         tableWidth(tableWidth),
         tableHeight(tableHeight),
+        lineHeight(lineHeight),
         showBorders(showBorders),
         columnWidths(std::move(columnWidths)),
         rowHeights(std::move(rowHeights)),
