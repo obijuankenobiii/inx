@@ -113,11 +113,17 @@ constexpr int kJpegTwoBitQualitySharpenPercent = 105;
 constexpr int kJpegTwoBitQualitySharpenMax = 38;
 constexpr int kJpegTwoBitQualityShadowKnee = 96;
 constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
-// X3 panels render the GRAY2 mid/shadow levels darker than X4. The quality tone curve is
-// calibrated for X4, so on X3 we lift shadows (instead of darkening them) to match. Tune on
-// real X3 hardware: larger = brighter shadows.
+// X3 quality (GRAY2) shadow lift — X3 renders darker, so the quality curve lifts shadows on X3.
 constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
+
+// X3 medium (GRAYSCALE) tone shaping. X3 renders flat/gray, so expand the tonal range instead of just
+// lifting: darker blacks + whiter whites (kills the gray cast) and a contrast stretch (kills the
+// flatness). Pivot >128 biases it brighter so it doesn't go dark. X3 medium only; quality/X4 untouched.
+constexpr int kX3MediumBlackMax = 20;   // output tone <= this -> pure black (lower = keeps more dark gray)
+constexpr int kX3MediumWhiteMin = 255;  // output tone >= this -> pure white (higher = keeps more light gray)
+constexpr int kX3MediumPivot = 180;     // contrast pivot; higher biases the image brighter
+constexpr int kX3MediumContrast = 120;  // % contrast expansion (>100 = punchier / less flat)
 
 
 int jpegTwoBitTone(const int gray) {
@@ -160,8 +166,10 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
   return std::max(0, std::min(255, tone));
 }
 
-int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-                          const bool isX3) {
+// Shared quality (GRAY2) curve. `shadowLiftPerKnee` is applied across the shadow knee: positive
+// lifts shadows (X3, which renders darker), negative darkens them (X4 reference).
+int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGray, const int x, const int y,
+                          const int shadowLiftPerKnee) {
   if (gray <= kJpegTwoBitQualitySolidBlackMax) {
     return 0;
   }
@@ -187,11 +195,7 @@ int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGra
   }
   if (gray < kJpegTwoBitQualityShadowKnee) {
     const int kneeDepth = kJpegTwoBitQualityShadowKnee - gray;
-    if (isX3) {
-      tone += (kneeDepth * kJpegTwoBitQualityX3ShadowLift) / kJpegTwoBitQualityShadowKnee;
-    } else {
-      tone -= (kneeDepth * kJpegTwoBitQualityShadowDarkenMax) / kJpegTwoBitQualityShadowKnee;
-    }
+    tone += (kneeDepth * shadowLiftPerKnee) / kJpegTwoBitQualityShadowKnee;
   }
 
   if (tone <= 8) {
@@ -208,6 +212,42 @@ int jpegTwoBitQualityTone(const int gray, const int leftGray, const int rightGra
     tone += ((latticeA + latticeB) * kJpegTwoBitQualityMicroDither) / 12;
   }
 
+  return std::max(0, std::min(255, tone));
+}
+
+// ============================================================================================
+// Per-device JPEG tone. Pick the device function at the call site; tune each independently here.
+//   quality == true  -> GRAY2 quality curve
+//   quality == false -> medium (GRAYSCALE) detail curve
+// ============================================================================================
+
+// X4 reference look (do not lift; shadows are slightly deepened on the quality curve).
+int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y,
+               const bool quality) {
+  if (quality) {
+    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax);
+  }
+  return jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
+}
+
+int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y,
+               const bool quality) {
+  // Quality (GRAY2) is unchanged from before: the X4-shared curve with the X3 shadow lift.
+  if (quality) {
+    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift);
+  }
+
+  // Medium (GRAYSCALE): start from the original detail tone, then expand the range so it isn't
+  // flat/gray — snap deep tones to black and high tones to white, and stretch contrast around a
+  // bright-biased pivot.
+  int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
+  if (tone <= kX3MediumBlackMax) {
+    return 0;
+  }
+  if (tone >= kX3MediumWhiteMin) {
+    return 255;
+  }
+  tone = ((tone - kX3MediumPivot) * kX3MediumContrast) / 100 + kX3MediumPivot;
   return std::max(0, std::min(255, tone));
 }
 
@@ -414,10 +454,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = quality
-                               ? jpegTwoBitQualityTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY,
-                                                       deviceIsX3)
-                               : jpegTwoBitDetailTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY);
+          const int tone = deviceIsX3
+                               ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, quality)
+                               : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, quality);
           q = (quality ? twoBitDitherer->processQuality(tone, step)
                        : twoBitDitherer->process(tone, step))
                   .value;

@@ -796,13 +796,37 @@ void ChapterHtmlSlimParser::addTableToPage() {
   constexpr int kCellPadY = 3;
   const int lineHeight = renderer.text.getLineHeight(fontId);
   const int tableWidth = viewportWidth;
-  std::vector<uint16_t> columnWidths(columnCount, static_cast<uint16_t>(std::max<int>(24, tableWidth / columnCount)));
-  int assignedWidth = 0;
-  for (size_t i = 0; i < columnWidths.size(); ++i) {
-    if (i + 1 == columnWidths.size()) {
-      columnWidths[i] = static_cast<uint16_t>(std::max(1, tableWidth - assignedWidth));
+
+  std::vector<uint16_t> columnWidths(columnCount, 0);
+  if (columnCount == 2) {
+    // Two columns: size the first column to its content (text + padding) so short labels (e.g. a TOC
+    // number) sit close to the second column instead of taking up half the row.
+    int col0 = 24;
+    for (const auto& row : tableRows_) {
+      if (row.empty()) {
+        continue;
+      }
+      const auto& first = row.front();
+      if (std::max(1, first.colspan) != 1) {
+        continue;  // a full-width spanned row doesn't define the first column
+      }
+      const auto style = first.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      const int w = renderer.text.getWidth(fontId, first.text.c_str(), style) + 2 * kCellPadX;
+      col0 = std::max(col0, w);
     }
-    assignedWidth += columnWidths[i];
+    const int maxCol0 = std::max(24, (tableWidth * 2) / 5);  // cap so the second column keeps room
+    col0 = std::min(col0, std::min(maxCol0, tableWidth - 24));
+    columnWidths[0] = static_cast<uint16_t>(std::max(1, col0));
+    columnWidths[1] = static_cast<uint16_t>(std::max(1, tableWidth - col0));
+  } else {
+    // 1 or 3+ columns: split evenly (last column absorbs rounding).
+    const int each = std::max<int>(24, tableWidth / static_cast<int>(columnCount));
+    int assignedWidth = 0;
+    for (size_t i = 0; i < columnCount; ++i) {
+      columnWidths[i] = (i + 1 == columnCount) ? static_cast<uint16_t>(std::max(1, tableWidth - assignedWidth))
+                                               : static_cast<uint16_t>(each);
+      assignedWidth += columnWidths[i];
+    }
   }
 
   auto wrapCell = [&](const TableCellCapture& cell, const int colWidth) {
