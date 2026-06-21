@@ -1766,9 +1766,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
+  bool didHalfRefresh = false;
   if (pagesUntilFullRefresh <= 1) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;
+    didHalfRefresh = true;
   } else {
     renderer.displayBuffer();
     pagesUntilFullRefresh--;
@@ -1777,7 +1779,13 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (pageHasImages)
   {
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    // Only half-refresh a large image if the cadence above didn't already do one — avoid a double half refresh.
+    if (pageHasLargeImage && !didHalfRefresh)
+    {
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    } else {
+      renderer.displayBuffer();
+    }
   }
   
   const bool bwStored = renderer.storeBwBuffer();

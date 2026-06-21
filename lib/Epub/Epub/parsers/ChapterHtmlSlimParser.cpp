@@ -676,8 +676,7 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     auto dropCapElem = std::make_shared<PageDropCap>(dropCapText, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
-    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10) - 2;
-    int dropCapWidth = renderer.text.getWidth(maxFontId, dropCapText.c_str(), EpdFontFamily::BOLD) + gutter;
+    int dropCapWidth = renderer.text.getWidth(maxFontId, dropCapText.c_str(), EpdFontFamily::BOLD) + 3;
 
     if (currentTextBlock) {
       currentTextBlock->setLeftIndent(dropCapWidth, dropCapLineCount);
