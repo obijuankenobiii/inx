@@ -66,7 +66,6 @@ constexpr unsigned long skipChapterMs = 700;
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
-constexpr unsigned long kDeferredImageGrayscaleDelayMs = 180;
 constexpr unsigned long bookmarkHoldMs = 1000;
 
 /**
@@ -223,30 +222,6 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
   if (repaintReaderScreen) {
     renderScreen();
   }
-}
-
-void EpubActivity::cancelDeferredImageGrayscalePass() {
-  deferredImageGrayscalePass_ = {};
-}
-
-void EpubActivity::scheduleDeferredImageGrayscalePass(const int fontId, const int orientedMarginLeft,
-                                                      const int orientedMarginTop, const int orientedMarginRight,
-                                                      const int orientedMarginBottom) {
-  deferredImageGrayscalePass_.pending = true;
-  deferredImageGrayscalePass_.spineIndex = currentSpineIndex;
-  deferredImageGrayscalePass_.pageNumber = section ? section->currentPage : nextPageNumber;
-  deferredImageGrayscalePass_.fontId = fontId;
-  deferredImageGrayscalePass_.marginLeft = orientedMarginLeft;
-  deferredImageGrayscalePass_.marginTop = orientedMarginTop;
-  deferredImageGrayscalePass_.marginRight = orientedMarginRight;
-  deferredImageGrayscalePass_.marginBottom = orientedMarginBottom;
-  deferredImageGrayscalePass_.earliestRunMs = millis() + kDeferredImageGrayscaleDelayMs;
-}
-
-bool EpubActivity::runDeferredImageGrayscalePass() {
-  // Deferred image grayscale removed: the grayscale pass now runs inline in renderContents
-  // (status bar -> text -> image -> grayscale), so this is a no-op.
-  return false;
 }
 
 void EpubActivity::readerPopup(const char* message) {
@@ -687,7 +662,6 @@ void EpubActivity::onEnter() {
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
-  cancelDeferredImageGrayscalePass();
   if (menuDrawer) {
     menuDrawer->hide();
     delete menuDrawer;
@@ -979,10 +953,6 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (runDeferredImageGrayscalePass()) {
-    return;
-  }
-
 }
 
 /**
@@ -990,7 +960,6 @@ void EpubActivity::loop() {
  * @param spineIndex The spine index to navigate to
  */
 void EpubActivity::onTocChapterSelected(int spineIndex) {
-  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   currentSpineIndex = spineIndex;
   nextPageNumber = 0;
@@ -1001,14 +970,12 @@ void EpubActivity::onTocChapterSelected(int spineIndex) {
 }
 
 void EpubActivity::onBookmarkDrawerSelected(int storageIndex) {
-  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   goToBookmark(storageIndex);
   startPageTimer();
 }
 
 void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
-  cancelDeferredImageGrayscalePass();
   toggleMenuDrawer();
   const int spine = storageIndex / kAnnotationNavPack;
   const int page = storageIndex % kAnnotationNavPack;
@@ -1077,7 +1044,6 @@ void EpubActivity::onFootnoteDrawerSelected(int storageIndex) {
  * @brief Toggles the menu drawer visibility
  */
 void EpubActivity::toggleMenuDrawer() {
-  cancelDeferredImageGrayscalePass();
   if (!menuDrawer) {
     menuDrawer = new MenuDrawer(
         renderer,
@@ -1251,7 +1217,6 @@ void EpubActivity::toggleMenuDrawer() {
  * @brief Toggles the settings drawer visibility
  */
 void EpubActivity::toggleSettingsDrawer() {
-  cancelDeferredImageGrayscalePass();
   if (!settingsDrawer) {
     settingsDrawer = new SettingsDrawer(renderer, bookSettings, [this]() { onBookSettingsLiveLayoutSync(); });
     settingsDrawer->setMappedInputForHints(&mappedInput);
@@ -1584,7 +1549,6 @@ void EpubActivity::jumpToPercent(int percent) {
  * @param forward True for forward page turn, false for backward
  */
 void EpubActivity::pageTurn(bool forward) {
-  cancelDeferredImageGrayscalePass();
   if (!epub) {
     updateRequired = true;
     return;

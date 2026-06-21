@@ -20,72 +20,7 @@
 
 namespace {
 
-constexpr float kImgScaleEps = 1e-5f;
-constexpr float kImgHuge = 1e9f;
-
-/**
- * Tight pixel bounds for how PageImage::render + GfxRenderer::drawBitmap place the bitmap (fit within layout w/h).
- * Matches drawBitmap1Bit / drawBitmap scale and non-replicate vs replicate-upscale branches.
- */
-bool pageImagePaintBounds(const PageImage& img, const GfxRenderer& renderer, int xOffset, int yOffset, int& outX1,
-                          int& outY1, int& outX2, int& outY2) {
-  (void)xOffset;
-  int sourceW = 0;
-  int sourceH = 0;
-  if (!ImageRender::getDimensions(img.getPath(), &sourceW, &sourceH)) return false;
-
-  const int lw = img.getWidth();
-  const int lh = img.getHeight();
-  if (sourceW <= 0 || sourceH <= 0 || lw <= 0 || lh <= 0) {
-    return false;
-  }
-
-  const int screenW = renderer.getScreenWidth();
-  int renderX = (screenW - lw) / 2;
-  if (renderX < 0) {
-    renderX = 0;
-  }
-  int renderY = img.yPos + yOffset;
-  if (renderY < 0) {
-    renderY = 0;
-  }
-
-  const bool hasW = lw > 0;
-  const bool hasH = lh > 0;
-  float scale = 1.0f;
-  bool isScaled = false;
-  if (hasW || hasH) {
-    const float fitW = hasW ? static_cast<float>(lw) / static_cast<float>(sourceW) : kImgHuge;
-    const float fitH = hasH ? static_cast<float>(lh) / static_cast<float>(sourceH) : kImgHuge;
-    const float fitScale = (hasW && hasH) ? std::min(fitW, fitH) : (hasW ? fitW : fitH);
-    if (std::abs(fitScale - 1.0f) > kImgScaleEps) {
-      scale = fitScale;
-      isScaled = true;
-    }
-  }
-  const bool replicateUpscale = isScaled && scale > 1.0f + kImgScaleEps;
-
-  int x2 = renderX;
-  int y2 = renderY;
-  if (replicateUpscale) {
-    x2 = renderX + static_cast<int>(std::ceil(static_cast<float>(sourceW) * scale)) - 1;
-    y2 = renderY + static_cast<int>(std::ceil(static_cast<float>(sourceH) * scale)) - 1;
-  } else if (isScaled) {
-    x2 = renderX + static_cast<int>(std::floor(static_cast<float>(sourceW - 1) * scale));
-    y2 = renderY + static_cast<int>(std::floor(static_cast<float>(sourceH - 1) * scale));
-  } else {
-    x2 = renderX + sourceW - 1;
-    y2 = renderY + sourceH - 1;
-  }
-
-  outX1 = std::max(0, std::min(renderX, screenW - 1));
-  outY1 = std::max(0, renderY);
-  outX2 = std::min(screenW - 1, std::max(outX1, x2));
-  outY2 = std::max(outY1, y2);
-  return true;
 }
-
-}  
 
 /**
  * Renders a text line on the screen.
@@ -503,6 +438,8 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
  */
 bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, const int yOffset, int16_t& outX,
                                int16_t& outY, int16_t& outW, int16_t& outH) const {
+  (void)xOffset;  // images are horizontally centered, not offset by the left margin
+  const int screenW = renderer.getScreenWidth();
   bool found = false;
   int minX = INT_MAX;
   int minY = INT_MAX;
@@ -512,30 +449,14 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
+    // Match PageImage::render: centered horizontally, placed at yPos + yOffset, at the stored size.
     const auto& img = static_cast<const PageImage&>(*element);
-    int x1 = 0;
-    int y1 = 0;
-    int x2 = 0;
-    int y2 = 0;
-    if (!pageImagePaintBounds(img, renderer, xOffset, yOffset, x1, y1, x2, y2)) {
-      const int screenW = renderer.getScreenWidth();
-      int rx = (screenW - img.getWidth()) / 2;
-      if (rx < 0) {
-        rx = 0;
-      }
-      int ry = img.yPos + yOffset;
-      if (ry < 0) {
-        ry = 0;
-      }
-      x1 = rx;
-      y1 = ry;
-      x2 = rx + std::max(0, static_cast<int>(img.getWidth()) - 1);
-      y2 = ry + std::max(0, static_cast<int>(img.getHeight()) - 1);
-    }
-    minX = std::min(minX, x1);
-    minY = std::min(minY, y1);
-    maxX = std::max(maxX, x2 + 1);
-    maxY = std::max(maxY, y2 + 1);
+    const int rx = std::max(0, (screenW - img.getWidth()) / 2);
+    const int ry = std::max(0, img.yPos + yOffset);
+    minX = std::min(minX, rx);
+    minY = std::min(minY, ry);
+    maxX = std::max(maxX, rx + img.getWidth());
+    maxY = std::max(maxY, ry + img.getHeight());
     found = true;
   }
   if (!found || maxX <= minX || maxY <= minY) {
