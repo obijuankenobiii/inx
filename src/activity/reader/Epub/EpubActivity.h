@@ -130,6 +130,8 @@ private:
       int fontId = 0;
       int marginLeft = 0;
       int marginTop = 0;
+      int marginRight = 0;
+      int marginBottom = 0;
       unsigned long earliestRunMs = 0;
     };
 
@@ -173,7 +175,8 @@ private:
                         int orientedMarginLeft);
 
     void cancelDeferredImageGrayscalePass();
-    void scheduleDeferredImageGrayscalePass(int fontId, int orientedMarginLeft, int orientedMarginTop);
+    void scheduleDeferredImageGrayscalePass(int fontId, int orientedMarginLeft, int orientedMarginTop,
+                                            int orientedMarginRight, int orientedMarginBottom);
     bool runDeferredImageGrayscalePass();
     
     /**

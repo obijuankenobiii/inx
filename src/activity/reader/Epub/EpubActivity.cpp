@@ -168,6 +168,13 @@ ViewportInfo EpubActivity::calculateViewport() {
         (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
   }
 
+  info.fontId = bookSettings.getReaderFontId();
+  // Each line's baseline is (top + ascender), so the first line's cap top sits (ascender - capHeight)
+  // below the margin. Remove that font leading so text starts at the screen margin (it otherwise looks
+  // like a doubled top margin). Usable height grows by the same amount, so the bottom is unchanged.
+  const int topInset = renderer.text.getGlyphTopInset(info.fontId, 'H', EpdFontFamily::REGULAR);
+  info.totalMarginTop = std::max(oT, info.totalMarginTop - topInset);
+
   int w = renderer.getScreenWidth() - info.totalMarginLeft - info.totalMarginRight;
   int h = renderer.getScreenHeight() - info.totalMarginTop - info.totalMarginBottom;
   constexpr int kMinViewport = 8;
@@ -176,7 +183,6 @@ ViewportInfo EpubActivity::calculateViewport() {
   info.width = static_cast<uint16_t>(w);
   info.height = static_cast<uint16_t>(h);
 
-  info.fontId = bookSettings.getReaderFontId();
   info.lineCompression = bookSettings.getReaderLineCompression();
   info.wordSpacing = bookSettings.getReaderWordSpacingFactor();
 
@@ -224,59 +230,23 @@ void EpubActivity::cancelDeferredImageGrayscalePass() {
 }
 
 void EpubActivity::scheduleDeferredImageGrayscalePass(const int fontId, const int orientedMarginLeft,
-                                                      const int orientedMarginTop) {
+                                                      const int orientedMarginTop, const int orientedMarginRight,
+                                                      const int orientedMarginBottom) {
   deferredImageGrayscalePass_.pending = true;
   deferredImageGrayscalePass_.spineIndex = currentSpineIndex;
   deferredImageGrayscalePass_.pageNumber = section ? section->currentPage : nextPageNumber;
   deferredImageGrayscalePass_.fontId = fontId;
   deferredImageGrayscalePass_.marginLeft = orientedMarginLeft;
   deferredImageGrayscalePass_.marginTop = orientedMarginTop;
+  deferredImageGrayscalePass_.marginRight = orientedMarginRight;
+  deferredImageGrayscalePass_.marginBottom = orientedMarginBottom;
   deferredImageGrayscalePass_.earliestRunMs = millis() + kDeferredImageGrayscaleDelayMs;
 }
 
 bool EpubActivity::runDeferredImageGrayscalePass() {
-  if (!deferredImageGrayscalePass_.pending || !section || !epub || menuDrawerVisible || settingsDrawerVisible ||
-      annUi_.isActive()) {
-    return false;
-  }
-  if (millis() < deferredImageGrayscalePass_.earliestRunMs) {
-    return false;
-  }
-  if (deferredImageGrayscalePass_.spineIndex != currentSpineIndex ||
-      deferredImageGrayscalePass_.pageNumber != section->currentPage || SETTINGS.readerImageGrayscale == 0) {
-    cancelDeferredImageGrayscalePass();
-    return false;
-  }
-
-  auto page = section->loadPageFromSectionFile();
-  if (!page || !page->hasImages()) {
-    cancelDeferredImageGrayscalePass();
-    return false;
-  }
-
-  const bool storedBwBuffer = renderer.storeBwBuffer();
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-  page->renderImages(renderer, deferredImageGrayscalePass_.fontId, deferredImageGrayscalePass_.marginLeft,
-                     deferredImageGrayscalePass_.marginTop, ImageRenderMode::TwoBit);
-  renderer.copyGrayscaleLsbBuffers();
-
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-  page->renderImages(renderer, deferredImageGrayscalePass_.fontId, deferredImageGrayscalePass_.marginLeft,
-                     deferredImageGrayscalePass_.marginTop, ImageRenderMode::TwoBit);
-  renderer.copyGrayscaleMsbBuffers();
-
-  renderer.displayGrayBuffer();
-  renderer.setRenderMode(GfxRenderer::BW);
-  if (storedBwBuffer) {
-    renderer.restoreBwBuffer();
-  } else {
-    renderer.cleanupGrayscaleWithFrameBuffer();
-  }
-
-  cancelDeferredImageGrayscalePass();
-  return true;
+  // Deferred image grayscale removed: the grayscale pass now runs inline in renderContents
+  // (status bar -> text -> image -> grayscale), so this is a no-op.
+  return false;
 }
 
 void EpubActivity::readerPopup(const char* message) {
@@ -1850,107 +1820,68 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && pageHasImages;
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
   const bool textAa = bookSettings.textAntiAliasing != 0;
+  const bool pageHasLargeImage =
+      pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
 
-  // BW: text first, then images (same separation as grayscale passes: text AA uses skipImages; image tone uses
-  // renderImages only). Matches crosspoint-reader's image+AA display prep without re-decoding images in text AA.
-  auto drawPageBodyBw = [&]() {
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
-    if (pageHasImages) {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    }
-  };
-  drawPageBodyBw();
+  // Image page + AA gets special handling (blank image area, double fast refresh).
+  const bool imagePageWithAA = pageHasImages && textAa;
 
+  // BW render: full page (text + image), then status bar.
+  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
-
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
   }
 
-  auto tryImagePageTextAaDisplayPrep = [&]() -> bool {
-    if (annUi_.isActive()) {
-      return false;
+  if (imagePageWithAA) {
+    // Double FAST_REFRESH with selective image blanking: HALF_REFRESH sets particles too firmly for the
+    // grayscale LUT to adjust. Blank only the image area and do two fast refreshes — text appears first,
+    // then the image is re-rendered cleanly. (Status bar isn't re-rendered, to avoid stale battery %.)
+    int16_t imgX = 0, imgY = 0, imgW = 0, imgH = 0;
+    if (page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, imgX, imgY, imgW, imgH)) {
+      renderer.rectangle.fill(imgX, imgY, imgW, imgH, false);
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    } else {
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     }
-    if (!textAa || !pageHasImages || needsImageGrayscale) {
-      return false;
+    // Double FAST_REFRESH handles ghosting for image pages; don't count toward full refresh cadence.
+  } else {
+    if (pagesUntilFullRefresh <= 1) {
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      pagesUntilFullRefresh = bookSettings.refreshFrequency;
+    } else {
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      pagesUntilFullRefresh--;
     }
-    int16_t ix = 0;
-    int16_t iy = 0;
-    int16_t iw = 0;
-    int16_t ih = 0;
-    if (!page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, ix, iy, iw, ih)) {
-      return false;
-    }
+  }
 
-    renderer.displayBuffer();
-    return true;
-  };
+  // Save bw buffer to reset buffer state after grayscale data sync.
+  renderer.storeBwBuffer();
 
-  auto runTextAntiAliasPass = [&]() {
-    if (!textAa) {
-      return;
-    }
-    if (!renderer.storeBwBuffer()) {
-      return;
-    }
+  // Grayscale rendering (text anti-aliasing and/or image grayscale).
+  if (textAa || needsImageGrayscale) {
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.restoreBwBuffer();
-  };
-
-  auto runImageGrayscalePass = [&]() {
-    if (!needsImageGrayscale || annUi_.isActive()) {
-      cancelDeferredImageGrayscalePass();
-      return;
-    }
-    scheduleDeferredImageGrayscalePass(fontId, orientedMarginLeft, orientedMarginTop);
-  };
-
-  if (pagesUntilFullRefresh <= 1) {
-    if (!tryImagePageTextAaDisplayPrep()) {
-      // With AA on, skip pushing BW to the panel before the grayscale pass — saves one full flash per frame
-      // while moving the highlight (annotation mode) or reading with AA.
-      if (!(annUi_.isActive() && textAa)) {
-        renderer.displayBuffer(pageHasImages ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
-      }
-    }
-    runTextAntiAliasPass();
-    runImageGrayscalePass();
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    lastPageHadImages = pageHasImages;
-    lastPageHadLargeImage =
-        pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
-    if (annUi_.isActive()) {
-      annUi_.drawUiOverlay(*this);
-    } else if (!annUi_.storedRanges().empty()) {
-      annUi_.drawStoredOverlay(*this);
-    }
-    return;
+  } else {
+    renderer.restoreBwBuffer();
   }
-
-  pagesUntilFullRefresh--;
-
-  if (!tryImagePageTextAaDisplayPrep()) {
-    if (!(annUi_.isActive() && textAa)) {
-      renderer.displayBuffer();
-    }
-  }
-  runTextAntiAliasPass();
-  runImageGrayscalePass();
 
   lastPageHadImages = pageHasImages;
-  lastPageHadLargeImage =
-      pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
+  lastPageHadLargeImage = pageHasLargeImage;
+
   if (annUi_.isActive()) {
     annUi_.drawUiOverlay(*this);
   } else if (!annUi_.storedRanges().empty()) {
