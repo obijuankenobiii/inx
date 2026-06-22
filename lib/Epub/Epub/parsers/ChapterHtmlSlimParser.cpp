@@ -1039,6 +1039,16 @@ int ChapterHtmlSlimParser::cssBorderInnerGapPx() const {
   return std::max(2, renderer.text.getLineHeight(headerFontId) / 4);
 }
 
+void ChapterHtmlSlimParser::applyMinHeightPadding() {
+  if (currentBlockMinHeightPx <= 0) return;
+  // Skip if the block wrapped onto a new page (content start Y no longer comparable to the current cursor).
+  if (currentPageNextY < currentBlockContentStartY) return;
+  const int contentHeight = currentPageNextY - currentBlockContentStartY;
+  if (contentHeight < currentBlockMinHeightPx) {
+    applyVerticalSpacing(currentBlockMinHeightPx - contentHeight);
+  }
+}
+
 void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int paddingTop) {
   if (borderTop <= 0 || paddingTop <= 0) return;
   const int activeFontId = inHeader ? headerFontId : fontId;
@@ -1220,6 +1230,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (isCustomDisplayBlock) {
     self->flushPartWordBuffer();
+    // Lay out the previous block (applying ITS bottom margin/padding) before this block overwrites the
+    // shared currentBlock* spacing fields — otherwise the previous block's margin-bottom is lost.
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
     const int marginTop =
         self->cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     const int paddingTop = self->cssParser.getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
@@ -1233,9 +1248,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->currentBlockBorderBottomPx =
         self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     const uint8_t borderTopStyle =
-        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
     self->currentBlockBorderBottomStyle =
-        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
     if (self->currentPageNextY > 0 && marginTop > 0) {
       self->applyVerticalSpacing(marginTop);
     }
@@ -1246,6 +1261,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->applyVerticalSpacing(paddingTop);
     }
     self->tightenAfterTopBorder(borderTop, paddingTop);
+    self->currentBlockMinHeightPx =
+        self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+    self->currentBlockContentStartY = self->currentPageNextY;
     TextBlock::Style blockStyle;
     if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
       blockStyle = elementHasExplicitTextAlign ? elementCssStyle : TextBlock::JUSTIFIED;
@@ -1307,6 +1325,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   if (isHeaderTag) {
+    self->flushPartWordBuffer();
+    // Lay out the previous (non-header) block with its own context/spacing before switching to header mode,
+    // so its margin-bottom isn't overwritten by the header's spacing fields.
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
     self->inHeader = true;
     const int marginTop =
         self->cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
@@ -1321,9 +1345,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->currentBlockBorderBottomPx =
         self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     const uint8_t borderTopStyle =
-        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
     self->currentBlockBorderBottomStyle =
-        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
     self->currentBlockSpacingFromCss = true;
     self->currentBlockBottomSpacingPx = 0;
     if (self->currentPageNextY > 0 && marginTop > 0) {
@@ -1336,6 +1360,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->applyVerticalSpacing(paddingTop);
     }
     self->tightenAfterTopBorder(borderTop, paddingTop);
+    self->currentBlockMinHeightPx =
+        self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+    self->currentBlockContentStartY = self->currentPageNextY;
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (isBlockTag) {
     if (strcmp(name, "br") == 0) {
@@ -1364,9 +1391,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->currentBlockBorderBottomPx =
           self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
       const uint8_t borderTopStyle =
-          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
       self->currentBlockBorderBottomStyle =
-          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
+          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
       self->currentBlockSpacingFromCss = true;
       self->currentBlockBottomSpacingPx = 0;
       if (self->currentPageNextY > 0 && marginTop > 0) {
@@ -1379,6 +1406,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         self->applyVerticalSpacing(paddingTop);
       }
       self->tightenAfterTopBorder(borderTop, paddingTop);
+      self->currentBlockMinHeightPx =
+          self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+      self->currentBlockContentStartY = self->currentPageNextY;
       if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
           self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
@@ -1520,6 +1550,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
       self->makePages();
     } else if (self->currentBlockSpacingFromCss) {
+      self->applyMinHeightPadding();  // empty block still honors its min-height
       if (self->currentBlockPaddingBottomPx > 0) {
         self->applyVerticalSpacing(self->currentBlockPaddingBottomPx);
       }
@@ -1533,6 +1564,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->currentBlockPaddingBottomPx = 0;
       self->currentBlockBorderBottomPx = 0;
       self->currentBlockBorderBottomStyle = 0;
+      self->currentBlockMinHeightPx = 0;
       self->currentBlockBottomSpacingPx = 0;
       self->currentBlockSpacingFromCss = false;
       // Empty block: no text to measure, so leave the top rule at its full-content-width placeholder.
@@ -1717,6 +1749,7 @@ void ChapterHtmlSlimParser::makePages() {
   }
 
   if (currentBlockSpacingFromCss) {
+    applyMinHeightPadding();  // grow short content to the block's min-height before the bottom box spacing
     if (currentBlockPaddingBottomPx > 0) {
       applyVerticalSpacing(currentBlockPaddingBottomPx);
     } else if (currentBlockBorderBottomPx > 0) {
@@ -1738,6 +1771,7 @@ void ChapterHtmlSlimParser::makePages() {
   currentBlockPaddingBottomPx = 0;
   currentBlockBorderBottomPx = 0;
   currentBlockBorderBottomStyle = 0;
+  currentBlockMinHeightPx = 0;
 }
 
 /**
@@ -1881,6 +1915,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   currentBlockPaddingBottomPx = 0;
   currentBlockBorderBottomPx = 0;
   currentBlockBorderBottomStyle = 0;
+  currentBlockMinHeightPx = 0;
+  currentBlockContentStartY = 0;
   pendingTopBorderElem_.reset();
 
   loadCssRules();

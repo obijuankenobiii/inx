@@ -100,6 +100,10 @@ class ChapterHtmlSlimParser {
   int currentBlockBorderBottomPx = 0;
   /** CSS border-style code (PageCssBorderLine::Style) for the pending bottom border. */
   uint8_t currentBlockBorderBottomStyle = 0;
+  /** CSS min-height for the current block (px); content is padded out to this if shorter. 0 = none. */
+  int currentBlockMinHeightPx = 0;
+  /** Y where the current block's content started (after top margin/border/padding), for min-height. */
+  int16_t currentBlockContentStartY = 0;
   /** Top border rule of the current block, deferred so its width can be set to the text width after layout. */
   std::shared_ptr<PageCssBorderLine> pendingTopBorderElem_;
 
@@ -165,6 +169,9 @@ class ChapterHtmlSlimParser {
   /** Removes the first line's glyph top leading after a padded top border so the visible gap equals the CSS
    *  padding (not padding + leading). Capped at the padding, so zero-padding blocks are unaffected. */
   void tightenAfterTopBorder(int borderTop, int paddingTop);
+  /** Pads the current block's content down to its CSS min-height (if the content was shorter). Call after the
+   *  block's lines are laid out and before the bottom padding/border/margin. */
+  void applyMinHeightPadding();
 
   /**
    * Adds an image to the current page layout.

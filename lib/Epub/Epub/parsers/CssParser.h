@@ -106,7 +106,7 @@ class CssParser {
    * (others collapse to "solid"). Defaults to "solid" when a border exists but no style is given.
    */
   std::string getBorderStyleKeyword(const std::string& edge, const std::string& className, const std::string& id,
-                                    const std::string& styleAttr) const;
+                                    const std::string& styleAttr, const std::string& elementTagLower = "") const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,
@@ -160,9 +160,10 @@ class CssParser {
                              const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getSpacingEdgePx(const std::string& propName, const std::string& shorthandName, const std::string& className,
                        const std::string& id, const std::string& styleAttr, int viewportWidth,
-                       int viewportHeight) const;
+                       int viewportHeight, const std::string& elementTagLower = "") const;
   int getBorderEdgePx(const std::string& edgePropName, const std::string& className, const std::string& id,
-                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight,
+                      const std::string& elementTagLower = "") const;
   bool hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
                             const std::string& styleAttr, const std::string& elementTagLower = "") const;
 

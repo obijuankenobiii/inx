@@ -1760,7 +1760,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool imagePageWithAA = pageHasImages && textAa;
 
-  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
+  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
@@ -1793,32 +1793,21 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (needsImageGrayscale) {
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     renderer.copyGrayscaleLsbBuffers();
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
 
-    // After a gray refresh the controller's RAM planes still hold the gray frame; they MUST be rebased or the
-    // next page ghosts. restoreBwBuffer() does that via cleanupGrayscaleBuffers() — but only when the BW
-    // backup was actually stored (it silently early-returns otherwise). If storeBwBuffer failed (e.g. low
-    // heap after the image decode), rebuild the BW frame here and rebase the RAM from it explicitly.
     if (bwStored) {
       renderer.restoreBwBuffer();
-    } else {
-      renderer.clearScreen();
-      page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, false, imageMode);
-      renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
-      if (isCurrentPageBookmarked()) {
-        drawBookmarkIndicator();
-      }
-      renderer.cleanupGrayscaleWithFrameBuffer();
     }
+
   } else if (bwStored) {
     renderer.restoreBwBuffer();
   }
