@@ -1186,7 +1186,7 @@ bool LibraryActivity::isBookFinished(const std::string& path) const {
  * @brief Render the library screen
  */
 void LibraryActivity::render() const {
-  const int gridStartY = TAB_BAR_HEIGHT * 2;
+  const int gridStartY = TAB_BAR_HEIGHT * 2 - 3;
 
   renderer.clearScreen();
 

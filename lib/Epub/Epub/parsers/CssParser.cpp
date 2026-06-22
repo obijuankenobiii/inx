@@ -18,7 +18,7 @@
 
 namespace {
 
-constexpr size_t kMaxCssRules = 250;
+constexpr size_t kMaxCssRules = 200;
 
 bool isIdentCont(unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c == '-'; }
 
