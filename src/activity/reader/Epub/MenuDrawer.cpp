@@ -264,18 +264,12 @@ void MenuDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
-  int currentY = drawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Reader Menu", true, EpdFontFamily::BOLD);
+  // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
+  const int headerH = itemHeight;
+  const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true, EpdFontFamily::BOLD);
 
-  std::string displayTitle = bookTitle;
-  if (displayTitle.length() > 30) {
-    displayTitle.replace(27, std::string::npos, "...");
-  }
-
-  currentY += 25;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 20, currentY, displayTitle.c_str(), true);
-
-  int dividerY = currentY + 30;
+  const int dividerY = drawerY + headerH;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -293,7 +287,7 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + 65;
+  const int startY = drawerY + itemHeight;  // header band height == one list item
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& item = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -384,15 +378,13 @@ void MenuDrawer::renderToc() {
   drawTocBackground();
 
   
-  const int headerY = tocDrawerY + 10;
+  // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                     EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a chapter to begin reading";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
@@ -711,20 +703,41 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
     return;
   }
 
-  if (readDrawerListPrev(input, renderer)) {
-    if (skipPage) {
-      tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems;
-    } else {
-      tocSelectedIndex = (tocSelectedIndex + totalItems - 1) % totalItems;
+  auto selectPrevItem = [&]() { tocSelectedIndex = (tocSelectedIndex + totalItems - 1) % totalItems; };
+  auto selectNextItem = [&]() { tocSelectedIndex = (tocSelectedIndex + 1) % totalItems; };
+  auto pageUp = [&]() { tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems; };
+  auto pageDown = [&]() {
+    tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
+  };
+
+  bool moved = false;
+  if (isLandscapeReader(renderer)) {
+    // Landscape keeps the orientation-aware list mapping (long-hold = page jump).
+    if (readDrawerListPrev(input, renderer)) {
+      skipPage ? pageUp() : selectPrevItem();
+      moved = true;
+    } else if (readDrawerListNext(input, renderer)) {
+      skipPage ? pageDown() : selectNextItem();
+      moved = true;
     }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  } else if (readDrawerListNext(input, renderer)) {
-    if (skipPage) {
-      tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
-    } else {
-      tocSelectedIndex = (tocSelectedIndex + 1) % totalItems;
+  } else {
+    // Portrait: Up/Down move one chapter, Left/Right jump a whole page.
+    if (input.wasPressed(MappedInputManager::Button::Up)) {
+      selectPrevItem();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+      selectNextItem();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Left)) {
+      pageUp();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Right)) {
+      pageDown();
+      moved = true;
     }
+  }
+
+  if (moved) {
     lastInputTime = currentTime;
     renderWithRefresh();
   }

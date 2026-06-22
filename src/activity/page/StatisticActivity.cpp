@@ -293,7 +293,8 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   const int yMaxRule = yContentEnd - g.kMetricsH - 2;
   /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax, which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
-  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 20;
+  // Lift the whole finished/opened band up a touch so it isn't crowding the button hints below.
+  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 10;
   renderer.line.render(innerLeft, yRule, innerRight, yRule, true);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);

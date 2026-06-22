@@ -36,20 +36,15 @@ constexpr int BOTTOM_AREA_HEIGHT = 80;
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
     const int headerHeight = TAB_BAR_HEIGHT;
-    
+
     renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
                      startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
                      title, true, EpdFontFamily::BOLD);
-    
-    if (subtitle) {
-        int subtitleY = startY + SUBTITLE_Y_OFFSET;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
-        
-        int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-        renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
-    }
+
+    const int dividerY = startY + headerHeight + 18;
+    renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
 }
 
 /**
@@ -256,22 +251,18 @@ void LocalNetworkActivity::render() const {
     if (state == LocalNetworkState::SERVER_RUNNING) {
         renderServerRunning();
     } else if (state == LocalNetworkState::SERVER_STARTING) {
-        renderActivityHeader(renderer, startY, "File Transfer", "Starting server...");
-        
-        int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                          DIVIDER_PADDING;
+        renderActivityHeader(renderer, startY, "Local Network");
+
+        int contentStart = startY + SUBTITLE_Y_OFFSET;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
-        
+
         renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
     } else if (state == LocalNetworkState::ERROR) {
-        renderActivityHeader(renderer, startY, "File Transfer", "Connection Failed");
-        
-        int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                          DIVIDER_PADDING;
+        renderActivityHeader(renderer, startY, "Local Network");
+
+        int contentStart = startY + SUBTITLE_Y_OFFSET;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
-        
+
         renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
         renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
     }
@@ -290,11 +281,9 @@ void LocalNetworkActivity::renderServerRunning() const {
     int screenWidth = renderer.getScreenWidth();
     int startY = TAB_BAR_HEIGHT;
     
-    renderActivityHeader(renderer, startY, "File Transfer", "Local Network");
-    
-    int currentY = startY + SUBTITLE_Y_OFFSET + 
-                   renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                   DIVIDER_PADDING + SECTION_SPACING - 10;
+    renderActivityHeader(renderer, startY, "Local Network");
+
+    int currentY = startY + SUBTITLE_Y_OFFSET + SECTION_SPACING - 10;
 
     
     renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
