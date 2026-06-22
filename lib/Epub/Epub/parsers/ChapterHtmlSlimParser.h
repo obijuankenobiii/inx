@@ -91,6 +91,10 @@ class ChapterHtmlSlimParser {
   CssParser cssParser;
   bool cssLoaded;
   std::vector<TextBlock::Style> cssAlignmentStack;
+  // Element depth that pushed each cssAlignmentStack entry, so endElement only pops the level it pushed.
+  // Tags that early-return in startElement (img, hr, table cells, skipped tags) never push; without this an
+  // unconditional pop would drop an ancestor's alignment and break inheritance for later siblings.
+  std::vector<int> cssAlignmentDepths;
   std::vector<bool> smallCapsStack;
   std::vector<int> smallCapsDepths;
   int currentBlockBottomSpacingPx = 0;
@@ -144,6 +148,19 @@ class ChapterHtmlSlimParser {
   void appendTableText(const XML_Char* s, int len);
   void addTableToPage();
 
+  /** Handles an opening tag during the image-prefetch pre-pass (extract images, track skipped subtrees). */
+  void handlePrefetchPassElement(const XML_Char* name, const XML_Char** atts);
+  /** Starts drop-cap capture if this element carries a drop-cap class/id or a ::first-letter drop-cap rule. */
+  void applyDropCapHint(const XML_Char* name, const std::string& tagLower, const std::string& classAttr,
+                        const std::string& idAttr, const std::string& styleAttr);
+  /** Marks bold/italic/anchor-underline runs active for this element's subtree (until its end depth). */
+  void applyInlineFormattingTags(const XML_Char* name);
+  /** Captures <table>/<tr>/<td>/<th> structure during the main pass. Returns true if the tag was consumed
+   *  (the caller should then return), false if it is not table-related. */
+  bool handleTableStartElement(const XML_Char* name, const XML_Char** atts, const std::string& tagLower,
+                               const std::string& classAttr, const std::string& idAttr,
+                               const std::string& styleAttr);
+
   /**
    * Flushes the accumulated word buffer.
    * Uses headerFontId if inDropCap is true.
@@ -172,6 +189,11 @@ class ChapterHtmlSlimParser {
   /** Removes the first line's glyph top leading after a padded top border so the visible gap equals the CSS
    *  padding (not padding + leading). Capped at the padding, so zero-padding blocks are unaffected. */
   void tightenAfterTopBorder(int borderTop, int paddingTop);
+  /** Applies a CSS block's box model at its start: emits the top margin/border/padding, records the matching
+   *  bottom edges + min-height for makePages() to apply, and marks the block's spacing as CSS-driven. Shared by
+   *  the header, block, and custom-display-block element branches in startElement(). */
+  void beginCssBlockBox(const std::string& tagLower, const std::string& classAttr, const std::string& idAttr,
+                        const std::string& styleAttr);
   /** Pads the current block's content down to its CSS min-height (if the content was shorter). Call after the
    *  block's lines are laid out and before the bottom padding/border/margin. */
   void applyMinHeightPadding();
@@ -207,6 +229,12 @@ class ChapterHtmlSlimParser {
   /** Resolves text-align for the current block element when paragraph alignment is FOLLOW_CSS. */
   TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,
                                                   TextBlock::Style inheritedStyle) const;
+
+  /** Picks a block element's paragraph alignment: in FOLLOW_CSS mode the element's own text-align (else
+   *  justified); otherwise the user's fixed alignment, with an explicit element text-align still honored. */
+  TextBlock::Style resolveBlockStyle(const XML_Char* elementName, const XML_Char** atts,
+                                     bool elementHasExplicitTextAlign, TextBlock::Style elementCssStyle,
+                                     TextBlock::Style inheritedCssStyle) const;
 
   /**
    * Processes an img element with CSS class support.

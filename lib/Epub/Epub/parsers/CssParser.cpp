@@ -10,6 +10,9 @@
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+#ifdef ARDUINO
+#include <Esp.h>  // ESP.getFreeHeap() for the CSS heap-reserve guard
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -18,7 +21,9 @@
 
 namespace {
 
-constexpr size_t kMaxCssRules = 200;
+// Hard ceiling on stored rules (each holds only tracked properties, so it's small). The real bound at runtime
+// is the heap-reserve guard in parse(); this just caps worst-case memory if heap is plentiful.
+constexpr size_t kMaxCssRules = 500;
 
 bool isIdentCont(unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c == '-'; }
 
@@ -102,6 +107,10 @@ struct SelectorMatchInfo {
   bool hasClass = false;
   bool hasType = false;
   bool firstLetter = false;
+  // True when the selector has a descendant/child/sibling combinator (e.g. ".box .p1") whose ancestor part we
+  // cannot verify here — we only match its last compound, so it over-matches. Ranked below a plain selector of
+  // the same tier so an element's own rule (".p1") wins over an unverifiable scoped rule (".box .p1").
+  bool contextual = false;
 };
 
 bool sliceEqualsString(const TextSlice slice, const std::string& str) {
@@ -226,9 +235,11 @@ SelectorMatchInfo matchSelectorList(const std::string& fullSelectorLower, const 
       const bool clauseFirstLetter = clauseStr.find(":first-letter") != std::string::npos ||
                                      clauseStr.find("::first-letter") != std::string::npos;
       if (!requireFirstLetterPseudo || clauseFirstLetter) {
+        const TextSlice lastComp = lastCompoundView(clause);
         SelectorMatchInfo clauseInfo;
-        if (compoundMatchesElement(lastCompoundView(clause), elementTagLower, classTokensLower, idLower, &clauseInfo)) {
+        if (compoundMatchesElement(lastComp, elementTagLower, classTokensLower, idLower, &clauseInfo)) {
           clauseInfo.firstLetter = clauseFirstLetter;
+          clauseInfo.contextual = lastComp.size < trimCssWsView(clause).size;  // has an ancestor/sibling part
           return clauseInfo;
         }
       }
@@ -304,7 +315,7 @@ uint16_t CssParser::internSourcePath(const std::string& path) {
   return static_cast<uint16_t>(sourcePaths_.size() - 1);
 }
 
-void CssParser::parse(const std::string& cssContent, const std::string& sourcePath) {
+void CssParser::parse(const std::string& cssContent, const std::string& sourcePath, uint32_t minFreeHeapBytes) {
   if (cssContent.length() > 50 * 1024) {
     Serial.printf("[CSSP] Skipping large CSS content (%d bytes)\n", (int)cssContent.length());
     return;
@@ -394,6 +405,15 @@ void CssParser::parse(const std::string& cssContent, const std::string& sourcePa
 
     if (!rule.properties.empty()) {
       noteBodyHtmlTextAlign(selector, rule.properties);
+#ifdef ARDUINO
+      if (minFreeHeapBytes > 0 && ESP.getFreeHeap() < minFreeHeapBytes) {
+        Serial.printf("[CSSP] Stopping CSS load to reserve heap (free=%u, rules=%u)\n",
+                      static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(rules.size()));
+        break;
+      }
+#else
+      (void)minFreeHeapBytes;
+#endif
       if (rules.size() < kMaxCssRules) {
         rule.sourcePathIndex = internSourcePath(sourcePath);
         rule.isPseudoElement = selectorTargetsPseudoElement(rule.selectorLower);
@@ -1028,15 +1048,36 @@ const std::vector<CssParser::MatchedRule>& CssParser::matchedRulesFor(const std:
     }
     // Universal-only matches (no id/class/type) never contributed a cascaded value, so skip them.
     if (matchInfo.hasId) {
-      mcMatched_.push_back({&rule, 2});
+      mcMatched_.push_back({&rule, 2, matchInfo.contextual});
     } else if (matchInfo.hasClass) {
-      mcMatched_.push_back({&rule, 1});
+      mcMatched_.push_back({&rule, 1, matchInfo.contextual});
     } else if (matchInfo.hasType) {
-      mcMatched_.push_back({&rule, 0});
+      mcMatched_.push_back({&rule, 0, matchInfo.contextual});
     }
   }
   mcValid_ = true;
   return mcMatched_;
+}
+
+const CssParser::CssRule* CssParser::winningRuleForProperty(const std::string& propName, const std::string& className,
+                                                            const std::string& id,
+                                                            const std::string& elementTagLower) const {
+  // Rank: id(2) > class(1) > type(0); within a tier a PLAIN selector beats an unverifiable combinator selector
+  // (so an element's own ".p1" wins over a scoped ".box .p1" we can't verify). Highest rank wins; equal rank →
+  // last match in source order wins (>= keeps the later one).
+  const CssRule* best = nullptr;
+  int bestPriority = -1;
+  for (const auto& m : matchedRulesFor(elementTagLower, className, id)) {
+    if (m.rule->properties.find(propName) == m.rule->properties.end()) {
+      continue;
+    }
+    const int priority = m.tier * 2 + (m.contextual ? 0 : 1);
+    if (priority >= bestPriority) {
+      bestPriority = priority;
+      best = m.rule;
+    }
+  }
+  return best;
 }
 
 std::string CssParser::getCascadedPropertyValue(const std::string& propName, const std::string& className,
@@ -1044,46 +1085,13 @@ std::string CssParser::getCascadedPropertyValue(const std::string& propName, con
                                                 const std::string& elementTagLower) const {
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
-
   const auto itIn = inlineMap.find(propName);
   if (itIn != inlineMap.end()) {
-    return itIn->second;
+    return itIn->second;  // inline style wins over the stylesheet
   }
 
-  std::string idLast;
-  std::string clsLast;
-  std::string typeLast;
-  bool hasIdLast = false;
-  bool hasClsLast = false;
-  bool hasTypeLast = false;
-
-  for (const auto& m : matchedRulesFor(elementTagLower, className, id)) {
-    const auto pit = m.rule->properties.find(propName);
-    if (pit == m.rule->properties.end()) {
-      continue;
-    }
-    if (m.tier == 2) {
-      idLast = pit->second;
-      hasIdLast = true;
-    } else if (m.tier == 1) {
-      clsLast = pit->second;
-      hasClsLast = true;
-    } else {
-      typeLast = pit->second;
-      hasTypeLast = true;
-    }
-  }
-
-  if (hasIdLast) {
-    return idLast;
-  }
-  if (hasClsLast) {
-    return clsLast;
-  }
-  if (hasTypeLast) {
-    return typeLast;
-  }
-  return "";
+  const CssRule* winner = winningRuleForProperty(propName, className, id, elementTagLower);
+  return winner ? winner->properties.find(propName)->second : std::string();
 }
 
 bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, const std::string& className,
@@ -1101,51 +1109,11 @@ bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, c
     return true;
   }
 
-  const CssRule* idRule = nullptr;
-  const CssRule* clsRule = nullptr;
-  const CssRule* typeRule = nullptr;
-
-  std::string idLower = toLower(trim(id));
-  std::vector<std::string> classTokens;
-  splitClassTokens(className, classTokens);
-  for (auto& t : classTokens) {
-    t = toLower(trim(t));
-  }
-
-  for (const auto& rule : rules) {
-    const std::string& selLower = rule.selectorLower;
-    if (rule.isPseudoElement) {
-      continue;
-    }
-    const auto pit = rule.properties.find(propName);
-    if (pit == rule.properties.end()) {
-      continue;
-    }
-
-    const SelectorMatchInfo matchInfo =
-        matchSelectorList(selLower, elementTagLower, classTokens, idLower, false);
-    if (!matchInfo.matched) {
-      continue;
-    }
-
-    if (matchInfo.hasId) {
-      idRule = &rule;
-    } else if (matchInfo.hasClass) {
-      clsRule = &rule;
-    } else if (matchInfo.hasType) {
-      typeRule = &rule;
-    }
-  }
-
-  const CssRule* winner = idRule ? idRule : (clsRule ? clsRule : typeRule);
+  const CssRule* winner = winningRuleForProperty(propName, className, id, elementTagLower);
   if (!winner) {
     return false;
   }
-  const auto it = winner->properties.find(propName);
-  if (it == winner->properties.end()) {
-    return false;
-  }
-  if (outValue) *outValue = it->second;
+  if (outValue) *outValue = winner->properties.find(propName)->second;
   if (outSourcePath) {
     *outSourcePath = winner->sourcePathIndex < sourcePaths_.size() ? sourcePaths_[winner->sourcePathIndex]
                                                                    : std::string();

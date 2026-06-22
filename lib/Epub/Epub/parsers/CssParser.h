@@ -26,7 +26,9 @@ class CssParser {
   CssParser();
   ~CssParser();
 
-  void parse(const std::string& cssContent, const std::string& sourcePath = "");
+  // minFreeHeapBytes > 0: stop adding rules once free heap would drop below it, reserving heap for rendering
+  // (image decode etc.) so a large stylesheet can't exhaust memory and abort.
+  void parse(const std::string& cssContent, const std::string& sourcePath = "", uint32_t minFreeHeapBytes = 0);
   void clear();
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
@@ -134,7 +136,8 @@ class CssParser {
    */
   struct MatchedRule {
     const CssRule* rule;
-    uint8_t tier;  // 2 = id selector, 1 = class selector, 0 = type selector
+    uint8_t tier;     // 2 = id selector, 1 = class selector, 0 = type selector
+    bool contextual;  // selector had an unverifiable combinator; ranks below a plain selector of the same tier
   };
   mutable std::string mcTag_;
   mutable std::string mcClass_;
@@ -143,6 +146,11 @@ class CssParser {
   mutable bool mcValid_ = false;
   const std::vector<MatchedRule>& matchedRulesFor(const std::string& elementTagLower, const std::string& className,
                                                   const std::string& id) const;
+
+  // Winning stylesheet rule that defines propName for this element, by cascade tier (id>class>type, last match
+  // wins). Returns nullptr if no matched rule sets it. Inline styles are handled by the callers, not here.
+  const CssRule* winningRuleForProperty(const std::string& propName, const std::string& className,
+                                        const std::string& id, const std::string& elementTagLower) const;
 
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
