@@ -183,6 +183,33 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   bionicPrefixBytes.push_back(bionicPrefixBytesValue);
   wordSmallCaps.push_back(smallCaps ? 1 : 0);
   wordUnderline.push_back(underline ? 1 : 0);
+  // Only carry image-list entries once this block has an inline image (keeps plain text blocks lean).
+  if (hasInlineImages_) {
+    wordImagePaths.emplace_back();
+    wordImageW.push_back(0);
+    wordImageH.push_back(0);
+  }
+}
+
+void ParsedText::addImage(std::string cachePath, const uint16_t displayW, const uint16_t displayH) {
+  if (cachePath.empty() || displayW == 0 || displayH == 0) return;
+  // First image in this block: backfill empty image slots for the words already added so the lists align.
+  if (!hasInlineImages_) {
+    const size_t n = words.size();
+    wordImagePaths.assign(n, std::string());
+    wordImageW.assign(n, 0);
+    wordImageH.assign(n, 0);
+    hasInlineImages_ = true;
+  }
+  // Placeholder text word (empty) keeps every parallel list aligned; the image fields carry the real data.
+  words.emplace_back();
+  wordStyles.push_back(EpdFontFamily::REGULAR);
+  bionicPrefixBytes.push_back(0);
+  wordSmallCaps.push_back(0);
+  wordUnderline.push_back(0);
+  wordImagePaths.push_back(std::move(cachePath));
+  wordImageW.push_back(displayW);
+  wordImageH.push_back(displayH);
 }
 
 
@@ -227,11 +254,17 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
   auto wordStylesIt = wordStyles.begin();
   auto bionicIt = bionicPrefixBytes.begin();
   auto smallCapsIt = wordSmallCaps.begin();
+  auto imgPathIt = wordImagePaths.begin();
+  auto imgWIt = wordImageW.begin();
 
   while (wordsIt != words.end()) {
     const bool smallCaps = smallCapsIt != wordSmallCaps.end() && (*smallCapsIt != 0);
-    wordWidths.push_back(
-        measureWordWidth(renderer, fontId, *wordsIt, *wordStylesIt, *bionicIt, smallCaps));
+    if (imgPathIt != wordImagePaths.end() && !imgPathIt->empty()) {
+      // Inline image: its on-line footprint is the image display width (no text measuring).
+      wordWidths.push_back(imgWIt != wordImageW.end() ? *imgWIt : 0);
+    } else {
+      wordWidths.push_back(measureWordWidth(renderer, fontId, *wordsIt, *wordStylesIt, *bionicIt, smallCaps));
+    }
 
     std::advance(wordsIt, 1);
     std::advance(wordStylesIt, 1);
@@ -239,6 +272,8 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
     if (smallCapsIt != wordSmallCaps.end()) {
       std::advance(smallCapsIt, 1);
     }
+    if (imgPathIt != wordImagePaths.end()) std::advance(imgPathIt, 1);
+    if (imgWIt != wordImageW.end()) std::advance(imgWIt, 1);
   }
 
   return wordWidths;
@@ -435,7 +470,9 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  if (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) {
+  // Don't inject the indent em-space into a leading inline image word (its text slot must stay empty).
+  const bool frontIsImage = !wordImagePaths.empty() && !wordImagePaths.front().empty();
+  if ((style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) && !frontIsImage) {
     words.front().insert(0, "\xe2\x80\x83");
     if (!bionicPrefixBytes.empty()) {
       bionicPrefixBytes.front() = 0;
@@ -523,6 +560,20 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   std::advance(smallCapsIt, wordIndex);
   std::advance(underlineIt, wordIndex);
 
+  const bool blockHasImages = !wordImagePaths.empty();
+  auto imgPathIt = wordImagePaths.begin();
+  auto imgWIt = wordImageW.begin();
+  auto imgHIt = wordImageH.begin();
+  if (blockHasImages) {
+    std::advance(imgPathIt, wordIndex);
+    std::advance(imgWIt, wordIndex);
+    std::advance(imgHIt, wordIndex);
+    // Inline images are atomic — never hyphenate / split them.
+    if (!imgPathIt->empty()) {
+      return false;
+    }
+  }
+
   const std::string& word = *wordIt;
   const auto style = *styleIt;
   const bool smallCaps = *smallCapsIt != 0;
@@ -584,6 +635,12 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   bionicPrefixBytes.insert(insertBionicIt, remainderBionic);
   wordSmallCaps.insert(insertSmallCapsIt, smallCaps ? 1 : 0);
   wordUnderline.insert(insertUnderlineIt, underline ? 1 : 0);
+  // The split halves are plain text — keep the parallel image lists aligned (only when this block has any).
+  if (blockHasImages) {
+    wordImagePaths.insert(std::next(imgPathIt), std::string());
+    wordImageW.insert(std::next(imgWIt), 0);
+    wordImageH.insert(std::next(imgHIt), 0);
+  }
 
   
   wordWidths[wordIndex] = static_cast<uint16_t>(chosenWidth);
@@ -604,6 +661,13 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   int lineWordWidthSum = 0;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     lineWordWidthSum += wordWidths[i];
+  }
+
+  // Track the widest natural (pre-alignment) line so CSS border rules can be sized to the text, not the page.
+  const int naturalLineWidth =
+      lineWordWidthSum + (lineWordCount > 1 ? static_cast<int>(lineWordCount - 1) * spaceWidth : 0);
+  if (naturalLineWidth > static_cast<int>(maxLineContentWidth_)) {
+    maxLineContentWidth_ = static_cast<uint16_t>(std::min(naturalLineWidth, 65535));
   }
 
   
@@ -686,6 +750,22 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   std::list<uint8_t> lineWordUnderline;
   lineWordUnderline.splice(lineWordUnderline.begin(), wordUnderline, wordUnderline.begin(), underlineEndIt);
 
+  // Image lists are only present when this block has inline images; splice them in parallel when so.
+  std::list<std::string> lineWordImagePaths;
+  std::list<uint16_t> lineWordImageW;
+  std::list<uint16_t> lineWordImageH;
+  if (!wordImagePaths.empty()) {
+    auto imgPathEndIt = wordImagePaths.begin();
+    auto imgWEndIt = wordImageW.begin();
+    auto imgHEndIt = wordImageH.begin();
+    std::advance(imgPathEndIt, lineWordCount);
+    std::advance(imgWEndIt, lineWordCount);
+    std::advance(imgHEndIt, lineWordCount);
+    lineWordImagePaths.splice(lineWordImagePaths.begin(), wordImagePaths, wordImagePaths.begin(), imgPathEndIt);
+    lineWordImageW.splice(lineWordImageW.begin(), wordImageW, wordImageW.begin(), imgWEndIt);
+    lineWordImageH.splice(lineWordImageH.begin(), wordImageH, wordImageH.begin(), imgHEndIt);
+  }
+
   auto bionicIt = lineBionicPrefixBytes.begin();
   for (auto& word : lineWords) {
     if (containsSoftHyphen(word)) {
@@ -701,5 +781,6 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
 
   processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
                                           std::move(lineBionicPrefixBytes), std::move(lineWordSmallCaps), style,
-                                          std::move(lineWordUnderline)));
+                                          std::move(lineWordUnderline), std::move(lineWordImagePaths),
+                                          std::move(lineWordImageW), std::move(lineWordImageH)));
 }

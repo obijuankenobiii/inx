@@ -6,6 +6,7 @@
 #include "TextBlock.h"
 
 #include <GfxRenderer.h>
+#include <ImageRender.h>
 #include <Serialization.h>
 #include <Utf8.h>
 
@@ -60,10 +61,11 @@ EpdFontFamily::Style TextBlock::getWordStyleAt(size_t index) const {
   return *it;
 }
 
-void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y) const {
+void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, const int y) const {
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||
       (!bionicPrefixBytes.empty() && bionicPrefixBytes.size() != words.size()) ||
-      (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size())) {
+      (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size()) ||
+      (!wordImagePaths.empty() && wordImagePaths.size() != words.size())) {
     Serial.printf("[%lu] [TXB] Render skipped: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u)\n",
                   millis(), (uint32_t)words.size(), (uint32_t)wordXpos.size(), (uint32_t)wordStyles.size(),
                   (uint32_t)bionicPrefixBytes.size(), (uint32_t)wordSmallCaps.size());
@@ -76,9 +78,14 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   auto prefixIt = bionicPrefixBytes.begin();
   auto smallCapsIt = wordSmallCaps.begin();
   auto underlineIt = wordUnderline.begin();
+  auto imgPathIt = wordImagePaths.begin();
+  auto imgWIt = wordImageW.begin();
+  auto imgHIt = wordImageH.begin();
+  const bool hasImages = !wordImagePaths.empty();
 
   // Underline sits just below the baseline.
   const int underlineY = y + renderer.text.getFontAscenderSize(fontId) + 1;
+  const int lineHeight = renderer.text.getLineHeight(fontId);
 
   for (; wordIt != words.end() && styleIt != wordStyles.end() && xIt != wordXpos.end(); ++wordIt, ++styleIt, ++xIt) {
     const uint8_t prefixBytes = bionicPrefixBytes.empty() ? 0 : *prefixIt;
@@ -86,6 +93,24 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     const bool underline = !wordUnderline.empty() && (*underlineIt != 0);
     const int startX = *xIt + x;
     int endX = startX;
+
+    // Inline image word: draw the cached image vertically centered on the line and skip the text path.
+    if (hasImages && imgPathIt != wordImagePaths.end() && !imgPathIt->empty()) {
+      const int imgW = (imgWIt != wordImageW.end()) ? *imgWIt : 0;
+      const int imgH = (imgHIt != wordImageH.end()) ? *imgHIt : 0;
+      if (imgW > 0 && imgH > 0) {
+        const int imgY = y + std::max(0, (lineHeight - imgH) / 2);
+        ImageRender::create(renderer, *imgPathIt).render(startX, imgY, imgW, imgH, ImageRenderMode::OneBit);
+      }
+      if (!bionicPrefixBytes.empty()) ++prefixIt;
+      if (!wordSmallCaps.empty()) ++smallCapsIt;
+      if (!wordUnderline.empty()) ++underlineIt;
+      ++imgPathIt;
+      if (imgWIt != wordImageW.end()) ++imgWIt;
+      if (imgHIt != wordImageH.end()) ++imgHIt;
+      continue;
+    }
+
     if (prefixBytes == 0 || prefixBytes >= wordIt->size()) {
       if (smallCaps) {
         endX = renderSmallCapsSegment(renderer, fontId, startX, y, *wordIt, *styleIt);
@@ -124,6 +149,11 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     if (!wordUnderline.empty()) {
       ++underlineIt;
     }
+    if (hasImages) {
+      if (imgPathIt != wordImagePaths.end()) ++imgPathIt;
+      if (imgWIt != wordImageW.end()) ++imgWIt;
+      if (imgHIt != wordImageH.end()) ++imgHIt;
+    }
   }
 }
 
@@ -157,6 +187,15 @@ bool TextBlock::serialize(FsFile& file) const {
   } else {
     for (auto f : wordUnderline) serialization::writePod(file, f);
   }
+  // Inline image fields (path + display size), parallel to words. A single flag keeps text-only lines free of
+  // any per-word image data on disk (and avoids allocating empty placeholders on load).
+  const uint8_t hasImages = wordImagePaths.empty() ? 0 : 1;
+  serialization::writePod(file, hasImages);
+  if (hasImages) {
+    for (const auto& p : wordImagePaths) serialization::writeString(file, p);
+    for (auto v : wordImageW) serialization::writePod(file, v);
+    for (auto v : wordImageH) serialization::writePod(file, v);
+  }
   serialization::writePod(file, style);
 
   return true;
@@ -170,6 +209,9 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
+  std::list<std::string> wordImagePaths;
+  std::list<uint16_t> wordImageW;
+  std::list<uint16_t> wordImageH;
   Style style;
 
   serialization::readPod(file, wc);
@@ -191,9 +233,20 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   for (auto& b : bionicPrefixBytes) serialization::readPod(file, b);
   for (auto& f : wordSmallCaps) serialization::readPod(file, f);
   for (auto& f : wordUnderline) serialization::readPod(file, f);
+  uint8_t hasImages = 0;
+  serialization::readPod(file, hasImages);
+  if (hasImages) {
+    wordImagePaths.resize(wc);
+    wordImageW.resize(wc);
+    wordImageH.resize(wc);
+    for (auto& p : wordImagePaths) serialization::readString(file, p);
+    for (auto& v : wordImageW) serialization::readPod(file, v);
+    for (auto& v : wordImageH) serialization::readPod(file, v);
+  }
   serialization::readPod(file, style);
 
   return std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles),
                                                   std::move(bionicPrefixBytes), std::move(wordSmallCaps), style,
-                                                  std::move(wordUnderline)));
+                                                  std::move(wordUnderline), std::move(wordImagePaths),
+                                                  std::move(wordImageW), std::move(wordImageH)));
 }

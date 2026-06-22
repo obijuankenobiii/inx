@@ -839,6 +839,43 @@ int CssParser::getBorderEdgePx(const std::string& edgePropName, const std::strin
   return 0;
 }
 
+std::string CssParser::getBorderStyleKeyword(const std::string& edge, const std::string& className,
+                                             const std::string& id, const std::string& styleAttr) const {
+  // Pull the first border-style keyword out of a value (handles shorthands like "currentColor double medium").
+  auto extractStyle = [](const std::string& raw) -> std::string {
+    for (const auto& tokRaw : splitCssWhitespaceList(trimCssWs(raw))) {
+      std::string tok = tokRaw;
+      std::transform(tok.begin(), tok.end(), tok.begin(),
+                     [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+      if (tok == "double" || tok == "dotted" || tok == "dashed" || tok == "solid") return tok;
+      // Other CSS styles render as a plain solid rule on e-ink.
+      if (tok == "groove" || tok == "ridge" || tok == "inset" || tok == "outset") return "solid";
+    }
+    return "";
+  };
+
+  const std::string edgeStyleProp = "border-" + edge + "-style";
+  const std::string edgeProp = "border-" + edge;
+
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+
+  const char* props[] = {edgeStyleProp.c_str(), edgeProp.c_str(), "border-style", "border"};
+  for (const char* prop : props) {
+    const auto it = inlineMap.find(prop);
+    if (it != inlineMap.end()) {
+      const std::string s = extractStyle(it->second);
+      if (!s.empty()) return s;
+    }
+    const std::string sheet = getCascadedPropertyValue(prop, className, id, styleAttr, "");
+    if (!sheet.empty()) {
+      const std::string s = extractStyle(sheet);
+      if (!s.empty()) return s;
+    }
+  }
+  return "solid";
+}
+
 int CssParser::getWidth(const std::string& className, const std::string& id, const std::string& styleAttr,
                         int viewportWidth, int viewportHeight) const {
   return getInlineOrSheetLength("width", className, id, styleAttr, viewportWidth, viewportHeight);

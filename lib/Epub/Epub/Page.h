@@ -238,14 +238,26 @@ class PageHorizontalRule final : public PageElement {
 };
 
 class PageCssBorderLine final : public PageElement {
+ public:
+  /** CSS border-style rendering for the horizontal rule (maps to the CSS keywords). */
+  enum Style : uint8_t { SOLID = 0, DOUBLE = 1, DOTTED = 2, DASHED = 3 };
+
+ private:
   int16_t width;
   int16_t thickness;
+  uint8_t style;
 
  public:
-  PageCssBorderLine(const int16_t xPos, const int16_t yPos, const int16_t width, const int16_t thickness)
-      : PageElement(xPos, yPos), width(width), thickness(thickness) {}
+  PageCssBorderLine(const int16_t xPos, const int16_t yPos, const int16_t width, const int16_t thickness,
+                    const uint8_t style = SOLID)
+      : PageElement(xPos, yPos), width(width), thickness(thickness), style(style) {}
 
   PageElementTag getTag() const override { return TAG_PageCssBorderLine; }
+  /** Sets the horizontal position/width after layout (used to size a deferred rule to the text width). */
+  void setGeometry(const int16_t x, const int16_t w) {
+    xPos = x;
+    width = w;
+  }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
               ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;

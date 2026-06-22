@@ -637,21 +637,46 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
-    if (followCssParagraphLayout &&
-        cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
-      if (currentPageNextY > 0) {
-        applyVerticalSpacing(
-            cssParser.getParagraphSpacingTopPx("img", classAttr, idAttr, styleAttr, viewportWidth, viewportHeight));
+    // An image is inline when it flows inside text — inside a heading, or mid-paragraph with words already
+    // on the current block. Such images become atomic "words" so they sit beside the text on the same line
+    // (e.g. ornaments flanking a chapter title) instead of breaking onto their own line.
+    const bool inlineImage = inHeader || (currentTextBlock && !currentTextBlock->isEmpty());
+    if (inlineImage) {
+      const int activeFontId = inHeader ? headerFontId : fontId;
+      const int lineH = std::max(1, renderer.text.getLineHeight(activeFontId));
+      int dispW = imgWidth;
+      int dispH = imgHeight;
+      // Scale to fit the text line height (keep aspect) so line height stays uniform; cap width to viewport.
+      if (dispH > lineH) {
+        dispW = std::max(1, dispW * lineH / std::max(1, dispH));
+        dispH = lineH;
       }
-    }
-    addImageToPage(cacheImgPath, imgWidth, imgHeight);
-    if (followCssParagraphLayout &&
-        cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
-      const int defaultGap = renderer.text.getLineHeight(fontId) / 2;
-      const int cssBottom = cssParser.getParagraphSpacingBottomPx("img", classAttr, idAttr, styleAttr, viewportWidth,
-                                                                  viewportHeight);
-      if (cssBottom > defaultGap) {
-        applyVerticalSpacing(cssBottom - defaultGap);
+      if (dispW > viewportWidth) {
+        dispH = std::max(1, dispH * viewportWidth / std::max(1, dispW));
+        dispW = viewportWidth;
+      }
+      flushPartWordBuffer();
+      if (!currentTextBlock) {
+        startNewTextBlock(inHeader ? TextBlock::CENTER_ALIGN : TextBlock::JUSTIFIED);
+      }
+      currentTextBlock->addImage(cacheImgPath, static_cast<uint16_t>(dispW), static_cast<uint16_t>(dispH));
+    } else {
+      if (followCssParagraphLayout &&
+          cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+        if (currentPageNextY > 0) {
+          applyVerticalSpacing(
+              cssParser.getParagraphSpacingTopPx("img", classAttr, idAttr, styleAttr, viewportWidth, viewportHeight));
+        }
+      }
+      addImageToPage(cacheImgPath, imgWidth, imgHeight);
+      if (followCssParagraphLayout &&
+          cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+        const int defaultGap = renderer.text.getLineHeight(fontId) / 2;
+        const int cssBottom = cssParser.getParagraphSpacingBottomPx("img", classAttr, idAttr, styleAttr, viewportWidth,
+                                                                    viewportHeight);
+        if (cssBottom > defaultGap) {
+          applyVerticalSpacing(cssBottom - defaultGap);
+        }
       }
     }
   } else {
@@ -1003,22 +1028,55 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
                                         bionicReadingEnabled, wordSpacingFactor));
 }
 
-void ChapterHtmlSlimParser::addCssBorderLine(const int thicknessPx) {
+static uint8_t borderStyleCodeFromKeyword(const std::string& kw) {
+  if (kw == "double") return PageCssBorderLine::DOUBLE;
+  if (kw == "dotted") return PageCssBorderLine::DOTTED;
+  if (kw == "dashed") return PageCssBorderLine::DASHED;
+  return PageCssBorderLine::SOLID;
+}
+
+int ChapterHtmlSlimParser::cssBorderInnerGapPx() const {
+  return std::max(2, renderer.text.getLineHeight(headerFontId) / 4);
+}
+
+void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int paddingTop) {
+  if (borderTop <= 0 || paddingTop <= 0) return;
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int inset = renderer.text.getGlyphTopInset(activeFontId, 'H', EpdFontFamily::REGULAR);
+  const int reduce = std::min(inset, paddingTop);  // never pull the text above the padded box
+  if (reduce > 0) {
+    currentPageNextY = static_cast<int16_t>(std::max(0, static_cast<int>(currentPageNextY) - reduce));
+  }
+}
+
+std::shared_ptr<PageCssBorderLine> ChapterHtmlSlimParser::addCssBorderLine(const int thicknessPx, const uint8_t style) {
   if (thicknessPx <= 0) {
-    return;
+    return nullptr;
   }
   if (!currentPage) {
     currentPage.reset(new Page());
   }
-  int marginTop = 0, marginRight = 0, marginBottom = 0, marginLeft = 0;
-  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
-  (void)marginTop;
-  (void)marginBottom;
-  const int lineWidth = std::max(1, renderer.getScreenWidth() - marginLeft - marginRight);
-  currentPage->elements.push_back(std::make_shared<PageCssBorderLine>(
-      static_cast<int16_t>(marginLeft), static_cast<int16_t>(currentPageNextY), static_cast<int16_t>(lineWidth),
-      static_cast<int16_t>(thicknessPx)));
-  currentPageNextY += thicknessPx;
+  // Border lines render at xPos + xOffset (xOffset is already the content left margin, like text lines). Start
+  // as a full content-width placeholder; finalizeBorderWidth() narrows it to the text width once known.
+  // A "double" rule needs at least 3px of vertical space to show its gap; reserve that in the layout.
+  const int reserved = (style == PageCssBorderLine::DOUBLE) ? std::max(3, thicknessPx) : thicknessPx;
+  auto elem = std::make_shared<PageCssBorderLine>(static_cast<int16_t>(0), static_cast<int16_t>(currentPageNextY),
+                                                  static_cast<int16_t>(std::max<int>(1, viewportWidth)),
+                                                  static_cast<int16_t>(thicknessPx), style);
+  currentPage->elements.push_back(elem);
+  currentPageNextY += reserved;
+  return elem;
+}
+
+void ChapterHtmlSlimParser::finalizeBorderWidth(const std::shared_ptr<PageCssBorderLine>& elem,
+                                                const int contentWidth, const bool center) const {
+  if (!elem) return;
+  if (contentWidth <= 0) return;  // unknown width — leave the full-content-width placeholder
+  int w = contentWidth + (contentWidth * 2) / 100;  // text width + 2%
+  if (w > static_cast<int>(viewportWidth)) w = viewportWidth;
+  if (w < 1) w = 1;
+  const int x = center ? (static_cast<int>(viewportWidth) - w) / 2 : 0;
+  elem->setGeometry(static_cast<int16_t>(x), static_cast<int16_t>(w));
 }
 
 /**
@@ -1058,7 +1116,14 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   const bool isBlockTag = matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS);
   const bool hasSelectorAttrs = !classAttr.empty() || !idAttr.empty() || !styleAttr.empty();
   const bool isCustomDisplayBlock =
-      hasSelectorAttrs && !isBlockTag && !isHeaderTag && self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr);
+      hasSelectorAttrs && !isBlockTag && !isHeaderTag &&
+      (self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr) ||
+       // A span (or other inline element) with a real top/bottom border is laid out block-like so the rule(s)
+       // can be drawn — same mechanism as headings. Gated on a visible border (not border:0/none resets).
+       self->cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                      self->viewportHeight) > 0 ||
+       self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                         self->viewportHeight) > 0);
   const bool isBlockLikeElement = isHeaderTag || isBlockTag || isCustomDisplayBlock;
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && isBlockLikeElement) {
     elementHasExplicitTextAlign = self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
@@ -1167,15 +1232,20 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         self->cssParser.getPaddingBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     self->currentBlockBorderBottomPx =
         self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+    const uint8_t borderTopStyle =
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+    self->currentBlockBorderBottomStyle =
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
     if (self->currentPageNextY > 0 && marginTop > 0) {
       self->applyVerticalSpacing(marginTop);
     }
     if (borderTop > 0) {
-      self->addCssBorderLine(borderTop);
+      self->pendingTopBorderElem_ = self->addCssBorderLine(borderTop, borderTopStyle);
     }
     if (paddingTop > 0) {
       self->applyVerticalSpacing(paddingTop);
     }
+    self->tightenAfterTopBorder(borderTop, paddingTop);
     TextBlock::Style blockStyle;
     if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
       blockStyle = elementHasExplicitTextAlign ? elementCssStyle : TextBlock::JUSTIFIED;
@@ -1250,17 +1320,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         self->cssParser.getPaddingBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     self->currentBlockBorderBottomPx =
         self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+    const uint8_t borderTopStyle =
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+    self->currentBlockBorderBottomStyle =
+        borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
     self->currentBlockSpacingFromCss = true;
     self->currentBlockBottomSpacingPx = 0;
     if (self->currentPageNextY > 0 && marginTop > 0) {
       self->applyVerticalSpacing(marginTop);
     }
     if (borderTop > 0) {
-      self->addCssBorderLine(borderTop);
+      self->pendingTopBorderElem_ = self->addCssBorderLine(borderTop, borderTopStyle);
     }
     if (paddingTop > 0) {
       self->applyVerticalSpacing(paddingTop);
     }
+    self->tightenAfterTopBorder(borderTop, paddingTop);
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
   } else if (isBlockTag) {
     if (strcmp(name, "br") == 0) {
@@ -1288,17 +1363,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           self->cssParser.getPaddingBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
       self->currentBlockBorderBottomPx =
           self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
+      const uint8_t borderTopStyle =
+          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr));
+      self->currentBlockBorderBottomStyle =
+          borderStyleCodeFromKeyword(self->cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr));
       self->currentBlockSpacingFromCss = true;
       self->currentBlockBottomSpacingPx = 0;
       if (self->currentPageNextY > 0 && marginTop > 0) {
         self->applyVerticalSpacing(marginTop);
       }
       if (borderTop > 0) {
-        self->addCssBorderLine(borderTop);
+        self->pendingTopBorderElem_ = self->addCssBorderLine(borderTop, borderTopStyle);
       }
       if (paddingTop > 0) {
         self->applyVerticalSpacing(paddingTop);
       }
+      self->tightenAfterTopBorder(borderTop, paddingTop);
       if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
           self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
@@ -1444,7 +1524,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
         self->applyVerticalSpacing(self->currentBlockPaddingBottomPx);
       }
       if (self->currentBlockBorderBottomPx > 0) {
-        self->addCssBorderLine(self->currentBlockBorderBottomPx);
+        self->addCssBorderLine(self->currentBlockBorderBottomPx, self->currentBlockBorderBottomStyle);
       }
       if (self->currentBlockMarginBottomPx > 0) {
         self->applyVerticalSpacing(self->currentBlockMarginBottomPx);
@@ -1452,8 +1532,11 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->currentBlockMarginBottomPx = 0;
       self->currentBlockPaddingBottomPx = 0;
       self->currentBlockBorderBottomPx = 0;
+      self->currentBlockBorderBottomStyle = 0;
       self->currentBlockBottomSpacingPx = 0;
       self->currentBlockSpacingFromCss = false;
+      // Empty block: no text to measure, so leave the top rule at its full-content-width placeholder.
+      self->pendingTopBorderElem_.reset();
     }
     self->inHeader = false;
   }
@@ -1620,17 +1703,29 @@ void ChapterHtmlSlimParser::makePages() {
   }
 
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
 
   currentTextBlock->layoutAndExtractLines(
       renderer, inHeader ? headerFontId : fontId, viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
+  // Now the block is laid out, size its border rule(s) to the actual text width (+2%) instead of the page.
+  const int contentBorderWidth = static_cast<int>(currentTextBlock->maxLineContentWidth());
+  if (pendingTopBorderElem_) {
+    finalizeBorderWidth(pendingTopBorderElem_, contentBorderWidth, centerBorder);
+    pendingTopBorderElem_.reset();
+  }
+
   if (currentBlockSpacingFromCss) {
     if (currentBlockPaddingBottomPx > 0) {
       applyVerticalSpacing(currentBlockPaddingBottomPx);
+    } else if (currentBlockBorderBottomPx > 0) {
+      // No explicit padding: keep the text off the bottom rule (mirrors the top border gap).
+      applyVerticalSpacing(cssBorderInnerGapPx());
     }
     if (currentBlockBorderBottomPx > 0) {
-      addCssBorderLine(currentBlockBorderBottomPx);
+      auto bottomElem = addCssBorderLine(currentBlockBorderBottomPx, currentBlockBorderBottomStyle);
+      finalizeBorderWidth(bottomElem, contentBorderWidth, centerBorder);
     }
     if (currentBlockMarginBottomPx > 0) {
       applyVerticalSpacing(currentBlockMarginBottomPx);
@@ -1642,6 +1737,7 @@ void ChapterHtmlSlimParser::makePages() {
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;
   currentBlockBorderBottomPx = 0;
+  currentBlockBorderBottomStyle = 0;
 }
 
 /**
@@ -1784,6 +1880,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;
   currentBlockBorderBottomPx = 0;
+  currentBlockBorderBottomStyle = 0;
+  pendingTopBorderElem_.reset();
 
   loadCssRules();
 

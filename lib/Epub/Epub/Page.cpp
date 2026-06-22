@@ -405,10 +405,35 @@ void PageCssBorderLine::render(GfxRenderer& renderer, const int fontId, const in
   (void)fontId;
   const int left = xPos + xOffset;
   const int top = yPos + yOffset;
-  const int drawWidth = std::max<int>(1, width);
+  const int right = left + std::max<int>(1, width) - 1;
   const int drawThickness = std::max<int>(1, thickness);
-  for (int i = 0; i < drawThickness; ++i) {
-    renderer.line.render(left, top + i, left + drawWidth - 1, top + i, true);
+
+  // Draws one horizontal rule row honoring the CSS border-style (dotted/dashed pattern the run).
+  auto drawStyledRow = [&](const int rowY) {
+    if (style == DOTTED) {
+      for (int xx = left; xx <= right; xx += 3) {  // 1px on, 2px off
+        renderer.drawPixel(xx, rowY, true);
+      }
+    } else if (style == DASHED) {
+      for (int xx = left; xx <= right; xx += 9) {  // 6px dash, 3px gap
+        renderer.line.render(xx, rowY, std::min(right, xx + 5), rowY, true);
+      }
+    } else {
+      renderer.line.render(left, rowY, right, rowY, true);
+    }
+  };
+
+  if (style == DOUBLE) {
+    // Two thin rules separated by a gap (classic CSS double). Needs >=3px total or the two lines touch and
+    // look solid (CSS "medium" is only ~2px), so enforce a minimum height with a 1px gap between the rules.
+    const int total = std::max(3, drawThickness);
+    const int lineW = std::max(1, total / 3);
+    for (int i = 0; i < lineW; ++i) drawStyledRow(top + i);
+    for (int i = 0; i < lineW; ++i) drawStyledRow(top + total - 1 - i);
+  } else {
+    for (int i = 0; i < drawThickness; ++i) {
+      drawStyledRow(top + i);
+    }
   }
 }
 
@@ -417,16 +442,19 @@ bool PageCssBorderLine::serialize(FsFile& file) {
   serialization::writePod(file, yPos);
   serialization::writePod(file, width);
   serialization::writePod(file, thickness);
+  serialization::writePod(file, style);
   return true;
 }
 
 std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) {
   int16_t x = 0, y = 0, width = 0, thickness = 1;
+  uint8_t style = SOLID;
   serialization::readPod(file, x);
   serialization::readPod(file, y);
   serialization::readPod(file, width);
   serialization::readPod(file, thickness);
-  return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness));
+  serialization::readPod(file, style);
+  return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness, style));
 }
 
 /**

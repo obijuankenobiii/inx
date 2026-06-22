@@ -24,6 +24,15 @@ class ParsedText {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
+  // Inline images flow as atomic "words": for an image slot the `words` entry is empty and these hold the
+  // cached path + on-line display size. These lists stay EMPTY (zero overhead) until the block actually
+  // contains an inline image — see hasInlineImages_ — so plain text blocks pay nothing.
+  std::list<std::string> wordImagePaths;
+  std::list<uint16_t> wordImageW;
+  std::list<uint16_t> wordImageH;
+  bool hasInlineImages_ = false;
+  /** Widest natural (pre-alignment) line content width seen during layout; used to size CSS border rules. */
+  uint16_t maxLineContentWidth_ = 0;
   TextBlock::Style style;
   bool extraParagraphSpacing;
   bool hyphenationEnabled;
@@ -64,6 +73,8 @@ class ParsedText {
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool smallCaps = false, bool underline = false);
+  /** Appends an inline image that flows on the line as an atomic word of the given on-screen size. */
+  void addImage(std::string cachePath, uint16_t displayW, uint16_t displayH);
   void setStyle(const TextBlock::Style style) { this->style = style; }
   void setRespectParagraphIndent(bool v) { respectParagraphIndent_ = v; }
   void resetParagraphLayoutHints() {
@@ -82,6 +93,8 @@ class ParsedText {
   void setCssTextIndentFromCascade(int resolvedPx) { cssTextIndentPx = (resolvedPx > 0) ? resolvedPx : 0; }
 
   TextBlock::Style getStyle() const { return style; }
+  /** Widest natural line content width observed across all extracted lines of this block. */
+  uint16_t maxLineContentWidth() const { return maxLineContentWidth_; }
   size_t size() const { return words.size(); }
   bool isEmpty() const { return words.empty(); }
   void layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,

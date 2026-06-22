@@ -34,6 +34,11 @@ class TextBlock final : public Block {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
+  // Inline image "words": for an image slot the matching `words` entry is empty and these hold the cached
+  // image path and its on-line display size. Empty path / 0 size means a normal text word.
+  std::list<std::string> wordImagePaths;
+  std::list<uint16_t> wordImageW;
+  std::list<uint16_t> wordImageH;
   Style style;
 
  public:
@@ -55,13 +60,18 @@ class TextBlock final : public Block {
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
                      std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> bionic_prefix_bytes,
                      std::list<uint8_t> word_small_caps,
-                     const Style style, std::list<uint8_t> word_underline = {})
+                     const Style style, std::list<uint8_t> word_underline = {},
+                     std::list<std::string> word_image_paths = {}, std::list<uint16_t> word_image_w = {},
+                     std::list<uint16_t> word_image_h = {})
       : words(std::move(words)),
         wordXpos(std::move(word_xpos)),
         wordStyles(std::move(word_styles)),
         bionicPrefixBytes(std::move(bionic_prefix_bytes)),
         wordSmallCaps(std::move(word_small_caps)),
         wordUnderline(std::move(word_underline)),
+        wordImagePaths(std::move(word_image_paths)),
+        wordImageW(std::move(word_image_w)),
+        wordImageH(std::move(word_image_h)),
         style(style) {}
   
   ~TextBlock() override = default;
@@ -129,7 +139,7 @@ class TextBlock final : public Block {
    * @param y Base Y coordinate
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
-  void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
+  void render(GfxRenderer& renderer, int fontId, int x, int y) const;
   
   /**
    * Gets the block type identifier.

@@ -21,6 +21,7 @@
 
 class Page;
 class GfxRenderer;
+class PageCssBorderLine;
 
 #define MAX_WORD_SIZE 200
 
@@ -97,6 +98,10 @@ class ChapterHtmlSlimParser {
   int currentBlockMarginBottomPx = 0;
   int currentBlockPaddingBottomPx = 0;
   int currentBlockBorderBottomPx = 0;
+  /** CSS border-style code (PageCssBorderLine::Style) for the pending bottom border. */
+  uint8_t currentBlockBorderBottomStyle = 0;
+  /** Top border rule of the current block, deferred so its width can be set to the text width after layout. */
+  std::shared_ptr<PageCssBorderLine> pendingTopBorderElem_;
 
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;
@@ -150,7 +155,16 @@ class ChapterHtmlSlimParser {
   void addCenteredDivider(const char* text);
   void addHorizontalRule(const std::string& tagLower = "hr", const std::string& classAttr = "",
                          const std::string& idAttr = "", const std::string& styleAttr = "");
-  void addCssBorderLine(int thicknessPx);
+  /** Emits a horizontal border rule (full content width placeholder) and returns it so its width can be
+   *  narrowed to the text content width once the block is laid out. */
+  std::shared_ptr<PageCssBorderLine> addCssBorderLine(int thicknessPx, uint8_t style = 0);
+  /** Narrows a border rule to the block's text content width + 2%, centered or left-aligned to the text. */
+  void finalizeBorderWidth(const std::shared_ptr<PageCssBorderLine>& elem, int contentWidth, bool center) const;
+  /** Default breathing room between a CSS border rule and the block's text when no padding is specified. */
+  int cssBorderInnerGapPx() const;
+  /** Removes the first line's glyph top leading after a padded top border so the visible gap equals the CSS
+   *  padding (not padding + leading). Capped at the padding, so zero-padding blocks are unaffected. */
+  void tightenAfterTopBorder(int borderTop, int paddingTop);
 
   /**
    * Adds an image to the current page layout.
