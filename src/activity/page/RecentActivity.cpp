@@ -652,7 +652,16 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
     return false;
   }
 
-  if (!SdMan.exists(path.c_str())) {
+  // SD access can transiently fail under contention (this page streams thumbnails/stats), making a present
+  // book read as "missing". Retry a few times before treating it as gone, so a valid book always opens
+  // instead of being removed from recents and resetting the selection to the first book.
+  bool present = SdMan.exists(path.c_str());
+  for (int attempt = 0; !present && attempt < 4; ++attempt) {
+    delay(25);
+    present = SdMan.exists(path.c_str());
+  }
+
+  if (!present) {
     if (removeMissingFromRecents) {
       RECENT_BOOKS.removeBook(path);
       loadRecentBooks(false);
