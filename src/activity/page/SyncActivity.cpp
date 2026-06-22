@@ -9,6 +9,7 @@
 
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 
 #include "images/Wifi.h"
 #include "images/Qr.h"
@@ -51,8 +52,8 @@ void SyncActivity::loop() {
     return;
   }
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
-  const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
+  const bool upPressed = mappedInput.wasPressed(MenuNav::itemPrev());
+  const bool downPressed = mappedInput.wasPressed(MenuNav::itemNext());
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     if (mappedInput.getHeldTime() >= 300 && onRecentOpen) {
@@ -62,13 +63,13 @@ void SyncActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MenuNav::tabPrev())) {
     tabSelectorIndex = 2;
     navigateToSelectedMenu();
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  if (mappedInput.wasPressed(MenuNav::tabNext())) {
     tabSelectorIndex = 4;
     navigateToSelectedMenu();
     return;

@@ -62,6 +62,8 @@ const SettingInfo systemPageSettings[] = {
         GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore","Sleep","Page Refresh"},
                       GroupType::DEVICE_BUTTONS),
+    SettingInfo::Enum("Main Menu Buttons", &SystemSetting::mainMenuNav, {"Front (Left/Right)", "Side (Up/Down)"},
+                      GroupType::DEVICE_BUTTONS),
 
     SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min","5 min","10 min","15 min","30 min"},
@@ -168,12 +170,12 @@ void SettingsActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(tabPrevButton())) {
     handleTabNavigation(true, false);
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  if (mappedInput.wasPressed(tabNextButton())) {
     handleTabNavigation(false, true);
     return;
   }

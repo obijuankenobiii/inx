@@ -37,7 +37,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 24;
-constexpr uint8_t SETTINGS_COUNT = 59;
+constexpr uint8_t SETTINGS_COUNT = 60;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -168,6 +168,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, sleepClockTimeFormat);
   serialization::writePod(outputFile, timeZoneQuarterOffset);
   serialization::writePod(outputFile, textSpace);
+  serialization::writePod(outputFile, mainMenuNav);
 
   outputFile.close();
 
@@ -550,6 +551,10 @@ bool SystemSetting::loadFromFile() {
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, textSpace);
       if (textSpace < 10 || textSpace > 200) textSpace = 100;
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, mainMenuNav, MAIN_MENU_NAV_COUNT);
       ++settingsRead;
     }
 

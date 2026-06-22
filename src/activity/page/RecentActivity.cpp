@@ -1312,10 +1312,12 @@ void RecentActivity::loop() {
   const bool isListView = (currentViewMode == ViewMode::List);
   const bool isCoverView = (currentViewMode == ViewMode::Cover);
 
-  bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
-  bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
-  bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
-  bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab vs item nav buttons depend on the main-menu nav setting. In front mode these map to the same physical
+  // keys as before (no behavior change); side mode swaps the axes (Up/Down = tabs, Left/Right = items).
+  bool upPressed = mappedInput.wasPressed(itemPrevButton());
+  bool downPressed = mappedInput.wasPressed(itemNextButton());
+  bool leftPressed = mappedInput.wasPressed(tabPrevButton());
+  bool rightPressed = mappedInput.wasPressed(tabNextButton());
   // Open on press instead of release so heavy cover redraws do not swallow the
   // confirm edge, especially in Flow and other image-heavy recent views.
   bool confirmPressed = mappedInput.wasReleased(MappedInputManager::Button::Confirm);

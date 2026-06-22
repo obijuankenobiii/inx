@@ -13,6 +13,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "system/SleepClockRenderer.h"
 
 namespace {
@@ -117,11 +118,11 @@ void ClockStylePickerActivity::loop() {
 
   bool needRedraw = false;
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up) || mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MenuNav::itemPrev()) || mappedInput.wasPressed(MenuNav::tabPrev())) {
     selectedIndex = (selectedIndex + SleepClockRenderer::styleCount() - 1) % SleepClockRenderer::styleCount();
     needRedraw = true;
-  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  } else if (mappedInput.wasPressed(MenuNav::itemNext()) ||
+             mappedInput.wasPressed(MenuNav::tabNext())) {
     selectedIndex = (selectedIndex + 1) % SleepClockRenderer::styleCount();
     needRedraw = true;
   }

@@ -16,6 +16,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -206,17 +207,17 @@ void SleepImagePickerActivity::loop() {
 
   bool needRedraw = false;
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MenuNav::tabPrev())) {
     randomEnabled = !randomEnabled;
     SETTINGS.setSleepCustomBmpFromInput(randomEnabled ? "" : (rows.empty() ? "" : rows[static_cast<size_t>(selectedIndex)].value.c_str()));
     SETTINGS.saveToFile();
     needRedraw = true;
   } else if (!rows.empty() &&
-             (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-              mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-              mappedInput.wasPressed(MappedInputManager::Button::Right))) {
+             (mappedInput.wasPressed(MenuNav::itemPrev()) ||
+              mappedInput.wasPressed(MenuNav::itemNext()) ||
+              mappedInput.wasPressed(MenuNav::tabNext()))) {
     const int count = static_cast<int>(rows.size());
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       selectedIndex = (selectedIndex + count - 1) % count;
     } else {
       selectedIndex = (selectedIndex + 1) % count;

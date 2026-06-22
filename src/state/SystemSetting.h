@@ -164,6 +164,15 @@ public:
     };
 
     /**
+     * @brief Which buttons navigate the main menu tab bar vs the page items.
+     */
+    enum MAIN_MENU_NAV {
+        MAIN_MENU_NAV_FRONT = 0,  ///< Front buttons: Left/Right switch tabs, Up/Down move items (default)
+        MAIN_MENU_NAV_SIDE = 1,   ///< Side buttons: Up/Down switch tabs, Left/Right move items
+        MAIN_MENU_NAV_COUNT
+    };
+
+    /**
      * @brief Reader menu button assignment
      */
     enum READER_MENU_BUTTON {
@@ -376,6 +385,7 @@ public:
     
     uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
     uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
+    uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;                  ///< Main-menu tab vs item navigation buttons
     
     
     uint8_t fontFamily = LITERATA;                              ///< Font family

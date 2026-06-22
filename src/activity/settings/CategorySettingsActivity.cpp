@@ -28,6 +28,7 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "util/StringUtils.h"
 
 #include <EpdFontFamily.h>
@@ -620,29 +621,30 @@ void CategorySettingsActivity::loop() {
       closeSelector(true);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       moveSelector(-1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemNext())) {
       moveSelector(1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    if (mappedInput.wasPressed(MenuNav::tabPrev())) {
       selectorPage(-1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    if (mappedInput.wasPressed(MenuNav::tabNext())) {
       selectorPage(1);
       return;
     }
     return;
   }
 
-  const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
-  const bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab vs item nav buttons depend on the main-menu nav setting (front: L/R tabs, U/D items; side: swapped).
+  const bool upPressed = mappedInput.wasPressed(itemPrevButton());
+  const bool downPressed = mappedInput.wasPressed(itemNextButton());
+  const bool leftPressed = mappedInput.wasPressed(tabPrevButton());
+  const bool rightPressed = mappedInput.wasPressed(tabNextButton());
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool backPressed = mappedInput.wasPressed(MappedInputManager::Button::Back);
 

@@ -19,6 +19,7 @@
 #include "network/OtaUpdater.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 
 // cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
@@ -403,8 +404,8 @@ void OtaUpdateActivity::loop() {
       goBack();
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev()) ||
+        mappedInput.wasPressed(MenuNav::itemNext())) {
       sourceSelectedIndex = sourceSelectedIndex == 0 ? 1 : 0;
       updateRequired = true;
       return;
@@ -485,13 +486,13 @@ void OtaUpdateActivity::loop() {
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemNext())) {
       sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + 1) % totalFiles;
       updateRequired = true;
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + totalFiles - 1) % totalFiles;
       updateRequired = true;
       return;

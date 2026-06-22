@@ -19,6 +19,7 @@
 #include "state/Session.h"
 #include "state/SystemSetting.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "system/Fonts.h"
 
 void ClearCacheActivity::taskTrampoline(void* param) {
@@ -270,7 +271,7 @@ void ClearCacheActivity::clearCache() {
 
 void ClearCacheActivity::loop() {
   if (state == WARNING) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       if (selectedGroup > 0) {
         selectedGroup--;
         updateRequired = true;
@@ -278,7 +279,7 @@ void ClearCacheActivity::loop() {
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemNext())) {
       if (selectedGroup < GROUP_COUNT) {
         selectedGroup++;
         updateRequired = true;

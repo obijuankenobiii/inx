@@ -269,7 +269,9 @@ void MenuDrawer::drawBackground() {
   const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true, EpdFontFamily::BOLD);
 
-  const int dividerY = drawerY + headerH;
+  // Sit the divider on the last row of the header band; the first list item starts at drawerY+headerH and
+  // its row fill would otherwise paint over a divider drawn exactly there.
+  const int dividerY = drawerY + headerH - 1;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 

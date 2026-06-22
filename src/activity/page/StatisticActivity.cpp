@@ -23,6 +23,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "system/ScreenComponents.h"
 namespace {
 
@@ -945,10 +946,10 @@ void StatisticActivity::loop() {
     return;
   }
 
-  const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
-  const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
+  const bool leftPressed = Activity::mappedInput.wasPressed(MenuNav::tabPrev());
+  const bool rightPressed = Activity::mappedInput.wasPressed(MenuNav::tabNext());
+  const bool upPressed = Activity::mappedInput.wasPressed(MenuNav::itemPrev());
+  const bool downPressed = Activity::mappedInput.wasPressed(MenuNav::itemNext());
   const bool confirmPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Confirm);
 
   if (leftPressed) {

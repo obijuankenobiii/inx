@@ -1778,12 +1778,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   if (pageHasImages) {
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    // Only half-refresh a large image if the cadence above didn't already do one — avoid a double half refresh.
-    if (pageHasLargeImage && !didHalfRefresh) {
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    } else {
-      renderer.displayBuffer();
-    }
+    renderer.displayBuffer();
   }
 
   const bool bwStored = renderer.storeBwBuffer();

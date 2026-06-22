@@ -11,6 +11,7 @@
 #include "system/Battery.h"
 #include "state/SystemSetting.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "system/ScreenComponents.h"
 #include "system/Fonts.h"
 
@@ -32,6 +33,12 @@ class Menu {
 
   Menu() = default;
   virtual ~Menu() = default;
+
+  // Main-menu navigation axis (see MenuNav). Front: Left/Right tabs, Up/Down items; side: swapped.
+  MappedInputManager::Button tabPrevButton() const { return MenuNav::tabPrev(); }
+  MappedInputManager::Button tabNextButton() const { return MenuNav::tabNext(); }
+  MappedInputManager::Button itemPrevButton() const { return MenuNav::itemPrev(); }
+  MappedInputManager::Button itemNextButton() const { return MenuNav::itemNext(); }
 
   /**
    * @brief Renders the tab bar with icons and selection indicator

@@ -1506,11 +1506,14 @@ void LibraryActivity::loop() {
 
   bool wantDownStep = false;
   bool wantUpStep = false;
+  // Item-list step buttons depend on the main-menu nav setting (front: Up/Down, side: Left/Right).
+  const MappedInputManager::Button itemPrevBtn = itemPrevButton();
+  const MappedInputManager::Button itemNextBtn = itemNextButton();
   if (tabSelectorIndex == 1) {
-    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (Activity::mappedInput.wasPressed(itemNextBtn)) {
       wantDownStep = true;
       libraryListDownNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
-    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Down)) {
+    } else if (Activity::mappedInput.isPressed(itemNextBtn)) {
       if (libraryListDownNextMs != 0 && millis() >= libraryListDownNextMs) {
         wantDownStep = true;
         libraryListDownNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
@@ -1519,10 +1522,10 @@ void LibraryActivity::loop() {
       libraryListDownNextMs = 0;
     }
 
-    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (Activity::mappedInput.wasPressed(itemPrevBtn)) {
       wantUpStep = true;
       libraryListUpNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
-    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Up)) {
+    } else if (Activity::mappedInput.isPressed(itemPrevBtn)) {
       if (libraryListUpNextMs != 0 && millis() >= libraryListUpNextMs) {
         wantUpStep = true;
         libraryListUpNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
@@ -1535,8 +1538,9 @@ void LibraryActivity::loop() {
     libraryListUpNextMs = 0;
   }
 
-  const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab switch buttons depend on the same setting (front: Left/Right, side: Up/Down).
+  const bool leftPressed = Activity::mappedInput.wasPressed(tabPrevButton());
+  const bool rightPressed = Activity::mappedInput.wasPressed(tabNextButton());
   const bool confirmPressed = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const bool confirmHeld = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const unsigned long holdTime = Activity::mappedInput.getHeldTime();

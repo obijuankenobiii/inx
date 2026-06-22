@@ -15,6 +15,7 @@
 #include "../util/KeyboardEntryActivity.h"
 #include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
+#include "system/MenuNav.h"
 
 namespace {
 std::vector<std::string> overlayOptionsFor(int presetIndex) {
@@ -197,12 +198,12 @@ void ReaderPresetsActivity::handleOverlayInput() {
     render();
     return;
   }
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+  if (mappedInput.wasPressed(MenuNav::itemPrev())) {
     overlaySel_ = (overlaySel_ - 1 + n) % n;
     renderOverlay();
     return;
   }
-  if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+  if (mappedInput.wasPressed(MenuNav::itemNext())) {
     overlaySel_ = (overlaySel_ + 1) % n;
     renderOverlay();
     return;
@@ -233,7 +234,7 @@ void ReaderPresetsActivity::handleListInput() {
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+  if (mappedInput.wasPressed(MenuNav::itemPrev())) {
     if (selectedRow_ > 0) {
       selectedRow_--;
       if (selectedRow_ < scrollOffset_) scrollOffset_ = selectedRow_;
@@ -241,7 +242,7 @@ void ReaderPresetsActivity::handleListInput() {
     }
     return;
   }
-  if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+  if (mappedInput.wasPressed(MenuNav::itemNext())) {
     if (selectedRow_ < rowCount() - 1) {
       selectedRow_++;
       if (selectedRow_ >= scrollOffset_ + itemsPerPage_) scrollOffset_ = selectedRow_ - itemsPerPage_ + 1;
@@ -250,7 +251,7 @@ void ReaderPresetsActivity::handleListInput() {
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MenuNav::tabPrev())) {
     tabSelectorIndex = (tabSelectorIndex - 1 + TAB_COUNT) % TAB_COUNT;
     if (tabSelectorIndex == 2) {
       render();
@@ -259,7 +260,7 @@ void ReaderPresetsActivity::handleListInput() {
     }
     return;
   }
-  if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  if (mappedInput.wasPressed(MenuNav::tabNext())) {
     tabSelectorIndex = (tabSelectorIndex + 1) % TAB_COUNT;
     if (tabSelectorIndex == 2) {
       render();
