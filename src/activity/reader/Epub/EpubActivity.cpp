@@ -1776,36 +1776,35 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     pagesUntilFullRefresh--;
   }
 
-  if (pageHasImages)
-  {
+  if (pageHasImages) {
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     // Only half-refresh a large image if the cadence above didn't already do one — avoid a double half refresh.
-    if (pageHasLargeImage && !didHalfRefresh)
-    {
+    if (pageHasLargeImage && !didHalfRefresh) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     } else {
       renderer.displayBuffer();
     }
   }
-  
-  const bool bwStored = renderer.storeBwBuffer();
 
+  const bool bwStored = renderer.storeBwBuffer();
   if (needsImageGrayscale) {
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+        
     renderer.copyGrayscaleLsbBuffers();
-
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    
     renderer.copyGrayscaleMsbBuffers();
-
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
 
     if (bwStored) {
       renderer.restoreBwBuffer();
+    } else {
+      renderer.cleanupGrayscaleWithFrameBuffer();
     }
 
   } else if (bwStored) {

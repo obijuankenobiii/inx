@@ -637,13 +637,15 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
-    // An image is inline when it flows inside text — inside a heading, or mid-paragraph with words already
-    // on the current block. Such images become atomic "words" so they sit beside the text on the same line
-    // (e.g. ornaments flanking a chapter title) instead of breaking onto their own line.
-    const bool inlineImage = inHeader || (currentTextBlock && !currentTextBlock->isEmpty());
+    // An image flows inline (as an atomic "word" on a text line) only when it is BOTH in a text context
+    // (heading, or mid-paragraph with words already placed) AND small enough to be an ornament — roughly the
+    // text line height. Larger images (e.g. a chapter decoration in an <h1> before a <br>) stay block-level
+    // at full size, otherwise they'd be shrunk to the line height.
+    const int activeFontId = inHeader ? headerFontId : fontId;
+    const int lineH = std::max(1, renderer.text.getLineHeight(activeFontId));
+    const bool ornamentSized = (imgHeight <= lineH * 2);
+    const bool inlineImage = ornamentSized && (inHeader || (currentTextBlock && !currentTextBlock->isEmpty()));
     if (inlineImage) {
-      const int activeFontId = inHeader ? headerFontId : fontId;
-      const int lineH = std::max(1, renderer.text.getLineHeight(activeFontId));
       int dispW = imgWidth;
       int dispH = imgHeight;
       // Scale to fit the text line height (keep aspect) so line height stays uniform; cap width to viewport.
@@ -1696,7 +1698,6 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
         imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * cssHeight) / std::max(1, imgH)));
         imgH = cssHeight;
       } else {
-        // No explicit size: a decorative background image should span the content width, not sit tiny.
         imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
         imgW = viewportWidth * .4;
       }

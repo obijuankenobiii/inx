@@ -196,8 +196,8 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
   // The viewport top margin is reduced by the font's glyph top inset so text starts at the visual margin
   // (glyphs carry that whitespace themselves). Images have no such whitespace, so add the inset back here —
   // otherwise an image at the top of a page sits flush against the margin with no gap above it.
-  const int topInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
-  int renderY = yPos + yOffset + topInset;
+  // const int topInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
+  int renderY = yPos + yOffset;
   if (renderX < 0) renderX = 0;
   if (renderY < 0) renderY = 0;
 
