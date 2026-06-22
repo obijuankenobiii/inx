@@ -107,6 +107,9 @@ class CssParser {
    */
   std::string getBorderStyleKeyword(const std::string& edge, const std::string& className, const std::string& id,
                                     const std::string& styleAttr, const std::string& elementTagLower = "") const;
+  /** CSS font-size as an em multiplier (1.0 = default). Handles em/rem/%/px/pt and size keywords; 1.0 if unset. */
+  float getFontSizeEm(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr) const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,

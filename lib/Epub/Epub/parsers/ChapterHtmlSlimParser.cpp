@@ -737,7 +737,7 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   const bool underlineActive = underlineUntilDepth < depth;
   if (currentTextBlock && currentTextBlock->size() >= STREAMING_TEXTBLOCK_WORD_LIMIT) {
     currentTextBlock->layoutAndExtractLines(
-        renderer, inHeader ? headerFontId : fontId, viewportWidth,
+        renderer, activeBlockFontId(), viewportWidth,
         [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
   }
   currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive);
@@ -1266,6 +1266,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->currentBlockMinHeightPx =
         self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     self->currentBlockContentStartY = self->currentPageNextY;
+    self->currentBlockFontId =
+        self->blockFontIdForEm(self->cssParser.getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
     TextBlock::Style blockStyle;
     if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
       blockStyle = elementHasExplicitTextAlign ? elementCssStyle : TextBlock::JUSTIFIED;
@@ -1365,7 +1367,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->currentBlockMinHeightPx =
         self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
     self->currentBlockContentStartY = self->currentPageNextY;
-    self->startNewTextBlock(TextBlock::CENTER_ALIGN);
+    // Headers default to centered, but follow an explicit CSS text-align (e.g. .h2 { text-align: right }).
+    TextBlock::Style headerStyle = TextBlock::CENTER_ALIGN;
+    if (self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+      headerStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
+    }
+    self->startNewTextBlock(headerStyle);
   } else if (isBlockTag) {
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
@@ -1411,6 +1418,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->currentBlockMinHeightPx =
           self->cssParser.getMinHeight(classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight);
       self->currentBlockContentStartY = self->currentPageNextY;
+      // Large CSS font-size on a block (e.g. a big centered title <p>) renders with a bigger reader font.
+      self->currentBlockFontId =
+          self->blockFontIdForEm(self->cssParser.getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
       if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
           self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
@@ -1567,6 +1577,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->currentBlockBorderBottomPx = 0;
       self->currentBlockBorderBottomStyle = 0;
       self->currentBlockMinHeightPx = 0;
+      self->currentBlockFontId = -1;
       self->currentBlockBottomSpacingPx = 0;
       self->currentBlockSpacingFromCss = false;
       // Empty block: no text to measure, so leave the top rule at its full-content-width placeholder.
@@ -1628,7 +1639,7 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
  * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
-  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int activeFontId = activeBlockFontId();
   const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
 
   if (!line || line->isEmpty()) return;
@@ -1641,8 +1652,10 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
 
   if (!currentPage) currentPage.reset(new Page());
 
-  if (inHeader) {
-    currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, headerFontId));
+  // A header, or a block with a large-font override, renders as a PageHeader carrying its own font id.
+  if (inHeader || currentBlockFontId >= 0) {
+    const int feId = currentBlockFontId >= 0 ? currentBlockFontId : headerFontId;
+    currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, feId));
   } else if (line->hasSmallCaps()) {
     currentPage->elements.push_back(std::make_shared<PageSmallCaps>(line, 0, currentPageNextY, fontId));
   } else {
@@ -1739,7 +1752,7 @@ void ChapterHtmlSlimParser::makePages() {
   const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
 
   currentTextBlock->layoutAndExtractLines(
-      renderer, inHeader ? headerFontId : fontId, viewportWidth,
+      renderer, activeBlockFontId(), viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
   // Now the block is laid out, size its border rule(s) to the actual text width (+2%) instead of the page.
@@ -1773,6 +1786,7 @@ void ChapterHtmlSlimParser::makePages() {
   currentBlockBorderBottomPx = 0;
   currentBlockBorderBottomStyle = 0;
   currentBlockMinHeightPx = 0;
+  currentBlockFontId = -1;
 }
 
 /**
@@ -1918,6 +1932,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   currentBlockBorderBottomStyle = 0;
   currentBlockMinHeightPx = 0;
   currentBlockContentStartY = 0;
+  currentBlockFontId = -1;
   pendingTopBorderElem_.reset();
 
   loadCssRules();

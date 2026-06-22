@@ -878,6 +878,56 @@ std::string CssParser::getBorderStyleKeyword(const std::string& edge, const std:
   return "solid";
 }
 
+float CssParser::getFontSizeEm(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr) const {
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+  std::string raw;
+  const auto it = inlineMap.find("font-size");
+  if (it != inlineMap.end()) {
+    raw = it->second;
+  } else {
+    raw = getCascadedPropertyValue("font-size", className, id, styleAttr, elementTagLower);
+  }
+  raw = toLower(trim(raw));
+  if (raw.empty()) return 1.0f;
+
+  // Size keywords (approximate CSS scaling).
+  if (raw == "medium") return 1.0f;
+  if (raw == "small") return 0.83f;
+  if (raw == "x-small") return 0.69f;
+  if (raw == "xx-small") return 0.58f;
+  if (raw == "large") return 1.2f;
+  if (raw == "x-large") return 1.5f;
+  if (raw == "xx-large") return 2.0f;
+  if (raw == "larger") return 1.2f;
+  if (raw == "smaller") return 0.83f;
+
+  std::string numStr;
+  std::string unit;
+  bool foundDigit = false;
+  for (char ch : raw) {
+    const unsigned char c = static_cast<unsigned char>(ch);
+    if (std::isdigit(c) != 0 || ch == '.' || (ch == '-' && !foundDigit)) {
+      numStr += ch;
+      foundDigit = true;
+    } else if (foundDigit && (std::isalpha(c) != 0 || ch == '%')) {
+      unit += ch;
+    } else if (!foundDigit && !std::isspace(c)) {
+      break;
+    }
+  }
+  if (numStr.empty()) return 1.0f;
+  const float num = std::strtof(numStr.c_str(), nullptr);
+  if (num <= 0.0f) return 1.0f;
+
+  if (unit == "em" || unit == "rem") return num;
+  if (unit == "%") return num / 100.0f;
+  if (unit == "px") return num / 16.0f;     // relative to the 16px CSS base
+  if (unit == "pt") return (num * 96.0f / 72.0f) / 16.0f;
+  return num;  // unitless — treat like em
+}
+
 int CssParser::getWidth(const std::string& className, const std::string& id, const std::string& styleAttr,
                         int viewportWidth, int viewportHeight) const {
   return getInlineOrSheetLength("width", className, id, styleAttr, viewportWidth, viewportHeight);

@@ -102,6 +102,9 @@ class ChapterHtmlSlimParser {
   uint8_t currentBlockBorderBottomStyle = 0;
   /** CSS min-height for the current block (px); content is padded out to this if shorter. 0 = none. */
   int currentBlockMinHeightPx = 0;
+  /** Font id override for the current block when its CSS font-size is large (e.g. a big centered title <p>).
+   *  -1 = no override (use header/body font as usual). */
+  int currentBlockFontId = -1;
   /** Y where the current block's content started (after top margin/border/padding), for min-height. */
   int16_t currentBlockContentStartY = 0;
   /** Top border rule of the current block, deferred so its width can be set to the text width after layout. */
@@ -172,6 +175,16 @@ class ChapterHtmlSlimParser {
   /** Pads the current block's content down to its CSS min-height (if the content was shorter). Call after the
    *  block's lines are laid out and before the bottom padding/border/margin. */
   void applyMinHeightPadding();
+  /** Font id to lay out / render the current block with: the CSS-font-size override, else header/body font. */
+  int activeBlockFontId() const {
+    return currentBlockFontId >= 0 ? currentBlockFontId : (inHeader ? headerFontId : fontId);
+  }
+  /** Maps a CSS font-size em multiplier to a larger reader font id, or -1 to keep the default. */
+  int blockFontIdForEm(float em) const {
+    if (em >= 1.5f) return maxFontId;
+    if (em >= 1.2f) return headerFontId;
+    return -1;
+  }
 
   /**
    * Adds an image to the current page layout.

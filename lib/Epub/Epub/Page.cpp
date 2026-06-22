@@ -513,7 +513,9 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
       line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
     } else if (tag == TAG_PageHeader) {
       const auto* header = static_cast<const PageHeader*>(element.get());
-      header->getTextBlock().render(renderer, headerFontId, header->xPos + xOffset, header->yPos + yOffset);
+      // Use the element's own font id (header font for headings, or a per-block large-font override).
+      const int feId = header->getHeaderFontId() > 0 ? header->getHeaderFontId() : headerFontId;
+      header->getTextBlock().render(renderer, feId, header->xPos + xOffset, header->yPos + yOffset);
     } else {
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
     }
