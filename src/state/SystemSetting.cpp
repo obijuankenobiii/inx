@@ -397,8 +397,8 @@ bool SystemSetting::loadFromFile() {
 
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, readerImageGrayscale);
-      if (readerImageGrayscale > 1) {
-        readerImageGrayscale = 1;
+      if (readerImageGrayscale >= READER_IMAGE_QUALITY_COUNT) {
+        readerImageGrayscale = READER_IMAGE_MEDIUM;
       }
       ++settingsRead;
     }

@@ -1766,32 +1766,71 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
-  bool didHalfRefresh = false;
-  if (pagesUntilFullRefresh <= 1) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-    didHalfRefresh = true;
-  } else {
-    renderer.displayBuffer();
-    pagesUntilFullRefresh--;
-  }
+  // HIGH quality keeps the text by rendering it into the gray planes and showing everything in the single
+  // quality refresh below. So do just ONE quick BW flash here (establishes the white baseline + shows text),
+  // skip the extra 1-bit image flash, and let the quality refresh be the final flash — two fast flashes instead
+  // of three (mirrors the fast single-flash sleep path).
+  const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
-  if (pageHasImages) {
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.displayBuffer();
+  bool didHalfRefresh = false;
+  if (highQuality) {
+    renderer.displayBuffer();  // FAST baseline + text; the image is drawn in the quality pass
+    pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
+  } else {
+    if (pagesUntilFullRefresh <= 1) {
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      pagesUntilFullRefresh = bookSettings.refreshFrequency;
+      didHalfRefresh = true;
+    } else {
+      renderer.displayBuffer();
+      pagesUntilFullRefresh--;
+    }
+
+    if (pageHasImages) {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+      renderer.displayBuffer();
+    }
   }
 
   const bool bwStored = renderer.storeBwBuffer();
-  if (needsImageGrayscale) {
+  if (highQuality && bwStored) {
+    // HIGH: quality grayscale that ALSO keeps the text. The quality refresh is full-panel, so everything visible
+    // must be in the gray planes. We build each plane as the INVERTED BW frame (black text/UI -> level 3, white
+    // -> level 0), then clear the image rectangle to the white base and overlay the image's grays (GRAY2I_*).
+    // The 0xC7 quality refresh then redraws text (black) + image (grays) together — nothing is cleared.
+    int16_t bx = 0, by = 0, bw = 0, bh = 0;
+    const bool haveBox = page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
+
+    renderer.copyStoredBwToFramebuffer();
+    renderer.invertScreen();
+    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base (bits 1) for GRAY2
+    renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    renderer.copyGrayscaleLsbBuffers();
+
+    renderer.copyStoredBwToFramebuffer();
+    renderer.invertScreen();
+    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);
+    renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    renderer.copyGrayscaleMsbBuffers();
+
+    renderer.displayGrayBuffer(true);  // same high-quality LUT (lut_x4_quality) as the sleep screen
+    renderer.setRenderMode(GfxRenderer::BW);
+    renderer.restoreBwBuffer();  // framebuffer back to the BW frame + rebase controller RAM for the next page
+
+  } else if (needsImageGrayscale) {
+    // MEDIUM: fast 2-bit grayscale (lut_grayscale) via the text-preserving partial refresh — overlays the image
+    // grays without touching the surrounding text.
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-        
+
     renderer.copyGrayscaleLsbBuffers();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    
+
     renderer.copyGrayscaleMsbBuffers();
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);

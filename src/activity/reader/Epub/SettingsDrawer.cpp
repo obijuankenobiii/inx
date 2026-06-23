@@ -393,12 +393,21 @@ void SettingsDrawer::setupMenu() {
     MenuEntry imgGrayEntry;
     imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
     imgGrayEntry.group = GroupType::IMAGE;
-    imgGrayEntry.name = "Image 2-bit Mode";
+    imgGrayEntry.name = "Image Quality";
     imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerImageGrayscale ? "On" : "Off";
+      switch (SETTINGS.readerImageGrayscale) {
+        case SystemSetting::READER_IMAGE_MEDIUM:
+          return "Medium";
+        case SystemSetting::READER_IMAGE_HIGH:
+          return "High";
+        default:
+          return "Low";
+      }
     };
-    imgGrayEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerImageGrayscale = SETTINGS.readerImageGrayscale ? 0 : 1;
+    imgGrayEntry.change = [](BookSettings&, int delta) {
+      const int step = delta >= 0 ? 1 : (SystemSetting::READER_IMAGE_QUALITY_COUNT - 1);
+      SETTINGS.readerImageGrayscale =
+          static_cast<uint8_t>((SETTINGS.readerImageGrayscale + step) % SystemSetting::READER_IMAGE_QUALITY_COUNT);
       SETTINGS.saveToFile();
     };
     menuItems.push_back(imgGrayEntry);
@@ -758,10 +767,6 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
       case MenuItem::BionicReading:
         checkbox = true;
         checked = settings.bionicReadingEnabled != 0;
-        break;
-      case MenuItem::ReaderImageGrayscale:
-        checkbox = true;
-        checked = SETTINGS.readerImageGrayscale != 0;
         break;
       case MenuItem::ReaderSmartImageRefresh:
         checkbox = true;

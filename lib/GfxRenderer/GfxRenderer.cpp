@@ -231,6 +231,27 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
 
+bool GfxRenderer::copyStoredBwToFramebuffer() const {
+  for (const auto& chunk : bwBufferChunks) {
+    if (!chunk) return false;
+  }
+  if (bwBufferChunks.empty()) return false;
+  uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) return false;
+  for (size_t i = 0; i < bwBufferChunks.size(); i++) {
+    const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+    const size_t chunkSize = std::min(BW_BUFFER_CHUNK_SIZE, static_cast<size_t>(frameBufferSize) - offset);
+    memcpy(frameBuffer + offset, bwBufferChunks[i], chunkSize);
+  }
+  return true;
+}
+
+void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
+
+void GfxRenderer::displayGrayBufferFastQualityWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) const {
+  display.displayGrayBufferFastQualityWindow(x, y, w, h);
+}
+
 void GfxRenderer::freeBwBufferChunks() {
   for (auto& bwBufferChunk : bwBufferChunks) {
     if (bwBufferChunk) {

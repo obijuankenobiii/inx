@@ -154,6 +154,17 @@ inline bool gray2MsbShouldClear2bpp(const uint8_t stage03) {
   return st == 0u || st == 1u;
 }
 
+// GRAY2I: white (0x00) base — set the plane bit for dark levels (mirror of the GRAY2 mapping above).
+inline bool gray2iLsbShouldSet2bpp(const uint8_t stage03) {
+  const uint8_t st = stage03 & 3u;
+  return st == 1u || st == 3u;
+}
+
+inline bool gray2iMsbShouldSet2bpp(const uint8_t stage03) {
+  const uint8_t st = stage03 & 3u;
+  return st == 2u || st == 3u;
+}
+
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
   const uint8_t v = static_cast<uint8_t>(stage03 & 3u);
   if (FourToneImageDitherer::bwPreviewInkForLevel(v, px, py)) {
@@ -259,6 +270,10 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
       gfx.drawPixel(screenX, screenY, true);
     } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal)) {
       gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_LSB && gray2iLsbShouldSet2bpp(displayVal)) {
+      gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_MSB && gray2iMsbShouldSet2bpp(displayVal)) {
+      gfx.drawPixel(screenX, screenY, false);
     }
   };
 
@@ -396,6 +411,10 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
       gfx.drawPixel(screenX, screenY, true);
     } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(val)) {
       gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_LSB && gray2iLsbShouldSet2bpp(val)) {
+      gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_MSB && gray2iMsbShouldSet2bpp(val)) {
+      gfx.drawPixel(screenX, screenY, false);
     }
   };
 
@@ -734,6 +753,10 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
       gfx.drawPixel(sx, sy, true);
     } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal)) {
       gfx.drawPixel(sx, sy, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_LSB && gray2iLsbShouldSet2bpp(displayVal)) {
+      gfx.drawPixel(sx, sy, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2I_MSB && gray2iMsbShouldSet2bpp(displayVal)) {
+      gfx.drawPixel(sx, sy, false);
     }
   };
 

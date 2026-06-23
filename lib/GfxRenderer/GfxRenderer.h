@@ -23,7 +23,10 @@
 
 class GfxRenderer {
  public:
-  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB };
+  // GRAY2_* : quality 2-bit planes on a 0xFF (white) clear — un-drawn pixels are dark (used for full-image quality).
+  // GRAY2I_*: same quality levels but drawn on a 0x00 (white) base, setting bits for dark levels — used when the
+  //           plane base is an inverted BW frame (so text/UI become black) and the image is overlaid in grays.
+  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB, GRAY2I_LSB, GRAY2I_MSB };
 
   enum Orientation {
     Portrait,                  
@@ -113,8 +116,15 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer(bool quality = false) const;
-  bool storeBwBuffer();    
-  void restoreBwBuffer();  
+  // Faster quality grayscale (lut_x4_quality_fast) for the book reader.
+  void displayGrayBufferFastQuality() const;
+  // Same, restricted to a pixel rectangle so the surrounding text is preserved.
+  void displayGrayBufferFastQualityWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) const;
+  bool storeBwBuffer();
+  void restoreBwBuffer();
+  // Copies the stored BW shadow back into the framebuffer WITHOUT freeing it or touching controller RAM. Lets
+  // the gray planes be rebuilt from the BW frame more than once (e.g. invert for LSB, then again for MSB).
+  bool copyStoredBwToFramebuffer() const;
   void cleanupGrayscaleWithFrameBuffer() const;
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();

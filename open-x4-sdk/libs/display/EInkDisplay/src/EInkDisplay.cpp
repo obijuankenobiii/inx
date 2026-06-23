@@ -225,6 +225,27 @@ const unsigned char lut_x4_quality[] PROGMEM = {
     0x22, 0x22, 0x22, 0x22, 0x22,
     0x17, 0x41, 0xA8, 0x32, 0x30};
 
+// Same waveform/drive as lut_x4_quality, but clocked at a faster frame rate (0x44 vs 0x22) so the grayscale
+// refresh finishes sooner. Used by the book reader HIGH quality; the sleep screen keeps lut_x4_quality.
+const unsigned char lut_x4_quality_fast[] PROGMEM = {
+    0x00, 0x4A, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x88, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xA8, 0x44, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x0B, 0x02, 0x03, 0x00,
+    0x0C, 0x02, 0x07, 0x02, 0x00,
+    0x01, 0x00, 0x02, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x01,
+    0x55, 0x55, 0x55, 0x55, 0x55,
+    0x17, 0x41, 0xA8, 0x32, 0x30};
+
 EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t rst, int8_t busy)
     : _sclk(sclk),
       _mosi(mosi),
@@ -1113,6 +1134,47 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
     refreshDisplay(FAST_REFRESH, turnOffScreen);
   }
   setCustomLUT(false);
+}
+
+// Quality grayscale (same 0xC7 waveform as displayGrayBuffer(quality=true)) but the display update is restricted
+// to the rectangle [x,y,w,h] (pixels). The full LSB/MSB planes are already in RAM; setting a smaller RAM window
+// before MASTER_ACTIVATION makes the controller drive ONLY those pixels, leaving the surrounding text untouched.
+// x/w are snapped to byte (8px) boundaries. Falls back to a full refresh on X3 or an empty rect.
+void EInkDisplay::displayGrayBufferWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                                          const unsigned char* lutData) {
+  if (_x3Mode || w == 0 || h == 0) {
+    displayGrayBuffer(false, lutData, true);
+    return;
+  }
+  // Snap X range to byte boundaries (RAM X is addressed per 8px).
+  uint16_t x0 = static_cast<uint16_t>((x / 8) * 8);
+  uint16_t x1 = static_cast<uint16_t>(((x + w + 7) / 8) * 8);
+  if (x1 > displayWidth) x1 = displayWidth;
+  if (x0 >= x1) {
+    displayGrayBuffer(false, lutData, true);
+    return;
+  }
+  const uint16_t ww = static_cast<uint16_t>(x1 - x0);
+  if (y >= displayHeight) {
+    return;
+  }
+  if (y + h > displayHeight) h = static_cast<uint16_t>(displayHeight - y);
+
+  drawGrayscale = false;
+  inGrayscaleMode = false;
+  const unsigned char* selectedLut = lutData ? lutData : lut_x4_quality;
+  if (Serial) Serial.printf("[%lu]   X4_GRAY_WINDOW=(%u,%u %ux%u)\n", millis(), x0, y, ww, h);
+  setCustomLUT(true, selectedLut);
+  setRamArea(x0, y, ww, h);  // restrict the update to the image rectangle
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
+  sendData(CTRL1_NORMAL);
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
+  sendData(0xC7);
+  sendCommand(CMD_MASTER_ACTIVATION);
+  waitWhileBusy("quality_gray_window");
+  isScreenOn = false;
+  setCustomLUT(false);
+  setRamArea(0, 0, displayWidth, displayHeight);  // restore full area for subsequent writes/refreshes
 }
 
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {

@@ -68,6 +68,15 @@ void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) { einkDisplay.
 
 void HalDisplay::displayGrayBuffer(const bool quality) { einkDisplay.displayGrayBuffer(false, nullptr, quality); }
 
+void HalDisplay::displayGrayBufferFastQuality() {
+  // quality=true path (correct 4-level rendering) but with the faster-clocked lut_x4_quality_fast.
+  einkDisplay.displayGrayBuffer(false, lut_x4_quality_fast, true);
+}
+
+void HalDisplay::displayGrayBufferFastQualityWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  einkDisplay.displayGrayBufferWindow(x, y, w, h, lut_x4_quality_fast);
+}
+
 uint16_t HalDisplay::getDisplayWidth() const { return einkDisplay.getDisplayWidth(); }
 
 uint16_t HalDisplay::getDisplayHeight() const { return einkDisplay.getDisplayHeight(); }

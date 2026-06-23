@@ -448,8 +448,15 @@ public:
      */
     uint8_t pageAutoTurnSeconds = 0;
 
-    /** When set, EPUB pages with images render in 2-bit mode; otherwise images render in 1-bit mode. */
-    uint8_t readerImageGrayscale = 0;
+    /** Book image quality (READER_IMAGE_QUALITY): 0=Low(1-bit), 1=Medium(fast 2-bit grayscale),
+     *  2=High(quality 2-bit grayscale with text preserved). */
+    enum READER_IMAGE_QUALITY {
+        READER_IMAGE_LOW = 0,     ///< 1-bit (no grayscale)
+        READER_IMAGE_MEDIUM = 1,  ///< 2-bit grayscale, fast LUT (lut_grayscale), text-preserving
+        READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT (lut_x4_quality_fast), text preserved
+        READER_IMAGE_QUALITY_COUNT
+    };
+    uint8_t readerImageGrayscale = READER_IMAGE_LOW;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
     /** Legacy ignored value retained for settings-file compatibility. */
