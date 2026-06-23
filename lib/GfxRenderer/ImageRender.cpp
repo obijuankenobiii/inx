@@ -67,6 +67,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
   cacheOptions.quality = options.quality;
+  cacheOptions.qualityFast = renderer_.isGrayscaleFastQuality();
   const bool canUseDisplayCache =
       options.useDisplayCache &&
       ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
@@ -130,6 +131,25 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   cacheOptions.roundedOutside = options.roundedOutside;
   cacheOptions.quality = quality;
   return ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions, quality);
+}
+
+bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,
+                                   const bool quality) const {
+  Options opt = options;
+  opt.mode = ImageRenderMode::TwoBit;
+  opt.quality = quality;
+  opt.useDisplayCache = true;
+
+  if (displayCachedTwoBit(x, y, width, height, opt, quality)) {
+    return true;  // served from cache (handles both planes + refresh + cleanup)
+  }
+
+  const uint8_t base = quality ? 0xFF : 0x00;
+  renderer_.renderGrayscalePasses(quality, /*preserveText=*/false, [&] {
+    renderer_.clearScreen(base);
+    render(x, y, width, height, opt);  // renders into the current plane's render mode AND stores to cache
+  });
+  return true;
 }
 
 bool ImageRender::render(int x, int y, int width, int height) const {

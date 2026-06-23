@@ -31,6 +31,10 @@ class ImageRender {
   bool render(int x, int y, int width, int height, const Options& options) const;
   bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
   bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options, bool quality = false) const;
+  // Full-screen 2-bit grayscale display in ONE call: serves from the display cache if present, otherwise
+  // renders both planes (storing them) and drives the gray refresh, then resets BW mode + a clean baseline.
+  // `quality` selects the quality LUT (GRAY2) vs the fast LUT (GRAYSCALE).
+  bool displayGrayscale(int x, int y, int width, int height, const Options& options, bool quality) const;
 
  private:
   enum class Format { Bitmap, Jpeg, Png };

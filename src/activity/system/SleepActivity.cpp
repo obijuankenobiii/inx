@@ -70,43 +70,8 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   const bool quality = sleepImageQualityEnabled();
   options.quality = quality;
 
-  const int w = renderer.getScreenWidth();
-  const int h = renderer.getScreenHeight();
-
-  if (ImageRender::create(renderer, imagePath).displayCachedTwoBit(0, 0, w, h, options, quality)) {
-    return;
-  }
-
-  // Cache miss: render both planes ONLY to populate the on-disk cache (no display yet), then display
-  // through displayCachedTwoBit below. This guarantees the very first render uses the exact same display
-  // path as every subsequent (cached) render, so the first render can never look different from the cache.
-  renderer.clearScreen(quality ? 0xFF : 0x00);
-  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
-  ImageRender::create(renderer, imagePath).render(0, 0, w, h, options);
-
-  renderer.clearScreen(quality ? 0xFF : 0x00);
-  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
-  ImageRender::create(renderer, imagePath).render(0, 0, w, h, options);
-
-  renderer.setRenderMode(GfxRenderer::BW);
-
-  // Display from the freshly-stored cache (identical path to subsequent renders).
-  if (!ImageRender::create(renderer, imagePath).displayCachedTwoBit(0, 0, w, h, options, quality)) {
-    // Cache store failed; fall back to displaying the live planes directly.
-    renderer.clearScreen(quality ? 0xFF : 0x00);
-    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
-    ImageRender::create(renderer, imagePath).render(0, 0, w, h, options);
-    renderer.copyGrayscaleLsbBuffers();
-
-    renderer.clearScreen(quality ? 0xFF : 0x00);
-    renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
-    ImageRender::create(renderer, imagePath).render(0, 0, w, h, options);
-    renderer.copyGrayscaleMsbBuffers();
-
-    renderer.displayGrayBuffer(quality);
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.cleanupGrayscaleWithFrameBuffer();
-  }
+  ImageRender::create(renderer, imagePath)
+      .displayGrayscale(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality);
 }
 
 void recordSleepImageUsed() {
@@ -225,15 +190,14 @@ void SleepActivity::onEnter() {
   Activity::onEnter();
 
   // HIGH-quality cover/custom images: our quality LUT doesn't fully clear to white on its own (whites come out
-  // gray without a white baseline), so we still pre-clear — but with a quick FAST refresh instead of the slow
-  // HALF refresh, then draw the image in the single quality pass. Other modes keep the HALF pre-clear.
-  const bool qualityImageSleep = sleepImageQualityEnabled() &&
-                                 (SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::COVER ||
-                                  SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::CUSTOM);
+  // gray without a white baseline), so we pre-clear to white with a HALF refresh. A FAST pre-clear only fully
+  // whitens a mostly-white incoming screen (e.g. a book text page); coming from the home/library screen (dark
+  // covers) a single FAST pass leaves gray residue and the quality refresh then starts dirty. HALF reliably
+  // clears from any screen.
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
-    renderer.clearScreen(0xff);
-    renderer.displayBuffer(qualityImageSleep ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
+    renderer.clearScreen();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
   switch (SETTINGS.sleepScreen) {

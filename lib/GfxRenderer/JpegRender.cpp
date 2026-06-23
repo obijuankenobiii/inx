@@ -169,7 +169,14 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
 // Shared quality (GRAY2) curve. `shadowLiftPerKnee` is applied across the shadow knee: positive
 // lifts shadows (X3, which renders darker), negative darkens them (X4 reference).
 int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-                          const int shadowLiftPerKnee) {
+                          const int shadowLiftPerKnee, const bool fastQuality) {
+  // The book reader's fast-quality (lut_x4_quality_fast) profile tunes these four independently of the slow
+  // sleep-screen quality curve.
+  const int contrastPercent = fastQuality ? 150 : kJpegTwoBitQualityContrastPercent;
+  const int shadowContrastPercent = fastQuality ? 90 : kJpegTwoBitQualityShadowContrastPercent;
+  const int sharpenMax = fastQuality ? 100 : kJpegTwoBitQualitySharpenMax;
+  const int shadowKnee = fastQuality ? 1 : kJpegTwoBitQualityShadowKnee;
+
   if (gray <= kJpegTwoBitQualitySolidBlackMax) {
     return 0;
   }
@@ -181,21 +188,20 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
   const int detail = gray - neighbor;
   int sharpenedGray = gray;
   if (std::abs(detail) > kJpegTwoBitQualitySharpenThreshold) {
-    const int boost = std::max(-kJpegTwoBitQualitySharpenMax,
-                               std::min(kJpegTwoBitQualitySharpenMax,
-                                        (detail * kJpegTwoBitQualitySharpenPercent) / 100));
+    const int boost = std::max(-sharpenMax,
+                               std::min(sharpenMax, (detail * kJpegTwoBitQualitySharpenPercent) / 100));
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
   int tone;
   if (sharpenedGray < 128) {
-    tone = ((sharpenedGray - 64) * kJpegTwoBitQualityShadowContrastPercent) / 100 + 64;
+    tone = ((sharpenedGray - 64) * shadowContrastPercent) / 100 + 64;
   } else {
-    tone = ((sharpenedGray - 128) * kJpegTwoBitQualityContrastPercent) / 100 + 128;
+    tone = ((sharpenedGray - 128) * contrastPercent) / 100 + 128;
   }
-  if (gray < kJpegTwoBitQualityShadowKnee) {
-    const int kneeDepth = kJpegTwoBitQualityShadowKnee - gray;
-    tone += (kneeDepth * shadowLiftPerKnee) / kJpegTwoBitQualityShadowKnee;
+  if (gray < shadowKnee) {
+    const int kneeDepth = shadowKnee - gray;
+    tone += (kneeDepth * shadowLiftPerKnee) / shadowKnee;
   }
 
   if (tone <= 8) {
@@ -223,18 +229,18 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
 
 // X4 reference look (do not lift; shadows are slightly deepened on the quality curve).
 int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
+               const bool quality, const bool fastQuality) {
   if (quality) {
-    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax);
+    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax, fastQuality);
   }
   return jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
 }
 
 int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
+               const bool quality, const bool fastQuality) {
   // Quality (GRAY2) is unchanged from before: the X4-shared curve with the X3 shadow lift.
   if (quality) {
-    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift);
+    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift, fastQuality);
   }
 
   // Medium (GRAYSCALE): start from the original detail tone, then expand the range so it isn't
@@ -395,6 +401,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   }
 
   const bool deviceIsX3 = renderer_.deviceIsX3();
+  // The book reader renders quality images via GRAY2 planes but through the 4-arg render overload (quality=false);
+  // its fast-quality flag both forces the quality tone curve AND selects the fast-quality tuning values.
+  const bool fastQuality = renderer_.isGrayscaleFastQuality();
+  const bool qualityTone = quality || fastQuality;
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
@@ -458,11 +468,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = deviceIsX3
-                               ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, quality)
-                               : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, quality);
-          q = (quality ? twoBitDitherer->processQuality(tone, step)
-                       : twoBitDitherer->process(tone, step))
+          const int tone =
+              deviceIsX3
+                  ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone, fastQuality)
+                  : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone, fastQuality);
+          q = (qualityTone ? twoBitDitherer->processQuality(tone, step)
+                           : twoBitDitherer->process(tone, step))
                   .value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;

@@ -8,6 +8,7 @@
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <vector>
@@ -43,6 +44,7 @@ class GfxRenderer {
 
   HalDisplay& display;
   RenderMode renderMode;
+  bool grayscaleFastQuality = false;  // book reader's fast-quality (lut_x4_quality_fast) tone profile
   Orientation orientation;
   uint16_t panelWidth = HalDisplay::DISPLAY_WIDTH;
   uint16_t panelHeight = HalDisplay::DISPLAY_HEIGHT;
@@ -112,6 +114,9 @@ class GfxRenderer {
   
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }
   RenderMode getRenderMode() const { return renderMode; }
+  // When true, 2-bit quality image rendering uses the book reader's fast-quality tone profile (and cache key).
+  void setGrayscaleFastQuality(const bool fast) { this->grayscaleFastQuality = fast; }
+  bool isGrayscaleFastQuality() const { return grayscaleFastQuality; }
   bool deviceIsX3() const;
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
@@ -126,6 +131,16 @@ class GfxRenderer {
   // the gray planes be rebuilt from the BW frame more than once (e.g. invert for LSB, then again for MSB).
   bool copyStoredBwToFramebuffer() const;
   void cleanupGrayscaleWithFrameBuffer() const;
+
+  // One-call 2-bit grayscale sequence shared by sleep + reader. For each plane (LSB then MSB) it sets the
+  // render mode, invokes drawPlane() to populate the framebuffer for that plane, and copies it into the
+  // grayscale RAM bank; then it drives the gray refresh and resets to BW. `quality` selects GRAY2 + the
+  // quality LUT, else GRAYSCALE + the fast LUT. When `preserveText` is true the BW baseline is restored from
+  // the previously stored BW frame (call storeBwBuffer() first); otherwise it is rebased from a clean white
+  // frame so the next BW refresh isn't polluted by the leftover grayscale plane. When `fastQuality` is true
+  // (and quality is true) the faster lut_x4_quality_fast is used instead of lut_x4_quality (book reader).
+  void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane,
+                             bool fastQuality = false);
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 

@@ -1773,8 +1773,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
   bool didHalfRefresh = false;
+  bool bwStored = renderer.storeBwBuffer();;
   if (highQuality) {
-    renderer.displayBuffer();  // FAST baseline + text; the image is drawn in the quality pass
+    // Capture the rendered text frame, then start from a clean WHITE panel before the quality grayscale pass.
+    // Use a HALF (full) clear, NOT a FAST one: FAST is differential and only drives pixels that change, so the
+    // image region (already white from the surrounding text page) would stay undriven and the quality pass then
+    // can't develop dark grays in a single shot (they only appeared after navigating away and back, which drove
+    // those pixels via grayscaleRevert). A full clear drives every pixel, so dark grays develop on first render.
+    bwStored = renderer.storeBwBuffer();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
   } else {
     if (pagesUntilFullRefresh <= 1) {
@@ -1790,56 +1796,38 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
       renderer.displayBuffer();
     }
+    
   }
 
-  const bool bwStored = renderer.storeBwBuffer();
   if (highQuality && bwStored) {
-    // HIGH: quality grayscale that ALSO keeps the text. The quality refresh is full-panel, so everything visible
-    // must be in the gray planes. We build each plane as the INVERTED BW frame (black text/UI -> level 3, white
-    // -> level 0), then clear the image rectangle to the white base and overlay the image's grays (GRAY2I_*).
-    // The 0xC7 quality refresh then redraws text (black) + image (grays) together — nothing is cleared.
+    renderer.clearScreen(0xff);
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    // HIGH: quality grayscale (faster lut_x4_quality_fast) that ALSO keeps the text. The quality refresh is
+    // full-panel, so everything visible must live in the gray planes: each plane is the INVERTED BW frame
+    // (black text/UI -> level 3, white -> level 0) with the image rectangle reset to the white base and the
+    // image's grays overlaid (GRAY2). The refresh redraws text (black) + image (grays) together.
     int16_t bx = 0, by = 0, bw = 0, bh = 0;
     const bool haveBox = page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
 
-    renderer.copyStoredBwToFramebuffer();
-    renderer.invertScreen();
-    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base (bits 1) for GRAY2
-    renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.copyGrayscaleLsbBuffers();
-
-    renderer.copyStoredBwToFramebuffer();
-    renderer.invertScreen();
-    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);
-    renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    renderer.copyGrayscaleMsbBuffers();
-
-    renderer.displayGrayBuffer(true);  // same high-quality LUT (lut_x4_quality) as the sleep screen
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.restoreBwBuffer();  // framebuffer back to the BW frame + rebase controller RAM for the next page
+    renderer.setGrayscaleFastQuality(true);  // book images use the fast-quality tone curve + distinct cache key
+    renderer.renderGrayscalePasses(
+        /*quality=*/true, /*preserveText=*/true,
+        [&] {
+          renderer.copyStoredBwToFramebuffer();
+          renderer.invertScreen();
+          if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base for GRAY2
+          page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+        },
+        /*fastQuality=*/true);  // book reader uses the faster lut_x4_quality_fast
+    renderer.setGrayscaleFastQuality(false);
 
   } else if (needsImageGrayscale) {
     // MEDIUM: fast 2-bit grayscale (lut_grayscale) via the text-preserving partial refresh — overlays the image
     // grays without touching the surrounding text.
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-
-    renderer.copyGrayscaleLsbBuffers();
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-
-    renderer.copyGrayscaleMsbBuffers();
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
-
-    if (bwStored) {
-      renderer.restoreBwBuffer();
-    } else {
-      renderer.cleanupGrayscaleWithFrameBuffer();
-    }
+    renderer.renderGrayscalePasses(/*quality=*/false, /*preserveText=*/bwStored, [&] {
+      renderer.clearScreen(0x00);
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    });
 
   } else if (bwStored) {
     renderer.restoreBwBuffer();

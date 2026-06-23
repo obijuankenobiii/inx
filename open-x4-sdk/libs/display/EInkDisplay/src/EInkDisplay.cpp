@@ -243,7 +243,7 @@ const unsigned char lut_x4_quality_fast[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x01,
-    0x55, 0x55, 0x55, 0x55, 0x55,
+    0x44, 0x44, 0x44, 0x44, 0x44,
     0x17, 0x41, 0xA8, 0x32, 0x30};
 
 EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t rst, int8_t busy)
@@ -1116,7 +1116,11 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
   }
 
   drawGrayscale = false;
-  inGrayscaleMode = !quality;
+  // Always mark grayscale mode so the NEXT displayBuffer() reverts the panel out of grayscale first.
+  // (Previously the quality path set this false, so the lingering grayscale image was never reverted and
+  // the next BW refresh drew over it -> "stale BW mode" wrong colors. Medium worked only because it set
+  // this true.)
+  inGrayscaleMode = true;
 
   const unsigned char* selectedLut = lutData ? lutData : (quality ? lut_x4_quality : lut_grayscale);
   if (Serial) Serial.printf("[%lu]   X4_GRAY_MODE=%s\n", millis(), quality ? "quality" : "reader");

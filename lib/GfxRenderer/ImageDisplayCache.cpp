@@ -78,6 +78,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));
   hash = fnv1aAdd(hash, options.quality ? 1 : 0);
+  hash = fnv1aAdd(hash, options.qualityFast ? 1 : 0);
   hash = fnv1aAdd(hash, gpio.deviceIsX3() ? 1 : 0);
   return hash;
 }
@@ -257,6 +258,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
 
   renderer.displayGrayBuffer(quality);
   renderer.setRenderMode(GfxRenderer::BW);
+  renderer.clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
   renderer.cleanupGrayscaleWithFrameBuffer();
   return true;
 }

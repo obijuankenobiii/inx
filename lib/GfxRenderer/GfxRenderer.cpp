@@ -365,6 +365,31 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   }
 }
 
+void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
+                                       const std::function<void()>& drawPlane, const bool fastQuality) {
+  setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
+  drawPlane();
+  copyGrayscaleLsbBuffers();
+
+  setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
+  drawPlane();
+  copyGrayscaleMsbBuffers();
+
+  if (quality && fastQuality) {
+    displayGrayBufferFastQuality();  // faster lut_x4_quality_fast for the book reader
+  } else {
+    displayGrayBuffer(quality);
+  }
+  setRenderMode(BW);
+
+  if (preserveText) {
+    restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
+  } else {
+    clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
+    cleanupGrayscaleWithFrameBuffer();
+  }
+}
+
 void GfxRenderer::resetTransientReaderState() {
   freeBwBufferChunks();
   renderMode = BW;
