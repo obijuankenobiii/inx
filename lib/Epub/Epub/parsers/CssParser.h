@@ -149,8 +149,11 @@ class CssParser {
 
   // Winning stylesheet rule that defines propName for this element, by cascade tier (id>class>type, last match
   // wins). Returns nullptr if no matched rule sets it. Inline styles are handled by the callers, not here.
+  // ignoreContextual: skip combinator selectors (e.g. ".box p") we cannot verify — used for text-align so an
+  // unverifiable scoped rule never forces an alignment; the element inherits instead.
   const CssRule* winningRuleForProperty(const std::string& propName, const std::string& className,
-                                        const std::string& id, const std::string& elementTagLower) const;
+                                        const std::string& id, const std::string& elementTagLower,
+                                        bool ignoreContextual = false) const;
 
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
   std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,

@@ -1061,13 +1061,17 @@ const std::vector<CssParser::MatchedRule>& CssParser::matchedRulesFor(const std:
 
 const CssParser::CssRule* CssParser::winningRuleForProperty(const std::string& propName, const std::string& className,
                                                             const std::string& id,
-                                                            const std::string& elementTagLower) const {
+                                                            const std::string& elementTagLower,
+                                                            const bool ignoreContextual) const {
   // Rank: id(2) > class(1) > type(0); within a tier a PLAIN selector beats an unverifiable combinator selector
   // (so an element's own ".p1" wins over a scoped ".box .p1" we can't verify). Highest rank wins; equal rank →
   // last match in source order wins (>= keeps the later one).
   const CssRule* best = nullptr;
   int bestPriority = -1;
   for (const auto& m : matchedRulesFor(elementTagLower, className, id)) {
+    if (ignoreContextual && m.contextual) {
+      continue;  // unverifiable combinator selector — don't let it decide this property
+    }
     if (m.rule->properties.find(propName) == m.rule->properties.end()) {
       continue;
     }
@@ -1159,10 +1163,11 @@ uint8_t CssParser::computeParagraphAlignment(const std::string& className, const
     }
   }
 
-  const std::string sheet =
-      getCascadedPropertyValue("text-align", className, id, styleAttr, elementTagLower);
-  if (!sheet.empty()) {
-    const int m = mapTextAlignToStyleIndex(sheet);
+  // Only a plain selector (or inline, handled above) sets a block's own text-align — combinator selectors like
+  // ".box p" are unverifiable here, so they are ignored and the block inherits its ancestor's alignment instead.
+  const CssRule* w = winningRuleForProperty("text-align", className, id, elementTagLower, /*ignoreContextual=*/true);
+  if (w) {
+    const int m = mapTextAlignToStyleIndex(w->properties.find("text-align")->second);
     if (m >= 0 && m <= 3) {
       return static_cast<uint8_t>(m);
     }
@@ -1185,8 +1190,8 @@ bool CssParser::hasTextAlignSpecified(const std::string& elementTagLower, const 
   if (inlineMap.find("text-align") != inlineMap.end()) {
     return true;
   }
-  const std::string sheet = getCascadedPropertyValue("text-align", className, id, styleAttr, elementTagLower);
-  return !sheet.empty();
+  // Match computeParagraphAlignment: a combinator selector does not count as the element's own alignment.
+  return winningRuleForProperty("text-align", className, id, elementTagLower, /*ignoreContextual=*/true) != nullptr;
 }
 
 bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::string& className,
