@@ -205,10 +205,16 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
+  // HIGH-quality cover/custom images: our quality LUT doesn't fully clear to white on its own (whites come out
+  // gray without a white baseline), so we still pre-clear — but with a quick FAST refresh instead of the slow
+  // HALF refresh, then draw the image in the single quality pass. Other modes keep the HALF pre-clear.
+  const bool qualityImageSleep = sleepImageQualityEnabled() &&
+                                 (SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::COVER ||
+                                  SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::CUSTOM);
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
     renderer.clearScreen(0xff);
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    renderer.displayBuffer(qualityImageSleep ? HalDisplay::FAST_REFRESH : HalDisplay::HALF_REFRESH);
   }
 
   switch (SETTINGS.sleepScreen) {
@@ -251,7 +257,10 @@ void SleepActivity::renderCustomSleepScreen() const {
       options.useDisplayCache = true;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-        renderer.displayBuffer();
+        // Quality does a single full clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+        if (!sleepImageQualityEnabled()) {
+          renderer.displayBuffer();
+        }
         runSleepImageTwoBitPasses(renderer, imagePath, options);
         return;
       }
@@ -335,7 +344,10 @@ void SleepActivity::renderCoverSleepScreen() const {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
       }
-      renderer.displayBuffer();
+      // Quality does a single full clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+      if (!sleepImageQualityEnabled()) {
+        renderer.displayBuffer();
+      }
       runSleepImageTwoBitPasses(renderer, coverPath, options);
       return;
     }
@@ -392,7 +404,10 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer();
+  // Quality grayscale does a single clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+  if (!(hasTwoBit && sleepImageQualityEnabled())) {
+    renderer.displayBuffer();
+  }
 
   if (hasTwoBit) {
     const bool quality = sleepImageQualityEnabled();
@@ -465,7 +480,10 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer();
+  // Quality grayscale does a single clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+  if (!(hasTwoBit && sleepImageQualityEnabled())) {
+    renderer.displayBuffer();
+  }
 
   if (hasTwoBit) {
     const bool quality = sleepImageQualityEnabled();
