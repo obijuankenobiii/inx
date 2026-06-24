@@ -82,9 +82,8 @@ ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
   if (v == SystemSetting::LIBRARY_VIEW_TAGS && indexEnabled) {
     return ViewMode::TAG_VIEW;
   }
-  if (v == SystemSetting::LIBRARY_VIEW_SHELF) {
-    return ViewMode::SHELF_VIEW;
-  }
+  // Shelf temporarily removed from the selectable view modes — a stored shelf falls through to folder view.
+  // (Re-enable by restoring: if (v == LIBRARY_VIEW_SHELF) return ViewMode::SHELF_VIEW;)
   return ViewMode::FOLDER_VIEW;
 }
 
@@ -1237,12 +1236,12 @@ void LibraryActivity::toggleViewMode() {
     if (SETTINGS.useLibraryIndex) {
       switchToTagView();
     } else {
-      switchToShelfView();
+      switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
     }
     return;
   }
   if (currentViewMode == ViewMode::TAG_VIEW) {
-    switchToShelfView();
+    switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
     return;
   }
   switchToFolderView();
@@ -1855,7 +1854,7 @@ void LibraryActivity::handleBackNavigation() {
       updateRequired = true;
       return;
     }
-    switchToShelfView();
+    switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
     return;
   }
 
