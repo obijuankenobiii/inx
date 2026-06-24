@@ -1821,35 +1821,44 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool imagePageWithAA = pageHasImages && textAa;
 
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
+
+  const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+
+  // The image must be present in the BW frame BEFORE storeBwBuffer so the stored frame — which becomes the
+  // differential baseline (RED RAM) after the grayscale pass — includes the image; otherwise the baseline is
+  // text-only and the image never diffs away on later pages (ghosts / never clears).
+  //  - MEDIUM/LOW: render the real 1-bit image (it's also what the flash shows + the base medium refines).
+  //  - HIGH: don't decode it here (HIGH hides the 1-bit image from the flash and draws the gray image in the
+  //    quality pass) — just mark the image rect dark with a cheap rectangle so the baseline still clears it.
+  //    This avoids an extra full image decode per page, which was making image pages sluggish.
+  int16_t bx = 0, by = 0, bw = 0, bh = 0;
+  const bool haveBox =
+      pageHasImages && page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
+  if (pageHasImages) {
+    if (highQuality) {
+      if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, true);  // mark rect dark in the baseline (no decode)
+    } else {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    }
+  }
+
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
   }
 
-  // HIGH quality keeps the text by rendering it into the gray planes and showing everything in the single
-  // quality refresh below. So do just ONE quick BW flash here (establishes the white baseline + shows text),
-  // skip the extra 1-bit image flash, and let the quality refresh be the final flash — two fast flashes instead
-  // of three (mirrors the fast single-flash sleep path).
-  const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
-
   bool didHalfRefresh = false;
-  bool bwStored = renderer.storeBwBuffer();;
+  // Only grayscale pages need the BW shadow (to rebuild from it through the gray pass + rebase the baseline).
+  // Text pages and LOW image pages don't — skip the ~48KB alloc/copy + RED-RAM SPI write so they stay fast.
+  const bool bwStored = needsImageGrayscale && renderer.storeBwBuffer();  // text + image -> clearing baseline
   if (highQuality) {
-    // Capture the rendered text frame, then start from a clean WHITE panel before the quality grayscale pass.
-    // Use a HALF (full) clear, NOT a FAST one: FAST is differential and only drives pixels that change, so the
-    // image region (already white from the surrounding text page) would stay undriven and the quality pass then
-    // can't develop dark grays in a single shot (they only appeared after navigating away and back, which drove
-    // those pixels via grayscaleRevert). A full clear drives every pixel, so dark grays develop on first render.
-    bwStored = renderer.storeBwBuffer();
+    // HIGH shows only text in the flash (no dark 1-bit image): white the image region back out of the visible
+    // frame. The stored baseline above still has the image; the quality pass below draws the gray image.
+    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
   } else {
-    // LOW / non-grayscale: render the 1-bit image with the text (one flash) — it's the final output.
-    // MEDIUM is NOT rendered here: it goes through the single combined grayscale refresh below (black + grays
-    // in one push), so we only flash the text now and never show a separate dark 1-bit image.
-    if (pageHasImages && !needsImageGrayscale) {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    }
+    // MEDIUM/LOW: the text + 1-bit image (already in the frame) appear together in one flash.
     if (pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       pagesUntilFullRefresh = bookSettings.refreshFrequency;
@@ -1858,40 +1867,23 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       renderer.displayBuffer();
       pagesUntilFullRefresh--;
     }
-
   }
 
   if (highQuality && bwStored) {
-    // renderer.clearScreen(0xff);
-    // renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-    // HIGH: quality grayscale (faster lut_x4_quality_fast) that ALSO keeps the text. The quality refresh is
-    // full-panel, so everything visible must live in the gray planes: each plane is the INVERTED BW frame
-    // (black text/UI -> level 3, white -> level 0) with the image rectangle reset to the white base and the
-    // image's grays overlaid (GRAY2). The refresh redraws text (black) + image (grays) together.
-    int16_t bx = 0, by = 0, bw = 0, bh = 0;
-    const bool haveBox = page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
-
-    // renderer.setGrayscaleFastQuality(true);  // book images use the fast-quality tone curve + distinct cache key
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    // HIGH: quality grayscale that ALSO keeps the text. Each plane = the INVERTED BW frame (text -> black) with
+    // the image rect reset to a white base and the image's grays overlaid (GRAY2), drawn in one quality refresh.
     ImageRender::displayGrayscale(
         renderer, /*quality=*/true, /*fastQuality=*/false, /*preserveText=*/true,
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
-          // image region -> WHITE base (bit 1) for GRAY2, exactly like the sleep screen's clearScreen(0xFF).
-          // (fill(..., false) sets bits to 1 = white; fill(..., true) would be a black base and break GRAY2.)
-          if (haveBox) {
-            renderer.rectangle.fill(bx, by, bw, bh, false);
-          }
-          // quality=true: render images through the same high-quality path the sleep screen uses (no tone hack).
+          if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base for GRAY2
           page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
         });  // fastQuality=false: slow quality LUT (lut_x4_quality, same as sleep)
-    // renderer.setGrayscaleFastQuality(false);
 
   } else if (needsImageGrayscale) {
-
+    // MEDIUM: refine the 1-bit image (already on screen) to grays via the lut_grayscale overlay; text held.
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*fastQuality=*/false, /*preserveText=*/bwStored, [&] {
-
       renderer.clearScreen(0x00);
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     });
