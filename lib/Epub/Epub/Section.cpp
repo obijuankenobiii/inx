@@ -13,7 +13,7 @@
 #include <FsHelpers.h> 
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 50;
+constexpr uint8_t SECTION_FILE_VERSION = 51;  // 51: PageImage stores per-image grayscale-content flag
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(float) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) +
                                  sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);

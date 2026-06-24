@@ -9,6 +9,9 @@
 #include <cctype>
 #include <cstring>
 #include <exception>
+#include <vector>
+
+#include <Bitmap.h>
 
 #include <Arduino.h>
 
@@ -1813,8 +1816,57 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param imgW Original image width
  * @param imgH Original image height
  */
+namespace {
+// Decides whether a cached image has enough continuous-tone (mid-gray) content to be worth grayscale rendering.
+// The cached BMP is already quantized to 4 levels; readNextRow yields packed 2-bit levels (0=white..3=black, with
+// 1 and 2 the mid grays). Comics / line art / mostly black-and-white images have almost no mid-gray pixels, so
+// they render fine (and much faster) as plain 1-bit. Returns true if mid-gray coverage exceeds the threshold.
+bool imageHasGrayscaleContent(const std::string& bmpPath) {
+  FsFile file;
+  if (!SdMan.openFileForRead("GSD", bmpPath, file)) {
+    return true;  // default to grayscale if we can't inspect it
+  }
+  Bitmap bmp(file);
+  if (bmp.parseHeaders() != BmpReaderError::Ok) {
+    file.close();
+    return true;
+  }
+  const int w = bmp.getWidth();
+  const int h = bmp.getHeight();
+  const int rowBytes = bmp.getRowBytes();
+  if (w <= 0 || h <= 0 || rowBytes <= 0) {
+    file.close();
+    return true;
+  }
+
+  std::vector<uint8_t> rowBuffer(static_cast<size_t>(rowBytes));
+  std::vector<uint8_t> levels(static_cast<size_t>((w + 3) / 4));
+  uint32_t total = 0;
+  uint32_t mid = 0;
+  for (int y = 0; y < h; y++) {
+    if (bmp.readNextRow(levels.data(), rowBuffer.data()) != BmpReaderError::Ok) {
+      break;
+    }
+    for (int x = 0; x < w; x++) {
+      const uint8_t level = (levels[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03;
+      total++;
+      if (level == 1 || level == 2) {
+        mid++;
+      }
+    }
+  }
+  file.close();
+  if (total == 0) {
+    return true;
+  }
+  constexpr uint32_t kMidGrayThresholdPercent = 6;  // below this -> treat as 1-bit (comic/line art)
+  return (mid * 100u / total) >= kMidGrayThresholdPercent;
+}
+}  // namespace
+
 void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
+  const bool grayscale = imageHasGrayscaleContent(bmpPath);
 
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
     makePages();
@@ -1828,7 +1880,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
 
     currentPage.reset(new Page());
     currentPageNextY = 0;
-    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
+    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0, grayscale));
 
     currentPageNextY = imgH + (renderer.text.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
@@ -1856,7 +1908,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   }
 
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
-  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
+  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY, grayscale));
 
   currentPageNextY += imgH + (renderer.text.getLineHeight(fontId) / 2);
 }

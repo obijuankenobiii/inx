@@ -1126,6 +1126,11 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
   if (Serial) Serial.printf("[%lu]   X4_GRAY_MODE=%s\n", millis(), quality ? "quality" : "reader");
   setCustomLUT(true, selectedLut);
   if (quality) {
+    // Let the panel physically settle after the preceding pre-clear/flash before firing the state-sensitive
+    // quality waveform. A live-rendered image spends time decoding here (which let the panel settle); an image
+    // served instantly from the display cache does not, so without this pause the 0xC7 refresh can drive from an
+    // unsettled panel and produce wrong grays (a second refresh would otherwise be needed to fix it). Tune ms.
+    delay(120);
     sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
     sendData(CTRL1_NORMAL);
     sendCommand(CMD_DISPLAY_UPDATE_CTRL2);

@@ -168,10 +168,12 @@ class PageImage final : public PageElement {
   std::string cachePath;
   int16_t width;
   int16_t height;
+  bool grayscale;  // true = image has continuous-tone content worth grayscale; false = ~1-bit (comic/line art)
 
  public:
-  PageImage(std::string path, const int16_t w, const int16_t h, const int16_t xPos, const int16_t yPos)
-      : PageElement(xPos, yPos), cachePath(std::move(path)), width(w), height(h) {}
+  PageImage(std::string path, const int16_t w, const int16_t h, const int16_t xPos, const int16_t yPos,
+            const bool grayscale = true)
+      : PageElement(xPos, yPos), cachePath(std::move(path)), width(w), height(h), grayscale(grayscale) {}
 
   PageElementTag getTag() const override { return TAG_PageImage; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
@@ -181,10 +183,11 @@ class PageImage final : public PageElement {
                    bool quality);
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
-  
+
   const std::string& getPath() const { return cachePath; }
   int16_t getWidth() const { return width; }
   int16_t getHeight() const { return height; }
+  bool needsGrayscale() const { return grayscale; }
 };
 
 class PageTable final : public PageElement {
@@ -281,6 +284,17 @@ class Page {
                        });
   }
 
+  // True if at least one image on the page has continuous-tone content worth rendering in grayscale. Pages whose
+  // images are all essentially 1-bit (comics / line art / mostly black-and-white) return false, so they can be
+  // rendered as fast 1-bit instead of paying for the grayscale passes.
+  bool anyImageNeedsGrayscale() const {
+    return std::any_of(elements.begin(), elements.end(),
+                       [](const std::shared_ptr<PageElement>& element) {
+                         return element->getTag() == TAG_PageImage &&
+                                static_cast<const PageImage*>(element.get())->needsGrayscale();
+                       });
+  }
+
   /**
    * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap
    * scaling, matching PageImage::render). Used for partial clears (e.g. text AA prep on image pages).
@@ -288,6 +302,11 @@ class Page {
    */
   bool getImageBoundingBox(const GfxRenderer& renderer, int xOffset, int yOffset, int16_t& outX, int16_t& outY,
                            int16_t& outW, int16_t& outH) const;
+
+  // Fills EACH image's own paint rectangle (centered, at its stored size) with `value` — NOT the union bounding
+  // box. Use this for per-image baseline marks / GRAY2 white bases so text between images on the same page is
+  // never covered. Matches PageImage::render geometry.
+  void fillImageRects(GfxRenderer& renderer, int xOffset, int yOffset, bool value) const;
 
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
               ImageRenderMode imageMode = ImageRenderMode::OneBit) const;

@@ -310,39 +310,33 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
 }
 
 void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info) {
-  // Render modes the on-screen path will request for the current image-quality mode. We render each plane
-  // here so ImageRender::render() stores it to the display cache (keyed identically to the display path,
-  // because we reuse Page::renderImages with the same fontId + margins + render mode + quality flag).
+  // Grayscale passes for the current quality mode — used only for pages whose images actually have continuous
+  // tone (anyImageNeedsGrayscale). Pages with 1-bit-style images (comic/line art) and LOW mode prebuild the
+  // plain BW/OneBit plane instead, matching the on-screen page->render path. Each renderImages reuses the exact
+  // fontId + margins + render mode + quality the display path uses, so ImageRender::render() stores cache keyed
+  // identically (and no-ops on a later hit). Only the offscreen framebuffer is touched (no displayBuffer).
   struct Pass {
     GfxRenderer::RenderMode mode;
-    bool quality;  // must match the display path's renderImages quality arg so the cache key matches
+    bool quality;
   };
-  Pass passes[2];
-  int passCount = 0;
-  ImageRenderMode imageMode = ImageRenderMode::OneBit;
+  Pass grayPasses[2];
+  int grayPassCount = 0;
+  uint8_t grayClear = 0xFF;
   switch (SETTINGS.readerImageGrayscale) {
     case SystemSetting::READER_IMAGE_HIGH:
-      passes[passCount++] = {GfxRenderer::GRAY2_LSB, true};
-      passes[passCount++] = {GfxRenderer::GRAY2_MSB, true};
-      imageMode = ImageRenderMode::TwoBit;
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
+      grayClear = 0xFF;
       break;
     case SystemSetting::READER_IMAGE_MEDIUM:
-      passes[passCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
-      passes[passCount++] = {GfxRenderer::GRAYSCALE_MSB, false};
-      imageMode = ImageRenderMode::TwoBit;
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_MSB, false};
+      grayClear = 0x00;
       break;
-    default:  // LOW: image is drawn 1-bit on the BW plane
-      passes[passCount++] = {GfxRenderer::BW, false};
-      imageMode = ImageRenderMode::OneBit;
-      break;
+    default:
+      break;  // LOW: no grayscale passes; all image pages prebuild as 1-bit below
   }
-
-  // The base the display path fills before drawing the image: white for GRAY2/BW, black for GRAYSCALE. The
-  // stored cache covers the image rect, so any pixels the image doesn't cover (aspect padding / rounded
-  // corners) must match this base — otherwise leftover framebuffer content (e.g. text from the previously
-  // displayed page) bleeds into the cached image.
-  const uint8_t clearColor =
-      (SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM) ? 0x00 : 0xFF;
+  const bool grayEnabled = grayPassCount > 0;
 
   const int fontId = bookSettings.getReaderFontId();
   for (int i = 0; i < builtSection.pageCount; i++) {
@@ -351,17 +345,22 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
     if (!page || !page->hasImages()) {
       continue;
     }
-    for (int p = 0; p < passCount; p++) {
-      renderer.clearScreen(clearColor);  // same base the display path uses, so the cached rect matches exactly
-      renderer.setRenderMode(passes[p].mode);
-      // Draws into the offscreen framebuffer only (no displayBuffer); ImageRender::render() stores each
-      // image's plane to the display cache on a miss, or no-ops on a hit. quality matches the display path.
-      page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, imageMode, passes[p].quality);
+    if (grayEnabled && page->anyImageNeedsGrayscale()) {
+      for (int p = 0; p < grayPassCount; p++) {
+        renderer.clearScreen(grayClear);  // same base the display path uses, so the cached rect matches exactly
+        renderer.setRenderMode(grayPasses[p].mode);
+        page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
+                           grayPasses[p].quality);
+      }
+    } else {
+      // 1-bit page (comic/line art content, or LOW mode): prebuild the BW/OneBit plane page->render will request.
+      renderer.clearScreen(0xFF);
+      renderer.setRenderMode(GfxRenderer::BW);
+      page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::OneBit, false);
     }
   }
 
   renderer.setRenderMode(GfxRenderer::BW);
-  // renderer.setGrayscaleFastQuality(false);
   renderer.clearScreen(0xFF);  // leave the framebuffer in the canonical clean state for the next page render
 }
 
@@ -1812,7 +1811,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
-  const bool needsImageGrayscale = SETTINGS.readerImageGrayscale != 0 && pageHasImages;
+  // Only pay for grayscale if the setting is on AND at least one image on the page actually has continuous-tone
+  // content. Comic/line-art/mostly-black-and-white pages are detected at build time and render as fast 1-bit.
+  const bool needsImageGrayscale =
+      SETTINGS.readerImageGrayscale != 0 && pageHasImages && page->anyImageNeedsGrayscale();
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
   const bool textAa = bookSettings.textAntiAliasing != 0;
   const bool pageHasLargeImage =
@@ -1820,24 +1822,27 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool imagePageWithAA = pageHasImages && textAa;
 
-  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, true, imageMode);
-
   const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
-  // The image must be present in the BW frame BEFORE storeBwBuffer so the stored frame — which becomes the
-  // differential baseline (RED RAM) after the grayscale pass — includes the image; otherwise the baseline is
-  // text-only and the image never diffs away on later pages (ghosts / never clears).
-  //  - MEDIUM/LOW: render the real 1-bit image (it's also what the flash shows + the base medium refines).
+  // 1-bit (LOW / non-grayscale) images render straight into the page with the text in a single pass — let
+  // page->render draw them (skipImages=false). Grayscale modes skip them here (skipImages=true) and handle the
+  // image separately below. This avoids a redundant second image render for the 1-bit case.
+  const bool skipImagesInPageRender = needsImageGrayscale;
+  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
+               imageMode);
+
+  // For grayscale modes the image must be present in the BW frame BEFORE storeBwBuffer so the stored frame —
+  // which becomes the differential baseline (RED RAM) after the grayscale pass — includes the image; otherwise
+  // the baseline is text-only and the image never diffs away on later pages (ghosts / never clears).
+  //  - MEDIUM: render the real 1-bit image (it's also what the flash shows + the base medium refines).
   //  - HIGH: don't decode it here (HIGH hides the 1-bit image from the flash and draws the gray image in the
-  //    quality pass) — just mark the image rect dark with a cheap rectangle so the baseline still clears it.
-  //    This avoids an extra full image decode per page, which was making image pages sluggish.
-  int16_t bx = 0, by = 0, bw = 0, bh = 0;
-  const bool haveBox =
-      pageHasImages && page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
+  //    quality pass) — just mark each image's own rect dark so the baseline still clears it (per-image, never
+  //    the union bounding box, so text between two images on the same page is not covered).
+  //  - LOW: nothing to do — page->render already drew the 1-bit image with the text above.
   if (pageHasImages) {
     if (highQuality) {
-      if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, true);  // mark rect dark in the baseline (no decode)
-    } else {
+      page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true);  // mark each image rect dark
+    } else if (needsImageGrayscale) {
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     }
   }
@@ -1852,9 +1857,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // Text pages and LOW image pages don't — skip the ~48KB alloc/copy + RED-RAM SPI write so they stay fast.
   const bool bwStored = needsImageGrayscale && renderer.storeBwBuffer();  // text + image -> clearing baseline
   if (highQuality) {
-    // HIGH shows only text in the flash (no dark 1-bit image): white the image region back out of the visible
-    // frame. The stored baseline above still has the image; the quality pass below draws the gray image.
-    if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);
+    // HIGH shows only text in the flash (no dark 1-bit image): white each image rect back out of the visible
+    // frame. The stored baseline above still has them; the quality pass below draws the gray image.
+    page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
   } else {
@@ -1877,7 +1882,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
-          if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base for GRAY2
+          // Per-image white base for GRAY2 (never the union box, so text between images stays intact).
+          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
           page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
         });  // fastQuality=false: slow quality LUT (lut_x4_quality, same as sleep)
 

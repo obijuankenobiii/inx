@@ -292,6 +292,7 @@ bool PageImage::serialize(FsFile& file) {
   serialization::writePod(file, yPos);
   serialization::writePod(file, width);
   serialization::writePod(file, height);
+  serialization::writePod(file, static_cast<uint8_t>(grayscale ? 1 : 0));
   serialization::writeString(file, cachePath);
   return true;
 }
@@ -308,9 +309,11 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
   serialization::readPod(file, y);
   serialization::readPod(file, w);
   serialization::readPod(file, h);
+  uint8_t grayscale = 1;
+  serialization::readPod(file, grayscale);
   std::string path;
   serialization::readString(file, path);
-  return std::unique_ptr<PageImage>(new PageImage(path, w, h, x, y));
+  return std::unique_ptr<PageImage>(new PageImage(path, w, h, x, y, grayscale != 0));
 }
 
 bool PageTable::serialize(FsFile& file) {
@@ -475,6 +478,20 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
  * @param yOffset Vertical offset for page margins
  * @param skipImages If true, images are not rendered
  */
+void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yOffset, const bool value) const {
+  (void)xOffset;  // images are horizontally centered, not offset by the left margin
+  const int screenW = renderer.getScreenWidth();
+  for (const auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto& img = static_cast<const PageImage&>(*element);  // match PageImage::render geometry
+    const int rx = std::max(0, (screenW - img.getWidth()) / 2);
+    const int ry = std::max(0, img.yPos + yOffset);
+    renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), value);
+  }
+}
+
 bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, const int yOffset, int16_t& outX,
                                int16_t& outY, int16_t& outW, int16_t& outH) const {
   (void)xOffset;  // images are horizontally centered, not offset by the left margin
