@@ -144,9 +144,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
     return true;  // served from cache (handles both planes + refresh + cleanup)
   }
 
-  const uint8_t base = quality ? 0xFF : 0x00;
+  // 0x00 base for both: GRAYSCALE (medium) and GRAY2I (quality) both render on a 0x00 base.
   renderer_.renderGrayscalePasses(quality, /*preserveText=*/false, [&] {
-    renderer_.clearScreen(base);
+    renderer_.clearScreen(0x00);
     render(x, y, width, height, opt);  // renders into the current plane's render mode AND stores to cache
   });
   return true;

@@ -16,7 +16,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 26;
+constexpr uint16_t kVersion = 27;  // bump: flush stale image-plane cache from the windowing experiments
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {

@@ -367,11 +367,14 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
                                        const std::function<void()>& drawPlane, const bool fastQuality) {
-  setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
+  // Quality uses GRAY2I (inverted, 0x00 base): same levels as GRAY2 but pixels an image doesn't paint
+  // (transparency / a 1-bit image's white) resolve to WHITE (level 0), not GRAY2's black base. Callers must use a
+  // 0x00 image-rect base (clearScreen(0x00) / fillImageRects(true)).
+  setRenderMode(quality ? GRAY2I_LSB : GRAYSCALE_LSB);
   drawPlane();
   copyGrayscaleLsbBuffers();
 
-  setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
+  setRenderMode(quality ? GRAY2I_MSB : GRAYSCALE_MSB);
   drawPlane();
   copyGrayscaleMsbBuffers();
 

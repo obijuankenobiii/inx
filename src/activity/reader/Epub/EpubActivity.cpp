@@ -324,9 +324,9 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
   uint8_t grayClear = 0xFF;
   switch (SETTINGS.readerImageGrayscale) {
     case SystemSetting::READER_IMAGE_HIGH:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
-      grayClear = 0xFF;
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2I_LSB, true};
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2I_MSB, true};
+      grayClear = 0x00;  // GRAY2I base (matches the display path's per-image base)
       break;
     case SystemSetting::READER_IMAGE_MEDIUM:
       grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
@@ -1875,17 +1875,17 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   if (highQuality && bwStored) {
-    // HIGH: quality grayscale that ALSO keeps the text. Each plane = the INVERTED BW frame (text -> black) with
-    // the image rect reset to a white base and the image's grays overlaid (GRAY2), drawn in one quality refresh.
+    // HIGH: quality grayscale via the centralized render. Planes = inverted BW text (text -> black) + the image
+    // on a 0x00 base; renderGrayscalePasses uses GRAY2I so un-painted pixels stay WHITE (no black background on a
+    // non-grayscale / transparent image).
     ImageRender::displayGrayscale(
         renderer, /*quality=*/true, /*fastQuality=*/false, /*preserveText=*/true,
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
-          // Per-image white base for GRAY2 (never the union box, so text between images stays intact).
-          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
+          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true);  // 0x00 GRAY2I base per image
           page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
-        });  // fastQuality=false: slow quality LUT (lut_x4_quality, same as sleep)
+        });
 
   } else if (needsImageGrayscale) {
     // MEDIUM: refine the 1-bit image (already on screen) to grays via the lut_grayscale overlay; text held.
