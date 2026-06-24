@@ -165,8 +165,35 @@ uint8_t quantizeSimple(int gray) {
 
 ImageToneSample quantizeTwoBitImage(const int gray) { return FourToneImageDitherer::quantize(adjustPixel(gray)); }
 
+namespace {
+bool g_imageLevelAnalysisActive = false;
+uint32_t g_imageLevelTotal = 0;
+uint32_t g_imageLevelMid = 0;  // count of mid-gray levels (1 or 2)
+}  // namespace
+
+void beginImageLevelAnalysis() {
+  g_imageLevelAnalysisActive = true;
+  g_imageLevelTotal = 0;
+  g_imageLevelMid = 0;
+}
+
+void endImageLevelAnalysis() { g_imageLevelAnalysisActive = false; }
+
+uint32_t imageLevelAnalysisMidPercent() {
+  if (g_imageLevelTotal == 0) {
+    return 0;
+  }
+  return static_cast<uint32_t>((static_cast<uint64_t>(g_imageLevelMid) * 100u) / g_imageLevelTotal);
+}
+
 uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
   const uint8_t l = level & 3u;
+  if (g_imageLevelAnalysisActive) {
+    g_imageLevelTotal++;
+    if (l == 1u || l == 2u) {
+      g_imageLevelMid++;
+    }
+  }
   return l;
 }
 

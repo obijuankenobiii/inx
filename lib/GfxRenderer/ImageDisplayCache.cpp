@@ -258,7 +258,7 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
 
   renderer.displayGrayBuffer(quality);
   renderer.setRenderMode(GfxRenderer::BW);
-  renderer.clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
+  renderer.clearScreen(0xFF);
   renderer.cleanupGrayscaleWithFrameBuffer();
   return true;
 }
