@@ -117,6 +117,16 @@ constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
 constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
 
+// ── Book reader FAST-quality (lut_x4_quality_fast) tone ────────────────────────────────────────────────
+// The fast waveform renders darker + flatter than the slow sleep curve, so this profile is punchier (more
+// contrast, so it isn't flat gray) and brighter (a midtone lift, so it isn't dark). EDIT these to tune the
+// book image look; the slow sleep-screen curve above is unaffected.
+constexpr int kJpegFastQualityContrastPercent = 150;        // highlight contrast (>100 = punchier highlights)
+constexpr int kJpegFastQualityShadowContrastPercent = 120;  // shadow contrast (>100 separates shadows; 90 = flat)
+constexpr int kJpegFastQualitySharpenMax = 100;             // max edge sharpen boost
+constexpr int kJpegFastQualityShadowKnee = 1;               // shadow-knee width (1 = effectively off)
+constexpr int kJpegFastQualityBrightnessLift = 12;          // added to mid tones to counter the darker fast LUT
+
 // X3 medium (GRAYSCALE) tone shaping. X3 renders flat/gray, so expand the tonal range instead of just
 // lifting: darker blacks + whiter whites (kills the gray cast) and a contrast stretch (kills the
 // flatness). Pivot >128 biases it brighter so it doesn't go dark. X3 medium only; quality/X4 untouched.
@@ -170,12 +180,13 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
 // lifts shadows (X3, which renders darker), negative darkens them (X4 reference).
 int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGray, const int x, const int y,
                           const int shadowLiftPerKnee, const bool fastQuality) {
-  // The book reader's fast-quality (lut_x4_quality_fast) profile tunes these four independently of the slow
-  // sleep-screen quality curve.
-  const int contrastPercent = fastQuality ? 150 : kJpegTwoBitQualityContrastPercent;
-  const int shadowContrastPercent = fastQuality ? 90 : kJpegTwoBitQualityShadowContrastPercent;
-  const int sharpenMax = fastQuality ? 100 : kJpegTwoBitQualitySharpenMax;
-  const int shadowKnee = fastQuality ? 1 : kJpegTwoBitQualityShadowKnee;
+  // The book reader's fast-quality (lut_x4_quality_fast) profile tunes these independently of the slow
+  // sleep-screen quality curve (see the kJpegFastQuality* constants above).
+  const int contrastPercent = fastQuality ? kJpegFastQualityContrastPercent : kJpegTwoBitQualityContrastPercent;
+  const int shadowContrastPercent =
+      fastQuality ? kJpegFastQualityShadowContrastPercent : kJpegTwoBitQualityShadowContrastPercent;
+  const int sharpenMax = fastQuality ? kJpegFastQualitySharpenMax : kJpegTwoBitQualitySharpenMax;
+  const int shadowKnee = fastQuality ? kJpegFastQualityShadowKnee : kJpegTwoBitQualityShadowKnee;
 
   if (gray <= kJpegTwoBitQualitySolidBlackMax) {
     return 0;
@@ -202,6 +213,9 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
   if (gray < shadowKnee) {
     const int kneeDepth = shadowKnee - gray;
     tone += (kneeDepth * shadowLiftPerKnee) / shadowKnee;
+  }
+  if (fastQuality) {
+    tone += kJpegFastQualityBrightnessLift;  // lift mids so the darker fast LUT doesn't look muddy/dark
   }
 
   if (tone <= 8) {
@@ -401,10 +415,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   }
 
   const bool deviceIsX3 = renderer_.deviceIsX3();
-  // The book reader renders quality images via GRAY2 planes but through the 4-arg render overload (quality=false);
-  // its fast-quality flag both forces the quality tone curve AND selects the fast-quality tuning values.
+  // The book reader's fast path (GRAY2 planes + fast LUT) uses the MEDIUM tone curve + dither — it looks better
+  // than the flat/dark quality curve on the fast waveform. So fastQuality does NOT force the quality tone:
+  // tone selection follows options.quality only (sleep = quality tone; book fast = medium tone).
   const bool fastQuality = renderer_.isGrayscaleFastQuality();
-  const bool qualityTone = quality || fastQuality;
+  const bool qualityTone = quality;
+  (void)fastQuality;
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;

@@ -152,6 +152,11 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
   return true;
 }
 
+void ImageRender::displayGrayscale(GfxRenderer& renderer, const bool quality, const bool fastQuality,
+                                   const bool preserveText, const std::function<void()>& drawPlane) {
+  renderer.renderGrayscalePasses(quality, preserveText, drawPlane, fastQuality);
+}
+
 bool ImageRender::render(int x, int y, int width, int height) const {
   return render(x, y, width, height, Options());
 }

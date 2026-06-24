@@ -49,6 +49,7 @@ class Section {
 
  public:
   uint16_t pageCount = 0;
+  uint16_t imagePageCount = 0;  // number of pages containing images (set during createSectionFile)
   int currentPage = 0;
 
   /**

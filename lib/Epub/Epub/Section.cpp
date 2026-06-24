@@ -32,11 +32,15 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
     return 0;
   }
   const uint32_t position = file.position();
+  const bool pageHasImages = page->hasImages();
   if (!page->serialize(file)) {
     Serial.printf("[%lu] [SCT] Failed to serialize page %d\n", millis(), pageCount);
     return 0;
   }
   pageCount++;
+  if (pageHasImages) {
+    imagePageCount++;
+  }
   return position;
 }
 

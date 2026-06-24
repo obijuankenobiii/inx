@@ -176,6 +176,9 @@ class PageImage final : public PageElement {
   PageElementTag getTag() const override { return TAG_PageImage; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
               ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  // Same as render() but lets the caller select the quality render path (options.quality).
+  void renderImage(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, ImageRenderMode imageMode,
+                   bool quality);
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   
@@ -288,8 +291,10 @@ class Page {
 
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
               ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
+  // `quality` routes images through the quality render path (options.quality=true) — the same path the sleep
+  // screen uses — instead of the default 1-bit/medium path.
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-                    ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
+                    ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

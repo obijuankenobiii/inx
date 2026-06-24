@@ -304,7 +304,16 @@ private:
      * @return true if successful, false otherwise
      */
     bool buildSection(int spineIndex, const ViewportInfo& info, bool showProgress = false, bool skipImages = false);
-    
+
+    /**
+     * Pre-renders the display-pixel cache (.irdc planes) for every image page in a freshly built section, for
+     * the current image-quality mode, so the first on-screen render of an image page is a pure cache hit
+     * (no JPEG/BMP decode + quantize at display time). Only the offscreen framebuffer is touched; the panel is
+     * untouched and the framebuffer is left clean for the next page render.
+     */
+    void prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info);
+
+
     /**
      * Loads a section for a given spine index.
      * 

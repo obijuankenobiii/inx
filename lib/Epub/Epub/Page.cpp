@@ -190,19 +190,27 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
  */
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                        const ImageRenderMode imageMode) {
+  renderImage(renderer, fontId, xOffset, yOffset, imageMode, /*quality=*/false);
+}
+
+void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                            const ImageRenderMode imageMode, const bool quality) {
   (void)xOffset;
+  (void)fontId;
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
   // The viewport top margin is reduced by the font's glyph top inset so text starts at the visual margin
   // (glyphs carry that whitespace themselves). Images have no such whitespace, so add the inset back here —
   // otherwise an image at the top of a page sits flush against the margin with no gap above it.
-  // const int topInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
   int renderY = yPos + yOffset;
   if (renderX < 0) renderX = 0;
   if (renderY < 0) renderY = 0;
 
+  ImageRender::Options options;
+  options.mode = imageMode;
+  options.quality = quality;
   const ImageRender image = ImageRender::create(renderer, cachePath);
-  if (!image.render(renderX, renderY, width, height, imageMode)) {
+  if (!image.render(renderX, renderY, width, height, options)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
 }
@@ -523,12 +531,12 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
 }
 
 void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        const ImageRenderMode imageMode) const {
+                        const ImageRenderMode imageMode, const bool quality) const {
   for (auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
-    element->render(renderer, fontId, xOffset, yOffset, imageMode);
+    static_cast<PageImage*>(element.get())->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
   }
 }
 

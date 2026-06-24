@@ -296,6 +296,10 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
       bookSettings.bionicReadingEnabled != 0, nullptr, skipImages);
 
+  if (success && !skipImages && tempSection->imagePageCount > 0) {
+    prebuildImageDisplayCache(*tempSection, info);
+  }
+
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
     renderer.clearScreen();
@@ -303,6 +307,62 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   }
 
   return success;
+}
+
+void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info) {
+  // Render modes the on-screen path will request for the current image-quality mode. We render each plane
+  // here so ImageRender::render() stores it to the display cache (keyed identically to the display path,
+  // because we reuse Page::renderImages with the same fontId + margins + render mode + quality flag).
+  struct Pass {
+    GfxRenderer::RenderMode mode;
+    bool quality;  // must match the display path's renderImages quality arg so the cache key matches
+  };
+  Pass passes[2];
+  int passCount = 0;
+  ImageRenderMode imageMode = ImageRenderMode::OneBit;
+  switch (SETTINGS.readerImageGrayscale) {
+    case SystemSetting::READER_IMAGE_HIGH:
+      passes[passCount++] = {GfxRenderer::GRAY2_LSB, true};
+      passes[passCount++] = {GfxRenderer::GRAY2_MSB, true};
+      imageMode = ImageRenderMode::TwoBit;
+      break;
+    case SystemSetting::READER_IMAGE_MEDIUM:
+      passes[passCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
+      passes[passCount++] = {GfxRenderer::GRAYSCALE_MSB, false};
+      imageMode = ImageRenderMode::TwoBit;
+      break;
+    default:  // LOW: image is drawn 1-bit on the BW plane
+      passes[passCount++] = {GfxRenderer::BW, false};
+      imageMode = ImageRenderMode::OneBit;
+      break;
+  }
+
+  // The base the display path fills before drawing the image: white for GRAY2/BW, black for GRAYSCALE. The
+  // stored cache covers the image rect, so any pixels the image doesn't cover (aspect padding / rounded
+  // corners) must match this base — otherwise leftover framebuffer content (e.g. text from the previously
+  // displayed page) bleeds into the cached image.
+  const uint8_t clearColor =
+      (SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM) ? 0x00 : 0xFF;
+
+  const int fontId = bookSettings.getReaderFontId();
+  for (int i = 0; i < builtSection.pageCount; i++) {
+    builtSection.currentPage = i;
+    std::unique_ptr<Page> page = builtSection.loadPageFromSectionFile();
+    if (!page || !page->hasImages()) {
+      continue;
+    }
+    for (int p = 0; p < passCount; p++) {
+      renderer.clearScreen(clearColor);  // same base the display path uses, so the cached rect matches exactly
+      renderer.setRenderMode(passes[p].mode);
+      // Draws into the offscreen framebuffer only (no displayBuffer); ImageRender::render() stores each
+      // image's plane to the display cache on a miss, or no-ops on a hit. quality matches the display path.
+      page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, imageMode, passes[p].quality);
+    }
+  }
+
+  renderer.setRenderMode(GfxRenderer::BW);
+  // renderer.setGrayscaleFastQuality(false);
+  renderer.clearScreen(0xFF);  // leave the framebuffer in the canonical clean state for the next page render
 }
 
 /**
@@ -1781,8 +1841,15 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     // can't develop dark grays in a single shot (they only appeared after navigating away and back, which drove
     // those pixels via grayscaleRevert). A full clear drives every pixel, so dark grays develop on first render.
     bwStored = renderer.storeBwBuffer();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
   } else {
+    // LOW / non-grayscale: render the 1-bit image with the text (one flash) — it's the final output.
+    // MEDIUM is NOT rendered here: it goes through the single combined grayscale refresh below (black + grays
+    // in one push), so we only flash the text now and never show a separate dark 1-bit image.
+    if (pageHasImages && !needsImageGrayscale) {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    }
     if (pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       pagesUntilFullRefresh = bookSettings.refreshFrequency;
@@ -1792,16 +1859,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       pagesUntilFullRefresh--;
     }
 
-    if (pageHasImages) {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-      renderer.displayBuffer();
-    }
-    
   }
 
   if (highQuality && bwStored) {
-    renderer.clearScreen(0xff);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    // renderer.clearScreen(0xff);
+    // renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     // HIGH: quality grayscale (faster lut_x4_quality_fast) that ALSO keeps the text. The quality refresh is
     // full-panel, so everything visible must live in the gray planes: each plane is the INVERTED BW frame
     // (black text/UI -> level 3, white -> level 0) with the image rectangle reset to the white base and the
@@ -1809,22 +1871,27 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     int16_t bx = 0, by = 0, bw = 0, bh = 0;
     const bool haveBox = page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, bx, by, bw, bh);
 
-    renderer.setGrayscaleFastQuality(true);  // book images use the fast-quality tone curve + distinct cache key
-    renderer.renderGrayscalePasses(
-        /*quality=*/true, /*preserveText=*/true,
+    // renderer.setGrayscaleFastQuality(true);  // book images use the fast-quality tone curve + distinct cache key
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    ImageRender::displayGrayscale(
+        renderer, /*quality=*/true, /*fastQuality=*/false, /*preserveText=*/true,
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
-          if (haveBox) renderer.rectangle.fill(bx, by, bw, bh, false);  // image region -> white base for GRAY2
-          page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-        },
-        /*fastQuality=*/true);  // book reader uses the faster lut_x4_quality_fast
-    renderer.setGrayscaleFastQuality(false);
+          // image region -> WHITE base (bit 1) for GRAY2, exactly like the sleep screen's clearScreen(0xFF).
+          // (fill(..., false) sets bits to 1 = white; fill(..., true) would be a black base and break GRAY2.)
+          if (haveBox) {
+            renderer.rectangle.fill(bx, by, bw, bh, false);
+          }
+          // quality=true: render images through the same high-quality path the sleep screen uses (no tone hack).
+          page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
+        });  // fastQuality=false: slow quality LUT (lut_x4_quality, same as sleep)
+    // renderer.setGrayscaleFastQuality(false);
 
   } else if (needsImageGrayscale) {
-    // MEDIUM: fast 2-bit grayscale (lut_grayscale) via the text-preserving partial refresh — overlays the image
-    // grays without touching the surrounding text.
-    renderer.renderGrayscalePasses(/*quality=*/false, /*preserveText=*/bwStored, [&] {
+
+    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*fastQuality=*/false, /*preserveText=*/bwStored, [&] {
+
       renderer.clearScreen(0x00);
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     });
