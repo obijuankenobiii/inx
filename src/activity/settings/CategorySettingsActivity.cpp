@@ -295,7 +295,7 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Reset device") == 0) {
+            if (strcmp(setting.name, "Delete Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();

@@ -198,8 +198,8 @@ void SleepActivity::onEnter() {
   // clears from any screen.
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
-    renderer.clearScreen();
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderer.clearScreen(0Xff);
+    renderer.displayBuffer();
   }
 
   switch (SETTINGS.sleepScreen) {

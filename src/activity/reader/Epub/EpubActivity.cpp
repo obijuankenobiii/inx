@@ -528,7 +528,8 @@ void EpubActivity::displayCoverOrTitle() {
     ImageRender::Options options;
     options.cropToFill = true;
     if (ImageRender::create(renderer, coverJpegPath).render(0, 0, pageWidth, pageHeight, options)) {
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      renderer.displayBuffer();
+      renderer.displayBuffer();
       return;
     }
   }
@@ -540,7 +541,8 @@ void EpubActivity::displayCoverOrTitle() {
     options.cropToFill = true;
     renderer.clearScreen();
     if (ImageRender::create(renderer, coverPath).render(0, 0, pageWidth, pageHeight, options)) {
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      renderer.displayBuffer();
+      renderer.displayBuffer();
       return;
     }
   } else {
@@ -668,7 +670,6 @@ void EpubActivity::onEnter() {
 
   if (!useFastPath) {
     renderer.clearScreen(0xff);
-    renderer.displayBuffer();
     ScreenComponents::drawPopup(renderer, "Preparing book...");
     renderer.displayBuffer();
   }
@@ -1781,7 +1782,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     // HIGH shows only text in the flash (no dark 1-bit image): white each image rect back out of the visible
     // frame. The stored baseline above still has them; the quality pass below draws the gray image.
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
   } else {
     // MEDIUM/LOW: the text + 1-bit image (already in the frame) appear together in one flash.
@@ -1860,7 +1861,7 @@ void EpubActivity::displayBookTitle() {
 
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, bookTitle.c_str(), true,
                          EpdFontFamily::BOLD);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer();
 }
 
 /**
