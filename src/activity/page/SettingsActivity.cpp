@@ -78,11 +78,11 @@ const SettingInfo systemPageSettings[] = {
     SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
 
     SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
+    SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Reset device", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
     SettingInfo::Action("About", GroupType::NONE)};
 constexpr int systemPageSettingsCount = sizeof(systemPageSettings) / sizeof(systemPageSettings[0]);

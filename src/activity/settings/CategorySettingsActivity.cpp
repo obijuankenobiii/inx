@@ -821,11 +821,19 @@ void CategorySettingsActivity::render() {
       headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
-  const int versionW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, INX_VERSION);
-  const int versionY =
-      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - versionW - 40, versionY, INX_VERSION, true,
-                       EpdFontFamily::REGULAR);
+
+  // Version shown as a small rounded tag: black rounded background with white text.
+  const int verFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int verPadX = 8;
+  const int versionW = renderer.text.getWidth(verFont, INX_VERSION);
+  const int verLineH = renderer.text.getLineHeight(verFont);
+  const int verTagH = verLineH + 6;
+  const int verTagW = versionW + verPadX * 2;
+  const int verTagX = pageWidth - verTagW - 20;
+  const int verTagY = headerY + (headerHeight - verTagH) / 2;
+  renderer.rectangle.fill(verTagX, verTagY, verTagW, verTagH, true, true);  // filled, rounded (black)
+  const int versionY = verTagY + (verTagH - verLineH) / 2;
+  renderer.text.render(verFont, verTagX + verPadX, versionY, INX_VERSION, false, EpdFontFamily::REGULAR);  // white text
 
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
