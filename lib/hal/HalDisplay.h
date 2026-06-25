@@ -55,10 +55,6 @@ class HalDisplay {
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
   void displayGrayBuffer(bool quality = false);
-  // Quality 4-level grayscale (same as displayGrayBuffer(true)) but with the faster lut_x4_quality_fast LUT.
-  void displayGrayBufferFastQuality();
-  // Same, but only refreshes the pixel rectangle [x,y,w,h] so the rest of the screen (text) is preserved.
-  void displayGrayBufferFastQualityWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
   uint16_t getDisplayWidth() const;
   uint16_t getDisplayHeight() const;

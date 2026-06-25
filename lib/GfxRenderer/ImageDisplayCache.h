@@ -19,7 +19,6 @@ struct ImageDisplayCacheOptions {
   uint8_t renderPlane = 0;
   BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
   bool quality = false;
-  bool qualityFast = false;  // book reader's fast-quality tone profile (distinct cache key from sleep's)
 };
 
 class ImageDisplayCache {

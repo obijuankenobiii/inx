@@ -453,7 +453,7 @@ public:
     enum READER_IMAGE_QUALITY {
         READER_IMAGE_LOW = 0,     ///< 1-bit (no grayscale)
         READER_IMAGE_MEDIUM = 1,  ///< 2-bit grayscale, fast LUT (lut_grayscale), text-preserving
-        READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT (lut_x4_quality_fast), text preserved
+        READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT, text preserved
         READER_IMAGE_QUALITY_COUNT
     };
     uint8_t readerImageGrayscale = READER_IMAGE_LOW;

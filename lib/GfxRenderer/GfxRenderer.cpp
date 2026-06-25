@@ -246,12 +246,6 @@ bool GfxRenderer::copyStoredBwToFramebuffer() const {
   return true;
 }
 
-void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
-
-void GfxRenderer::displayGrayBufferFastQualityWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) const {
-  display.displayGrayBufferFastQualityWindow(x, y, w, h);
-}
-
 void GfxRenderer::freeBwBufferChunks() {
   for (auto& bwBufferChunk : bwBufferChunks) {
     if (bwBufferChunk) {
@@ -366,7 +360,7 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 }
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
-                                       const std::function<void()>& drawPlane, const bool fastQuality) {
+                                       const std::function<void()>& drawPlane) {
   setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
   drawPlane();
   copyGrayscaleLsbBuffers();
@@ -375,11 +369,7 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
   drawPlane();
   copyGrayscaleMsbBuffers();
 
-  if (quality && fastQuality) {
-    displayGrayBufferFastQuality();  // faster lut_x4_quality_fast for the book reader
-  } else {
-    displayGrayBuffer(quality);
-  }
+  displayGrayBuffer(quality);
   setRenderMode(BW);
 
   if (preserveText) {

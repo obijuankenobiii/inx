@@ -40,8 +40,8 @@ class ImageRender {
   // General 2-bit grayscale display: runs both planes via `drawPlane` (which populates the framebuffer for the
   // current plane), drives the gray refresh, and resets to BW. This is the single entry point shared by the
   // book reader (text-preserving: preserveText=true, drawPlane rebuilds inverted text + image overlay) and any
-  // other custom grayscale composite. `fastQuality` uses lut_x4_quality_fast; otherwise lut_x4_quality.
-  static void displayGrayscale(GfxRenderer& renderer, bool quality, bool fastQuality, bool preserveText,
+  // other custom grayscale composite.
+  static void displayGrayscale(GfxRenderer& renderer, bool quality, bool preserveText,
                                const std::function<void()>& drawPlane);
 
  private:

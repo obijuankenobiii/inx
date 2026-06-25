@@ -143,4 +143,3 @@ class EInkDisplay {
 };
 
 extern const unsigned char lut_x4_quality[];
-extern const unsigned char lut_x4_quality_fast[];

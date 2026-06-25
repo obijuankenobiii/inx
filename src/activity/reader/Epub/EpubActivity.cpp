@@ -1801,7 +1801,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (highQuality && bwStored) {
     // HIGH: quality grayscale via the centralized GRAY2 render path.
     ImageRender::displayGrayscale(
-        renderer, /*quality=*/true, /*fastQuality=*/false, /*preserveText=*/true,
+        renderer, /*quality=*/true, /*preserveText=*/true,
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
@@ -1811,7 +1811,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   } else if (needsImageGrayscale) {
     // MEDIUM: refine the 1-bit image (already on screen) to grays via the lut_grayscale overlay; text held.
-    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*fastQuality=*/false, /*preserveText=*/bwStored, [&] {
+    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
       renderer.clearScreen(0x00);
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     });

@@ -67,7 +67,6 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
   cacheOptions.quality = options.quality;
-  cacheOptions.qualityFast = renderer_.isGrayscaleFastQuality();
   const bool canUseDisplayCache =
       options.useDisplayCache &&
       ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
@@ -151,9 +150,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
   return true;
 }
 
-void ImageRender::displayGrayscale(GfxRenderer& renderer, const bool quality, const bool fastQuality,
-                                   const bool preserveText, const std::function<void()>& drawPlane) {
-  renderer.renderGrayscalePasses(quality, preserveText, drawPlane, fastQuality);
+void ImageRender::displayGrayscale(GfxRenderer& renderer, const bool quality, const bool preserveText,
+                                   const std::function<void()>& drawPlane) {
+  renderer.renderGrayscalePasses(quality, preserveText, drawPlane);
 }
 
 bool ImageRender::render(int x, int y, int width, int height) const {
