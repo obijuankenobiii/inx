@@ -456,10 +456,6 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
     ctx.renderer->drawPixel(x, y, true);
   } else if (renderMode == GfxRenderer::GRAY2_MSB && (level == 0 || level == 1)) {
     ctx.renderer->drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2I_LSB && (level == 1 || level == 3)) {
-    ctx.renderer->drawPixel(x, y, false);  // white (0x00) base: set bit for dark levels
-  } else if (renderMode == GfxRenderer::GRAY2I_MSB && (level == 2 || level == 3)) {
-    ctx.renderer->drawPixel(x, y, false);
   }
 }
 

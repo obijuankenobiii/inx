@@ -16,7 +16,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 29;  // bump: flush black-box cache entries from the reverted rect-fill attempt
+constexpr uint16_t kVersion = 31;  // bump: regenerate GRAY2 quality cache planes after base fix
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {

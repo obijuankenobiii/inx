@@ -324,9 +324,9 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
   uint8_t grayClear = 0xFF;
   switch (SETTINGS.readerImageGrayscale) {
     case SystemSetting::READER_IMAGE_HIGH:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2I_LSB, true};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2I_MSB, true};
-      grayClear = 0x00;  // GRAY2I base (matches the display path's per-image base)
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
+      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
+      grayClear = 0xFF;
       break;
     case SystemSetting::READER_IMAGE_MEDIUM:
       grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
@@ -1783,8 +1783,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // Text pages and LOW image pages don't — skip the ~48KB alloc/copy + RED-RAM SPI write so they stay fast.
   const bool bwStored = needsImageGrayscale && renderer.storeBwBuffer();  // text + image -> clearing baseline
   if (highQuality) {
-    // HIGH shows only text in the flash (no dark 1-bit image): white each image rect back out of the visible
-    // frame. The stored baseline above still has them; the quality pass below draws the gray image.
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
     renderer.displayBuffer();
     pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
@@ -1801,15 +1799,13 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   }
 
   if (highQuality && bwStored) {
-    // HIGH: quality grayscale via the centralized render. Planes = inverted BW text (text -> black) + the image
-    // on a 0x00 base; renderGrayscalePasses uses GRAY2I so un-painted pixels stay WHITE (no black background on a
-    // non-grayscale / transparent image).
+    // HIGH: quality grayscale via the centralized GRAY2 render path.
     ImageRender::displayGrayscale(
         renderer, /*quality=*/true, /*fastQuality=*/false, /*preserveText=*/true,
         [&] {
           renderer.copyStoredBwToFramebuffer();
           renderer.invertScreen();
-          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true);  // 0x00 GRAY2I base per image
+          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
           page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
         });
 

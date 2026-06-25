@@ -24,10 +24,8 @@
 
 class GfxRenderer {
  public:
-  // GRAY2_* : quality 2-bit planes on a 0xFF (white) clear — un-drawn pixels are dark (used for full-image quality).
-  // GRAY2I_*: same quality levels but drawn on a 0x00 (white) base, setting bits for dark levels — used when the
-  //           plane base is an inverted BW frame (so text/UI become black) and the image is overlaid in grays.
-  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB, GRAY2I_LSB, GRAY2I_MSB };
+  // GRAY2_* : quality 2-bit planes used with the quality image LUT.
+  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB };
 
   enum Orientation {
     Portrait,                  

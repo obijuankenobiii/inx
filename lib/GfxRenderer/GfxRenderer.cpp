@@ -367,11 +367,11 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
                                        const std::function<void()>& drawPlane, const bool fastQuality) {
-  setRenderMode(quality ? GRAY2I_LSB : GRAYSCALE_LSB);
+  setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
   drawPlane();
   copyGrayscaleLsbBuffers();
 
-  setRenderMode(quality ? GRAY2I_MSB : GRAYSCALE_MSB);
+  setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
   drawPlane();
   copyGrayscaleMsbBuffers();
 
