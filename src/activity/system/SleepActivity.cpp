@@ -59,7 +59,7 @@ ImageRenderMode sleepImageRenderMode() {
 }
 
 void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePath,
-                               const ImageRender::Options& baseOptions) {
+                               const ImageRender::Options& baseOptions, const bool allowQuality = true) {
   if (!sleepTwoBitEnabled()) {
     return;
   }
@@ -67,7 +67,9 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
   options.useDisplayCache = true;
-  const bool quality = sleepImageQualityEnabled();
+  // Transparent overlays cap at MEDIUM (allowQuality=false): the HIGH quality LUT can't composite over existing
+  // content, so HIGH transparent removes the background instead (see renderTransparentSleepScreen).
+  const bool quality = allowQuality && sleepImageQualityEnabled();
   options.quality = quality;
 
   ImageRender::create(renderer, imagePath)
@@ -276,15 +278,21 @@ void SleepActivity::renderTransparentSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     recordSleepImageUsed();
+    // Transparent overlays only work at LOW/MEDIUM. At HIGH the quality LUT can't composite over the existing
+    // screen, so remove the background (clear to white) and render the image opaque instead.
+    const bool removeBackground = sleepImageQualityEnabled();
     if (isSleepImagePathJpeg(imagePath)) {
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
       options.useDisplayCache = false;
+      if (removeBackground) {
+        renderer.clearScreen();
+      }
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-        runSleepImageTwoBitPasses(renderer, imagePath, options);
+        runSleepImageTwoBitPasses(renderer, imagePath, options, /*allowQuality=*/false);
         return;
       }
     }
@@ -292,6 +300,9 @@ void SleepActivity::renderTransparentSleepScreen() const {
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        if (removeBackground) {
+          renderer.clearScreen();
+        }
         renderer.bitmap.transparent(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         return;
