@@ -149,7 +149,7 @@ void SyncActivity::render() const {
         renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      constexpr int kIconSize = 40;
+      constexpr int kIconSize = 30;
       const int textX = 70;
       const int iconX = (textX - kIconSize) / 2;
       const int titleY =
