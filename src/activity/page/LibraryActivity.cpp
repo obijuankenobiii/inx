@@ -1216,7 +1216,6 @@ drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndex
 
   if (isIndexing_) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Refreshing library");
-    showIndexingPopup();
   } else {
     renderLibraryList(gridStartY);
     drawButtonHints();
@@ -1369,10 +1368,6 @@ void LibraryActivity::startLibraryIndexing() {
     isIndexing_ = false;
     updateRequired = true;
   }
-}
-
-void LibraryActivity::showIndexingPopup() const {
-  ScreenComponents::drawPopup(renderer, "Indexing");
 }
 
 /**

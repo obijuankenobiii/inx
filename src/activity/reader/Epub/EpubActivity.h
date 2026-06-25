@@ -205,8 +205,6 @@ private:
     /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
     void onBookmarkDrawerSelected(int storageIndex);
 
-    /** User picked a footnote line from the reader menu drawer. */
-    void onFootnoteDrawerSelected(int storageIndex);
 
     /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
     void onAnnotationDrawerSelected(int storageIndex);

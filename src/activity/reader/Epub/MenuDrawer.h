@@ -23,7 +23,6 @@ public:
     enum class MenuAction {
         SHOW_BOOKMARKS,
         SHOW_ANNOTATIONS,
-        SHOW_FOOTNOTES,
         SELECT_CHAPTER,
         GO_TO_PERCENT,
         KOREADER_SYNC,
@@ -48,8 +47,6 @@ public:
     using BookmarkListProvider = std::function<std::vector<BookmarkNavItem>()>;
     using BookmarkSelectCallback = std::function<void(int storageIndex)>;
     using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
-    using FootnoteListProvider = std::function<std::vector<BookmarkNavItem>()>;
-    using FootnoteSelectCallback = std::function<void(int storageIndex)>;
     using AnnotationListProvider = std::function<std::vector<BookmarkNavItem>()>;
     using AnnotationSelectCallback = std::function<void(int storageIndex)>;
 
@@ -123,10 +120,6 @@ public:
 
     void setBookmarkDeleteCallback(BookmarkDeleteCallback callback) { bookmarkDeleteCallback = std::move(callback); }
 
-    void setFootnoteListProvider(FootnoteListProvider provider) { footnoteListProvider = std::move(provider); }
-
-    void setFootnoteSelectCallback(FootnoteSelectCallback callback) { footnoteSelectCallback = std::move(callback); }
-
     void setAnnotationListProvider(AnnotationListProvider provider) { annotationListProvider = std::move(provider); }
 
     void setAnnotationSelectCallback(AnnotationSelectCallback callback) { annotationSelectCallback = std::move(callback); }
@@ -170,8 +163,6 @@ private:
 
     void renderBookmarks();
 
-    void renderFootnotes();
-
     void renderAnnotations();
 
     void refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator);
@@ -189,8 +180,6 @@ private:
 
     void handleBookmarksInput(const MappedInputManager& input);
 
-    void handleFootnotesInput(const MappedInputManager& input);
-
     void handleAnnotationsInput(const MappedInputManager& input);
 
     /**
@@ -199,8 +188,6 @@ private:
     void exitToc();
 
     void exitBookmarks();
-
-    void exitFootnotes();
 
     void exitAnnotations();
 
@@ -219,8 +206,6 @@ private:
     BookmarkListProvider bookmarkListProvider;
     BookmarkSelectCallback bookmarkSelectCallback;
     BookmarkDeleteCallback bookmarkDeleteCallback;
-    FootnoteListProvider footnoteListProvider;
-    FootnoteSelectCallback footnoteSelectCallback;
     AnnotationListProvider annotationListProvider;
     AnnotationSelectCallback annotationSelectCallback;
     MappedInputManager* mappedInputForHints = nullptr;
@@ -254,7 +239,6 @@ private:
     
     bool showingToc = false;
     bool showingBookmarks = false;
-    bool showingFootnotes = false;
     bool showingAnnotations = false;
     bool isFromToc = false;
     int tocSelectedIndex = 0;
@@ -266,14 +250,11 @@ private:
     void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
     /** Maps back/confirm/left/right semantics via Navigation → Button Layout (see MappedInputManager::mapLabels). */
     void drawMappedButtonHints(const char* back, const char* confirm, const char* previous, const char* next);
-    /** Same as drawMappedButtonHints plus Next & Previous Mapping + drawer orientation (TOC / footnotes lists). */
+    /** Same as drawMappedButtonHints plus Next & Previous Mapping + drawer orientation (TOC list). */
     void drawMappedReaderNavHints(const char* back, const char* confirm, const char* prevSym, const char* nextSym);
 
     std::vector<BookmarkNavItem> bookmarkEntries;
     int bookmarkSelectedIndex = 0;
-
-    std::vector<BookmarkNavItem> footnoteEntries;
-    int footnoteSelectedIndex = 0;
 
     std::vector<BookmarkNavItem> annotationEntries;
     int annotationSelectedIndex = 0;

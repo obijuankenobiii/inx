@@ -1032,48 +1032,6 @@ void EpubActivity::goToAnnotationPage(int spine, int page) {
   updateRequired = true;
 }
 
-void EpubActivity::onFootnoteDrawerSelected(int storageIndex) {
-  toggleMenuDrawer();
-  if (!epub || storageIndex < 0) {
-    startPageTimer();
-    return;
-  }
-  const std::string path = epub->getCachePath() + "/sections/" + std::to_string(currentSpineIndex) + ".footnotes";
-  if (!SdMan.exists(path.c_str())) {
-    startPageTimer();
-    return;
-  }
-  const String raw = SdMan.readFile(path.c_str());
-  const std::string content(raw.c_str(), raw.length());
-  std::vector<std::string> lines;
-  size_t pos = 0;
-  while (pos < content.size()) {
-    size_t end = content.find_first_of("\r\n", pos);
-    const std::string line = (end == std::string::npos) ? content.substr(pos) : content.substr(pos, end - pos);
-    if (!line.empty()) {
-      lines.push_back(line);
-    }
-    if (end == std::string::npos) {
-      break;
-    }
-    pos = end + 1;
-    if (content[end] == '\r' && pos < content.size() && content[pos] == '\n') {
-      ++pos;
-    }
-  }
-  if (storageIndex >= static_cast<int>(lines.size())) {
-    startPageTimer();
-    return;
-  }
-  const std::string& full = lines[static_cast<size_t>(storageIndex)];
-  const size_t tab = full.find('\t');
-  const std::string body = (tab != std::string::npos) ? full.substr(tab + 1) : full;
-  const int maxW = std::max(60, renderer.getScreenWidth() - 40);
-  const std::string shown = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, body.c_str(), maxW);
-  readerPopup(shown.c_str());
-  startPageTimer();
-}
-
 /**
  * @brief Toggles the menu drawer visibility
  */
@@ -1086,8 +1044,6 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::SHOW_BOOKMARKS:
               break;
             case MenuDrawer::MenuAction::SHOW_ANNOTATIONS:
-              break;
-            case MenuDrawer::MenuAction::SHOW_FOOTNOTES:
               break;
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
@@ -1152,41 +1108,6 @@ void EpubActivity::toggleMenuDrawer() {
       });
       menuDrawer->setBookmarkSelectCallback([this](const int storageIndex) { onBookmarkDrawerSelected(storageIndex); });
       menuDrawer->setBookmarkDeleteCallback([this](const int storageIndex) { removeBookmark(storageIndex); });
-      menuDrawer->setFootnoteListProvider([this]() {
-        std::vector<MenuDrawer::BookmarkNavItem> rows;
-        if (!epub) {
-          return rows;
-        }
-        const std::string path = epub->getCachePath() + "/sections/" + std::to_string(currentSpineIndex) + ".footnotes";
-        if (!SdMan.exists(path.c_str())) {
-          return rows;
-        }
-        const String raw = SdMan.readFile(path.c_str());
-        const std::string content(raw.c_str(), raw.length());
-        size_t pos = 0;
-        while (pos < content.size()) {
-          size_t end = content.find_first_of("\r\n", pos);
-          const std::string line = (end == std::string::npos) ? content.substr(pos) : content.substr(pos, end - pos);
-          if (!line.empty()) {
-            const size_t tab = line.find('\t');
-            const std::string preview = (tab != std::string::npos) ? line.substr(tab + 1) : line;
-            MenuDrawer::BookmarkNavItem row;
-            row.label = preview;
-            row.storageIndex = static_cast<int>(rows.size());
-            row.isCurrentPosition = false;
-            rows.push_back(std::move(row));
-          }
-          if (end == std::string::npos) {
-            break;
-          }
-          pos = end + 1;
-          if (content[end] == '\r' && pos < content.size() && content[pos] == '\n') {
-            ++pos;
-          }
-        }
-        return rows;
-      });
-      menuDrawer->setFootnoteSelectCallback([this](const int storageIndex) { onFootnoteDrawerSelected(storageIndex); });
       menuDrawer->setAnnotationListProvider([this]() {
         std::vector<MenuDrawer::BookmarkNavItem> rows;
         if (!epub) {
