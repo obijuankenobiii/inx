@@ -86,12 +86,21 @@ void CategorySettingsActivity::onEnter() {
 void CategorySettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
+  // The display task holds renderingMutex across the whole render() — including the long displayBuffer() SPI/panel
+  // transaction. Deleting it mid-render aborts that transaction, leaving the panel stuck on the half-written
+  // settings frame (which then ghosts onto later screens). Take the mutex first so we block until the task has
+  // finished its current frame and is idle, then delete it safely between frames.
+  if (renderingMutex) {
+    xSemaphoreTake(renderingMutex, portMAX_DELAY);
+  }
+
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
 
   if (renderingMutex) {
+    xSemaphoreGive(renderingMutex);
     vSemaphoreDelete(renderingMutex);
     renderingMutex = nullptr;
   }
