@@ -1228,6 +1228,10 @@ void EpubActivity::deleteCache() {
   cachedSpineIndex = 0;
   cachedChapterTotalPageCount = 0;
 
+  // Drop epub before leaving: otherwise onExit() (run via onGoBack) sees a live epub and re-sets
+  // APP_STATE.lastRead = epub->getPath() (and re-adds to recents), undoing the cleanup above.
+  epub.reset();
+
   onGoBack();
 }
 
