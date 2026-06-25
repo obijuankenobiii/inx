@@ -312,11 +312,13 @@ std::string LibraryActivity::getBaseFilename(const std::string& filename) const 
  * @return Header text string
  */
 std::string LibraryActivity::getHeaderText() const {
+  // Index mode adds a refresh button to the header; shorten the text so it doesn't overlap it.
+  const size_t maxLen = shouldShowIndexButton() ? 22 : 25;
   if (currentViewMode == ViewMode::TAG_VIEW) {
     if (selectedTagKey_.empty()) {
       return "Categories";
     }
-    return selectedTagKey_ == TAG_UNTAGGED_KEY ? TAG_UNTAGGED_LABEL : truncateTextIfNeeded(selectedTagKey_, 25);
+    return selectedTagKey_ == TAG_UNTAGGED_KEY ? TAG_UNTAGGED_LABEL : truncateTextIfNeeded(selectedTagKey_, maxLen);
   }
 
   if (currentViewMode == ViewMode::SHELF_VIEW) {
@@ -329,7 +331,7 @@ std::string LibraryActivity::getHeaderText() const {
 
   std::string folderName = extractFolderName(basepath);
   std::string header = formatFolderName(folderName);
-  return truncateTextIfNeeded(header, 25);
+  return truncateTextIfNeeded(header, maxLen);
 }
 
 /**
@@ -436,7 +438,7 @@ void LibraryActivity::drawButtonHints() const {
   if (currentViewMode == ViewMode::TAG_VIEW) {
     back = selectedTagKey_.empty() ? "Shelf »" : "« Tags";
   } else if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-    back = SETTINGS.useLibraryIndex ? "Tags »" : "Shelf »";
+    back = SETTINGS.useLibraryIndex ? "Tags »" : "Groups »";
   } else if (currentViewMode == ViewMode::SHELF_VIEW) {
     back = "« Groups";
   } else {
@@ -1468,7 +1470,9 @@ void LibraryActivity::goToPreviousPage() {
 
     currentPage--;
     loadAllBooksRecursiveLocked();
-    selectorIndex = 0;
+    // Land on the LAST item of the previous page (not the first): the user pressed up off the top item, so
+    // continuing onto the bottom of the previous page reads naturally.
+    selectorIndex = std::max(0, static_cast<int>(currentPageItems.size()) - 1);
     listScrollOffset = 0;
     updateRequired = true;
   }
