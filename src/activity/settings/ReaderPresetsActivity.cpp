@@ -144,9 +144,11 @@ void ReaderPresetsActivity::renderOverlay() {
   renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
 
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, boxY + 12, title.c_str(), true,
+  const int overlayHeaderH = 40;
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2 - 1;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true,
                        EpdFontFamily::BOLD);
-  renderer.line.render(boxX, boxY + 40, boxX + boxW, boxY + 40, true);
+  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
   for (size_t i = 0; i < options.size(); i++) {
     const int rowY = boxY + 42 + static_cast<int>(i) * rowH;
@@ -295,6 +297,12 @@ void ReaderPresetsActivity::loop() {
       subFinished_ = false;
       finishSubActivity();
     }
+    return;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     return;
   }
 

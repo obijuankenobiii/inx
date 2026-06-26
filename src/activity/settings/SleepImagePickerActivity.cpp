@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <iterator>
 
 #include "state/SystemSetting.h"
@@ -20,13 +22,23 @@
 #include "util/StringUtils.h"
 
 namespace {
-// Preview image occupies 70% of the screen, centered, like a single-item carousel.
-constexpr int PREVIEW_PERCENT = 70;
+constexpr int GRID_COLS = 2;
+constexpr int GRID_ROWS = 3;
+constexpr int GRID_ITEMS = GRID_COLS * GRID_ROWS;
+constexpr int GRID_MARGIN_X = 18;
+constexpr int GRID_GAP_X = 12;
+constexpr int GRID_GAP_Y = 12;
+constexpr int GRID_TOP = 32;
+constexpr int THUMB_INSET_X = 18;
+constexpr int THUMB_INSET_Y = 12;
+constexpr int RANDOM_BUTTON_W = 178;
+constexpr int RANDOM_BUTTON_H = 28;
 
 }  
 
 void SleepImagePickerActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
+  freeGridBuffer();
   rebuildRows();
 
   randomEnabled = SETTINGS.sleepCustomBmp[0] == '\0';
@@ -38,6 +50,7 @@ void SleepImagePickerActivity::onEnter() {
     }
   }
 
+  renderedPageStart = -1;
   requestRedraw();
 }
 
@@ -77,81 +90,241 @@ void SleepImagePickerActivity::rebuildRows() {
 }
 
 void SleepImagePickerActivity::onExit() {
+  renderedPageStart = -1;
+  freeGridBuffer();
   ActivityWithSubactivity::onExit();
 }
 
-void SleepImagePickerActivity::render() {
+int SleepImagePickerActivity::pageStartForIndex(const int index) const {
+  if (index <= 0) {
+    return 0;
+  }
+  return (index / GRID_ITEMS) * GRID_ITEMS;
+}
+
+int SleepImagePickerActivity::indexForSlot(const int pageStart, const int slot) const {
+  return pageStart + slot;
+}
+
+int SleepImagePickerActivity::slotForIndex(const int pageStart, const int index) const {
+  const int offset = index - pageStart;
+  if (offset < 0 || offset >= GRID_ITEMS) {
+    return -1;
+  }
+  return offset;
+}
+
+void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int rowCount, const bool hasImages,
+                                                const bool localRandomEnabled, const bool drawCells) {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
+  const int buttonX = (pageWidth - RANDOM_BUTTON_W) / 2;
+  const int buttonY = pageHeight - 76;
+  const int gridBottom = buttonY - 14;
+  const int gridHeight = std::max(1, gridBottom - GRID_TOP);
+  const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
+  const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
 
-  const int rowCount = static_cast<int>(rows.size());
-  int localSelectedIndex = selectedIndex;
-  if (localSelectedIndex < 0) {
-    localSelectedIndex = 0;
-  }
-  if (rowCount > 0 && localSelectedIndex >= rowCount) {
-    localSelectedIndex = rowCount - 1;
-  }
-  const bool localRandomEnabled = randomEnabled;
-
-  renderer.clearScreen();
-
-  const bool hasImages = rowCount > 0;
-  const Row* row = hasImages ? &rows[static_cast<size_t>(localSelectedIndex)] : nullptr;
-
-  // Centered preview occupying PREVIEW_PERCENT of the screen.
-  const int previewW = pageWidth * PREVIEW_PERCENT / 100;
-  const int previewH = pageHeight * PREVIEW_PERCENT / 100;
-  const int previewX = (pageWidth - previewW) / 2;
-  const int previewY = (pageHeight - previewH) / 2;
-
-  bool rendered = false;
-  if (row != nullptr && !row->previewPath.empty()) {
-    ImageRender::Options options;
-    options.mode = ImageRenderMode::OneBit;
-    options.cropToFill = true;
-    options.useDisplayCache = true;
-    rendered =
-        ImageRender::create(renderer, row->previewPath).render(previewX, previewY, previewW, previewH, options);
-  }
-
-  if (rendered) {
-    renderer.rectangle.render(previewX - 1, previewY - 1, previewW + 2, previewH + 2, true);
-  } else {
-    renderer.rectangle.render(previewX, previewY, previewW, previewH, true);
-    const char* msg = hasImages ? "No preview" : "No sleep images";
-    const int msgFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-    const int msgW = renderer.text.getWidth(msgFont, msg);
-    renderer.text.render(msgFont, previewX + (previewW - msgW) / 2,
-                         previewY + (previewH - renderer.text.getLineHeight(msgFont)) / 2, msg, true);
-  }
-
-  renderer.rectangle.fill(0, 0, pageWidth, 24, false);
+  renderer.rectangle.fill(0, 0, pageWidth, 26, false);
   if (hasImages) {
-    char countText[8];
-    std::snprintf(countText, sizeof(countText), "%d/%d", localSelectedIndex + 1, rowCount);
+    char countText[16];
+    std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, rowCount);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
                          pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8,
                          6, countText, true);
   }
 
-  const int buttonW = 178;
-  const int buttonH = 28;
-  const int buttonX = (pageWidth - buttonW) / 2;
-  const int buttonY = std::min(pageHeight - 52, previewY + previewH + 16);
-  renderer.rectangle.fill(buttonX, buttonY, buttonW, buttonH, false);
-  renderer.rectangle.render(buttonX, buttonY, buttonW, buttonH, true);
+  if (hasImages && drawCells) {
+    for (int slot = 0; slot < GRID_ITEMS; ++slot) {
+      const int rowIndex = indexForSlot(pageStart, slot);
+      const int col = slot % GRID_COLS;
+      const int gridRow = slot / GRID_COLS;
+      const int cellX = GRID_MARGIN_X + col * (cellW + GRID_GAP_X);
+      const int cellY = GRID_TOP + gridRow * (cellH + GRID_GAP_Y);
+
+      if (rowIndex >= rowCount) {
+        continue;
+      }
+
+      renderer.rectangle.fill(cellX, cellY, cellW, cellH, false);
+      renderer.rectangle.render(cellX, cellY, cellW, cellH, true);
+    }
+  } else if (!hasImages) {
+    const int emptyX = GRID_MARGIN_X;
+    const int emptyY = GRID_TOP;
+    const int emptyW = pageWidth - GRID_MARGIN_X * 2;
+    const int emptyH = gridBottom - GRID_TOP;
+    renderer.rectangle.render(emptyX, emptyY, emptyW, emptyH, true);
+    const char* msg = "No sleep images";
+    const int msgFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int msgW = renderer.text.getWidth(msgFont, msg);
+    renderer.text.render(msgFont, emptyX + (emptyW - msgW) / 2,
+                         emptyY + (emptyH - renderer.text.getLineHeight(msgFont)) / 2, msg, true);
+  }
+
+  renderer.rectangle.fill(buttonX, buttonY, RANDOM_BUTTON_W, RANDOM_BUTTON_H, false);
+  renderer.rectangle.render(buttonX, buttonY, RANDOM_BUTTON_W, RANDOM_BUTTON_H, true);
   const char* buttonText = localRandomEnabled ? "Random: On" : "Random: Off";
   const int buttonTextW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, buttonText);
-  const int buttonTextX = buttonX + (buttonW - buttonTextW) / 2;
+  const int buttonTextX = buttonX + (RANDOM_BUTTON_W - buttonTextW) / 2;
   const int buttonTextY =
-      buttonY + (buttonH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      buttonY + (RANDOM_BUTTON_H - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, buttonTextX, buttonTextY, buttonText, true,
                        EpdFontFamily::BOLD);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "Random", "Next");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  renderer.displayBuffer();
+}
+
+void SleepImagePickerActivity::drawPickerThumbnails(const int pageStart, const int rowCount) {
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int buttonY = pageHeight - 76;
+  const int gridBottom = buttonY - 14;
+  const int gridHeight = std::max(1, gridBottom - GRID_TOP);
+  const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
+  const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
+
+  for (int slot = 0; slot < GRID_ITEMS; ++slot) {
+    const int rowIndex = indexForSlot(pageStart, slot);
+    if (rowIndex >= rowCount) {
+      continue;
+    }
+
+    const int col = slot % GRID_COLS;
+    const int gridRow = slot / GRID_COLS;
+    const int cellX = GRID_MARGIN_X + col * (cellW + GRID_GAP_X);
+    const int cellY = GRID_TOP + gridRow * (cellH + GRID_GAP_Y);
+
+    bool rendered = false;
+    const Row& row = rows[static_cast<size_t>(rowIndex)];
+    if (!row.previewPath.empty()) {
+      ImageRender::Options options;
+      options.mode = ImageRenderMode::OneBit;
+      options.cropToFill = false;
+      options.useDisplayCache = true;
+      const int thumbX = cellX + THUMB_INSET_X;
+      const int thumbY = cellY + THUMB_INSET_Y;
+      const int thumbW = std::max(8, cellW - THUMB_INSET_X * 2);
+      const int thumbH = std::max(8, cellH - THUMB_INSET_Y * 2);
+      rendered = ImageRender::create(renderer, row.previewPath).render(thumbX, thumbY, thumbW, thumbH, options);
+    }
+
+    if (!rendered) {
+      const char* msg = "No preview";
+      const int msgFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+      const int msgW = renderer.text.getWidth(msgFont, msg);
+      renderer.text.render(msgFont, cellX + (cellW - msgW) / 2,
+                           cellY + (cellH - renderer.text.getLineHeight(msgFont)) / 2, msg, true);
+    }
+
+    renderer.rectangle.render(cellX, cellY, cellW, cellH, true);
+  }
+}
+
+void SleepImagePickerActivity::drawSelectionFrame(const int pageStart, const int rowCount, const int index) {
+  if (index < 0 || index >= rowCount) {
+    return;
+  }
+  const int slot = slotForIndex(pageStart, index);
+  if (slot < 0) {
+    return;
+  }
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int buttonY = pageHeight - 76;
+  const int gridBottom = buttonY - 14;
+  const int gridHeight = std::max(1, gridBottom - GRID_TOP);
+  const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
+  const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
+  const int col = slot % GRID_COLS;
+  const int gridRow = slot / GRID_COLS;
+  const int cellX = GRID_MARGIN_X + col * (cellW + GRID_GAP_X);
+  const int cellY = GRID_TOP + gridRow * (cellH + GRID_GAP_Y);
+  renderer.rectangle.render(cellX + 1, cellY + 1, cellW - 2, cellH - 2, true);
+  renderer.rectangle.render(cellX + 2, cellY + 2, cellW - 4, cellH - 4, true);
+}
+
+bool SleepImagePickerActivity::storeGridBuffer(const int pageStart) {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  freeGridBuffer();
+
+  const size_t bufferSize = renderer.getBufferSize();
+  gridBuffer = static_cast<uint8_t*>(malloc(bufferSize));
+  if (!gridBuffer) {
+    return false;
+  }
+
+  memcpy(gridBuffer, frameBuffer, bufferSize);
+  gridBufferStored = true;
+  gridBufferPageStart = pageStart;
+  return true;
+}
+
+bool SleepImagePickerActivity::restoreGridBuffer(const int pageStart) {
+  if (!gridBufferStored || !gridBuffer || gridBufferPageStart != pageStart) {
+    return false;
+  }
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  const size_t bufferSize = renderer.getBufferSize();
+  memcpy(frameBuffer, gridBuffer, bufferSize);
+  return true;
+}
+
+void SleepImagePickerActivity::freeGridBuffer() {
+  if (gridBuffer) {
+    free(gridBuffer);
+    gridBuffer = nullptr;
+  }
+  gridBufferStored = false;
+  gridBufferPageStart = -1;
+}
+
+void SleepImagePickerActivity::render() {
+  const int rowCount = static_cast<int>(rows.size());
+  if (selectedIndex < 0) {
+    selectedIndex = 0;
+  }
+  if (rowCount > 0 && selectedIndex >= rowCount) {
+    selectedIndex = rowCount - 1;
+  }
+  const bool hasImages = rowCount > 0;
+  const int pageStart = hasImages ? pageStartForIndex(selectedIndex) : 0;
+  const bool lazyFirstPass = hasImages && renderedPageStart != pageStart;
+  const bool pageChangedAfterInitial = hasImages && renderedPageStart >= 0 && renderedPageStart != pageStart;
+
+  if (hasImages && restoreGridBuffer(pageStart)) {
+    drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled, false);
+    drawSelectionFrame(pageStart, rowCount, selectedIndex);
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderedPageStart = pageStart;
+    return;
+  }
+
+  renderer.clearScreen();
+  drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled);
+  if (lazyFirstPass || !hasImages) {
+    renderer.displayBuffer();
+  }
+
+  if (hasImages) {
+    renderer.clearScreen();
+    drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled);
+    drawPickerThumbnails(pageStart, rowCount);
+    storeGridBuffer(pageStart);
+    drawSelectionFrame(pageStart, rowCount, selectedIndex);
+    renderer.displayBuffer(pageChangedAfterInitial ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+    renderedPageStart = pageStart;
+  }
 }
 
 void SleepImagePickerActivity::applySelection() {
@@ -194,6 +367,13 @@ void SleepImagePickerActivity::loop() {
     render();
   }
 
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
+    requestRedraw();
+    return;
+  }
+
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     onBack();
     return;
@@ -207,17 +387,21 @@ void SleepImagePickerActivity::loop() {
 
   bool needRedraw = false;
 
-  if (mappedInput.wasPressed(MenuNav::tabPrev())) {
+  const bool randomPressed = mappedInput.wasPressed(MenuNav::tabPrev());
+  const bool upPressed = mappedInput.wasPressed(MenuNav::itemPrev());
+  const bool downPressed = mappedInput.wasPressed(MenuNav::itemNext());
+  const bool nextPressed = mappedInput.wasPressed(MenuNav::tabNext());
+
+  if (randomPressed) {
     randomEnabled = !randomEnabled;
     SETTINGS.setSleepCustomBmpFromInput(randomEnabled ? "" : (rows.empty() ? "" : rows[static_cast<size_t>(selectedIndex)].value.c_str()));
     SETTINGS.saveToFile();
+    renderedPageStart = -1;
+    freeGridBuffer();
     needRedraw = true;
-  } else if (!rows.empty() &&
-             (mappedInput.wasPressed(MenuNav::itemPrev()) ||
-              mappedInput.wasPressed(MenuNav::itemNext()) ||
-              mappedInput.wasPressed(MenuNav::tabNext()))) {
+  } else if (!rows.empty() && (upPressed || downPressed || nextPressed)) {
     const int count = static_cast<int>(rows.size());
-    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
+    if (upPressed) {
       selectedIndex = (selectedIndex + count - 1) % count;
     } else {
       selectedIndex = (selectedIndex + 1) % count;
