@@ -199,7 +199,8 @@ void SleepActivity::onEnter() {
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
     renderer.clearScreen(0Xff);
-    renderer.displayBuffer();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
   switch (SETTINGS.sleepScreen) {

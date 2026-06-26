@@ -1750,67 +1750,36 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
-  // 1-bit (LOW / non-grayscale) images render straight into the page with the text in a single pass — let
-  // page->render draw them (skipImages=false). Grayscale modes skip them here (skipImages=true) and handle the
-  // image separately below. This avoids a redundant second image render for the 1-bit case.
-  const bool skipImagesInPageRender = needsImageGrayscale;
+  const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
                imageMode);
-
-  // For grayscale modes the image must be present in the BW frame BEFORE storeBwBuffer so the stored frame —
-  // which becomes the differential baseline (RED RAM) after the grayscale pass — includes the image; otherwise
-  // the baseline is text-only and the image never diffs away on later pages (ghosts / never clears).
-  //  - MEDIUM: render the real 1-bit image (it's also what the flash shows + the base medium refines).
-  //  - HIGH: don't decode it here (HIGH hides the 1-bit image from the flash and draws the gray image in the
-  //    quality pass) — just mark each image's own rect dark so the baseline still clears it (per-image, never
-  //    the union bounding box, so text between two images on the same page is not covered).
-  //  - LOW: nothing to do — page->render already drew the 1-bit image with the text above.
-  if (pageHasImages) {
-    if (highQuality) {
-      page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true);  // mark each image rect dark
-    } else if (needsImageGrayscale) {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-    }
-  }
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
   }
 
-  bool didHalfRefresh = false;
-  // Only grayscale pages need the BW shadow (to rebuild from it through the gray pass + rebase the baseline).
-  // Text pages and LOW image pages don't — skip the ~48KB alloc/copy + RED-RAM SPI write so they stay fast.
-  const bool bwStored = needsImageGrayscale && renderer.storeBwBuffer();  // text + image -> clearing baseline
-  if (highQuality) {
-    page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
-    renderer.displayBuffer();
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;  // the quality refresh is a full refresh
-  } else {
-    // MEDIUM/LOW: the text + 1-bit image (already in the frame) appear together in one flash.
-    if (pagesUntilFullRefresh <= 1) {
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      pagesUntilFullRefresh = bookSettings.refreshFrequency;
-      didHalfRefresh = true;
-    } else {
-      renderer.displayBuffer();
-      pagesUntilFullRefresh--;
-    }
+  if (pageHasImages && needsImageGrayscale && !highQuality) {
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   }
 
-  if (highQuality && bwStored) {
-    // HIGH: quality grayscale via the centralized GRAY2 render path.
-    ImageRender::displayGrayscale(
-        renderer, /*quality=*/true, /*preserveText=*/true,
-        [&] {
-          renderer.copyStoredBwToFramebuffer();
-          renderer.invertScreen();
-          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
-          page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
-        });
+  if (pagesUntilFullRefresh <= 1) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    pagesUntilFullRefresh = bookSettings.refreshFrequency;
+  } else {
+    renderer.displayBuffer();
+    pagesUntilFullRefresh--;
+  }
 
+  const bool bwStored = skipImagesInPageRender && renderer.storeBwBuffer();
+  if (highQuality && bwStored) {
+    ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {
+      page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
+      renderer.copyStoredBwToFramebuffer();
+      renderer.invertScreen();
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
+    });
   } else if (needsImageGrayscale) {
-    // MEDIUM: refine the 1-bit image (already on screen) to grays via the lut_grayscale overlay; text held.
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
       renderer.clearScreen(0x00);
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);

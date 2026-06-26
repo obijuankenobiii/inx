@@ -1095,11 +1095,9 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
   }
 
   drawGrayscale = false;
-  // Always mark grayscale mode so the NEXT displayBuffer() reverts the panel out of grayscale first.
-  // (Previously the quality path set this false, so the lingering grayscale image was never reverted and
-  // the next BW refresh drew over it -> "stale BW mode" wrong colors. Medium worked only because it set
-  // this true.)
-  inGrayscaleMode = true;
+  // The medium grayscale LUT owns lut_grayscale_revert. X4 quality uses lut_x4_quality and must not leave
+  // displayBuffer() queued to run the medium revert on the next page/sleep render.
+  inGrayscaleMode = !quality;
 
   const unsigned char* selectedLut = lutData ? lutData : (quality ? lut_x4_quality : lut_grayscale);
   if (Serial) Serial.printf("[%lu]   X4_GRAY_MODE=%s\n", millis(), quality ? "quality" : "reader");
