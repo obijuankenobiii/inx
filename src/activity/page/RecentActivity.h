@@ -6,6 +6,7 @@
  */
 
 #include <functional>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -240,6 +241,7 @@ class RecentActivity final : public Activity, public Menu {
         onGoToRecent(onGoToRecent),
         hasRandomFavorite(false)
      {}
+  ~RecentActivity() override;
 
  private:
   void drawListStatsStrip(int bandX, int bandY, int bandW, int bandH, int hScroll, int count,
@@ -248,6 +250,12 @@ class RecentActivity final : public Activity, public Menu {
                           const std::function<bool(int)>& selectedAt);
 
   bool firstRender = true;
+  bool suppressBufferedSelection_ = false;
+  uint8_t* recentPageBuffer_ = nullptr;
+  bool recentPageBufferStored_ = false;
+  ViewMode recentPageBufferMode_ = ViewMode::Flow;
+  int recentPageBufferScrollOffset_ = -1;
+  int recentPageBufferBookCount_ = -1;
 
   void onEnter() override;
   void onExit() override;
@@ -257,4 +265,9 @@ class RecentActivity final : public Activity, public Menu {
   bool hasRandomFavorite;
 
   void clampSimpleUiFavoriteScroll(int maxVisibleFavs);
+  bool canUseRecentPageBuffer() const;
+  bool storeRecentPageBuffer();
+  bool restoreRecentPageBuffer();
+  void freeRecentPageBuffer();
+  void drawBufferedSelectionOverlay();
 };

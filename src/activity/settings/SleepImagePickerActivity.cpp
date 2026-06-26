@@ -33,6 +33,7 @@ constexpr int THUMB_INSET_X = 18;
 constexpr int THUMB_INSET_Y = 12;
 constexpr int RANDOM_BUTTON_W = 178;
 constexpr int RANDOM_BUTTON_H = 28;
+constexpr int FOOTER_SIDE_PAD = 20;
 
 }  
 
@@ -118,7 +119,7 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
                                                 const bool localRandomEnabled, const bool drawCells) {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
-  const int buttonX = (pageWidth - RANDOM_BUTTON_W) / 2;
+  const int buttonX = pageWidth - RANDOM_BUTTON_W - FOOTER_SIDE_PAD;
   const int buttonY = pageHeight - 76;
   const int gridBottom = buttonY - 14;
   const int gridHeight = std::max(1, gridBottom - GRID_TOP);
@@ -126,13 +127,6 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
   const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
 
   renderer.rectangle.fill(0, 0, pageWidth, 26, false);
-  if (hasImages) {
-    char countText[16];
-    std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, rowCount);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
-                         pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8,
-                         6, countText, true);
-  }
 
   if (hasImages && drawCells) {
     for (int slot = 0; slot < GRID_ITEMS; ++slot) {
@@ -160,6 +154,25 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
     const int msgW = renderer.text.getWidth(msgFont, msg);
     renderer.text.render(msgFont, emptyX + (emptyW - msgW) / 2,
                          emptyY + (emptyH - renderer.text.getLineHeight(msgFont)) / 2, msg, true);
+  }
+
+  if (hasImages) {
+    const int totalPages = std::max(1, (rowCount + GRID_ITEMS - 1) / GRID_ITEMS);
+    const int currentPage = std::min(totalPages, pageStart / GRID_ITEMS + 1);
+    char pageText[16];
+    std::snprintf(pageText, sizeof(pageText), "%d - %d", currentPage, totalPages);
+
+    const int pageFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int pagePadX = 8;
+    const int pageTextW = renderer.text.getWidth(pageFont, pageText);
+    const int pageLineH = renderer.text.getLineHeight(pageFont);
+    const int pageTagH = pageLineH + 6;
+    const int pageTagW = pageTextW + pagePadX * 2;
+    const int pageTagX = FOOTER_SIDE_PAD;
+    const int pageTagY = buttonY + (RANDOM_BUTTON_H - pageTagH) / 2;
+    renderer.rectangle.fill(pageTagX, pageTagY, pageTagW, pageTagH, true, true);
+    renderer.text.render(pageFont, pageTagX + pagePadX, pageTagY + (pageTagH - pageLineH) / 2, pageText, false,
+                         EpdFontFamily::REGULAR);
   }
 
   renderer.rectangle.fill(buttonX, buttonY, RANDOM_BUTTON_W, RANDOM_BUTTON_H, false);
@@ -300,12 +313,12 @@ void SleepImagePickerActivity::render() {
   const bool hasImages = rowCount > 0;
   const int pageStart = hasImages ? pageStartForIndex(selectedIndex) : 0;
   const bool lazyFirstPass = hasImages && renderedPageStart != pageStart;
-  const bool pageChangedAfterInitial = hasImages && renderedPageStart >= 0 && renderedPageStart != pageStart;
+  const bool pageNeedsHalfRefresh = hasImages && renderedPageStart != pageStart;
 
   if (hasImages && restoreGridBuffer(pageStart)) {
     drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled, false);
     drawSelectionFrame(pageStart, rowCount, selectedIndex);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer();
     renderedPageStart = pageStart;
     return;
   }
@@ -313,7 +326,7 @@ void SleepImagePickerActivity::render() {
   renderer.clearScreen();
   drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled);
   if (lazyFirstPass || !hasImages) {
-    renderer.displayBuffer();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
   if (hasImages) {
@@ -322,7 +335,7 @@ void SleepImagePickerActivity::render() {
     drawPickerThumbnails(pageStart, rowCount);
     storeGridBuffer(pageStart);
     drawSelectionFrame(pageStart, rowCount, selectedIndex);
-    renderer.displayBuffer(pageChangedAfterInitial ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer(pageNeedsHalfRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
     renderedPageStart = pageStart;
   }
 }
