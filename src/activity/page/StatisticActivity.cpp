@@ -294,8 +294,8 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   const int yMaxRule = yContentEnd - g.kMetricsH - 2;
   /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax, which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
-  // Lift the whole finished/opened band up a touch so it isn't crowding the button hints below.
-  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 10;
+  // Lift the whole finished/opened band so it clears the button hints below.
+  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) - 10;
   renderer.line.render(innerLeft, yRule, innerRight, yRule, true);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);
@@ -783,8 +783,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
     return;
   }
   const BookReadingStats& b = allBooksStats[static_cast<size_t>(bookIdx)];
-  constexpr int kScreenW = 480;
-  constexpr int kMarginX = 20;
+  constexpr int kMarginX = 30;
   constexpr int g8 = 8;
   constexpr int g10 = 10;
   /** Taller rows than global stats; extra tail height so the pages row sits below the mid divider cleanly. */
@@ -792,9 +791,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   constexpr int kSingleBookStatsLastRowExtraPx = 18;
 
   const int innerLeft = kMarginX;
-  const int innerRight = kScreenW - kMarginX;
+  const int innerRight = renderer.getScreenWidth() - kMarginX;
   const int innerW = innerRight - innerLeft;
-  const int y0 = contentTop + 4;
+  const int y0 = contentTop;
   const int yEnd = contentBottom - 24;
 
   const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
@@ -877,7 +876,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
 
   const char* vals[] = {v0, v1, vSess, vChap, v2, v3};
   const char* labs[] = {"Total hours", "Avg. min/session", "Sessions", "Chapters read", "Pages read", "Pages per min"};
-  drawFourColumnStatsNx2(renderer, innerLeft, yStatsTop + 20, innerW, vals, labs, 3, kSingleBookStatsRowH, 28,
+  drawFourColumnStatsNx2(renderer, innerLeft, yStatsTop + 10, innerW, vals, labs, 3, kSingleBookStatsRowH, 28,
                          kSingleBookStatsLastRowExtraPx);
 
   char footer[24];
@@ -892,7 +891,7 @@ void StatisticActivity::render() {
   constexpr int kHintReserve = 54;
   const int screenH = renderer.getScreenHeight();
   const int contentBottom = screenH - kHintReserve;
-  const int contentTopSingle = TAB_BAR_HEIGHT + 4;
+  const int contentTopSingle = TAB_BAR_HEIGHT;
 
   const int totalViews = 1 + static_cast<int>(allBooksStats.size());
   int v = viewIndex;
@@ -913,9 +912,10 @@ void StatisticActivity::render() {
     GAP = TAB_BAR_HEIGHT + GAP;
     GAP = renderHeader(GAP, innerLeft, innerRight, innerW, Margin);
     GAP = renderRecent(GAP, innerLeft, innerRight, innerW, Margin);
-    GAP = renderFirstGrid(GAP + kMarginX, innerLeft, innerW, Margin);
-    GAP = renderGuage(GAP + kMarginX - 10, innerLeft - 130, innerRight, Margin);
-    renderSecondGrid(GAP + kMarginX, innerLeft, innerRight, contentBottom);
+    constexpr int kMainStatsLiftPx = 10;
+    GAP = renderFirstGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerW, Margin);
+    GAP = renderGuage(GAP + kMarginX - 10 - kMainStatsLiftPx, innerLeft - 130, innerRight, Margin);
+    renderSecondGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerRight, contentBottom);
   } else {
     ensureBookStatsLoaded(v - 1);
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);

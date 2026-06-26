@@ -444,14 +444,12 @@ void MenuDrawer::renderBookmarks() {
 
   drawTocBackground();
 
-  const int headerY = tocDrawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
+                       EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a bookmark to open it";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
@@ -514,14 +512,12 @@ void MenuDrawer::renderAnnotations() {
 
   drawTocBackground();
 
-  const int headerY = tocDrawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true, EpdFontFamily::BOLD);
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
+                       EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a page with highlights";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {

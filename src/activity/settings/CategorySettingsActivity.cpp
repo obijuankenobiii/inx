@@ -781,7 +781,8 @@ void CategorySettingsActivity::renderSelectorOverlay() {
     title = menuItems[selectorSourceIndex].name;
   }
   const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 32, EpdFontFamily::BOLD);
-  renderer.text.render(titleFont, panelX + 16, panelY + 12, shownTitle.c_str(), true, EpdFontFamily::BOLD);
+  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2 - 3;
+  renderer.text.render(titleFont, panelX + 16, titleY, shownTitle.c_str(), true, EpdFontFamily::BOLD);
   renderer.line.render(panelX, panelY + headerHeight - 4, panelX + panelW, panelY + headerHeight - 4, true);
 
   const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - rows);
