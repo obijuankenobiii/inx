@@ -199,8 +199,7 @@ void SleepActivity::onEnter() {
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
     renderer.clearScreen(0Xff);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer(HalDisplay::STRONG_FAST_REFRESH);
   }
 
   switch (SETTINGS.sleepScreen) {
@@ -243,7 +242,6 @@ void SleepActivity::renderCustomSleepScreen() const {
       options.useDisplayCache = true;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-        // Quality does a single full clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
         if (!sleepImageQualityEnabled()) {
           renderer.displayBuffer();
         }
@@ -339,7 +337,6 @@ void SleepActivity::renderCoverSleepScreen() const {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
       }
-      // Quality does a single full clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
       if (!sleepImageQualityEnabled()) {
         renderer.displayBuffer();
       }
