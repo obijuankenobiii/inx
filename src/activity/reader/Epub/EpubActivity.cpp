@@ -1760,7 +1760,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     drawBookmarkIndicator();
   }
 
-  if (pageHasImages && needsImageGrayscale && !highQuality) {
+  if (pageHasImages && !skipImagesInPageRender) {
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   }
 
@@ -1778,7 +1778,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       renderer.copyStoredBwToFramebuffer();
       renderer.invertScreen();
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
-    });
+    }, true);
   } else if (needsImageGrayscale) {
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);

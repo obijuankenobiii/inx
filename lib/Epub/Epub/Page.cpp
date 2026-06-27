@@ -209,6 +209,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   ImageRender::Options options;
   options.mode = imageMode;
   options.quality = quality;
+  options.fastQuality = quality;
   const ImageRender image = ImageRender::create(renderer, cachePath);
   if (!image.render(renderX, renderY, width, height, options)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
