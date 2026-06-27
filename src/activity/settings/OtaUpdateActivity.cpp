@@ -58,6 +58,26 @@ std::string joinSdPath(const char* dirPath, const char* name) {
   return d + "/" + n;
 }
 
+std::string fileNameFromPath(const std::string& path) {
+  const size_t slash = path.find_last_of('/');
+  if (slash == std::string::npos) {
+    return path;
+  }
+  return path.substr(slash + 1);
+}
+
+std::string formatBytes(const size_t bytes) {
+  char buffer[24];
+  if (bytes >= 1024 * 1024) {
+    snprintf(buffer, sizeof(buffer), "%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+  } else if (bytes >= 1024) {
+    snprintf(buffer, sizeof(buffer), "%.1f KB", static_cast<double>(bytes) / 1024.0);
+  } else {
+    snprintf(buffer, sizeof(buffer), "%u B", static_cast<unsigned>(bytes));
+  }
+  return std::string(buffer);
+}
+
 void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, const int bodyTop, const int screenHeight,
                             const float progress, const size_t processedBytes, const size_t totalBytes) {
   const int cardX = kUpdateCardMargin;
@@ -338,8 +358,6 @@ void OtaUpdateActivity::render() {
     }
   } else if (state == WAITING_SD_CONFIRMATION) {
     const std::string& firmwarePath = selectedSdFirmwarePath();
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
-                         ("File: " + firmwarePath).c_str(), true, EpdFontFamily::REGULAR);
     if (!firmwarePath.empty() && SdMan.exists(firmwarePath.c_str())) {
       FsFile file;
       size_t firmwareSize = 0;
@@ -347,16 +365,25 @@ void OtaUpdateActivity::render() {
         firmwareSize = file.size();
         file.close();
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28,
-                           ("Size: " + std::to_string(firmwareSize) + " bytes").c_str(), true,
-                           EpdFontFamily::REGULAR);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 64, "Install this firmware?", true,
-                           EpdFontFamily::BOLD);
+      const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+      const std::string fileName = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                          fileNameFromPath(firmwarePath).c_str(), pageWidth - 56);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "SD FIRMWARE", true,
+                             EpdFontFamily::BOLD);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Install update?", true,
+                             EpdFontFamily::BOLD);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, fileName.c_str(), true,
+                             EpdFontFamily::REGULAR);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 18, formatBytes(firmwareSize).c_str(), true,
+                             EpdFontFamily::REGULAR);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 58,
+                             "Keep the device powered on during install.", true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("Cancel", "Install", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 36, "Firmware file is missing.",
-                           true, EpdFontFamily::REGULAR);
+      const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Firmware file is missing.",
+                             true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }

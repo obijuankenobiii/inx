@@ -278,53 +278,27 @@ void LocalNetworkActivity::render() const {
  * @brief Renders the server running state UI with connection information
  */
 void LocalNetworkActivity::renderServerRunning() const {
-    int screenWidth = renderer.getScreenWidth();
     int startY = TAB_BAR_HEIGHT;
     
     renderActivityHeader(renderer, startY, "Local Network");
 
-    int currentY = startY + SUBTITLE_Y_OFFSET + SECTION_SPACING - 10;
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true, EpdFontFamily::BOLD);
-    currentY += LINE_SPACING;
-    
-    std::string ssidInfo = "WiFi: " + connectedSSID;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, 
-                     truncateString(ssidInfo, 34).c_str());
-    currentY += LINE_SPACING;
-    
-    std::string ipInfo = "IP: " + connectedIP;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                     ipInfo.c_str());
-    currentY += LINE_SPACING * 2;
-
-    renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
-    currentY += SECTION_SPACING;
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Web Access", true, EpdFontFamily::BOLD);
-    currentY += LINE_SPACING;
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                     "Open this URL in your browser:");
-    currentY += SMALL_SPACING;
-    
     std::string ipUrl = "http://" + connectedIP + "/";
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                     ipUrl.c_str(), true, EpdFontFamily::BOLD);
-    currentY += SMALL_SPACING;
-    
-    std::string hostnameUrl = std::string("or http://") + AP_HOSTNAME + ".local/";
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
-                     hostnameUrl.c_str());
-    currentY += SMALL_SPACING + 10;
+    std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
 
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
-                     "Use this address to transfer files");
-    currentY += SMALL_SPACING;
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY,
-                     "from Calibre or web browser");
+    const int bodyTop = startY + SUBTITLE_Y_OFFSET + 95;
+    const int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int titleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    const int bodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+
+    renderer.text.centered(labelFont, bodyTop, "LOCAL TRANSFER", true, EpdFontFamily::BOLD);
+    renderer.text.centered(titleFont, bodyTop + 34, "Ready on WiFi", true, EpdFontFamily::BOLD);
+    renderer.text.centered(bodyFont, bodyTop + 74, truncateString(connectedSSID, 30).c_str());
+
+    const int urlY = bodyTop + 136;
+    renderer.text.centered(labelFont, urlY, "OPEN IN BROWSER", true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, urlY + 32, ipUrl.c_str(), true, EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, urlY + 64, hostnameUrl.c_str());
+
+    const int hintY = renderer.getScreenHeight() - 92;
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, hintY, "Keep this screen open while transferring");
 }
