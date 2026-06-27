@@ -63,6 +63,7 @@ class EInkDisplay {
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
   void displayGrayBuffer(bool turnOffScreen = false, const unsigned char* lutData = nullptr, bool quality = false);
   void displayGrayBufferFastQuality(bool turnOffScreen = false);
+  void prepareQualityGrayscale();
   // Quality grayscale restricted to a pixel rectangle (only those pixels are driven; rest of screen preserved).
   void displayGrayBufferWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const unsigned char* lutData = nullptr);
 

@@ -82,6 +82,8 @@ void HalDisplay::displayGrayBufferFastQuality() {
   einkDisplay.displayGrayBufferFastQuality(false);
 }
 
+void HalDisplay::prepareQualityGrayscale() { einkDisplay.prepareQualityGrayscale(); }
+
 uint16_t HalDisplay::getDisplayWidth() const { return einkDisplay.getDisplayWidth(); }
 
 uint16_t HalDisplay::getDisplayHeight() const { return einkDisplay.getDisplayHeight(); }

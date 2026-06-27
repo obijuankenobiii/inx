@@ -1156,6 +1156,21 @@ void EInkDisplay::displayGrayBufferFastQuality(const bool turnOffScreen) {
   displayGrayBuffer(turnOffScreen, lut_x4_quality_fast, true);
 }
 
+void EInkDisplay::prepareQualityGrayscale() {
+  if (_x3Mode || !isScreenOn) {
+    return;
+  }
+
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
+  sendData(CTRL1_BYPASS_RED);
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
+  sendData(0x03);
+  sendCommand(CMD_MASTER_ACTIVATION);
+  if (Serial) Serial.printf("[%lu] [LUT-Q] X4 quality prepare powerdown\n", millis());
+  waitWhileBusy("quality_prepare_powerdown");
+  isScreenOn = false;
+}
+
 // Quality grayscale (same 0xC7 waveform as displayGrayBuffer(quality=true)) but the display update is restricted
 // to the rectangle [x,y,w,h] (pixels). The full LSB/MSB planes are already in RAM; setting a smaller RAM window
 // before MASTER_ACTIVATION makes the controller drive ONLY those pixels, leaving the surrounding text untouched.

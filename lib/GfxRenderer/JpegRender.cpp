@@ -307,9 +307,9 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
              ((grayscaleCode & 0b01) != 0)) {
     renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((level & 0b01) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level) & 0b01) == 0)) {
     renderer.drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((level & 0b10) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level) & 0b10) == 0)) {
     renderer.drawPixel(x, y, true);
   }
 }

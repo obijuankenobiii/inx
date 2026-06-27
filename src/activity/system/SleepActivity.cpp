@@ -71,7 +71,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   // content, so HIGH transparent removes the background instead (see renderTransparentSleepScreen).
   const bool quality = allowQuality && sleepImageQualityEnabled();
   options.quality = quality;
-  options.fastQuality = quality && !renderer.deviceIsX3();
+  options.fastQuality = false;
 
   ImageRender::create(renderer, imagePath)
       .displayGrayscale(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality);
@@ -405,17 +405,12 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
   if (hasTwoBit) {
     const bool quality = sleepImageQualityEnabled();
     if (quality) {
-      bitmap.rewindToData();
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
-      renderer.copyGrayscaleLsbBuffers();
-
-      bitmap.rewindToData();
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
-      renderer.copyGrayscaleMsbBuffers();
+      renderer.renderGrayscalePasses(true, false, [&] {
+        bitmap.rewindToData();
+        renderer.clearScreen(0xFF);
+        renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill,
+                                    ImageRenderMode::TwoBit);
+      });
     } else {
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
@@ -428,15 +423,11 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
       renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
       renderer.copyGrayscaleMsbBuffers();
-    }
 
-    if (quality && !renderer.deviceIsX3()) {
-      renderer.displayGrayBufferFastQuality();
-    } else {
-      renderer.displayGrayBuffer(quality);
+      renderer.displayGrayBuffer(false);
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.cleanupGrayscaleWithFrameBuffer();
     }
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.cleanupGrayscaleWithFrameBuffer();
   }
 }
 
@@ -499,17 +490,12 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   if (hasTwoBit) {
     const bool quality = sleepImageQualityEnabled();
     if (quality) {
-      bitmap.rewindToData();
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::GRAY2_LSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
-      renderer.copyGrayscaleLsbBuffers();
-
-      bitmap.rewindToData();
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::GRAY2_MSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
-      renderer.copyGrayscaleMsbBuffers();
+      renderer.renderGrayscalePasses(true, false, [&] {
+        bitmap.rewindToData();
+        renderer.clearScreen(0xFF);
+        renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill,
+                                    ImageRenderMode::TwoBit);
+      });
     } else {
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
@@ -522,15 +508,11 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
       renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
       renderer.copyGrayscaleMsbBuffers();
-    }
 
-    if (quality && !renderer.deviceIsX3()) {
-      renderer.displayGrayBufferFastQuality();
-    } else {
-      renderer.displayGrayBuffer(quality);
+      renderer.displayGrayBuffer(false);
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.cleanupGrayscaleWithFrameBuffer();
     }
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.cleanupGrayscaleWithFrameBuffer();
   }
 }
 

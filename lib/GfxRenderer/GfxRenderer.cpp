@@ -262,6 +262,8 @@ void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayG
 
 void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
 
+void GfxRenderer::prepareQualityGrayscale() const { display.prepareQualityGrayscale(); }
+
 bool GfxRenderer::copyStoredBwToFramebuffer() const {
   for (const auto& chunk : bwBufferChunks) {
     if (!chunk) return false;
@@ -397,6 +399,10 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
     Serial.printf("[%lu] [GFX-Q] grayscale passes begin preserveText=%d fastQuality=%d useFastQuality=%d x3=%d\n",
                   millis(), preserveText ? 1 : 0, fastQuality ? 1 : 0, useFastQuality ? 1 : 0,
                   deviceIsX3() ? 1 : 0);
+  }
+
+  if (quality && !deviceIsX3()) {
+    prepareQualityGrayscale();
   }
 
   setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);

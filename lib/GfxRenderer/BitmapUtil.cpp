@@ -197,6 +197,13 @@ uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
   return l;
 }
 
+uint8_t mapQualityGray2Level(const uint8_t level) {
+  const uint8_t l = level & 3u;
+  if (l == 1u) return 2u;
+  if (l == 2u) return 1u;
+  return l;
+}
+
 
 
 static inline uint8_t quantizeNoise(int gray, int x, int y) {

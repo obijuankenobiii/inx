@@ -16,7 +16,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 33;  // bump: regenerate GRAY2 planes after explicit 2-bit mapping fix
+constexpr uint16_t kVersion = 39;  // bump: regenerate GRAY2 planes after quality gray-level swap
 constexpr const char* kCacheDir = "/.system/cache";
 
 struct CacheHeader {
@@ -312,6 +312,10 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   }
 
   const bool useFastQuality = quality && fastQuality && !renderer.deviceIsX3();
+
+  if (quality && !renderer.deviceIsX3()) {
+    renderer.prepareQualityGrayscale();
+  }
 
   renderer.clearScreen(quality ? 0xFF : 0x00);
   renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);

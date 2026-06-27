@@ -145,12 +145,12 @@ inline bool grayLsbShouldInk2bpp(const uint8_t stage03, const bool x3ImageLut = 
 }
 
 inline bool gray2LsbShouldClear2bpp(const uint8_t stage03) {
-  const uint8_t st = stage03 & 3u;
+  const uint8_t st = mapQualityGray2Level(stage03);
   return (st & 0b01u) == 0u;
 }
 
 inline bool gray2MsbShouldClear2bpp(const uint8_t stage03) {
-  const uint8_t st = stage03 & 3u;
+  const uint8_t st = mapQualityGray2Level(stage03);
   return (st & 0b10u) == 0u;
 }
 

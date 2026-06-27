@@ -116,6 +116,7 @@ class GfxRenderer {
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer(bool quality = false) const;
   void displayGrayBufferFastQuality() const;
+  void prepareQualityGrayscale() const;
   bool storeBwBuffer();
   void restoreBwBuffer();
   // Copies the stored BW shadow back into the framebuffer WITHOUT freeing it or touching controller RAM. Lets

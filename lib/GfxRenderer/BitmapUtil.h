@@ -19,6 +19,7 @@ uint8_t quantize(int gray, int x, int y);
 uint8_t quantizeSimple(int gray);
 ImageToneSample quantizeTwoBitImage(int gray);
 uint8_t adjustTwoBitImageLevelForDisplay(uint8_t level);
+uint8_t mapQualityGray2Level(uint8_t level);
 
 // Image grayscale-content analysis. While active, every 2-bit image level that passes through
 // adjustTwoBitImageLevelForDisplay() (i.e. every rendered image pixel, for JPEG/PNG/BMP alike) is tallied.

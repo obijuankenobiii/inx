@@ -56,6 +56,7 @@ class HalDisplay {
 
   void displayGrayBuffer(bool quality = false);
   void displayGrayBufferFastQuality();
+  void prepareQualityGrayscale();
 
   uint16_t getDisplayWidth() const;
   uint16_t getDisplayHeight() const;
