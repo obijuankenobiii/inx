@@ -306,14 +306,15 @@ class Page {
   // Fills EACH image's own paint rectangle (centered, at its stored size) with `value` — NOT the union bounding
   // box. Use this for per-image baseline marks / GRAY2 white bases so text between images on the same page is
   // never covered. Matches PageImage::render geometry.
-  void fillImageRects(GfxRenderer& renderer, int xOffset, int yOffset, bool value) const;
+  void fillImageRects(GfxRenderer& renderer, int xOffset, int yOffset, bool value, bool onlyGrayscale = false) const;
 
   void render(GfxRenderer& renderer, int fontId, int headerFontId, int xOffset, int yOffset, bool skipImages = false,
-              ImageRenderMode imageMode = ImageRenderMode::OneBit) const;
+              ImageRenderMode imageMode = ImageRenderMode::OneBit, bool skipOnlyGrayscaleImages = false) const;
   // `quality` routes images through the quality render path (options.quality=true) — the same path the sleep
   // screen uses — instead of the default 1-bit/medium path.
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-                    ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false) const;
+                    ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false,
+                    bool onlyGrayscale = false) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

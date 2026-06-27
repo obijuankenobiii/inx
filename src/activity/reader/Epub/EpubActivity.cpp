@@ -350,7 +350,7 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
         renderer.clearScreen(grayClear);  // same base the display path uses, so the cached rect matches exactly
         renderer.setRenderMode(grayPasses[p].mode);
         page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
-                           grayPasses[p].quality);
+                           grayPasses[p].quality, /*onlyGrayscale=*/true);
       }
     } else {
       // 1-bit page (comic/line art content, or LOW mode): prebuild the BW/OneBit plane page->render will request.
@@ -1753,7 +1753,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
-               imageMode);
+               imageMode, /*skipOnlyGrayscaleImages=*/highQuality);
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
@@ -1777,8 +1777,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {
       renderer.copyStoredBwToFramebuffer();
       renderer.invertScreen();
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
-    }, false);
+      page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false, /*onlyGrayscale=*/true);
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true,
+                         /*onlyGrayscale=*/true);
+    }, true);
   } else if (needsImageGrayscale) {
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);

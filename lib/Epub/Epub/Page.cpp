@@ -479,7 +479,8 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
  * @param yOffset Vertical offset for page margins
  * @param skipImages If true, images are not rendered
  */
-void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yOffset, const bool value) const {
+void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yOffset, const bool value,
+                          const bool onlyGrayscale) const {
   (void)xOffset;  // images are horizontally centered, not offset by the left margin
   const int screenW = renderer.getScreenWidth();
   for (const auto& element : elements) {
@@ -487,6 +488,9 @@ void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yO
       continue;
     }
     const auto& img = static_cast<const PageImage&>(*element);  // match PageImage::render geometry
+    if (onlyGrayscale && !img.needsGrayscale()) {
+      continue;
+    }
     const int rx = std::max(0, (screenW - img.getWidth()) / 2);
     const int ry = std::max(0, img.yPos + yOffset);
     renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), value);
@@ -527,10 +531,14 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
 }
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset,
-                  const int yOffset, bool skipImages, const ImageRenderMode imageMode) const {
+                  const int yOffset, bool skipImages, const ImageRenderMode imageMode,
+                  const bool skipOnlyGrayscaleImages) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
-      continue;
+      const auto* image = static_cast<const PageImage*>(element.get());
+      if (!skipOnlyGrayscaleImages || image->needsGrayscale()) {
+        continue;
+      }
     }
 
     uint8_t tag = element->getTag();
@@ -549,12 +557,16 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
 }
 
 void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        const ImageRenderMode imageMode, const bool quality) const {
+                        const ImageRenderMode imageMode, const bool quality, const bool onlyGrayscale) const {
   for (auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
       continue;
     }
-    static_cast<PageImage*>(element.get())->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
+    auto* image = static_cast<PageImage*>(element.get());
+    if (onlyGrayscale && !image->needsGrayscale()) {
+      continue;
+    }
+    image->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
   }
 }
 
