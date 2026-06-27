@@ -115,6 +115,7 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer(bool quality = false) const;
+  void displayGrayBufferFastQuality() const;
   bool storeBwBuffer();
   void restoreBwBuffer();
   // Copies the stored BW shadow back into the framebuffer WITHOUT freeing it or touching controller RAM. Lets
@@ -128,7 +129,8 @@ class GfxRenderer {
   // quality LUT, else GRAYSCALE + the fast LUT. When `preserveText` is true the BW baseline is restored from
   // the previously stored BW frame (call storeBwBuffer() first); otherwise it is rebased from a clean white
   // frame so the next BW refresh isn't polluted by the leftover grayscale plane.
-  void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane);
+  void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane,
+                             bool fastQuality = false);
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 

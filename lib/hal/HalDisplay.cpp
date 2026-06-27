@@ -68,6 +68,8 @@ void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) { einkDisplay.
 
 void HalDisplay::displayGrayBuffer(const bool quality) { einkDisplay.displayGrayBuffer(false, nullptr, quality); }
 
+void HalDisplay::displayGrayBufferFastQuality() { einkDisplay.displayGrayBufferFastQuality(false); }
+
 uint16_t HalDisplay::getDisplayWidth() const { return einkDisplay.getDisplayWidth(); }
 
 uint16_t HalDisplay::getDisplayHeight() const { return einkDisplay.getDisplayHeight(); }

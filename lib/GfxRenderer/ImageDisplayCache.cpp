@@ -223,7 +223,8 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
 
 bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
                                                  const int y, const int width, const int height,
-                                                 const ImageDisplayCacheOptions& options, const bool quality) {
+                                                 const ImageDisplayCacheOptions& options, const bool quality,
+                                                 const bool fastQuality) {
   ImageDisplayCacheOptions lsbOptions = options;
   lsbOptions.mode = ImageRenderMode::TwoBit;
   lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
@@ -255,7 +256,11 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   }
   renderer.copyGrayscaleMsbBuffers();
 
-  renderer.displayGrayBuffer(quality);
+  if (quality && fastQuality) {
+    renderer.displayGrayBufferFastQuality();
+  } else {
+    renderer.displayGrayBuffer(quality);
+  }
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.clearScreen(0xFF);
   renderer.cleanupGrayscaleWithFrameBuffer();

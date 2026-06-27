@@ -71,6 +71,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
   // content, so HIGH transparent removes the background instead (see renderTransparentSleepScreen).
   const bool quality = allowQuality && sleepImageQualityEnabled();
   options.quality = quality;
+  options.fastQuality = quality;
 
   ImageRender::create(renderer, imagePath)
       .displayGrayscale(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality);
@@ -415,7 +416,11 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer(quality);
+    if (quality) {
+      renderer.displayGrayBufferFastQuality();
+    } else {
+      renderer.displayGrayBuffer(false);
+    }
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }
@@ -491,7 +496,11 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer(quality);
+    if (quality) {
+      renderer.displayGrayBufferFastQuality();
+    } else {
+      renderer.displayGrayBuffer(false);
+    }
     renderer.setRenderMode(GfxRenderer::BW);
     renderer.cleanupGrayscaleWithFrameBuffer();
   }

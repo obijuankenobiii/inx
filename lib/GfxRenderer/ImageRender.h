@@ -22,6 +22,7 @@ class ImageRender {
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
     bool useDisplayCache = true;
     bool quality = false;
+    bool fastQuality = false;
   };
 
   static ImageRender create(GfxRenderer& renderer, const std::string& path);
@@ -42,7 +43,7 @@ class ImageRender {
   // book reader (text-preserving: preserveText=true, drawPlane rebuilds inverted text + image overlay) and any
   // other custom grayscale composite.
   static void displayGrayscale(GfxRenderer& renderer, bool quality, bool preserveText,
-                               const std::function<void()>& drawPlane);
+                               const std::function<void()>& drawPlane, bool fastQuality = false);
 
  private:
   enum class Format { Bitmap, Jpeg, Png };

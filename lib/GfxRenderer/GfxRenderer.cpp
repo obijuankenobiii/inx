@@ -231,6 +231,8 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
 
+void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
+
 bool GfxRenderer::copyStoredBwToFramebuffer() const {
   for (const auto& chunk : bwBufferChunks) {
     if (!chunk) return false;
@@ -360,7 +362,7 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 }
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
-                                       const std::function<void()>& drawPlane) {
+                                       const std::function<void()>& drawPlane, const bool fastQuality) {
   setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
   drawPlane();
   copyGrayscaleLsbBuffers();
@@ -369,7 +371,11 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
   drawPlane();
   copyGrayscaleMsbBuffers();
 
-  displayGrayBuffer(quality);
+  if (quality && fastQuality) {
+    displayGrayBufferFastQuality();
+  } else {
+    displayGrayBuffer(quality);
+  }
   setRenderMode(BW);
 
   if (preserveText) {
