@@ -71,9 +71,20 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
       options.useDisplayCache &&
       ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
        options.mode == ImageRenderMode::TwoBit);
-  if (canUseDisplayCache &&
-      ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions)) {
-    return true;
+  if (options.quality && options.mode == ImageRenderMode::TwoBit) {
+    Serial.printf("[%lu] [IMG-Q] render begin src=%s rect=%d,%d %dx%d plane=%d cache=%d format=%d\n", millis(),
+                  path_.c_str(), x, y, width, height, static_cast<int>(renderer_.getRenderMode()),
+                  canUseDisplayCache ? 1 : 0, static_cast<int>(format_));
+  }
+  if (canUseDisplayCache) {
+    const bool cacheHit = ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
+    if (options.quality && options.mode == ImageRenderMode::TwoBit) {
+      Serial.printf("[%lu] [IMG-Q] render cache %s src=%s plane=%d\n", millis(), cacheHit ? "hit" : "miss",
+                    path_.c_str(), static_cast<int>(renderer_.getRenderMode()));
+    }
+    if (cacheHit) {
+      return true;
+    }
   }
 
   bool ok = false;
@@ -116,12 +127,19 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   if (ok && canUseDisplayCache) {
     ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
   }
+  if (options.quality && options.mode == ImageRenderMode::TwoBit) {
+    Serial.printf("[%lu] [IMG-Q] render end ok=%d src=%s plane=%d\n", millis(), ok ? 1 : 0, path_.c_str(),
+                  static_cast<int>(renderer_.getRenderMode()));
+  }
   return ok;
 }
 
 bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const Options& options,
                                       const bool quality) const {
   if (!options.useDisplayCache) {
+    if (quality) {
+      Serial.printf("[%lu] [IMG-Q] display cache disabled src=%s\n", millis(), path_.c_str());
+    }
     return false;
   }
   ImageDisplayCacheOptions cacheOptions;
@@ -129,8 +147,14 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   cacheOptions.mode = ImageRenderMode::TwoBit;
   cacheOptions.roundedOutside = options.roundedOutside;
   cacheOptions.quality = quality;
-  return ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions, quality,
-                                                     options.fastQuality);
+  const bool hit =
+      ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions, quality,
+                                                  options.fastQuality);
+  if (quality) {
+    Serial.printf("[%lu] [IMG-Q] display cache %s src=%s rect=%d,%d %dx%d\n", millis(), hit ? "hit" : "miss",
+                  path_.c_str(), x, y, width, height);
+  }
+  return hit;
 }
 
 bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,
@@ -140,7 +164,14 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
   opt.quality = quality;
   opt.useDisplayCache = true;
 
+  if (quality) {
+    Serial.printf("[%lu] [IMG-Q] display grayscale begin src=%s rect=%d,%d %dx%d fast=%d\n", millis(), path_.c_str(),
+                  x, y, width, height, opt.fastQuality ? 1 : 0);
+  }
   if (displayCachedTwoBit(x, y, width, height, opt, quality)) {
+    if (quality) {
+      Serial.printf("[%lu] [IMG-Q] display grayscale served from cache src=%s\n", millis(), path_.c_str());
+    }
     return true;  // served from cache (handles both planes + refresh + cleanup)
   }
 
@@ -148,12 +179,22 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
     renderer_.clearScreen(quality ? 0xFF : 0x00);
     render(x, y, width, height, opt);  // renders into the current plane's render mode AND stores to cache
   }, opt.fastQuality);
+  if (quality) {
+    Serial.printf("[%lu] [IMG-Q] display grayscale live render complete src=%s\n", millis(), path_.c_str());
+  }
   return true;
 }
 
 void ImageRender::displayGrayscale(GfxRenderer& renderer, const bool quality, const bool preserveText,
                                    const std::function<void()>& drawPlane, const bool fastQuality) {
+  if (quality) {
+    Serial.printf("[%lu] [IMG-Q] composite grayscale begin preserveText=%d fast=%d\n", millis(), preserveText ? 1 : 0,
+                  fastQuality ? 1 : 0);
+  }
   renderer.renderGrayscalePasses(quality, preserveText, drawPlane, fastQuality);
+  if (quality) {
+    Serial.printf("[%lu] [IMG-Q] composite grayscale end\n", millis());
+  }
 }
 
 bool ImageRender::render(int x, int y, int width, int height) const {

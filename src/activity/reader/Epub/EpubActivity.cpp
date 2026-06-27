@@ -1778,7 +1778,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       renderer.copyStoredBwToFramebuffer();
       renderer.invertScreen();
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true);
-    }, true);
+    }, false);
   } else if (needsImageGrayscale) {
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);

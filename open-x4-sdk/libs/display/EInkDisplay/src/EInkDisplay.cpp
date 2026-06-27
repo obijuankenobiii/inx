@@ -754,6 +754,7 @@ void EInkDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) {
   }
 
   setRamArea(0, 0, displayWidth, displayHeight);
+  writeRamBuffer(CMD_WRITE_RAM_BW, bwBuffer, bufferSize);
   writeRamBuffer(CMD_WRITE_RAM_RED, bwBuffer, bufferSize);
 }
 #endif
@@ -1120,6 +1121,11 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
 
   const unsigned char* selectedLut = lutData ? lutData : (quality ? lut_x4_quality : lut_grayscale);
   if (Serial) Serial.printf("[%lu]   X4_GRAY_MODE=%s\n", millis(), quality ? "quality" : "reader");
+  if (quality && Serial) {
+    Serial.printf("[%lu] [LUT-Q] X4 selected=%s ptr=%p isScreenOn=%d inGrayscaleMode=%d delayMs=120\n", millis(),
+                  lutData ? "override" : "lut_x4_quality", selectedLut, isScreenOn ? 1 : 0,
+                  inGrayscaleMode ? 1 : 0);
+  }
   setCustomLUT(true, selectedLut);
   if (quality) {
     // Let the panel physically settle after the preceding pre-clear/flash before firing the state-sensitive
@@ -1132,6 +1138,7 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
     sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
     sendData(0xC7);
     sendCommand(CMD_MASTER_ACTIVATION);
+    if (Serial) Serial.printf("[%lu] [LUT-Q] X4 activation sent ctrl2=0xC7\n", millis());
     if (Serial) Serial.printf("[%lu]   Waiting for display refresh...\n", millis());
     waitWhileBusy("quality_gray");
     isScreenOn = false;
@@ -1139,6 +1146,10 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
     refreshDisplay(FAST_REFRESH, turnOffScreen);
   }
   setCustomLUT(false);
+  if (quality && Serial) {
+    Serial.printf("[%lu] [LUT-Q] X4 quality LUT disabled isScreenOn=%d inGrayscaleMode=%d\n", millis(),
+                  isScreenOn ? 1 : 0, inGrayscaleMode ? 1 : 0);
+  }
 }
 
 void EInkDisplay::displayGrayBufferFastQuality(const bool turnOffScreen) {

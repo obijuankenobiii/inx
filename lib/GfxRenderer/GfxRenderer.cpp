@@ -12,6 +12,35 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+uint32_t frameBufferHash(const uint8_t* buffer, const size_t size) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < size; ++i) {
+    hash ^= buffer[i];
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+uint32_t frameBufferInkBits(const uint8_t* buffer, const size_t size) {
+  uint32_t bits = 0;
+  for (size_t i = 0; i < size; ++i) {
+    bits += 8 - __builtin_popcount(static_cast<unsigned int>(buffer[i]));
+  }
+  return bits;
+}
+
+uint32_t frameBufferNonWhiteBytes(const uint8_t* buffer, const size_t size) {
+  uint32_t bytes = 0;
+  for (size_t i = 0; i < size; ++i) {
+    if (buffer[i] != 0xFF) {
+      ++bytes;
+    }
+  }
+  return bytes;
+}
+}  // namespace
+
 GfxRenderer::GfxRenderer(HalDisplay& halDisplay)
     : display(halDisplay),
       renderMode(BW),
@@ -364,27 +393,72 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
                                        const std::function<void()>& drawPlane, const bool fastQuality) {
   const bool useFastQuality = quality && fastQuality && !deviceIsX3();
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] grayscale passes begin preserveText=%d fastQuality=%d useFastQuality=%d x3=%d\n",
+                  millis(), preserveText ? 1 : 0, fastQuality ? 1 : 0, useFastQuality ? 1 : 0,
+                  deviceIsX3() ? 1 : 0);
+  }
 
   setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] draw LSB plane mode=%d\n", millis(), static_cast<int>(getRenderMode()));
+  }
   drawPlane();
+  if (quality) {
+    const uint8_t* buffer = getFrameBuffer();
+    Serial.printf("[%lu] [GFX-Q] LSB framebuffer hash=%08lx inkBits=%lu nonWhiteBytes=%lu size=%lu\n", millis(),
+                  static_cast<unsigned long>(frameBufferHash(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferInkBits(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferNonWhiteBytes(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferSize));
+  }
   copyGrayscaleLsbBuffers();
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] copied LSB plane\n", millis());
+  }
 
   setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] draw MSB plane mode=%d\n", millis(), static_cast<int>(getRenderMode()));
+  }
   drawPlane();
+  if (quality) {
+    const uint8_t* buffer = getFrameBuffer();
+    Serial.printf("[%lu] [GFX-Q] MSB framebuffer hash=%08lx inkBits=%lu nonWhiteBytes=%lu size=%lu\n", millis(),
+                  static_cast<unsigned long>(frameBufferHash(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferInkBits(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferNonWhiteBytes(buffer, frameBufferSize)),
+                  static_cast<unsigned long>(frameBufferSize));
+  }
   copyGrayscaleMsbBuffers();
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] copied MSB plane\n", millis());
+  }
 
   if (useFastQuality) {
+    if (quality) {
+      Serial.printf("[%lu] [GFX-Q] display fast quality buffer\n", millis());
+    }
     displayGrayBufferFastQuality();
   } else {
+    if (quality) {
+      Serial.printf("[%lu] [GFX-Q] display quality buffer\n", millis());
+    }
     displayGrayBuffer(quality);
   }
   setRenderMode(BW);
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] render mode restored BW\n", millis());
+  }
 
   if (preserveText) {
     restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
   } else {
     clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
     cleanupGrayscaleWithFrameBuffer();
+  }
+  if (quality) {
+    Serial.printf("[%lu] [GFX-Q] grayscale passes cleanup done preserveText=%d\n", millis(), preserveText ? 1 : 0);
   }
 }
 

@@ -146,12 +146,12 @@ inline bool grayLsbShouldInk2bpp(const uint8_t stage03, const bool x3ImageLut = 
 
 inline bool gray2LsbShouldClear2bpp(const uint8_t stage03) {
   const uint8_t st = stage03 & 3u;
-  return st == 0u || st == 2u;
+  return (st & 0b01u) == 0u;
 }
 
 inline bool gray2MsbShouldClear2bpp(const uint8_t stage03) {
   const uint8_t st = stage03 & 3u;
-  return st == 0u || st == 1u;
+  return (st & 0b10u) == 0u;
 }
 
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
