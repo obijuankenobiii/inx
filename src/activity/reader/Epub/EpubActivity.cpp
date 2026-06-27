@@ -1774,7 +1774,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool bwStored = skipImagesInPageRender && renderer.storeBwBuffer();
   if (highQuality && bwStored) {
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
-    renderer.displayBuffer();
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {
       renderer.copyStoredBwToFramebuffer();
       renderer.invertScreen();
