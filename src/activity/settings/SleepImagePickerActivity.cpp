@@ -318,7 +318,7 @@ void SleepImagePickerActivity::render() {
   if (hasImages && restoreGridBuffer(pageStart)) {
     drawPickerChrome(pageStart, rowCount, hasImages, randomEnabled, false);
     drawSelectionFrame(pageStart, rowCount, selectedIndex);
-    renderer.displayBuffer();
+    renderer.displayBuffer(pageNeedsHalfRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
     renderedPageStart = pageStart;
     return;
   }
@@ -383,7 +383,6 @@ void SleepImagePickerActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    requestRedraw();
     return;
   }
 

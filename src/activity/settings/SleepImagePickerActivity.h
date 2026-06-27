@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include <HalDisplay.h>
+
 #include "activity/ActivityWithSubactivity.h"
 
 /**

@@ -363,25 +363,17 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
                                        const std::function<void()>& drawPlane, const bool fastQuality) {
-  if (quality && fastQuality) {
-    setRenderMode(GRAY2_MSB);
-    drawPlane();
-    copyGrayscaleMsbBuffers();
+  const bool useFastQuality = quality && fastQuality && !deviceIsX3();
 
-    setRenderMode(GRAY2_LSB);
-    drawPlane();
-    copyGrayscaleLsbBuffers();
-  } else {
-    setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
-    drawPlane();
-    copyGrayscaleLsbBuffers();
+  setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
+  drawPlane();
+  copyGrayscaleLsbBuffers();
 
-    setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
-    drawPlane();
-    copyGrayscaleMsbBuffers();
-  }
+  setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
+  drawPlane();
+  copyGrayscaleMsbBuffers();
 
-  if (quality && fastQuality) {
+  if (useFastQuality) {
     displayGrayBufferFastQuality();
   } else {
     displayGrayBuffer(quality);
