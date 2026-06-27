@@ -118,6 +118,8 @@ struct BookSettings {
    * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
    */
   uint8_t pageAutoTurnSeconds = 0;
+  uint8_t readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
+  uint8_t readerSmartRefreshOnImages = 1;
 
   bool useCustomSettings = false;  ///< Whether custom settings are active
 
@@ -149,7 +151,8 @@ struct BookSettings {
   /**
    * @brief Number of bytes a serialized BookSettings record occupies.
    */
-  static constexpr size_t kSerializedSize = 18;
+  static constexpr size_t kLegacySerializedSize = 18;
+  static constexpr size_t kSerializedSize = 20;
 
   /**
    * @brief Writes the settings fields into a byte buffer (shared by settings.bin and the preset store).
@@ -177,6 +180,8 @@ struct BookSettings {
     data[offset++] = paragraphCssIndentEnabled;
     data[offset++] = bionicReadingEnabled;
     data[offset++] = textSpace;
+    data[offset++] = readerImageGrayscale;
+    data[offset++] = readerSmartRefreshOnImages;
   }
 
   /**
@@ -254,6 +259,21 @@ struct BookSettings {
       }
     } else {
       textSpace = 100;
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      readerImageGrayscale = data[offset++];
+      if (readerImageGrayscale >= SystemSetting::READER_IMAGE_QUALITY_COUNT) {
+        readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
+      }
+    } else {
+      readerImageGrayscale = SystemSetting::getInstance().readerImageGrayscale;
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      readerSmartRefreshOnImages = data[offset++] ? 1 : 0;
+    } else {
+      readerSmartRefreshOnImages = SystemSetting::getInstance().readerSmartRefreshOnImages ? 1 : 0;
     }
 
     return true;
@@ -356,6 +376,8 @@ struct BookSettings {
     textAntiAliasing = global.textAntiAliasing;
     orientation = global.orientation;
     pageAutoTurnSeconds = global.pageAutoTurnSeconds;
+    readerImageGrayscale = global.readerImageGrayscale;
+    readerSmartRefreshOnImages = global.readerSmartRefreshOnImages ? 1 : 0;
 
     statusBarLeft.item = static_cast<StatusBarItem>(global.statusBarLeft);
     statusBarMiddle.item = static_cast<StatusBarItem>(global.statusBarMiddle);
@@ -402,6 +424,8 @@ struct BookSettings {
     global.textAntiAliasing = textAntiAliasing;
     global.orientation = orientation;
     global.pageAutoTurnSeconds = pageAutoTurnSeconds;
+    global.readerImageGrayscale = readerImageGrayscale;
+    global.readerSmartRefreshOnImages = readerSmartRefreshOnImages ? 1 : 0;
 
     global.statusBarLeft = static_cast<uint8_t>(statusBarLeft.item);
     global.statusBarMiddle = static_cast<uint8_t>(statusBarMiddle.item);

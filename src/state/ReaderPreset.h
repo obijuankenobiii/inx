@@ -66,7 +66,7 @@ class ReaderPresetStore {
   static constexpr const char* kDir = "/.system";
   static constexpr const char* kPath = "/.system/reader_presets.bin";
   static constexpr uint32_t kMagic = 0x52505253;  // "RPRS"
-  static constexpr uint8_t kVersion = 1;
+  static constexpr uint8_t kVersion = 2;
 };
 
 #define READER_PRESETS ReaderPresetStore::getInstance()

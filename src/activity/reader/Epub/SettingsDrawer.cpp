@@ -394,8 +394,8 @@ void SettingsDrawer::setupMenu() {
     imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
     imgGrayEntry.group = GroupType::IMAGE;
     imgGrayEntry.name = "Image Quality";
-    imgGrayEntry.getValueText = [](const BookSettings&) -> const char* {
-      switch (SETTINGS.readerImageGrayscale) {
+    imgGrayEntry.getValueText = [](const BookSettings& s) -> const char* {
+      switch (s.readerImageGrayscale) {
         case SystemSetting::READER_IMAGE_MEDIUM:
           return "Medium";
         case SystemSetting::READER_IMAGE_HIGH:
@@ -404,11 +404,11 @@ void SettingsDrawer::setupMenu() {
           return "Low";
       }
     };
-    imgGrayEntry.change = [](BookSettings&, int delta) {
+    imgGrayEntry.change = [](BookSettings& s, int delta) {
       const int step = delta >= 0 ? 1 : (SystemSetting::READER_IMAGE_QUALITY_COUNT - 1);
-      SETTINGS.readerImageGrayscale =
-          static_cast<uint8_t>((SETTINGS.readerImageGrayscale + step) % SystemSetting::READER_IMAGE_QUALITY_COUNT);
-      SETTINGS.saveToFile();
+      s.readerImageGrayscale =
+          static_cast<uint8_t>((s.readerImageGrayscale + step) % SystemSetting::READER_IMAGE_QUALITY_COUNT);
+      s.useCustomSettings = true;
     };
     menuItems.push_back(imgGrayEntry);
 
@@ -416,12 +416,12 @@ void SettingsDrawer::setupMenu() {
     smartRefreshEntry.item = MenuItem::ReaderSmartImageRefresh;
     smartRefreshEntry.group = GroupType::IMAGE;
     smartRefreshEntry.name = "Smart Refresh (Images)";
-    smartRefreshEntry.getValueText = [](const BookSettings&) -> const char* {
-      return SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+    smartRefreshEntry.getValueText = [](const BookSettings& s) -> const char* {
+      return s.readerSmartRefreshOnImages ? "On" : "Off";
     };
-    smartRefreshEntry.change = [](BookSettings&, int) {
-      SETTINGS.readerSmartRefreshOnImages = SETTINGS.readerSmartRefreshOnImages ? 0 : 1;
-      SETTINGS.saveToFile();
+    smartRefreshEntry.change = [](BookSettings& s, int) {
+      s.readerSmartRefreshOnImages = s.readerSmartRefreshOnImages ? 0 : 1;
+      s.useCustomSettings = true;
     };
     menuItems.push_back(smartRefreshEntry);
   }
@@ -770,7 +770,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
         break;
       case MenuItem::ReaderSmartImageRefresh:
         checkbox = true;
-        checked = SETTINGS.readerSmartRefreshOnImages != 0;
+        checked = settings.readerSmartRefreshOnImages != 0;
         break;
       case MenuItem::AntiAliasing:
         checkbox = true;

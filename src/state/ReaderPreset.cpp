@@ -30,11 +30,13 @@ void ReaderPresetStore::load() {
   uint8_t version = 0;
   uint8_t presetCount = 0;
   if (f.read(&magic, sizeof(magic)) != sizeof(magic) || magic != kMagic ||
-      f.read(&version, sizeof(version)) != sizeof(version) || version != kVersion ||
+      f.read(&version, sizeof(version)) != sizeof(version) || version == 0 || version > kVersion ||
       f.read(&presetCount, sizeof(presetCount)) != sizeof(presetCount)) {
     f.close();
     return;
   }
+
+  const size_t recordSize = version >= 2 ? BookSettings::kSerializedSize : BookSettings::kLegacySerializedSize;
 
   for (uint8_t i = 0; i < presetCount; i++) {
     uint8_t nameLen = 0;
@@ -49,7 +51,7 @@ void ReaderPresetStore::load() {
     nameBuf[readLen] = '\0';
 
     uint8_t record[64] = {0};
-    const size_t toRead = BookSettings::kSerializedSize;
+    const size_t toRead = recordSize;
     if (f.read(record, toRead) != static_cast<int>(toRead)) {
       break;
     }

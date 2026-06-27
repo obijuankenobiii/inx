@@ -322,7 +322,7 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
   Pass grayPasses[2];
   int grayPassCount = 0;
   uint8_t grayClear = 0xFF;
-  switch (SETTINGS.readerImageGrayscale) {
+  switch (bookSettings.readerImageGrayscale) {
     case SystemSetting::READER_IMAGE_HIGH:
       grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
       grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
@@ -1732,7 +1732,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   }
 
-  if (SETTINGS.readerSmartRefreshOnImages && !pageHasImages && lastPageHadImages && lastPageHadLargeImage &&
+  if (bookSettings.readerSmartRefreshOnImages && !pageHasImages && lastPageHadImages && lastPageHadLargeImage &&
       !isBookmarking && !annUi_.isActive()) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
@@ -1740,7 +1740,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // Only pay for grayscale if the setting is on AND at least one image on the page actually has continuous-tone
   // content. Comic/line-art/mostly-black-and-white pages are detected at build time and render as fast 1-bit.
   const bool needsImageGrayscale =
-      SETTINGS.readerImageGrayscale != 0 && pageHasImages && page->anyImageNeedsGrayscale();
+      bookSettings.readerImageGrayscale != 0 && pageHasImages && page->anyImageNeedsGrayscale();
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
   const bool textAa = bookSettings.textAntiAliasing != 0;
   const bool pageHasLargeImage =
@@ -1748,7 +1748,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool imagePageWithAA = pageHasImages && textAa;
 
-  const bool highQuality = needsImageGrayscale && SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+  const bool highQuality =
+      needsImageGrayscale && bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
   const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
@@ -1773,8 +1774,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool bwStored = skipImagesInPageRender && renderer.storeBwBuffer();
   if (highQuality && bwStored) {
-    page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {
       renderer.copyStoredBwToFramebuffer();
       renderer.invertScreen();
@@ -1782,7 +1781,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     });
   } else if (needsImageGrayscale) {
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
-      renderer.clearScreen(0x00);
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     });
 
