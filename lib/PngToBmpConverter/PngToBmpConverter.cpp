@@ -379,7 +379,7 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         if (ctx.hasTransparentGray) {
           for (uint32_t x = 0; x < w; x++) grayRow[x] = (src[x] == ctx.transparentGray) ? 255 : src[x];
         } else {
-          memcpy(grayRow, src, w);
+          memcpy(grayRow, src, std::min(static_cast<size_t>(w), static_cast<size_t>(ctx.rawRowBytes)));
         }
       } else if (ctx.bitDepth == 16) {
         for (uint32_t x = 0; x < w; x++) {
