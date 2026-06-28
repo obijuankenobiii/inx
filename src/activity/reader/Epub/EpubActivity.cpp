@@ -297,7 +297,17 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       bookSettings.bionicReadingEnabled != 0, nullptr, skipImages);
 
   if (success && !skipImages && tempSection->imagePageCount > 0) {
-    prebuildImageDisplayCache(*tempSection, info);
+    int warmPage = 0;
+    if (spineIndex == currentSpineIndex) {
+      if (section && section->pageCount > 0) {
+        warmPage = section->currentPage;
+      } else if (nextPageNumber == static_cast<int>(UINT16_MAX)) {
+        warmPage = tempSection->pageCount > 0 ? tempSection->pageCount - 1 : 0;
+      } else {
+        warmPage = nextPageNumber;
+      }
+    }
+    prebuildImageDisplayCache(*tempSection, info, warmPage);
   }
 
   if (useChapterLoadBar) {
@@ -309,7 +319,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   return success;
 }
 
-void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info) {
+void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info, const int targetPage) {
   // Grayscale passes for the current quality mode — used only for pages whose images actually have continuous
   // tone (anyImageNeedsGrayscale). Pages with 1-bit-style images (comic/line art) and LOW mode prebuild the
   // plain BW/OneBit plane instead, matching the on-screen page->render path. Each renderImages reuses the exact
@@ -338,8 +348,15 @@ void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const Viewpo
   }
   const bool grayEnabled = grayPassCount > 0;
 
+  if (builtSection.pageCount <= 0) {
+    return;
+  }
+
+  const int centerPage = std::max(0, std::min(targetPage, static_cast<int>(builtSection.pageCount) - 1));
+  const int firstPage = std::max(0, centerPage - 1);
+  const int lastPage = std::min(static_cast<int>(builtSection.pageCount) - 1, centerPage + 1);
   const int fontId = bookSettings.getReaderFontId();
-  for (int i = 0; i < builtSection.pageCount; i++) {
+  for (int i = firstPage; i <= lastPage; i++) {
     builtSection.currentPage = i;
     std::unique_ptr<Page> page = builtSection.loadPageFromSectionFile();
     if (!page || !page->hasImages()) {
