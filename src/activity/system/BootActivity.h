@@ -45,12 +45,4 @@ class BootActivity : public Activity {
  private:
   int bootProgress = 0;       ///< Current boot progress percentage (0-100)
   bool bootComplete = false;  ///< Flag indicating if boot sequence has finished
-
-  /**
-   * @brief Draws the boot progress bar on the screen.
-   *
-   * Renders a horizontal progress bar centered on the screen, with the fill
-   * width determined by the current bootProgress value.
-   */
-  void drawProgressBar();
 };
