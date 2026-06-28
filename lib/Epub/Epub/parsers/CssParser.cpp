@@ -1213,6 +1213,25 @@ bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::st
   return raw == "block";
 }
 
+bool CssParser::isDisplayNone(const std::string& elementTagLower, const std::string& className,
+                              const std::string& id, const std::string& styleAttr) const {
+  std::map<std::string, std::string> inlineMap;
+  parseInlineStyle(styleAttr, inlineMap);
+
+  std::string raw;
+  const auto inlineDisplayIt = inlineMap.find("display");
+  if (inlineDisplayIt != inlineMap.end()) {
+    raw = inlineDisplayIt->second;
+  } else {
+    raw = getCascadedPropertyValue("display", className, id, styleAttr, elementTagLower);
+  }
+
+  raw = trimCssWs(raw);
+  std::transform(raw.begin(), raw.end(), raw.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return raw == "none";
+}
+
 bool CssParser::hasPropertySpecified(const std::string& propName, const std::string& className, const std::string& id,
                                      const std::string& styleAttr, const std::string& elementTagLower) const {
   std::map<std::string, std::string> inlineMap;

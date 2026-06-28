@@ -1652,6 +1652,14 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
 
 void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const std::string& classAttr,
                                               const std::string& idAttr, const std::string& styleAttr) {
+  if (cssParser.isDisplayNone(tagLower, classAttr, idAttr, styleAttr)) {
+    return;
+  }
+
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
   const int spacingTop =
       cssParser.getParagraphSpacingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int spacingBottom =
@@ -1659,7 +1667,9 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
   if (spacingTop > 0 && currentPageNextY > 0) {
     applyVerticalSpacing(spacingTop);
   }
+  const int defaultHrGap = (renderer.text.getLineHeight(fontId) / 2) + 5;
 
+  bool renderedRule = false;
   const std::string bgInternalPath = cssParser.getBackgroundImagePath(tagLower, classAttr, idAttr, styleAttr, internalPath);
   if (!bgInternalPath.empty()) {
     const std::string cacheImgPath = epub.getCacheImgPath(bgInternalPath);
@@ -1695,11 +1705,55 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
         applyVerticalSpacing((renderer.text.getLineHeight(fontId) / 2) + 5);
       }
       addImageToPage(cacheImgPath, imgW, imgH);
+      renderedRule = true;
     }
+  }
+
+  if (!renderedRule) {
+    const int borderTop = cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int borderBottom =
+        cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    if (borderTop > 0 || borderBottom > 0) {
+      const int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      if (borderTop > 0) {
+        addCssBorderLine(borderTop, borderStyleCodeFromKeyword(
+                                        cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower)));
+      }
+      if (cssHeight > borderTop + borderBottom) {
+        applyVerticalSpacing(cssHeight - borderTop - borderBottom);
+      }
+      if (borderBottom > 0) {
+        addCssBorderLine(borderBottom,
+                         borderStyleCodeFromKeyword(
+                             cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower)));
+      }
+      renderedRule = true;
+    }
+  }
+
+  if (!renderedRule) {
+    if (spacingTop <= 0 && currentPageNextY > 0) {
+      applyVerticalSpacing(defaultHrGap);
+    }
+    if (currentPage && currentPageNextY + PageHorizontalRule::HEIGHT > viewportHeight) {
+      if (!currentPage->elements.empty()) completePageFn(std::move(currentPage));
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+    if (!currentPage) {
+      currentPage.reset(new Page());
+    }
+
+    const int x = std::max(0, (viewportWidth - PageHorizontalRule::WIDTH) / 2);
+    currentPage->elements.push_back(
+        std::make_shared<PageHorizontalRule>(static_cast<int16_t>(x), static_cast<int16_t>(currentPageNextY)));
+    currentPageNextY += PageHorizontalRule::HEIGHT;
   }
 
   if (spacingBottom > 0) {
     applyVerticalSpacing(spacingBottom);
+  } else if (!renderedRule) {
+    applyVerticalSpacing(defaultHrGap);
   }
 }
 

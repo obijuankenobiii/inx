@@ -636,7 +636,7 @@ void EpubActivity::fastPath() {
  */
 bool EpubActivity::slowPath() {
   if (!epub->isLoaded() && !epub->load(true)) {
-    readerPopup("Error preparing book");
+    readerPopup("Book seems corrupted");
     onGoBack();
     return false;
   }

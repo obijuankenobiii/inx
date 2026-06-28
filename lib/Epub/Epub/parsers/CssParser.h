@@ -64,6 +64,8 @@ class CssParser {
                              const std::string& styleAttr) const;
   bool isDisplayBlock(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr) const;
+  bool isDisplayNone(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                     const std::string& styleAttr) const;
 
   /** Resolved inherited CSS font emphasis for the current element. */
   bool resolveFontBold(const std::string& elementTagLower, const std::string& className, const std::string& id,
