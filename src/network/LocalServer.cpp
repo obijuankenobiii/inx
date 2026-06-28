@@ -6,13 +6,16 @@
 #include "LocalServer.h"
 
 #include <ArduinoJson.h>
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include <Epub.h>
 #include <FsHelpers.h>
+#endif
 #include <SDCardManager.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 
@@ -25,13 +28,15 @@
 #include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "html/TagsPageHtml.generated.h"
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include "util/StringUtils.h"
-#include "state/SystemSetting.h"
 #include "state/BookTags.h"
 #include "activity/settings/LibraryIndexer.h"
+#include "system/FontManager.h"
+#endif
+#include "state/SystemSetting.h"
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
-#include "system/FontManager.h"
 
 namespace {
 
@@ -61,15 +66,29 @@ String wsLastCompleteName;
 size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
 
+void copySettingString(char* dest, size_t destSize, const char* value) {
+  if (destSize == 0) {
+    return;
+  }
+  if (value == nullptr) {
+    value = "";
+  }
+  strncpy(dest, value, destSize - 1);
+  dest[destSize - 1] = '\0';
+}
 
 void clearEpubCacheIfNeeded(const String& filePath) {
-  
+#ifndef INX_SIMULATOR_WEB_ONLY
   if (StringUtils::checkFileExtension(filePath, ".epub")) {
     Epub(filePath.c_str(), "/.metadata").clearCache();
     Serial.printf("[%lu] [WEB] Cleared epub cache for: %s\n", millis(), filePath.c_str());
   }
+#else
+  (void)filePath;
+#endif
 }
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 struct IndexedBookInfo {
   String path;
   String title;
@@ -77,9 +96,15 @@ struct IndexedBookInfo {
   String tag;
 };
 
+std::string lowerAscii(const String& value) {
+  std::string lowered = value.c_str();
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return lowered;
+}
+
 String jsonEscape(const String& s) {
   String out;
-  out.reserve(s.length() + 8);
   for (size_t i = 0; i < s.length(); ++i) {
     char c = s.charAt(i);
     switch (c) {
@@ -229,6 +254,7 @@ void webLibraryIndexTask(void*) {
   webLibraryIndexing = false;
   vTaskDelete(nullptr);
 }
+#endif
 }  
 
 
@@ -549,9 +575,10 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
 }
 
 bool LocalServer::isEpubFile(const String& filename) const {
-  String lower = filename;
-  lower.toLowerCase();
-  return lower.endsWith(".epub");
+  std::string lower = filename.c_str();
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".epub") == 0;
 }
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
@@ -628,17 +655,16 @@ void LocalServer::handleFileListData() const {
 }
 
 void LocalServer::handleBookTagsGet() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   std::vector<IndexedBookInfo> books;
   const bool hasIndex = loadIndexedBooksWithTags(books);
   std::vector<std::string> tags;
   BookTags::loadTagList(tags);
 
   std::sort(books.begin(), books.end(), [](const IndexedBookInfo& a, const IndexedBookInfo& b) {
-    String aTitle = a.title;
-    String bTitle = b.title;
-    aTitle.toLowerCase();
-    bTitle.toLowerCase();
-    return aTitle < bTitle;
+    return lowerAscii(a.title) < lowerAscii(b.title);
   });
 
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -666,9 +692,13 @@ void LocalServer::handleBookTagsGet() const {
   }
   server->sendContent("]}");
   server->sendContent("");
+#endif
 }
 
 void LocalServer::handleLibraryIndexRefresh() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (webLibraryIndexing) {
     server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
     return;
@@ -688,9 +718,13 @@ void LocalServer::handleLibraryIndexRefresh() const {
   }
 
   server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
+#endif
 }
 
 void LocalServer::handleLibraryIndexStatus() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(200, "application/json", "{\"indexing\":false,\"current\":0,\"total\":0,\"path\":\"\"}");
+#else
   String body = "{\"indexing\":";
   body += webLibraryIndexing ? "true" : "false";
   body += ",\"current\":";
@@ -701,9 +735,13 @@ void LocalServer::handleLibraryIndexStatus() const {
   body += jsonEscape(String(webLibraryIndexPath));
   body += "\"}";
   server->send(200, "application/json", body);
+#endif
 }
 
 void LocalServer::handleBookTagsPost() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -761,6 +799,7 @@ void LocalServer::handleBookTagsPost() const {
   }
 
   server->send(200, "application/json", "{\"ok\":true}");
+#endif
 }
 
 void LocalServer::handleDownload() const {
@@ -1395,6 +1434,9 @@ void LocalServer::handleSettingsGet() const {
   doc["refreshOnLoadStatistics"] = SETTINGS.refreshOnLoadStatistics;
   doc["pageAutoTurnSeconds"] = SETTINGS.pageAutoTurnSeconds;
   doc["bitmapRoundedCorners"] = SETTINGS.bitmapRoundedCorners;
+  doc["opdsServerUrl"] = SETTINGS.opdsServerUrl;
+  doc["opdsUsername"] = SETTINGS.opdsUsername;
+  doc["opdsPasswordSet"] = strlen(SETTINGS.opdsPassword) > 0;
   
   String json;
   serializeJson(doc, json);
@@ -1671,6 +1713,18 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.bitmapRoundedCorners = (uint8_t)value ? 1 : 0;
       changed = true;
     }
+    else if (strcmp(key, "opdsServerUrl") == 0) {
+      copySettingString(SETTINGS.opdsServerUrl, sizeof(SETTINGS.opdsServerUrl), kv.value().as<const char*>());
+      changed = true;
+    }
+    else if (strcmp(key, "opdsUsername") == 0) {
+      copySettingString(SETTINGS.opdsUsername, sizeof(SETTINGS.opdsUsername), kv.value().as<const char*>());
+      changed = true;
+    }
+    else if (strcmp(key, "opdsPassword") == 0) {
+      copySettingString(SETTINGS.opdsPassword, sizeof(SETTINGS.opdsPassword), kv.value().as<const char*>());
+      changed = true;
+    }
   }
   
   if (changed) {
@@ -1747,7 +1801,7 @@ void LocalServer::handleKOReaderPost() const {
     deserializeJson(doc, server->arg("plain"));
     
     String username = doc["username"] | "";
-    String password = doc["password"] | "";
+    String password = doc["password"].is<const char*>() ? (doc["password"] | "") : KOREADER_STORE.getPassword().c_str();
     String serverUrl = doc["serverUrl"] | "";
     int matchMethod = doc["matchMethod"] | 0;
     
@@ -1760,6 +1814,9 @@ void LocalServer::handleKOReaderPost() const {
 }
 
 void LocalServer::handleFontsRescan() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (!SdMan.ready()) {
     server->send(503, "application/json", "{\"ok\":false,\"error\":\"sd_unavailable\"}");
     return;
@@ -1770,4 +1827,5 @@ void LocalServer::handleFontsRescan() const {
   } else {
     server->send(500, "application/json", "{\"ok\":false,\"error\":\"scan_failed\"}");
   }
+#endif
 }

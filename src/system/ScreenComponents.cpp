@@ -21,7 +21,11 @@ extern HalGPIO gpio;
 void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, const int top,
                                    const bool showPercentage) {
   
+#ifdef SIMULATOR
+  const uint16_t percentage = 100;
+#else
   const uint16_t percentage = gpio.getBatteryPercentage();
+#endif
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
   renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
 

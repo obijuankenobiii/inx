@@ -23,7 +23,7 @@ class LibraryIndexer {
     dir.rewindDirectory();
     char name[256];
     FsFile file;
-    while (file.openNext(&dir, O_RDONLY)) {
+    while (openNextEntry(dir, file)) {
       file.getName(name, sizeof(name));
       if (shouldSkipEntry(name)) {
         file.close();
@@ -83,6 +83,15 @@ class LibraryIndexer {
   }
 
  private:
+  static bool openNextEntry(FsFile& dir, FsFile& file) {
+#ifdef SIMULATOR
+    file = dir.openNextFile();
+    return static_cast<bool>(file);
+#else
+    return file.openNext(&dir, O_RDONLY);
+#endif
+  }
+
   static bool shouldSkipEntry(const char* name) {
     return name == nullptr || name[0] == '.' || strcmp(name, ".metadata") == 0 ||
            strcasecmp(name, "sleep") == 0 || strcasecmp(name, "fonts") == 0;
@@ -108,7 +117,7 @@ class LibraryIndexer {
     idxFile.write(&entryCount, sizeof(entryCount));
 
     FsFile file;
-    while (file.openNext(&dir, O_RDONLY)) {
+    while (openNextEntry(dir, file)) {
       file.getName(name, sizeof(name));
 
       if (shouldSkipEntry(name)) {

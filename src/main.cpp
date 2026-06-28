@@ -34,10 +34,16 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+#ifdef SIMULATOR
+extern HalDisplay display;
+extern HalGPIO gpio;
+#else
 HalDisplay display;
 HalGPIO gpio;
+#endif
 MappedInputManager input(gpio);
-GfxRenderer render(display);
+GfxRenderer renderer(display);
+GfxRenderer& render = renderer;
 
 Activity* currentActivity = nullptr;
 
@@ -72,6 +78,9 @@ void switchTo(Args&&... args) {
   }
   
   currentActivity = new T(std::forward<Args>(args)...);
+#ifdef SIMULATOR
+  Serial.printf("[%lu] [SIM] Activity: %s\n", millis(), currentActivity->getName());
+#endif
   currentActivity->onEnter();
 }
 
@@ -218,7 +227,9 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+#ifndef SIMULATOR
   display.setSunlightFadeFixEnabled(SETTINGS.fixSunlightFade != 0);
+#endif
 
   switch (gpio.getWakeupReason()) {
     case HalGPIO::WakeupReason::PowerButton:

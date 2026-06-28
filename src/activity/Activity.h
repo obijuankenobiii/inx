@@ -64,6 +64,8 @@ class Activity {
    */
   virtual void loop() {}
 
+  const char* getName() const { return name.c_str(); }
+
   /**
    * @brief Determines whether to skip the delay between loop iterations
    * @return true to skip the delay, false to use standard delay

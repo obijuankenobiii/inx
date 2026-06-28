@@ -118,7 +118,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   }
 
   
-  WiFiClient* stream = http.getStreamPtr();
+  Stream* stream = http.getStreamPtr();
   if (!stream) {
     Serial.printf("[%lu] [HTTP] Failed to get stream\n", millis());
     file.close();

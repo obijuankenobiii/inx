@@ -541,13 +541,17 @@ void SleepActivity::renderDefaultSleepScreen() const {
  * @brief Renders a minimal date/time sleep screen using the X3 RTC.
  */
 void SleepActivity::renderDateTimeSleepScreen() const {
-  HalGPIO::DateTime dateTime;
+  StoredClock::DateTime dateTime;
   bool hasClock = false;
+#ifndef SIMULATOR
   if (gpio.deviceIsX3()) {
     hasClock = gpio.readDateTime(dateTime);
   } else {
     hasClock = StoredClock::load(dateTime);
   }
+#else
+  hasClock = StoredClock::load(dateTime);
+#endif
 
   renderer.clearScreen(0xff);
   SleepClockRenderer::DateTimeView view;

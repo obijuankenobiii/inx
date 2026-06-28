@@ -55,15 +55,7 @@ bool checkFileExtension(const std::string& fileName, const char* extension) {
 }
 
 bool checkFileExtension(const String& fileName, const char* extension) {
-  if (fileName.length() < strlen(extension)) {
-    return false;
-  }
-
-  String localFile(fileName);
-  String localExtension(extension);
-  localFile.toLowerCase();
-  localExtension.toLowerCase();
-  return localFile.endsWith(localExtension);
+  return checkFileExtension(std::string(fileName.c_str()), extension);
 }
 
 }  
