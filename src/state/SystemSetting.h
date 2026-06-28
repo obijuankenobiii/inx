@@ -69,6 +69,13 @@ public:
         SLEEP_SCREEN_COVER_FILTER_COUNT
     };
 
+    enum SLEEP_IMAGE_QUALITY {
+        SLEEP_IMAGE_LOW = 0,     ///< 1-bit image rendering
+        SLEEP_IMAGE_MEDIUM = 1,  ///< 2-bit fast image rendering
+        SLEEP_IMAGE_HIGH = 2,    ///< 2-bit quality image rendering
+        SLEEP_IMAGE_QUALITY_COUNT
+    };
+
     /**
      * @brief Navigation disable modes
      */
@@ -154,6 +161,15 @@ public:
         MAP_DOWN_UP = 3,        ///< Map down/up to prev/next
         MAP_NONE = 4,           ///< No mapping
         READER_DIRECTION_MAPPING_COUNT
+    };
+
+    /**
+     * @brief Which buttons navigate the main menu tab bar vs the page items.
+     */
+    enum MAIN_MENU_NAV {
+        MAIN_MENU_NAV_FRONT = 0,  ///< Front buttons: Left/Right switch tabs, Up/Down move items (default)
+        MAIN_MENU_NAV_SIDE = 1,   ///< Side buttons: Up/Down switch tabs, Left/Right move items
+        MAIN_MENU_NAV_COUNT
     };
 
     /**
@@ -300,6 +316,7 @@ public:
         LIBRARY_VIEW_FOLDERS = 0,  ///< Folder/group browser
         LIBRARY_VIEW_BOOKS = 1,    ///< Flat book list
         LIBRARY_VIEW_TAGS = 2,     ///< Tag collections
+        LIBRARY_VIEW_SHELF = 3,    ///< Cover-first shelf
         LIBRARY_VIEW_MODE_COUNT
     };
 
@@ -326,8 +343,8 @@ public:
     uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
     uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
     uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    /** Sleep-only image 2-bit mode; kept in the old serialized slot for settings compatibility. */
-    uint8_t sleepScreenCoverGrayscale = 0;
+    /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
+    uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
     /**
      * Fixed custom/transparent sleep image when multiple images exist.
      * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
@@ -368,11 +385,13 @@ public:
     
     uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
     uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
+    uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;                  ///< Main-menu tab vs item navigation buttons
     
     
     uint8_t fontFamily = LITERATA;                              ///< Font family
     uint8_t fontSize = SMALL;                                   ///< Font size
-    uint8_t lineSpacing = TIGHT;                                ///< Reader line height (LINE_COMPRESSION)
+    uint8_t lineHeight = 100;                                   ///< Reader line height, % of natural (10-200)
+    uint8_t textSpace = 100;                                    ///< Reader word spacing, % of natural (10-200)
     uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
     /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
     uint8_t paragraphCssIndentEnabled = 0;
@@ -429,8 +448,15 @@ public:
      */
     uint8_t pageAutoTurnSeconds = 0;
 
-    /** When set, EPUB pages with images render in 2-bit mode; otherwise images render in 1-bit mode. */
-    uint8_t readerImageGrayscale = 0;
+    /** Book image quality (READER_IMAGE_QUALITY): 0=Low(1-bit), 1=Medium(fast 2-bit grayscale),
+     *  2=High(quality 2-bit grayscale with text preserved). */
+    enum READER_IMAGE_QUALITY {
+        READER_IMAGE_LOW = 0,     ///< 1-bit (no grayscale)
+        READER_IMAGE_MEDIUM = 1,  ///< 2-bit grayscale, fast LUT (lut_grayscale), text-preserving
+        READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT, text preserved
+        READER_IMAGE_QUALITY_COUNT
+    };
+    uint8_t readerImageGrayscale = READER_IMAGE_LOW;
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
     /** Legacy ignored value retained for settings-file compatibility. */
@@ -508,7 +534,10 @@ public:
      * @return Line compression multiplier
      */
     float getReaderLineCompression() const;
-    
+
+    /** Word-spacing multiplier (textSpace/100, 100 = natural inter-word space). */
+    float getReaderWordSpacingFactor() const;
+
     /**
      * @brief Gets sleep timeout in milliseconds
      * @return Sleep timeout in milliseconds

@@ -48,7 +48,7 @@ class MappedInputManager {
 
   /**
    * Like mapLabels, but Left/Right slot text follows Settings → Next & Previous Mapping and drawer
-   * orientation (portrait vs landscape list uses different prev/next buttons). Used for TOC / footnote lists.
+   * orientation (portrait vs landscape list uses different prev/next buttons). Used for TOC lists.
    */
   Labels mapLabelsWithReaderNav(const char* back, const char* confirm, const char* prevSym, const char* nextSym,
                                 bool landscapeDrawer) const;

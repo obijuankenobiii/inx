@@ -985,6 +985,24 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
                                                  int targetMaxHeight, uint8_t quality) {
   if (isUnsupportedJpeg(jpegFile)) return false;
 
+  // The output thumbnail buffer (outW*outH*3) can approach ~76 KB for a tall cover, which may
+  // exceed the largest contiguous free block under heap fragmentation -> malloc fails and the
+  // thumbnail silently doesn't generate. Try the full-quality budget first, then a tighter one
+  // that is guaranteed to fit a fragmented heap. (The per-row decode buffer is kept small by
+  // gathering only the sampled output columns, so it is never the limiting allocation.)
+  static const size_t kColorBudgets[] = {0u /* default, best quality */, 65536u /* mild fragmentation */,
+                                         49152u /* heavy fragmentation fallback */};
+  for (size_t i = 0; i < sizeof(kColorBudgets) / sizeof(kColorBudgets[0]); ++i) {
+    jpegFile.seek(0);
+    if (jpegFileToThumbnailJpegPass(jpegFile, jpegOut, targetMaxWidth, targetMaxHeight, quality, kColorBudgets[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool JpegToBmpConverter::jpegFileToThumbnailJpegPass(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth,
+                                                     int targetMaxHeight, uint8_t quality, size_t maxColorBudget) {
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
@@ -1002,8 +1020,11 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
 
   int outWidth = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_width) * scale)));
   int outHeight = std::max(1, static_cast<int>(std::lround(static_cast<float>(imageInfo.m_height) * scale)));
-  const size_t maxColorThumbnailBytes =
+  size_t maxColorThumbnailBytes =
       std::max<size_t>(12288u, static_cast<size_t>(targetMaxWidth) * static_cast<size_t>(targetMaxHeight));
+  if (maxColorBudget != 0) {
+    maxColorThumbnailBytes = std::min<size_t>(maxColorThumbnailBytes, maxColorBudget);
+  }
   const size_t colorBytes = static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u;
   if (colorBytes > maxColorThumbnailBytes) {
     const float memoryScale = std::sqrt(static_cast<float>(maxColorThumbnailBytes) / static_cast<float>(colorBytes));
@@ -1013,15 +1034,25 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
   const uint32_t scaleX_fp = (static_cast<uint32_t>(imageInfo.m_width) << 16) / static_cast<uint32_t>(outWidth);
   const uint32_t scaleY_fp = (static_cast<uint32_t>(imageInfo.m_height) << 16) / static_cast<uint32_t>(outHeight);
 
+  // Precompute the source column sampled by each output column. This lets the per-MCU-row decode
+  // buffer hold only `outWidth` columns instead of the full source width, so its size scales with
+  // the (small) thumbnail rather than the (large) cover -> no ~76 KB allocation tied to source width.
   uint8_t* thumbnail =
       static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u));
-  uint8_t* mcuRowBuffer =
-      static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight) *
-                                   3u));
-  if (!thumbnail || !mcuRowBuffer) {
+  uint16_t* srcColForOut = static_cast<uint16_t*>(malloc(static_cast<size_t>(outWidth) * sizeof(uint16_t)));
+  uint8_t* bandBuffer =
+      static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth) * static_cast<size_t>(imageInfo.m_MCUHeight) * 3u));
+  if (!thumbnail || !srcColForOut || !bandBuffer) {
     free(thumbnail);
-    free(mcuRowBuffer);
+    free(srcColForOut);
+    free(bandBuffer);
     return false;
+  }
+  for (int x = 0; x < outWidth; x++) {
+    int sx = (x * scaleX_fp) >> 16;
+    if (sx < 0) sx = 0;
+    if (sx >= imageInfo.m_width) sx = imageInfo.m_width - 1;
+    srcColForOut[x] = static_cast<uint16_t>(sx);
   }
   memset(thumbnail, 255, static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight) * 3u);
 
@@ -1029,20 +1060,20 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
   bool decodeFailed = false;
 
   for (int mcuY = 0; mcuY < imageInfo.m_MCUSPerCol && !decodeFailed; mcuY++) {
-    memset(mcuRowBuffer, 255,
-           static_cast<size_t>(imageInfo.m_width) * static_cast<size_t>(imageInfo.m_MCUHeight) * 3u);
+    memset(bandBuffer, 255, static_cast<size_t>(outWidth) * static_cast<size_t>(imageInfo.m_MCUHeight) * 3u);
 
+    int outX = 0;  // monotonic cursor over sampled output columns
     for (int mcuX = 0; mcuX < imageInfo.m_MCUSPerRow; mcuX++) {
       if (pjpeg_decode_mcu() != 0) {
         decodeFailed = true;
         break;
       }
 
-      for (int bY = 0; bY < imageInfo.m_MCUHeight; bY++) {
-        for (int bX = 0; bX < imageInfo.m_MCUWidth; bX++) {
-          const int pX = mcuX * imageInfo.m_MCUWidth + bX;
-          if (pX >= imageInfo.m_width) continue;
-
+      const int mcuColStart = mcuX * imageInfo.m_MCUWidth;
+      const int mcuColEnd = mcuColStart + imageInfo.m_MCUWidth;
+      while (outX < outWidth && srcColForOut[outX] < mcuColEnd) {
+        const int bX = srcColForOut[outX] - mcuColStart;  // local column within this MCU, in [0, MCUWidth)
+        for (int bY = 0; bY < imageInfo.m_MCUHeight; bY++) {
           const int off = (bY / 8 * (imageInfo.m_MCUWidth / 8) + bX / 8) * 64 + (bY % 8) * 8 + (bX % 8);
           uint8_t r = imageInfo.m_pMCUBufR[off];
           uint8_t g = r;
@@ -1051,19 +1082,20 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
             g = imageInfo.m_pMCUBufG[off];
             b = imageInfo.m_pMCUBufB[off];
           }
-          uint8_t* dst = mcuRowBuffer + (static_cast<size_t>(bY) * static_cast<size_t>(imageInfo.m_width) +
-                                         static_cast<size_t>(pX)) *
-                                            3u;
+          uint8_t* dst = bandBuffer + (static_cast<size_t>(bY) * static_cast<size_t>(outWidth) +
+                                       static_cast<size_t>(outX)) *
+                                          3u;
           dst[0] = r;
           dst[1] = g;
           dst[2] = b;
         }
+        outX++;
       }
     }
 
     for (int y = 0; y < imageInfo.m_MCUHeight && (mcuY * imageInfo.m_MCUHeight + y) < imageInfo.m_height; y++) {
       const int currentSrcY = mcuY * imageInfo.m_MCUHeight + y;
-      uint8_t* srcRow = mcuRowBuffer + static_cast<size_t>(y) * static_cast<size_t>(imageInfo.m_width) * 3u;
+      const uint8_t* srcRow = bandBuffer + static_cast<size_t>(y) * static_cast<size_t>(outWidth) * 3u;
 
       while (currentOutY < outHeight) {
         const int sampleSrcY = (currentOutY * scaleY_fp) >> 16;
@@ -1075,20 +1107,14 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
           break;
         }
         uint8_t* outRow = thumbnail + static_cast<size_t>(currentOutY) * static_cast<size_t>(outWidth) * 3u;
-        for (int x = 0; x < outWidth; x++) {
-          int sx = (x * scaleX_fp) >> 16;
-          if (sx < 0) sx = 0;
-          if (sx >= imageInfo.m_width) sx = imageInfo.m_width - 1;
-          const uint8_t* src = srcRow + static_cast<size_t>(sx) * 3u;
-          uint8_t* dst = outRow + static_cast<size_t>(x) * 3u;
-          dst[0] = src[0];
-          dst[1] = src[1];
-          dst[2] = src[2];
-        }
+        memcpy(outRow, srcRow, static_cast<size_t>(outWidth) * 3u);
         currentOutY++;
       }
     }
   }
+
+  free(srcColForOut);
+  srcColForOut = nullptr;
 
   while (!decodeFailed && currentOutY < outHeight) {
     uint8_t* outRow = thumbnail + static_cast<size_t>(currentOutY) * static_cast<size_t>(outWidth) * 3u;
@@ -1114,7 +1140,7 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOu
   }
 
   free(thumbnail);
-  free(mcuRowBuffer);
+  free(bandBuffer);
   return encoded;
 }
 

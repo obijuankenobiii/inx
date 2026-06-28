@@ -20,8 +20,8 @@ class Bitmap;
 /**
  * Activity for displaying reading statistics.
  * First view is a global reading-stats summary; Up/Down steps through one book at a time.
- * On enter, per-book stats are scanned from SD and global totals load from `/.system/statistics.bin`
- * when present. Confirm (Refresh) rescans, recomputes aggregates, and writes that snapshot.
+ * On enter, global totals load only from `/.system/statistics.bin` for speed.
+ * Confirm (Refresh) rescans per-book stats, recomputes aggregates, and writes that snapshot.
  */
 class StatisticActivity final : public Activity, public Menu {
 private:
@@ -30,6 +30,7 @@ private:
     bool updateRequired = false;
 
     std::vector<BookReadingStats> allBooksStats;
+    std::vector<uint8_t> loadedBookStatsFlags_;
     GlobalReadingStats globalStats;
 
     const std::function<void()> onGoToRecent;
@@ -41,8 +42,10 @@ private:
      */
     void loadStats();
 
-    /** SD scan for per-book stats + load saved global totals (or aggregate if no snapshot yet). */
+    /** Fast page entry: load saved global totals only, without scanning per-book stats. */
     void hydrateFromStorage();
+    void indexBookStatsPaths();
+    bool ensureBookStatsLoaded(int bookIdx);
 
     /**
      * Renders a book cover or placeholder at the specified position.

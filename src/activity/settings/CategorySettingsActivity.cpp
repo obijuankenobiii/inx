@@ -18,14 +18,17 @@
 #include "CalibreSettingsActivity.h"
 #include "ClockStylePickerActivity.h"
 #include "ClearCacheActivity.h"
-#include "TimeSyncActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
+#include "SleepImagePickerActivity.h"
+#include "ThumbnailGeneratorActivity.h"
+#include "TimeSyncActivity.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "util/StringUtils.h"
 
 #include <EpdFontFamily.h>
@@ -83,12 +86,21 @@ void CategorySettingsActivity::onEnter() {
 void CategorySettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
+  // The display task holds renderingMutex across the whole render() — including the long displayBuffer() SPI/panel
+  // transaction. Deleting it mid-render aborts that transaction, leaving the panel stuck on the half-written
+  // settings frame (which then ghosts onto later screens). Take the mutex first so we block until the task has
+  // finished its current frame and is idle, then delete it safely between frames.
+  if (renderingMutex) {
+    xSemaphoreTake(renderingMutex, portMAX_DELAY);
+  }
+
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
 
   if (renderingMutex) {
+    xSemaphoreGive(renderingMutex);
     vSemaphoreDelete(renderingMutex);
     renderingMutex = nullptr;
   }
@@ -264,6 +276,14 @@ void CategorySettingsActivity::setupMenu() {
               }
               return;
             }
+            if (strcmp(setting.name, "Generate thumbnails") == 0) {
+              exitActivity();
+              enterNewActivity(new ThumbnailGeneratorActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+              return;
+            }
             if (strcmp(setting.name, "About") == 0) {
               if (onAboutPanel) {
                 onAboutPanel();
@@ -284,7 +304,7 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Reset device") == 0) {
+            if (strcmp(setting.name, "Delete Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -292,7 +312,11 @@ void CategorySettingsActivity::setupMenu() {
               }));
             }
             if (strcmp(setting.name, "Choose sleep image") == 0) {
-              openSleepImageSelector();
+              exitActivity();
+              enterNewActivity(new SleepImagePickerActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
               return;
             }
             if (strcmp(setting.name, "Choose clock") == 0 || strcmp(setting.name, "Face") == 0) {
@@ -606,29 +630,30 @@ void CategorySettingsActivity::loop() {
       closeSelector(true);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       moveSelector(-1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemNext())) {
       moveSelector(1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    if (mappedInput.wasPressed(MenuNav::tabPrev())) {
       selectorPage(-1);
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    if (mappedInput.wasPressed(MenuNav::tabNext())) {
       selectorPage(1);
       return;
     }
     return;
   }
 
-  const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
-  const bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab vs item nav buttons depend on the main-menu nav setting (front: L/R tabs, U/D items; side: swapped).
+  const bool upPressed = mappedInput.wasPressed(itemPrevButton());
+  const bool downPressed = mappedInput.wasPressed(itemNextButton());
+  const bool leftPressed = mappedInput.wasPressed(tabPrevButton());
+  const bool rightPressed = mappedInput.wasPressed(tabNextButton());
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool backPressed = mappedInput.wasPressed(MappedInputManager::Button::Back);
 
@@ -747,19 +772,18 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   const int panelX = (pageWidth - panelW) / 2;
   const int panelY = std::max(TAB_BAR_HEIGHT + 8, (pageHeight - panelH) / 2);
 
-  renderer.rectangle.fill(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true);
   renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
   renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
-  renderer.rectangle.fill(panelX, panelY, panelW, headerHeight, true);
 
   const char* title = "Select";
   if (selectorSourceIndex >= 0 && selectorSourceIndex < static_cast<int>(menuItems.size()) &&
       menuItems[selectorSourceIndex].name) {
     title = menuItems[selectorSourceIndex].name;
   }
-  const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 28, EpdFontFamily::BOLD);
-  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2;
-  renderer.text.render(titleFont, panelX + 14, titleY, shownTitle.c_str(), false, EpdFontFamily::BOLD);
+  const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 32, EpdFontFamily::BOLD);
+  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2 - 3;
+  renderer.text.render(titleFont, panelX + 16, titleY, shownTitle.c_str(), true, EpdFontFamily::BOLD);
+  renderer.line.render(panelX, panelY + headerHeight - 4, panelX + panelW, panelY + headerHeight - 4, true);
 
   const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - rows);
   selectorScrollOffset = std::max(0, std::min(selectorScrollOffset, maxScroll));
@@ -807,6 +831,19 @@ void CategorySettingsActivity::render() {
       headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
+
+  // Version shown as a small rounded tag: black rounded background with white text.
+  const int verFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int verPadX = 8;
+  const int versionW = renderer.text.getWidth(verFont, INX_VERSION);
+  const int verLineH = renderer.text.getLineHeight(verFont);
+  const int verTagH = verLineH + 6;
+  const int verTagW = versionW + verPadX * 2;
+  const int verTagX = pageWidth - verTagW - 20;
+  const int verTagY = headerY + (headerHeight - verTagH) / 2;
+  renderer.rectangle.fill(verTagX, verTagY, verTagW, verTagH, true, true);  // filled, rounded (black)
+  const int versionY = verTagY + (verTagH - verLineH) / 2;
+  renderer.text.render(verFont, verTagX + verPadX, versionY, INX_VERSION, false, EpdFontFamily::REGULAR);  // white text
 
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
@@ -891,19 +928,6 @@ void CategorySettingsActivity::render() {
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();
     int thumbY = startY + (scrollOffset * listHeight) / menuItems.size();
     renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
-  }
-
-  {
-    const GfxRenderer::Orientation orientationBeforeHints = renderer.getOrientation();
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
-    const int pageHeight = renderer.getScreenHeight();
-    constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-    const int lineH = renderer.text.getLineHeight(fontId);
-    constexpr int kHintBarInsetFromBottom = 40;
-    constexpr int kGapAboveHints = 8;
-    const int versionRowTop = pageHeight - kHintBarInsetFromBottom - kGapAboveHints - lineH;
-    renderer.text.centered(fontId, versionRowTop, INX_VERSION, true, EpdFontFamily::REGULAR);
-    renderer.setOrientation(orientationBeforeHints);
   }
 
   if (selectorOpen) {

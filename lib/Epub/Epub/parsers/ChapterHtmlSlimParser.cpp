@@ -8,6 +8,10 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <exception>
+#include <vector>
+
+#include <Bitmap.h>
 
 #include <Arduino.h>
 
@@ -28,6 +32,7 @@ const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
+constexpr size_t STREAMING_TEXTBLOCK_WORD_LIMIT = 320;
 
 namespace {
 
@@ -37,6 +42,127 @@ bool hasJpegExt(const std::string& path) {
 
 bool hasPngExt(const std::string& path) {
   return StringUtils::checkFileExtension(path, ".png");
+}
+
+bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
+  if (needle == nullptr || *needle == '\0') {
+    return true;
+  }
+  const size_t needleLen = std::strlen(needle);
+  if (haystack.size() < needleLen) {
+    return false;
+  }
+  for (size_t i = 0; i + needleLen <= haystack.size(); ++i) {
+    size_t j = 0;
+    while (j < needleLen) {
+      const unsigned char hc = static_cast<unsigned char>(haystack[i + j]);
+      const unsigned char nc = static_cast<unsigned char>(needle[j]);
+      if (std::tolower(hc) != std::tolower(nc)) {
+        break;
+      }
+      ++j;
+    }
+    if (j == needleLen) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isAsciiLower(const uint32_t cp) { return cp >= 'a' && cp <= 'z'; }
+
+bool isAsciiAlpha(const uint32_t cp) { return (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z'); }
+
+uint32_t toAsciiUpper(const uint32_t cp) { return isAsciiLower(cp) ? (cp - ('a' - 'A')) : cp; }
+
+void appendUtf8Codepoint(std::string& out, const uint32_t cp) {
+  if (cp <= 0x7F) {
+    out.push_back(static_cast<char>(cp));
+  } else if (cp <= 0x7FF) {
+    out.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else if (cp <= 0xFFFF) {
+    out.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else {
+    out.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  }
+}
+
+int utf8CodepointByteLength(const unsigned char lead) {
+  if ((lead & 0x80) == 0x00) return 1;
+  if ((lead & 0xE0) == 0xC0) return 2;
+  if ((lead & 0xF0) == 0xE0) return 3;
+  if ((lead & 0xF8) == 0xF0) return 4;
+  return 1;
+}
+
+bool endsWithCompleteUtf8Codepoint(const char* s, int byteLen) {
+  if (s == nullptr || byteLen <= 0) {
+    return false;
+  }
+  int start = byteLen - 1;
+  while (start > 0 && (static_cast<unsigned char>(s[start]) & 0xC0) == 0x80) {
+    --start;
+  }
+  const int expected = utf8CodepointByteLength(static_cast<unsigned char>(s[start]));
+  return (byteLen - start) >= expected;
+}
+
+bool hasDropCapHint(const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr) {
+  return containsAsciiInsensitive(classAttr, "dropcap") || containsAsciiInsensitive(classAttr, "drop-cap") ||
+         containsAsciiInsensitive(classAttr, "initial-letter") || containsAsciiInsensitive(idAttr, "dropcap") ||
+         containsAsciiInsensitive(idAttr, "drop-cap") || containsAsciiInsensitive(idAttr, "initial-letter") ||
+         containsAsciiInsensitive(styleAttr, "initial-letter");
+}
+
+bool hasExplicitSmallCapsHint(const char* tagName, const std::string& classAttr, const std::string& idAttr,
+                              const std::string& styleAttr) {
+  if (tagName == nullptr || std::strcmp(tagName, "span") != 0) {
+    return false;
+  }
+  return containsAsciiInsensitive(classAttr, "smallcaps") || containsAsciiInsensitive(classAttr, "small-caps") ||
+         containsAsciiInsensitive(idAttr, "smallcaps") || containsAsciiInsensitive(idAttr, "small-caps") ||
+         containsAsciiInsensitive(styleAttr, "small-caps");
+}
+
+uint8_t detectDropCapLineCount(const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr) {
+  auto parseSource = [](const std::string& src) -> uint8_t {
+    for (size_t i = 0; i < src.size(); ++i) {
+      if (std::isdigit(static_cast<unsigned char>(src[i])) == 0) {
+        continue;
+      }
+      size_t j = i;
+      while (j < src.size() && std::isdigit(static_cast<unsigned char>(src[j])) != 0) {
+        ++j;
+      }
+      if (j < src.size() && containsAsciiInsensitive(src.substr(j), "line")) {
+        const int value = std::atoi(src.substr(i, j - i).c_str());
+        if (value >= 1 && value <= 9) {
+          return static_cast<uint8_t>(value);
+        }
+      }
+      if (i >= 4 && containsAsciiInsensitive(src.substr(i - 4, 4), "line")) {
+        const int value = std::atoi(src.substr(i, j - i).c_str());
+        if (value >= 1 && value <= 9) {
+          return static_cast<uint8_t>(value);
+        }
+      }
+    }
+    return 0;
+  };
+
+  uint8_t v = parseSource(classAttr);
+  if (v != 0) return v;
+  v = parseSource(idAttr);
+  if (v != 0) return v;
+  v = parseSource(styleAttr);
+  if (v != 0) return v;
+  return 3;
 }
 
 int countUtf8Codepoints(const char* s, int byteLen) {
@@ -50,11 +176,69 @@ int countUtf8Codepoints(const char* s, int byteLen) {
   return n;
 }
 
+bool isLeadingDropCapPunctuation(const uint32_t cp) {
+  switch (cp) {
+    case '"':
+    case '\'':
+    case '(':
+    case '[':
+    case '{':
+    case 0x00AB:
+    case 0x00BB:
+    case 0x2018:
+    case 0x2019:
+    case 0x201A:
+    case 0x201B:
+    case 0x201C:
+    case 0x201D:
+    case 0x201E:
+    case 0x201F:
+      return true;
+    default:
+      return false;
+  }
+}
+
+int desiredDropCapCodepoints(const char* s, int byteLen, const bool consumeWholeContainer) {
+  if (consumeWholeContainer) {
+    return countUtf8Codepoints(s, byteLen);
+  }
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  if (p >= end) {
+    return 1;
+  }
+  const uint32_t first = utf8NextCodepoint(&p);
+  return isLeadingDropCapPunctuation(first) ? 2 : 1;
+}
+
+std::string uppercaseSingleLetterDropCap(const char* s, const int byteLen) {
+  std::string out;
+  out.reserve(static_cast<size_t>(byteLen));
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + static_cast<size_t>(byteLen);
+  int alphaCount = 0;
+  while (p < end) {
+    const uint32_t cp = utf8NextCodepoint(&p);
+    if (isAsciiAlpha(cp)) {
+      ++alphaCount;
+    }
+  }
+
+  p = reinterpret_cast<const unsigned char*>(s);
+  while (p < end) {
+    const uint32_t cp = utf8NextCodepoint(&p);
+    appendUtf8Codepoint(out, alphaCount == 1 ? toAsciiUpper(cp) : cp);
+  }
+  return out;
+}
+
 }  
 
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
+// <a> links render bold (and underlined, see underlineUntilDepth).
 const char* BOLD_TAGS[] = {"b", "strong"};
 constexpr int NUM_BOLD_TAGS = sizeof(BOLD_TAGS) / sizeof(BOLD_TAGS[0]);
 
@@ -90,6 +274,43 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
   return false;
 }
 
+std::string trimAsciiWs(const std::string& in) {
+  size_t start = 0;
+  while (start < in.size() && std::isspace(static_cast<unsigned char>(in[start]))) {
+    ++start;
+  }
+  size_t end = in.size();
+  while (end > start && std::isspace(static_cast<unsigned char>(in[end - 1]))) {
+    --end;
+  }
+  return in.substr(start, end - start);
+}
+
+// Lower-cases the element tag and pulls out the class/id/style attribute values used for CSS matching.
+void extractSelectorAttributes(const XML_Char* name, const XML_Char** atts, std::string& tagLower,
+                               std::string& classAttr, std::string& idAttr, std::string& styleAttr) {
+  tagLower.clear();
+  classAttr.clear();
+  idAttr.clear();
+  styleAttr.clear();
+  if (name != nullptr) {
+    for (const XML_Char* p = name; *p; ++p) {
+      tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
+    }
+  }
+  if (atts != nullptr) {
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "class") == 0) {
+        classAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "id") == 0) {
+        idAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "style") == 0) {
+        styleAttr = atts[i + 1];
+      }
+    }
+  }
+}
+
 /**
  * Loads all CSS rules from the EPUB cache using CssParser
  */
@@ -98,13 +319,34 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   skipUntilDepth = INT_MAX;
   boldUntilDepth = INT_MAX;
   italicUntilDepth = INT_MAX;
+  underlineUntilDepth = INT_MAX;
   inHeader = false;
   inDropCap = false;
   dropCapDepth = INT_MAX;
+  dropCapConsumeWholeContainer = false;
+  dropCapLineCount = 3;
   partWordBufferIndex = 0;
   currentTextBlock.reset();
   currentPage.reset();
   currentPageNextY = 0;
+  cssAlignmentStack.clear();
+  cssAlignmentDepths.clear();
+  smallCapsStack.clear();
+  smallCapsDepths.clear();
+  currentBlockBottomSpacingPx = 0;
+  currentBlockSpacingFromCss = false;
+  currentBlockMarginBottomPx = 0;
+  currentBlockPaddingBottomPx = 0;
+  currentBlockBorderBottomPx = 0;
+  inTable_ = false;
+  tableShowBorders_ = false;
+  tableDepth_ = INT_MAX;
+  tableRowDepth_ = INT_MAX;
+  tableCellDepth_ = INT_MAX;
+  tableLastWasSpace_ = true;
+  tableRows_.clear();
+  currentTableRow_.clear();
+  currentTableCell_.reset();
 }
 
 void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
@@ -194,29 +436,41 @@ void ChapterHtmlSlimParser::loadCssRules() {
     Serial.printf("[EHP] Loading %d CSS files for dimension extraction\n", cssCount);
 
     
-    const size_t MAX_TOTAL_CSS_SIZE = 50 * 1024;  
+    const size_t MAX_TOTAL_CSS_SIZE = 96 * 1024;
     size_t totalCssSize = 0;
+    // Reserve this much heap for the rest of layout/image decoding; CSS rule loading stops before dipping below
+    // it so a big stylesheet can't exhaust memory and abort during image decode.
+    constexpr uint32_t kCssReserveHeapBytes = 80 * 1024;
 
     for (int i = 0; i < cssCount && totalCssSize < MAX_TOTAL_CSS_SIZE; i++) {
-      auto cssEntry = epub.getCssItem(i);
+      // Loading/parsing CSS can exhaust the heap on large books; degrade gracefully (use whatever
+      // rules parsed so far) instead of letting an uncaught std::bad_alloc abort the device.
+      try {
+        auto cssEntry = epub.getCssItem(i);
 
-      
-      if (cssEntry.content.empty()) {
-        continue;
+        if (cssEntry.content.empty()) {
+          continue;
+        }
+
+        if (cssEntry.content.size() > 64 * 1024) {
+          Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
+                        (int)cssEntry.content.size());
+          continue;
+        }
+
+        totalCssSize += cssEntry.content.size();
+        cssParser.parse(cssEntry.content, cssEntry.path, kCssReserveHeapBytes);
+
+        Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(),
+                      (int)cssEntry.content.size(), (int)totalCssSize);
+      } catch (const std::exception& e) {
+        Serial.printf("[EHP] CSS load aborted at file %d (%s); continuing with %zu rules\n", i, e.what(),
+                      cssParser.getRuleCount());
+        break;
+      } catch (...) {
+        Serial.printf("[EHP] CSS load aborted at file %d; continuing with %zu rules\n", i, cssParser.getRuleCount());
+        break;
       }
-
-      
-      if (cssEntry.content.size() > 20 * 1024) {  
-        Serial.printf("[EHP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
-                      (int)cssEntry.content.size());
-        continue;
-      }
-
-      totalCssSize += cssEntry.content.size();
-      cssParser.parse(cssEntry.content);
-
-      Serial.printf("[EHP] Parsed CSS: %s (%d bytes, total: %d)\n", cssEntry.path.c_str(), (int)cssEntry.content.size(),
-                    (int)totalCssSize);
     }
 
     Serial.printf("[EHP] Loaded %zu CSS rules from %d bytes\n", cssParser.getRuleCount(), (int)totalCssSize);
@@ -269,6 +523,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
 
   bool widthIsPercentage = false;
   bool heightIsPercentage = false;
+  const bool followCssParagraphLayout = (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS);
 
   
   if (imgWidth == 0 || imgHeight == 0) {
@@ -414,7 +669,50 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     Serial.printf("[EHP] Image %s - CSS: %s, Final: %dx%d (actual: %dx%d, percent: w=%d h=%d)\n", src.c_str(),
                   styleAttr.c_str(), imgWidth, imgHeight, actualW, actualH, widthIsPercentage, heightIsPercentage);
 
-    addImageToPage(cacheImgPath, imgWidth, imgHeight);
+    // An image flows inline (as an atomic "word" on a text line) only when it is BOTH in a text context
+    // (heading, or mid-paragraph with words already placed) AND small enough to be an ornament — roughly the
+    // text line height. Larger images (e.g. a chapter decoration in an <h1> before a <br>) stay block-level
+    // at full size, otherwise they'd be shrunk to the line height.
+    const int activeFontId = inHeader ? headerFontId : fontId;
+    const int lineH = std::max(1, renderer.text.getLineHeight(activeFontId));
+    const bool ornamentSized = (imgHeight <= lineH * 2);
+    const bool inlineImage = ornamentSized && (inHeader || (currentTextBlock && !currentTextBlock->isEmpty()));
+    if (inlineImage) {
+      int dispW = imgWidth;
+      int dispH = imgHeight;
+      // Scale to fit the text line height (keep aspect) so line height stays uniform; cap width to viewport.
+      if (dispH > lineH) {
+        dispW = std::max(1, dispW * lineH / std::max(1, dispH));
+        dispH = lineH;
+      }
+      if (dispW > viewportWidth) {
+        dispH = std::max(1, dispH * viewportWidth / std::max(1, dispW));
+        dispW = viewportWidth;
+      }
+      flushPartWordBuffer();
+      if (!currentTextBlock) {
+        startNewTextBlock(inHeader ? TextBlock::CENTER_ALIGN : TextBlock::JUSTIFIED);
+      }
+      currentTextBlock->addImage(cacheImgPath, static_cast<uint16_t>(dispW), static_cast<uint16_t>(dispH));
+    } else {
+      if (followCssParagraphLayout &&
+          cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+        if (currentPageNextY > 0) {
+          applyVerticalSpacing(
+              cssParser.getParagraphSpacingTopPx("img", classAttr, idAttr, styleAttr, viewportWidth, viewportHeight));
+        }
+      }
+      addImageToPage(cacheImgPath, imgWidth, imgHeight);
+      if (followCssParagraphLayout &&
+          cssParser.hasParagraphSpacingSpecified("img", classAttr, idAttr, styleAttr)) {
+        const int defaultGap = renderer.text.getLineHeight(fontId) / 2;
+        const int cssBottom = cssParser.getParagraphSpacingBottomPx("img", classAttr, idAttr, styleAttr, viewportWidth,
+                                                                    viewportHeight);
+        if (cssBottom > defaultGap) {
+          applyVerticalSpacing(cssBottom - defaultGap);
+        }
+      }
+    }
   } else {
     Serial.printf("[%lu] [EBP-IMG] <img> not placed src=%s resolved=%s cache=%s skipImages=%d\n",
                   static_cast<unsigned long>(millis()), src.c_str(), fullInternalPath.c_str(), cacheImgPath.c_str(),
@@ -433,18 +731,20 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   if (inDropCap) {
     if (!currentPage) currentPage.reset(new Page());
 
-    auto dropCapElem = std::make_shared<PageDropCap>(partWordBuffer, 0, currentPageNextY, maxFontId);
+    const std::string dropCapText = uppercaseSingleLetterDropCap(partWordBuffer, partWordBufferIndex);
+    auto dropCapElem = std::make_shared<PageDropCap>(dropCapText, 0, currentPageNextY, maxFontId);
     currentPage->elements.push_back(dropCapElem);
 
-    const int gutter = std::max(renderer.text.getSpaceWidth(fontId), 10);
-    int dropCapWidth = renderer.text.getWidth(maxFontId, partWordBuffer, EpdFontFamily::BOLD) + gutter;
+    int dropCapWidth = renderer.text.getWidth(maxFontId, dropCapText.c_str(), EpdFontFamily::BOLD) + 3;
 
     if (currentTextBlock) {
-      currentTextBlock->setLeftIndent(dropCapWidth, 3);
+      currentTextBlock->setLeftIndent(dropCapWidth, dropCapLineCount);
     }
 
     partWordBufferIndex = 0;
     inDropCap = false;
+    dropCapConsumeWholeContainer = false;
+    dropCapLineCount = 3;
     return;
   }
 
@@ -457,8 +757,365 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     fontStyle = EpdFontFamily::ITALIC;
   }
 
-  currentTextBlock->addWord(partWordBuffer, fontStyle);
+  if (inHeader) {
+    if (fontStyle == EpdFontFamily::REGULAR) {
+      fontStyle = EpdFontFamily::BOLD;
+    } else if (fontStyle == EpdFontFamily::ITALIC) {
+      fontStyle = EpdFontFamily::BOLD_ITALIC;
+    }
+  }
+
+  const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
+  const bool underlineActive = underlineUntilDepth < depth;
+  if (currentTextBlock && currentTextBlock->size() >= STREAMING_TEXTBLOCK_WORD_LIMIT) {
+    currentTextBlock->layoutAndExtractLines(
+        renderer, activeBlockFontId(), viewportWidth,
+        [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
+  }
+  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive);
   partWordBufferIndex = 0;
+}
+
+void ChapterHtmlSlimParser::applyVerticalSpacing(const int px) {
+  if (px <= 0) {
+    return;
+  }
+  if (currentPageNextY + px > viewportHeight) {
+    if (currentPage && !currentPage->elements.empty()) {
+      completePageFn(std::move(currentPage));
+    }
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+    return;
+  }
+  currentPageNextY += px;
+}
+
+void ChapterHtmlSlimParser::flushCurrentTableCell() {
+  if (!currentTableCell_) {
+    return;
+  }
+  currentTableCell_->text = trimAsciiWs(currentTableCell_->text);
+  currentTableRow_.push_back(std::move(*currentTableCell_));
+  currentTableCell_.reset();
+  tableLastWasSpace_ = true;
+}
+
+void ChapterHtmlSlimParser::flushCurrentTableRow() {
+  flushCurrentTableCell();
+  if (!currentTableRow_.empty()) {
+    tableRows_.push_back(std::move(currentTableRow_));
+    currentTableRow_.clear();
+  }
+}
+
+void ChapterHtmlSlimParser::appendTableText(const XML_Char* s, const int len) {
+  if (!currentTableCell_ || s == nullptr || len <= 0) {
+    return;
+  }
+  for (int i = 0; i < len; ++i) {
+    const unsigned char ch = static_cast<unsigned char>(s[i]);
+    if (std::isspace(ch)) {
+      if (!tableLastWasSpace_ && !currentTableCell_->text.empty()) {
+        currentTableCell_->text.push_back(' ');
+      }
+      tableLastWasSpace_ = true;
+      continue;
+    }
+    currentTableCell_->text.push_back(static_cast<char>(ch));
+    tableLastWasSpace_ = false;
+  }
+}
+
+void ChapterHtmlSlimParser::addTableToPage() {
+  flushCurrentTableRow();
+  if (tableRows_.empty()) {
+    return;
+  }
+
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  size_t columnCount = 0;
+  for (const auto& row : tableRows_) {
+    size_t spanSum = 0;
+    for (const auto& cell : row) {
+      spanSum += std::max(1, cell.colspan);
+    }
+    columnCount = std::max(columnCount, spanSum);
+  }
+  if (columnCount == 0) {
+    tableRows_.clear();
+    return;
+  }
+
+  constexpr int kCellPadX = 4;
+  constexpr int kCellPadY = 3;
+  // Respect the reader's line-spacing setting for table contents (was using the raw font line height,
+  // which made rows too tight relative to body text).
+  const int lineHeight = std::max(1, static_cast<int>(renderer.text.getLineHeight(fontId) * lineCompression));
+  const int tableWidth = viewportWidth;
+
+  std::vector<uint16_t> columnWidths(columnCount, 0);
+  if (columnCount == 2) {
+    // Two columns: size the first column to its content (text + padding) so short labels (e.g. a TOC
+    // number) sit close to the second column instead of taking up half the row.
+    int col0 = 24;
+    for (const auto& row : tableRows_) {
+      if (row.empty()) {
+        continue;
+      }
+      const auto& first = row.front();
+      if (std::max(1, first.colspan) != 1) {
+        continue;  // a full-width spanned row doesn't define the first column
+      }
+      const auto style = first.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      const int w = renderer.text.getWidth(fontId, first.text.c_str(), style) + 2 * kCellPadX;
+      col0 = std::max(col0, w);
+    }
+    const int maxCol0 = std::max(24, (tableWidth * 2) / 5);  // cap so the second column keeps room
+    col0 = std::min(col0, std::min(maxCol0, tableWidth - 24));
+    columnWidths[0] = static_cast<uint16_t>(std::max(1, col0));
+    columnWidths[1] = static_cast<uint16_t>(std::max(1, tableWidth - col0));
+  } else {
+    // 1 or 3+ columns: split evenly (last column absorbs rounding).
+    const int each = std::max<int>(24, tableWidth / static_cast<int>(columnCount));
+    int assignedWidth = 0;
+    for (size_t i = 0; i < columnCount; ++i) {
+      columnWidths[i] = (i + 1 == columnCount) ? static_cast<uint16_t>(std::max(1, tableWidth - assignedWidth))
+                                               : static_cast<uint16_t>(each);
+      assignedWidth += columnWidths[i];
+    }
+  }
+
+  auto wrapCell = [&](const TableCellCapture& cell, const int colWidth) {
+    std::vector<std::string> lines;
+    const int maxTextWidth = std::max(8, colWidth - 2 * kCellPadX);
+    const auto style = cell.header ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    const std::string text = cell.text.empty() ? " " : cell.text;
+    std::string current;
+    size_t pos = 0;
+    while (pos < text.size()) {
+      while (pos < text.size() && text[pos] == ' ') {
+        ++pos;
+      }
+      if (pos >= text.size()) {
+        break;
+      }
+      const size_t next = text.find(' ', pos);
+      const std::string word = text.substr(pos, next == std::string::npos ? std::string::npos : next - pos);
+      const std::string candidate = current.empty() ? word : current + " " + word;
+      if (!current.empty() && renderer.text.getWidth(fontId, candidate.c_str(), style) > maxTextWidth) {
+        lines.push_back(current);
+        current = word;
+      } else if (current.empty() && renderer.text.getWidth(fontId, word.c_str(), style) > maxTextWidth) {
+        std::string chunk;
+        for (const char c : word) {
+          std::string tryChunk = chunk;
+          tryChunk.push_back(c);
+          if (!chunk.empty() && renderer.text.getWidth(fontId, tryChunk.c_str(), style) > maxTextWidth) {
+            lines.push_back(chunk);
+            chunk.assign(1, c);
+          } else {
+            chunk = tryChunk;
+          }
+        }
+        current = chunk;
+      } else {
+        current = candidate;
+      }
+      pos = (next == std::string::npos) ? text.size() : next + 1;
+    }
+    if (!current.empty()) {
+      lines.push_back(current);
+    }
+    if (lines.empty()) {
+      lines.push_back(" ");
+    }
+    return lines;
+  };
+
+  std::vector<std::vector<PageTable::Cell>> pageRows;
+  std::vector<uint16_t> pageRowHeights;
+  int pageTableHeight = 1;
+
+  auto emitCurrentPageTable = [&]() {
+    if (pageRows.empty()) {
+      return;
+    }
+    if (!currentPage) {
+      currentPage.reset(new Page());
+    }
+    if (currentPageNextY + pageTableHeight > viewportHeight && currentPage && !currentPage->elements.empty()) {
+      completePageFn(std::move(currentPage));
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+    currentPage->elements.push_back(std::make_shared<PageTable>(std::move(pageRows), columnWidths, pageRowHeights,
+                                                                tableShowBorders_, static_cast<int16_t>(tableWidth),
+                                                                static_cast<int16_t>(pageTableHeight),
+                                                                static_cast<int16_t>(lineHeight), 0,
+                                                                currentPageNextY));
+    currentPageNextY += pageTableHeight + lineHeight / 2;
+    pageRows.clear();
+    pageRowHeights.clear();
+    pageTableHeight = 1;
+  };
+
+  for (const auto& row : tableRows_) {
+    std::vector<PageTable::Cell> renderedRow;
+    renderedRow.reserve(row.size());
+    int rowHeight = lineHeight + 2 * kCellPadY;
+    size_t gridCol = 0;
+    for (const auto& source : row) {
+      if (gridCol >= columnCount) {
+        break;
+      }
+      int span = std::max(1, source.colspan);
+      if (gridCol + static_cast<size_t>(span) > columnCount) {
+        span = static_cast<int>(columnCount - gridCol);
+      }
+      int spannedWidth = 0;
+      for (int s = 0; s < span; ++s) {
+        spannedWidth += columnWidths[gridCol + s];
+      }
+      PageTable::Cell cell;
+      cell.header = source.header;
+      cell.colspan = static_cast<uint16_t>(span);
+      cell.lines = wrapCell(source, spannedWidth);
+      rowHeight = std::max(rowHeight, static_cast<int>(cell.lines.size()) * lineHeight + 2 * kCellPadY);
+      renderedRow.push_back(std::move(cell));
+      gridCol += span;
+    }
+
+    const int projectedHeight = pageTableHeight + rowHeight + (pageRows.empty() ? 0 : 1);
+    // Break before any row that would run past the content area (which already excludes the status bar).
+    // This applies to the first row too, so a table following text doesn't spill into the status bar.
+    if (currentPageNextY + projectedHeight > viewportHeight) {
+      emitCurrentPageTable();  // flush rows already accumulated on this page (no-op if none)
+      if (currentPage && !currentPage->elements.empty()) {
+        completePageFn(std::move(currentPage));
+        currentPage.reset(new Page());
+        currentPageNextY = 0;
+      }
+    }
+
+    pageTableHeight += rowHeight + (pageRows.empty() ? 0 : 1);
+    pageRows.push_back(std::move(renderedRow));
+    pageRowHeights.push_back(static_cast<uint16_t>(rowHeight));
+  }
+
+  emitCurrentPageTable();
+  tableRows_.clear();
+  currentTableRow_.clear();
+  currentTableCell_.reset();
+  tableShowBorders_ = false;
+}
+
+void ChapterHtmlSlimParser::handlePrefetchPassElement(const XML_Char* name, const XML_Char** atts) {
+  if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
+    prefetchImageFromImgAttributes(atts);
+  } else if (skipUntilDepth >= depth && matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
+    // Not already inside a skipped subtree: start skipping this one (script/style/etc.).
+    skipUntilDepth = depth;
+  }
+  depth += 1;
+}
+
+bool ChapterHtmlSlimParser::handleTableStartElement(const XML_Char* name, const XML_Char** atts,
+                                                    const std::string& tagLower, const std::string& classAttr,
+                                                    const std::string& idAttr, const std::string& styleAttr) {
+  const auto attrTurnsOnBorders = [&](const char* key) {
+    if (atts == nullptr) return false;
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], key) == 0 && atts[i + 1] != nullptr && atts[i + 1][0] != '\0' &&
+          strcmp(atts[i + 1], "0") != 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (strcmp(name, "table") == 0) {
+    flushPartWordBuffer();
+    if (currentTextBlock && !currentTextBlock->isEmpty()) {
+      makePages();
+    }
+    inTable_ = true;
+    tableDepth_ = depth;
+    tableRowDepth_ = INT_MAX;
+    tableCellDepth_ = INT_MAX;
+    tableLastWasSpace_ = true;
+    tableShowBorders_ =
+        cssParser.hasBorderSpecified("table", classAttr, idAttr, styleAttr) || attrTurnsOnBorders("border");
+    tableRows_.clear();
+    currentTableRow_.clear();
+    currentTableCell_.reset();
+    depth += 1;
+    return true;
+  }
+
+  if (!inTable_) {
+    return false;
+  }
+
+  if (strcmp(name, "tr") == 0) {
+    flushCurrentTableRow();
+    tableRowDepth_ = depth;
+  } else if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+    flushCurrentTableCell();
+    currentTableCell_.reset(new TableCellCapture());
+    currentTableCell_->header = (strcmp(name, "th") == 0);
+    if (cssParser.hasBorderSpecified(tagLower, classAttr, idAttr, styleAttr) || attrTurnsOnBorders("border")) {
+      tableShowBorders_ = true;
+    }
+    if (atts != nullptr) {
+      for (int i = 0; atts[i]; i += 2) {
+        if (strcmp(atts[i], "colspan") == 0 && atts[i + 1] != nullptr) {
+          const int span = atoi(atts[i + 1]);
+          currentTableCell_->colspan = (span > 1) ? std::min(span, 64) : 1;
+        }
+      }
+    }
+    tableCellDepth_ = depth;
+    tableLastWasSpace_ = true;
+  } else if (strcmp(name, "br") == 0 && currentTableCell_) {
+    if (!currentTableCell_->text.empty() && currentTableCell_->text.back() != ' ') {
+      currentTableCell_->text.push_back(' ');
+    }
+    tableLastWasSpace_ = true;
+  }
+  depth += 1;
+  return true;
+}
+
+void ChapterHtmlSlimParser::applyDropCapHint(const XML_Char* name, const std::string& tagLower,
+                                             const std::string& classAttr, const std::string& idAttr,
+                                             const std::string& styleAttr) {
+  const bool attrHint = hasDropCapHint(classAttr, idAttr, styleAttr);
+  const bool pseudoHint = cssParser.hasFirstLetterDropCapHint(tagLower, classAttr, idAttr, styleAttr);
+  if (!attrHint && !pseudoHint) {
+    return;
+  }
+  flushPartWordBuffer();
+  inDropCap = true;
+  dropCapDepth = depth;
+  dropCapConsumeWholeContainer = (strcmp(name, "span") == 0);
+  dropCapLineCount = attrHint ? detectDropCapLineCount(classAttr, idAttr, styleAttr)
+                              : cssParser.getFirstLetterDropCapLineCount(tagLower, classAttr, idAttr, styleAttr);
+}
+
+void ChapterHtmlSlimParser::applyInlineFormattingTags(const XML_Char* name) {
+  if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
+    boldUntilDepth = depth;
+  }
+  if (strcmp(name, "a") == 0) {
+    underlineUntilDepth = depth;
+  }
+  if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
+    italicUntilDepth = depth;
+  }
 }
 
 /**
@@ -468,33 +1125,37 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
  * @param style The alignment style for the new text block
  */
 TextBlock::Style ChapterHtmlSlimParser::resolveTextAlignFromAttributes(const XML_Char* elementName,
-                                                                       const XML_Char** atts) const {
+                                                                       const XML_Char** atts,
+                                                                       const TextBlock::Style inheritedStyle) const {
+  std::string tagLower;
   std::string classAttr;
   std::string idAttr;
   std::string styleAttr;
-  if (atts != nullptr) {
-    for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "class") == 0) {
-        classAttr = atts[i + 1];
-      } else if (strcmp(atts[i], "id") == 0) {
-        idAttr = atts[i + 1];
-      } else if (strcmp(atts[i], "style") == 0) {
-        styleAttr = atts[i + 1];
-      }
-    }
-  }
-  std::string tagLower;
-  if (elementName != nullptr) {
-    for (const XML_Char* p = elementName; *p; ++p) {
-      tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
-    }
+  extractSelectorAttributes(elementName, atts, tagLower, classAttr, idAttr, styleAttr);
+  if (!cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+    return inheritedStyle;
   }
   return static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment(classAttr, idAttr, styleAttr, tagLower));
+}
+
+TextBlock::Style ChapterHtmlSlimParser::resolveBlockStyle(const XML_Char* elementName, const XML_Char** atts,
+                                                          const bool elementHasExplicitTextAlign,
+                                                          const TextBlock::Style elementCssStyle,
+                                                          const TextBlock::Style inheritedCssStyle) const {
+  if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    // Own text-align wins; otherwise inherit the ancestor's alignment (text-align is an inherited property).
+    return elementHasExplicitTextAlign ? elementCssStyle : inheritedCssStyle;
+  }
+  if (elementHasExplicitTextAlign) {
+    return resolveTextAlignFromAttributes(elementName, atts, inheritedCssStyle);
+  }
+  return static_cast<TextBlock::Style>(paragraphAlignment);
 }
 
 void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
   if (currentTextBlock) {
     if (currentTextBlock->isEmpty()) {
+      currentTextBlock->resetParagraphLayoutHints();
       currentTextBlock->setStyle(style);
       currentTextBlock->setRespectParagraphIndent(respectCssParagraphIndent);
       return;
@@ -502,7 +1163,100 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
     makePages();
   }
   currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing, hyphenationEnabled, respectCssParagraphIndent,
-                                        bionicReadingEnabled));
+                                        bionicReadingEnabled, wordSpacingFactor));
+}
+
+static uint8_t borderStyleCodeFromKeyword(const std::string& kw) {
+  if (kw == "double") return PageCssBorderLine::DOUBLE;
+  if (kw == "dotted") return PageCssBorderLine::DOTTED;
+  if (kw == "dashed") return PageCssBorderLine::DASHED;
+  return PageCssBorderLine::SOLID;
+}
+
+int ChapterHtmlSlimParser::cssBorderInnerGapPx() const {
+  return std::max(2, renderer.text.getLineHeight(headerFontId) / 4);
+}
+
+void ChapterHtmlSlimParser::applyMinHeightPadding() {
+  if (currentBlockMinHeightPx <= 0) return;
+  // Skip if the block wrapped onto a new page (content start Y no longer comparable to the current cursor).
+  if (currentPageNextY < currentBlockContentStartY) return;
+  const int contentHeight = currentPageNextY - currentBlockContentStartY;
+  if (contentHeight < currentBlockMinHeightPx) {
+    applyVerticalSpacing(currentBlockMinHeightPx - contentHeight);
+  }
+}
+
+void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int paddingTop) {
+  if (borderTop <= 0 || paddingTop <= 0) return;
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int inset = renderer.text.getGlyphTopInset(activeFontId, 'H', EpdFontFamily::REGULAR);
+  const int reduce = std::min(inset, paddingTop);  // never pull the text above the padded box
+  if (reduce > 0) {
+    currentPageNextY = static_cast<int16_t>(std::max(0, static_cast<int>(currentPageNextY) - reduce));
+  }
+}
+
+void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const std::string& classAttr,
+                                             const std::string& idAttr, const std::string& styleAttr) {
+  const int marginTop = cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int paddingTop = cssParser.getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int borderTop = cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockMarginBottomPx =
+      cssParser.getMarginBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockPaddingBottomPx =
+      cssParser.getPaddingBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockBorderBottomPx =
+      cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockBorderBottomStyle =
+      borderStyleCodeFromKeyword(cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
+  currentBlockSpacingFromCss = true;
+  currentBlockBottomSpacingPx = 0;
+
+  if (currentPageNextY > 0 && marginTop > 0) {
+    applyVerticalSpacing(marginTop);
+  }
+  if (borderTop > 0) {
+    const uint8_t borderTopStyle =
+        borderStyleCodeFromKeyword(cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
+    pendingTopBorderElem_ = addCssBorderLine(borderTop, borderTopStyle);
+  }
+  if (paddingTop > 0) {
+    applyVerticalSpacing(paddingTop);
+  }
+  tightenAfterTopBorder(borderTop, paddingTop);
+  currentBlockMinHeightPx = cssParser.getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockContentStartY = currentPageNextY;
+}
+
+std::shared_ptr<PageCssBorderLine> ChapterHtmlSlimParser::addCssBorderLine(const int thicknessPx, const uint8_t style) {
+  if (thicknessPx <= 0) {
+    return nullptr;
+  }
+  if (!currentPage) {
+    currentPage.reset(new Page());
+  }
+  // Border lines render at xPos + xOffset (xOffset is already the content left margin, like text lines). Start
+  // as a full content-width placeholder; finalizeBorderWidth() narrows it to the text width once known.
+  // A "double" rule needs at least 3px of vertical space to show its gap; reserve that in the layout.
+  const int reserved = (style == PageCssBorderLine::DOUBLE) ? std::max(3, thicknessPx) : thicknessPx;
+  auto elem = std::make_shared<PageCssBorderLine>(static_cast<int16_t>(0), static_cast<int16_t>(currentPageNextY),
+                                                  static_cast<int16_t>(std::max<int>(1, viewportWidth)),
+                                                  static_cast<int16_t>(thicknessPx), style);
+  currentPage->elements.push_back(elem);
+  currentPageNextY += reserved;
+  return elem;
+}
+
+void ChapterHtmlSlimParser::finalizeBorderWidth(const std::shared_ptr<PageCssBorderLine>& elem,
+                                                const int contentWidth, const bool center) const {
+  if (!elem) return;
+  if (contentWidth <= 0) return;  // unknown width — leave the full-content-width placeholder
+  int w = contentWidth + (contentWidth * 2) / 100;  // text width + 2%
+  if (w > static_cast<int>(viewportWidth)) w = viewportWidth;
+  if (w < 1) w = 1;
+  const int x = center ? (static_cast<int>(viewportWidth) - w) / 2 : 0;
+  elem->setGeometry(static_cast<int16_t>(x), static_cast<int16_t>(w));
 }
 
 /**
@@ -513,38 +1267,83 @@ void ChapterHtmlSlimParser::startNewTextBlock(TextBlock::Style style) {
  */
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-
+  const bool followCssParagraphLayout = (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS);
+  const TextBlock::Style inheritedCssStyle =
+      self->cssAlignmentStack.empty() ? TextBlock::LEFT_ALIGN : self->cssAlignmentStack.back();
+  TextBlock::Style elementCssStyle = inheritedCssStyle;
+  bool elementHasExplicitTextAlign = false;
+  std::string classAttr;
+  std::string idAttr;
+  std::string styleAttr;
+  std::string tagLower;
+  extractSelectorAttributes(name, atts, tagLower, classAttr, idAttr, styleAttr);
+  const bool isHeaderTag = matches(name, HEADER_TAGS, NUM_HEADER_TAGS);
+  const bool isBlockTag = matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS);
+  const bool hasSelectorAttrs = !classAttr.empty() || !idAttr.empty() || !styleAttr.empty();
+  const bool isCustomDisplayBlock =
+      hasSelectorAttrs && !isBlockTag && !isHeaderTag &&
+      (self->cssParser.isDisplayBlock(tagLower, classAttr, idAttr, styleAttr) ||
+       // A span (or other inline element) with a real top/bottom border is laid out block-like so the rule(s)
+       // can be drawn — same mechanism as headings. Gated on a visible border (not border:0/none resets).
+       self->cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                      self->viewportHeight) > 0 ||
+       self->cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                         self->viewportHeight) > 0);
+  const bool isBlockLikeElement = isHeaderTag || isBlockTag || isCustomDisplayBlock;
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && isBlockLikeElement) {
+    elementHasExplicitTextAlign = self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
+  }
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && elementHasExplicitTextAlign) {
+    elementCssStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
+  }
   if (self->imagePrefetchPassOnly_) {
-    if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-      self->prefetchImageFromImgAttributes(atts);
-      self->depth += 1;
-      return;
+    self->handlePrefetchPassElement(name, atts);
+    return;
+  }
+
+  if (self->handleTableStartElement(name, atts, tagLower, classAttr, idAttr, styleAttr)) {
+    return;
+  }
+
+  const bool inheritedSmallCaps = !self->smallCapsStack.empty() && self->smallCapsStack.back();
+  const bool resolvedSmallCaps =
+      inheritedSmallCaps || hasExplicitSmallCapsHint(name, classAttr, idAttr, styleAttr);
+  // Flush any pending word before the small-caps state changes so the preceding text keeps its flag.
+  if (resolvedSmallCaps != inheritedSmallCaps && self->partWordBufferIndex > 0) {
+    self->flushPartWordBuffer();
+  }
+  self->smallCapsStack.push_back(resolvedSmallCaps);
+  self->smallCapsDepths.push_back(self->depth);
+
+  if (isCustomDisplayBlock) {
+    self->flushPartWordBuffer();
+    // Lay out the previous block (applying ITS bottom margin/padding) before this block overwrites the
+    // shared currentBlock* spacing fields — otherwise the previous block's margin-bottom is lost.
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
     }
-    if (self->skipUntilDepth < self->depth) {
-      self->depth += 1;
-      return;
+    self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+    self->currentBlockFontId =
+        self->blockFontIdForEm(self->cssParser.getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
+    TextBlock::Style blockStyle =
+        self->resolveBlockStyle(name, atts, elementHasExplicitTextAlign, elementCssStyle, inheritedCssStyle);
+    if (self->inHeader) {
+      blockStyle = TextBlock::CENTER_ALIGN;
     }
-    if (matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
-      self->skipUntilDepth = self->depth;
-    }
+    self->startNewTextBlock(blockStyle);
+  }
+
+  self->applyDropCapHint(name, tagLower, classAttr, idAttr, styleAttr);
+
+  if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
+    self->processImageElement(atts);
     self->depth += 1;
     return;
   }
 
-  if ((strcmp(name, "span") == 0 || strcmp(name, "p") == 0) && atts != nullptr) {
-    for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "class") == 0 && strstr(atts[i + 1], "dropcap") != nullptr) {
-        self->flushPartWordBuffer();
-        self->inDropCap = true;
-        self->dropCapDepth = self->depth;
-        break;
-      }
-    }
-  }
-
-  
-  if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-    self->processImageElement(atts);
+  if (strcmp(name, "hr") == 0) {
+    self->flushPartWordBuffer();
+    self->addHorizontalRule(tagLower, classAttr, idAttr, styleAttr);
     self->depth += 1;
     return;
   }
@@ -554,61 +1353,40 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
-  if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
-    self->boldUntilDepth = self->depth;
-  }
+  self->applyInlineFormattingTags(name);
 
-  if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
-    self->italicUntilDepth = self->depth;
-  }
-
-  if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
-    self->inHeader = true;
-    self->startNewTextBlock(TextBlock::CENTER_ALIGN);
-  } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
-    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
-      self->currentTextBlock->addWord("\xe2\x80\x83\xe2\x80\x83", EpdFontFamily::REGULAR);
+  if (isHeaderTag) {
+    self->flushPartWordBuffer();
+    // Lay out the previous (non-header) block with its own context/spacing before switching to header mode,
+    // so its margin-bottom isn't overwritten by the header's spacing fields.
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
     }
-
+    self->inHeader = true;
+    self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+    // Headers default to centered, but follow an explicit CSS text-align (e.g. .h2 { text-align: right }).
+    TextBlock::Style headerStyle = TextBlock::CENTER_ALIGN;
+    if (self->cssParser.hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+      headerStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
+    }
+    self->startNewTextBlock(headerStyle);
+  } else if (isBlockTag) {
     if (strcmp(name, "br") == 0) {
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
-      TextBlock::Style blockStyle;
-      std::string tagLower;
-      if (name != nullptr) {
-        for (const XML_Char* p = name; *p; ++p) {
-          tagLower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
-        }
-      }
-      if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
-        blockStyle = self->resolveTextAlignFromAttributes(name, atts);
-      } else {
-        blockStyle = static_cast<TextBlock::Style>(self->paragraphAlignment);
-      }
+      const TextBlock::Style blockStyle =
+          self->resolveBlockStyle(name, atts, elementHasExplicitTextAlign, elementCssStyle, inheritedCssStyle);
       self->startNewTextBlock(blockStyle);
-      std::string classAttr;
-      std::string idAttr;
-      std::string styleAttr;
-      if (atts != nullptr) {
-        for (int i = 0; atts[i]; i += 2) {
-          if (strcmp(atts[i], "class") == 0) {
-            classAttr = atts[i + 1];
-          } else if (strcmp(atts[i], "id") == 0) {
-            idAttr = atts[i + 1];
-          } else if (strcmp(atts[i], "style") == 0) {
-            styleAttr = atts[i + 1];
-          }
-        }
-      }
-      if (self->currentTextBlock && self->respectCssParagraphIndent &&
+      self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+      // Large CSS font-size on a block (e.g. a big centered title <p>) renders with a bigger reader font.
+      self->currentBlockFontId =
+          self->blockFontIdForEm(self->cssParser.getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
+      if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
           self->cssParser.hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->cssParser.getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
                                                        self->viewportHeight);
-        if (px > 0) {
-          const int clamped = std::min(px, 65535);
-          self->currentTextBlock->setLeftIndent(static_cast<uint16_t>(clamped), 1);
-        }
+        self->currentTextBlock->setCssTextIndentFromCascade(px);
       }
     }
   }
@@ -617,6 +1395,13 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->skipUntilDepth = self->depth;
   }
 
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    // text-align is inherited: an element with its own text-align defines the alignment for its subtree;
+    // otherwise the subtree keeps inheriting the ancestor's alignment.
+    const TextBlock::Style pushedCssStyle = elementHasExplicitTextAlign ? elementCssStyle : inheritedCssStyle;
+    self->cssAlignmentStack.push_back(pushedCssStyle);
+    self->cssAlignmentDepths.push_back(self->depth);
+  }
   self->depth += 1;
 }
 
@@ -650,6 +1435,10 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   if (self->imagePrefetchPassOnly_) {
     return;
   }
+  if (self->inTable_) {
+    self->appendTableText(s, len);
+    return;
+  }
   if (self->skipUntilDepth < self->depth) return;
 
   for (int i = 0; i < len; i++) {
@@ -674,12 +1463,15 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     }
     self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
-    if (self->inDropCap && countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >= 2) {
+    if (self->inDropCap && endsWithCompleteUtf8Codepoint(self->partWordBuffer, self->partWordBufferIndex) &&
+        countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >=
+            desiredDropCapCodepoints(self->partWordBuffer, self->partWordBufferIndex,
+                                     self->dropCapConsumeWholeContainer)) {
       self->flushPartWordBuffer();
     }
   }
 
-  if (self->currentTextBlock && self->currentTextBlock->size() > 750) {
+  if (self->currentTextBlock && self->currentTextBlock->size() > STREAMING_TEXTBLOCK_WORD_LIMIT) {
     self->currentTextBlock->layoutAndExtractLines(
         self->renderer, self->fontId, self->viewportWidth,
         [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
@@ -703,6 +1495,25 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     return;
   }
 
+  if (self->inTable_) {
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      self->flushCurrentTableCell();
+      self->tableCellDepth_ = INT_MAX;
+    } else if (strcmp(name, "tr") == 0) {
+      self->flushCurrentTableRow();
+      self->tableRowDepth_ = INT_MAX;
+    }
+    self->depth -= 1;
+    if (strcmp(name, "table") == 0 && self->tableDepth_ == self->depth) {
+      self->inTable_ = false;
+      self->tableDepth_ = INT_MAX;
+      self->tableRowDepth_ = INT_MAX;
+      self->tableCellDepth_ = INT_MAX;
+      self->addTableToPage();
+    }
+    return;
+  }
+
   if (self->partWordBufferIndex > 0) {
     if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
         matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) || self->depth == 1) {
@@ -713,15 +1524,57 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
       self->makePages();
+    } else if (self->currentBlockSpacingFromCss) {
+      self->applyMinHeightPadding();  // empty block still honors its min-height
+      if (self->currentBlockPaddingBottomPx > 0) {
+        self->applyVerticalSpacing(self->currentBlockPaddingBottomPx);
+      }
+      if (self->currentBlockBorderBottomPx > 0) {
+        self->addCssBorderLine(self->currentBlockBorderBottomPx, self->currentBlockBorderBottomStyle);
+      }
+      if (self->currentBlockMarginBottomPx > 0) {
+        self->applyVerticalSpacing(self->currentBlockMarginBottomPx);
+      }
+      self->currentBlockMarginBottomPx = 0;
+      self->currentBlockPaddingBottomPx = 0;
+      self->currentBlockBorderBottomPx = 0;
+      self->currentBlockBorderBottomStyle = 0;
+      self->currentBlockMinHeightPx = 0;
+      self->currentBlockFontId = -1;
+      self->currentBlockBottomSpacingPx = 0;
+      self->currentBlockSpacingFromCss = false;
+      // Empty block: no text to measure, so leave the top rule at its full-content-width placeholder.
+      self->pendingTopBorderElem_.reset();
     }
     self->inHeader = false;
   }
 
   self->depth -= 1;
 
+  // Pop only the alignment level this element actually pushed (see cssAlignmentDepths) — tags that early-return
+  // in startElement never pushed, so an unconditional pop here would corrupt inherited alignment.
+  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && !self->cssAlignmentDepths.empty() &&
+      self->cssAlignmentDepths.back() == self->depth) {
+    self->cssAlignmentStack.pop_back();
+    self->cssAlignmentDepths.pop_back();
+  }
+  if (!self->smallCapsDepths.empty() && self->smallCapsDepths.back() == self->depth) {
+    const bool wasSmallCaps = self->smallCapsStack.back();
+    const size_t depthCount = self->smallCapsStack.size();
+    const bool nowSmallCaps = depthCount >= 2 && self->smallCapsStack[depthCount - 2];
+    // Flush the trailing word (e.g. "note" in "<span class=smallcaps>author's note</span>") while the
+    // small-caps flag is still active, before the scope is popped.
+    if (wasSmallCaps != nowSmallCaps && self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+    }
+    self->smallCapsDepths.pop_back();
+    self->smallCapsStack.pop_back();
+  }
+
   if (self->skipUntilDepth == self->depth) self->skipUntilDepth = INT_MAX;
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
+  if (self->underlineUntilDepth == self->depth) self->underlineUntilDepth = INT_MAX;
 
   if (self->dropCapDepth == self->depth) {
     if (self->inDropCap && self->partWordBufferIndex > 0) {
@@ -729,6 +1582,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     }
     self->inDropCap = false;
     self->dropCapDepth = INT_MAX;
+    self->dropCapConsumeWholeContainer = false;
+    self->dropCapLineCount = 3;
   }
 }
 
@@ -751,7 +1606,8 @@ bool ChapterHtmlSlimParser::getImageDimensions(const std::string& path, int* w, 
  * @param line The text block line to add
  */
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
-  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const int activeFontId = activeBlockFontId();
+  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
 
   if (!line || line->isEmpty()) return;
 
@@ -763,13 +1619,142 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
 
   if (!currentPage) currentPage.reset(new Page());
 
-  if (inHeader) {
-    currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, headerFontId));
+  // A header, or a block with a large-font override, renders as a PageHeader carrying its own font id.
+  if (inHeader || currentBlockFontId >= 0) {
+    const int feId = currentBlockFontId >= 0 ? currentBlockFontId : headerFontId;
+    currentPage->elements.push_back(std::make_shared<PageHeader>(line, 0, currentPageNextY, feId));
+  } else if (line->hasSmallCaps()) {
+    currentPage->elements.push_back(std::make_shared<PageSmallCaps>(line, 0, currentPageNextY, fontId));
   } else {
     currentPage->elements.push_back(std::make_shared<PageLine>(line, 0, currentPageNextY));
   }
 
   currentPageNextY += lineHeight;
+}
+
+void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
+  const int spacer = std::max(6, lineHeight / 2);
+  applyVerticalSpacing(spacer);
+
+  auto divider = std::make_shared<ParsedText>(TextBlock::CENTER_ALIGN, false, false, false, false);
+  divider->addWord(text, EpdFontFamily::BOLD, false);
+  divider->layoutAndExtractLines(renderer, activeFontId, viewportWidth,
+                                 [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
+
+  applyVerticalSpacing(spacer);
+}
+
+void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const std::string& classAttr,
+                                              const std::string& idAttr, const std::string& styleAttr) {
+  if (cssParser.isDisplayNone(tagLower, classAttr, idAttr, styleAttr)) {
+    return;
+  }
+
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  const int spacingTop =
+      cssParser.getParagraphSpacingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int spacingBottom =
+      cssParser.getParagraphSpacingBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  if (spacingTop > 0 && currentPageNextY > 0) {
+    applyVerticalSpacing(spacingTop);
+  }
+  const int defaultHrGap = (renderer.text.getLineHeight(fontId) / 2) + 5;
+
+  bool renderedRule = false;
+  const std::string bgInternalPath = cssParser.getBackgroundImagePath(tagLower, classAttr, idAttr, styleAttr, internalPath);
+  if (!bgInternalPath.empty()) {
+    const std::string cacheImgPath = epub.getCacheImgPath(bgInternalPath);
+    int imgW = 0;
+    int imgH = 0;
+    if (ensureImageCached(bgInternalPath, cacheImgPath, &imgW, &imgH) && imgW > 0 && imgH > 0) {
+      const int cssWidth = cssParser.getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      const int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      if (cssWidth > 0 && cssHeight > 0) {
+        imgW = cssWidth;
+        imgH = cssHeight;
+      } else if (cssWidth > 0) {
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * cssWidth) / std::max(1, imgW)));
+        imgW = cssWidth;
+      } else if (cssHeight > 0) {
+        imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * cssHeight) / std::max(1, imgH)));
+        imgH = cssHeight;
+      } else {
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
+        imgW = viewportWidth * .4;
+      }
+      // Keep it within the page.
+      if (imgW > viewportWidth) {
+        imgH = std::max(1, static_cast<int>((static_cast<int64_t>(imgH) * viewportWidth) / std::max(1, imgW)));
+        imgW = viewportWidth;
+      }
+      if (imgH > viewportHeight) {
+        imgW = std::max(1, static_cast<int>((static_cast<int64_t>(imgW) * viewportHeight) / std::max(1, imgH)));
+        imgH = viewportHeight;
+      }
+      // Default top margin when CSS didn't specify one (addImageToPage already adds a gap below).
+      if (spacingTop <= 0 && currentPageNextY > 0) {
+        applyVerticalSpacing((renderer.text.getLineHeight(fontId) / 2) + 5);
+      }
+      addImageToPage(cacheImgPath, imgW, imgH);
+      renderedRule = true;
+    }
+  }
+
+  if (!renderedRule) {
+    const int borderTop = cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    const int borderBottom =
+        cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+    if (borderTop > 0 || borderBottom > 0) {
+      const int cssHeight = cssParser.getHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      if (borderTop > 0) {
+        addCssBorderLine(borderTop, borderStyleCodeFromKeyword(
+                                        cssParser.getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower)));
+      }
+      if (cssHeight > borderTop + borderBottom) {
+        applyVerticalSpacing(cssHeight - borderTop - borderBottom);
+      }
+      if (borderBottom > 0) {
+        addCssBorderLine(borderBottom,
+                         borderStyleCodeFromKeyword(
+                             cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower)));
+      }
+      renderedRule = true;
+    }
+  }
+
+  if (!renderedRule) {
+    if (spacingTop <= 0 && currentPageNextY > 0) {
+      applyVerticalSpacing(defaultHrGap);
+    }
+    if (currentPage && currentPageNextY + PageHorizontalRule::HEIGHT > viewportHeight) {
+      if (!currentPage->elements.empty()) completePageFn(std::move(currentPage));
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+    if (!currentPage) {
+      currentPage.reset(new Page());
+    }
+
+    const int x = std::max(0, (viewportWidth - PageHorizontalRule::WIDTH) / 2);
+    currentPage->elements.push_back(
+        std::make_shared<PageHorizontalRule>(static_cast<int16_t>(x), static_cast<int16_t>(currentPageNextY)));
+    currentPageNextY += PageHorizontalRule::HEIGHT;
+  }
+
+  if (spacingBottom > 0) {
+    applyVerticalSpacing(spacingBottom);
+  } else if (!renderedRule) {
+    applyVerticalSpacing(defaultHrGap);
+  }
 }
 
 /**
@@ -785,14 +1770,44 @@ void ChapterHtmlSlimParser::makePages() {
   }
 
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
 
   currentTextBlock->layoutAndExtractLines(
-      renderer, inHeader ? headerFontId : fontId, viewportWidth,
+      renderer, activeBlockFontId(), viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
 
-  if (extraParagraphSpacing) {
-    currentPageNextY += lineHeight / 2;
+  // Now the block is laid out, size its border rule(s) to the actual text width (+2%) instead of the page.
+  const int contentBorderWidth = static_cast<int>(currentTextBlock->maxLineContentWidth());
+  if (pendingTopBorderElem_) {
+    finalizeBorderWidth(pendingTopBorderElem_, contentBorderWidth, centerBorder);
+    pendingTopBorderElem_.reset();
   }
+
+  if (currentBlockSpacingFromCss) {
+    applyMinHeightPadding();  // grow short content to the block's min-height before the bottom box spacing
+    if (currentBlockPaddingBottomPx > 0) {
+      applyVerticalSpacing(currentBlockPaddingBottomPx);
+    } else if (currentBlockBorderBottomPx > 0) {
+      // No explicit padding: keep the text off the bottom rule (mirrors the top border gap).
+      applyVerticalSpacing(cssBorderInnerGapPx());
+    }
+    if (currentBlockBorderBottomPx > 0) {
+      auto bottomElem = addCssBorderLine(currentBlockBorderBottomPx, currentBlockBorderBottomStyle);
+      finalizeBorderWidth(bottomElem, contentBorderWidth, centerBorder);
+    }
+    if (currentBlockMarginBottomPx > 0) {
+      applyVerticalSpacing(currentBlockMarginBottomPx);
+    }
+    applyVerticalSpacing(currentBlockBottomSpacingPx);
+  } else if (extraParagraphSpacing) {
+    applyVerticalSpacing(lineHeight / 2);
+  }
+  currentBlockMarginBottomPx = 0;
+  currentBlockPaddingBottomPx = 0;
+  currentBlockBorderBottomPx = 0;
+  currentBlockBorderBottomStyle = 0;
+  currentBlockMinHeightPx = 0;
+  currentBlockFontId = -1;
 }
 
 /**
@@ -855,8 +1870,54 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param imgW Original image width
  * @param imgH Original image height
  */
+namespace {
+// Decides whether an image (JPEG / PNG / BMP — whatever format the cache holds) has enough continuous-tone
+// (mid-gray) content to be worth grayscale rendering. It decodes the image through the SAME pipeline used for
+// display (so the result matches what would actually be shown) at a small size for speed, and histograms the
+// resulting 4 levels via the analysis hook in adjustTwoBitImageLevelForDisplay(). Comics / line art / mostly
+// black-and-white images have almost no mid-gray pixels and render fine (and far faster) as plain 1-bit.
+bool imageHasGrayscaleContent(GfxRenderer& renderer, const std::string& path, int imgW, int imgH) {
+  if (imgW <= 0 || imgH <= 0) {
+    return true;
+  }
+  // Tiny images (HR rules, separators, small icons/ornaments) never benefit from grayscale and their
+  // anti-aliased edges easily trip the mid-gray threshold — always render them as fast 1-bit.
+  constexpr int kMinGrayscaleImageDim = 48;
+  if (imgW < kMinGrayscaleImageDim || imgH < kMinGrayscaleImageDim) {
+    return false;
+  }
+  // Decode at a small size; the mid-gray fraction is ~scale-invariant and this keeps build time down.
+  constexpr int kMaxAnalyzeW = 160;
+  int aw = imgW;
+  int ah = imgH;
+  if (aw > kMaxAnalyzeW) {
+    ah = std::max(1, imgH * kMaxAnalyzeW / imgW);
+    aw = kMaxAnalyzeW;
+  }
+
+  ImageRender::Options opt;
+  opt.mode = ImageRenderMode::TwoBit;  // 2-bit path -> adjustTwoBitImageLevelForDisplay runs per pixel (histogram)
+  opt.useDisplayCache = false;         // detection only; don't read/write the display cache
+
+  const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
+  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+  beginImageLevelAnalysis();
+  const bool ok = ImageRender::create(renderer, path).render(0, 0, aw, ah, opt);
+  const uint32_t midPct = imageLevelAnalysisMidPercent();
+  endImageLevelAnalysis();
+  renderer.setRenderMode(savedMode);
+
+  if (!ok) {
+    return true;  // default to grayscale if we couldn't decode it
+  }
+  constexpr uint32_t kMidGrayThresholdPercent = 6;  // below this -> treat as 1-bit (comic/line art)
+  return midPct >= kMidGrayThresholdPercent;
+}
+}  // namespace
+
 void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
+  const bool grayscale = imageHasGrayscaleContent(renderer, bmpPath, imgW, imgH);
 
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
     makePages();
@@ -870,7 +1931,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
 
     currentPage.reset(new Page());
     currentPageNextY = 0;
-    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0));
+    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0, grayscale));
 
     currentPageNextY = imgH + (renderer.text.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
@@ -898,7 +1959,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   }
 
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
-  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY));
+  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY, grayscale));
 
   currentPageNextY += imgH + (renderer.text.getLineHeight(fontId) / 2);
 }
@@ -927,7 +1988,19 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   skipImages = skipImageProcessing;
   inDropCap = false;
   dropCapDepth = INT_MAX;
+  dropCapConsumeWholeContainer = false;
+  dropCapLineCount = 3;
   cssLoaded = false;
+  currentBlockBottomSpacingPx = 0;
+  currentBlockSpacingFromCss = false;
+  currentBlockMarginBottomPx = 0;
+  currentBlockPaddingBottomPx = 0;
+  currentBlockBorderBottomPx = 0;
+  currentBlockBorderBottomStyle = 0;
+  currentBlockMinHeightPx = 0;
+  currentBlockContentStartY = 0;
+  currentBlockFontId = -1;
+  pendingTopBorderElem_.reset();
 
   loadCssRules();
 
@@ -935,8 +2008,14 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   if (paragraphAlignment <= 3) {
     initialBlockStyle = static_cast<TextBlock::Style>(paragraphAlignment);
   } else if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
-    initialBlockStyle = static_cast<TextBlock::Style>(cssParser.computeParagraphAlignment("", "", "", "body"));
+    initialBlockStyle = TextBlock::JUSTIFIED;
   }
+  if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
+    cssAlignmentStack.push_back(initialBlockStyle);
+    cssAlignmentDepths.push_back(-1);  // sentinel root: no element depth (>=0) ever pops it
+  }
+  smallCapsStack.push_back(false);
+  smallCapsDepths.push_back(-1);
   startNewTextBlock(initialBlockStyle);
 
   if (!parseHtmlThroughExpat(true)) {

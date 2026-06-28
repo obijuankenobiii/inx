@@ -131,13 +131,27 @@ inline bool bwShouldInk2bpp(const uint8_t stage03, const ImageRenderMode mode) {
   return st > 0u;
 }
 
-inline bool grayMsbShouldInk2bpp(const uint8_t stage03) {
+inline bool grayMsbShouldInk2bpp(const uint8_t stage03, const bool x3ImageLut = false) {
   const uint8_t st = stage03 & 3u;
+  if (x3ImageLut) {
+    return st == 2u || st == 3u;
+  }
   return st == 1u || st == 2u;
 }
 
-inline bool grayLsbShouldInk2bpp(const uint8_t stage03) {
-  return (stage03 & 3u) == 1u;
+inline bool grayLsbShouldInk2bpp(const uint8_t stage03, const bool x3ImageLut = false) {
+  const uint8_t st = stage03 & 3u;
+  return x3ImageLut ? (st == 1u || st == 3u) : st == 1u;
+}
+
+inline bool gray2LsbShouldClear2bpp(const uint8_t stage03, const bool x3ImageLut = false) {
+  const uint8_t st = mapQualityGray2Level(stage03, x3ImageLut);
+  return (st & 0b01u) == 0u;
+}
+
+inline bool gray2MsbShouldClear2bpp(const uint8_t stage03, const bool x3ImageLut = false) {
+  const uint8_t st = mapQualityGray2Level(stage03, x3ImageLut);
+  return (st & 0b10u) == 0u;
 }
 
 void drawBwFrom2bppStage(const GfxRenderer& gfx, const int px, const int py, const uint8_t stage03) {
@@ -237,10 +251,14 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
           drawBwFrom2bppStage(gfx, screenX, screenY, displayVal);
         }
       }
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
       gfx.drawPixel(screenX, screenY, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
       gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, true);
     }
   };
 
@@ -370,10 +388,14 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
       if (bwShouldInk2bpp(val, ImageRenderMode::OneBit)) {
         drawBwFrom2bppStage(gfx, screenX, screenY, val);
       }
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(val, gfx.deviceIsX3())) {
       gfx.drawPixel(screenX, screenY, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(val, gfx.deviceIsX3())) {
       gfx.drawPixel(screenX, screenY, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(val, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(val, gfx.deviceIsX3())) {
+      gfx.drawPixel(screenX, screenY, true);
     }
   };
 
@@ -704,10 +726,14 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
     const uint8_t displayVal = displayLevel2bpp(val, mode);
     if (gfx.renderMode == GfxRenderer::BW && bwShouldInk2bpp(displayVal, mode)) {
       gfx.drawPixel(sx, sy);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && grayMsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
       gfx.drawPixel(sx, sy, false);
-    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal)) {
+    } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && grayLsbShouldInk2bpp(displayVal, gfx.deviceIsX3())) {
       gfx.drawPixel(sx, sy, false);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_LSB && gray2LsbShouldClear2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(sx, sy, true);
+    } else if (gfx.renderMode == GfxRenderer::GRAY2_MSB && gray2MsbShouldClear2bpp(displayVal, gfx.deviceIsX3())) {
+      gfx.drawPixel(sx, sy, true);
     }
   };
 

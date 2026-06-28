@@ -50,7 +50,6 @@ void BootActivity::onEnter() {
   }
 
 
-  FontManager::scanSDFonts("/fonts");
   FontManager::printFontStats();
   bootComplete = true;
 }

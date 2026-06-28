@@ -13,13 +13,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "state/RecentBooks.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "system/ScreenComponents.h"
 namespace {
 
@@ -32,6 +36,18 @@ constexpr int FONT_SERIF_MD = LITERATA_16_FONT_ID;
 constexpr int FONT_SERIF_LG = LITERATA_18_FONT_ID;
 constexpr int FONT_SERIF_SM = LITERATA_12_FONT_ID;
 constexpr float kPi = 3.14159265f;
+
+static std::string epubCachePathForBookPath(const std::string& bookPath) {
+  return "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(bookPath));
+}
+
+static bool statsFileExistsForCachePath(const std::string& cachePath) {
+  if (cachePath.empty()) {
+    return false;
+  }
+  const std::string statsPath = cachePath + "/statistics.bin";
+  return SdMan.exists(statsPath.c_str());
+}
 
 /** Global “All items” donut row (must match measureAllItemsBodyHeight). */
 constexpr int kGlobalAllItemsDonutR = 68;
@@ -278,7 +294,8 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   const int yMaxRule = yContentEnd - g.kMetricsH - 2;
   /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax, which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
-  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 20;
+  // Lift the whole finished/opened band so it clears the button hints below.
+  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) - 10;
   renderer.line.render(innerLeft, yRule, innerRight, yRule, true);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);
@@ -303,27 +320,6 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   renderer.text.render(FONT_SANS_SM, rightCx - twLabH / 2, yLabFin, labH);
 
   return yRule + g.kMetricsH;
-}
-
-/**
- * Bottom summary block (480×800): donut on the left, caption lines to the right; rule + two metrics below.
- * y = top of that block (caller leaves a small gap from the row above).
- */
-int drawAllItems480x800(const GfxRenderer& renderer, int innerLeft, int innerRight, int y, int yContentEnd,
-                         float finishedRatio01, uint32_t booksFinished, uint32_t booksOpened) {
-  const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
-  drawGlobalAllItemsGaugeRow(renderer, innerLeft, innerRight, y, finishedRatio01, g);
-  constexpr int kRuleGap = 10;
-  const int yRule = y + g.rowH + kRuleGap;
-  return drawGlobalAllItemsSecondBand(renderer, innerLeft, innerRight, yRule, yRule, yContentEnd, booksFinished, booksOpened,
-                                       g);
-}
-
-/** Must match drawAllItems480x800 geometry (global bottom block, single combined call). */
-int measureAllItemsBodyHeight(const GfxRenderer& renderer) {
-  const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
-  constexpr int kRuleGap = 10;
-  return g.rowH + kRuleGap + 1 + g.kMetricsH;
 }
 
 /**
@@ -412,6 +408,7 @@ void StatisticActivity::loadStats() {
   ScreenComponents::LoadingProgressLayout layout =
       ScreenComponents::LoadingProgress::show(renderer, "Loading statistics...", 12);
   allBooksStats = getAllBooksStats();
+  loadedBookStatsFlags_.assign(allBooksStats.size(), 1);
   ScreenComponents::LoadingProgress::setProgress(renderer, layout, 40);
   std::sort(allBooksStats.begin(), allBooksStats.end(),
             [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
@@ -424,13 +421,92 @@ void StatisticActivity::loadStats() {
 }
 
 void StatisticActivity::hydrateFromStorage() {
-  allBooksStats = getAllBooksStats();
-  std::sort(allBooksStats.begin(), allBooksStats.end(),
-            [](const BookReadingStats& a, const BookReadingStats& b) { return a.lastReadTimeMs > b.lastReadTimeMs; });
   if (!loadGlobalStats(globalStats)) {
-    globalStats = aggregateGlobalStatsFromBooks(allBooksStats);
-    saveGlobalStats(globalStats);
+    globalStats = GlobalReadingStats();
   }
+  allBooksStats.clear();
+  loadedBookStatsFlags_.clear();
+  indexBookStatsPaths();
+}
+
+void StatisticActivity::indexBookStatsPaths() {
+  std::set<std::string> seen;
+  loadedBookStatsFlags_.clear();
+  auto addCachePath = [&](const std::string& cachePath, const RecentBook* recent) {
+    if (cachePath.empty() || seen.count(cachePath) != 0 || !statsFileExistsForCachePath(cachePath)) {
+      return;
+    }
+    BookReadingStats placeholder;
+    placeholder.path = cachePath;
+    if (recent != nullptr) {
+      placeholder.title = recent->title;
+      placeholder.author = recent->author;
+      if (recent->progress >= 0.f) {
+        placeholder.progressPercent = recent->progress * 100.f;
+      }
+    }
+    allBooksStats.push_back(placeholder);
+    loadedBookStatsFlags_.push_back(0);
+    seen.insert(cachePath);
+  };
+
+  RECENT_BOOKS.loadFromFile();
+  for (const auto& book : RECENT_BOOKS.getBooks()) {
+    std::string cachePath = book.cachePath;
+    if (cachePath.empty() && !book.path.empty()) {
+      cachePath = epubCachePathForBookPath(book.path);
+    }
+    addCachePath(cachePath, &book);
+  }
+
+  auto appendMetadataRoot = [&](const char* rootDir) {
+    FsFile root = SdMan.open(rootDir);
+    if (!root || !root.isDirectory()) {
+      if (root) {
+        root.close();
+      }
+      return;
+    }
+
+    char name[128];
+    root.rewindDirectory();
+    while (true) {
+      FsFile entry = root.openNextFile();
+      if (!entry) {
+        break;
+      }
+      if (entry.isDirectory()) {
+        entry.getName(name, sizeof(name));
+        addCachePath(std::string(rootDir) + "/" + std::string(name), nullptr);
+      }
+      entry.close();
+    }
+    root.close();
+  };
+
+  appendMetadataRoot("/.metadata/epub");
+  appendMetadataRoot("/.metadata/xtc");
+}
+
+bool StatisticActivity::ensureBookStatsLoaded(const int bookIdx) {
+  if (bookIdx < 0 || bookIdx >= static_cast<int>(allBooksStats.size())) {
+    return false;
+  }
+  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size()) && loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] != 0) {
+    return true;
+  }
+  BookReadingStats& slot = allBooksStats[static_cast<size_t>(bookIdx)];
+  const std::string cachePath = slot.path;
+  BookReadingStats loaded;
+  if (!loadBookStats(cachePath.c_str(), loaded)) {
+    return false;
+  }
+  loaded.path = cachePath;
+  slot = loaded;
+  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size())) {
+    loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] = 1;
+  }
+  return true;
 }
 
 void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, int width, int height,
@@ -590,8 +666,6 @@ void StatisticActivity::onEnter() {
   hydrateFromStorage();
   viewIndex = 0;
 
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
   render();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Statistics);
 }
@@ -601,6 +675,8 @@ void StatisticActivity::onExit() {
 
   allBooksStats.clear();
   allBooksStats.shrink_to_fit();
+  loadedBookStatsFlags_.clear();
+  loadedBookStatsFlags_.shrink_to_fit();
 }
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {
@@ -707,8 +783,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
     return;
   }
   const BookReadingStats& b = allBooksStats[static_cast<size_t>(bookIdx)];
-  constexpr int kScreenW = 480;
-  constexpr int kMarginX = 20;
+  constexpr int kMarginX = 30;
   constexpr int g8 = 8;
   constexpr int g10 = 10;
   /** Taller rows than global stats; extra tail height so the pages row sits below the mid divider cleanly. */
@@ -716,9 +791,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   constexpr int kSingleBookStatsLastRowExtraPx = 18;
 
   const int innerLeft = kMarginX;
-  const int innerRight = kScreenW - kMarginX;
+  const int innerRight = renderer.getScreenWidth() - kMarginX;
   const int innerW = innerRight - innerLeft;
-  const int y0 = contentTop + 4;
+  const int y0 = contentTop;
   const int yEnd = contentBottom - 24;
 
   const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
@@ -801,7 +876,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
 
   const char* vals[] = {v0, v1, vSess, vChap, v2, v3};
   const char* labs[] = {"Total hours", "Avg. min/session", "Sessions", "Chapters read", "Pages read", "Pages per min"};
-  drawFourColumnStatsNx2(renderer, innerLeft, yStatsTop + 20, innerW, vals, labs, 3, kSingleBookStatsRowH, 28,
+  drawFourColumnStatsNx2(renderer, innerLeft, yStatsTop + 10, innerW, vals, labs, 3, kSingleBookStatsRowH, 28,
                          kSingleBookStatsLastRowExtraPx);
 
   char footer[24];
@@ -816,7 +891,7 @@ void StatisticActivity::render() {
   constexpr int kHintReserve = 54;
   const int screenH = renderer.getScreenHeight();
   const int contentBottom = screenH - kHintReserve;
-  const int contentTopSingle = TAB_BAR_HEIGHT + 4;
+  const int contentTopSingle = TAB_BAR_HEIGHT;
 
   const int totalViews = 1 + static_cast<int>(allBooksStats.size());
   int v = viewIndex;
@@ -824,6 +899,9 @@ void StatisticActivity::render() {
   if (v >= totalViews) v = totalViews - 1;
 
   if (v == 0) {
+    if (!allBooksStats.empty()) {
+      ensureBookStatsLoaded(0);
+    }
     constexpr int Margin = 10;
     constexpr int kMarginX = 30;
     const int innerLeft = kMarginX;
@@ -834,10 +912,12 @@ void StatisticActivity::render() {
     GAP = TAB_BAR_HEIGHT + GAP;
     GAP = renderHeader(GAP, innerLeft, innerRight, innerW, Margin);
     GAP = renderRecent(GAP, innerLeft, innerRight, innerW, Margin);
-    GAP = renderFirstGrid(GAP + kMarginX, innerLeft, innerW, Margin);
-    GAP = renderGuage(GAP + kMarginX - 10, innerLeft - 130, innerRight, Margin);
-    renderSecondGrid(GAP + kMarginX, innerLeft, innerRight, contentBottom);
+    constexpr int kMainStatsLiftPx = 10;
+    GAP = renderFirstGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerW, Margin);
+    GAP = renderGuage(GAP + kMarginX - 10 - kMainStatsLiftPx, innerLeft - 130, innerRight, Margin);
+    renderSecondGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerRight, contentBottom);
   } else {
+    ensureBookStatsLoaded(v - 1);
     renderSingleBookView(v - 1, contentTopSingle, contentBottom);
   }
 
@@ -866,10 +946,10 @@ void StatisticActivity::loop() {
     return;
   }
 
-  const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
-  const bool upPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Up);
-  const bool downPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Down);
+  const bool leftPressed = Activity::mappedInput.wasPressed(MenuNav::tabPrev());
+  const bool rightPressed = Activity::mappedInput.wasPressed(MenuNav::tabNext());
+  const bool upPressed = Activity::mappedInput.wasPressed(MenuNav::itemPrev());
+  const bool downPressed = Activity::mappedInput.wasPressed(MenuNav::itemNext());
   const bool confirmPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Confirm);
 
   if (leftPressed) {

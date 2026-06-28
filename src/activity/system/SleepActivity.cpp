@@ -46,8 +46,12 @@ bool isSupportedSleepImageFile(const std::string& filename) {
 }
 
 bool sleepTwoBitEnabled() {
-  return SETTINGS.sleepScreenCoverGrayscale != 0 &&
+  return SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW &&
          SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
+}
+
+bool sleepImageQualityEnabled() {
+  return SETTINGS.sleepImageQuality == SystemSetting::SLEEP_IMAGE_HIGH;
 }
 
 ImageRenderMode sleepImageRenderMode() {
@@ -55,32 +59,22 @@ ImageRenderMode sleepImageRenderMode() {
 }
 
 void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePath,
-                               const ImageRender::Options& baseOptions) {
+                               const ImageRender::Options& baseOptions, const bool allowQuality = true) {
   if (!sleepTwoBitEnabled()) {
     return;
   }
 
   ImageRender::Options options = baseOptions;
   options.mode = ImageRenderMode::TwoBit;
+  options.useDisplayCache = true;
+  // Transparent overlays cap at MEDIUM (allowQuality=false): the HIGH quality LUT can't composite over existing
+  // content, so HIGH transparent removes the background instead (see renderTransparentSleepScreen).
+  const bool quality = allowQuality && sleepImageQualityEnabled();
+  options.quality = quality;
+  options.fastQuality = false;
 
-  if (ImageRender::create(renderer, imagePath)
-          .displayCachedTwoBit(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-    return;
-  }
-
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-  ImageRender::create(renderer, imagePath).render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options);
-  renderer.copyGrayscaleLsbBuffers();
-
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-  ImageRender::create(renderer, imagePath).render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options);
-  renderer.copyGrayscaleMsbBuffers();
-
-  renderer.displayGrayBuffer();
-  renderer.setRenderMode(GfxRenderer::BW);
-  renderer.cleanupGrayscaleWithFrameBuffer();
+  ImageRender::create(renderer, imagePath)
+      .displayGrayscale(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, quality);
 }
 
 void recordSleepImageUsed() {
@@ -186,8 +180,8 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
   }
 
   return coverPath;
-  }
 }
+}  // namespace
 
 /**
  * @brief Initializes and renders the sleep screen when activity becomes active.
@@ -198,10 +192,15 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
+  // HIGH-quality cover/custom images: our quality LUT doesn't fully clear to white on its own (whites come out
+  // gray without a white baseline), so we pre-clear to white with a HALF refresh. A FAST pre-clear only fully
+  // whitens a mostly-white incoming screen (e.g. a book text page); coming from the home/library screen (dark
+  // covers) a single FAST pass leaves gray residue and the quality refresh then starts dirty. HALF reliably
+  // clears from any screen.
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
       SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
-    renderer.clearScreen(0xff);
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    renderer.clearScreen(0Xff);
+    renderer.displayBuffer();
   }
 
   switch (SETTINGS.sleepScreen) {
@@ -241,9 +240,12 @@ void SleepActivity::renderCustomSleepScreen() const {
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
+      options.useDisplayCache = true;
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
-        renderer.displayBuffer();
+        if (!sleepImageQualityEnabled()) {
+          renderer.displayBuffer();
+        }
         runSleepImageTwoBitPasses(renderer, imagePath, options);
         return;
       }
@@ -276,15 +278,21 @@ void SleepActivity::renderTransparentSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
     recordSleepImageUsed();
+    // Transparent overlays only work at LOW/MEDIUM. At HIGH the quality LUT can't composite over the existing
+    // screen, so remove the background (clear to white) and render the image opaque instead.
+    const bool removeBackground = sleepImageQualityEnabled();
     if (isSleepImagePathJpeg(imagePath)) {
       ImageRender::Options options;
       options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
       options.mode = sleepImageRenderMode();
       options.useDisplayCache = false;
+      if (removeBackground) {
+        renderer.clearScreen();
+      }
       if (ImageRender::create(renderer, imagePath)
               .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-        runSleepImageTwoBitPasses(renderer, imagePath, options);
+        runSleepImageTwoBitPasses(renderer, imagePath, options, /*allowQuality=*/false);
         return;
       }
     }
@@ -292,6 +300,9 @@ void SleepActivity::renderTransparentSleepScreen() const {
     if (SdMan.openFileForRead("SLP", imagePath, file)) {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        if (removeBackground) {
+          renderer.clearScreen();
+        }
         renderer.bitmap.transparent(bitmap, 0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), 1);
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         return;
@@ -321,12 +332,15 @@ void SleepActivity::renderCoverSleepScreen() const {
     ImageRender::Options options;
     options.cropToFill = SETTINGS.sleepScreenCoverMode == SystemSetting::SLEEP_SCREEN_COVER_MODE::FIT;
     options.mode = sleepImageRenderMode();
+    options.useDisplayCache = true;
     if (ImageRender::create(renderer, coverPath)
             .render(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options)) {
       if (SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
         renderer.invertScreen();
       }
-      renderer.displayBuffer();
+      if (!sleepImageQualityEnabled()) {
+        renderer.displayBuffer();
+      }
       runSleepImageTwoBitPasses(renderer, coverPath, options);
       return;
     }
@@ -383,24 +397,37 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer();
+  // Quality grayscale does a single clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+  if (!(hasTwoBit && sleepImageQualityEnabled())) {
+    renderer.displayBuffer();
+  }
 
   if (hasTwoBit) {
-    bitmap.rewindToData();
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
-    renderer.copyGrayscaleLsbBuffers();
+    const bool quality = sleepImageQualityEnabled();
+    if (quality) {
+      renderer.renderGrayscalePasses(true, false, [&] {
+        bitmap.rewindToData();
+        renderer.clearScreen(0xFF);
+        renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill,
+                                    ImageRenderMode::TwoBit);
+      });
+    } else {
+      bitmap.rewindToData();
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
+      renderer.copyGrayscaleLsbBuffers();
 
-    bitmap.rewindToData();
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
-    renderer.copyGrayscaleMsbBuffers();
+      bitmap.rewindToData();
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
+      renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.cleanupGrayscaleWithFrameBuffer();
+      renderer.displayGrayBuffer(false);
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.cleanupGrayscaleWithFrameBuffer();
+    }
   }
 }
 
@@ -455,24 +482,37 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer();
+  // Quality grayscale does a single clean+draw refresh; skip the BW pre-flash so it's one flash, not two.
+  if (!(hasTwoBit && sleepImageQualityEnabled())) {
+    renderer.displayBuffer();
+  }
 
   if (hasTwoBit) {
-    bitmap.rewindToData();
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
-    renderer.copyGrayscaleLsbBuffers();
+    const bool quality = sleepImageQualityEnabled();
+    if (quality) {
+      renderer.renderGrayscalePasses(true, false, [&] {
+        bitmap.rewindToData();
+        renderer.clearScreen(0xFF);
+        renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill,
+                                    ImageRenderMode::TwoBit);
+      });
+    } else {
+      bitmap.rewindToData();
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
+      renderer.copyGrayscaleLsbBuffers();
 
-    bitmap.rewindToData();
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
-    renderer.copyGrayscaleMsbBuffers();
+      bitmap.rewindToData();
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
+      renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
-    renderer.cleanupGrayscaleWithFrameBuffer();
+      renderer.displayGrayBuffer(false);
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.cleanupGrayscaleWithFrameBuffer();
+    }
   }
 }
 

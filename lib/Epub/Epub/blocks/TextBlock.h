@@ -32,29 +32,46 @@ class TextBlock final : public Block {
   std::list<uint16_t> wordXpos;
   std::list<EpdFontFamily::Style> wordStyles;
   std::list<uint8_t> bionicPrefixBytes;
+  std::list<uint8_t> wordSmallCaps;
+  std::list<uint8_t> wordUnderline;
+  // Inline image "words": for an image slot the matching `words` entry is empty and these hold the cached
+  // image path and its on-line display size. Empty path / 0 size means a normal text word.
+  std::list<std::string> wordImagePaths;
+  std::list<uint16_t> wordImageW;
+  std::list<uint16_t> wordImageH;
   Style style;
 
  public:
   /**
    * Constructs a new TextBlock.
-   * 
+   *
    * @param words List of words in the line
    * @param word_xpos X positions for each word
    * @param word_styles Font styles for each word
    * @param style Alignment style for the line
    */
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
-                     std::list<EpdFontFamily::Style> word_styles, const Style style)
-      : words(std::move(words)), wordXpos(std::move(word_xpos)), 
-        wordStyles(std::move(word_styles)), style(style) {}
+                     std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> word_small_caps,
+                     const Style style, std::list<uint8_t> word_underline = {})
+      : words(std::move(words)), wordXpos(std::move(word_xpos)),
+        wordStyles(std::move(word_styles)), wordSmallCaps(std::move(word_small_caps)),
+        wordUnderline(std::move(word_underline)), style(style) {}
 
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
                      std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> bionic_prefix_bytes,
-                     const Style style)
+                     std::list<uint8_t> word_small_caps,
+                     const Style style, std::list<uint8_t> word_underline = {},
+                     std::list<std::string> word_image_paths = {}, std::list<uint16_t> word_image_w = {},
+                     std::list<uint16_t> word_image_h = {})
       : words(std::move(words)),
         wordXpos(std::move(word_xpos)),
         wordStyles(std::move(word_styles)),
         bionicPrefixBytes(std::move(bionic_prefix_bytes)),
+        wordSmallCaps(std::move(word_small_caps)),
+        wordUnderline(std::move(word_underline)),
+        wordImagePaths(std::move(word_image_paths)),
+        wordImageW(std::move(word_image_w)),
+        wordImageH(std::move(word_image_h)),
         style(style) {}
   
   ~TextBlock() override = default;
@@ -81,9 +98,32 @@ class TextBlock final : public Block {
   bool isEmpty() override { return words.empty(); }
 
   size_t getWordCount() const { return words.size(); }
+  /** True if any word in the line is flagged small caps. */
+  bool hasSmallCaps() const {
+    for (const auto f : wordSmallCaps) {
+      if (f != 0) return true;
+    }
+    return false;
+  }
   std::string getWordAt(size_t index) const;
   uint16_t getWordXAt(size_t index) const;
   EpdFontFamily::Style getWordStyleAt(size_t index) const;
+
+  /**
+   * Single O(n) pass over the words. Avoids the O(n^2) indexed accessors (each std::advance walks the list)
+   * and the per-word string copy when callers need every word's text, x position and style.
+   * Callback signature: (size_t index, const std::string& word, uint16_t xpos, EpdFontFamily::Style style).
+   */
+  template <typename Fn>
+  void forEachWord(Fn&& fn) const {
+    auto wordIt = words.begin();
+    auto xIt = wordXpos.begin();
+    auto styleIt = wordStyles.begin();
+    for (size_t i = 0; wordIt != words.end() && xIt != wordXpos.end() && styleIt != wordStyles.end();
+         ++i, ++wordIt, ++xIt, ++styleIt) {
+      fn(i, *wordIt, *xIt, *styleIt);
+    }
+  }
   
   /**
    * Layout is pre-calculated during parsing.
@@ -99,8 +139,7 @@ class TextBlock final : public Block {
    * @param y Base Y coordinate
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
-  void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
-  void prewarm(const GfxRenderer& renderer, int fontId) const;
+  void render(GfxRenderer& renderer, int fontId, int x, int y) const;
   
   /**
    * Gets the block type identifier.

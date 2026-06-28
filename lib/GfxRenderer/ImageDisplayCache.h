@@ -18,6 +18,7 @@ struct ImageDisplayCacheOptions {
   ImageRenderMode mode = ImageRenderMode::OneBit;
   uint8_t renderPlane = 0;
   BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
+  bool quality = false;
 };
 
 class ImageDisplayCache {
@@ -25,7 +26,8 @@ class ImageDisplayCache {
   static bool renderIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width,
                                 int height, const ImageDisplayCacheOptions& options);
   static bool displayTwoBitIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width,
-                                       int height, const ImageDisplayCacheOptions& options);
+                                       int height, const ImageDisplayCacheOptions& options, bool quality = false,
+                                       bool fastQuality = false);
   static bool store(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
                     const ImageDisplayCacheOptions& options);
 

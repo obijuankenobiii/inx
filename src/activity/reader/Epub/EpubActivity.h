@@ -32,6 +32,7 @@ struct ViewportInfo {
   uint16_t height;
   int fontId;
   float lineCompression;
+  float wordSpacing;
 };
 
 /**
@@ -158,7 +159,7 @@ private:
                         int orientedMarginRight,
                         int orientedMarginBottom, 
                         int orientedMarginLeft);
-    
+
     /**
      * Renders the status bar with configurable sections.
      * 
@@ -204,8 +205,6 @@ private:
     /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
     void onBookmarkDrawerSelected(int storageIndex);
 
-    /** User picked a footnote line from the reader menu drawer. */
-    void onFootnoteDrawerSelected(int storageIndex);
 
     /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
     void onAnnotationDrawerSelected(int storageIndex);
@@ -303,7 +302,14 @@ private:
      * @return true if successful, false otherwise
      */
     bool buildSection(int spineIndex, const ViewportInfo& info, bool showProgress = false, bool skipImages = false);
-    
+
+    /**
+     * Pre-renders a small display-pixel cache (.irdc planes) window around the target page. This keeps the current
+     * page fast without making image-heavy chapters decode every image during section build.
+     */
+    void prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info, int targetPage);
+
+
     /**
      * Loads a section for a given spine index.
      * 

@@ -96,6 +96,11 @@ private:
      */
     void onGoToTxtReader(std::unique_ptr<Txt> txt);
 
+    /**
+     * @brief Shows a recoverable error before returning to the previous activity
+     */
+    void showCorruptedBookError();
+
 public:
     /**
      * @brief Constructor for ReaderActivity

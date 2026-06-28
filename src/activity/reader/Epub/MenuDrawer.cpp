@@ -107,7 +107,6 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
                {"Go To Percent", MenuAction::GO_TO_PERCENT},
                {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
                {"Annotations", MenuAction::SHOW_ANNOTATIONS},
-               {"Show Footnotes", MenuAction::SHOW_FOOTNOTES},
                {"KOReader Sync", MenuAction::KOREADER_SYNC},
                {"Delete Cache", MenuAction::DELETE_CACHE},
                {"Delete Progress", MenuAction::DELETE_PROGRESS},
@@ -179,8 +178,6 @@ MenuDrawer::~MenuDrawer() {
   bookmarkListProvider = nullptr;
   bookmarkSelectCallback = nullptr;
   bookmarkDeleteCallback = nullptr;
-  footnoteListProvider = nullptr;
-  footnoteSelectCallback = nullptr;
   annotationListProvider = nullptr;
   annotationSelectCallback = nullptr;
   mappedInputForHints = nullptr;
@@ -197,7 +194,6 @@ void MenuDrawer::show() {
   dismissed = false;
   showingToc = false;
   showingBookmarks = false;
-  showingFootnotes = false;
   showingAnnotations = false;
   selectedIndex = 0;
   scrollOffset = 0;
@@ -205,8 +201,6 @@ void MenuDrawer::show() {
   tocScrollOffset = 0;
   bookmarkSelectedIndex = 0;
   bookmarkEntries.clear();
-  footnoteSelectedIndex = 0;
-  footnoteEntries.clear();
   annotationSelectedIndex = 0;
   annotationEntries.clear();
   renderWithRefresh();
@@ -220,7 +214,6 @@ void MenuDrawer::hide() {
   dismissed = true;
   showingToc = false;
   showingBookmarks = false;
-  showingFootnotes = false;
   showingAnnotations = false;
 }
 
@@ -240,9 +233,7 @@ void MenuDrawer::renderWithRefresh() {
   if (!visible) return;
   syncLayoutFromRenderer();
 
-  if (showingFootnotes) {
-    renderFootnotes();
-  } else if (showingBookmarks) {
+  if (showingBookmarks) {
     renderBookmarks();
   } else if (showingAnnotations) {
     renderAnnotations();
@@ -264,18 +255,14 @@ void MenuDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
-  int currentY = drawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Reader Menu", true, EpdFontFamily::BOLD);
+  // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
+  const int headerH = itemHeight;
+  const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true, EpdFontFamily::BOLD);
 
-  std::string displayTitle = bookTitle;
-  if (displayTitle.length() > 30) {
-    displayTitle.replace(27, std::string::npos, "...");
-  }
-
-  currentY += 25;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 20, currentY, displayTitle.c_str(), true);
-
-  int dividerY = currentY + 30;
+  // Sit the divider on the last row of the header band; the first list item starts at drawerY+headerH and
+  // its row fill would otherwise paint over a divider drawn exactly there.
+  const int dividerY = drawerY + headerH - 1;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -283,28 +270,31 @@ void MenuDrawer::drawBackground() {
  * @brief Draws all menu items in the current scroll view
  */
 void MenuDrawer::drawMenuItems() {
-  int startY = drawerY + 65;
-
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < static_cast<int>(menuItems.size()); i++) {
-    int index = i + scrollOffset;
-    int itemY = startY + (i * itemHeight);
-    const auto& item = menuItems[index];
-    bool isSelected = (index == selectedIndex);
-
-    if (isSelected) {
-      renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-
-    int textX = drawerX + 23;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
-
-    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    drawMenuItemRow(i, i + scrollOffset);
   }
+}
+
+void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
+  if (menuIndex < 0 || menuIndex >= static_cast<int>(menuItems.size())) {
+    return;
+  }
+
+  const int startY = drawerY + itemHeight;  // header band height == one list item
+  const int itemY = startY + (visibleRow * itemHeight);
+  const auto& item = menuItems[static_cast<size_t>(menuIndex)];
+  const bool isSelected = (menuIndex == selectedIndex);
+
+  renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight,
+                          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+
+  const int textX = drawerX + 23;
+  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
 }
 
 /**
@@ -320,6 +310,33 @@ void MenuDrawer::drawScrollIndicator() {
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
 
   renderer.rectangle.fill(drawerX + drawerWidth - 4, thumbY, 2, thumbH, true);
+}
+
+void MenuDrawer::clearScrollIndicatorArea() {
+  const int startY = drawerY + 80;
+  const int listHeight = itemsPerPage * itemHeight;
+  renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
+}
+
+void MenuDrawer::refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator) {
+  if (!visible || showingToc || showingBookmarks || showingAnnotations) {
+    return;
+  }
+
+  if (previousIndex >= scrollOffset && previousIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(previousIndex - scrollOffset, previousIndex);
+  }
+
+  if (selectedIndex >= scrollOffset && selectedIndex < scrollOffset + itemsPerPage) {
+    drawMenuItemRow(selectedIndex - scrollOffset, selectedIndex);
+  }
+
+  if (redrawScrollIndicator) {
+    clearScrollIndicatorArea();
+    drawScrollIndicator();
+  }
+
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
 /**
@@ -354,15 +371,13 @@ void MenuDrawer::renderToc() {
   drawTocBackground();
 
   
-  const int headerY = tocDrawerY + 10;
+  // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                     EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a chapter to begin reading";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
@@ -429,14 +444,12 @@ void MenuDrawer::renderBookmarks() {
 
   drawTocBackground();
 
-  const int headerY = tocDrawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true, EpdFontFamily::BOLD);
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
+                       EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a bookmark to open it";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
@@ -499,14 +512,12 @@ void MenuDrawer::renderAnnotations() {
 
   drawTocBackground();
 
-  const int headerY = tocDrawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true, EpdFontFamily::BOLD);
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
+                       EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a page with highlights";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = tocDrawerY + headerH;
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   if (totalItems == 0) {
@@ -562,77 +573,6 @@ void MenuDrawer::renderAnnotations() {
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "");
 }
 
-void MenuDrawer::renderFootnotes() {
-  const int panelW = tocDrawerWidth;
-  const int totalItems = static_cast<int>(footnoteEntries.size());
-  const int pageItems = getTocPageItems();
-
-  drawTocBackground();
-
-  const int headerY = tocDrawerY + 10;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Footnotes", true, EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Select a footnote to read it";
-  int subtitleY = headerY + 30;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
-
-  if (totalItems == 0) {
-    const char* line1 = "No footnotes in this chapter";
-    const char* line2 = "Rebuild cache if the book was updated";
-    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-    const int msgY = dividerY + 48;
-    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
-    const int x1 = tocDrawerX + (panelW - w1) / 2;
-    const int x2 = tocDrawerX + (panelW - w2) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
-    drawMappedButtonHints("\xC2\xAB Back", "", "", "");
-    return;
-  }
-
-  const int pageStartIndex = (footnoteSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
-
-  for (int i = 0; i < pageItems; i++) {
-    const int itemIndex = pageStartIndex + i;
-    if (itemIndex >= totalItems) {
-      break;
-    }
-
-    const int itemY = drawY + (i * LIST_ITEM_HEIGHT);
-    const bool isSelected = (itemIndex == footnoteSelectedIndex);
-    const auto& row = footnoteEntries[static_cast<size_t>(itemIndex)];
-
-    if (isSelected) {
-      renderer.rectangle.fill(tocDrawerX, itemY, panelW, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    const int kIndent = tocDrawerX + 20;
-    const std::string truncated =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
-
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
-    renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                      true);
-  }
-
-  const int totalPages = (totalItems + pageItems - 1) / pageItems;
-  const int currentPageNum = (footnoteSelectedIndex / pageItems) + 1;
-  char pageStr[24];
-  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  constexpr int kFootnoteFooterAboveHints = 75;
-  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kFootnoteFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
-
-  drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
-}
-
 /**
  * @brief Handles input when TOC is shown
  * @param input Reference to the input manager
@@ -681,20 +621,41 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
     return;
   }
 
-  if (readDrawerListPrev(input, renderer)) {
-    if (skipPage) {
-      tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems;
-    } else {
-      tocSelectedIndex = (tocSelectedIndex + totalItems - 1) % totalItems;
+  auto selectPrevItem = [&]() { tocSelectedIndex = (tocSelectedIndex + totalItems - 1) % totalItems; };
+  auto selectNextItem = [&]() { tocSelectedIndex = (tocSelectedIndex + 1) % totalItems; };
+  auto pageUp = [&]() { tocSelectedIndex = (tocSelectedIndex < pageItems) ? 0 : tocSelectedIndex - pageItems; };
+  auto pageDown = [&]() {
+    tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
+  };
+
+  bool moved = false;
+  if (isLandscapeReader(renderer)) {
+    // Landscape keeps the orientation-aware list mapping (long-hold = page jump).
+    if (readDrawerListPrev(input, renderer)) {
+      skipPage ? pageUp() : selectPrevItem();
+      moved = true;
+    } else if (readDrawerListNext(input, renderer)) {
+      skipPage ? pageDown() : selectNextItem();
+      moved = true;
     }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  } else if (readDrawerListNext(input, renderer)) {
-    if (skipPage) {
-      tocSelectedIndex = (tocSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : tocSelectedIndex + pageItems;
-    } else {
-      tocSelectedIndex = (tocSelectedIndex + 1) % totalItems;
+  } else {
+    // Portrait: Up/Down move one chapter, Left/Right jump a whole page.
+    if (input.wasPressed(MappedInputManager::Button::Up)) {
+      selectPrevItem();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+      selectNextItem();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Left)) {
+      pageUp();
+      moved = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Right)) {
+      pageDown();
+      moved = true;
     }
+  }
+
+  if (moved) {
     lastInputTime = currentTime;
     renderWithRefresh();
   }
@@ -712,13 +673,6 @@ void MenuDrawer::exitToc() {
 void MenuDrawer::exitBookmarks() {
   showingBookmarks = false;
   bookmarkSelectedIndex = 0;
-  selectedIndex = 0;
-  scrollOffset = 0;
-}
-
-void MenuDrawer::exitFootnotes() {
-  showingFootnotes = false;
-  footnoteSelectedIndex = 0;
   selectedIndex = 0;
   scrollOffset = 0;
 }
@@ -867,74 +821,12 @@ void MenuDrawer::handleBookmarksInput(const MappedInputManager& input) {
   }
 }
 
-void MenuDrawer::handleFootnotesInput(const MappedInputManager& input) {
-  const int totalItems = static_cast<int>(footnoteEntries.size());
-  const int pageItems = getTocPageItems();
-  const bool skipPage = input.getHeldTime() > 700;
-
-  if (totalItems == 0) {
-    if (input.wasReleased(MappedInputManager::Button::Back)) {
-      exitFootnotes();
-      lastInputTime = xTaskGetTickCount();
-      renderWithRefresh();
-    }
-    return;
-  }
-
-  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (footnoteSelectedIndex >= 0 && footnoteSelectedIndex < totalItems && footnoteSelectCallback) {
-      const int storageIndex = footnoteEntries[static_cast<size_t>(footnoteSelectedIndex)].storageIndex;
-      showingFootnotes = false;
-      visible = false;
-      footnoteSelectCallback(storageIndex);
-    }
-    lastInputTime = xTaskGetTickCount();
-    return;
-  }
-
-  if (input.wasReleased(MappedInputManager::Button::Back)) {
-    exitFootnotes();
-    lastInputTime = xTaskGetTickCount();
-    renderWithRefresh();
-    return;
-  }
-
-  const uint32_t currentTime = xTaskGetTickCount();
-  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
-    return;
-  }
-
-  if (readBookmarkLinePrev(input, renderer)) {
-    if (skipPage) {
-      footnoteSelectedIndex = (footnoteSelectedIndex < pageItems) ? 0 : footnoteSelectedIndex - pageItems;
-    } else {
-      footnoteSelectedIndex = (footnoteSelectedIndex + totalItems - 1) % totalItems;
-    }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  } else if (readBookmarkLineNext(input, renderer)) {
-    if (skipPage) {
-      footnoteSelectedIndex =
-          (footnoteSelectedIndex + pageItems >= totalItems) ? totalItems - 1 : footnoteSelectedIndex + pageItems;
-    } else {
-      footnoteSelectedIndex = (footnoteSelectedIndex + 1) % totalItems;
-    }
-    lastInputTime = currentTime;
-    renderWithRefresh();
-  }
-}
-
 /**
  * @brief Handles input for the menu drawer
  * @param input Reference to the input manager
  */
 void MenuDrawer::handleInput(MappedInputManager& input) {
   if (!visible) return;
-
-  if (showingFootnotes) {
-    handleFootnotesInput(input);
-    return;
-  }
 
   if (showingBookmarks) {
     handleBookmarksInput(input);
@@ -1006,16 +898,6 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         showingAnnotations = true;
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
-      } else if (menuItems[selectedIndex].action == MenuAction::SHOW_FOOTNOTES) {
-        if (footnoteListProvider) {
-          footnoteEntries = footnoteListProvider();
-        } else {
-          footnoteEntries.clear();
-        }
-        footnoteSelectedIndex = 0;
-        showingFootnotes = true;
-        lastInputTime = xTaskGetTickCount();
-        renderWithRefresh();
       } else {
         hide();
         if (onDismiss) {
@@ -1037,21 +919,35 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
   }
 
   if (readDrawerListPrev(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex > 0) {
       selectedIndex--;
-      if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
+      const bool scrolled = selectedIndex < scrollOffset;
+      if (scrolled) {
+        scrollOffset = selectedIndex;
+      }
       lastInputTime = currentTime;
-      renderWithRefresh();
+      if (scrolled) {
+        renderWithRefresh();
+      } else {
+        refreshMainMenuSelection(previousIndex, false);
+      }
     }
   } else if (readDrawerListNext(input, renderer)) {
+    const int previousIndex = selectedIndex;
     if (selectedIndex < static_cast<int>(menuItems.size()) - 1) {
       selectedIndex++;
       int maxScroll = std::max(0, (int)menuItems.size() - itemsPerPage);
-      if (selectedIndex > scrollOffset + itemsPerPage - 1) {
+      const bool scrolled = selectedIndex > scrollOffset + itemsPerPage - 1;
+      if (scrolled) {
         scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
       }
       lastInputTime = currentTime;
-      renderWithRefresh();
+      if (scrolled) {
+        renderWithRefresh();
+      } else {
+        refreshMainMenuSelection(previousIndex, false);
+      }
     }
   }
 }

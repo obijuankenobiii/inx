@@ -18,6 +18,11 @@ class FourToneImageDitherer {
   bool ok() const;
   ImageToneSample process(int gray, int x);
   ImageToneSample processAtkinson(int gray, int x);
+  ImageToneSample processQuality(int gray, int x);
+  // Floyd-Steinberg dither for the MEDIUM grayscale path: keeps perceptualTone (brightness) like
+  // process(), but uses the smooth FS diffusion instead of the grainy Atkinson spread. Dedicated so
+  // the shared Atkinson process() used by PNG/BMP converters is left unchanged.
+  ImageToneSample processGrayscaleFS(int gray, int x);
   void nextRow();
   void reset();
 

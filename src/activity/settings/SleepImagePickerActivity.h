@@ -5,13 +5,12 @@
  * @brief Public interface and types for SleepImagePickerActivity.
  */
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
-#include <freertos/task.h>
-
 #include <functional>
+#include <cstdint>
 #include <string>
 #include <vector>
+
+#include <HalDisplay.h>
 
 #include "activity/ActivityWithSubactivity.h"
 
@@ -32,23 +31,33 @@ class SleepImagePickerActivity final : public ActivityWithSubactivity {
  private:
   struct Row {
     std::string label;
-    std::string value;  
+    std::string value;
+    std::string previewPath;
   };
 
-  TaskHandle_t displayTaskHandle = nullptr;
-  SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
 
   std::vector<Row> rows;
   int selectedIndex = 0;
-  int scrollOffset = 0;
-  int itemsPerPage = 1;
+  bool randomEnabled = false;
+  int renderedPageStart = -1;
+  uint8_t* gridBuffer = nullptr;
+  bool gridBufferStored = false;
+  int gridBufferPageStart = -1;
 
   const std::function<void()> onBack;
 
-  static void taskTrampoline(void* param);
-  [[noreturn]] void displayTaskLoop();
   void rebuildRows();
   void render();
+  void drawPickerChrome(int pageStart, int rowCount, bool hasImages, bool localRandomEnabled, bool drawCells = true);
+  void drawPickerThumbnails(int pageStart, int rowCount);
+  void drawSelectionFrame(int pageStart, int rowCount, int index);
+  int pageStartForIndex(int index) const;
+  int slotForIndex(int pageStart, int index) const;
+  int indexForSlot(int pageStart, int slot) const;
+  bool storeGridBuffer(int pageStart);
+  bool restoreGridBuffer(int pageStart);
+  void freeGridBuffer();
   void applySelection();
+  void requestRedraw();
 };

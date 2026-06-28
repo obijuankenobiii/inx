@@ -488,14 +488,10 @@ void WifiSelectionActivity::renderScanning(const int screenWidth, const int scre
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Scanning for networks...";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
@@ -518,14 +514,10 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Select a network to connect";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
@@ -612,14 +604,10 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
-  const char* subtitleText = "Connecting...";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
@@ -650,7 +638,7 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connected successfully!";
@@ -699,7 +687,7 @@ void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";
@@ -735,7 +723,7 @@ void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int 
   const char* headerText = "WiFi Networks";
   int headerTextX = 20;
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY - 10, headerText, true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
                     EpdFontFamily::BOLD);
 
   const char* subtitleText = "Connection Failed";

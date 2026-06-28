@@ -11,8 +11,11 @@
 #include "TxtReaderActivity.h"
 #include "Xtc.h"
 #include "XtcReaderActivity.h"
-#include "activity/util/FullScreenMessageActivity.h"
+#include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 /**
  * @brief Extracts the parent directory path from a file path
@@ -56,8 +59,14 @@ std::unique_ptr<Epub> ReaderActivity::loadEpub(const std::string& path) {
   }
 
   auto epub = std::unique_ptr<Epub>(new Epub(path, "/.metadata"));
-  if (epub->hasMetadataCache()) {
-    (void)epub->load(false);
+  const bool hadMetadataCache = epub->hasMetadataCache();
+  if (epub->load(false)) {
+    return epub;
+  }
+
+  if (hadMetadataCache) {
+    Serial.printf("[Reader] EPUB metadata cache failed, rebuilding: %s\n", path.c_str());
+    epub->clearCache();
   }
 
   return epub;
@@ -149,6 +158,16 @@ void ReaderActivity::onGoToTxtReader(std::unique_ptr<Txt> txt) {
       [] {}));
 }
 
+void ReaderActivity::showCorruptedBookError() {
+  renderer.clearScreen();
+  ScreenComponents::drawPopup(renderer, "Book seems corrupted");
+  vTaskDelay(pdMS_TO_TICKS(1200));
+
+  if (onGoBack) {
+    onGoBack(currentBookPath);
+  }
+}
+
 /**
  * @brief Called when entering the reader activity
  */
@@ -167,27 +186,21 @@ void ReaderActivity::onEnter() {
   if (isXtcFile(initialBookPath)) {
     auto xtc = loadXtc(initialBookPath);
     if (!xtc) {
-      if (onGoBack) {
-        onGoBack(currentBookPath);
-      }
+      showCorruptedBookError();
       return;
     }
     onGoToXtcReader(std::move(xtc));
   } else if (isTxtFile(initialBookPath)) {
     auto txt = loadTxt(initialBookPath);
     if (!txt) {
-      if (onGoBack) {
-        onGoBack(currentBookPath);
-      }
+      showCorruptedBookError();
       return;
     }
     onGoToTxtReader(std::move(txt));
   } else {
     auto epub = loadEpub(initialBookPath);
     if (!epub) {
-      if (onGoBack) {
-        onGoBack(currentBookPath);
-      }
+      showCorruptedBookError();
       return;
     }
     onGoToEpubReader(std::move(epub));

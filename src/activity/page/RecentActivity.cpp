@@ -14,6 +14,8 @@
 #include <Xtc.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -120,41 +122,44 @@ static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, in
     }
   }
 
-  std::vector<std::string> words;
-  std::string remaining = title;
-  while (!remaining.empty()) {
-    size_t sp = remaining.find(' ');
-    if (sp == std::string::npos) {
-      words.push_back(remaining);
-      break;
-    }
-    if (sp > 0) {
-      words.push_back(remaining.substr(0, sp));
-    }
-    remaining = (sp + 1 < remaining.size()) ? remaining.substr(sp + 1) : std::string();
-  }
-  if (words.empty()) {
-    return;
-  }
-
   const int lh = renderer.text.getLineHeight(fontId);
   const int maxLines = std::max(1, (h - 12) / std::max(1, lh));
-  if (static_cast<int>(words.size()) > maxLines) {
-    words.resize(static_cast<size_t>(maxLines));
+  int wordCount = 0;
+  bool inWord = false;
+  for (char c : title) {
+    if (std::isspace(static_cast<unsigned char>(c))) {
+      inWord = false;
+    } else if (!inWord) {
+      inWord = true;
+      ++wordCount;
+    }
   }
-  const int totalTextH = static_cast<int>(words.size()) * lh;
+  if (wordCount <= 0) {
+    return;
+  }
+  const int linesToDraw = std::min(maxLines, wordCount);
+  const int totalTextH = linesToDraw * lh;
   int lineY = y + std::max(4, (h - totalTextH) / 2);
   const int innerPad = 6;
   const int maxWordW = std::max(8, w - 2 * innerPad);
 
-  for (const auto& word : words) {
-    std::string wshow = word;
+  size_t pos = 0;
+  for (int line = 0; line < linesToDraw; ++line) {
+    while (pos < title.size() && std::isspace(static_cast<unsigned char>(title[pos]))) {
+      ++pos;
+    }
+    size_t end = pos;
+    while (end < title.size() && !std::isspace(static_cast<unsigned char>(title[end]))) {
+      ++end;
+    }
+    std::string wshow = title.substr(pos, end - pos);
     if (renderer.text.getWidth(fontId, wshow.c_str()) > maxWordW) {
       wshow = renderer.text.truncate(fontId, wshow.c_str(), maxWordW, EpdFontFamily::REGULAR);
     }
     const int tw = renderer.text.getWidth(fontId, wshow.c_str());
     renderer.text.render(fontId, x + (w - tw) / 2, lineY, wshow.c_str(), true, EpdFontFamily::REGULAR);
     lineY += lh;
+    pos = end;
   }
 }
 
@@ -272,6 +277,8 @@ inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
   hScroll = h;
 }
 }  // namespace
+
+RecentActivity::~RecentActivity() { freeRecentPageBuffer(); }
 
 void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                                            const std::string& placeholderTitle, int placeholderFontId,
@@ -615,10 +622,9 @@ int RecentActivity::getVisibleRows() const {
  * Loads recent books from persistent storage.
  */
 void RecentActivity::loadRecentBooks(const bool resetScroll) {
+  freeRecentPageBuffer();
   recentBooks.clear();
   recentStats_.clear();
-  thumbnailPathCache_.clear();
-  coverPathCache_.clear();
   recentBooks.reserve(MAX_RECENT_BOOKS);
   recentStats_.reserve(MAX_RECENT_BOOKS);
   const int maxShow =
@@ -650,10 +656,20 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
   if (path.empty()) {
     return false;
   }
+  const std::string selectedPath = path;
 
-  if (!SdMan.exists(path.c_str())) {
+  // SD access can transiently fail under contention (this page streams thumbnails/stats), making a present
+  // book read as "missing". Retry a few times before treating it as gone, so a valid book always opens
+  // instead of being removed from recents and resetting the selection to the first book.
+  bool present = SdMan.exists(selectedPath.c_str());
+  for (int attempt = 0; !present && attempt < 4; ++attempt) {
+    delay(25);
+    present = SdMan.exists(selectedPath.c_str());
+  }
+
+  if (!present) {
     if (removeMissingFromRecents) {
-      RECENT_BOOKS.removeBook(path);
+      RECENT_BOOKS.removeBook(selectedPath);
       loadRecentBooks(false);
       const int n = static_cast<int>(recentBooks.size());
       selectorIndex = n == 0 ? 0 : std::min(selectorIndex, n - 1);
@@ -664,14 +680,10 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
     return false;
   }
 
-  auto* book = BOOK_STATE.findBookByPath(path);
-  if (!book) {
-    BOOK_STATE.addOrUpdateBook(path, title.empty() ? formatTitle(getBaseFilename(path)) : title, author);
-  }
-  BOOK_STATE.setReading(path, true);
+
 
   bookSelected = true;
-  onSelectBook(path);
+  onSelectBook(selectedPath);
   return true;
 }
 
@@ -696,6 +708,7 @@ const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(con
 
 void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {
   simpleUiFavorites_.clear();
+  simpleUiFavorites_.reserve(std::min<int>(kSimpleUiFavoritesMaxCount, static_cast<int>(favorites.size())));
   int added = 0;
   for (const auto& fb : favorites) {
     if (!SdMan.exists(fb.path.c_str())) {
@@ -735,6 +748,7 @@ void RecentActivity::clampSimpleUiFavoriteScroll(const int maxVisibleFavs) {
  */
 void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites) {
   listStatsFavoriteOnly_.clear();
+  listStatsFavoriteOnly_.reserve(1);
   if (!recentBooks.empty()) {
     return;
   }
@@ -756,6 +770,7 @@ void RecentActivity::rebuildListStatsFavorites(const std::vector<BookState::Book
 void RecentActivity::onEnter() {
   Activity::onEnter();
 
+  freeRecentPageBuffer();
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   halfRefreshOnLoadApplied_ = false;
@@ -780,6 +795,7 @@ void RecentActivity::onEnter() {
  * Cleans up resources when exiting the recent activity.
  */
 void RecentActivity::onExit() {
+  freeRecentPageBuffer();
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   recentBooks.clear();
@@ -811,7 +827,7 @@ void RecentActivity::renderGrid(int startY) {
       int bookIdx = row * GRID_COLS + col;
       if (bookIdx >= totalBooks) break;
 
-      bool isSelected = (selectorIndex == bookIdx);
+      bool isSelected = !suppressBufferedSelection_ && (selectorIndex == bookIdx);
       renderGridItem(col, row - startRow, startY, recentBooks[bookIdx], isSelected);
     }
   }
@@ -855,7 +871,7 @@ void RecentActivity::renderIcons(int startY) {
       const int visualRow = row - startRow;
       const int boxX = row0X + col * (kFrameW + kGapX);
       const int boxY = blockTop + visualRow * (kFrameH + kGapY);
-      const bool selected = (selectorIndex == bookIdx);
+      const bool selected = !suppressBufferedSelection_ && (selectorIndex == bookIdx);
 
       if (rr) {
         renderer.rectangle.fill(boxX, boxY, kFrameW, kFrameH, false, rr);
@@ -875,6 +891,73 @@ void RecentActivity::renderIcons(int startY) {
                             ATKINSON_HYPERLEGIBLE_10_FONT_ID, false);
     }
   }
+}
+
+void RecentActivity::drawBufferedSelectionOverlay() {
+  const int totalBooks = static_cast<int>(recentBooks.size());
+  if (selectorIndex < 0 || selectorIndex >= totalBooks) {
+    return;
+  }
+
+  if (currentViewMode == ViewMode::Grid) {
+    const int selectedRow = selectorIndex / GRID_COLS;
+    const int visibleRows = getVisibleRows();
+    if (selectedRow < scrollOffset || selectedRow >= scrollOffset + visibleRows) {
+      return;
+    }
+    renderGridItem(selectorIndex % GRID_COLS, selectedRow - scrollOffset, recentGridPaintStartY(),
+                   recentBooks[static_cast<size_t>(selectorIndex)], true);
+    return;
+  }
+
+  if (currentViewMode == ViewMode::List) {
+    if (selectorIndex < scrollOffset || selectorIndex >= scrollOffset + LIST_VISIBLE_ITEMS) {
+      return;
+    }
+    constexpr int kHintReserve = 54;
+    constexpr int padX = 30;
+    const int screenW = renderer.getScreenWidth();
+    const int contentBottom = renderer.getScreenHeight() - kHintReserve;
+    const int startY = recentListPaintStartY();
+    const int contentH = std::max(1, contentBottom - startY);
+    const int rowH = std::max(56, contentH / LIST_VISIBLE_ITEMS);
+    const int slot = selectorIndex - scrollOffset;
+    const int y = startY + slot * rowH;
+    renderer.rectangle.render(padX / 2, y + 1, screenW - padX, rowH, true, false);
+    return;
+  }
+
+  if (currentViewMode != ViewMode::Icons) {
+    return;
+  }
+
+  constexpr int kCols = 2;
+  constexpr int kRowsVisible = 3;
+  constexpr int kFrameW = 200;
+  constexpr int kFrameH = 200;
+  constexpr int kGapX = 10;
+  const int selectedRow = selectorIndex / kCols;
+  if (selectedRow < scrollOffset || selectedRow >= scrollOffset + kRowsVisible) {
+    return;
+  }
+
+  const int startY = recentIconsPaintStartY();
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight() - 30;
+  const int availW = std::max(1, screenW - GRID_SPACING * 2);
+  const int availH = std::max(1, screenH - startY - GRID_SPACING * 2);
+  const int kGapY =
+      (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
+  const int blockH = kRowsVisible * kFrameH + (kRowsVisible - 1) * kGapY;
+  const int blockTop = startY + GRID_SPACING + std::max(0, (availH - blockH) / 2);
+  const int twoW = kCols * kFrameW + (kCols - 1) * kGapX;
+  const int row0X = GRID_SPACING + std::max(0, (availW - twoW) / 2);
+  const int col = selectorIndex % kCols;
+  const int visualRow = selectedRow - scrollOffset;
+  const int boxX = row0X + col * (kFrameW + kGapX);
+  const int boxY = blockTop + visualRow * (kFrameH + kGapY);
+  renderer.rectangle.render(boxX - 2, boxY - 2, kFrameW + 4, kFrameH + 4, true,
+                            SETTINGS.bitmapRoundedCorners != 0);
 }
 
 /**
@@ -960,7 +1043,7 @@ void RecentActivity::renderList(int startY) {
     const int bi = scrollOffset + slot;
     const int y = startY + slot * rowH;
     const RecentBook& book = recentBooks[static_cast<size_t>(bi)];
-    const bool selected = (selectorIndex == bi);
+    const bool selected = !suppressBufferedSelection_ && (selectorIndex == bi);
 
     if (selected) {
       renderer.rectangle.render(padX / 2, y + 1, screenW - padX, rowH, true, false);
@@ -1179,18 +1262,92 @@ void RecentActivity::renderCoverMode() {
   }
 }
 
+bool RecentActivity::canUseRecentPageBuffer() const {
+  return !recentBooks.empty() &&
+         (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons ||
+          currentViewMode == ViewMode::List);
+}
+
+bool RecentActivity::storeRecentPageBuffer() {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  freeRecentPageBuffer();
+
+  const size_t bufferSize = renderer.getBufferSize();
+  recentPageBuffer_ = static_cast<uint8_t*>(malloc(bufferSize));
+  if (!recentPageBuffer_) {
+    return false;
+  }
+
+  memcpy(recentPageBuffer_, frameBuffer, bufferSize);
+  recentPageBufferStored_ = true;
+  recentPageBufferMode_ = currentViewMode;
+  recentPageBufferScrollOffset_ = scrollOffset;
+  recentPageBufferBookCount_ = static_cast<int>(recentBooks.size());
+  return true;
+}
+
+bool RecentActivity::restoreRecentPageBuffer() {
+  if (!recentPageBufferStored_ || !recentPageBuffer_ || recentPageBufferMode_ != currentViewMode ||
+      recentPageBufferScrollOffset_ != scrollOffset ||
+      recentPageBufferBookCount_ != static_cast<int>(recentBooks.size())) {
+    return false;
+  }
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  memcpy(frameBuffer, recentPageBuffer_, renderer.getBufferSize());
+  return true;
+}
+
+void RecentActivity::freeRecentPageBuffer() {
+  if (recentPageBuffer_) {
+    free(recentPageBuffer_);
+    recentPageBuffer_ = nullptr;
+  }
+  recentPageBufferStored_ = false;
+  recentPageBufferMode_ = ViewMode::Flow;
+  recentPageBufferScrollOffset_ = -1;
+  recentPageBufferBookCount_ = -1;
+}
+
 void RecentActivity::pumpDisplayFromLoop() {
   if (!updateRequired) {
     return;
   }
+  const bool canUseBuffer = canUseRecentPageBuffer();
+  if (canUseBuffer && restoreRecentPageBuffer()) {
+    drawBufferedSelectionOverlay();
+    renderer.displayBuffer();
+    if (!halfRefreshOnLoadApplied_) {
+      halfRefreshOnLoadApplied_ = true;
+      SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Recent);
+    }
+    updateRequired = false;
+    return;
+  }
+
   renderer.clearScreen();
   renderTabBar(renderer);
 
   syncLayoutEngineForViewMode();
+  suppressBufferedSelection_ = canUseBuffer;
   layoutEngine_->paint(*this);
+  suppressBufferedSelection_ = false;
 
   const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
+  if (canUseBuffer) {
+    storeRecentPageBuffer();
+    drawBufferedSelectionOverlay();
+  }
 
   renderer.displayBuffer();
   if (!halfRefreshOnLoadApplied_) {
@@ -1304,10 +1461,14 @@ void RecentActivity::loop() {
   const bool isListView = (currentViewMode == ViewMode::List);
   const bool isCoverView = (currentViewMode == ViewMode::Cover);
 
-  bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
-  bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
-  bool leftPressed = mappedInput.wasPressed(MappedInputManager::Button::Left);
-  bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab vs item nav buttons depend on the main-menu nav setting. In front mode these map to the same physical
+  // keys as before (no behavior change); side mode swaps the axes (Up/Down = tabs, Left/Right = items).
+  bool upPressed = mappedInput.wasPressed(itemPrevButton());
+  bool downPressed = mappedInput.wasPressed(itemNextButton());
+  bool leftPressed = mappedInput.wasPressed(tabPrevButton());
+  bool rightPressed = mappedInput.wasPressed(tabNextButton());
+  // Open on press instead of release so heavy cover redraws do not swallow the
+  // confirm edge, especially in Flow and other image-heavy recent views.
   bool confirmPressed = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
 
   if (ignoreBackReleaseOnEnter_) {
@@ -1397,6 +1558,7 @@ void RecentActivity::loop() {
   {
     const ViewMode expectedMode = viewModeForLibrarySetting(SETTINGS.recentLibraryMode);
     if (expectedMode != currentViewMode) {
+      freeRecentPageBuffer();
       currentViewMode = expectedMode;
       scrollOffset = 0;
       selectorIndex = 0;

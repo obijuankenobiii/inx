@@ -19,6 +19,7 @@
 #include "network/OtaUpdater.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 
 // cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
@@ -26,6 +27,8 @@
 namespace {
 constexpr int kSourceItemHeight = 56;
 constexpr int kFirmwareItemHeight = 46;
+constexpr int kUpdateCardMargin = 24;
+constexpr int kUpdateCardBarHeight = 10;
 const std::string kEmptyPath;
 
 bool hasBinExtension(const std::string& path) {
@@ -53,6 +56,66 @@ std::string joinSdPath(const char* dirPath, const char* name) {
     return d + n;
   }
   return d + "/" + n;
+}
+
+std::string fileNameFromPath(const std::string& path) {
+  const size_t slash = path.find_last_of('/');
+  if (slash == std::string::npos) {
+    return path;
+  }
+  return path.substr(slash + 1);
+}
+
+std::string formatBytes(const size_t bytes) {
+  char buffer[24];
+  if (bytes >= 1024 * 1024) {
+    snprintf(buffer, sizeof(buffer), "%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+  } else if (bytes >= 1024) {
+    snprintf(buffer, sizeof(buffer), "%.1f KB", static_cast<double>(bytes) / 1024.0);
+  } else {
+    snprintf(buffer, sizeof(buffer), "%u B", static_cast<unsigned>(bytes));
+  }
+  return std::string(buffer);
+}
+
+void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, const int bodyTop, const int screenHeight,
+                            const float progress, const size_t processedBytes, const size_t totalBytes) {
+  const int cardX = kUpdateCardMargin;
+  const int cardW = pageWidth - (kUpdateCardMargin * 2);
+  const int cardY = bodyTop + 22;
+  const int cardH = std::min(144, screenHeight - cardY - 58);
+
+  renderer.rectangle.fill(cardX, cardY, cardW, cardH, false, true);
+
+  const int titleY = cardY + 18;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, cardX + 18, titleY, "Installing firmware", true,
+                       EpdFontFamily::BOLD);
+
+  const int statusY = titleY + 28;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, cardX + 18, statusY, "Please keep the device powered on.",
+                       true, EpdFontFamily::REGULAR);
+
+  const int barX = cardX + 18;
+  const int barY = statusY + 28;
+  const int barW = cardW - 36;
+  renderer.rectangle.render(barX, barY, barW, kUpdateCardBarHeight, true);
+
+  const int clamped = std::max(0, std::min(100, static_cast<int>(progress * 100.0f + 0.5f)));
+  const int innerW = std::max(1, barW - 2);
+  const int fillW = innerW * clamped / 100;
+  renderer.rectangle.fill(barX + 1, barY + 1, innerW, kUpdateCardBarHeight - 2, false);
+  if (fillW > 0) {
+    renderer.rectangle.fill(barX + 1, barY + 1, fillW, kUpdateCardBarHeight - 2, true);
+  }
+
+  std::string metaLine;
+  if (totalBytes > 0) {
+    metaLine = std::to_string(processedBytes) + " / " + std::to_string(totalBytes);
+  } else {
+    metaLine = "Preparing package";
+  }
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, cardX + 18, barY + 24, metaLine.c_str(), true,
+                       EpdFontFamily::REGULAR);
 }
 }
 
@@ -217,47 +280,9 @@ void OtaUpdateActivity::render() {
 
   const char* headerText = "Update";
   int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY - 10, headerText, true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, headerText, true, EpdFontFamily::BOLD);
 
-  const char* subtitleText = "";
-  switch (state) {
-    case SOURCE_SELECTION:
-      subtitleText = "Choose update source";
-      break;
-    case WIFI_SELECTION:
-      subtitleText = "Select Wi-Fi to continue";
-      break;
-    case CHECKING_FOR_UPDATE:
-      subtitleText = "Checking for update...";
-      break;
-    case WAITING_CONFIRMATION:
-      subtitleText = "New update available!";
-      break;
-    case WAITING_SD_SELECTION:
-      subtitleText = "Choose firmware file";
-      break;
-    case WAITING_SD_CONFIRMATION:
-      subtitleText = "Install firmware from SD";
-      break;
-    case UPDATE_IN_PROGRESS:
-      subtitleText = "Installing firmware...";
-      break;
-    case NO_UPDATE:
-      subtitleText = "No update available";
-      break;
-    case FAILED:
-      subtitleText = "Update failed";
-      break;
-    case FINISHED:
-    case SHUTTING_DOWN:
-      subtitleText = "Update complete";
-      break;
-  }
-
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true, EpdFontFamily::REGULAR);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
+  const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY);
 
   const int bodyTop = dividerY;
@@ -333,8 +358,6 @@ void OtaUpdateActivity::render() {
     }
   } else if (state == WAITING_SD_CONFIRMATION) {
     const std::string& firmwarePath = selectedSdFirmwarePath();
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
-                         ("File: " + firmwarePath).c_str(), true, EpdFontFamily::REGULAR);
     if (!firmwarePath.empty() && SdMan.exists(firmwarePath.c_str())) {
       FsFile file;
       size_t firmwareSize = 0;
@@ -342,28 +365,31 @@ void OtaUpdateActivity::render() {
         firmwareSize = file.size();
         file.close();
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28,
-                           ("Size: " + std::to_string(firmwareSize) + " bytes").c_str(), true,
-                           EpdFontFamily::REGULAR);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 64, "Install this firmware?", true,
-                           EpdFontFamily::BOLD);
+      const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+      const std::string fileName = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                          fileNameFromPath(firmwarePath).c_str(), pageWidth - 56);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "SD FIRMWARE", true,
+                             EpdFontFamily::BOLD);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Install update?", true,
+                             EpdFontFamily::BOLD);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, fileName.c_str(), true,
+                             EpdFontFamily::REGULAR);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 18, formatBytes(firmwareSize).c_str(), true,
+                             EpdFontFamily::REGULAR);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 58,
+                             "Keep the device powered on during install.", true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("Cancel", "Install", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 36, "Firmware file is missing.",
-                           true, EpdFontFamily::REGULAR);
+      const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Firmware file is missing.",
+                             true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == UPDATE_IN_PROGRESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 8, "Updating...", true, EpdFontFamily::BOLD);
-    renderer.rectangle.render(20, bodyTop + 36, pageWidth - 40, 50);
-    renderer.rectangle.fill(24, bodyTop + 40, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 106,
-                              (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + 130,
-                              (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize()))
-                                  .c_str());
+    drawUpdateProgressCard(renderer, pageWidth, bodyTop, screenHeight, updaterProgress, updater.getProcessedSize(),
+                           updater.getTotalSize());
   } else if (state == NO_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true,
@@ -405,8 +431,8 @@ void OtaUpdateActivity::loop() {
       goBack();
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev()) ||
+        mappedInput.wasPressed(MenuNav::itemNext())) {
       sourceSelectedIndex = sourceSelectedIndex == 0 ? 1 : 0;
       updateRequired = true;
       return;
@@ -487,13 +513,13 @@ void OtaUpdateActivity::loop() {
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MenuNav::itemNext())) {
       sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + 1) % totalFiles;
       updateRequired = true;
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       sdFirmwareSelectedIndex = (sdFirmwareSelectedIndex + totalFiles - 1) % totalFiles;
       updateRequired = true;
       return;

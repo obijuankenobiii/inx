@@ -18,8 +18,6 @@
 std::vector<FontManager::SDFontEntry> FontManager::g_sdFonts;
 int FontManager::g_nextSDFontId = FontManager::SD_FONT_START_ID;
 GfxRenderer* FontManager::g_renderer = nullptr;
-FontManager::ProgressCallback FontManager::g_progressCallback = nullptr;
-
 std::vector<std::unique_ptr<EpdFontFamily>> FontManager::g_fontFamilyStorage;
 std::vector<std::unique_ptr<EpdFont>> FontManager::g_fontStorage;
 
@@ -244,6 +242,7 @@ int FontManager::getNextFont(int currentFontId) {
   return currentFontId;
 }
 
+
 /**
  * @brief Scans SD card for font files
  */
@@ -437,8 +436,6 @@ void FontManager::updateFontLRU(int fontId) {
 /**
  * @brief Gets free heap memory
  */
-size_t FontManager::getFreeHeap() { return ESP.getFreeHeap(); }
-
 /**
  * @brief Sets maximum number of fonts to keep loaded
  */
@@ -462,6 +459,10 @@ int FontManager::getLoadedFontCount() { return g_loadedFontCount; }
  * Uses streaming ExternalFont with on-demand glyph table reads (no full index in RAM).
  */
 bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
+  if (!g_scannedForFonts) {
+    (void)scanSDFonts("/fonts", false);
+  }
+
   SDFontEntry* entry = nullptr;
   for (auto& e : g_sdFonts) {
     if (e.id == fontId) {
@@ -552,8 +553,8 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
 
 void FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
   ensureFontReady(bodyFontId, renderer);
-  ensureFontReady(getNextFont(bodyFontId), renderer);
   ensureFontReady(getMaxFontId(bodyFontId), renderer);
+  ensureFontReady(getNextFont(bodyFontId), renderer);
 }
 
 /**
@@ -662,6 +663,10 @@ void FontManager::unloadAllSDFonts() {
  * @brief Gets information about a specific font
  */
 const FontManager::FontInfo* FontManager::getFontInfo(int fontId) {
+  if (!g_scannedForFonts && fontId >= SD_FONT_START_ID) {
+    (void)scanSDFonts("/fonts", false);
+  }
+
   static FontInfo info;
 
   switch (fontId) {
@@ -713,6 +718,10 @@ const FontManager::FontInfo* FontManager::getFontInfo(int fontId) {
  * @brief Gets all available fonts
  */
 std::vector<FontManager::FontInfo> FontManager::getAllAvailableFonts() {
+  if (!g_scannedForFonts) {
+    (void)scanSDFonts("/fonts", false);
+  }
+
   std::vector<FontInfo> fonts;
 
   fonts.push_back({"Atkinson Hyperlegible 8", "Atkinson Hyperlegible", ATKINSON_HYPERLEGIBLE_8_FONT_ID, 8, true});
@@ -739,6 +748,10 @@ std::vector<FontManager::FontInfo> FontManager::getAllAvailableFonts() {
  * @brief Gets all fonts belonging to a specific family
  */
 std::vector<FontManager::FontInfo> FontManager::getFontsByFamily(const std::string& family) {
+  if (!g_scannedForFonts && family != "Atkinson Hyperlegible" && family != "Literata") {
+    (void)scanSDFonts("/fonts", false);
+  }
+
   std::vector<FontInfo> result;
 
   if (family == "Atkinson Hyperlegible") {
@@ -772,6 +785,10 @@ std::vector<FontManager::FontInfo> FontManager::getFontsByFamily(const std::stri
  * @brief Gets all available font families
  */
 std::vector<std::string> FontManager::getAllFamilies() {
+  if (!g_scannedForFonts) {
+    (void)scanSDFonts("/fonts", false);
+  }
+
   std::vector<std::string> families;
   families.push_back("Atkinson Hyperlegible");
   families.push_back("Literata");
@@ -804,11 +821,6 @@ bool FontManager::isFontLoaded(int fontId) {
 }
 
 /**
- * @brief Sets the progress callback for font operations
- */
-void FontManager::setProgressCallback(ProgressCallback callback) { g_progressCallback = callback; }
-
-/**
  * @brief Prints font manager statistics to serial output
  */
 void FontManager::printFontStats() {
@@ -836,7 +848,8 @@ void FontManager::printFontStats() {
  */
 void FontManager::printMemoryUsage() {
   Serial.println("=== Memory Usage ===");
-  Serial.printf("Free heap: %u bytes (%u KB)\n", getFreeHeap(), getFreeHeap() / 1024);
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("Free heap: %u bytes (%u KB)\n", freeHeap, freeHeap / 1024);
   Serial.printf("Largest free block: %u bytes\n", ESP.getMaxAllocHeap());
   Serial.printf("Font families loaded: %d\n", (int)g_fontFamilyStorage.size());
   Serial.printf("Fonts loaded: %d\n", (int)g_fontStorage.size());
@@ -922,13 +935,20 @@ void FontManager::rebuildSdReaderFamilyList() {
     uniq.insert(e.family);
   }
   g_sdFamiliesSorted.assign(uniq.begin(), uniq.end());
+  g_sdFamiliesSorted.shrink_to_fit();
 }
 
 uint32_t FontManager::readerFontFamilyOptionCount() {
+  if (!g_scannedForFonts) {
+    (void)scanSDFonts("/fonts", false);
+  }
   return 2u + static_cast<uint32_t>(g_sdFamiliesSorted.size());
 }
 
 std::vector<std::string> FontManager::readerFontFamilyEnumLabels() {
+  if (!g_scannedForFonts) {
+    (void)scanSDFonts("/fonts", false);
+  }
   std::vector<std::string> out;
   out.reserve(2u + g_sdFamiliesSorted.size());
   out.push_back("Literata");
@@ -938,6 +958,9 @@ std::vector<std::string> FontManager::readerFontFamilyEnumLabels() {
 }
 
 std::string FontManager::readerFontFamilyLabel(uint8_t slot) {
+  if (!g_scannedForFonts && slot >= 2u) {
+    (void)scanSDFonts("/fonts", false);
+  }
   if (slot == 0) {
     return "Literata";
   }
@@ -965,6 +988,9 @@ void FontManager::clampReaderFontFamilySlot(uint8_t& slot) {
 }
 
 int FontManager::getFontIdNearestPointSize(const std::string& family, int preferredPt) {
+  if (!g_scannedForFonts && family != "Atkinson Hyperlegible" && family != "Literata") {
+    (void)scanSDFonts("/fonts", false);
+  }
   int smallestGeId = -1;
   int smallestGeSize = INT_MAX;
   int largestLtId = -1;

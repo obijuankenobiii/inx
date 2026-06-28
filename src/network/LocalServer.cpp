@@ -1334,8 +1334,9 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepScreen"] = SETTINGS.sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
-  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepScreenCoverGrayscale;
-  doc["sleepImageTwoBit"] = SETTINGS.sleepScreenCoverGrayscale;
+  doc["sleepImageQuality"] = SETTINGS.sleepImageQuality;
+  doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepImageQuality;
+  doc["sleepImageTwoBit"] = SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
   doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
@@ -1352,7 +1353,8 @@ void LocalServer::handleSettingsGet() const {
   doc["fontSize"] = SETTINGS.fontSize;
   
   
-  doc["lineSpacing"] = SETTINGS.lineSpacing;
+  doc["lineHeight"] = SETTINGS.lineHeight;
+  doc["textSpace"] = SETTINGS.textSpace;
   doc["screenMargin"] = SETTINGS.screenMargin;
   doc["paragraphAlignment"] = SETTINGS.paragraphAlignment;
   doc["paragraphCssIndentEnabled"] = SETTINGS.paragraphCssIndentEnabled;
@@ -1434,11 +1436,19 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
-      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
+                                       ? static_cast<uint8_t>(value)
+                                       : SystemSetting::SLEEP_IMAGE_LOW;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepImageQuality") == 0) {
+      SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
+                                       ? static_cast<uint8_t>(value)
+                                       : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
     }
     else if (strcmp(key, "sleepImageTwoBit") == 0) {
-      SETTINGS.sleepScreenCoverGrayscale = (uint8_t)value ? 1 : 0;
+      SETTINGS.sleepImageQuality = (uint8_t)value ? SystemSetting::SLEEP_IMAGE_MEDIUM : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
     }
     else if (strcmp(key, "sleepCustomBmp") == 0) {
@@ -1512,11 +1522,14 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.fontSize = (uint8_t)value;
       changed = true;
     }
-    else if (strcmp(key, "lineSpacing") == 0) {
-      SETTINGS.lineSpacing = (uint8_t)value;
-      if (SETTINGS.lineSpacing >= SystemSetting::LINE_COMPRESSION_COUNT) {
-        SETTINGS.lineSpacing = SystemSetting::NORMAL;
-      }
+    else if (strcmp(key, "lineHeight") == 0) {
+      uint8_t v = (uint8_t)value;
+      SETTINGS.lineHeight = (v < 10 || v > 200) ? 100 : v;
+      changed = true;
+    }
+    else if (strcmp(key, "textSpace") == 0) {
+      uint8_t v = (uint8_t)value;
+      SETTINGS.textSpace = (v < 10 || v > 200) ? 100 : v;
       changed = true;
     }
     else if (strcmp(key, "screenMargin") == 0) {
@@ -1581,7 +1594,9 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     }
     else if (strcmp(key, "readerImageGrayscale") == 0) {
-      SETTINGS.readerImageGrayscale = (uint8_t)value ? 1 : 0;
+      SETTINGS.readerImageGrayscale = (value >= 0 && value < SystemSetting::READER_IMAGE_QUALITY_COUNT)
+                                          ? (uint8_t)value
+                                          : SystemSetting::READER_IMAGE_LOW;
       changed = true;
     }
     else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {

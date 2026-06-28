@@ -11,6 +11,7 @@
 
 #include "state/SystemSetting.h"
 #include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
 #include "activity/util/KeyboardEntryActivity.h"
 #include "system/Fonts.h"
 
@@ -67,12 +68,12 @@ void CalibreSettingsActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-      mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+  if (mappedInput.wasPressed(MenuNav::itemPrev()) ||
+      mappedInput.wasPressed(MenuNav::tabPrev())) {
     selectedIndex = (selectedIndex + MENU_ITEMS - 1) % MENU_ITEMS;
     updateRequired = true;
-  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+  } else if (mappedInput.wasPressed(MenuNav::itemNext()) ||
+             mappedInput.wasPressed(MenuNav::tabNext())) {
     selectedIndex = (selectedIndex + 1) % MENU_ITEMS;
     updateRequired = true;
   }

@@ -8,6 +8,7 @@
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <vector>
@@ -23,7 +24,8 @@
 
 class GfxRenderer {
  public:
-  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
+  // GRAY2_* : quality 2-bit planes used with the quality image LUT.
+  enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB };
 
   enum Orientation {
     Portrait,                  
@@ -109,12 +111,27 @@ class GfxRenderer {
   
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }
   RenderMode getRenderMode() const { return renderMode; }
+  bool deviceIsX3() const;
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
-  void displayGrayBuffer() const;
-  bool storeBwBuffer();    
-  void restoreBwBuffer();  
+  void displayGrayBuffer(bool quality = false) const;
+  void displayGrayBufferFastQuality() const;
+  void prepareQualityGrayscale() const;
+  bool storeBwBuffer();
+  void restoreBwBuffer();
+  // Copies the stored BW shadow back into the framebuffer WITHOUT freeing it or touching controller RAM. Lets
+  // the gray planes be rebuilt from the BW frame more than once (e.g. invert for LSB, then again for MSB).
+  bool copyStoredBwToFramebuffer() const;
   void cleanupGrayscaleWithFrameBuffer() const;
+
+  // One-call 2-bit grayscale sequence shared by sleep + reader. For each plane (LSB then MSB) it sets the
+  // render mode, invokes drawPlane() to populate the framebuffer for that plane, and copies it into the
+  // grayscale RAM bank; then it drives the gray refresh and resets to BW. `quality` selects GRAY2 + the
+  // quality LUT, else GRAYSCALE + the fast LUT. When `preserveText` is true the BW baseline is restored from
+  // the previously stored BW frame (call storeBwBuffer() first); otherwise it is rebased from a clean white
+  // frame so the next BW refresh isn't polluted by the leftover grayscale plane.
+  void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane,
+                             bool fastQuality = false);
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 

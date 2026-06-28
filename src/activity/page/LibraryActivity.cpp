@@ -9,6 +9,7 @@
 #include <Bitmap.h>
 #include <Epub.h>
 #include <GfxRenderer.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Xtc.h>
 
@@ -66,6 +67,8 @@ uint8_t viewModeToStorage(ViewMode m) {
       return SystemSetting::LIBRARY_VIEW_BOOKS;
     case ViewMode::TAG_VIEW:
       return SystemSetting::LIBRARY_VIEW_TAGS;
+    case ViewMode::SHELF_VIEW:
+      return SystemSetting::LIBRARY_VIEW_SHELF;
     case ViewMode::FOLDER_VIEW:
     default:
       return SystemSetting::LIBRARY_VIEW_FOLDERS;
@@ -79,6 +82,8 @@ ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
   if (v == SystemSetting::LIBRARY_VIEW_TAGS && indexEnabled) {
     return ViewMode::TAG_VIEW;
   }
+  // Shelf temporarily removed from the selectable view modes — a stored shelf falls through to folder view.
+  // (Re-enable by restoring: if (v == LIBRARY_VIEW_SHELF) return ViewMode::SHELF_VIEW;)
   return ViewMode::FOLDER_VIEW;
 }
 
@@ -127,8 +132,81 @@ constexpr int LIB_GRID_MIN_GAP_Y = 6;
 constexpr int LIB_GRID_OUTER_PAD = 8;
 constexpr int LIB_GRID_LABEL_GAP = 4;
 constexpr int LIB_GRID_LABEL_H = 28;
+constexpr int LIB_SHELF_COLS = 2;
+constexpr int LIB_SHELF_ROWS = 2;
+constexpr int LIB_SHELF_GAP_X = 20;
+constexpr int LIB_SHELF_GAP_Y = 16;
+constexpr int LIB_SHELF_OUTER_PAD_X = 22;
+constexpr int LIB_SHELF_OUTER_PAD_Y = 12;
+constexpr int LIB_SHELF_TITLE_GAP = 10;
+constexpr int LIB_SHELF_META_GAP = 8;
+constexpr int LIB_SHELF_BADGE_SIZE = 22;
+constexpr uint32_t LIBRARY_TASK_STACK_SIZE = 8192;
+constexpr uint32_t LIBRARY_INDEX_TASK_STACK_SIZE = 6144;
 constexpr const char* TAG_UNTAGGED_KEY = "\x01";
 constexpr const char* TAG_UNTAGGED_LABEL = "Others";
+
+bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
+  const size_t suffixLen = strlen(suffix);
+  if (value.size() < suffixLen) {
+    return false;
+  }
+  const size_t start = value.size() - suffixLen;
+  for (size_t i = 0; i < suffixLen; ++i) {
+    if (tolower(static_cast<unsigned char>(value[start + i])) != tolower(static_cast<unsigned char>(suffix[i]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::string metadataCachePathForBookPath(const std::string& bookPath, const char* root) {
+  return std::string(root) + "/" + std::to_string(std::hash<std::string>{}(bookPath));
+}
+
+std::string resolveShelfImagePath(const std::string& bookPath) {
+  const bool isXtc = endsWithIgnoreCase(bookPath, ".xtc");
+  const char* primaryRoot = isXtc ? "/.metadata/xtc" : "/.metadata/epub";
+  const char* secondaryRoot = isXtc ? "/.metadata/epub" : "/.metadata/xtc";
+  const char* names[] = {"cover.jpg", "cover.png", "cover.bmp", "cover_crop.jpg", "cover_crop.bmp",
+                         "thumb.jpg", "thumb.png", "thumb.bmp"};
+
+  auto findInRoot = [&](const char* root) -> std::string {
+    const std::string base = metadataCachePathForBookPath(bookPath, root);
+    for (const char* name : names) {
+      const std::string path = base + "/" + name;
+      if (SdMan.exists(path.c_str())) {
+        return path;
+      }
+    }
+    return "";
+  };
+
+  std::string found = findInRoot(primaryRoot);
+  if (!found.empty()) {
+    return found;
+  }
+  found = findInRoot(secondaryRoot);
+  if (!found.empty()) {
+    return found;
+  }
+  return "";
+}
+
+void drawShelfCheckBadge(const GfxRenderer& renderer, int x, int y) {
+  renderer.rectangle.fill(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, false);
+  renderer.rectangle.render(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, true);
+  renderer.line.render(x + 5, y + 12, x + 9, y + 16);
+  renderer.line.render(x + 9, y + 16, x + 17, y + 6);
+  renderer.line.render(x + 5, y + 13, x + 9, y + 17);
+  renderer.line.render(x + 9, y + 17, x + 17, y + 7);
+}
+
+void drawShelfFavoriteBadge(const GfxRenderer& renderer, int x, int y) {
+  renderer.rectangle.fill(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, false);
+  renderer.rectangle.render(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, true);
+  renderer.bitmap.icon(Star, x + 3, y + 3, LIB_SHELF_BADGE_SIZE - 6, LIB_SHELF_BADGE_SIZE - 6);
+}
 
 }  
 
@@ -234,11 +312,17 @@ std::string LibraryActivity::getBaseFilename(const std::string& filename) const 
  * @return Header text string
  */
 std::string LibraryActivity::getHeaderText() const {
+  // Index mode adds a refresh button to the header; shorten the text so it doesn't overlap it.
+  const size_t maxLen = shouldShowIndexButton() ? 22 : 25;
   if (currentViewMode == ViewMode::TAG_VIEW) {
     if (selectedTagKey_.empty()) {
       return "Categories";
     }
-    return selectedTagKey_ == TAG_UNTAGGED_KEY ? TAG_UNTAGGED_LABEL : truncateTextIfNeeded(selectedTagKey_, 25);
+    return selectedTagKey_ == TAG_UNTAGGED_KEY ? TAG_UNTAGGED_LABEL : truncateTextIfNeeded(selectedTagKey_, maxLen);
+  }
+
+  if (currentViewMode == ViewMode::SHELF_VIEW) {
+    return "Shelf";
   }
 
   if (basepath == "/") {
@@ -247,7 +331,7 @@ std::string LibraryActivity::getHeaderText() const {
 
   std::string folderName = extractFolderName(basepath);
   std::string header = formatFolderName(folderName);
-  return truncateTextIfNeeded(header, 25);
+  return truncateTextIfNeeded(header, maxLen);
 }
 
 /**
@@ -352,9 +436,11 @@ int LibraryActivity::drawIndexButton(int headerY, int headerHeight, int x, bool 
 void LibraryActivity::drawButtonHints() const {
   std::string back;
   if (currentViewMode == ViewMode::TAG_VIEW) {
-    back = selectedTagKey_.empty() ? "« Groups" : "« Tags";
+    back = selectedTagKey_.empty() ? "Shelf »" : "« Tags";
   } else if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-    back = SETTINGS.useLibraryIndex ? "Tags »" : "« Groups";
+    back = SETTINGS.useLibraryIndex ? "Tags »" : "Groups »";
+  } else if (currentViewMode == ViewMode::SHELF_VIEW) {
+    back = "« Groups";
   } else {
     back = basepath != "/" ? "« Back" : "Books »";
   }
@@ -584,7 +670,7 @@ void LibraryActivity::loadAllBooksRecursiveLocked() {
   if (SETTINGS.useLibraryIndex) {
     loadLibraryFromIndex();
   } else {
-    if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+    if (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::SHELF_VIEW) {
       loadBooksRecursiveScan();
     } else {
       loadFoldersAndBooksCurrentDirectory();
@@ -859,7 +945,9 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
  */
 void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
   int totalItems = tempBooks.size();
-  itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE : BOOK_ITEMS_PER_PAGE;
+  itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE
+                                     : (currentViewMode == ViewMode::SHELF_VIEW ? SHELF_ITEMS_PER_PAGE
+                                                                                : BOOK_ITEMS_PER_PAGE);
   totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
   if (totalPages == 0) totalPages = 1;
 
@@ -867,6 +955,7 @@ void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& t
   if (currentPage < 0) currentPage = 0;
 
   currentPageItems.clear();
+  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
   int startIdx = currentPage * itemsPerPage;
   int endIdx = std::min(startIdx + itemsPerPage, totalItems);
 
@@ -948,20 +1037,9 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
  */
 void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& tempFolders,
                                               const std::vector<TempBookEntry>& tempBooks) {
-  std::vector<LibraryItem> allItems;
-  allItems.insert(allItems.end(), tempFolders.begin(), tempFolders.end());
-
-  for (const auto& temp : tempBooks) {
-    LibraryItem item;
-    item.type = LibraryItem::Type::BOOK;
-    item.name = getBaseFilename(temp.path);
-    item.path = temp.path;
-    item.displayName = temp.displayName;
-    item.folderPath = temp.folderPath;
-    allItems.push_back(item);
-  }
-
-  int totalItems = allItems.size();
+  const int totalFolders = static_cast<int>(tempFolders.size());
+  const int totalBooks = static_cast<int>(tempBooks.size());
+  const int totalItems = totalFolders + totalBooks;
   itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE : FOLDER_ITEMS_PER_PAGE;
   totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
   if (totalPages == 0) totalPages = 1;
@@ -970,11 +1048,24 @@ void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& te
   if (currentPage < 0) currentPage = 0;
 
   currentPageItems.clear();
-  int startIdx = currentPage * itemsPerPage;
-  int endIdx = std::min(startIdx + itemsPerPage, totalItems);
+  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
+  const int startIdx = currentPage * itemsPerPage;
+  const int endIdx = std::min(startIdx + itemsPerPage, totalItems);
 
-  for (int i = startIdx; i < endIdx; i++) {
-    currentPageItems.push_back(allItems[i]);
+  for (int i = startIdx; i < endIdx; ++i) {
+    if (i < totalFolders) {
+      currentPageItems.push_back(tempFolders[static_cast<size_t>(i)]);
+      continue;
+    }
+
+    const auto& temp = tempBooks[static_cast<size_t>(i - totalFolders)];
+    LibraryItem item;
+    item.type = LibraryItem::Type::BOOK;
+    item.name = getBaseFilename(temp.path);
+    item.path = temp.path;
+    item.displayName = temp.displayName;
+    item.folderPath = temp.folderPath;
+    currentPageItems.push_back(std::move(item));
   }
 }
 
@@ -1096,7 +1187,7 @@ bool LibraryActivity::isBookFinished(const std::string& path) const {
  * @brief Render the library screen
  */
 void LibraryActivity::render() const {
-  const int gridStartY = TAB_BAR_HEIGHT * 2;
+  const int gridStartY = TAB_BAR_HEIGHT * 2 - 3;
 
   renderer.clearScreen();
 
@@ -1120,15 +1211,16 @@ void LibraryActivity::render() const {
                     EpdFontFamily::BOLD);
   int headerButtonRightX = drawSortButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, screenWidth);
   if (showIndexButton) {
-    drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
+drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
   }
 
   renderer.line.render(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
 
-  renderLibraryList(gridStartY);
-  drawButtonHints();
   if (isIndexing_) {
-    showIndexingPopup();
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Refreshing library");
+  } else {
+    renderLibraryList(gridStartY);
+    drawButtonHints();
   }
   renderer.displayBuffer();
 }
@@ -1137,19 +1229,32 @@ void LibraryActivity::render() const {
  * @brief Toggle between book list view and folder view
  */
 void LibraryActivity::toggleViewMode() {
+  if (currentViewMode == ViewMode::FOLDER_VIEW) {
+    switchToBookListView();
+    return;
+  }
   if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-    currentViewMode = ViewMode::FOLDER_VIEW;
-    selectedTagKey_.clear();
-    if (!savedFolderPath.empty()) {
-      basepath = savedFolderPath;
-      savedFolderPath.clear();
+    if (SETTINGS.useLibraryIndex) {
+      switchToTagView();
+    } else {
+      switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
     }
-  } else {
-    currentViewMode = ViewMode::BOOK_LIST_VIEW;
-    selectedTagKey_.clear();
+    return;
+  }
+  if (currentViewMode == ViewMode::TAG_VIEW) {
+    switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
+    return;
+  }
+  switchToFolderView();
+}
+
+void LibraryActivity::switchToBookListView() {
+  if (currentViewMode == ViewMode::FOLDER_VIEW) {
     savedFolderPath = basepath;
   }
-
+  currentViewMode = ViewMode::BOOK_LIST_VIEW;
+  selectedTagKey_.clear();
+  basepath = "/";
   resetNavigation();
   loadAllBooksRecursive();
   updateRequired = true;
@@ -1168,6 +1273,18 @@ void LibraryActivity::switchToTagView() {
   currentSortMode = SortMode::TAG_AZ;
   basepath = "/";
   selectedTagKey_.clear();
+  resetNavigation();
+  loadAllBooksRecursive();
+  updateRequired = true;
+}
+
+void LibraryActivity::switchToShelfView() {
+  if (currentViewMode == ViewMode::FOLDER_VIEW) {
+    savedFolderPath = basepath;
+  }
+  currentViewMode = ViewMode::SHELF_VIEW;
+  selectedTagKey_.clear();
+  basepath = "/";
   resetNavigation();
   loadAllBooksRecursive();
   updateRequired = true;
@@ -1247,16 +1364,12 @@ void LibraryActivity::startLibraryIndexing() {
         activity->updateRequired = true;
         vTaskDelete(nullptr);
       },
-      "LibIdxBtnTask", 4096, this, 1, nullptr);
+      "LibIdxBtnTask", LIBRARY_INDEX_TASK_STACK_SIZE, this, 1, nullptr);
 
   if (created != pdPASS) {
     isIndexing_ = false;
     updateRequired = true;
   }
-}
-
-void LibraryActivity::showIndexingPopup() const {
-  ScreenComponents::drawPopup(renderer, "Indexing");
 }
 
 /**
@@ -1272,6 +1385,8 @@ void LibraryActivity::onEnter() {
 
   currentViewMode = storageToViewMode(SETTINGS.libraryViewMode, SETTINGS.useLibraryIndex != 0);
   selectedTagKey_.clear();
+  cachedTagEntries_.clear();
+  cachedTagEntriesLoaded_ = false;
   if (currentViewMode != ViewMode::FOLDER_VIEW) {
     savedFolderPath = basepath;
     basepath = "/";
@@ -1286,7 +1401,7 @@ void LibraryActivity::onEnter() {
   loadAllBooksRecursive();
 
   if (displayTaskHandle == nullptr) {
-    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", 4096, this, 1, &displayTaskHandle);
+    xTaskCreate(&LibraryActivity::taskTrampoline, "LibraryTask", LIBRARY_TASK_STACK_SIZE, this, 1, &displayTaskHandle);
   }
   updateRequired = true;
 }
@@ -1318,6 +1433,11 @@ void LibraryActivity::onExit() {
   }
 
   resetLibraryView();
+  std::vector<LibraryItem>().swap(currentPageItems);
+  std::vector<BookTags::Entry>().swap(cachedTagEntries_);
+  cachedTagEntriesLoaded_ = false;
+  std::string().swap(savedFolderPath);
+  std::string().swap(selectedTagKey_);
 }
 
 /**
@@ -1350,7 +1470,9 @@ void LibraryActivity::goToPreviousPage() {
 
     currentPage--;
     loadAllBooksRecursiveLocked();
-    selectorIndex = 0;
+    // Land on the LAST item of the previous page (not the first): the user pressed up off the top item, so
+    // continuing onto the bottom of the previous page reads naturally.
+    selectorIndex = std::max(0, static_cast<int>(currentPageItems.size()) - 1);
     listScrollOffset = 0;
     updateRequired = true;
   }
@@ -1382,11 +1504,14 @@ void LibraryActivity::loop() {
 
   bool wantDownStep = false;
   bool wantUpStep = false;
+  // Item-list step buttons depend on the main-menu nav setting (front: Up/Down, side: Left/Right).
+  const MappedInputManager::Button itemPrevBtn = itemPrevButton();
+  const MappedInputManager::Button itemNextBtn = itemNextButton();
   if (tabSelectorIndex == 1) {
-    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (Activity::mappedInput.wasPressed(itemNextBtn)) {
       wantDownStep = true;
       libraryListDownNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
-    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Down)) {
+    } else if (Activity::mappedInput.isPressed(itemNextBtn)) {
       if (libraryListDownNextMs != 0 && millis() >= libraryListDownNextMs) {
         wantDownStep = true;
         libraryListDownNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
@@ -1395,10 +1520,10 @@ void LibraryActivity::loop() {
       libraryListDownNextMs = 0;
     }
 
-    if (Activity::mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (Activity::mappedInput.wasPressed(itemPrevBtn)) {
       wantUpStep = true;
       libraryListUpNextMs = millis() + LIB_LIST_REPEAT_INITIAL_MS;
-    } else if (Activity::mappedInput.isPressed(MappedInputManager::Button::Up)) {
+    } else if (Activity::mappedInput.isPressed(itemPrevBtn)) {
       if (libraryListUpNextMs != 0 && millis() >= libraryListUpNextMs) {
         wantUpStep = true;
         libraryListUpNextMs = millis() + LIB_LIST_REPEAT_RATE_MS;
@@ -1411,8 +1536,9 @@ void LibraryActivity::loop() {
     libraryListUpNextMs = 0;
   }
 
-  const bool leftPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool rightPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Right);
+  // Tab switch buttons depend on the same setting (front: Left/Right, side: Up/Down).
+  const bool leftPressed = Activity::mappedInput.wasPressed(tabPrevButton());
+  const bool rightPressed = Activity::mappedInput.wasPressed(tabNextButton());
   const bool confirmPressed = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const bool confirmHeld = Activity::mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const unsigned long holdTime = Activity::mappedInput.getHeldTime();
@@ -1512,9 +1638,16 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
         if (book) {
           book->isFavorite = true;
           BOOK_STATE.saveToFile();
+          BOOK_STATE.compactForIdle();
         }
       } else {
-        BOOK_STATE.toggleFavorite(item.path);
+        const bool makeFavorite = !book->isFavorite;
+        book->isFavorite = makeFavorite;
+        if (makeFavorite && book->title.empty()) {
+          book->title = item.displayName;
+        }
+        BOOK_STATE.saveToFile();
+        BOOK_STATE.compactForIdle();
       }
 
       updateRequired = true;
@@ -1694,10 +1827,14 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
         book->isReading = true;
       }
     } else {
-      BOOK_STATE.setReading(item.path, true);
+      book->isReading = true;
+      if (book->title.empty()) {
+        book->title = item.displayName;
+      }
     }
 
     BOOK_STATE.saveToFile();
+    BOOK_STATE.compactForIdle();
     onSelectBook(item.path);
   }
 }
@@ -1716,12 +1853,17 @@ void LibraryActivity::handleBackNavigation() {
       updateRequired = true;
       return;
     }
-    switchToFolderView();
+    switchToFolderView();  // shelf temporarily removed from the cycle (was switchToShelfView())
     return;
   }
 
   if (currentViewMode == ViewMode::BOOK_LIST_VIEW && SETTINGS.useLibraryIndex) {
     switchToTagView();
+    return;
+  }
+
+  if (currentViewMode == ViewMode::SHELF_VIEW) {
+    switchToFolderView();
     return;
   }
 
@@ -1863,8 +2005,16 @@ int LibraryActivity::getItemHeight(const LibraryItem& item) const {
 }
 
 bool LibraryActivity::isLibraryGridMode() const {
-  return (currentViewMode == ViewMode::FOLDER_VIEW || currentViewMode == ViewMode::TAG_VIEW) &&
-         SETTINGS.libraryMode == SystemSetting::LIBRARY_GRID;
+  if (SETTINGS.libraryMode != SystemSetting::LIBRARY_GRID) {
+    return false;
+  }
+  if (currentViewMode == ViewMode::FOLDER_VIEW) {
+    return true;
+  }
+  if (currentViewMode == ViewMode::TAG_VIEW) {
+    return selectedTagKey_.empty();
+  }
+  return false;
 }
 
 bool LibraryActivity::isTagViewMode() const {
@@ -1886,6 +2036,11 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
   if (isLibraryGridMode()) {
     renderLibraryGrid(startY );
+    return;
+  }
+
+  if (currentViewMode == ViewMode::SHELF_VIEW) {
+    renderLibraryShelf(startY);
     return;
   }
 
@@ -1925,6 +2080,77 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
     drawY += itemHeight;
     itemsDrawn++;
+  }
+}
+
+void LibraryActivity::renderLibraryShelf(int startY) const {
+  const std::vector<LibraryItem>& items = currentPageItems;
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight() - 30;
+  const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;
+  const int availableH = screenH - startY - LIB_SHELF_OUTER_PAD_Y * 2;
+  const int cardW = std::max(120, (availableW - LIB_SHELF_GAP_X) / LIB_SHELF_COLS);
+  const int cardH = std::max(180, (availableH - LIB_SHELF_GAP_Y) / LIB_SHELF_ROWS);
+  const int totalW = cardW * LIB_SHELF_COLS + LIB_SHELF_GAP_X;
+  const int totalH = cardH * LIB_SHELF_ROWS + LIB_SHELF_GAP_Y;
+  const int originX = LIB_SHELF_OUTER_PAD_X + std::max(0, (availableW - totalW) / 2);
+  const int originY = startY + LIB_SHELF_OUTER_PAD_Y + std::max(0, (availableH - totalH) / 2);
+  const int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int subFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int titleLineH = renderer.text.getLineHeight(titleFont);
+
+  for (int i = 0; i < static_cast<int>(items.size()) && i < SHELF_ITEMS_PER_PAGE; ++i) {
+    const int row = i / LIB_SHELF_COLS;
+    const int col = i % LIB_SHELF_COLS;
+    const int cardX = originX + col * (cardW + LIB_SHELF_GAP_X);
+    const int cardY = originY + row * (cardH + LIB_SHELF_GAP_Y);
+    const bool selected = tabSelectorIndex == 1 && selectorIndex == i && !isHeaderButtonSelected &&
+                          !isIndexButtonSelected && !isSortButtonSelected;
+    const int innerPad = 8;
+    const int textAreaH =
+        titleLineH + renderer.text.getLineHeight(subFont) + LIB_SHELF_TITLE_GAP + LIB_SHELF_META_GAP;
+    const int coverX = cardX + innerPad;
+    const int coverY = cardY + innerPad;
+    const int coverW = cardW - innerPad * 2;
+    const int coverH = std::max(80, cardH - textAreaH - innerPad * 2);
+
+    if (selected) {
+      renderer.rectangle.fill(cardX, cardY, cardW, cardH);
+    }
+    renderer.rectangle.render(cardX, cardY, cardW, cardH, !selected);
+    renderer.rectangle.fill(coverX, coverY, coverW, coverH, false);
+    renderer.rectangle.render(coverX, coverY, coverW, coverH, !selected);
+
+    const std::string imagePath = resolveShelfImagePath(items[i].path);
+    if (!imagePath.empty()) {
+      ImageRender::Options options;
+      options.cropToFill = true;
+      options.useDisplayCache = true;
+      ImageRender::create(renderer, imagePath).render(coverX + 1, coverY + 1, coverW - 2, coverH - 2, options);
+    } else {
+      renderGridItemIcon(items[i], coverX, coverY, coverW, coverH, selected, true);
+    }
+
+    int badgeY = coverY + 4;
+    const int badgeX = coverX + coverW - LIB_SHELF_BADGE_SIZE - 4;
+    if (isBookMarked(items[i].path)) {
+      drawShelfFavoriteBadge(renderer, badgeX, badgeY);
+      badgeY += LIB_SHELF_BADGE_SIZE + 4;
+    }
+    if (isBookFinished(items[i].path)) {
+      drawShelfCheckBadge(renderer, badgeX, badgeY);
+    }
+
+    const int textX = cardX + innerPad;
+    const int textW = cardW - innerPad * 2;
+    const int titleY = coverY + coverH + LIB_SHELF_TITLE_GAP;
+    const std::string title = renderer.text.truncate(titleFont, items[i].displayName.c_str(), textW,
+                                                     EpdFontFamily::BOLD);
+    renderer.text.render(titleFont, textX, titleY, title.c_str(), !selected, EpdFontFamily::BOLD);
+
+    std::string meta = items[i].folderPath.empty() ? "Library" : items[i].folderPath;
+    meta = renderer.text.truncate(subFont, meta.c_str(), textW);
+    renderer.text.render(subFont, textX, titleY + titleLineH + LIB_SHELF_META_GAP, meta.c_str(), !selected);
   }
 }
 
@@ -2065,8 +2291,6 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
  * @brief Load library items from index file (optimized for performance)
  */
 void LibraryActivity::loadLibraryFromIndex() {
-  allBooksList.clear();
-  libraryItems.clear();
   currentPageItems.clear();
 
   FsFile idxFile = SdMan.open("/.metadata/library/library.idx", O_READ);
@@ -2079,12 +2303,25 @@ void LibraryActivity::loadLibraryFromIndex() {
     cleanBase.pop_back();
   }
 
-  if (currentViewMode == ViewMode::BOOK_LIST_VIEW || isTagViewMode()) {
+  if (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::SHELF_VIEW || isTagViewMode()) {
     loadBooksFromIndex(idxFile, cleanBase);
   } else {
     loadFoldersFromIndex(idxFile, cleanBase);
   }
   idxFile.close();
+}
+
+void LibraryActivity::ensureTagEntriesLoaded() {
+  if (cachedTagEntriesLoaded_) {
+    return;
+  }
+  cachedTagEntries_.clear();
+  BookTags::load(cachedTagEntries_);
+  cachedTagEntriesLoaded_ = true;
+}
+
+std::string LibraryActivity::findCachedTag(const std::string& path) const {
+  return BookTags::find(cachedTagEntries_, path);
 }
 
 /**
@@ -2094,10 +2331,9 @@ void LibraryActivity::loadLibraryFromIndex() {
  */
 void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<TempBookEntry> tempBooks;
-  std::vector<BookTags::Entry> tags;
   const bool useTags = isTagViewMode() || currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
-    BookTags::load(tags);
+    ensureTagEntriesLoaded();
   }
   std::vector<LibraryItem> tagFolders;
   size_t indexEntries = 0;
@@ -2109,7 +2345,7 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
     if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
-        tempEntry.tag = BookTags::find(tags, tempEntry.path);
+        tempEntry.tag = findCachedTag(tempEntry.path);
         tempEntry.folderPath = tempEntry.tag.empty() ? tempEntry.folderPath : tempEntry.tag;
       }
 
@@ -2181,10 +2417,9 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
 void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& cleanBase) {
   std::vector<LibraryItem> tempFolders;
   std::vector<TempBookEntry> tempBooks;
-  std::vector<BookTags::Entry> tags;
   const bool useTags = currentSortMode == SortMode::TAG_AZ || currentSortMode == SortMode::TAG_ZA;
   if (useTags) {
-    BookTags::load(tags);
+    ensureTagEntriesLoaded();
   }
   size_t indexEntries = 0;
 
@@ -2195,7 +2430,7 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
     if (marker == 0x01) {  
       TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
       if (useTags) {
-        tempEntry.tag = BookTags::find(tags, tempEntry.path);
+        tempEntry.tag = findCachedTag(tempEntry.path);
         tempEntry.folderPath = tempEntry.tag.empty() ? "Others" : tempEntry.tag;
       }
 
@@ -2236,9 +2471,10 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 
   uint16_t pLen;
   idxFile.read(&pLen, sizeof(pLen));
-  std::vector<char> pBuf(pLen + 1, 0);
-  idxFile.read(pBuf.data(), pLen);
-  tempEntry.path = std::string(pBuf.data(), pLen);
+  tempEntry.path.resize(pLen);
+  if (pLen > 0) {
+    idxFile.read(&tempEntry.path[0], pLen);
+  }
 
   uint8_t nLen;
   idxFile.read(&nLen, sizeof(nLen));
@@ -2246,15 +2482,17 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 
   uint8_t dLen;
   idxFile.read(&dLen, sizeof(dLen));
-  std::vector<char> dBuf(dLen + 1, 0);
-  idxFile.read(dBuf.data(), dLen);
-  tempEntry.displayName = std::string(dBuf.data(), dLen);
+  tempEntry.displayName.resize(dLen);
+  if (dLen > 0) {
+    idxFile.read(&tempEntry.displayName[0], dLen);
+  }
 
   uint8_t fLen;
   idxFile.read(&fLen, sizeof(fLen));
-  std::vector<char> fBuf(fLen + 1, 0);
-  idxFile.read(fBuf.data(), fLen);
-  tempEntry.folderPath = std::string(fBuf.data(), fLen);
+  tempEntry.folderPath.resize(fLen);
+  if (fLen > 0) {
+    idxFile.read(&tempEntry.folderPath[0], fLen);
+  }
 
   size_t pos;
   while ((pos = tempEntry.path.find("’")) != std::string::npos) {
@@ -2276,9 +2514,11 @@ TempBookEntry LibraryActivity::readBookEntryFromIndex(FsFile& idxFile) {
 LibraryItem LibraryActivity::readDirectoryEntryFromIndex(FsFile& idxFile) {
   uint16_t pathLen;
   idxFile.read(&pathLen, sizeof(pathLen));
-  std::vector<char> pathBuf(pathLen + 1, 0);
-  idxFile.read(pathBuf.data(), pathLen);
-  std::string dirPath = std::string(pathBuf.data(), pathLen);
+  std::string dirPath;
+  dirPath.resize(pathLen);
+  if (pathLen > 0) {
+    idxFile.read(&dirPath[0], pathLen);
+  }
 
   uint16_t entryCount;
   idxFile.read(&entryCount, sizeof(entryCount));

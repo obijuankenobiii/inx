@@ -56,6 +56,7 @@ bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
 }
 
 constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
+constexpr const char* kBookMetadataCacheFile = "/book.bin";
 
 }  
 
@@ -362,12 +363,17 @@ bool Epub::generateCoverBmp(bool cropped) const {
  * decodes and resizes JPEG covers to `thumb.jpg`.
  */
 bool Epub::generateThumbBmp() const {
-  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
   const std::string thumbJpegPath = getThumbJpegPath();
   const std::string thumbBmpPath = getThumbBmpPath();
+  if (SdMan.exists(thumbJpegPath.c_str()) || SdMan.exists(thumbBmpPath.c_str())) {
+    return true;
+  }
 
-  SdMan.remove(thumbJpegPath.c_str());
-  SdMan.remove(thumbBmpPath.c_str());
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded() || bookMetadataCache->coreMetadata.coverItemHref.empty()) {
+    return false;
+  }
+
+  const std::string& coverHref = bookMetadataCache->coreMetadata.coverItemHref;
 
   size_t packagedThumbSize = 0;
   if (getItemSize(kPackagedDeviceThumbnailPath, &packagedThumbSize) && packagedThumbSize > 0) {
@@ -597,8 +603,7 @@ bool Epub::load(const bool buildIfMissing) {
 }
 
 bool Epub::hasMetadataCache() const {
-  BookMetadataCache cache(cachePath);
-  return cache.load();
+  return SdMan.exists((cachePath + kBookMetadataCacheFile).c_str());
 }
 
 bool Epub::isLoaded() const {

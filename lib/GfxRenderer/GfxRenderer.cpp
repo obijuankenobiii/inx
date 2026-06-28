@@ -7,6 +7,7 @@
 
 #include <Utf8.h>
 #include <memory>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <cmath>
@@ -187,6 +188,8 @@ void GfxRenderer::invertScreen() const {
 
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const { display.displayBuffer(refreshMode); }
 
+bool GfxRenderer::deviceIsX3() const { return display.deviceIsX3(); }
+
 int GfxRenderer::getScreenWidth() const {
   switch (orientation) {
     case Portrait:
@@ -226,7 +229,26 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(display.getFrameBuffer()); }
 
-void GfxRenderer::displayGrayBuffer() const { display.displayGrayBuffer(); }
+void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
+
+void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
+
+void GfxRenderer::prepareQualityGrayscale() const { display.prepareQualityGrayscale(); }
+
+bool GfxRenderer::copyStoredBwToFramebuffer() const {
+  for (const auto& chunk : bwBufferChunks) {
+    if (!chunk) return false;
+  }
+  if (bwBufferChunks.empty()) return false;
+  uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) return false;
+  for (size_t i = 0; i < bwBufferChunks.size(); i++) {
+    const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+    const size_t chunkSize = std::min(BW_BUFFER_CHUNK_SIZE, static_cast<size_t>(frameBufferSize) - offset);
+    memcpy(frameBuffer + offset, bwBufferChunks[i], chunkSize);
+  }
+  return true;
+}
 
 void GfxRenderer::freeBwBufferChunks() {
   for (auto& bwBufferChunk : bwBufferChunks) {
@@ -279,8 +301,6 @@ bool GfxRenderer::storeBwBuffer() {
     memcpy(bwBufferChunks[i], frameBuffer + offset, chunkSize);
   }
 
-  Serial.printf("[%lu] [GFX] Stored BW buffer in %zu chunks (%zu bytes each)\n", millis(), bwBufferChunks.size(),
-                BW_BUFFER_CHUNK_SIZE);
   return true;
 }
 
@@ -327,7 +347,6 @@ void GfxRenderer::restoreBwBuffer() {
   display.cleanupGrayscaleBuffers(frameBuffer);
 
   freeBwBufferChunks();
-  Serial.printf("[%lu] [GFX] Restored and freed BW buffer chunks\n", millis());
 }
 
 /**
@@ -338,6 +357,37 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   uint8_t* frameBuffer = display.getFrameBuffer();
   if (frameBuffer) {
     display.cleanupGrayscaleBuffers(frameBuffer);
+  }
+}
+
+void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
+                                       const std::function<void()>& drawPlane, const bool fastQuality) {
+  const bool useFastQuality = quality && fastQuality && !deviceIsX3();
+
+  if (quality && !deviceIsX3()) {
+    prepareQualityGrayscale();
+  }
+
+  setRenderMode(quality ? GRAY2_LSB : GRAYSCALE_LSB);
+  drawPlane();
+  copyGrayscaleLsbBuffers();
+
+  setRenderMode(quality ? GRAY2_MSB : GRAYSCALE_MSB);
+  drawPlane();
+  copyGrayscaleMsbBuffers();
+
+  if (useFastQuality) {
+    displayGrayBufferFastQuality();
+  } else {
+    displayGrayBuffer(quality);
+  }
+  setRenderMode(BW);
+
+  if (preserveText) {
+    restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
+  } else {
+    clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
+    cleanupGrayscaleWithFrameBuffer();
   }
 }
 
@@ -402,7 +452,36 @@ void GfxRenderer::removeFont(int fontId) {
   fontMap.erase(it);
 }
 
-void GfxRenderer::removeAllStreamingFonts() { streamingFonts.clear(); }
+void GfxRenderer::removeAllStreamingFonts() {
+  if (streamingFonts.empty()) {
+    return;
+  }
+
+  std::set<const EpdFontData*> streamingData;
+  for (const auto& entry : streamingFonts) {
+    streamingData.insert(entry.first);
+  }
+
+  for (auto it = fontMap.begin(); it != fontMap.end();) {
+    bool usesStreamingData = false;
+    for (const auto style :
+         {EpdFontFamily::REGULAR, EpdFontFamily::BOLD, EpdFontFamily::ITALIC, EpdFontFamily::BOLD_ITALIC}) {
+      const EpdFontData* data = it->second.getData(style);
+      if (data != nullptr && streamingData.count(data) != 0) {
+        usesStreamingData = true;
+        break;
+      }
+    }
+
+    if (usesStreamingData) {
+      it = fontMap.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  streamingFonts.clear();
+}
 
 void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
                                         std::unique_ptr<ExternalFont> streamingFont) {

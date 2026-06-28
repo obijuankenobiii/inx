@@ -11,14 +11,14 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <map>
 
 #include "GfxRenderer.h"
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 23;
+constexpr uint16_t kVersion = 39;  // bump: regenerate GRAY2 planes after quality gray-level swap
 constexpr const char* kCacheDir = "/.system/cache";
+constexpr size_t kIoBufferSize = 512;
 
 struct CacheHeader {
   uint32_t magic;
@@ -52,20 +52,12 @@ uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
 }
 
 uint32_t sourceSize(const std::string& path) {
-  static std::map<std::string, uint32_t> sizeCache;
-  const auto cached = sizeCache.find(path);
-  if (cached != sizeCache.end()) {
-    return cached->second;
-  }
-
   FsFile file;
   if (!SdMan.openFileForRead("IDC", path, file)) {
-    sizeCache[path] = 0;
     return 0;
   }
   const uint32_t size = static_cast<uint32_t>(file.size());
   file.close();
-  sizeCache[path] = size;
   return size;
 }
 
@@ -86,6 +78,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.mode));
   hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));
+  hash = fnv1aAdd(hash, options.quality ? 1 : 0);
   hash = fnv1aAdd(hash, gpio.deviceIsX3() ? 1 : 0);
   return hash;
 }
@@ -159,6 +152,23 @@ bool visibleBounds(GfxRenderer& renderer, const int x, const int y, const int wi
   out.sourceOffsetY = y1 - y;
   return true;
 }
+
+const char* planeName(const ImageDisplayCacheOptions& options) {
+  switch (static_cast<GfxRenderer::RenderMode>(options.renderPlane)) {
+    case GfxRenderer::GRAYSCALE_LSB:
+      return "GRAYSCALE_LSB";
+    case GfxRenderer::GRAYSCALE_MSB:
+      return "GRAYSCALE_MSB";
+    case GfxRenderer::GRAY2_LSB:
+      return "GRAY2_LSB";
+    case GfxRenderer::GRAY2_MSB:
+      return "GRAY2_MSB";
+    case GfxRenderer::BW:
+    default:
+      return "BW";
+  }
+}
+
 }  // namespace
 
 std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
@@ -176,8 +186,28 @@ std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string&
 
 bool ImageDisplayCache::exists(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
                                const int width, const int height, const ImageDisplayCacheOptions& options) {
+  VisibleRect visible;
+  if (!visibleBounds(renderer, x, y, width, height, visible)) {
+    return false;
+  }
+
   const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
-  return !cachePath.empty() && SdMan.exists(cachePath.c_str());
+  if (cachePath.empty() || !SdMan.exists(cachePath.c_str())) {
+    return false;
+  }
+
+  FsFile file;
+  if (!SdMan.openFileForRead("IDC", cachePath, file)) {
+    return false;
+  }
+
+  CacheHeader header;
+  const bool headerOk = file.read(&header, sizeof(header)) == sizeof(header) && header.magic == kMagic &&
+                        header.version == kVersion && header.headerSize == sizeof(CacheHeader) &&
+                        header.width == visible.width && header.height == visible.height &&
+                        header.rowBytes == static_cast<uint16_t>((visible.width + 7) / 8);
+  file.close();
+  return headerOk;
 }
 
 bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
@@ -197,6 +227,10 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
   }
   FsFile file;
   if (!SdMan.openFileForRead("IDC", cachePath, file)) {
+    if (options.quality) {
+      Serial.printf("[%lu] [IDC-Q] cache open failed plane=%s path=%s\n", millis(), planeName(options),
+                    cachePath.c_str());
+    }
     return false;
   }
 
@@ -206,23 +240,40 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
                         header.width == visible.width && header.height == visible.height &&
                         header.rowBytes == static_cast<uint16_t>((visible.width + 7) / 8);
   if (!headerOk) {
+    if (options.quality) {
+      Serial.printf(
+          "[%lu] [IDC-Q] cache header invalid plane=%s path=%s magic=%08lx ver=%u header=%u wh=%ux%u row=%u "
+          "expected=%dx%d/%d\n",
+          millis(), planeName(options), cachePath.c_str(), static_cast<unsigned long>(header.magic), header.version,
+          header.headerSize, header.width, header.height, header.rowBytes, visible.width, visible.height,
+          (visible.width + 7) / 8);
+    }
     file.close();
     return false;
   }
 
   const int rowBytes = header.rowBytes;
-  uint8_t row[128];
-  if (rowBytes > static_cast<int>(sizeof(row))) {
+  uint8_t rows[kIoBufferSize];
+  if (rowBytes > static_cast<int>(sizeof(rows))) {
     file.close();
     return false;
   }
 
-  for (int rowIndex = 0; rowIndex < visible.height; rowIndex++) {
-    if (file.read(row, rowBytes) != rowBytes) {
+  const int rowsPerRead = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerRead) {
+    const int rowsThisRead = std::min(rowsPerRead, visible.height - rowBase);
+    const int bytesThisRead = rowsThisRead * rowBytes;
+    if (file.read(rows, bytesThisRead) != bytesThisRead) {
+      if (options.quality) {
+        Serial.printf("[%lu] [IDC-Q] cache row read failed plane=%s path=%s row=%d/%d\n", millis(),
+                      planeName(options), cachePath.c_str(), rowBase, visible.height);
+      }
       file.close();
       return false;
     }
-    renderer.drawPackedRow1bpp(visible.x, visible.y + rowIndex, visible.width, row);
+    for (int row = 0; row < rowsThisRead; row++) {
+      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+    }
   }
 
   file.close();
@@ -231,39 +282,55 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
 
 bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
                                                  const int y, const int width, const int height,
-                                                 const ImageDisplayCacheOptions& options) {
+                                                 const ImageDisplayCacheOptions& options, const bool quality,
+                                                 const bool fastQuality) {
   ImageDisplayCacheOptions lsbOptions = options;
   lsbOptions.mode = ImageRenderMode::TwoBit;
-  lsbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.quality = quality;
 
   ImageDisplayCacheOptions msbOptions = options;
   msbOptions.mode = ImageRenderMode::TwoBit;
-  msbOptions.renderPlane = static_cast<uint8_t>(GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.quality = quality;
 
-  if (!exists(renderer, sourcePath, x, y, width, height, lsbOptions) ||
-      !exists(renderer, sourcePath, x, y, width, height, msbOptions)) {
+  const bool lsbExists = exists(renderer, sourcePath, x, y, width, height, lsbOptions);
+  const bool msbExists = exists(renderer, sourcePath, x, y, width, height, msbOptions);
+  if (!lsbExists || !msbExists) {
     return false;
   }
 
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+  const bool useFastQuality = quality && fastQuality && !renderer.deviceIsX3();
+
+  if (quality && !renderer.deviceIsX3()) {
+    renderer.prepareQualityGrayscale();
+  }
+
+  renderer.clearScreen(quality ? 0xFF : 0x00);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, lsbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);
     return false;
   }
   renderer.copyGrayscaleLsbBuffers();
 
-  renderer.clearScreen(0x00);
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+  renderer.clearScreen(quality ? 0xFF : 0x00);
+  renderer.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   if (!renderIfAvailable(renderer, sourcePath, x, y, width, height, msbOptions)) {
     renderer.setRenderMode(GfxRenderer::BW);
     return false;
   }
   renderer.copyGrayscaleMsbBuffers();
 
-  renderer.displayGrayBuffer();
+  if (useFastQuality) {
+    renderer.displayGrayBufferFastQuality();
+  } else {
+    renderer.displayGrayBuffer(quality);
+  }
   renderer.setRenderMode(GfxRenderer::BW);
+  renderer.clearScreen(0xFF);
   renderer.cleanupGrayscaleWithFrameBuffer();
+  
   return true;
 }
 
@@ -276,6 +343,10 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
 
   const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
   if (cachePath.empty()) {
+    if (options.quality) {
+      Serial.printf("[%lu] [IDC-Q] store path empty plane=%s src=%s rect=%d,%d %dx%d\n", millis(),
+                    planeName(options), sourcePath.c_str(), x, y, width, height);
+    }
     return false;
   }
   if (!ensureCacheDir(cachePath)) {
@@ -284,12 +355,16 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
 
   FsFile file;
   if (!SdMan.openFileForWrite("IDC", cachePath, file)) {
+    if (options.quality) {
+      Serial.printf("[%lu] [IDC-Q] store open failed plane=%s path=%s\n", millis(), planeName(options),
+                    cachePath.c_str());
+    }
     return false;
   }
 
   const int rowBytes = (visible.width + 7) / 8;
-  uint8_t row[128];
-  if (rowBytes > static_cast<int>(sizeof(row))) {
+  uint8_t rows[kIoBufferSize];
+  if (rowBytes > static_cast<int>(sizeof(rows))) {
     file.close();
     SdMan.remove(cachePath.c_str());
     return false;
@@ -308,9 +383,18 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
     return false;
   }
 
-  for (int rowIndex = 0; rowIndex < visible.height; rowIndex++) {
-    renderer.readPackedRow1bpp(visible.x, visible.y + rowIndex, visible.width, row);
-    if (file.write(row, rowBytes) != static_cast<size_t>(rowBytes)) {
+  const int rowsPerWrite = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerWrite) {
+    const int rowsThisWrite = std::min(rowsPerWrite, visible.height - rowBase);
+    const int bytesThisWrite = rowsThisWrite * rowBytes;
+    for (int row = 0; row < rowsThisWrite; row++) {
+      renderer.readPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+    }
+    if (file.write(rows, bytesThisWrite) != static_cast<size_t>(bytesThisWrite)) {
+      if (options.quality) {
+        Serial.printf("[%lu] [IDC-Q] store row write failed plane=%s path=%s row=%d/%d\n", millis(),
+                      planeName(options), cachePath.c_str(), rowBase, visible.height);
+      }
       file.close();
       SdMan.remove(cachePath.c_str());
       return false;
@@ -318,5 +402,6 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
   }
 
   file.close();
+
   return true;
 }

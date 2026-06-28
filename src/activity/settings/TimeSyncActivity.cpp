@@ -46,7 +46,6 @@ void TimeSyncActivity::loop() {
 
 void TimeSyncActivity::render() {
   renderer.clearScreen();
-  const int w = renderer.getScreenWidth();
   const int h = renderer.getScreenHeight();
   const int titleY = h / 2 - 42;
   const int bodyY = h / 2 - 6;

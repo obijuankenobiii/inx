@@ -446,10 +446,18 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
         (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
       ctx.renderer->drawPixel(x, y, true);
     }
-  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (level == 1 || level == 2)) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
+             (ctx.renderer->deviceIsX3() ? (level == 2 || level == 3) : (level == 1 || level == 2))) {
     ctx.renderer->drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && level == 1) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
+             (ctx.renderer->deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
     ctx.renderer->drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAY2_LSB &&
+             ((mapQualityGray2Level(level, ctx.renderer->deviceIsX3()) & 0b01) == 0)) {
+    ctx.renderer->drawPixel(x, y, true);
+  } else if (renderMode == GfxRenderer::GRAY2_MSB &&
+             ((mapQualityGray2Level(level, ctx.renderer->deviceIsX3()) & 0b10) == 0)) {
+    ctx.renderer->drawPixel(x, y, true);
   }
 }
 

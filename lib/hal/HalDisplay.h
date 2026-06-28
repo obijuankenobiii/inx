@@ -54,12 +54,15 @@ class HalDisplay {
   void copyGrayscaleMsbBuffers(const uint8_t* msbBuffer);
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
-  void displayGrayBuffer();
+  void displayGrayBuffer(bool quality = false);
+  void displayGrayBufferFastQuality();
+  void prepareQualityGrayscale();
 
   uint16_t getDisplayWidth() const;
   uint16_t getDisplayHeight() const;
   uint16_t getDisplayWidthBytes() const;
   uint32_t getBufferSize() const;
+  bool deviceIsX3() const;
 
  private:
   EInkDisplay einkDisplay;

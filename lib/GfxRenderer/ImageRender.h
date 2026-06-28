@@ -9,6 +9,7 @@
 #include <BitmapRender.h>
 #include <ImageRenderMode.h>
 
+#include <functional>
 #include <string>
 
 class GfxRenderer;
@@ -20,6 +21,8 @@ class ImageRender {
     bool cropToFill = false;
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
     bool useDisplayCache = true;
+    bool quality = false;
+    bool fastQuality = false;
   };
 
   static ImageRender create(GfxRenderer& renderer, const std::string& path);
@@ -29,7 +32,18 @@ class ImageRender {
   bool render(int x, int y, int width, int height) const;
   bool render(int x, int y, int width, int height, const Options& options) const;
   bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
-  bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options) const;
+  bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options, bool quality = false) const;
+  // Full-screen 2-bit grayscale display in ONE call: serves from the display cache if present, otherwise
+  // renders both planes (storing them) and drives the gray refresh, then resets BW mode + a clean baseline.
+  // `quality` selects the quality LUT (GRAY2) vs the fast LUT (GRAYSCALE). Used by the sleep screen.
+  bool displayGrayscale(int x, int y, int width, int height, const Options& options, bool quality) const;
+
+  // General 2-bit grayscale display: runs both planes via `drawPlane` (which populates the framebuffer for the
+  // current plane), drives the gray refresh, and resets to BW. This is the single entry point shared by the
+  // book reader (text-preserving: preserveText=true, drawPlane rebuilds inverted text + image overlay) and any
+  // other custom grayscale composite.
+  static void displayGrayscale(GfxRenderer& renderer, bool quality, bool preserveText,
+                               const std::function<void()>& drawPlane, bool fastQuality = false);
 
  private:
   enum class Format { Bitmap, Jpeg, Png };

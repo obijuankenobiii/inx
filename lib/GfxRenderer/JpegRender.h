@@ -17,9 +17,9 @@ class JpegRender {
   explicit JpegRender(GfxRenderer& renderer) : renderer_(renderer) {}
 
   bool render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
-              ImageRenderMode mode = ImageRenderMode::OneBit) const;
+              ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false) const;
   bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                bool cropToFill = false, ImageRenderMode mode = ImageRenderMode::OneBit) const;
+                bool cropToFill = false, ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false) const;
 
   static bool getDimensions(FsFile& jpegFile, int* outW, int* outH);
   static bool getDimensions(const std::string& path, int* outW, int* outH);

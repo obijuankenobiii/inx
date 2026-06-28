@@ -40,6 +40,7 @@ class EInkDisplay {
   uint16_t getDisplayHeight() const { return displayHeight; }
   uint16_t getDisplayWidthBytes() const { return displayWidthBytes; }
   uint32_t getBufferSize() const { return bufferSize; }
+  bool isX3() const { return _x3Mode; }
 
   // Frame buffer operations
   void clearScreen(uint8_t color = 0xFF) const;
@@ -60,7 +61,11 @@ class EInkDisplay {
   void displayBuffer(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
-  void displayGrayBuffer(bool turnOffScreen = false);
+  void displayGrayBuffer(bool turnOffScreen = false, const unsigned char* lutData = nullptr, bool quality = false);
+  void displayGrayBufferFastQuality(bool turnOffScreen = false);
+  void prepareQualityGrayscale();
+  // Quality grayscale restricted to a pixel rectangle (only those pixels are driven; rest of screen preserved).
+  void displayGrayBufferWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const unsigned char* lutData = nullptr);
 
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
@@ -138,3 +143,6 @@ class EInkDisplay {
   void setRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void writeRamBuffer(uint8_t ramBuffer, const uint8_t* data, uint32_t size);
 };
+
+extern const unsigned char lut_x4_quality[];
+extern const unsigned char lut_x4_quality_fast[];

@@ -38,7 +38,7 @@ constexpr int BOTTOM_AREA_HEIGHT = 80;
 
 
 constexpr int QR_VERSION = 4;
-constexpr int QR_PIXEL_SIZE = 6;
+constexpr int QR_PIXEL_SIZE = 5;
 constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;  
 
 /**
@@ -48,20 +48,15 @@ constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
     const int headerHeight = TAB_BAR_HEIGHT;
-    
+
     renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
                      startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 + HEADER_TITLE_Y_OFFSET,
                      title, true, EpdFontFamily::BOLD);
-    
-    if (subtitle) {
-        int subtitleY = startY + SUBTITLE_Y_OFFSET;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
-        
-        int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-        renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
-    }
+
+    const int dividerY = startY + headerHeight + 18;
+    renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
 }
 
 /**
@@ -295,24 +290,20 @@ void HotspotActivity::render() const {
     if (state == HotspotState::RUNNING) {
         renderServerRunning();
     } else if (state == HotspotState::STARTING) {
-        renderActivityHeader(renderer, startY, "File Transfer", "Starting hotspot...");
-        
-        int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                          DIVIDER_PADDING;
+        renderActivityHeader(renderer, startY, "Hotspot");
+
+        int contentStart = startY + SUBTITLE_Y_OFFSET;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
-        
+
         renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
-        
+
         auto labels = mappedInput.mapLabels("« Back", "", "", "");
         renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                 labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else if (state == HotspotState::ERROR) {
-        renderActivityHeader(renderer, startY, "File Transfer", "Setup Failed");
-        
-        int contentStart = startY + SUBTITLE_Y_OFFSET + 
-                          renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                          DIVIDER_PADDING;
+        renderActivityHeader(renderer, startY, "Hotspot");
+
+        int contentStart = startY + SUBTITLE_Y_OFFSET;
         int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
         
         renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start hotspot");
@@ -336,57 +327,31 @@ void HotspotActivity::renderServerRunning() const {
     int screenWidth = renderer.getScreenWidth();
     int startY = TAB_BAR_HEIGHT;
     
-    renderActivityHeader(renderer, startY, "File Transfer", "Hotspot Mode");
-    
-    int currentY = startY + SUBTITLE_Y_OFFSET + 
-                   renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 
-                   DIVIDER_PADDING + 40;  
+    renderActivityHeader(renderer, startY, "Hotspot");
 
-    
-    const int leftColX = CONTENT_MARGIN;
-    const int rightColX = screenWidth - QR_SIZE - CONTENT_MARGIN;
-    const int qrX = rightColX;
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
-                     "Scan to connect", true, EpdFontFamily::BOLD);
-    
-    
-    drawQRCode(qrX, currentY - 10, "WIFI:S:" + connectedSSID + ";;");
-    
-    currentY += LINE_SPACING;
-    
-    std::string ssidInfo = connectedSSID;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
-                     truncateString(ssidInfo, 20).c_str());
-    currentY += LINE_SPACING;
-    
-    std::string ipInfo = connectedIP;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10, 
-                     ipInfo.c_str());
-    currentY += LINE_SPACING;
-    
-    currentY += QR_SIZE + 20;  
-
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, leftColX, currentY, 
-                     "Scan to visit", true, EpdFontFamily::BOLD);
-    
-    
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
-    drawQRCode(qrX, currentY - 10, hostnameUrl);
-    
-    currentY += LINE_SPACING;
-    
-    
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, leftColX, currentY + 10,
-                     hostnameUrl.c_str(), true);
-    currentY += SMALL_SPACING;
-    
     std::string ipUrl = "http://" + connectedIP + "/";
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, leftColX, currentY + 10,
-                     ipUrl.c_str());
-    currentY += QR_SIZE + 20;
+
+    const int bodyTop = startY + SUBTITLE_Y_OFFSET + 50;
+    const int textX = CONTENT_MARGIN + 2;
+    const int qrX = screenWidth - QR_SIZE - CONTENT_MARGIN;
+    const int wifiY = bodyTop + 8;
+    const int webY = wifiY + QR_SIZE + 92;
+    const int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int titleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    const int bodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+
+    renderer.text.render(labelFont, textX, wifiY, "STEP 1", true, EpdFontFamily::BOLD);
+    renderer.text.render(titleFont, textX, wifiY + 24, "Join WiFi", true, EpdFontFamily::BOLD);
+    renderer.text.render(bodyFont, textX, wifiY + 61, truncateString(connectedSSID, 20).c_str(), true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, wifiY + 86, connectedIP.c_str());
+    drawQRCode(qrX, wifiY, "WIFI:S:" + connectedSSID + ";;");
+
+    renderer.text.render(labelFont, textX, webY, "STEP 2", true, EpdFontFamily::BOLD);
+    renderer.text.render(titleFont, textX, webY + 24, "Open Transfer", true, EpdFontFamily::BOLD);
+    renderer.text.render(bodyFont, textX, webY + 61, hostnameUrl.c_str(), true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, webY + 86, ipUrl.c_str());
+    drawQRCode(qrX, webY, hostnameUrl);
 
     
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
