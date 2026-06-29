@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
-
 #include <miniz.h>
 
 #include <algorithm>
@@ -379,7 +378,7 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         if (ctx.hasTransparentGray) {
           for (uint32_t x = 0; x < w; x++) grayRow[x] = (src[x] == ctx.transparentGray) ? 255 : src[x];
         } else {
-          memcpy(grayRow, src, std::min(static_cast<size_t>(w), static_cast<size_t>(ctx.rawRowBytes)));
+          memcpy(grayRow, src, w);
         }
       } else if (ctx.bitDepth == 16) {
         for (uint32_t x = 0; x < w; x++) {
@@ -414,8 +413,7 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         for (uint32_t x = 0; x < w; x++) {
           const uint8_t* p = src + x * 6;
           uint8_t gray = rgbToGrayFast(p[0], p[2], p[4]);
-          if (ctx.hasTransparentRgb &&
-              (static_cast<uint16_t>(p[0]) << 8 | p[1]) == ctx.transparentRed &&
+          if (ctx.hasTransparentRgb && (static_cast<uint16_t>(p[0]) << 8 | p[1]) == ctx.transparentRed &&
               (static_cast<uint16_t>(p[2]) << 8 | p[3]) == ctx.transparentGreen &&
               (static_cast<uint16_t>(p[4]) << 8 | p[5]) == ctx.transparentBlue) {
             gray = 255;
@@ -434,8 +432,8 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         int shift = (ppb - 1 - (x % ppb)) * ctx.bitDepth;
         uint8_t idx = (src[x / ppb] >> shift) & mask;
         if (idx >= palSize) idx = 0;
-        grayRow[x] = compositeOverWhite(rgbToGrayFast(pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]),
-                                        ctx.paletteAlpha[idx]);
+        grayRow[x] =
+            compositeOverWhite(rgbToGrayFast(pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]), ctx.paletteAlpha[idx]);
       }
       break;
     }
@@ -519,6 +517,31 @@ static bool pngDecodeBegin(FsFile& pngFile, PngDecodeContext& ctx) {
   if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT || width == 0 || height == 0) {
     LOG_ERR("PNG", "Image too large or zero (%ux%u)", width, height);
     return false;
+  }
+
+  // Validate bitDepth is legal for the given colorType per PNG spec (ISO 15948 §11.2.2)
+  {
+    bool validDepth = false;
+    switch (colorType) {
+      case PNG_COLOR_GRAYSCALE:
+        validDepth = (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8 || bitDepth == 16);
+        break;
+      case PNG_COLOR_RGB:
+      case PNG_COLOR_GRAYSCALE_ALPHA:
+      case PNG_COLOR_RGBA:
+        validDepth = (bitDepth == 8 || bitDepth == 16);
+        break;
+      case PNG_COLOR_PALETTE:
+        validDepth = (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8);
+        break;
+      default:
+        validDepth = false;
+        break;
+    }
+    if (!validDepth) {
+      LOG_ERR("PNG", "Invalid bit depth %u for color type %u", bitDepth, colorType);
+      return false;
+    }
   }
 
   // Calculate bytes per pixel and raw row bytes
@@ -815,7 +838,8 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
         if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
       } else {
         for (int x = 0; x < outWidth; x++) {
-          const uint8_t twoBit = imageDitherer ? imageDitherer->process(grayRow[x], x).level : quantize(grayRow[x], x, y);
+          const uint8_t twoBit =
+              imageDitherer ? imageDitherer->process(grayRow[x], x).level : quantize(grayRow[x], x, y);
           const int byteIndex = (x * 2) / 8;
           const int bitOffset = 6 - ((x * 2) % 8);
           rowBuffer[byteIndex] |= (twoBit << bitOffset);
@@ -1013,8 +1037,8 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
   return pngFileToBmpStreamInternal(pngFile, bmpOut, targetMaxWidth, targetMaxHeight, true, cropToFill);
 }
 
-bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
-                                                      bool cropToFill) {
+bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth,
+                                                       int targetHeight, bool cropToFill) {
   return pngFileToBmpStreamInternal(pngFile, bmpOut, targetWidth, targetHeight, true, cropToFill);
 }
 
