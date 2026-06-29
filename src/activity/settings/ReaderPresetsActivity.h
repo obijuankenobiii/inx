@@ -33,8 +33,11 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
 
   void render();
   void renderOverlay();
-  int rowCount() const;             ///< 1 (Add-new) + preset count
+  int rowCount() const;             ///< Add-new + XTC section + preset count
+  int presetRowsStart() const;
   int presetIndexForRow(int row) const;  ///< store index for a preset row, or -1 for the Add-new row
+  bool isXtcSettingRow(int row) const;
+  void changeXtcSetting(int row, int delta);
   void activateSelectedRow();
   void openEditor(int presetIndex);
   void openRenameKeyboard(int presetIndex);
@@ -55,6 +58,7 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   int selectedRow_ = 0;
   int scrollOffset_ = 0;
   int itemsPerPage_ = 1;
+  bool xtcExpanded_ = false;
 
   bool overlayOpen_ = false;
   int overlayPresetIndex_ = -1;

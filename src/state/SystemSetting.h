@@ -275,6 +275,12 @@ public:
         READER_ANNOTATE = 2,        ///< Enter EPUB highlight / annotation mode
         READER_SHORT_PWRBTN_COUNT
     };
+
+    enum XTC_SHORT_PWRBTN {
+        XTC_POWER_NEXT = 0,
+        XTC_POWER_PAGE_REFRESH = 1,
+        XTC_SHORT_PWRBTN_COUNT
+    };
     
     /**
      * @brief Battery percentage display options
@@ -374,6 +380,8 @@ public:
     
     
     uint8_t readerShortPwrBtn = READER_PAGE_TURN;               ///< Reader short power button behavior
+    uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;                    ///< XTC short power button behavior
+    uint8_t xtcPageAutoTurnSeconds = 0;                         ///< XTC auto page turn interval, 0=off
     
     
     uint8_t orientation = PORTRAIT;                             ///< Screen orientation
@@ -457,6 +465,8 @@ public:
         READER_IMAGE_QUALITY_COUNT
     };
     uint8_t readerImageGrayscale = READER_IMAGE_LOW;
+    uint8_t xtcImageQuality = READER_IMAGE_LOW;
+    uint8_t xtcRefreshFrequency = 15;                            ///< XTC full refresh cadence in pages
     /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
     uint8_t readerSmartRefreshOnImages = 1;
     /** Legacy ignored value retained for settings-file compatibility. */

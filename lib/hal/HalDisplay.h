@@ -55,6 +55,7 @@ class HalDisplay {
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
   void displayGrayBuffer(bool quality = false);
+  void displayTextGrayBuffer();
   void displayGrayBufferFastQuality();
   void prepareQualityGrayscale();
 

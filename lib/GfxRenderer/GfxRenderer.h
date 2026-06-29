@@ -115,6 +115,7 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer(bool quality = false) const;
+  void displayTextGrayBuffer() const;
   void displayGrayBufferFastQuality() const;
   void prepareQualityGrayscale() const;
   bool storeBwBuffer();
@@ -132,6 +133,7 @@ class GfxRenderer {
   // frame so the next BW refresh isn't polluted by the leftover grayscale plane.
   void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane,
                              bool fastQuality = false);
+  void renderTextGrayscalePasses(bool preserveText, const std::function<void()>& drawPlane);
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 

@@ -77,6 +77,40 @@ const unsigned char lut_grayscale[] PROGMEM = {
     // Reserved
     0x00, 0x00};
 
+const unsigned char lut_text_grayscale[] PROGMEM = {
+    // Text AA only: shorter than lut_grayscale, but strong enough that edge pixels visibly separate.
+    // 00 white (no drive)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // 01 light edge
+    0x54, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // 10 medium edge
+    0xA8, 0xA0, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // 11 dark edge
+    0xAA, 0xAA, 0xA8, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // L4 (VCOM)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // TP/RP groups (global timing)
+    0x01, 0x01, 0x01, 0x00, 0x00,
+    0x01, 0x01, 0x01, 0x00, 0x00,
+    0x01, 0x01, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // Frame rate
+    0x8F, 0x8F, 0x8F, 0x8F, 0x8F,
+
+    // Voltages (VGH, VSH1, VSH2, VSL, VCOM)
+    0x17, 0x41, 0xA8, 0x32, 0x30,
+
+    // Reserved
+    0x00, 0x00};
+
 const unsigned char lut_grayscale_revert[] PROGMEM = {
     // 00 black/white
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -768,7 +802,6 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
 
   // If currently in grayscale mode, revert first to black/white
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 
@@ -985,7 +1018,6 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
 
   // displayWindow is not supported while the rest of the screen has grayscale content, revert it
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 
@@ -1036,7 +1068,8 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
   if (Serial) Serial.printf("[%lu]   Window display complete\n", millis());
 }
 
-void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned char* lutData, const bool quality) {
+void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned char* lutData, const bool quality,
+                                    const bool trackForRevert) {
   if (_x3Mode) {
     // X3 AA pipeline: LSB->0x10 + MSB->0x13, trigger 0x12 with X3 LUT bank.
     drawGrayscale = false;
@@ -1117,7 +1150,7 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
   drawGrayscale = false;
   // The medium grayscale LUT owns lut_grayscale_revert. X4 quality uses lut_x4_quality and must not leave
   // displayBuffer() queued to run the medium revert on the next page/sleep render.
-  inGrayscaleMode = !quality;
+  inGrayscaleMode = trackForRevert && !quality;
 
   const unsigned char* selectedLut = lutData ? lutData : (quality ? lut_x4_quality : lut_grayscale);
   setCustomLUT(true, selectedLut);
@@ -1142,6 +1175,15 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
 
 void EInkDisplay::displayGrayBufferFastQuality(const bool turnOffScreen) {
   displayGrayBuffer(turnOffScreen, lut_x4_quality_fast, true);
+}
+
+void EInkDisplay::displayTextGrayBuffer(const bool turnOffScreen) {
+  if (_x3Mode) {
+    displayGrayBuffer(turnOffScreen, nullptr, false);
+    return;
+  }
+  if (Serial) Serial.printf("[%lu]   X4_GRAY_MODE=text_fast\n", millis());
+  displayGrayBuffer(turnOffScreen, lut_text_grayscale, false, false);
 }
 
 void EInkDisplay::prepareQualityGrayscale() {

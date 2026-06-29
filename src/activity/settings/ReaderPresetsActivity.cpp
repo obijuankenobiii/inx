@@ -24,6 +24,37 @@ std::vector<std::string> overlayOptionsFor(int presetIndex) {
   }
   return {"Edit", "Rename", "Delete", "Cancel"};
 }
+
+const char* readerQualityLabel(const uint8_t quality) {
+  switch (quality) {
+    case SystemSetting::READER_IMAGE_MEDIUM:
+      return "Medium";
+    case SystemSetting::READER_IMAGE_HIGH:
+      return "High";
+    default:
+      return "Low";
+  }
+}
+
+const char* xtcPowerLabel() {
+  return SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? "Page Refresh" : "Next";
+}
+
+const char* xtcAutoTurnLabel() {
+  static char buf[12];
+  if (SETTINGS.xtcPageAutoTurnSeconds == 0) {
+    return "Off";
+  }
+  snprintf(buf, sizeof(buf), "%u sec", SETTINGS.xtcPageAutoTurnSeconds);
+  return buf;
+}
+
+const char* xtcRefreshLabel() {
+  static char buf[12];
+  snprintf(buf, sizeof(buf), "%u page%s", SETTINGS.xtcRefreshFrequency,
+           SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
+  return buf;
+}
 }  // namespace
 
 ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
@@ -56,9 +87,48 @@ void ReaderPresetsActivity::onExit() {
   exitActivity();
 }
 
-int ReaderPresetsActivity::rowCount() const { return 1 + READER_PRESETS.count(); }
+int ReaderPresetsActivity::presetRowsStart() const { return 2 + (xtcExpanded_ ? 4 : 0); }
 
-int ReaderPresetsActivity::presetIndexForRow(int row) const { return row == 0 ? -1 : row - 1; }
+int ReaderPresetsActivity::rowCount() const { return presetRowsStart() + READER_PRESETS.count(); }
+
+int ReaderPresetsActivity::presetIndexForRow(int row) const {
+  const int start = presetRowsStart();
+  return row < start ? -1 : row - start;
+}
+
+bool ReaderPresetsActivity::isXtcSettingRow(const int row) const {
+  return xtcExpanded_ && row >= 2 && row <= 5;
+}
+
+void ReaderPresetsActivity::changeXtcSetting(const int row, const int delta) {
+  if (row == 2) {
+    const int step = delta >= 0 ? 1 : (SystemSetting::READER_IMAGE_QUALITY_COUNT - 1);
+    SETTINGS.xtcImageQuality =
+        static_cast<uint8_t>((SETTINGS.xtcImageQuality + step) % SystemSetting::READER_IMAGE_QUALITY_COUNT);
+  } else if (row == 3) {
+    int value = static_cast<int>(SETTINGS.xtcPageAutoTurnSeconds) + delta * 10;
+    if (value < 0) value = 60;
+    if (value > 60) value = 0;
+    SETTINGS.xtcPageAutoTurnSeconds = static_cast<uint8_t>(value);
+  } else if (row == 4) {
+    static constexpr uint8_t values[] = {1, 5, 10, 15, 30};
+    int idx = 3;
+    for (int i = 0; i < static_cast<int>(sizeof(values) / sizeof(values[0])); ++i) {
+      if (values[i] == SETTINGS.xtcRefreshFrequency) {
+        idx = i;
+        break;
+      }
+    }
+    const int count = static_cast<int>(sizeof(values) / sizeof(values[0]));
+    idx = (idx + (delta >= 0 ? 1 : count - 1)) % count;
+    SETTINGS.xtcRefreshFrequency = values[idx];
+  } else if (row == 5) {
+    SETTINGS.xtcShortPwrBtn =
+        SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_NEXT ? SystemSetting::XTC_POWER_PAGE_REFRESH
+                                                                 : SystemSetting::XTC_POWER_NEXT;
+  }
+  SETTINGS.saveToFile();
+}
 
 void ReaderPresetsActivity::navigateToSelectedMenu() {
   if (tabSelectorIndex == 0 && onTabRecent_) {
@@ -105,6 +175,43 @@ void ReaderPresetsActivity::render() {
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected, EpdFontFamily::REGULAR);
 
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      continue;
+    }
+
+    if (rowIndex == 1) {
+      renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
+                              isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                         : static_cast<int>(GfxRenderer::FillTone::Paper));
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1,
+                           EpdFontFamily::BOLD);
+      const char* tag = xtcExpanded_ ? "-" : "+";
+      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      continue;
+    }
+
+    if (isXtcSettingRow(rowIndex)) {
+      renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
+                              isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                         : static_cast<int>(GfxRenderer::FillTone::Paper));
+      const char* label = "  Quality";
+      const char* value = readerQualityLabel(SETTINGS.xtcImageQuality);
+      if (rowIndex == 3) {
+        label = "  Auto Page Turn";
+        value = xtcAutoTurnLabel();
+      } else if (rowIndex == 4) {
+        label = "  Page Until Refresh";
+        value = xtcRefreshLabel();
+      } else if (rowIndex == 5) {
+        label = "  Power Button";
+        value = xtcPowerLabel();
+      }
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value,
+                           isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
       continue;
     }
@@ -185,6 +292,18 @@ void ReaderPresetsActivity::activateSelectedRow() {
     openEditor(-1);  // new preset
     return;
   }
+  if (selectedRow_ == 1) {
+    xtcExpanded_ = !xtcExpanded_;
+    const int rows = rowCount();
+    if (selectedRow_ >= rows) selectedRow_ = std::max(0, rows - 1);
+    render();
+    return;
+  }
+  if (isXtcSettingRow(selectedRow_)) {
+    changeXtcSetting(selectedRow_, 1);
+    render();
+    return;
+  }
   overlayPresetIndex_ = presetIndexForRow(selectedRow_);
   overlaySel_ = 0;
   overlayOpen_ = true;
@@ -250,6 +369,17 @@ void ReaderPresetsActivity::handleListInput() {
       if (selectedRow_ >= scrollOffset_ + itemsPerPage_) scrollOffset_ = selectedRow_ - itemsPerPage_ + 1;
       render();
     }
+    return;
+  }
+
+  if (isXtcSettingRow(selectedRow_) && mappedInput.wasPressed(MenuNav::tabPrev())) {
+    changeXtcSetting(selectedRow_, -1);
+    render();
+    return;
+  }
+  if (isXtcSettingRow(selectedRow_) && mappedInput.wasPressed(MenuNav::tabNext())) {
+    changeXtcSetting(selectedRow_, 1);
+    render();
     return;
   }
 

@@ -1810,12 +1810,18 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }, true);
     if (needsTextAntiAliasPass) {
       const bool textBwStored = renderer.storeBwBuffer();
-      ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/textBwStored, [&] {
+      renderer.renderTextGrayscalePasses(/*preserveText=*/textBwStored, [&] {
         renderer.clearScreen(0x00);
         page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
                      ImageRenderMode::OneBit);
       });
     }
+  } else if (needsTextAntiAliasPass && !mediumImageGrayscale) {
+    renderer.renderTextGrayscalePasses(/*preserveText=*/bwStored, [&] {
+      renderer.clearScreen(0x00);
+      page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                   ImageRenderMode::OneBit);
+    });
   } else if (mediumImageGrayscale || needsTextAntiAliasPass) {
     ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/needsTextAntiAliasPass && bwStored, [&] {
       renderer.clearScreen(0x00);

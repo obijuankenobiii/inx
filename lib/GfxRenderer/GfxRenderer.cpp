@@ -231,6 +231,8 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
 
+void GfxRenderer::displayTextGrayBuffer() const { display.displayTextGrayBuffer(); }
+
 void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
 
 void GfxRenderer::prepareQualityGrayscale() const { display.prepareQualityGrayscale(); }
@@ -387,6 +389,26 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
     restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
   } else {
     clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
+    cleanupGrayscaleWithFrameBuffer();
+  }
+}
+
+void GfxRenderer::renderTextGrayscalePasses(const bool preserveText, const std::function<void()>& drawPlane) {
+  setRenderMode(GRAYSCALE_LSB);
+  drawPlane();
+  copyGrayscaleLsbBuffers();
+
+  setRenderMode(GRAYSCALE_MSB);
+  drawPlane();
+  copyGrayscaleMsbBuffers();
+
+  displayTextGrayBuffer();
+  setRenderMode(BW);
+
+  if (preserveText) {
+    restoreBwBuffer();
+  } else {
+    clearScreen(0xFF);
     cleanupGrayscaleWithFrameBuffer();
   }
 }

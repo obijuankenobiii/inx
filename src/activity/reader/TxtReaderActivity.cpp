@@ -489,7 +489,7 @@ void TxtReaderActivity::renderPage() {
     renderLines();
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
+    renderer.displayTextGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
 
     
