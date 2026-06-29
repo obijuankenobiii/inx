@@ -302,6 +302,11 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   
   if (dropIndentW <= 0 || dropIndentLines <= 0) {
     const size_t totalWordCount = words.size();
+    constexpr size_t kMaxOptimalLineBreakWords = 220;
+    if (totalWordCount > kMaxOptimalLineBreakWords) {
+      return computeGreedyLineBreaksWithDropIndent(pageWidth, spaceWidth, wordWidths, dropIndentW, dropIndentLines);
+    }
+
     std::vector<int> dp(totalWordCount);
     std::vector<size_t> ans(totalWordCount);
     dp[totalWordCount - 1] = 0;

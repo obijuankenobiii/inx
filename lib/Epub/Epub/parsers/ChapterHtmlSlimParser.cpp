@@ -32,7 +32,7 @@ const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
 constexpr size_t MIN_SIZE_FOR_POPUP = 30 * 1024;
-constexpr size_t STREAMING_TEXTBLOCK_WORD_LIMIT = 320;
+constexpr size_t STREAMING_TEXTBLOCK_WORD_LIMIT = 80;
 
 namespace {
 
@@ -63,6 +63,74 @@ bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
       ++j;
     }
     if (j == needleLen) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool equalsAsciiInsensitive(const char* lhs, const char* rhs) {
+  if (lhs == nullptr || rhs == nullptr) {
+    return lhs == rhs;
+  }
+  while (*lhs != '\0' && *rhs != '\0') {
+    const unsigned char l = static_cast<unsigned char>(*lhs);
+    const unsigned char r = static_cast<unsigned char>(*rhs);
+    if (std::tolower(l) != std::tolower(r)) {
+      return false;
+    }
+    ++lhs;
+    ++rhs;
+  }
+  return *lhs == '\0' && *rhs == '\0';
+}
+
+bool startsWithAsciiInsensitive(const std::string& value, const char* prefix) {
+  if (prefix == nullptr) {
+    return true;
+  }
+  const size_t n = std::strlen(prefix);
+  if (value.size() < n) {
+    return false;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    const unsigned char v = static_cast<unsigned char>(value[i]);
+    const unsigned char p = static_cast<unsigned char>(prefix[i]);
+    if (std::tolower(v) != std::tolower(p)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool hasClassToken(const std::string& classAttr, const char* token) {
+  size_t i = 0;
+  while (i < classAttr.size()) {
+    while (i < classAttr.size() && std::isspace(static_cast<unsigned char>(classAttr[i])) != 0) {
+      ++i;
+    }
+    const size_t start = i;
+    while (i < classAttr.size() && std::isspace(static_cast<unsigned char>(classAttr[i])) == 0) {
+      ++i;
+    }
+    if (start < i && equalsAsciiInsensitive(classAttr.substr(start, i - start).c_str(), token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool hasClassTokenPrefix(const std::string& classAttr, const char* prefix) {
+  size_t i = 0;
+  while (i < classAttr.size()) {
+    while (i < classAttr.size() && std::isspace(static_cast<unsigned char>(classAttr[i])) != 0) {
+      ++i;
+    }
+    const size_t start = i;
+    while (i < classAttr.size() && std::isspace(static_cast<unsigned char>(classAttr[i])) == 0) {
+      ++i;
+    }
+    if (start < i && startsWithAsciiInsensitive(classAttr.substr(start, i - start), prefix)) {
       return true;
     }
   }
@@ -311,6 +379,23 @@ void extractSelectorAttributes(const XML_Char* name, const XML_Char** atts, std:
   }
 }
 
+bool hasAmazonRemovedFallbackAttr(const XML_Char** atts) {
+  if (atts == nullptr) {
+    return false;
+  }
+  for (int i = 0; atts[i]; i += 2) {
+    if (containsAsciiInsensitive(atts[i], "amznremoved")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isKnownHiddenFallbackImageClass(const std::string& classAttr) {
+  return hasClassToken(classAttr, "imagefix") || hasClassToken(classAttr, "imagefix-arabic") ||
+         hasClassTokenPrefix(classAttr, "imagefix-greek") || hasClassTokenPrefix(classAttr, "imagefix-japanese");
+}
+
 /**
  * Loads all CSS rules from the EPUB cache using CssParser
  */
@@ -350,17 +435,36 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
 }
 
 void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
+  if (hasAmazonRemovedFallbackAttr(atts)) {
+    return;
+  }
+
   std::string src;
+  std::string classAttr;
+  std::string idAttr;
+  std::string styleAttr;
   if (atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       std::string attrName = atts[i];
       if (attrName == "src" || attrName == "href" || attrName == "xlink:href") {
         src = atts[i + 1];
-        break;
+      } else if (attrName == "class") {
+        classAttr = atts[i + 1];
+      } else if (attrName == "id") {
+        idAttr = atts[i + 1];
+      } else if (attrName == "style") {
+        styleAttr = atts[i + 1];
       }
     }
   }
   if (src.empty()) {
+    return;
+  }
+  if (isKnownHiddenFallbackImageClass(classAttr)) {
+    return;
+  }
+  loadCssRules();
+  if (cssParser.isDisplayNone("img", classAttr, idAttr, styleAttr)) {
     return;
   }
   const std::string& base = internalPath.empty() ? filepath : internalPath;
@@ -483,6 +587,10 @@ void ChapterHtmlSlimParser::loadCssRules() {
  * Processes an img element with CSS class support
  */
 void ChapterHtmlSlimParser::processImageElement(const char** atts) {
+  if (hasAmazonRemovedFallbackAttr(atts)) {
+    return;
+  }
+
   std::string src = "";
   std::string classAttr = "";
   std::string styleAttr = "";
@@ -513,9 +621,15 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   }
 
   if (src.empty()) return;
+  if (isKnownHiddenFallbackImageClass(classAttr)) {
+    return;
+  }
 
   
   loadCssRules();
+  if (cssParser.isDisplayNone("img", classAttr, idAttr, styleAttr)) {
+    return;
+  }
 
   
   int imgWidth = explicitWidth;

@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
+#include <exception>
+#include <new>
 #include "Page.h"
 #include "hyphenation/Hyphenator.h"
 #include "parsers/ChapterHtmlSlimParser.h"
@@ -246,7 +248,21 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
                          viewportWidth, viewportHeight, hyphenationEnabled, respectCssParagraphIndent,
                          bionicReadingEnabled);
 
-  success = visitor.parseAndBuildPages(skipImages);
+  try {
+    success = visitor.parseAndBuildPages(skipImages);
+  } catch (const std::bad_alloc& e) {
+    Serial.printf("[%lu] [SCT] createSectionFile: OOM while parsing spine=%d href=%s (%s)\n", millis(), spineIndex,
+                  localPath.c_str(), e.what());
+    success = false;
+  } catch (const std::exception& e) {
+    Serial.printf("[%lu] [SCT] createSectionFile: exception while parsing spine=%d href=%s (%s)\n", millis(),
+                  spineIndex, localPath.c_str(), e.what());
+    success = false;
+  } catch (...) {
+    Serial.printf("[%lu] [SCT] createSectionFile: unknown exception while parsing spine=%d href=%s\n", millis(),
+                  spineIndex, localPath.c_str());
+    success = false;
+  }
 
   SdMan.remove(tmpHtmlPath.c_str());
   
