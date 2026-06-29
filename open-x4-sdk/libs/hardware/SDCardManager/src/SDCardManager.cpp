@@ -5,9 +5,73 @@
 
 #include "SDCardManager.h"
 
+#include <cstring>
+#include <cctype>
+#include <string>
+
 namespace {
 constexpr uint8_t SD_CS = 12;
 constexpr uint32_t SPI_FQ = 40000000;
+
+std::string normaliseLookupName(const char* name) {
+  std::string out;
+  if (!name) {
+    return out;
+  }
+
+  for (const unsigned char* p = reinterpret_cast<const unsigned char*>(name); *p; ++p) {
+    if (std::isalnum(*p)) {
+      out.push_back(static_cast<char>(std::tolower(*p)));
+    }
+  }
+  return out;
+}
+
+bool openByDirectoryScan(SdFat& sd, const char* path, FsFile& file) {
+  if (!path || path[0] == '\0') {
+    return false;
+  }
+
+  const char* slash = strrchr(path, '/');
+  const char* basename = slash ? slash + 1 : path;
+  if (!basename || basename[0] == '\0') {
+    return false;
+  }
+
+  std::string dirPath;
+  if (!slash) {
+    dirPath = "/";
+  } else if (slash == path) {
+    dirPath = "/";
+  } else {
+    dirPath.assign(path, static_cast<size_t>(slash - path));
+  }
+
+  FsFile dir = sd.open(dirPath.c_str(), O_RDONLY);
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return false;
+  }
+
+  const std::string normalisedTarget = normaliseLookupName(basename);
+  char name[512];
+  for (FsFile entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+    entry.getName(name, sizeof(name));
+    const bool exactMatch = strcmp(name, basename) == 0;
+    const bool normalisedMatch = !exactMatch && normaliseLookupName(name) == normalisedTarget;
+    if (!entry.isDirectory() && (exactMatch || normalisedMatch)) {
+      const uint32_t dirIndex = entry.dirIndex();
+      entry.close();
+      const bool opened = file.open(&dir, dirIndex, O_RDONLY);
+      dir.close();
+      return opened;
+    }
+    entry.close();
+  }
+
+  dir.close();
+  return false;
+}
 }
 
 SDCardManager SDCardManager::instance;
@@ -28,6 +92,19 @@ bool SDCardManager::begin() {
 
 bool SDCardManager::ready() const {
   return initialized;
+}
+
+bool SDCardManager::exists(const char* path) {
+  if (sd.exists(path)) {
+    return true;
+  }
+
+  FsFile file;
+  if (openByDirectoryScan(sd, path, file)) {
+    file.close();
+    return true;
+  }
+  return false;
 }
 
 std::vector<String> SDCardManager::listFiles(const char* path, const int maxFiles) {
@@ -208,17 +285,17 @@ bool SDCardManager::ensureDirectoryExists(const char* path) {
 }
 
 bool SDCardManager::openFileForRead(const char* moduleName, const char* path, FsFile& file) {
-  if (!sd.exists(path)) {
-    if (Serial) Serial.printf("[%lu] [%s] File does not exist: %s\n", millis(), moduleName, path);
-    return false;
+  file = sd.open(path, O_RDONLY);
+  if (file) {
+    return true;
   }
 
-  file = sd.open(path, O_RDONLY);
-  if (!file) {
-    if (Serial) Serial.printf("[%lu] [%s] Failed to open file for reading: %s\n", millis(), moduleName, path);
-    return false;
+  if (openByDirectoryScan(sd, path, file)) {
+    return true;
   }
-  return true;
+
+  if (Serial) Serial.printf("[%lu] [%s] Failed to open file for reading: %s\n", millis(), moduleName, path);
+  return false;
 }
 
 bool SDCardManager::openFileForRead(const char* moduleName, const std::string& path, FsFile& file) {
