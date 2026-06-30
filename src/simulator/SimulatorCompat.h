@@ -45,6 +45,12 @@ inline TickType_t xTaskGetTickCount() {
   static const steady_clock::time_point start = steady_clock::now();
   return static_cast<TickType_t>(duration_cast<milliseconds>(steady_clock::now() - start).count());
 }
+
+inline uint32_t esp_random() {
+  static uint32_t state = 0x9e3779b9U;
+  state = state * 1664525U + 1013904223U + xTaskGetTickCount();
+  return state;
+}
 #endif
 
 #ifndef MANUAL_REFRESH

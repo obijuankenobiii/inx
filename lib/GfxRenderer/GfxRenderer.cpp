@@ -319,6 +319,14 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
 
+void GfxRenderer::displayTextGrayBuffer() const {
+#ifdef SIMULATOR
+  display.displayGrayBuffer(false);
+#else
+  display.displayTextGrayBuffer();
+#endif
+}
+
 void GfxRenderer::displayGrayBufferFastQuality() const {
 #ifdef SIMULATOR
   display.displayGrayBuffer(false);
