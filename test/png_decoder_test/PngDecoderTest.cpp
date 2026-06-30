@@ -78,6 +78,11 @@ int main() {
   check("reject_height_over_limit", !convert(makePng(100, 3073, 8, 0)));
   check("reject_zero_width", !convert(makePng(0, 100, 8, 0)));
   check("reject_zero_height", !convert(makePng(100, 0, 8, 0)));
+  // Exact CVE attack vectors: PNG files with malicious width/height values (V-001 / CWE-120).
+  // These must be rejected before any allocation that could overflow.
+  check("reject_exploit_width_0xFFFF", !convert(makePng(0xFFFF, 100, 8, 0)));
+  check("reject_exploit_height_0xFFFF", !convert(makePng(100, 0xFFFF, 8, 0)));
+  check("reject_exploit_large_dims_rgba", !convert(makePng(0xFFFF, 0xFFFF, 8, 6)));
 
   // Invalid bitDepth/colorType combos — caught by new IHDR validation
   check("reject_rgb_bitdepth4", !convert(makePng(10, 10, 4, 2)));         // RGB allows only 8/16
