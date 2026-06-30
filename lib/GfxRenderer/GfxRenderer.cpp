@@ -12,6 +12,11 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef SIMULATOR
+#include <HalGPIO.h>
+extern HalGPIO gpio;
+#endif
+
 GfxRenderer::GfxRenderer(HalDisplay& halDisplay)
     : display(halDisplay),
       renderMode(BW),
@@ -265,7 +270,13 @@ void GfxRenderer::invertScreen() const {
 
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const { display.displayBuffer(refreshMode); }
 
-bool GfxRenderer::deviceIsX3() const { return display.deviceIsX3(); }
+bool GfxRenderer::deviceIsX3() const {
+#ifdef SIMULATOR
+  return gpio.deviceIsX3();
+#else
+  return display.deviceIsX3();
+#endif
+}
 
 int GfxRenderer::getScreenWidth() const {
   switch (orientation) {
@@ -308,11 +319,21 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
 
-void GfxRenderer::displayTextGrayBuffer() const { display.displayTextGrayBuffer(); }
+void GfxRenderer::displayGrayBufferFastQuality() const {
+#ifdef SIMULATOR
+  display.displayGrayBuffer(false);
+#else
+  display.displayGrayBufferFastQuality();
+#endif
+}
 
-void GfxRenderer::displayGrayBufferFastQuality() const { display.displayGrayBufferFastQuality(); }
-
-void GfxRenderer::prepareQualityGrayscale() const { display.prepareQualityGrayscale(); }
+void GfxRenderer::prepareQualityGrayscale() const {
+#ifdef SIMULATOR
+  display.preconditionGrayscale();
+#else
+  display.prepareQualityGrayscale();
+#endif
+}
 
 bool GfxRenderer::copyStoredBwToFramebuffer() const {
   for (const auto& chunk : bwBufferChunks) {

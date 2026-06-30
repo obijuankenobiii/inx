@@ -5,6 +5,7 @@
 
 #include "CalibreSettingsActivity.h"
 
+#include <Arduino.h>
 #include <GfxRenderer.h>
 
 #include <cstring>
@@ -154,6 +155,11 @@ void CalibreSettingsActivity::displayTaskLoop() {
 }
 
 void CalibreSettingsActivity::render() {
+#ifdef SIMULATOR
+  Serial.printf("[%lu] [SIM] OPDS settings UI: urlSet=%d usernameSet=%d passwordSet=%d\n", millis(),
+                strlen(SETTINGS.opdsServerUrl) > 0, strlen(SETTINGS.opdsUsername) > 0,
+                strlen(SETTINGS.opdsPassword) > 0);
+#endif
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();

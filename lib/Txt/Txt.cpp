@@ -5,6 +5,7 @@
 
 #include "Txt.h"
 
+#include <Arduino.h>
 #include <FsHelpers.h>
 #include <JpegToBmpConverter.h>
 

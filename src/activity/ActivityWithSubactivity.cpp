@@ -5,6 +5,8 @@
 
 #include "ActivityWithSubactivity.h"
 
+#include <Arduino.h>
+
 void ActivityWithSubactivity::exitActivity() {
   if (subActivity) {
     subActivity->onExit();
@@ -14,6 +16,9 @@ void ActivityWithSubactivity::exitActivity() {
 
 void ActivityWithSubactivity::enterNewActivity(Activity* activity) {
   subActivity.reset(activity);
+#ifdef SIMULATOR
+  Serial.printf("[%lu] [SIM] Subactivity: %s\n", millis(), subActivity->getName());
+#endif
   subActivity->onEnter();
 }
 

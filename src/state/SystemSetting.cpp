@@ -5,8 +5,10 @@
 
 #include "state/SystemSetting.h"
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#endif
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
@@ -15,8 +17,10 @@
 #include <cstdio>
 #include <string>
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include "system/FontManager.h"
 #include "system/Fonts.h"
+#endif
 
 SystemSetting SystemSetting::instance;
 
@@ -91,10 +95,12 @@ bool SystemSetting::saveToFile() const {
   }
 
   uint8_t fontFamilyToSave = fontFamily;
+#ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamilyToSave);
   if (fontFamilyToSave != fontFamily) {
     const_cast<SystemSetting*>(this)->fontFamily = fontFamilyToSave;
   }
+#endif
 
   {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
@@ -250,7 +256,9 @@ bool SystemSetting::loadFromFile() {
       serialization::readPod(inputFile, rawFontFamily);
       if (version >= 15) {
         fontFamily = rawFontFamily;
+#ifndef INX_SIMULATOR_WEB_ONLY
         FontManager::clampReaderFontFamilySlot(fontFamily);
+#endif
       } else {
         /** Legacy v14 and older: 0 Bookerly, 1 Atkinson, 2 Literata → Atkinson=1, else Literata (0). */
         fontFamily = (rawFontFamily == ATKINSON_HYPERLEGIBLE) ? ATKINSON_HYPERLEGIBLE : LITERATA;
@@ -596,7 +604,9 @@ bool SystemSetting::loadFromFile() {
 
   inputFile.close();
 
+#ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamily);
+#endif
 
   if (settingsRead < 61) {
     xtcImageQuality = readerImageGrayscale;
@@ -769,13 +779,24 @@ void SystemSetting::formatTimeZone(char* out, size_t outSize) const {
 }
 
 int SystemSetting::getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)familySlot;
+  (void)sizeIndex;
+  return 0;
+#else
   if (familySlot < FONT_FAMILY_BUILTIN_COUNT) {
     return getReaderFontIdForFamilyAndSize(familySlot, sizeIndex);
   }
   return getReaderFontIdForFamilyAndSize(ATKINSON_HYPERLEGIBLE, sizeIndex);
+#endif
 }
 
 int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)family;
+  (void)size;
+  return 0;
+#else
   if (size >= FONT_SIZE_COUNT) {
     size = MEDIUM;
   }
@@ -822,6 +843,7 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
           return LITERATA_18_FONT_ID;
       }
   }
+#endif
 }
 
 /**
@@ -829,10 +851,18 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
  * @return Font identifier for rendering
  */
 int SystemSetting::getReaderFontId() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  return 0;
+#else
   return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
+#endif
 }
 
 void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, const RefreshOnLoadPage page) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)renderer;
+  (void)page;
+#else
   uint8_t on = 0;
   switch (page) {
     case RefreshOnLoadPage::Recent:
@@ -854,4 +884,5 @@ void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, c
   if (on) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
+#endif
 }

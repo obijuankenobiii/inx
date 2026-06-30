@@ -7,7 +7,10 @@ This document describes all HTTP and WebSocket endpoints available on the Inx Re
   - [HTTP Endpoints](#http-endpoints)
     - [GET `/` - Home Page](#get----home-page)
     - [GET `/files` - File Browser Page](#get-files---file-browser-page)
+    - [GET `/settings` - Settings Page](#get-settings---settings-page)
     - [GET `/api/status` - Device Status](#get-apistatus---device-status)
+    - [GET `/api/settings` - Device Settings](#get-apisettings---device-settings)
+    - [POST `/api/settings` - Update Device Settings](#post-apisettings---update-device-settings)
     - [GET `/api/files` - List Files](#get-apifiles---list-files)
     - [POST `/upload` - Upload File](#post-upload---upload-file)
     - [POST `/mkdir` - Create Folder](#post-mkdir---create-folder)
@@ -57,6 +60,19 @@ curl http://xteink.local/files
 
 ---
 
+### GET `/settings` - Settings Page
+
+Serves the browser-based device settings interface.
+
+**Request:**
+```bash
+curl http://xteink.local/settings
+```
+
+**Response:** HTML page (200 OK)
+
+---
+
 ### GET `/api/status` - Device Status
 
 Returns JSON with device status information.
@@ -86,6 +102,55 @@ curl http://xteink.local/api/status
 | `rssi`     | number | WiFi signal strength in dBm (0 in AP mode)                |
 | `freeHeap` | number | Free heap memory in bytes                                 |
 | `uptime`   | number | Seconds since device boot                                 |
+
+---
+
+### GET `/api/settings` - Device Settings
+
+Returns the current web-editable device settings.
+
+**Request:**
+```bash
+curl http://xteink.local/api/settings
+```
+
+**OPDS fields in the response:**
+
+| Field             | Type    | Description                                      |
+| ----------------- | ------- | ------------------------------------------------ |
+| `opdsServerUrl`   | string  | OPDS catalog URL                                 |
+| `opdsUsername`    | string  | OPDS HTTP Basic auth username                    |
+| `opdsPasswordSet` | boolean | `true` when an OPDS password is saved            |
+
+**Security note:** `opdsPassword` is never returned by `GET /api/settings`.
+
+---
+
+### POST `/api/settings` - Update Device Settings
+
+Updates one or more settings. Send only the fields to change.
+
+**Request:**
+```bash
+curl -X POST http://xteink.local/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"opdsServerUrl":"http://server:8080/opds","opdsUsername":"reader"}'
+```
+
+**OPDS request fields:**
+
+| Field           | Type   | Description                                      |
+| --------------- | ------ | ------------------------------------------------ |
+| `opdsServerUrl` | string | OPDS catalog URL, up to 127 characters           |
+| `opdsUsername`  | string | OPDS username, up to 63 characters               |
+| `opdsPassword`  | string | OPDS password, up to 63 characters               |
+
+If `opdsPassword` is omitted, the saved password is preserved. If `opdsPassword` is present and empty, the saved password is cleared.
+
+**Response (200 OK):**
+```json
+{"status":"ok"}
+```
 
 ---
 
@@ -329,3 +394,15 @@ The device can operate in two network modes:
 - All paths on the SD card start with `/`
 - Trailing slashes are automatically stripped (except for root `/`)
 - The webserver uses chunked transfer encoding for file listings
+
+## Local Endpoint Testing
+
+For quick API checks without flashing a device, run the dashboard-only simulator:
+
+```bash
+CROSSPOINT_SIM_SD=./fs_ pio run -e simulator_web -t run_simulator
+```
+
+After the simulated device starts a hotspot or local network server, replace `http://xteink.local` in the examples above with `http://127.0.0.1:8080`.
+
+For full SDL/device UI simulator setup, see the [README](../README.md#simulator) and the [CrossPoint simulator project](https://github.com/crosspoint-reader/crosspoint-simulator).

@@ -8,17 +8,21 @@
  * @brief Public interface and types for JpegToBmpConverter.
  */
 
+#ifdef SIMULATOR
+#include <SDCardManager.h>
+#else
 class FsFile;
+#endif
 class Print;
 class ZipFile;
 
 class JpegToBmpConverter {
   static unsigned char jpegReadCallback(unsigned char* pBuf, unsigned char buf_size,
                                         unsigned char* pBytes_actually_read, void* pCallback_data);
-  static bool jpegFileToBmpStreamInternal(class FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
+  static bool jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool oneBit, bool quickMode = false);
   
-  static bool jpegFileToBmpStreamInternalCentered(class FsFile& jpegFile, Print& bmpOut, int targetWidth,
+  static bool jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth,
                                                   int targetHeight, bool oneBit, bool quickMode = false,
                                                   bool cropToFill = true);
 

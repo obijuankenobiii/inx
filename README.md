@@ -187,6 +187,32 @@ pio run
 pio run --target upload
 ```
 
+### Simulator
+
+Inx includes two native simulator targets based on the CrossPoint simulator.
+
+For the full SDL/device UI simulator:
+
+```sh
+CROSSPOINT_SIM_SD=./fs_ pio run -e simulator -t run_simulator
+```
+
+For dashboard-only testing:
+
+```sh
+CROSSPOINT_SIM_SD=./fs_ pio run -e simulator_web -t run_simulator
+```
+
+The simulator stores its SD-card data in the folder passed through `CROSSPOINT_SIM_SD`. The firmware web server is exposed at `http://127.0.0.1:8080/` when the simulated device starts a hotspot or local network server.
+
+On macOS, SDL2 is required:
+
+```sh
+brew install sdl2
+```
+
+For more simulator details, see the [CrossPoint simulator project](https://github.com/crosspoint-reader/crosspoint-simulator).
+
 ### Serial Debugging
 
 Install the monitor dependencies:
@@ -213,4 +239,3 @@ Contributions are welcome.
 2. Create a branch.
 3. Make your changes.
 4. Open a pull request.
-

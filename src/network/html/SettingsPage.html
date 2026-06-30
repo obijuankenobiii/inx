@@ -31,6 +31,8 @@
   .setting-label { font-size: 15px; font-weight: 500; color: #1d1d1f; }
   .setting-description { display: none; }
   .setting-control { width: 260px; text-align: right; }
+  .setting-control.compound { display: flex; gap: 8px; align-items: center; }
+  .setting-control.compound input { min-width: 0; flex: 1; }
   .setting-control input, .setting-control select { width: 100%; padding: 8px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; background: #fff; color: #1d1d1f; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
   .setting-control input[type="checkbox"] { width: auto; }
   .toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; }
@@ -60,6 +62,8 @@
   .btn-primary:hover { background: #333; transform: scale(1.02); box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25); }
   .btn-secondary { background: #e8e8ed; color: #111; }
   .btn-secondary:hover { background: #dcdce0; }
+  .btn-inline { flex: 0 0 auto; padding: 8px 12px; border: none; border-radius: 980px; background: #e8e8ed; color: #111; font-size: 12px; font-weight: 510; cursor: pointer; font-family: inherit; }
+  .btn-inline:hover { background: #dcdce0; }
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1d1d1f; color: #fff; padding: 10px 20px; border-radius: 980px; font-size: 13px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 1000; }
   .toast.show { opacity: 1; }
   .hint { font-size: 12px; color: #888; padding: 12px 24px 20px; line-height: 1.4; }
@@ -68,6 +72,7 @@
     .header h1 { font-size: 22px; }
     .setting-item { flex-direction: column; align-items: flex-start; gap: 12px; }
     .setting-control { width: 100%; }
+    .setting-control.compound { width: 100%; }
     .action-buttons { flex-direction: column; }
     .action-btn { width: 100%; text-align: center; }
   }
@@ -202,7 +207,7 @@
         <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadStatistics" type="checkbox"><span class="toggle-slider"></span></label></div>
       </div>
     </div>
-    <p class="hint">Actions such as Index library, KOReader Sync, OPDS, reset, updates, and About are available on the device.</p>
+    <p class="hint">Actions such as Index library, reset, updates, and About are available on the device.</p>
 
     <div class="settings-section">
       <div class="section-header"><h3>WiFi Networks</h3></div>
@@ -216,6 +221,25 @@
           <button class="btn-secondary" onclick="hideAddWifiForm()">Cancel</button>
         </div>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-header"><h3>OPDS Browser</h3></div>
+      <div class="setting-item">
+        <div><div class="setting-label">Server URL</div></div>
+        <div class="setting-control"><input id="opdsServerUrl" maxlength="127" placeholder="http://server:8080/opds" autocomplete="off"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Username</div></div>
+        <div class="setting-control"><input id="opdsUsername" maxlength="63" placeholder="Username" autocomplete="off"></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Password</div></div>
+        <div class="setting-control compound">
+          <input id="opdsPassword" maxlength="63" type="password" placeholder="Password" autocomplete="off">
+          <button type="button" class="btn-inline" id="clearOpdsPasswordBtn" onclick="clearOPDSPassword()">Clear</button>
+        </div>
+      </div>
+      <p class="hint">Calibre Content Server usually needs /opds at the end. Only HTTP Basic authentication is supported.</p>
     </div>
     <div class="settings-section">
       <div class="section-header"><h3>KOReader Sync</h3></div>
@@ -621,6 +645,47 @@ function populateSleepCustomBmp() {
   };
 }
 
+function populateTextSetting(id) {
+  const inp = document.getElementById(id);
+  if (!inp || settingsData[id] === undefined) return;
+  inp.value = settingsData[id] || "";
+  inp.oninput = function () {
+    pendingChanges[id] = inp.value;
+    markChanged(inp);
+  };
+}
+
+function updateOPDSPasswordUi() {
+  const inp = document.getElementById("opdsPassword");
+  const btn = document.getElementById("clearOpdsPasswordBtn");
+  if (!inp) return;
+  const hasPassword = settingsData.opdsPasswordSet === true || settingsData.opdsPasswordSet === 1;
+  inp.value = "";
+  inp.placeholder = hasPassword ? "Saved - leave blank to keep" : "Password";
+  if (btn) btn.style.display = hasPassword ? "" : "none";
+}
+
+function populateOPDSSettings() {
+  populateTextSetting("opdsServerUrl");
+  populateTextSetting("opdsUsername");
+  updateOPDSPasswordUi();
+  const inp = document.getElementById("opdsPassword");
+  if (!inp) return;
+  inp.oninput = function () {
+    pendingChanges.opdsPassword = inp.value;
+    markChanged(inp);
+  };
+}
+
+function clearOPDSPassword() {
+  const inp = document.getElementById("opdsPassword");
+  if (!inp) return;
+  inp.value = "";
+  pendingChanges.opdsPassword = "";
+  markChanged(inp);
+  showToast("OPDS password will be cleared on save");
+}
+
 function populateSettings() {
   for (const key of Object.keys(options)) {
     const el = document.getElementById(key);
@@ -686,6 +751,7 @@ function populateSettings() {
   populateRecentVisibleCount();
   populatePageAutoTurn();
   populateSleepCustomBmp();
+  populateOPDSSettings();
 }
 
 function markChanged(el) {
@@ -704,6 +770,10 @@ async function saveSetting(key, val) {
     })).ok;
     if (ok) {
       settingsData[key] = val;
+      if (key === "opdsPassword") {
+        settingsData.opdsPasswordSet = val.length > 0;
+        updateOPDSPasswordUi();
+      }
       const node = document.getElementById(key);
       const row = node ? node.closest(".setting-item") : null;
       if (row) row.style.background = "";
