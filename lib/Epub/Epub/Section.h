@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "Epub.h"
 
@@ -23,6 +24,8 @@ class Section {
   GfxRenderer& renderer;
   std::string filePath;
   FsFile file;
+  uint32_t lutOffset = 0;
+  std::vector<uint32_t> pageOffsets;
 
   /**
    * Writes the header information to the section file.
@@ -49,7 +52,6 @@ class Section {
 
  public:
   uint16_t pageCount = 0;
-  uint16_t imagePageCount = 0;  // number of pages containing images (set during createSectionFile)
   int currentPage = 0;
 
   /**
@@ -65,7 +67,7 @@ class Section {
         renderer(renderer),
         filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
   
-  ~Section() = default;
+  ~Section();
 
   /**
    * Loads and verifies a section file from disk.

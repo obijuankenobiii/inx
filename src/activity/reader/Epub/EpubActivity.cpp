@@ -296,20 +296,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
       bookSettings.bionicReadingEnabled != 0, nullptr, skipImages);
 
-  if (success && !skipImages && tempSection->imagePageCount > 0) {
-    int warmPage = 0;
-    if (spineIndex == currentSpineIndex) {
-      if (section && section->pageCount > 0) {
-        warmPage = section->currentPage;
-      } else if (nextPageNumber == static_cast<int>(UINT16_MAX)) {
-        warmPage = tempSection->pageCount > 0 ? tempSection->pageCount - 1 : 0;
-      } else {
-        warmPage = nextPageNumber;
-      }
-    }
-    prebuildImageDisplayCache(*tempSection, info, warmPage);
-  }
-
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
     renderer.clearScreen();
@@ -317,68 +303,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   }
 
   return success;
-}
-
-void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info, const int targetPage) {
-  // Grayscale passes for the current quality mode — used only for pages whose images actually have continuous
-  // tone (anyImageNeedsGrayscale). Pages with 1-bit-style images (comic/line art) and LOW mode prebuild the
-  // plain BW/OneBit plane instead, matching the on-screen page->render path. Each renderImages reuses the exact
-  // fontId + margins + render mode + quality the display path uses, so ImageRender::render() stores cache keyed
-  // identically (and no-ops on a later hit). Only the offscreen framebuffer is touched (no displayBuffer).
-  struct Pass {
-    GfxRenderer::RenderMode mode;
-    bool quality;
-  };
-  Pass grayPasses[2];
-  int grayPassCount = 0;
-  uint8_t grayClear = 0xFF;
-  switch (bookSettings.readerImageGrayscale) {
-    case SystemSetting::READER_IMAGE_HIGH:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
-      grayClear = 0xFF;
-      break;
-    case SystemSetting::READER_IMAGE_MEDIUM:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_MSB, false};
-      grayClear = 0x00;
-      break;
-    default:
-      break;  // LOW: no grayscale passes; all image pages prebuild as 1-bit below
-  }
-  const bool grayEnabled = grayPassCount > 0;
-
-  if (builtSection.pageCount <= 0) {
-    return;
-  }
-
-  const int centerPage = std::max(0, std::min(targetPage, static_cast<int>(builtSection.pageCount) - 1));
-  const int firstPage = std::max(0, centerPage - 1);
-  const int lastPage = std::min(static_cast<int>(builtSection.pageCount) - 1, centerPage + 1);
-  const int fontId = bookSettings.getReaderFontId();
-  for (int i = firstPage; i <= lastPage; i++) {
-    builtSection.currentPage = i;
-    std::unique_ptr<Page> page = builtSection.loadPageFromSectionFile();
-    if (!page || !page->hasImages()) {
-      continue;
-    }
-    if (grayEnabled && page->anyImageNeedsGrayscale()) {
-      for (int p = 0; p < grayPassCount; p++) {
-        renderer.clearScreen(grayClear);  // same base the display path uses, so the cached rect matches exactly
-        renderer.setRenderMode(grayPasses[p].mode);
-        page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
-                           grayPasses[p].quality, /*onlyGrayscale=*/true);
-      }
-    } else {
-      // 1-bit page (comic/line art content, or LOW mode): prebuild the BW/OneBit plane page->render will request.
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::BW);
-      page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::OneBit, false);
-    }
-  }
-
-  renderer.setRenderMode(GfxRenderer::BW);
-  renderer.clearScreen(0xFF);  // leave the framebuffer in the canonical clean state for the next page render
 }
 
 /**

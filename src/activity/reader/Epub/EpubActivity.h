@@ -304,13 +304,6 @@ private:
     bool buildSection(int spineIndex, const ViewportInfo& info, bool showProgress = false, bool skipImages = false);
 
     /**
-     * Pre-renders a small display-pixel cache (.irdc planes) window around the target page. This keeps the current
-     * page fast without making image-heavy chapters decode every image during section build.
-     */
-    void prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info, int targetPage);
-
-
-    /**
      * Loads a section for a given spine index.
      * 
      * @param spineIndex Index of the spine to load

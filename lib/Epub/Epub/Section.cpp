@@ -19,6 +19,13 @@ constexpr uint8_t SECTION_FILE_VERSION = 58;  // 58: persist inline vs floated d
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(float) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) +
                                  sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
+constexpr uint16_t MAX_CACHED_PAGE_OFFSETS = 2048;
+}
+
+Section::~Section() {
+  if (file) {
+    file.close();
+  }
 }
 
 /**
@@ -34,15 +41,11 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
     return 0;
   }
   const uint32_t position = file.position();
-  const bool pageHasImages = page->hasImages();
   if (!page->serialize(file)) {
     Serial.printf("[%lu] [SCT] Failed to serialize page %d\n", millis(), pageCount);
     return 0;
   }
   pageCount++;
-  if (pageHasImages) {
-    imagePageCount++;
-  }
   return position;
 }
 
@@ -97,6 +100,12 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
                               const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                               const uint16_t viewportHeight, const bool hyphenationEnabled,
                               const bool respectCssParagraphIndent, const bool bionicReadingEnabled) {
+  if (file) {
+    file.close();
+  }
+  lutOffset = 0;
+  pageOffsets.clear();
+
   if (!SdMan.openFileForRead("SCT", filePath, file)) return false;
   
   uint8_t version;
@@ -152,8 +161,20 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   }
   
   pageCount = storedPageCount;
-  
-  file.close();
+  lutOffset = storedLutOffset;
+
+  if (pageCount > 0 && pageCount <= MAX_CACHED_PAGE_OFFSETS && lutOffset > 0) {
+    try {
+      pageOffsets.resize(pageCount);
+      file.seek(lutOffset);
+      for (uint16_t i = 0; i < pageCount; ++i) {
+        serialization::readPod(file, pageOffsets[i]);
+      }
+    } catch (...) {
+      pageOffsets.clear();
+    }
+  }
+
   return true;
 }
 
@@ -301,20 +322,32 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
  * @return Unique pointer to the loaded page, or nullptr on failure
  */
 std::unique_ptr<Page> Section::loadPageFromSectionFile() {
-  if (!SdMan.openFileForRead("SCT", filePath, file)) return nullptr;
-  
-  file.seek(HEADER_SIZE - sizeof(uint32_t));
-  uint32_t lutOffset;
-  serialization::readPod(file, lutOffset);
-  
-  file.seek(lutOffset + sizeof(uint32_t) * currentPage);
-  uint32_t pagePos;
-  serialization::readPod(file, pagePos);
+  if (currentPage < 0 || currentPage >= pageCount) {
+    return nullptr;
+  }
+
+  if (!file && !SdMan.openFileForRead("SCT", filePath, file)) {
+    return nullptr;
+  }
+
+  uint32_t pagePos = 0;
+  if (currentPage < static_cast<int>(pageOffsets.size())) {
+    pagePos = pageOffsets[currentPage];
+  } else {
+    if (lutOffset == 0) {
+      file.seek(HEADER_SIZE - sizeof(uint32_t));
+      serialization::readPod(file, lutOffset);
+    }
+    file.seek(lutOffset + sizeof(uint32_t) * currentPage);
+    serialization::readPod(file, pagePos);
+  }
+
+  if (pagePos == 0) {
+    return nullptr;
+  }
   
   file.seek(pagePos);
   auto page = Page::deserialize(file);
-  
-  file.close();
   
   return page;
 }
