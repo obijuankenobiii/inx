@@ -35,12 +35,15 @@ Section::~Section() {
  * @param page Unique pointer to the completed page
  * @return The file position where the page was written, or 0 on failure
  */
-uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
+uint32_t Section::onPageComplete(std::unique_ptr<Page> page, const std::function<void(Page&, uint16_t)>& pageBuiltFn) {
   if (!file) {
     Serial.printf("[%lu] [SCT] File not open for writing page %d\n", millis(), pageCount);
     return 0;
   }
   const uint32_t position = file.position();
+  if (pageBuiltFn) {
+    pageBuiltFn(*page, pageCount);
+  }
   if (!page->serialize(file)) {
     Serial.printf("[%lu] [SCT] Failed to serialize page %d\n", millis(), pageCount);
     return 0;
@@ -202,7 +205,8 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
                                 const bool hyphenationEnabled, const bool respectCssParagraphIndent,
                                 const bool bionicReadingEnabled,
-                                const std::function<void()>& popupFn, bool skipImages) {
+                                const std::function<void()>& popupFn, bool skipImages,
+                                const std::function<void(Page&, uint16_t)>& pageBuiltFn) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -254,8 +258,8 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       hyphenationEnabled,
       respectCssParagraphIndent,
       bionicReadingEnabled,
-      [this, &lut](std::unique_ptr<Page> page) {
-        lut.emplace_back(this->onPageComplete(std::move(page)));
+      [this, &lut, &pageBuiltFn](std::unique_ptr<Page> page) {
+        lut.emplace_back(this->onPageComplete(std::move(page), pageBuiltFn));
       },
       popupFn);
 

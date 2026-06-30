@@ -48,7 +48,7 @@ class Section {
    * @param page Unique pointer to the completed page
    * @return The file position where the page was written
    */
-  uint32_t onPageComplete(std::unique_ptr<Page> page);
+  uint32_t onPageComplete(std::unique_ptr<Page> page, const std::function<void(Page&, uint16_t)>& pageBuiltFn);
 
  public:
   uint16_t pageCount = 0;
@@ -113,7 +113,8 @@ class Section {
                          bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
                          bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,
-                         bool skipImages = false);
+                         bool skipImages = false,
+                         const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr);
 
   /**
    * Loads a specific page from the section file.

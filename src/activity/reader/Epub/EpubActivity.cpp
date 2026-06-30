@@ -290,11 +290,52 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 12);
   }
 
+  int warmPage = 0;
+  if (spineIndex == currentSpineIndex) {
+    if (section && section->pageCount > 0) {
+      warmPage = section->currentPage;
+    } else if (nextPageNumber != static_cast<int>(UINT16_MAX)) {
+      warmPage = std::max(0, nextPageNumber);
+    }
+  }
+
+  std::function<void(Page&, uint16_t)> prewarmImageCache;
+  if (!skipImages) {
+    prewarmImageCache = [this, &info, warmPage](Page& page, const uint16_t pageIndex) {
+      const int distance = pageIndex > warmPage ? pageIndex - warmPage : warmPage - pageIndex;
+      if (distance > 1 || !page.hasImages()) {
+        return;
+      }
+
+      const int fontId = bookSettings.getReaderFontId();
+      const bool grayEnabled = bookSettings.readerImageGrayscale != 0 && page.anyImageNeedsGrayscale();
+      if (grayEnabled) {
+        const bool highQuality = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+        renderer.clearScreen(highQuality ? 0xFF : 0x00);
+        renderer.setRenderMode(highQuality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
+        page.renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
+                          highQuality, /*onlyGrayscale=*/true);
+
+        renderer.clearScreen(highQuality ? 0xFF : 0x00);
+        renderer.setRenderMode(highQuality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
+        page.renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
+                          highQuality, /*onlyGrayscale=*/true);
+      } else {
+        renderer.clearScreen(0xFF);
+        renderer.setRenderMode(GfxRenderer::BW);
+        page.renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::OneBit, false);
+      }
+
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.clearScreen(0xFF);
+    };
+  }
+
   bool success = tempSection->createSectionFile(
       info.fontId, FontManager::getNextFont(info.fontId), FontManager::getMaxFontId(info.fontId), info.lineCompression,
       info.wordSpacing, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width, info.height,
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
-      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages);
+      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, prewarmImageCache);
 
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
