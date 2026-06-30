@@ -145,6 +145,9 @@ constexpr uint32_t LIBRARY_TASK_STACK_SIZE = 8192;
 constexpr uint32_t LIBRARY_INDEX_TASK_STACK_SIZE = 6144;
 constexpr const char* TAG_UNTAGGED_KEY = "\x01";
 constexpr const char* TAG_UNTAGGED_LABEL = "Others";
+constexpr uint8_t BOOK_STATE_FAVORITE = 0x01;
+constexpr uint8_t BOOK_STATE_READING = 0x02;
+constexpr uint8_t BOOK_STATE_FINISHED = 0x04;
 
 bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
   const size_t suffixLen = strlen(suffix);
@@ -557,6 +560,39 @@ LibraryItem LibraryActivity::createFolderItem(const std::string& name, const std
   return folderItem;
 }
 
+uint8_t LibraryActivity::getBookStateFlags(const std::string& path) const {
+  auto cached = bookStateCache_.find(path);
+  if (cached != bookStateCache_.end()) {
+    return cached->second;
+  }
+
+  uint8_t flags = 0;
+  auto* book = BOOK_STATE.findBookByPath(path);
+  if (book) {
+    if (book->isFavorite) flags |= BOOK_STATE_FAVORITE;
+    if (book->isReading) flags |= BOOK_STATE_READING;
+    if (book->isFinished) flags |= BOOK_STATE_FINISHED;
+  }
+  bookStateCache_[path] = flags;
+  return flags;
+}
+
+std::string LibraryActivity::getShelfImagePath(const std::string& bookPath) const {
+  auto cached = shelfImagePathCache_.find(bookPath);
+  if (cached != shelfImagePathCache_.end()) {
+    return cached->second;
+  }
+
+  std::string imagePath = resolveShelfImagePath(bookPath);
+  shelfImagePathCache_[bookPath] = imagePath;
+  return imagePath;
+}
+
+void LibraryActivity::invalidateLibraryCache() {
+  cachedLibraryItemsValid_ = false;
+  std::vector<LibraryItem>().swap(cachedLibraryItems_);
+}
+
 /**
  * @brief Count total books without storing them (fast scan)
  * @param path Directory path to scan
@@ -609,9 +645,16 @@ int LibraryActivity::countTotalBooks(const std::string& path) {
  * @return true if directory contains books
  */
 bool LibraryActivity::directoryHasBooks(const std::string& path) {
+  const std::string cachePath = normalizeLibraryPath(path);
+  auto cached = directoryHasBooksCache_.find(cachePath);
+  if (cached != directoryHasBooksCache_.end()) {
+    return cached->second;
+  }
+
   auto dir = SdMan.open(path.c_str());
   if (!dir || !dir.isDirectory()) {
     if (dir) dir.close();
+    directoryHasBooksCache_[cachePath] = false;
     return false;
   }
 
@@ -635,6 +678,7 @@ bool LibraryActivity::directoryHasBooks(const std::string& path) {
       if (directoryHasBooks(fullPath + "/")) {
         file.close();
         dir.close();
+        directoryHasBooksCache_[cachePath] = true;
         return true;
       }
       file.close();
@@ -645,12 +689,14 @@ bool LibraryActivity::directoryHasBooks(const std::string& path) {
     if (isValidBookFile(filename)) {
       file.close();
       dir.close();
+      directoryHasBooksCache_[cachePath] = true;
       return true;
     }
     file.close();
   }
 
   dir.close();
+  directoryHasBooksCache_[cachePath] = false;
   return false;
 }
 
@@ -667,6 +713,7 @@ void LibraryActivity::loadAllBooksRecursive() {
 }
 
 void LibraryActivity::loadAllBooksRecursiveLocked() {
+  invalidateLibraryCache();
   if (SETTINGS.useLibraryIndex) {
     loadLibraryFromIndex();
   } else {
@@ -918,12 +965,12 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
 std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity::getReadingStatusComparator(
     bool ascending) const {
   return [ascending, this](const TempBookEntry& a, const TempBookEntry& b) {
-    
-    
-    bool aIsReading = isBookOpened(a.path);
-    bool aIsFinished = isBookFinished(a.path);
-    bool bIsReading = isBookOpened(b.path);
-    bool bIsFinished = isBookFinished(b.path);
+    const uint8_t aFlags = getBookStateFlags(a.path);
+    const uint8_t bFlags = getBookStateFlags(b.path);
+    const bool aIsReading = (aFlags & BOOK_STATE_READING) != 0;
+    const bool aIsFinished = (aFlags & BOOK_STATE_FINISHED) != 0;
+    const bool bIsReading = (bFlags & BOOK_STATE_READING) != 0;
+    const bool bIsFinished = (bFlags & BOOK_STATE_FINISHED) != 0;
 
     int aPriority = aIsFinished ? 0 : (aIsReading ? 2 : 1);
     int bPriority = bIsFinished ? 0 : (bIsReading ? 2 : 1);
@@ -939,15 +986,13 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
   };
 }
 
-/**
- * @brief Apply pagination to sorted books and load current page
- * @param tempBooks Sorted vector of temporary book entries
- */
-void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
-  int totalItems = tempBooks.size();
+void LibraryActivity::applyPaginationToCachedItems() {
+  const int totalItems = static_cast<int>(cachedLibraryItems_.size());
   itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE
                                      : (currentViewMode == ViewMode::SHELF_VIEW ? SHELF_ITEMS_PER_PAGE
-                                                                                : BOOK_ITEMS_PER_PAGE);
+                                                                                : (currentViewMode == ViewMode::FOLDER_VIEW
+                                                                                       ? FOLDER_ITEMS_PER_PAGE
+                                                                                       : BOOK_ITEMS_PER_PAGE));
   totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
   if (totalPages == 0) totalPages = 1;
 
@@ -956,19 +1001,31 @@ void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& t
 
   currentPageItems.clear();
   currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
-  int startIdx = currentPage * itemsPerPage;
-  int endIdx = std::min(startIdx + itemsPerPage, totalItems);
+  const int startIdx = currentPage * itemsPerPage;
+  const int endIdx = std::min(startIdx + itemsPerPage, totalItems);
+  for (int i = startIdx; i < endIdx; ++i) {
+    currentPageItems.push_back(cachedLibraryItems_[static_cast<size_t>(i)]);
+  }
+  cachedLibraryItemsValid_ = true;
+}
 
-  for (int i = startIdx; i < endIdx; i++) {
-    const auto& temp = tempBooks[i];
+/**
+ * @brief Apply pagination to sorted books and load current page
+ * @param tempBooks Sorted vector of temporary book entries
+ */
+void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
+  cachedLibraryItems_.clear();
+  cachedLibraryItems_.reserve(tempBooks.size());
+  for (const auto& temp : tempBooks) {
     LibraryItem item;
     item.type = LibraryItem::Type::BOOK;
     item.name = getBaseFilename(temp.path);
     item.path = temp.path;
     item.displayName = temp.displayName;
     item.folderPath = temp.folderPath;
-    currentPageItems.push_back(item);
+    cachedLibraryItems_.push_back(std::move(item));
   }
+  applyPaginationToCachedItems();
 }
 
 /**
@@ -1037,36 +1094,22 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
  */
 void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& tempFolders,
                                               const std::vector<TempBookEntry>& tempBooks) {
-  const int totalFolders = static_cast<int>(tempFolders.size());
-  const int totalBooks = static_cast<int>(tempBooks.size());
-  const int totalItems = totalFolders + totalBooks;
-  itemsPerPage = isLibraryGridMode() ? GRID_ITEMS_PER_PAGE : FOLDER_ITEMS_PER_PAGE;
-  totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage;
-  if (totalPages == 0) totalPages = 1;
+  cachedLibraryItems_.clear();
+  cachedLibraryItems_.reserve(tempFolders.size() + tempBooks.size());
+  for (const auto& folder : tempFolders) {
+    cachedLibraryItems_.push_back(folder);
+  }
 
-  if (currentPage >= totalPages) currentPage = totalPages - 1;
-  if (currentPage < 0) currentPage = 0;
-
-  currentPageItems.clear();
-  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
-  const int startIdx = currentPage * itemsPerPage;
-  const int endIdx = std::min(startIdx + itemsPerPage, totalItems);
-
-  for (int i = startIdx; i < endIdx; ++i) {
-    if (i < totalFolders) {
-      currentPageItems.push_back(tempFolders[static_cast<size_t>(i)]);
-      continue;
-    }
-
-    const auto& temp = tempBooks[static_cast<size_t>(i - totalFolders)];
+  for (const auto& temp : tempBooks) {
     LibraryItem item;
     item.type = LibraryItem::Type::BOOK;
     item.name = getBaseFilename(temp.path);
     item.path = temp.path;
     item.displayName = temp.displayName;
     item.folderPath = temp.folderPath;
-    currentPageItems.push_back(std::move(item));
+    cachedLibraryItems_.push_back(std::move(item));
   }
+  applyPaginationToCachedItems();
 }
 
 bool LibraryActivity::restoreSelectionToPath(const std::string& path) {
@@ -1159,8 +1202,7 @@ void LibraryActivity::displayTaskLoop() {
  * @return true if book is favorite
  */
 bool LibraryActivity::isBookMarked(const std::string& path) const {
-  auto* book = BOOK_STATE.findBookByPath(path);
-  return book ? book->isFavorite : false;
+  return (getBookStateFlags(path) & BOOK_STATE_FAVORITE) != 0;
 }
 
 /**
@@ -1169,8 +1211,7 @@ bool LibraryActivity::isBookMarked(const std::string& path) const {
  * @return true if book is opened/reading
  */
 bool LibraryActivity::isBookOpened(const std::string& path) const {
-  auto* book = BOOK_STATE.findBookByPath(path);
-  return book ? book->isReading : false;
+  return (getBookStateFlags(path) & BOOK_STATE_READING) != 0;
 }
 
 /**
@@ -1179,8 +1220,7 @@ bool LibraryActivity::isBookOpened(const std::string& path) const {
  * @return true if book is finished
  */
 bool LibraryActivity::isBookFinished(const std::string& path) const {
-  auto* book = BOOK_STATE.findBookByPath(path);
-  return book ? book->isFinished : false;
+  return (getBookStateFlags(path) & BOOK_STATE_FINISHED) != 0;
 }
 
 /**
@@ -1381,6 +1421,10 @@ void LibraryActivity::onEnter() {
   if (!renderingMutex) return;
   displayTaskStopRequested_ = false;
   halfRefreshOnLoadApplied_ = false;
+  invalidateLibraryCache();
+  bookStateCache_.clear();
+  directoryHasBooksCache_.clear();
+  shelfImagePathCache_.clear();
   renderer.clearScreen(0xff);
 
   currentViewMode = storageToViewMode(SETTINGS.libraryViewMode, SETTINGS.useLibraryIndex != 0);
@@ -1434,7 +1478,12 @@ void LibraryActivity::onExit() {
 
   resetLibraryView();
   std::vector<LibraryItem>().swap(currentPageItems);
+  std::vector<LibraryItem>().swap(cachedLibraryItems_);
+  cachedLibraryItemsValid_ = false;
   std::vector<BookTags::Entry>().swap(cachedTagEntries_);
+  bookStateCache_.clear();
+  directoryHasBooksCache_.clear();
+  shelfImagePathCache_.clear();
   cachedTagEntriesLoaded_ = false;
   std::string().swap(savedFolderPath);
   std::string().swap(selectedTagKey_);
@@ -1451,7 +1500,11 @@ void LibraryActivity::goToNextPage() {
     }
 
     currentPage++;
-    loadAllBooksRecursiveLocked();
+    if (cachedLibraryItemsValid_) {
+      applyPaginationToCachedItems();
+    } else {
+      loadAllBooksRecursiveLocked();
+    }
     selectorIndex = 0;
     listScrollOffset = 0;
     updateRequired = true;
@@ -1469,7 +1522,11 @@ void LibraryActivity::goToPreviousPage() {
     }
 
     currentPage--;
-    loadAllBooksRecursiveLocked();
+    if (cachedLibraryItemsValid_) {
+      applyPaginationToCachedItems();
+    } else {
+      loadAllBooksRecursiveLocked();
+    }
     // Land on the LAST item of the previous page (not the first): the user pressed up off the top item, so
     // continuing onto the bottom of the previous page reads naturally.
     selectorIndex = std::max(0, static_cast<int>(currentPageItems.size()) - 1);
@@ -1650,6 +1707,10 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
         BOOK_STATE.compactForIdle();
       }
 
+      bookStateCache_.erase(item.path);
+      if (favoritesPromoted) {
+        loadAllBooksRecursive();
+      }
       updateRequired = true;
     }
   }
@@ -1835,6 +1896,7 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
 
     BOOK_STATE.saveToFile();
     BOOK_STATE.compactForIdle();
+    bookStateCache_.erase(item.path);
     onSelectBook(item.path);
   }
 }
@@ -2121,7 +2183,7 @@ void LibraryActivity::renderLibraryShelf(int startY) const {
     renderer.rectangle.fill(coverX, coverY, coverW, coverH, false);
     renderer.rectangle.render(coverX, coverY, coverW, coverH, !selected);
 
-    const std::string imagePath = resolveShelfImagePath(items[i].path);
+    const std::string imagePath = getShelfImagePath(items[i].path);
     if (!imagePath.empty()) {
       ImageRender::Options options;
       options.cropToFill = true;

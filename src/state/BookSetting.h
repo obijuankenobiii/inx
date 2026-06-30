@@ -198,7 +198,7 @@ struct BookSettings {
 
     fontFamily = data[offset++];
     if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
-      /** Legacy enum had Bookerly=0, Atkinson=1, Literata=2; map non-Atkinson to Literata (0). */
+      /** Legacy enum had a removed first slot; map non-Atkinson values to Literata (0). */
       if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
         fontFamily = SystemSetting::LITERATA;
       }

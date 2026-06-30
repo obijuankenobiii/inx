@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../Activity.h"
@@ -156,6 +157,11 @@ class LibraryActivity final : public Activity, public Menu {
   int currentPage;                            ///< Current page index (0-based)
   int totalPages;                             ///< Total number of pages
   std::vector<LibraryItem> currentPageItems;  ///< Items for current page
+  std::vector<LibraryItem> cachedLibraryItems_;
+  bool cachedLibraryItemsValid_ = false;
+  mutable std::unordered_map<std::string, uint8_t> bookStateCache_;
+  std::unordered_map<std::string, bool> directoryHasBooksCache_;
+  mutable std::unordered_map<std::string, std::string> shelfImagePathCache_;
 
   std::vector<BookTags::Entry> cachedTagEntries_;
   bool cachedTagEntriesLoaded_ = false;
@@ -346,6 +352,10 @@ class LibraryActivity final : public Activity, public Menu {
    */
   void loadAllBooksRecursive();
   void loadAllBooksRecursiveLocked();
+  void applyPaginationToCachedItems();
+  void invalidateLibraryCache();
+  uint8_t getBookStateFlags(const std::string& path) const;
+  std::string getShelfImagePath(const std::string& bookPath) const;
 
   /**
    * @brief Load books using recursive scan for book list view

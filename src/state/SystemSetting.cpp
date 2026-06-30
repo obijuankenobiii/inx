@@ -260,7 +260,7 @@ bool SystemSetting::loadFromFile() {
         FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
       } else {
-        /** Legacy v14 and older: 0 Bookerly, 1 Atkinson, 2 Literata → Atkinson=1, else Literata (0). */
+        /** Legacy v14 and older: first slot was removed; Atkinson remains 1, everything else maps to Literata. */
         fontFamily = (rawFontFamily == ATKINSON_HYPERLEGIBLE) ? ATKINSON_HYPERLEGIBLE : LITERATA;
       }
     }
