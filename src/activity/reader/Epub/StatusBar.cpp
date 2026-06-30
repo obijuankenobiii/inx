@@ -333,7 +333,11 @@ std::string StatusBar::getPercentString(float bookProgress) const {
  */
 std::string StatusBar::getBatteryPercentString() const {
     char buffer[16];
+#ifdef SIMULATOR
+    snprintf(buffer, sizeof(buffer), "100%%");
+#else
     snprintf(buffer, sizeof(buffer), "%d%%", gpio.getBatteryPercentage());
+#endif
     return std::string(buffer);
 }
 
