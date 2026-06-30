@@ -293,13 +293,7 @@ class Page {
   // True if at least one image on the page has continuous-tone content worth rendering in grayscale. Pages whose
   // images are all essentially 1-bit (comics / line art / mostly black-and-white) return false, so they can be
   // rendered as fast 1-bit instead of paying for the grayscale passes.
-  bool anyImageNeedsGrayscale() const {
-    return std::any_of(elements.begin(), elements.end(),
-                       [](const std::shared_ptr<PageElement>& element) {
-                         return element->getTag() == TAG_PageImage &&
-                                static_cast<const PageImage*>(element.get())->needsGrayscale();
-                       });
-  }
+  bool anyImageNeedsGrayscale() const;
 
   /**
    * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap

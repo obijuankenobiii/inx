@@ -20,6 +20,13 @@
 
 namespace {
 
+constexpr int16_t kSmallImageGrayscaleLimit = 100;
+
+bool needsGrayscalePass(const PageImage& image) {
+  return image.needsGrayscale() && image.getWidth() > kSmallImageGrayscaleLimit &&
+         image.getHeight() > kSmallImageGrayscaleLimit;
+}
+
 void drawImagePlaceholderDots(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
   if (width <= 20 || height <= 20) {
     return;
@@ -495,6 +502,12 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
   return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness, style));
 }
 
+bool Page::anyImageNeedsGrayscale() const {
+  return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
+    return element->getTag() == TAG_PageImage && needsGrayscalePass(static_cast<const PageImage&>(*element));
+  });
+}
+
 /**
  * Renders all elements on the page.
  *
@@ -514,7 +527,7 @@ void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yO
       continue;
     }
     const auto& img = static_cast<const PageImage&>(*element);  // match PageImage::render geometry
-    if (onlyGrayscale && !img.needsGrayscale()) {
+    if (onlyGrayscale && !needsGrayscalePass(img)) {
       continue;
     }
     const int rx = std::max(0, (screenW - img.getWidth()) / 2);
@@ -571,7 +584,7 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       const auto* image = static_cast<const PageImage*>(element.get());
-      if (!skipOnlyGrayscaleImages || image->needsGrayscale()) {
+      if (!skipOnlyGrayscaleImages || needsGrayscalePass(*image)) {
         continue;
       }
     }
@@ -598,7 +611,7 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
       continue;
     }
     auto* image = static_cast<PageImage*>(element.get());
-    if (onlyGrayscale && !image->needsGrayscale()) {
+    if (onlyGrayscale && !needsGrayscalePass(*image)) {
       continue;
     }
     image->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
