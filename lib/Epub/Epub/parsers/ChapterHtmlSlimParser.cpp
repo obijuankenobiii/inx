@@ -1316,6 +1316,7 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   const int marginTop = cssParser.getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int paddingTop = cssParser.getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int borderTop = cssParser.getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int minHeight = cssParser.getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   currentBlockMarginBottomPx =
       cssParser.getMarginBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   currentBlockPaddingBottomPx =
@@ -1324,8 +1325,20 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
       cssParser.getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   currentBlockBorderBottomStyle =
       borderStyleCodeFromKeyword(cssParser.getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
-  currentBlockSpacingFromCss = true;
+  currentBlockSpacingFromCss = marginTop > 0 || paddingTop > 0 || borderTop > 0 || currentBlockMarginBottomPx > 0 ||
+                               currentBlockPaddingBottomPx > 0 || currentBlockBorderBottomPx > 0 || minHeight > 0;
   currentBlockBottomSpacingPx = 0;
+  currentBlockMinHeightPx = currentBlockSpacingFromCss ? minHeight : 0;
+
+  if (!currentBlockSpacingFromCss) {
+    currentBlockMarginBottomPx = 0;
+    currentBlockPaddingBottomPx = 0;
+    currentBlockBorderBottomPx = 0;
+    currentBlockBorderBottomStyle = 0;
+    currentBlockContentStartY = currentPageNextY;
+    pendingTopBorderElem_.reset();
+    return;
+  }
 
   if (currentPageNextY > 0 && marginTop > 0) {
     applyVerticalSpacing(marginTop);
@@ -1339,7 +1352,6 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
     applyVerticalSpacing(paddingTop);
   }
   tightenAfterTopBorder(borderTop, paddingTop);
-  currentBlockMinHeightPx = cssParser.getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   currentBlockContentStartY = currentPageNextY;
 }
 
