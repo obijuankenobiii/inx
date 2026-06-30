@@ -493,6 +493,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
       Serial.printf("[FontManager] Skipping %s (failed to load): %s\n", label, path.c_str());
       return nullptr;
     }
+    stream->setGlyphBitmapCacheEnabled(true);
     return stream;
   };
 
@@ -501,7 +502,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     Serial.printf("[FontManager] Failed to load regular: %s\n", entry->regularPath.c_str());
     return false;
   }
-  regularStream->setLowercaseGlyphBitmapCacheEnabled(true);
+  regularStream->setGlyphBitmapCacheEnabled(true);
 
   entry->regularFont = new EpdFont(regularStream->getData());
   g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->regularFont));

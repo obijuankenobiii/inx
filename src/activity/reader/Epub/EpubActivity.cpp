@@ -647,7 +647,8 @@ bool EpubActivity::slowPath() {
   vTaskDelay(pdMS_TO_TICKS(50));
 
   ensureThumbnailExists();
-  currentSpineIndex = epub->getSpineIndexForInitialOpen() != 0 ? epub->getSpineIndexForInitialOpen() : 1;
+  const int initialSpine = epub->getSpineIndexForInitialOpen();
+  currentSpineIndex = (initialSpine == 0 && epub->getSpineItemsCount() > 1) ? 1 : initialSpine;
   nextPageNumber = 0;
 
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
@@ -1272,7 +1273,7 @@ void EpubActivity::deleteProgress() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  int newSpineIndex = 1;
+  const int newSpineIndex = epub->getSpineItemsCount() > 1 ? 1 : 0;
 
   if (currentSpine != newSpineIndex || currentPage != 0) {
     currentSpineIndex = newSpineIndex;
@@ -1683,6 +1684,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
   const int fontId = bookSettings.getReaderFontId();
+  FontManager::ensureReaderLayoutFonts(fontId, renderer);
   const int headerFontId = FontManager::getNextFont(fontId);
   const bool pageHasImages = page->hasImages();
 
@@ -1759,7 +1761,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool needsImageGrayscale =
       bookSettings.readerImageGrayscale != 0 && pageHasImages && page->anyImageNeedsGrayscale();
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  const bool textAa = bookSettings.textAntiAliasing != 0;
+  const bool textAa = bookSettings.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
   const bool pageHasLargeImage =
       pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
 
@@ -1767,6 +1769,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool highQuality =
       needsImageGrayscale && bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+  const bool mediumImageGrayscale = needsImageGrayscale && !highQuality;
+  const bool needsTextAntiAliasPass = textAa;
 
   const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
@@ -1781,7 +1785,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   }
 
-  const bool bwStored = skipImagesInPageRender && renderer.storeBwBuffer();
+  const bool bwStored = (skipImagesInPageRender || (needsTextAntiAliasPass && !highQuality)) && renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
   if (!displayWithQualityPass) {
     if (pagesUntilFullRefresh <= 1) {
@@ -1805,9 +1809,32 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true,
                          /*onlyGrayscale=*/true);
     }, true);
-  } else if (needsImageGrayscale) {
-    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    if (needsTextAntiAliasPass) {
+      const bool textBwStored = renderer.storeBwBuffer();
+      if (textBwStored) {
+        renderer.renderTextGrayscalePasses(/*preserveText=*/true, [&] {
+          renderer.clearScreen(0x00);
+          page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                       ImageRenderMode::OneBit);
+        });
+      }
+    }
+  } else if (needsTextAntiAliasPass && bwStored && !mediumImageGrayscale) {
+    renderer.renderTextGrayscalePasses(/*preserveText=*/true, [&] {
+      renderer.clearScreen(0x00);
+      page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                   ImageRenderMode::OneBit);
+    });
+  } else if (mediumImageGrayscale || (needsTextAntiAliasPass && bwStored)) {
+    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/needsTextAntiAliasPass && bwStored, [&] {
+      renderer.clearScreen(0x00);
+      if (needsTextAntiAliasPass && bwStored) {
+        page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                     ImageRenderMode::OneBit);
+      }
+      if (mediumImageGrayscale) {
+        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+      }
     });
 
   } else if (bwStored) {
@@ -2068,7 +2095,7 @@ void EpubActivity::applyBookSettings() {
   setupOrientation();
 
   ViewportInfo info = calculateViewport();
-  FontManager::ensureFontReady(info.fontId, renderer);
+  FontManager::ensureReaderLayoutFonts(info.fontId, renderer);
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {

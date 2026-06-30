@@ -6,11 +6,9 @@
 #include "StatusBar.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
+#include <HalGPIO.h>
 
-#ifdef HAS_BATTERY_MANAGER
-#include "BatteryManager.h"
-#endif
-
+extern HalGPIO gpio;
 
 static const int STATUS_BAR_LEFT = 0;
 static const int STATUS_BAR_MIDDLE = 1;
@@ -335,11 +333,7 @@ std::string StatusBar::getPercentString(float bookProgress) const {
  */
 std::string StatusBar::getBatteryPercentString() const {
     char buffer[16];
-#ifdef HAS_BATTERY_MANAGER
-    snprintf(buffer, sizeof(buffer), "%d%%", BatteryManager::getBatteryPercent());
-#else
-    snprintf(buffer, sizeof(buffer), "100%%");
-#endif
+    snprintf(buffer, sizeof(buffer), "%d%%", gpio.getBatteryPercentage());
     return std::string(buffer);
 }
 

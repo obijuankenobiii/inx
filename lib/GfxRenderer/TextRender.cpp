@@ -51,6 +51,77 @@ int scaleMetricRound(const int value, const uint8_t scalePct) {
   return std::max(1, (value * static_cast<int>(scalePct) + kScaleRoundBias) / 100);
 }
 
+uint8_t mediumTextCodeForLevel(const uint8_t level, const bool x3) {
+  static constexpr uint8_t kX4Codes[4] = {
+      0b00,  // white
+      0b10,  // dark gray
+      0b11,  // light gray
+      0b01,  // black
+  };
+  static constexpr uint8_t kX3Codes[4] = {
+      0b00,  // white
+      0b11,  // dark gray
+      0b10,  // light gray
+      0b01,  // black
+  };
+  return x3 ? kX3Codes[level & 3u] : kX4Codes[level & 3u];
+}
+
+uint8_t imageLevelFromFontBmpVal(const uint8_t bmpVal) {
+  switch (bmpVal & 3u) {
+    case 0:
+      return 3;  // solid black
+    case 1:
+      return 1;  // dark gray
+    case 2:
+      return 2;  // light gray
+    default:
+      return 0;  // white
+  }
+}
+
+bool mediumTextPlaneShouldClear(const GfxRenderer& gfx, const uint8_t level) {
+  const uint8_t code = mediumTextCodeForLevel(level, gfx.deviceIsX3());
+  if (gfx.getRenderMode() == GfxRenderer::GRAYSCALE_LSB) {
+    return (code & 0b01u) != 0;
+  }
+  if (gfx.getRenderMode() == GfxRenderer::GRAYSCALE_MSB) {
+    return (code & 0b10u) != 0;
+  }
+  return false;
+}
+
+void renderMediumTextPlanePixel(const GfxRenderer& gfx, const int x, const int y, const uint8_t level) {
+  if (mediumTextPlaneShouldClear(gfx, level)) {
+    gfx.drawPixel(x, y, false);
+  }
+}
+
+void renderSolidTextPixel(const GfxRenderer& gfx, const int x, const int y, const bool pixelState) {
+  if (gfx.getRenderMode() == GfxRenderer::BW) {
+    gfx.drawPixel(x, y, pixelState);
+    return;
+  }
+  renderMediumTextPlanePixel(gfx, x, y, pixelState ? 3 : 0);
+}
+
+bool read1BitGlyphPixel(const uint8_t* bitmap, const int width, const int height, const int x, const int y) {
+  if (!bitmap || x < 0 || y < 0 || x >= width || y >= height) {
+    return false;
+  }
+  const int pixelPosition = y * width + x;
+  const uint8_t byte = bitmap[pixelPosition / 8];
+  const uint8_t bitIndex = 7 - (pixelPosition % 8);
+  return ((byte >> bitIndex) & 1u) != 0;
+}
+
+bool read1BitRowPixel(const uint8_t* row, const int width, const int x) {
+  if (!row || x < 0 || x >= width) {
+    return false;
+  }
+  return ((row[x / 8] >> (7 - (x % 8))) & 1u) != 0;
+}
+
 }  // namespace
 
 int TextRender::getWidth(const int fontId, const char* text, const EpdFontFamily::Style style) const {
@@ -142,6 +213,26 @@ int TextRender::getSpaceWidth(const int fontId) const {
     glyph = font.getGlyph(REPLACEMENT_GLYPH, EpdFontFamily::REGULAR);
   }
   return glyph ? glyph->advanceX : 0;
+}
+
+bool TextRender::supportsAntiAliasing(const int fontId) const {
+  const auto familyIt = gfx.fontMap.find(fontId);
+  if (familyIt == gfx.fontMap.end()) {
+    return false;
+  }
+
+  const EpdFontFamily& family = familyIt->second;
+  const EpdFontData* regular = family.getData(EpdFontFamily::REGULAR);
+  if (!regular || !regular->is2Bit) {
+    return false;
+  }
+
+  const auto streamIt = gfx.streamingFonts.find(regular);
+  if (streamIt != gfx.streamingFonts.end()) {
+    return streamIt->second && streamIt->second->hasAntiAliasData();
+  }
+
+  return true;
 }
 
 
@@ -265,16 +356,13 @@ void TextRender::rotated90CW(const int fontId, const int x, const int y, const c
 
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, black);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-              gfx.drawPixel(screenX, screenY, false);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-              gfx.drawPixel(screenX, screenY, false);
+            } else {
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
-            const uint8_t byte = bitmap[pixelPosition / 8];
-            const uint8_t bitIndex = 7 - (pixelPosition % 8);
-            if ((byte >> bitIndex) & 1) {
-              gfx.drawPixel(screenX, screenY, black);
+            const bool ink = read1BitGlyphPixel(bitmap, glyph->width, glyph->height, glyphX, glyphY);
+            if (ink) {
+              renderSolidTextPixel(gfx, screenX, screenY, black);
             }
           }
         }
@@ -410,16 +498,13 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
 
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, pixelState);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-              gfx.drawPixel(screenX, screenY, false);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-              gfx.drawPixel(screenX, screenY, false);
+            } else {
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
-            const uint8_t byte = rowBuf[glyphX / 8];
-            const uint8_t bitIndex = 7 - (glyphX % 8);
-            if ((byte >> bitIndex) & 1) {
-              gfx.drawPixel(screenX, screenY, pixelState);
+            const bool ink = read1BitRowPixel(rowBuf, width, glyphX);
+            if (ink) {
+              renderSolidTextPixel(gfx, screenX, screenY, pixelState);
             }
           }
         }
@@ -443,16 +528,13 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
 
           if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
             gfx.drawPixel(screenX, screenY, pixelState);
-          } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-            gfx.drawPixel(screenX, screenY, false);
-          } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-            gfx.drawPixel(screenX, screenY, false);
+          } else {
+            renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
           }
         } else {
-          const uint8_t byte = bitmap[pixelPosition / 8];
-          const uint8_t bitIndex = 7 - (pixelPosition % 8);
-          if ((byte >> bitIndex) & 1) {
-            gfx.drawPixel(screenX, screenY, pixelState);
+          const bool ink = read1BitGlyphPixel(bitmap, width, height, glyphX, glyphY);
+          if (ink) {
+            renderSolidTextPixel(gfx, screenX, screenY, pixelState);
           }
         }
       }
@@ -543,10 +625,8 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
             const uint8_t bmpVal = 3 - rawMax;
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, pixelState);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-              gfx.drawPixel(screenX, screenY, false);
-            } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-              gfx.drawPixel(screenX, screenY, false);
+            } else {
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
             bool ink = false;
@@ -557,7 +637,7 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
               }
             }
             if (ink) {
-              gfx.drawPixel(screenX, screenY, pixelState);
+              renderSolidTextPixel(gfx, screenX, screenY, pixelState);
             }
           }
         }
@@ -593,10 +673,8 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
           const uint8_t bmpVal = 3 - rawMax;
           if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
             gfx.drawPixel(screenX, screenY, pixelState);
-          } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-            gfx.drawPixel(screenX, screenY, false);
-          } else if (gfx.renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-            gfx.drawPixel(screenX, screenY, false);
+          } else {
+            renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
           }
         } else {
           bool ink = false;
@@ -610,7 +688,7 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
             }
           }
           if (ink) {
-            gfx.drawPixel(screenX, screenY, pixelState);
+            renderSolidTextPixel(gfx, screenX, screenY, pixelState);
           }
         }
       }

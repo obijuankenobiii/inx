@@ -33,11 +33,27 @@ class XtcReaderActivity final : public ActivityWithSubactivity {
   BookReadingStats bookStats;
   uint32_t pageStartTime = 0;
   uint32_t lastSaveTime = 0;
+  bool menuDrawerVisible = false;
+  bool menuDrawerShowingChapters = false;
+  bool suppressBackUntilReleased = false;
+  int menuSelectedIndex = 0;
+  int menuScrollOffset = 0;
+  int chapterSelectedIndex = 0;
+  int chapterScrollOffset = 0;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void renderScreen();
   void renderPage();
+  void renderEndOfBookStats();
+  void handleMenuDrawerInput();
+  void renderMenuDrawer();
+  void renderMenuMain();
+  void renderMenuChapters();
+  void closeMenuDrawer(bool repaintPage);
+  void openMenuDrawer();
+  void turnPage(bool forward, int skipAmount = 1);
+  int chapterIndexForCurrentPage() const;
   void saveProgress() const;
   void loadProgress();
   void ensureThumbnailExists();

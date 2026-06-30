@@ -178,6 +178,83 @@ void GfxRenderer::drawPackedRow1bpp(const int x, const int y, const int width, c
   }
 }
 
+void GfxRenderer::drawPackedRow1bppInkOnly(const int x, const int y, const int width, const uint8_t* row,
+                                           const bool state) const {
+  if (!row || width <= 0) {
+    return;
+  }
+  uint8_t* frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) {
+    return;
+  }
+
+  const int screenW = getScreenWidth();
+  const int screenH = getScreenHeight();
+  if (y < 0 || y >= screenH || x >= screenW || x + width <= 0) {
+    return;
+  }
+
+  const int firstCol = std::max(0, -x);
+  const int lastCol = std::min(width, screenW - x);
+  if (firstCol >= lastCol) {
+    return;
+  }
+
+  if (orientation == LandscapeCounterClockwise) {
+    const int rotatedY = y;
+    if (rotatedY < 0 || rotatedY >= panelHeight) {
+      return;
+    }
+    for (int col = firstCol; col < lastCol; ++col) {
+      if ((row[col / 8] & (0x80 >> (col % 8))) == 0) {
+        continue;
+      }
+      const int rotatedX = x + col;
+      if (rotatedX < 0 || rotatedX >= panelWidth) {
+        continue;
+      }
+      const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
+      const uint8_t bitPosition = 7 - (rotatedX % 8);
+      if (state) {
+        frameBuffer[byteIndex] &= static_cast<uint8_t>(~(1 << bitPosition));
+      } else {
+        frameBuffer[byteIndex] |= static_cast<uint8_t>(1 << bitPosition);
+      }
+    }
+    return;
+  }
+
+  if (orientation == LandscapeClockwise) {
+    const int rotatedY = panelHeight - 1 - y;
+    if (rotatedY < 0 || rotatedY >= panelHeight) {
+      return;
+    }
+    for (int col = firstCol; col < lastCol; ++col) {
+      if ((row[col / 8] & (0x80 >> (col % 8))) == 0) {
+        continue;
+      }
+      const int rotatedX = panelWidth - 1 - (x + col);
+      if (rotatedX < 0 || rotatedX >= panelWidth) {
+        continue;
+      }
+      const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
+      const uint8_t bitPosition = 7 - (rotatedX % 8);
+      if (state) {
+        frameBuffer[byteIndex] &= static_cast<uint8_t>(~(1 << bitPosition));
+      } else {
+        frameBuffer[byteIndex] |= static_cast<uint8_t>(1 << bitPosition);
+      }
+    }
+    return;
+  }
+
+  for (int col = firstCol; col < lastCol; ++col) {
+    if ((row[col / 8] & (0x80 >> (col % 8))) != 0) {
+      drawPixel(x + col, y, state);
+    }
+  }
+}
+
 void GfxRenderer::clearScreen(const uint8_t color) const { display.clearScreen(color); }
 
 void GfxRenderer::invertScreen() const {
@@ -410,6 +487,26 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
     restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
   } else {
     clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
+    cleanupGrayscaleWithFrameBuffer();
+  }
+}
+
+void GfxRenderer::renderTextGrayscalePasses(const bool preserveText, const std::function<void()>& drawPlane) {
+  setRenderMode(GRAYSCALE_LSB);
+  drawPlane();
+  copyGrayscaleLsbBuffers();
+
+  setRenderMode(GRAYSCALE_MSB);
+  drawPlane();
+  copyGrayscaleMsbBuffers();
+
+  displayTextGrayBuffer();
+  setRenderMode(BW);
+
+  if (preserveText) {
+    restoreBwBuffer();
+  } else {
+    clearScreen(0xFF);
     cleanupGrayscaleWithFrameBuffer();
   }
 }

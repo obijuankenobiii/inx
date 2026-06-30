@@ -475,7 +475,7 @@ void TxtReaderActivity::renderPage() {
   }
 
   
-  if (SETTINGS.textAntiAliasing) {
+  if (SETTINGS.textAntiAliasing && renderer.text.supportsAntiAliasing(cachedFontId)) {
     
     renderer.storeBwBuffer();
 
@@ -489,7 +489,7 @@ void TxtReaderActivity::renderPage() {
     renderLines();
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayGrayBuffer();
+    renderer.displayTextGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
 
     

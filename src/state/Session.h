@@ -14,7 +14,8 @@ class Session {
 
  public:
   std::string lastRead;
-  uint8_t lastSleepImage;
+  uint32_t lastSleepImage;
+  uint32_t sleepImageShuffleSeed;
   ~Session() = default;
 
   

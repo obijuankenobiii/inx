@@ -11,6 +11,7 @@
 #include <SDCardManager.h>
 #include <Xtc.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
@@ -21,6 +22,66 @@
 namespace {
 constexpr uint32_t kDisplayTaskStack = 4096;
 constexpr uint32_t kWorkerTaskStack = 12288;
+
+void drawThinProgressBar(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
+                         const int fillX, const int fillW) {
+  renderer.rectangle.render(x, y, w, h, true);
+  const int innerW = std::max(1, w - 2);
+  renderer.rectangle.fill(x + 1, y + 1, innerW, h - 2, false);
+  if (fillW > 0) {
+    const int clampedX = std::max(0, std::min(innerW, fillX));
+    const int clampedW = std::max(0, std::min(innerW - clampedX, fillW));
+    if (clampedW > 0) {
+      renderer.rectangle.fill(x + 1 + clampedX, y + 1, clampedW, h - 2, true);
+    }
+  }
+}
+
+void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth, const int screenHeight,
+                               const bool running, const bool success, const bool cancelled,
+                               const int processedCount, const int generatedCount, const int skippedCount,
+                               const int failedCount, const char* currentPath) {
+  const int centerY = screenHeight / 2;
+
+  const char* eyebrow = running ? "GENERATING THUMBNAILS"
+                        : success ? "THUMBNAILS READY"
+                        : cancelled ? "GENERATION STOPPED"
+                                    : "GENERATION FAILED";
+  const char* title = running ? "Scanning library"
+                      : success ? "Thumbnails complete"
+                      : cancelled ? "Stopped"
+                                  : "Thumbnail generation failed";
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, eyebrow, true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, title, true, EpdFontFamily::BOLD);
+
+  char line[80];
+  snprintf(line, sizeof(line), "Processed %d books", processedCount);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, line, true, EpdFontFamily::REGULAR);
+
+  const int barW = std::min(300, pageWidth - 72);
+  constexpr int barH = 6;
+  const int barX = (pageWidth - barW) / 2;
+  const int barY = centerY + 28;
+  const int innerW = std::max(1, barW - 2);
+  int fillX = 0;
+  int fillW = 0;
+  if (running) {
+    fillW = std::max(36, innerW / 4);
+    const int travel = std::max(1, innerW - fillW);
+    fillX = (processedCount * 17) % travel;
+  } else if (success) {
+    fillW = innerW;
+  }
+  drawThinProgressBar(renderer, barX, barY, barW, barH, fillX, fillW);
+
+  snprintf(line, sizeof(line), "Generated %d   Skipped %d   Failed %d", generatedCount, skippedCount, failedCount);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, line, true, EpdFontFamily::REGULAR);
+
+  if (running && currentPath && currentPath[0] != '\0') {
+    const std::string path = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, currentPath, pageWidth - 60);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 54, path.c_str(), true, EpdFontFamily::REGULAR);
+  }
+}
 }
 
 void ThumbnailGeneratorActivity::displayTaskTrampoline(void* param) {
@@ -234,15 +295,27 @@ void ThumbnailGeneratorActivity::workerTaskLoop() {
 
 void ThumbnailGeneratorActivity::render() {
   renderer.clearScreen();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 16, "Generate thumbnails", true, EpdFontFamily::BOLD);
 
   const int pageWidth = renderer.getScreenWidth();
-  const int bodyY = 70;
-  char line[64];
+  const int screenHeight = renderer.getScreenHeight();
+  const int centerY = screenHeight / 2;
 
   if (state == READY) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Create missing EPUB/XTC thumbnails");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 34, "Existing thumbnails are skipped");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "GENERATE THUMBNAILS", true,
+                           EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Build missing covers", true,
+                           EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, "Existing thumbnails are skipped.", true,
+                           EpdFontFamily::REGULAR);
+
+    const int barW = std::min(300, pageWidth - 72);
+    constexpr int barH = 6;
+    const int barX = (pageWidth - barW) / 2;
+    const int barY = centerY + 28;
+    drawThinProgressBar(renderer, barX, barY, barW, barH, 0, 0);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, "Ready to scan EPUB and XTC books", true,
+                           EpdFontFamily::REGULAR);
+
     const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Start", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
@@ -250,40 +323,16 @@ void ThumbnailGeneratorActivity::render() {
   }
 
   if (state == RUNNING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Generating...");
-    snprintf(line, sizeof(line), "Processed: %d", processedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 34, line);
-    snprintf(line, sizeof(line), "Generated: %d   Skipped: %d", generatedCount, skippedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 68, line);
-    snprintf(line, sizeof(line), "Failed: %d", failedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 102, line);
-    if (currentPath[0] != '\0') {
-      const std::string path = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, currentPath, pageWidth - 60);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, bodyY + 148, path.c_str());
-    }
+    drawThumbnailProgressView(renderer, pageWidth, screenHeight, true, false, false, processedCount, generatedCount,
+                              skippedCount, failedCount, currentPath);
     const auto labels = mappedInput.mapLabels("Stop", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
-  if (state == SUCCESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation complete", true,
-                           EpdFontFamily::BOLD);
-  } else if (state == CANCELLED) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation stopped", true,
-                           EpdFontFamily::BOLD);
-  } else {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation failed", true,
-                           EpdFontFamily::BOLD);
-  }
-
-  snprintf(line, sizeof(line), "Processed: %d", processedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 42, line);
-  snprintf(line, sizeof(line), "Generated: %d   Skipped: %d", generatedCount, skippedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 76, line);
-  snprintf(line, sizeof(line), "Failed: %d", failedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 110, line);
+  drawThumbnailProgressView(renderer, pageWidth, screenHeight, false, state == SUCCESS, state == CANCELLED,
+                            processedCount, generatedCount, skippedCount, failedCount, nullptr);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

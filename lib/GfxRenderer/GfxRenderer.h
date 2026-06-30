@@ -92,6 +92,7 @@ class GfxRenderer {
   bool readPixel(int x, int y) const;
   bool readPackedRow1bpp(int x, int y, int width, uint8_t* outRow) const;
   void drawPackedRow1bpp(int x, int y, int width, const uint8_t* row) const;
+  void drawPackedRow1bppInkOnly(int x, int y, int width, const uint8_t* row, bool state = true) const;
 
   
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height,
@@ -115,6 +116,7 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer(bool quality = false) const;
+  void displayTextGrayBuffer() const;
   void displayGrayBufferFastQuality() const;
   void prepareQualityGrayscale() const;
   bool storeBwBuffer();
@@ -132,6 +134,7 @@ class GfxRenderer {
   // frame so the next BW refresh isn't polluted by the leftover grayscale plane.
   void renderGrayscalePasses(bool quality, bool preserveText, const std::function<void()>& drawPlane,
                              bool fastQuality = false);
+  void renderTextGrayscalePasses(bool preserveText, const std::function<void()>& drawPlane);
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 

@@ -687,6 +687,96 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
   return true;
 }
 
+int RecentActivity::selectedRecentIndexForRemove() const {
+  if (recentBooks.empty() || selectorIndex < 0 || selectorIndex >= static_cast<int>(recentBooks.size())) {
+    return -1;
+  }
+  if (currentViewMode == ViewMode::SimpleUi && selectorIndex != 0) {
+    return -1;
+  }
+  return selectorIndex;
+}
+
+void RecentActivity::beginRemoveConfirmation() {
+  const int index = selectedRecentIndexForRemove();
+  if (index < 0) {
+    return;
+  }
+  removeConfirmIndex_ = index;
+  removeConfirmOpen_ = true;
+  freeRecentPageBuffer();
+  updateRequired = true;
+}
+
+void RecentActivity::cancelRemoveConfirmation() {
+  removeConfirmOpen_ = false;
+  removeConfirmIndex_ = -1;
+  freeRecentPageBuffer();
+  updateRequired = true;
+}
+
+void RecentActivity::confirmRemoveRecent() {
+  if (removeConfirmIndex_ >= 0 && removeConfirmIndex_ < static_cast<int>(recentBooks.size())) {
+    RECENT_BOOKS.removeBook(recentBooks[static_cast<size_t>(removeConfirmIndex_)].path);
+  }
+
+  removeConfirmOpen_ = false;
+  removeConfirmIndex_ = -1;
+  loadRecentBooks(false);
+
+  const int n = static_cast<int>(recentBooks.size());
+  if (n == 0) {
+    selectorIndex = 0;
+    scrollOffset = 0;
+    scrollOffsetDefault = 0;
+  } else {
+    if (selectorIndex >= n) {
+      selectorIndex = n - 1;
+    }
+    if (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons) {
+      const int visibleRows = getVisibleRows();
+      const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
+      const int maxScroll = std::max(0, totalRows - visibleRows);
+      scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+    } else if (currentViewMode == ViewMode::List) {
+      const int maxScroll = std::max(0, n - LIST_VISIBLE_ITEMS);
+      scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+    } else {
+      const int maxScroll = std::max(0, n - kRecentStripSlots);
+      scrollOffsetDefault = std::max(0, std::min(scrollOffsetDefault, maxScroll));
+      scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+    }
+  }
+  simpleUiFavScroll_ = 0;
+  freeRecentPageBuffer();
+  updateRequired = true;
+}
+
+void RecentActivity::renderRemoveConfirmation() {
+  renderer.clearScreen();
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int centerY = screenH / 2;
+
+  std::string title = "this book";
+  if (removeConfirmIndex_ >= 0 && removeConfirmIndex_ < static_cast<int>(recentBooks.size())) {
+    title = bookDisplayTitle(recentBooks[static_cast<size_t>(removeConfirmIndex_)]);
+  }
+  title = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, title.c_str(), screenW - 64);
+
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "RECENT BOOK", true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Remove from recent?", true,
+                         EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, title.c_str(), true,
+                         EpdFontFamily::REGULAR);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 26,
+                         "The book file and reading progress will stay.", true, EpdFontFamily::REGULAR);
+  const auto labels = mappedInput.mapLabels("Cancel", "Remove", "", "");
+  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.displayBuffer();
+  updateRequired = false;
+}
+
 const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(const int index) const {
   static const CachedRecentStats empty;
   if (index < 0 || index >= static_cast<int>(recentStats_.size()) ||
@@ -774,6 +864,8 @@ void RecentActivity::onEnter() {
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   halfRefreshOnLoadApplied_ = false;
+  removeConfirmOpen_ = false;
+  removeConfirmIndex_ = -1;
   ignoreBackReleaseOnEnter_ = mappedInput.isPressed(MappedInputManager::Button::Back) ||
                               mappedInput.wasReleased(MappedInputManager::Button::Back);
   renderer.clearScreen(0xff);
@@ -796,6 +888,8 @@ void RecentActivity::onEnter() {
  */
 void RecentActivity::onExit() {
   freeRecentPageBuffer();
+  removeConfirmOpen_ = false;
+  removeConfirmIndex_ = -1;
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   recentBooks.clear();
@@ -1452,7 +1546,23 @@ void RecentActivity::loop() {
   }
 
   if (updateRequired) {
-    pumpDisplayFromLoop();
+    if (removeConfirmOpen_) {
+      renderRemoveConfirmation();
+    } else {
+      pumpDisplayFromLoop();
+    }
+  }
+
+  if (removeConfirmOpen_) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      cancelRemoveConfirmation();
+      return;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      confirmRemoveRecent();
+      return;
+    }
+    return;
   }
 
   const int totalBooks = static_cast<int>(recentBooks.size());
@@ -1487,46 +1597,9 @@ void RecentActivity::loop() {
       if ((isDefaultView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) ||
           (isSimpleUi && totalBooks > 0 && selectorIndex == 0) ||
           (isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks)) {
-        RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
-        loadRecentBooks(false);
-        const int n = static_cast<int>(recentBooks.size());
-        if (n == 0) {
-          scrollOffset = 0;
-          scrollOffsetDefault = 0;
-          selectorIndex = 0;
-        } else {
-          if (selectorIndex >= n) {
-            selectorIndex = n - 1;
-          }
-          const int maxScroll = std::max(0, n - kRecentStripSlots);
-          scrollOffsetDefault = std::max(0, std::min(scrollOffsetDefault, maxScroll));
-        }
-        simpleUiFavScroll_ = 0;
-        updateRequired = true;
+        beginRemoveConfirmation();
       } else if (!isDefaultView && !isSimpleUi && !isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
-        RECENT_BOOKS.removeBook(recentBooks[selectorIndex].path);
-        loadRecentBooks(false);
-        const int n = static_cast<int>(recentBooks.size());
-        if (n == 0) {
-          selectorIndex = 0;
-          scrollOffset = 0;
-          scrollOffsetDefault = 0;
-        } else {
-          if (selectorIndex >= n) {
-            selectorIndex = n - 1;
-          }
-          if (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons) {
-            const int visibleRows = getVisibleRows();
-            const int totalRows = (n + GRID_COLS - 1) / GRID_COLS;
-            const int maxScroll = std::max(0, totalRows - visibleRows);
-            scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
-          } else if (currentViewMode == ViewMode::List) {
-            const int visibleItems = LIST_VISIBLE_ITEMS;
-            const int maxScroll = std::max(0, n - visibleItems);
-            scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
-          }
-        }
-        updateRequired = true;
+        beginRemoveConfirmation();
       }
     }
     return;

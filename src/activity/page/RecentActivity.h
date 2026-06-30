@@ -86,6 +86,8 @@ class RecentActivity final : public Activity, public Menu {
   mutable std::vector<CachedRecentStats> recentStats_;
   mutable std::map<std::string, std::string> thumbnailPathCache_;
   mutable std::map<std::string, std::string> coverPathCache_;
+  bool removeConfirmOpen_ = false;
+  int removeConfirmIndex_ = -1;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -105,6 +107,11 @@ class RecentActivity final : public Activity, public Menu {
   void loadRecentBooks(bool resetScroll = true);
   bool openBookPath(const std::string& path, const std::string& title = "", const std::string& author = "",
                     bool removeMissingFromRecents = false);
+  int selectedRecentIndexForRemove() const;
+  void beginRemoveConfirmation();
+  void cancelRemoveConfirmation();
+  void confirmRemoveRecent();
+  void renderRemoveConfirmation();
   const CachedRecentStats& statsForRecentIndex(int index) const;
   void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);

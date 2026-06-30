@@ -8,15 +8,12 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
-#include "system/FontManager.h"
-
 #include "state/SystemSetting.h"
 #include "state/Session.h"
 #include "state/RecentBooks.h"
 #include "state/BookState.h"
 
 #include "KOReaderCredentialStore.h"
-#include "system/Fonts.h"
 #include "images/CorgiWhite.h"
 
 extern void onGoToRecent();
@@ -32,11 +29,6 @@ BootActivity::BootActivity(GfxRenderer& renderer, MappedInputManager& inputManag
 
 /**
  * @brief Initializes the boot activity when it becomes active.
- *
- * Clears the screen, displays the Corgi logo centered on the screen, draws
- * the progress bar outline, loads persisted state (including KOReader sync
- * settings when present), then marks boot complete. SD reader fonts are not
- * scanned here; that runs when opening a book.
  */
 void BootActivity::onEnter() {
   Activity::onEnter();
@@ -49,16 +41,11 @@ void BootActivity::onEnter() {
     (void)KOREADER_STORE.loadFromFile();
   }
 
-
-  FontManager::printFontStats();
   bootComplete = true;
 }
 
 /**
  * @brief Main update loop for the boot activity.
- *
- * When boot is complete, navigates to the recent list or resumes the last book
- * per settings. SD font metadata is not loaded until the reader opens a book.
  */
 void BootActivity::loop() {
   if (bootComplete) {

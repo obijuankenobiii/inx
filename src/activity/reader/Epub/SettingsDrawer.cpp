@@ -147,7 +147,7 @@ void SettingsDrawer::setupMenu() {
     MenuEntry presetEntry;
     presetEntry.item = MenuItem::PresetPicker;
     presetEntry.group = GroupType::FONT;
-    presetEntry.name = "Apply preset";
+    presetEntry.name = presetAppliedInDrawer_ ? "Preset in use" : "Apply preset";
     presetEntry.getValueText = [this](const BookSettings&) -> const char* {
       thread_local std::string tls;
       tls = ReaderPresetStore::getInstance().nameOf(presetPickIndex_);
@@ -157,6 +157,8 @@ void SettingsDrawer::setupMenu() {
       const int n = ReaderPresetStore::getInstance().count();
       if (n <= 0) return;
       presetPickIndex_ = ((presetPickIndex_ + delta) % n + n) % n;
+      ReaderPresetStore::getInstance().applyToBook(presetPickIndex_, settings);
+      presetAppliedInDrawer_ = true;
     };
     menuItems.push_back(presetEntry);
   }
@@ -484,6 +486,33 @@ void SettingsDrawer::setupMenu() {
       }
     };
     menuItems.push_back(refreshEntry);
+
+    MenuEntry powerEntry;
+    powerEntry.item = MenuItem::ReaderPowerButton;
+    powerEntry.group = GroupType::CONTROLS;
+    powerEntry.name = "Power Button";
+    powerEntry.getValueText = [](const BookSettings&) -> const char* {
+      switch (SETTINGS.readerShortPwrBtn) {
+        case SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_REFRESH:
+          return "Page Refresh";
+        case SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE:
+          return "Annotate";
+        default:
+          return "Page Turn";
+      }
+    };
+    powerEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerShortPwrBtn) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_SHORT_PWRBTN::READER_SHORT_PWRBTN_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_SHORT_PWRBTN::READER_SHORT_PWRBTN_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerShortPwrBtn = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(powerEntry);
 
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
@@ -928,13 +957,6 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
         needRedraw = true;
-      } else if (selected.item == MenuItem::PresetPicker) {
-        // Snapshot-apply the highlighted preset onto this book, then rebuild rows to reflect new values.
-        ReaderPresetStore::getInstance().applyToBook(presetPickIndex_, settings);
-        setupMenu();
-        settingsUpdated = true;
-        if (onSettingsChanged) onSettingsChanged();
-        needRedraw = true;
       }
     }
   }
@@ -956,10 +978,18 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
  */
 void SettingsDrawer::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= static_cast<int>(menuItems.size())) return;
-  const auto& selected = menuItems[selectedIndex];
-  selected.change(settings, delta);
+  const MenuItem selectedItem = menuItems[selectedIndex].item;
+  menuItems[selectedIndex].change(settings, delta);
 
-  switch (selected.item) {
+  if (selectedItem == MenuItem::PresetPicker) {
+    setupMenu();
+    if (selectedIndex >= static_cast<int>(menuItems.size())) {
+      selectedIndex = std::max(0, static_cast<int>(menuItems.size()) - 1);
+    }
+    return;
+  }
+
+  switch (selectedItem) {
     case MenuItem::FontSize:
     case MenuItem::LineHeight:
     case MenuItem::TextSpace:
@@ -975,6 +1005,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
+    case MenuItem::ReaderPowerButton:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:
@@ -989,5 +1020,5 @@ void SettingsDrawer::applyChange(int delta) {
       break;
   }
 
-  if (onSettingsChanged) onSettingsChanged();
+  if (selectedItem != MenuItem::ReaderPowerButton && onSettingsChanged) onSettingsChanged();
 }

@@ -364,6 +364,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
+  uint8_t* drawRow = static_cast<uint8_t*>(calloc(static_cast<size_t>((outWidth + 7) / 8), 1));
   uint8_t* prevScaledRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
   uint8_t* blendedRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
   uint32_t* rowAccum = new (std::nothrow) uint32_t[outWidth]();
@@ -375,12 +376,13 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow ||
+  if (!mcuRowBuffer || !scaledRow || !drawRow ||
       (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
       !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     free(scaledRow);
+    free(drawRow);
     free(prevScaledRow);
     free(blendedRow);
     delete[] rowAccum;
@@ -392,6 +394,39 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   const bool deviceIsX3 = renderer_.deviceIsX3();
   const bool qualityTone = quality;
+
+  auto quantizedPixelDraw = [&](const int q, bool& state) -> bool {
+    if (mode == ImageRenderMode::OneBit) {
+      state = true;
+      return q == 0;
+    }
+
+    const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
+    const GfxRenderer::RenderMode renderMode = renderer_.getRenderMode();
+    if (renderMode == GfxRenderer::BW) {
+      state = true;
+      return level > 0;
+    }
+
+    const uint8_t grayscaleCode = (deviceIsX3 ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
+    if (renderMode == GfxRenderer::GRAYSCALE_MSB) {
+      state = false;
+      return (grayscaleCode & 0b10) != 0;
+    }
+    if (renderMode == GfxRenderer::GRAYSCALE_LSB) {
+      state = false;
+      return (grayscaleCode & 0b01) != 0;
+    }
+    if (renderMode == GfxRenderer::GRAY2_LSB) {
+      state = true;
+      return (mapQualityGray2Level(level, deviceIsX3) & 0b01) == 0;
+    }
+    if (renderMode == GfxRenderer::GRAY2_MSB) {
+      state = true;
+      return (mapQualityGray2Level(level, deviceIsX3) & 0b10) == 0;
+    }
+    return false;
+  };
 
   int currentOutY = 0;
   uint32_t nextOutY_srcStart = scaleY_fp;
@@ -438,6 +473,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   };
 
   auto emitOutputRow = [&](const int screenY, const uint8_t* row) {
+    const int drawRowBytes = (outWidth + 7) / 8;
+    memset(drawRow, 0, static_cast<size_t>(drawRowBytes));
+    bool rowState = true;
+    bool rowHasPixels = false;
     for (int step = 0; step < outWidth; step++) {
       const int ox = step;
       const int gray = row[ox];
@@ -468,7 +507,15 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           q = quantizeGray(gray, mode);
         }
       }
-      drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
+      bool pixelState = true;
+      if (quantizedPixelDraw(q, pixelState)) {
+        rowState = pixelState;
+        rowHasPixels = true;
+        drawRow[step / 8] |= static_cast<uint8_t>(0x80 >> (step % 8));
+      }
+    }
+    if (rowHasPixels) {
+      renderer_.drawPackedRow1bppInkOnly(drawOffsetX, screenY, outWidth, drawRow, rowState);
     }
     if (mode == ImageRenderMode::TwoBit) {
       twoBitDitherer->nextRow();
@@ -561,6 +608,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   free(mcuRowBuffer);
   free(scaledRow);
+  free(drawRow);
   free(prevScaledRow);
   free(blendedRow);
   delete[] rowAccum;

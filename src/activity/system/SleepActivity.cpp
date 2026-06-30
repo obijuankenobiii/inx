@@ -18,8 +18,11 @@
 #include <SDCardManager.h>
 #include <Txt.h>
 #include <Xtc.h>
+#include <esp_system.h>
 #include <esp_task_wdt.h>
 
+#include <algorithm>
+#include <cstdint>
 #include "../reader/Epub/StatusBar.h"
 #include "images/CorgiSleep.h"
 #include "state/BookProgress.h"
@@ -35,6 +38,7 @@
 #include "util/StringUtils.h"
 #include <cmath>
 #include <memory>
+#include <vector>
 
 namespace {
 bool isSleepImagePathJpeg(const std::string& path) {
@@ -78,7 +82,7 @@ void runSleepImageTwoBitPasses(GfxRenderer& renderer, const std::string& imagePa
 }
 
 void recordSleepImageUsed() {
-  APP_STATE.lastSleepImage = (APP_STATE.lastSleepImage + 1) & 0xFF;
+  APP_STATE.lastSleepImage++;
   APP_STATE.saveToFile();
 }
 
@@ -97,35 +101,122 @@ std::string pathForFixedSleepBmp() {
   return "";
 }
 
-std::string pickSleepBmpPath() {
-  std::string fixed = pathForFixedSleepBmp();
-  if (!fixed.empty()) {
-    return fixed;
-  }
-
-  std::string selectedPath;
+std::vector<std::string> listSleepImagePaths() {
+  std::vector<std::string> paths;
   auto dir = SdMan.open("/sleep");
 
   if (dir && dir.isDirectory()) {
-    size_t matchCount = 0;
     char name[256];
     while (auto file = dir.openNextFile()) {
       file.getName(name, sizeof(name));
       std::string filename = name;
       if (filename[0] != '.' && isSupportedSleepImageFile(filename)) {
-        matchCount++;
-        
-        if (random(matchCount) == 0) {
-          selectedPath = "/sleep/" + filename;
-        }
+        paths.push_back("/sleep/" + filename);
       }
       file.close();
     }
     dir.close();
   }
 
-  if (!selectedPath.empty()) {
-    return selectedPath;
+  std::sort(paths.begin(), paths.end());
+  return paths;
+}
+
+uint32_t mixSleepImageSeed(uint32_t value) {
+  value ^= value >> 16;
+  value *= 0x7feb352dU;
+  value ^= value >> 15;
+  value *= 0x846ca68bU;
+  value ^= value >> 16;
+  return value;
+}
+
+uint32_t newSleepImageShuffleSeed() {
+  uint32_t seed = esp_random() ^ micros() ^ (millis() << 16);
+  if (seed == 0) {
+    seed = 0x9e3779b9U;
+  }
+  return seed;
+}
+
+size_t gcdSize(size_t a, size_t b) {
+  while (b != 0) {
+    const size_t r = a % b;
+    a = b;
+    b = r;
+  }
+  return a;
+}
+
+size_t sleepImageStepForCount(const uint32_t seed, const size_t count) {
+  if (count <= 1) {
+    return 0;
+  }
+
+  size_t step = (mixSleepImageSeed(seed ^ 0x85ebca6bU) % (count - 1)) + 1;
+  while (gcdSize(step, count) != 1) {
+    step++;
+    if (step >= count) {
+      step = 1;
+    }
+  }
+  return step;
+}
+
+size_t sleepImageIndexForPosition(const uint32_t seed, const uint32_t position, const size_t count) {
+  if (count <= 1) {
+    return 0;
+  }
+
+  const size_t offset = mixSleepImageSeed(seed ^ 0xc2b2ae35U) % count;
+  const size_t step = sleepImageStepForCount(seed, count);
+  return (offset + (static_cast<size_t>(position) % count) * step) % count;
+}
+
+void beginNewSleepImageCycleIfNeeded(const size_t count) {
+  if (count <= 1) {
+    if (APP_STATE.sleepImageShuffleSeed == 0) {
+      APP_STATE.sleepImageShuffleSeed = newSleepImageShuffleSeed();
+    }
+    return;
+  }
+
+  if (APP_STATE.sleepImageShuffleSeed == 0) {
+    APP_STATE.sleepImageShuffleSeed = newSleepImageShuffleSeed();
+  }
+
+  if (APP_STATE.lastSleepImage % count != 0) {
+    return;
+  }
+
+  const uint32_t previousSeed = APP_STATE.sleepImageShuffleSeed;
+  const size_t previousIndex = APP_STATE.lastSleepImage == 0
+                                   ? count
+                                   : sleepImageIndexForPosition(previousSeed, APP_STATE.lastSleepImage - 1, count);
+  uint32_t nextSeed = previousSeed;
+
+  for (int attempts = 0; attempts < 8; ++attempts) {
+    nextSeed = newSleepImageShuffleSeed();
+    const size_t nextIndex = sleepImageIndexForPosition(nextSeed, 0, count);
+    if (previousIndex >= count || nextIndex != previousIndex) {
+      break;
+    }
+  }
+
+  APP_STATE.sleepImageShuffleSeed = nextSeed;
+}
+
+std::string pickSleepBmpPath() {
+  std::string fixed = pathForFixedSleepBmp();
+  if (!fixed.empty()) {
+    return fixed;
+  }
+
+  const std::vector<std::string> sleepImages = listSleepImagePaths();
+  if (!sleepImages.empty()) {
+    beginNewSleepImageCycleIfNeeded(sleepImages.size());
+    return sleepImages[sleepImageIndexForPosition(APP_STATE.sleepImageShuffleSeed, APP_STATE.lastSleepImage,
+                                                  sleepImages.size())];
   }
   if (SdMan.exists("/sleep.bmp")) {
     return "/sleep.bmp";

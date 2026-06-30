@@ -10,7 +10,7 @@
 #include <Serialization.h>
 
 namespace {
-constexpr uint8_t STATE_FILE_VERSION = 2;
+constexpr uint8_t STATE_FILE_VERSION = 3;
 constexpr char STATE_FILE[] = "/.system/state.bin";
 }  
 
@@ -31,6 +31,7 @@ bool Session::saveToFile() const {
   serialization::writePod(outputFile, STATE_FILE_VERSION);
   serialization::writeString(outputFile, lastRead);
   serialization::writePod(outputFile, lastSleepImage);
+  serialization::writePod(outputFile, sleepImageShuffleSeed);
 
   outputFile.close();
   return true;
@@ -41,6 +42,7 @@ bool Session::loadFromFile() {
   if (!SdMan.exists(STATE_FILE)) {
     lastRead = "";
     lastSleepImage = 0;
+    sleepImageShuffleSeed = 0;
     return saveToFile();
   }
 
@@ -48,6 +50,7 @@ bool Session::loadFromFile() {
   if (!SdMan.openFileForRead("CPS", STATE_FILE, inputFile)) {
     lastRead = "";
     lastSleepImage = 0;
+    sleepImageShuffleSeed = 0;
     return saveToFile();
   }
 
@@ -58,15 +61,23 @@ bool Session::loadFromFile() {
     inputFile.close();
     lastRead = "";
     lastSleepImage = 0;
+    sleepImageShuffleSeed = 0;
     return saveToFile();
   }
 
   serialization::readString(inputFile, lastRead);
 
-  if (version >= 2) {
+  if (version >= 3) {
     serialization::readPod(inputFile, lastSleepImage);
+    serialization::readPod(inputFile, sleepImageShuffleSeed);
+  } else if (version >= 2) {
+    uint8_t legacyLastSleepImage = 0;
+    serialization::readPod(inputFile, legacyLastSleepImage);
+    lastSleepImage = legacyLastSleepImage;
+    sleepImageShuffleSeed = 0;
   } else {
     lastSleepImage = 0;
+    sleepImageShuffleSeed = 0;
   }
 
   inputFile.close();
@@ -75,6 +86,7 @@ bool Session::loadFromFile() {
   if (lastRead.length() > 512) {
     lastRead = "";
     lastSleepImage = 0;
+    sleepImageShuffleSeed = 0;
     return saveToFile();
   }
 

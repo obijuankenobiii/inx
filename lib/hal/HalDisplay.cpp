@@ -74,6 +74,8 @@ void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) { einkDisplay.
 
 void HalDisplay::displayGrayBuffer(const bool quality) { einkDisplay.displayGrayBuffer(false, nullptr, quality); }
 
+void HalDisplay::displayTextGrayBuffer() { einkDisplay.displayTextGrayBuffer(false); }
+
 void HalDisplay::displayGrayBufferFastQuality() {
   if (deviceIsX3()) {
     einkDisplay.displayGrayBuffer(false, nullptr, true);

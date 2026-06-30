@@ -40,8 +40,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 24;
-constexpr uint8_t SETTINGS_COUNT = 60;
+constexpr uint8_t SETTINGS_FILE_VERSION = 26;
+constexpr uint8_t SETTINGS_COUNT = 64;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -64,6 +64,10 @@ void sanitizeSleepCustomBmp(char* buf) {
       return;
     }
   }
+}
+
+bool validRefreshFrequency(const uint8_t value) {
+  return value == 1 || value == 5 || value == 10 || value == 15 || value == 30;
 }
 }  
 
@@ -110,6 +114,10 @@ bool SystemSetting::saveToFile() const {
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
     if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
+    if (mut->xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) mut->xtcImageQuality = READER_IMAGE_LOW;
+    if (mut->xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) mut->xtcShortPwrBtn = XTC_POWER_NEXT;
+    if (mut->xtcPageAutoTurnSeconds > 60 || mut->xtcPageAutoTurnSeconds % 10 != 0) mut->xtcPageAutoTurnSeconds = 0;
+    if (!validRefreshFrequency(mut->xtcRefreshFrequency)) mut->xtcRefreshFrequency = 15;
     if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
   }
 
@@ -175,6 +183,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, timeZoneQuarterOffset);
   serialization::writePod(outputFile, textSpace);
   serialization::writePod(outputFile, mainMenuNav);
+  serialization::writePod(outputFile, xtcImageQuality);
+  serialization::writePod(outputFile, xtcShortPwrBtn);
+  serialization::writePod(outputFile, xtcPageAutoTurnSeconds);
+  serialization::writePod(outputFile, xtcRefreshFrequency);
 
   outputFile.close();
 
@@ -203,7 +215,7 @@ bool SystemSetting::loadFromFile() {
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
       version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20 &&
-      version != 22 && version != 23) {
+      version != 22 && version != 23 && version != 24 && version != 25) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -565,6 +577,28 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, mainMenuNav, MAIN_MENU_NAV_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, xtcImageQuality, READER_IMAGE_QUALITY_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, xtcShortPwrBtn, XTC_SHORT_PWRBTN_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, xtcPageAutoTurnSeconds);
+      if (xtcPageAutoTurnSeconds > 60 || xtcPageAutoTurnSeconds % 10 != 0) {
+        xtcPageAutoTurnSeconds = 0;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, xtcRefreshFrequency);
+      if (!validRefreshFrequency(xtcRefreshFrequency)) {
+        xtcRefreshFrequency = 15;
+      }
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -573,6 +607,20 @@ bool SystemSetting::loadFromFile() {
 #ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
+
+  if (settingsRead < 61) {
+    xtcImageQuality = readerImageGrayscale;
+  }
+  if (settingsRead < 62) {
+    xtcShortPwrBtn =
+        readerShortPwrBtn == READER_PAGE_REFRESH ? XTC_POWER_PAGE_REFRESH : XTC_POWER_NEXT;
+  }
+  if (settingsRead < 63) {
+    xtcPageAutoTurnSeconds = pageAutoTurnSeconds;
+  }
+  if (settingsRead < 64) {
+    xtcRefreshFrequency = getRefreshFrequency();
+  }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 8) {
     recentVisibleCount = 8;
@@ -594,6 +642,18 @@ bool SystemSetting::loadFromFile() {
   }
   if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
     sleepImageQuality = SLEEP_IMAGE_LOW;
+  }
+  if (xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) {
+    xtcImageQuality = READER_IMAGE_LOW;
+  }
+  if (xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) {
+    xtcShortPwrBtn = XTC_POWER_NEXT;
+  }
+  if (xtcPageAutoTurnSeconds > 60 || xtcPageAutoTurnSeconds % 10 != 0) {
+    xtcPageAutoTurnSeconds = 0;
+  }
+  if (!validRefreshFrequency(xtcRefreshFrequency)) {
+    xtcRefreshFrequency = 15;
   }
   if (timeZoneQuarterOffset > 104) {
     timeZoneQuarterOffset = 80;
