@@ -459,11 +459,9 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  if (cssTextIndentPx >= 0) {
-    if (cssTextIndentPx > 0) {
-      leftIndentWidth = static_cast<uint16_t>(std::min(cssTextIndentPx, 65535));
-      leftIndentLineCount = 1;
-    }
+  if (cssTextIndentPx > 0) {
+    leftIndentWidth = static_cast<uint16_t>(std::min(cssTextIndentPx, 65535));
+    leftIndentLineCount = 1;
     return;
   }
 
@@ -471,17 +469,13 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
     return;
   }
 
-  if (extraParagraphSpacing && style != TextBlock::JUSTIFIED) {
-    return;
-  }
-
-  // Don't inject the indent em-space into a leading inline image word (its text slot must stay empty).
+  // Don't indent a leading inline image word (its text slot must stay empty).
   const bool frontIsImage = !wordImagePaths.empty() && !wordImagePaths.front().empty();
   if ((style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) && !frontIsImage) {
-    words.front().insert(0, "\xe2\x80\x83");
-    if (!bionicPrefixBytes.empty()) {
-      bionicPrefixBytes.front() = 0;
-    }
+    const int emWidth = renderer.text.getWidth(fontId, "\xe2\x80\x83", EpdFontFamily::REGULAR);
+    const int fallbackWidth = renderer.text.getSpaceWidth(fontId) * 2;
+    leftIndentWidth = static_cast<uint16_t>(std::min(std::max(emWidth, fallbackWidth), 65535));
+    leftIndentLineCount = 1;
   }
 }
 

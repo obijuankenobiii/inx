@@ -160,7 +160,7 @@ void ReaderActivity::onGoToTxtReader(std::unique_ptr<Txt> txt) {
 
 void ReaderActivity::showCorruptedBookError() {
   renderer.clearScreen();
-  ScreenComponents::drawPopup(renderer, "Book seems corrupted");
+  ScreenComponents::drawPopup(renderer, "Failed to open book.");
   vTaskDelay(pdMS_TO_TICKS(1200));
 
   if (onGoBack) {

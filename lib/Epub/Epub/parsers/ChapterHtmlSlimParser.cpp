@@ -1884,6 +1884,7 @@ void ChapterHtmlSlimParser::makePages() {
 
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
   const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
+  const int readerParagraphGap = extraParagraphSpacing ? lineHeight / 2 : 0;
 
   currentTextBlock->layoutAndExtractLines(
       renderer, activeBlockFontId(), viewportWidth,
@@ -1908,12 +1909,20 @@ void ChapterHtmlSlimParser::makePages() {
       auto bottomElem = addCssBorderLine(currentBlockBorderBottomPx, currentBlockBorderBottomStyle);
       finalizeBorderWidth(bottomElem, contentBorderWidth, centerBorder);
     }
+    int outsideBottomGap = 0;
     if (currentBlockMarginBottomPx > 0) {
       applyVerticalSpacing(currentBlockMarginBottomPx);
+      outsideBottomGap += currentBlockMarginBottomPx;
     }
-    applyVerticalSpacing(currentBlockBottomSpacingPx);
-  } else if (extraParagraphSpacing) {
-    applyVerticalSpacing(lineHeight / 2);
+    if (currentBlockBottomSpacingPx > 0) {
+      applyVerticalSpacing(currentBlockBottomSpacingPx);
+      outsideBottomGap += currentBlockBottomSpacingPx;
+    }
+    if (readerParagraphGap > outsideBottomGap) {
+      applyVerticalSpacing(readerParagraphGap - outsideBottomGap);
+    }
+  } else if (readerParagraphGap > 0) {
+    applyVerticalSpacing(readerParagraphGap);
   }
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;

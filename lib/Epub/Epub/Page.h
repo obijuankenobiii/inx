@@ -152,6 +152,7 @@ class PageDropCap final : public PageElement {
 
   const std::string& getDropCapText() const { return text; }
   int getDropCapFontId() const { return dropCapFontId; }
+  static constexpr int16_t VERTICAL_ADJUSTMENT = - 7;
 
   PageElementTag getTag() const override { return TAG_PageDropCap; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,

@@ -143,7 +143,7 @@ void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOff
   const uint32_t dropCp = utf8NextCodepoint(&p);
   const int dropInset = renderer.text.getGlyphTopInset(dropCapFontId, dropCp, EpdFontFamily::BOLD);
   const int bodyInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
-  const int alignY = yPos + yOffset + (bodyInset - dropInset);
+  const int alignY = yPos + yOffset + (bodyInset - dropInset) + PageDropCap::VERTICAL_ADJUSTMENT;
   renderer.text.render(dropCapFontId, xPos + xOffset, alignY, text.c_str(), EpdFontFamily::BOLD);
 }
 
