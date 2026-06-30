@@ -647,7 +647,8 @@ bool EpubActivity::slowPath() {
   vTaskDelay(pdMS_TO_TICKS(50));
 
   ensureThumbnailExists();
-  currentSpineIndex = epub->getSpineIndexForInitialOpen() != 0 ? epub->getSpineIndexForInitialOpen() : 1;
+  const int initialSpine = epub->getSpineIndexForInitialOpen();
+  currentSpineIndex = (initialSpine == 0 && epub->getSpineItemsCount() > 1) ? 1 : initialSpine;
   nextPageNumber = 0;
 
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
@@ -1272,7 +1273,7 @@ void EpubActivity::deleteProgress() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  int newSpineIndex = 1;
+  const int newSpineIndex = epub->getSpineItemsCount() > 1 ? 1 : 0;
 
   if (currentSpine != newSpineIndex || currentPage != 0) {
     currentSpineIndex = newSpineIndex;
