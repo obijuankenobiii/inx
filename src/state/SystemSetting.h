@@ -102,6 +102,7 @@ public:
         STATUS_ITEM_PAGE_BARS = 9,                  ///< Page bars
         STATUS_ITEM_BOOK_TITLE = 10,                ///< Book title
         STATUS_ITEM_AUTHOR_NAME = 11,               ///< Author name
+        STATUS_ITEM_PAGE_NUMBERS_WITH_PERCENT = 12, ///< Page numbers and percentage combined (e.g., "12/340 45%")
         STATUS_BAR_ITEM_COUNT
     };
 

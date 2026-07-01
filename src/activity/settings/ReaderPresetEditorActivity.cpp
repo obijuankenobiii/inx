@@ -54,6 +54,8 @@ const char* statusPlaceholder(StatusBarItem item) {
       return "The Example Book";
     case StatusBarItem::AUTHOR_NAME:
       return "Jane Author";
+    case StatusBarItem::PAGE_NUMBERS_WITH_PERCENT:
+      return "12/340 45%";
     case StatusBarItem::NONE:
     default:
       return "";
