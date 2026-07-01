@@ -1,3 +1,8 @@
+/**
+ * @file HttpDownloader.cpp
+ * @brief Definitions for HttpDownloader using native ESP-IDF esp_http_client.
+ */
+
 #include "HttpDownloader.h"
 
 #include <HardwareSerial.h>
