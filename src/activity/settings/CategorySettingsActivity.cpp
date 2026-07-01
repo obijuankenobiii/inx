@@ -16,6 +16,7 @@
 #include <string>
 
 #include "CalibreSettingsActivity.h"
+#include "../OpdsServerListActivity.h"
 #include "ClockStylePickerActivity.h"
 #include "ClearCacheActivity.h"
 #include "KOReaderSettingsActivity.h"
@@ -299,7 +300,7 @@ void CategorySettingsActivity::setupMenu() {
             }
             if (strcmp(setting.name, "OPDS Browser") == 0) {
               exitActivity();
-              enterNewActivity(new CalibreSettingsActivity(renderer, mappedInput, [this] {
+              enterNewActivity(new OpdsServerListActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));

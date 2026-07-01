@@ -101,6 +101,10 @@ class LocalServer {
   void handleKOReaderGet() const;
   void handleKOReaderPost() const;
 
+  void handleOpdsGet() const;
+  void handleOpdsPost() const;
+  void handleOpdsDelete() const;
+
   void handleFontsRescan() const;
   void handleLibraryIndexRefresh() const;
   void handleLibraryIndexStatus() const;
