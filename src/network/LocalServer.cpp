@@ -37,6 +37,7 @@
 #include "state/SystemSetting.h"
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
+#include "state/OpdsServerStore.h"
 
 namespace {
 
@@ -342,6 +343,10 @@ void LocalServer::begin() {
   server->on("/api/wifi/*", HTTP_DELETE, [this] { handleWifiDelete(); });
   server->on("/api/koreader", HTTP_GET, [this] { handleKOReaderGet(); });
   server->on("/api/koreader", HTTP_POST, [this] { handleKOReaderPost(); });
+
+  server->on("/api/opds", HTTP_GET, [this] { handleOpdsGet(); });
+  server->on("/api/opds", HTTP_POST, [this] { handleOpdsPost(); });
+  server->on("/api/opds/*", HTTP_DELETE, [this] { handleOpdsDelete(); });
 
   server->on("/api/fonts/rescan", HTTP_POST, [this] { handleFontsRescan(); });
 
@@ -1829,4 +1834,57 @@ void LocalServer::handleFontsRescan() const {
     server->send(500, "application/json", "{\"ok\":false,\"error\":\"scan_failed\"}");
   }
 #endif
+}
+
+void LocalServer::handleOpdsGet() const {
+    JsonDocument doc;
+    const auto& servers = OPDS_STORE.getAllServers();
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto& srv : servers) {
+        JsonObject obj = arr.add<JsonObject>();
+        obj["name"] = srv.name;
+        obj["url"] = srv.url;
+        obj["username"] = srv.username;
+    }
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json);
+}
+
+void LocalServer::handleOpdsPost() const {
+    if (!server->hasArg("plain")) {
+        server->send(400, "text/plain", "Missing JSON");
+        return;
+    }
+
+    JsonDocument doc;
+    deserializeJson(doc, server->arg("plain"));
+    String name = doc["name"];
+    String url = doc["url"];
+    String username = doc["username"] | "";
+    String password = doc["password"] | "";
+
+    if (name.length() == 0 || url.length() == 0) {
+        server->send(400, "text/plain", "Name and URL are required");
+        return;
+    }
+
+    if (OPDS_STORE.addServer(name.c_str(), url.c_str(), username.c_str(), password.c_str())) {
+        server->send(200, "application/json", "{\"status\":\"ok\"}");
+    } else {
+        server->send(500, "text/plain", "Failed to save");
+    }
+}
+
+void LocalServer::handleOpdsDelete() const {
+    String uri = server->uri();
+    int lastSlash = uri.lastIndexOf('/');
+    String name = uri.substring(lastSlash + 1);
+    name.replace("%20", " ");
+
+    if (OPDS_STORE.removeServer(name.c_str())) {
+        server->send(200, "application/json", "{\"status\":\"ok\"}");
+    } else {
+        server->send(404, "text/plain", "Not found");
+    }
 }

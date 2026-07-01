@@ -35,6 +35,16 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                    const std::function<void()>& onGoToRecent)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
+  explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                   const std::function<void()>& onGoToRecent,
+                                   const std::string& serverUrl,
+                                   const std::string& serverUsername,
+                                   const std::string& serverPassword)
+      : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput),
+        onGoToRecent(onGoToRecent),
+        serverUrl(serverUrl),
+        serverUsername(serverUsername),
+        serverPassword(serverPassword) {}
 
   void onEnter() override;
   void onExit() override;
@@ -56,6 +66,9 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
   size_t downloadTotal = 0;
 
   const std::function<void()> onGoToRecent;
+  std::string serverUrl;
+  std::string serverUsername;
+  std::string serverPassword;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();

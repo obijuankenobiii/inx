@@ -31,8 +31,7 @@
   .setting-label { font-size: 15px; font-weight: 500; color: #1d1d1f; }
   .setting-description { display: none; }
   .setting-control { width: 260px; text-align: right; }
-  .setting-control.compound { display: flex; gap: 8px; align-items: center; }
-  .setting-control.compound input { min-width: 0; flex: 1; }
+  
   .setting-control input, .setting-control select { width: 100%; padding: 8px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; background: #fff; color: #1d1d1f; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
   .setting-control input[type="checkbox"] { width: auto; }
   .toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; }
@@ -62,8 +61,7 @@
   .btn-primary:hover { background: #333; transform: scale(1.02); box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25); }
   .btn-secondary { background: #e8e8ed; color: #111; }
   .btn-secondary:hover { background: #dcdce0; }
-  .btn-inline { flex: 0 0 auto; padding: 8px 12px; border: none; border-radius: 980px; background: #e8e8ed; color: #111; font-size: 12px; font-weight: 510; cursor: pointer; font-family: inherit; }
-  .btn-inline:hover { background: #dcdce0; }
+  
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1d1d1f; color: #fff; padding: 10px 20px; border-radius: 980px; font-size: 13px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 1000; }
   .toast.show { opacity: 1; }
   .hint { font-size: 12px; color: #888; padding: 12px 24px 20px; line-height: 1.4; }
@@ -72,8 +70,7 @@
     .header h1 { font-size: 22px; }
     .setting-item { flex-direction: column; align-items: flex-start; gap: 12px; }
     .setting-control { width: 100%; }
-    .setting-control.compound { width: 100%; }
-    .action-buttons { flex-direction: column; }
+       .action-buttons { flex-direction: column; }
     .action-btn { width: 100%; text-align: center; }
   }
   ::selection { background: #111; color: #fff; }
@@ -223,23 +220,19 @@
       </div>
     </div>
     <div class="settings-section">
-      <div class="section-header"><h3>OPDS Browser</h3></div>
-      <div class="setting-item">
-        <div><div class="setting-label">Server URL</div></div>
-        <div class="setting-control"><input id="opdsServerUrl" maxlength="127" placeholder="http://server:8080/opds" autocomplete="off"></div>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Username</div></div>
-        <div class="setting-control"><input id="opdsUsername" maxlength="63" placeholder="Username" autocomplete="off"></div>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Password</div></div>
-        <div class="setting-control compound">
-          <input id="opdsPassword" maxlength="63" type="password" placeholder="Password" autocomplete="off">
-          <button type="button" class="btn-inline" id="clearOpdsPasswordBtn" onclick="clearOPDSPassword()">Clear</button>
+      <div class="section-header"><h3>OPDS Servers</h3></div>
+      <div class="wifi-list" id="opdsList"><div class="setting-item"><div><div class="setting-label">Loading...</div></div></div></div>
+      <button class="btn-add" onclick="showAddOpdsForm()">+ Add OPDS Server</button>
+      <div class="wifi-form" id="addOpdsForm">
+        <input id="newOpdsName" placeholder="Server Name" autocomplete="off">
+        <input id="newOpdsUrl" placeholder="Server URL (e.g. http://192.168.1.100/opds)" autocomplete="off">
+        <input id="newOpdsUsername" placeholder="Username (optional)" autocomplete="off">
+        <input id="newOpdsPassword" type="password" placeholder="Password (optional)">
+        <div class="wifi-form-buttons">
+          <button class="btn-primary" onclick="saveOpdsServer()">Save</button>
+          <button class="btn-secondary" onclick="hideAddOpdsForm()">Cancel</button>
         </div>
       </div>
-      <p class="hint">Calibre Content Server usually needs /opds at the end. Only HTTP Basic authentication is supported.</p>
     </div>
     <div class="settings-section">
       <div class="section-header"><h3>KOReader Sync</h3></div>
@@ -455,6 +448,7 @@ async function loadSettings() {
     settingsData = await r.json();
     await loadWifiNetworks();
     await loadKOReaderSettings();
+    await loadOpdsServers();
     populateSettings();
   } catch (e) {
     showToast("Failed to load settings", true);
@@ -555,6 +549,86 @@ async function removeWifiNetwork(ssid) {
   }
 }
 
+async function loadOpdsServers() {
+  try {
+    const r = await fetch("/api/opds");
+    const servers = await r.json();
+    renderOpdsList(servers);
+  } catch (e) {
+    console.error(e);
+    renderOpdsList([]);
+  }
+}
+
+function renderOpdsList(servers) {
+  const n = document.getElementById("opdsList");
+  if (!n) return;
+  if (servers.length) {
+    n.innerHTML = "";
+    servers.forEach(function (s) {
+      const t = document.createElement("div");
+      t.className = "wifi-item";
+      t.innerHTML = '<div><span class="wifi-ssid">' + escapeHtml(s.name) + '</span><br><span style="font-size:12px;color:#888;">' + escapeHtml(s.url) + '</span></div><div class="wifi-actions"><button type="button" class="btn-remove" onclick="removeOpdsServer(\'' + escapeHtml(s.name).replace(/'/g, "\\'") + '\')">Remove</button></div>';
+      n.appendChild(t);
+    });
+  } else {
+    n.innerHTML = '<div class="setting-item"><div><div class="setting-label">No saved servers</div></div></div>';
+  }
+}
+
+function showAddOpdsForm() {
+  document.getElementById("addOpdsForm").classList.add("show");
+}
+
+function hideAddOpdsForm() {
+  document.getElementById("addOpdsForm").classList.remove("show");
+  document.getElementById("newOpdsName").value = "";
+  document.getElementById("newOpdsUrl").value = "";
+  document.getElementById("newOpdsUsername").value = "";
+  document.getElementById("newOpdsPassword").value = "";
+}
+
+async function saveOpdsServer() {
+  const name = document.getElementById("newOpdsName").value.trim();
+  const url = document.getElementById("newOpdsUrl").value.trim();
+  if (!name || !url) {
+    showToast("Enter server name and URL", true);
+    return;
+  }
+  try {
+    const ok = (await fetch("/api/opds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name,
+        url: url,
+        username: document.getElementById("newOpdsUsername").value || "",
+        password: document.getElementById("newOpdsPassword").value || ""
+      })
+    })).ok;
+    if (ok) {
+      showToast("Saved " + name);
+      hideAddOpdsForm();
+      await loadOpdsServers();
+    } else showToast("Failed to save server", true);
+  } catch (e) {
+    showToast("Error saving server", true);
+  }
+}
+
+async function removeOpdsServer(name) {
+  if (!confirm('Remove "' + name + '"?')) return;
+  try {
+    const ok = (await fetch("/api/opds/" + encodeURIComponent(name), { method: "DELETE" })).ok;
+    if (ok) {
+      showToast("Removed " + name);
+      await loadOpdsServers();
+    } else showToast("Failed to remove server", true);
+  } catch (e) {
+    showToast("Error removing server", true);
+  }
+}
+
 async function saveKOReaderSettings() {
   const username = document.getElementById("koreaderUsername") ? document.getElementById("koreaderUsername").value || "" : "";
   const password = document.getElementById("koreaderPassword") ? document.getElementById("koreaderPassword").value || "" : "";
@@ -645,47 +719,6 @@ function populateSleepCustomBmp() {
   };
 }
 
-function populateTextSetting(id) {
-  const inp = document.getElementById(id);
-  if (!inp || settingsData[id] === undefined) return;
-  inp.value = settingsData[id] || "";
-  inp.oninput = function () {
-    pendingChanges[id] = inp.value;
-    markChanged(inp);
-  };
-}
-
-function updateOPDSPasswordUi() {
-  const inp = document.getElementById("opdsPassword");
-  const btn = document.getElementById("clearOpdsPasswordBtn");
-  if (!inp) return;
-  const hasPassword = settingsData.opdsPasswordSet === true || settingsData.opdsPasswordSet === 1;
-  inp.value = "";
-  inp.placeholder = hasPassword ? "Saved - leave blank to keep" : "Password";
-  if (btn) btn.style.display = hasPassword ? "" : "none";
-}
-
-function populateOPDSSettings() {
-  populateTextSetting("opdsServerUrl");
-  populateTextSetting("opdsUsername");
-  updateOPDSPasswordUi();
-  const inp = document.getElementById("opdsPassword");
-  if (!inp) return;
-  inp.oninput = function () {
-    pendingChanges.opdsPassword = inp.value;
-    markChanged(inp);
-  };
-}
-
-function clearOPDSPassword() {
-  const inp = document.getElementById("opdsPassword");
-  if (!inp) return;
-  inp.value = "";
-  pendingChanges.opdsPassword = "";
-  markChanged(inp);
-  showToast("OPDS password will be cleared on save");
-}
-
 function populateSettings() {
   for (const key of Object.keys(options)) {
     const el = document.getElementById(key);
@@ -751,7 +784,6 @@ function populateSettings() {
   populateRecentVisibleCount();
   populatePageAutoTurn();
   populateSleepCustomBmp();
-  populateOPDSSettings();
 }
 
 function markChanged(el) {
