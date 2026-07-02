@@ -1,36 +1,100 @@
 /**
  * @file KOReaderSyncClient.cpp
- * @brief Definitions for KOReaderSyncClient.
+ * @brief Definitions for KOReaderSyncClient using native esp_http_client.
  */
 
 #include "KOReaderSyncClient.h"
 
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
 #include <HardwareSerial.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#include <base64.h>
 
 #include <ctime>
 
 #include "KOReaderCredentialStore.h"
+#include "esp_http_client.h"
+
+extern "C" {
+extern esp_err_t esp_crt_bundle_attach(void* conf);
+}
 
 namespace {
 
 constexpr char DEVICE_NAME[] = "CrossPoint";
 constexpr char DEVICE_ID[] = "crosspoint-reader";
 
-void addAuthHeaders(HTTPClient& http) {
-  http.addHeader("Accept", "application/vnd.koreader.v1+json");
-  http.addHeader("x-auth-user", KOREADER_STORE.getUsername().c_str());
-  http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password().c_str());
+bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
 
-  
-  http.setAuthorization(KOREADER_STORE.getUsername().c_str(), KOREADER_STORE.getPassword().c_str());
+struct KoreaderCtx {
+  std::string* responseBody;
+};
+
+esp_err_t koreaderEventHandler(esp_http_client_event_t* event) {
+  if (event->event_id == HTTP_EVENT_ON_DATA && event->data && event->data_len > 0) {
+    auto* ctx = static_cast<KoreaderCtx*>(event->user_data);
+    if (ctx && ctx->responseBody) {
+      ctx->responseBody->append(static_cast<const char*>(event->data), event->data_len);
+    }
+  }
+  return ESP_OK;
 }
 
-bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
-}  
+int doRequest(const std::string& url, const std::string& method,
+              const std::string* body, std::string* responseBody) {
+  KoreaderCtx ctx = {responseBody};
+  esp_http_client_config_t cfg = {};
+  cfg.url = url.c_str();
+  cfg.event_handler = koreaderEventHandler;
+  cfg.user_data = &ctx;
+  cfg.timeout_ms = 15000;
+  cfg.skip_cert_common_name_check = true;
+  cfg.crt_bundle_attach = esp_crt_bundle_attach;
+  cfg.keep_alive_enable = false;
+  cfg.buffer_size = 2048;
+  cfg.buffer_size_tx = 1024;
+  cfg.disable_auto_redirect = false;
+
+  esp_http_client_handle_t client = esp_http_client_init(&cfg);
+  if (!client) {
+    Serial.printf("[%lu] [KOSync] Failed to init HTTP client\n", millis());
+    return -1;
+  }
+
+  esp_http_client_set_header(client, "Accept", "application/vnd.koreader.v1+json");
+  esp_http_client_set_header(client, "x-auth-user", KOREADER_STORE.getUsername().c_str());
+  esp_http_client_set_header(client, "x-auth-key", KOREADER_STORE.getMd5Password().c_str());
+
+  std::string credentials = KOREADER_STORE.getUsername() + ":" + KOREADER_STORE.getPassword();
+  String encoded = base64::encode(credentials.c_str());
+  esp_http_client_set_header(client, "Authorization", ("Basic " + encoded).c_str());
+
+  if (method == "POST") {
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+  } else if (method == "PUT") {
+    esp_http_client_set_method(client, HTTP_METHOD_PUT);
+  } else {
+    esp_http_client_set_method(client, HTTP_METHOD_GET);
+  }
+
+  if (body) {
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_post_field(client, body->c_str(), body->size());
+  }
+
+  esp_err_t err = esp_http_client_perform(client);
+  if (err != ESP_OK) {
+    Serial.printf("[%lu] [KOSync] perform failed: %s\n", millis(), esp_err_to_name(err));
+    esp_http_client_cleanup(client);
+    return -1;
+  }
+
+  int status = esp_http_client_get_status_code(client);
+  esp_http_client_cleanup(client);
+  return status;
+}
+
+}  // namespace
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   if (!KOREADER_STORE.hasCredentials()) {
@@ -41,22 +105,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   std::string url = KOREADER_STORE.getBaseUrl() + "/users/auth";
   Serial.printf("[%lu] [KOSync] Authenticating: %s\n", millis(), url.c_str());
 
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  WiFiClient plainClient;
-
-  if (isHttpsUrl(url)) {
-    secureClient.reset(new WiFiClientSecure);
-    secureClient->setInsecure();
-    http.begin(*secureClient, url.c_str());
-  } else {
-    http.begin(plainClient, url.c_str());
-  }
-  addAuthHeaders(http);
-
-  const int httpCode = http.GET();
-  http.end();
-
+  const int httpCode = doRequest(url, "GET", nullptr, nullptr);
   Serial.printf("[%lu] [KOSync] Auth response: %d\n", millis(), httpCode);
 
   if (httpCode == 200) {
@@ -70,7 +119,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
 }
 
 KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& documentHash,
-                                                          KOReaderProgress& outProgress) {
+                                                           KOReaderProgress& outProgress) {
   if (!KOREADER_STORE.hasCredentials()) {
     Serial.printf("[%lu] [KOSync] No credentials configured\n", millis());
     return NO_CREDENTIALS;
@@ -79,26 +128,10 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress/" + documentHash;
   Serial.printf("[%lu] [KOSync] Getting progress: %s\n", millis(), url.c_str());
 
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  WiFiClient plainClient;
-
-  if (isHttpsUrl(url)) {
-    secureClient.reset(new WiFiClientSecure);
-    secureClient->setInsecure();
-    http.begin(*secureClient, url.c_str());
-  } else {
-    http.begin(plainClient, url.c_str());
-  }
-  addAuthHeaders(http);
-
-  const int httpCode = http.GET();
+  std::string responseBody;
+  const int httpCode = doRequest(url, "GET", nullptr, &responseBody);
 
   if (httpCode == 200) {
-    
-    String responseBody = http.getString();
-    http.end();
-
     JsonDocument doc;
     const DeserializationError error = deserializeJson(doc, responseBody);
 
@@ -118,8 +151,6 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
                   outProgress.progress.c_str());
     return OK;
   }
-
-  http.end();
 
   Serial.printf("[%lu] [KOSync] Get progress response: %d\n", millis(), httpCode);
 
@@ -142,21 +173,6 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress";
   Serial.printf("[%lu] [KOSync] Updating progress: %s\n", millis(), url.c_str());
 
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  WiFiClient plainClient;
-
-  if (isHttpsUrl(url)) {
-    secureClient.reset(new WiFiClientSecure);
-    secureClient->setInsecure();
-    http.begin(*secureClient, url.c_str());
-  } else {
-    http.begin(plainClient, url.c_str());
-  }
-  addAuthHeaders(http);
-  http.addHeader("Content-Type", "application/json");
-
-  
   JsonDocument doc;
   doc["document"] = progress.document;
   doc["progress"] = progress.progress;
@@ -169,9 +185,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
 
   Serial.printf("[%lu] [KOSync] Request body: %s\n", millis(), body.c_str());
 
-  const int httpCode = http.PUT(body.c_str());
-  http.end();
-
+  const int httpCode = doRequest(url, "PUT", &body, nullptr);
   Serial.printf("[%lu] [KOSync] Update progress response: %d\n", millis(), httpCode);
 
   if (httpCode == 200 || httpCode == 202) {
