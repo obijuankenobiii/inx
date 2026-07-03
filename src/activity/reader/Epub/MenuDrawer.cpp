@@ -522,15 +522,20 @@ void MenuDrawer::renderAnnotations() {
 
   if (totalItems == 0) {
     const char* line1 = "No highlights yet";
-    const char* line2 = "Add highlights in annotation mode";
+    const char* line2 = "Front right + side Down/Right";
+    const char* line3 = "to start annotating.";
     const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int subLh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID);
     const int msgY = dividerY + 48;
     const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line2);
+    const int w3 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line3);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
+    const int x3 = tocDrawerX + (panelW - w3) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, x2, msgY + lh + 8, line2, true);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, x3, msgY + lh + 8 + subLh + 4, line3, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }

@@ -213,6 +213,9 @@ constexpr int kSimpleUiFavoritesMaxCount = 10;
 constexpr int kSimpleUiFavoritesVisibleMax = 5;
 constexpr int kFavHeaderPadTop = 10;
 constexpr int kFavHeaderPadBottom = 8;
+constexpr int kSimpleUiLabelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int kSimpleUiBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+constexpr int kSimpleUiTitleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 
 struct SimpleUiMetrics {
   int bodyTop = 0;
@@ -239,9 +242,9 @@ inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
   m.marginL = RecentActivity::GRID_SPACING;
 
   constexpr int kThumbPadV = 28;
-  const int favFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int favFont = kSimpleUiBodyFont;
   const int lh = renderer.text.getLineHeight(favFont);
-  constexpr int kPadY = 20;
+  constexpr int kPadY = 18;
   m.rowH = lh + kPadY * 2;
   m.favHeaderBlockH = kFavHeaderPadTop + lh + kFavHeaderPadBottom + 1;
   // Shrink the top (recent) band so the pane below always fits the header + 5 favorite rows.
@@ -1948,8 +1951,8 @@ void RecentActivity::renderSimpleUi() {
       renderer.rectangle.render(rx, ry, m.thumbW, m.thumbH, true, false);
     }
 
-    const int titleFont = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-    const int authorFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    const int titleFont = kSimpleUiTitleFont;
+    const int authorFont = kSimpleUiBodyFont;
     std::string titleStr = b.title.empty() ? formatTitle(getBaseFilename(b.path)) : b.title;
     const int textX = rx + m.thumbW + 18;
     const int maxTextW = std::max(40, screenW - textX - m.marginL);
@@ -1957,9 +1960,9 @@ void RecentActivity::renderSimpleUi() {
         renderer.text.truncate(titleFont, titleStr.c_str(), maxTextW, EpdFontFamily::BOLD);
     const int lhTitle = renderer.text.getLineHeight(titleFont);
     const int lhAuthor = renderer.text.getLineHeight(authorFont);
-    const int authorGap = 10;
-    constexpr int kSimpleProgressBarH = 10;
-    constexpr int kSimpleProgressBarGap = 10;
+    const int authorGap = 8;
+    constexpr int kSimpleProgressBarH = 6;
+    constexpr int kSimpleProgressBarGap = 12;
     const bool showProg = b.progress >= 0.0f && b.progress <= 1.0f;
     const int blockH =
         lhTitle + authorGap + lhAuthor + (showProg ? (kSimpleProgressBarGap + kSimpleProgressBarH) : 0);
@@ -1986,7 +1989,7 @@ void RecentActivity::renderSimpleUi() {
   if (m.favTop < m.bodyBottom) {
     renderer.rectangle.fill(0, m.favTop, screenW, m.bodyBottom - m.favTop, false);
     renderer.line.render(0, m.favTop, screenW, m.favTop, true);
-    const int favHdrFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    const int favHdrFont = kSimpleUiBodyFont;
     renderer.text.render(favHdrFont, m.marginL, m.favTop + kFavHeaderPadTop, "Favorites", true,
                         EpdFontFamily::BOLD);
     const int hdrSepY = m.favListTop - 1;
@@ -1995,24 +1998,24 @@ void RecentActivity::renderSimpleUi() {
     }
   }
 
-  const int favFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int favFont = kSimpleUiBodyFont;
   const int lh = renderer.text.getLineHeight(favFont);
-  constexpr int kPadY = 20;
+  constexpr int kPadY = 18;
   clampSimpleUiFavoriteScroll(m.maxVis);
 
   const int fc = static_cast<int>(simpleUiFavorites_.size());
 
   if (fc == 0) {
-    const int subFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int subFont = kSimpleUiLabelFont;
     const char* line1 = "No favorites yet.";
-    const char* line2 = "Star a book in the Library to add it here.";
+    const char* line2 = "Long press Confirm in Library to favorite books.";
     const int w1 = renderer.text.getWidth(favFont, line1);
     const int w2 = renderer.text.getWidth(subFont, line2);
     const int lh2 = renderer.text.getLineHeight(subFont);
     const int block = lh + 12 + lh2;
     const int paneH = m.bodyBottom - m.favListTop;
     const int y0 = m.favListTop + std::max(4, (paneH - block) / 2);
-    renderer.text.render(favFont, (screenW - w1) / 2, y0, line1, true);
+    renderer.text.render(favFont, (screenW - w1) / 2, y0, line1, true, EpdFontFamily::BOLD);
     renderer.text.render(subFont, (screenW - w2) / 2, y0 + lh + 12, line2, true);
     return;
   }
