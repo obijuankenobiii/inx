@@ -41,7 +41,6 @@ class HalDisplay {
 
   void displayBuffer(RefreshMode mode = RefreshMode::FAST_REFRESH);
   void refreshDisplay(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
-  void setSunlightFadeFixEnabled(bool enabled);
 
   
   void deepSleep();

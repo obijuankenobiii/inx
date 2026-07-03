@@ -8,7 +8,6 @@
 #include "Bitmap.h"
 #include "GfxRenderer.h"
 #include "ImageDisplayCache.h"
-#include "ImageLevelCache.h"
 #include "JpegRender.h"
 #include "PngRender.h"
 #include <HardwareSerial.h>
@@ -79,20 +78,6 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
     }
   }
 
-  if (format_ == Format::Jpeg && options.mode == ImageRenderMode::TwoBit &&
-      options.roundedOutside == BitmapRender::RoundedOutside::None) {
-    ImageLevelCacheOptions levelCacheOptions;
-    levelCacheOptions.cropToFill = options.cropToFill;
-    levelCacheOptions.quality = options.quality;
-    levelCacheOptions.deviceIsX3 = renderer_.deviceIsX3();
-    if (ImageLevelCache::renderIfAvailable(renderer_, path_, x, y, width, height, levelCacheOptions)) {
-      if (canUseDisplayCache) {
-        ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
-      }
-      return true;
-    }
-  }
-
   bool ok = false;
   if (format_ == Format::Jpeg) {
     JpegRender jpeg(renderer_);
@@ -150,41 +135,6 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
       ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions, quality,
                                                   options.fastQuality);
   return hit;
-}
-
-bool ImageRender::prewarm(int x, int y, int width, int height, const Options& options) const {
-  if (!options.useDisplayCache || width <= 0 || height <= 0) {
-    return false;
-  }
-
-  const GfxRenderer::RenderMode previousMode = renderer_.getRenderMode();
-  bool ok = true;
-
-  Options oneBit = options;
-  oneBit.mode = ImageRenderMode::OneBit;
-  oneBit.quality = false;
-  renderer_.setRenderMode(GfxRenderer::BW);
-  renderer_.clearScreen(0xFF);
-  ok = render(x, y, width, height, oneBit) && ok;
-
-  if (options.mode == ImageRenderMode::TwoBit) {
-    Options twoBit = options;
-    twoBit.mode = ImageRenderMode::TwoBit;
-    twoBit.useDisplayCache = true;
-    const bool quality = options.quality;
-
-    renderer_.setRenderMode(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
-    renderer_.clearScreen(quality ? 0xFF : 0x00);
-    ok = render(x, y, width, height, twoBit) && ok;
-
-    renderer_.setRenderMode(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
-    renderer_.clearScreen(quality ? 0xFF : 0x00);
-    ok = render(x, y, width, height, twoBit) && ok;
-  }
-
-  renderer_.setRenderMode(previousMode);
-  renderer_.clearScreen(0xFF);
-  return ok;
 }
 
 bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,

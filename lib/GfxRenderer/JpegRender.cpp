@@ -7,7 +7,6 @@
 
 #include "BitmapUtil.h"
 #include "GfxRenderer.h"
-#include "ImageLevelCache.h"
 #include <SDCardManager.h>
 #include <picojpeg.h>
 
@@ -318,8 +317,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
 }  // namespace
 
 bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                        const ImageRenderMode mode, const bool quality,
-                        ImageLevelCacheWriter* levelCacheWriter) const {
+                        const ImageRenderMode mode, const bool quality) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -366,7 +364,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
-  uint8_t* drawRow = static_cast<uint8_t*>(calloc(static_cast<size_t>((outWidth + 7) / 8), 1));
   uint8_t* prevScaledRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
   uint8_t* blendedRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
   uint32_t* rowAccum = new (std::nothrow) uint32_t[outWidth]();
@@ -378,13 +375,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow || !drawRow ||
+  if (!mcuRowBuffer || !scaledRow ||
       (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
       !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     free(scaledRow);
-    free(drawRow);
     free(prevScaledRow);
     free(blendedRow);
     delete[] rowAccum;
@@ -397,15 +393,13 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   const bool deviceIsX3 = renderer_.deviceIsX3();
   const bool qualityTone = quality;
 
-  auto quantizedPixelDraw = [&](const int q, bool& state, uint8_t& outLevel) -> bool {
+  auto quantizedPixelDraw = [&](const int q, bool& state) -> bool {
     if (mode == ImageRenderMode::OneBit) {
       state = true;
-      outLevel = q == 0 ? 3 : 0;
       return q == 0;
     }
 
     const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
-    outLevel = level;
     const GfxRenderer::RenderMode renderMode = renderer_.getRenderMode();
     if (renderMode == GfxRenderer::BW) {
       state = true;
@@ -477,14 +471,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   };
 
   auto emitOutputRow = [&](const int screenY, const uint8_t* row) {
-    const int drawRowBytes = (outWidth + 7) / 8;
-    memset(drawRow, 0, static_cast<size_t>(drawRowBytes));
-    bool rowState = true;
-    bool rowHasPixels = false;
-    const int outputRow = screenY - drawOffsetY;
-    if (levelCacheWriter && mode == ImageRenderMode::TwoBit) {
-      levelCacheWriter->beginRow(outputRow);
-    }
     for (int step = 0; step < outWidth; step++) {
       const int ox = step;
       const int gray = row[ox];
@@ -516,21 +502,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         }
       }
       bool pixelState = true;
-      uint8_t level = 0;
-      if (quantizedPixelDraw(q, pixelState, level)) {
-        rowState = pixelState;
-        rowHasPixels = true;
-        drawRow[step / 8] |= static_cast<uint8_t>(0x80 >> (step % 8));
+      if (quantizedPixelDraw(q, pixelState)) {
+        renderer_.drawPixel(drawOffsetX + ox, screenY, pixelState);
       }
-      if (levelCacheWriter && mode == ImageRenderMode::TwoBit) {
-        levelCacheWriter->writeLevel(step, level);
-      }
-    }
-    if (rowHasPixels) {
-      renderer_.drawPackedRow1bppInkOnly(drawOffsetX, screenY, outWidth, drawRow, rowState);
-    }
-    if (levelCacheWriter && mode == ImageRenderMode::TwoBit) {
-      levelCacheWriter->endRow();
     }
     if (mode == ImageRenderMode::TwoBit) {
       twoBitDitherer->nextRow();
@@ -623,7 +597,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 
   free(mcuRowBuffer);
   free(scaledRow);
-  free(drawRow);
   free(prevScaledRow);
   free(blendedRow);
   delete[] rowAccum;
@@ -639,22 +612,7 @@ bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  std::unique_ptr<ImageLevelCacheWriter> levelCacheWriter;
-  if (mode == ImageRenderMode::TwoBit) {
-    ImageLevelCacheOptions cacheOptions;
-    cacheOptions.cropToFill = cropToFill;
-    cacheOptions.quality = quality;
-    cacheOptions.deviceIsX3 = renderer_.deviceIsX3();
-    levelCacheWriter = ImageLevelCache::createWriter(path, targetWidth, targetHeight, cacheOptions);
-  }
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality, levelCacheWriter.get());
-  if (levelCacheWriter) {
-    if (ok) {
-      levelCacheWriter->finalize();
-    } else {
-      levelCacheWriter->abort();
-    }
-  }
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality);
   file.close();
   return ok;
 }

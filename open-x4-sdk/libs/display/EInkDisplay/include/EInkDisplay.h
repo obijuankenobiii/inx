@@ -72,14 +72,13 @@ class EInkDisplay {
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
   // Hint the X3 policy to run a one-shot full resync on next update.
-  void requestResync(uint8_t settlePasses = 0);
+  void requestResync();
 
   // debug function
   void grayscaleRevert();
 
   // LUT control
   void setCustomLUT(bool enabled, const unsigned char* lutData = nullptr);
-  void setSunlightFadeFixEnabled(bool enabled);
 
   // Power management
   void deepSleep();
@@ -113,7 +112,6 @@ class EInkDisplay {
   X3GrayState _x3GrayState;
   uint8_t _x3InitialFullSyncsRemaining = 0;
   bool _x3ForceFullSyncNext = false;
-  uint8_t _x3ForcedConditionPassesNext = 0;
   // Frame buffer (statically allocated)
   uint8_t frameBuffer0[MAX_BUFFER_SIZE];
   uint8_t* frameBuffer;
@@ -128,7 +126,6 @@ class EInkDisplay {
   // State
   bool isScreenOn;
   bool customLutActive;
-  bool sunlightFadeFixEnabled;
   bool inGrayscaleMode;
   bool drawGrayscale;
 

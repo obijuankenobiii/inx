@@ -107,7 +107,6 @@ bool SystemSetting::saveToFile() const {
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
-    if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
     if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
@@ -175,7 +174,6 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
-  serialization::writePod(outputFile, fixSunlightFade);
   serialization::writePod(outputFile, libraryMode);
   serialization::writePod(outputFile, libraryViewMode);
   serialization::writePod(outputFile, bionicReadingEnabled);
@@ -533,11 +531,9 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
-    if (settingsRead < fileSettingsCount) {
-      serialization::readPod(inputFile, fixSunlightFade);
-      if (fixSunlightFade > 1) {
-        fixSunlightFade = 0;
-      }
+    if (version <= 26 && settingsRead < fileSettingsCount) {
+      uint8_t removedDisplayFix = 0;
+      serialization::readPod(inputFile, removedDisplayFix);
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
@@ -614,17 +610,17 @@ bool SystemSetting::loadFromFile() {
   FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
 
-  if (settingsRead < 61) {
+  if (settingsRead < 60) {
     xtcImageQuality = readerImageGrayscale;
   }
-  if (settingsRead < 62) {
+  if (settingsRead < 61) {
     xtcShortPwrBtn =
         readerShortPwrBtn == READER_PAGE_REFRESH ? XTC_POWER_PAGE_REFRESH : XTC_POWER_NEXT;
   }
-  if (settingsRead < 63) {
+  if (settingsRead < 62) {
     xtcPageAutoTurnSeconds = pageAutoTurnSeconds;
   }
-  if (settingsRead < 64) {
+  if (settingsRead < 63) {
     xtcRefreshFrequency = getRefreshFrequency();
   }
   if (settingsRead < 65) {
@@ -639,9 +635,6 @@ bool SystemSetting::loadFromFile() {
   }
   if (librarySortMode > 7) {
     librarySortMode = 0;
-  }
-  if (fixSunlightFade > 1) {
-    fixSunlightFade = 0;
   }
   if (sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) {
     sleepClockStyle = CLOCK_CENTERED_DATE;

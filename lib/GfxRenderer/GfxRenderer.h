@@ -92,7 +92,6 @@ class GfxRenderer {
   bool readPixel(int x, int y) const;
   bool readPackedRow1bpp(int x, int y, int width, uint8_t* outRow) const;
   void drawPackedRow1bpp(int x, int y, int width, const uint8_t* row) const;
-  void drawPackedRow1bppInkOnly(int x, int y, int width, const uint8_t* row, bool state = true) const;
 
   
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height,

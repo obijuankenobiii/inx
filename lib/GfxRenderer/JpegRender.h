@@ -15,15 +15,13 @@
 class FsFile;
 #endif
 class GfxRenderer;
-class ImageLevelCacheWriter;
 
 class JpegRender {
  public:
   explicit JpegRender(GfxRenderer& renderer) : renderer_(renderer) {}
 
   bool render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
-              ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false,
-              ImageLevelCacheWriter* levelCacheWriter = nullptr) const;
+              ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false) const;
   bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
                 bool cropToFill = false, ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false) const;
 

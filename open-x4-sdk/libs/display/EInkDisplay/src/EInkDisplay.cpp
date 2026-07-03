@@ -235,9 +235,8 @@ void EInkDisplay::setDisplayX3() {
   _x3Mode = true;
 }
 
-void EInkDisplay::requestResync(uint8_t settlePasses) {
+void EInkDisplay::requestResync() {
   _x3ForceFullSyncNext = _x3Mode;
-  _x3ForcedConditionPassesNext = _x3Mode ? settlePasses : 0;
 }
 
 const unsigned char lut_x4_quality_fast[] PROGMEM = {
@@ -289,8 +288,7 @@ EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t 
 #ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
       frameBufferActive(nullptr),
 #endif
-      customLutActive(false),
-      sunlightFadeFixEnabled(false) {
+      customLutActive(false) {
   if (Serial) Serial.printf("[%lu] EInkDisplay: Constructor called\n", millis());
   if (Serial) Serial.printf("[%lu]   SCLK=%d, MOSI=%d, CS=%d, DC=%d, RST=%d, BUSY=%d\n", millis(), sclk, mosi, cs, dc, rst, busy);
 }
@@ -308,7 +306,6 @@ void EInkDisplay::begin() {
   _x3RedRamSynced = false;
   _x3InitialFullSyncsRemaining = _x3Mode ? 1 : 0;
   _x3ForceFullSyncNext = false;
-  _x3ForcedConditionPassesNext = 0;
   _x3GrayState = {};
 #ifdef EINK_DISPLAY_SINGLE_BUFFER_MODE
   if (Serial) Serial.printf("[%lu]   Static frame buffer (%lu bytes)\n", millis(), bufferSize);
@@ -783,7 +780,6 @@ void EInkDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) {
 
     _x3RedRamSynced = true;
     _x3ForceFullSyncNext = false;
-    _x3ForcedConditionPassesNext = 0;
     return;
   }
 
@@ -899,48 +895,6 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
 
     if (!fastMode) delay(200);
 
-    // Only run extra conditioning when explicitly requested. Normal X3 page
-    // turns should not surprise the user with full-screen settle flashes.
-    uint8_t postConditionPasses = 0;
-    if (doFullSync) {
-      if (forcedFullSync) postConditionPasses = _x3ForcedConditionPassesNext;
-    }
-
-    if (postConditionPasses > 0) {
-      const uint16_t xStart = 0;
-      const uint16_t xEnd = static_cast<uint16_t>(displayWidth - 1);
-      const uint16_t yStart = 0;
-      const uint16_t yEnd = static_cast<uint16_t>(displayHeight - 1);
-      const uint8_t w[9] = {
-          static_cast<uint8_t>(xStart >> 8), static_cast<uint8_t>(xStart & 0xFF), static_cast<uint8_t>(xEnd >> 8),
-          static_cast<uint8_t>(xEnd & 0xFF), static_cast<uint8_t>(yStart >> 8), static_cast<uint8_t>(yStart & 0xFF),
-          static_cast<uint8_t>(yEnd >> 8), static_cast<uint8_t>(yEnd & 0xFF), 0x01};
-
-      sendCommandDataX3(0x20, lut_x3_vcom_full, 42);
-      sendCommandDataX3(0x21, lut_x3_ww_full, 42);
-      sendCommandDataX3(0x22, lut_x3_bw_full, 42);
-      sendCommandDataX3(0x23, lut_x3_wb_full, 42);
-      sendCommandDataX3(0x24, lut_x3_bb_full, 42);
-      sendCommandDataByteX3(0x50, 0x29, 0x07);
-
-      for (uint8_t i = 0; i < postConditionPasses; i++) {
-        if (Serial) Serial.printf("[%lu]   X3_OEM_COND %u/%u\n", millis(), static_cast<unsigned>(i + 1), static_cast<unsigned>(postConditionPasses));
-        sendCommand(0x91);
-        sendCommandDataX3(0x90, w, 9);
-        sendCommand(0x13);
-        sendMirroredPlane(frameBuffer, false);
-        sendCommand(0x92);
-        if (!isScreenOn) {
-          sendCommand(0x04);
-          waitForRefresh(" X3_CMD04");
-          isScreenOn = true;
-        }
-        if (Serial) Serial.printf("[%lu]   X3_OEM_TRIGGER=0x12(cond)\n", millis());
-        sendCommand(0x12);
-        waitForRefresh(" X3_CMD12(cond)");
-      }
-    }
-
     // Sync RED RAM (0x10) with non-inverted current frame for next fast diff.
     // This is a controller memory write — doesn't need the charge pump.
     sendCommand(0x10);
@@ -951,7 +905,6 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
       _x3InitialFullSyncsRemaining--;
     }
     _x3ForceFullSyncNext = false;
-    _x3ForcedConditionPassesNext = 0;
     return;
   }
 
@@ -1141,7 +1094,6 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
     // cleanupGrayscaleBuffers() after this function returns.
     _x3RedRamSynced = false;
     _x3ForceFullSyncNext = false;
-    _x3ForcedConditionPassesNext = 0;
 
     _x3GrayState.lsbValid = false;
     return;
@@ -1331,8 +1283,6 @@ void EInkDisplay::setCustomLUT(const bool enabled, const unsigned char* lutData)
     if (Serial) Serial.printf("[%lu]   Custom LUT disabled\n", millis());
   }
 }
-
-void EInkDisplay::setSunlightFadeFixEnabled(const bool enabled) { sunlightFadeFixEnabled = enabled; }
 
 void EInkDisplay::deepSleep() {
   if (Serial) Serial.printf("[%lu]   Preparing display for deep sleep...\n", millis());
