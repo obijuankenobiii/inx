@@ -21,6 +21,5 @@ using DateTime = HalGPIO::DateTime;
 
 bool save(const DateTime& dateTime);
 bool load(DateTime& outDateTime);
-bool persistCurrent();
 
 }  // namespace StoredClock
