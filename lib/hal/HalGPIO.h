@@ -91,7 +91,7 @@ class HalGPIO {
   unsigned long getHeldTime() const;
 
   
-  void startDeepSleep();
+  void startDeepSleep(uint32_t timerWakeSeconds = 0);
 
   
   int getBatteryPercentage() const;
@@ -103,7 +103,7 @@ class HalGPIO {
   bool writeDateTime(const DateTime& dateTime) const;
   bool syncRtcFromSystemTime() const;
 
-  enum class WakeupReason { PowerButton, AfterFlash, AfterUSBPower, Other };
+  enum class WakeupReason { PowerButton, Timer, AfterFlash, AfterUSBPower, Other };
 
   WakeupReason getWakeupReason() const;
 

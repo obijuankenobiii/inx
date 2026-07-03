@@ -33,6 +33,7 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/StoredClock.h"
 
 #ifdef SIMULATOR
 extern HalDisplay display;
@@ -52,6 +53,7 @@ unsigned long t2 = 0;
 
 void verifyPowerButtonDuration();
 void waitForPowerRelease();
+uint32_t getSleepClockRefreshSecondsForSleep();
 void enterDeepSleep();
 void onGoToReader(const std::string& path);
 void onSelectBook(const std::string& path);
@@ -195,10 +197,30 @@ void waitForPowerRelease() {
   }
 }
 
+uint32_t getSleepClockRefreshSecondsForSleep() {
+#ifndef SIMULATOR
+  if (gpio.deviceIsX4() && SETTINGS.sleepScreen == SystemSetting::DATETIME) {
+    return SETTINGS.getSleepClockRefreshSeconds();
+  }
+#endif
+  return 0;
+}
+
 void enterDeepSleep() {
+  const uint32_t sleepClockRefreshSeconds = getSleepClockRefreshSecondsForSleep();
+#ifndef SIMULATOR
+  if (gpio.deviceIsX4()) {
+    StoredClock::persistCurrent();
+  }
+#endif
   switchTo<SleepActivity>(render, input);
   display.deepSleep();
+#ifndef SIMULATOR
+  gpio.startDeepSleep(sleepClockRefreshSeconds);
+#else
+  (void)sleepClockRefreshSeconds;
   gpio.startDeepSleep();
+#endif
 }
 
 void setupDisplayAndFonts() {
@@ -235,6 +257,11 @@ void setup() {
     case HalGPIO::WakeupReason::PowerButton:
       verifyPowerButtonDuration();
       break;
+#ifndef SIMULATOR
+    case HalGPIO::WakeupReason::Timer:
+      enterDeepSleep();
+      return;
+#endif
     case HalGPIO::WakeupReason::AfterUSBPower:
       gpio.startDeepSleep();
       break;

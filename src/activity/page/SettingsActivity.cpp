@@ -42,6 +42,10 @@ const SettingInfo systemPageSettings[] = {
     SettingInfo::Action("Face", GroupType::CLOCK),
     SettingInfo::Enum("Format", &SystemSetting::sleepClockTimeFormat, {"12 hour","24 hour"},
                       GroupType::CLOCK),
+    SettingInfo::Enum("Sleep screen refresh", &SystemSetting::sleepClockRefreshInterval,
+                      {"Off","10 min","15 min","30 min","60 min"},
+                      GroupType::CLOCK),
+    SettingInfo::Info("Redraws Date Time screen", "Uses more battery", GroupType::CLOCK),
     SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::CLOCK),
     SettingInfo::Action("Sync", GroupType::CLOCK),
 

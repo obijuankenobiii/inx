@@ -1380,6 +1380,7 @@ void LocalServer::handleSettingsGet() const {
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
   doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
   doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
+  doc["sleepClockRefreshInterval"] = SETTINGS.sleepClockRefreshInterval;
   doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
@@ -1512,6 +1513,12 @@ void LocalServer::handleSettingsUpdate() const {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::CLOCK_TIME_FORMAT_COUNT) v = SystemSetting::CLOCK_24_HOUR;
       SETTINGS.sleepClockTimeFormat = v;
+      changed = true;
+    }
+    else if (strcmp(key, "sleepClockRefreshInterval") == 0) {
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::CLOCK_REFRESH_INTERVAL_COUNT) v = SystemSetting::CLOCK_REFRESH_OFF;
+      SETTINGS.sleepClockRefreshInterval = v;
       changed = true;
     }
     else if (strcmp(key, "timeZoneQuarterOffset") == 0) {

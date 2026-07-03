@@ -40,8 +40,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 26;
-constexpr uint8_t SETTINGS_COUNT = 64;
+constexpr uint8_t SETTINGS_FILE_VERSION = 27;
+constexpr uint8_t SETTINGS_COUNT = 65;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -113,6 +113,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
+    if (mut->sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT) mut->sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
     if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
     if (mut->xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) mut->xtcImageQuality = READER_IMAGE_LOW;
     if (mut->xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) mut->xtcShortPwrBtn = XTC_POWER_NEXT;
@@ -187,6 +188,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, xtcShortPwrBtn);
   serialization::writePod(outputFile, xtcPageAutoTurnSeconds);
   serialization::writePod(outputFile, xtcRefreshFrequency);
+  serialization::writePod(outputFile, sleepClockRefreshInterval);
 
   outputFile.close();
 
@@ -215,7 +217,7 @@ bool SystemSetting::loadFromFile() {
   if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
       version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
       version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20 &&
-      version != 22 && version != 23 && version != 24 && version != 25) {
+      version != 22 && version != 23 && version != 24 && version != 25 && version != 26) {
     Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
                   version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
     inputFile.close();
@@ -599,6 +601,10 @@ bool SystemSetting::loadFromFile() {
       }
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, sleepClockRefreshInterval, CLOCK_REFRESH_INTERVAL_COUNT);
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -621,6 +627,9 @@ bool SystemSetting::loadFromFile() {
   if (settingsRead < 64) {
     xtcRefreshFrequency = getRefreshFrequency();
   }
+  if (settingsRead < 65) {
+    sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
+  }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 8) {
     recentVisibleCount = 8;
@@ -639,6 +648,9 @@ bool SystemSetting::loadFromFile() {
   }
   if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) {
     sleepClockTimeFormat = CLOCK_24_HOUR;
+  }
+  if (sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT) {
+    sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
   }
   if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
     sleepImageQuality = SLEEP_IMAGE_LOW;
@@ -760,6 +772,22 @@ int SystemSetting::getRefreshFrequency() const {
       return 15;
     case REFRESH_30:
       return 30;
+  }
+}
+
+uint32_t SystemSetting::getSleepClockRefreshSeconds() const {
+  switch (sleepClockRefreshInterval) {
+    case CLOCK_REFRESH_10_MIN:
+      return 10UL * 60UL;
+    case CLOCK_REFRESH_15_MIN:
+      return 15UL * 60UL;
+    case CLOCK_REFRESH_30_MIN:
+      return 30UL * 60UL;
+    case CLOCK_REFRESH_60_MIN:
+      return 60UL * 60UL;
+    case CLOCK_REFRESH_OFF:
+    default:
+      return 0;
   }
 }
 

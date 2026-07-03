@@ -248,7 +248,7 @@ bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 
-void HalGPIO::startDeepSleep() {
+void HalGPIO::startDeepSleep(uint32_t timerWakeSeconds) {
   
   while (inputMgr.isPressed(BTN_POWER)) {
     delay(50);
@@ -256,6 +256,9 @@ void HalGPIO::startDeepSleep() {
   }
   
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
+  if (timerWakeSeconds > 0) {
+    esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(timerWakeSeconds) * 1000000ULL);
+  }
   
   esp_deep_sleep_start();
 }
@@ -375,9 +378,14 @@ bool HalGPIO::syncRtcFromSystemTime() const {
 }
 
 HalGPIO::WakeupReason HalGPIO::getWakeupReason() const {
-  const bool usbConnected = isUsbConnected();
   const auto wakeupCause = esp_sleep_get_wakeup_cause();
   const auto resetReason = esp_reset_reason();
+
+  if (wakeupCause == ESP_SLEEP_WAKEUP_TIMER && resetReason == ESP_RST_DEEPSLEEP) {
+    return WakeupReason::Timer;
+  }
+
+  const bool usbConnected = isUsbConnected();
 
   if ((wakeupCause == ESP_SLEEP_WAKEUP_UNDEFINED && resetReason == ESP_RST_POWERON && !usbConnected) ||
       (wakeupCause == ESP_SLEEP_WAKEUP_GPIO && resetReason == ESP_RST_DEEPSLEEP && usbConnected)) {
