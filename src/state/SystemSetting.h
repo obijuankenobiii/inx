@@ -369,7 +369,7 @@ public:
     char sleepCustomBmp[64] = "";
     uint8_t sleepClockStyle = CLOCK_CENTERED_DATE;              ///< Date/time sleep screen style
     uint8_t sleepClockTimeFormat = CLOCK_24_HOUR;               ///< 12/24 hour clock format
-    uint8_t sleepClockRefreshInterval = CLOCK_REFRESH_OFF;       ///< X4 Date Time sleep screen redraw interval
+    uint8_t sleepClockRefreshInterval = CLOCK_REFRESH_OFF;       ///< Legacy settings slot; Date Time is X3-only
     /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
     uint8_t timeZoneQuarterOffset = 80;
 
@@ -570,7 +570,6 @@ public:
      */
     int getRefreshFrequency() const;
 
-    uint32_t getSleepClockRefreshSeconds() const;
     int getTimeZoneOffsetMinutes() const;
     void formatTimeZone(char* out, size_t outSize) const;
 };

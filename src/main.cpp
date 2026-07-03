@@ -33,7 +33,6 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/StoredClock.h"
 
 #ifdef SIMULATOR
 extern HalDisplay display;
@@ -53,7 +52,7 @@ unsigned long t2 = 0;
 
 void verifyPowerButtonDuration();
 void waitForPowerRelease();
-uint32_t getSleepClockRefreshSecondsForSleep();
+void normalizeUnavailableClockSettings();
 void enterDeepSleep();
 void onGoToReader(const std::string& path);
 void onSelectBook(const std::string& path);
@@ -197,33 +196,30 @@ void waitForPowerRelease() {
   }
 }
 
-uint32_t getSleepClockRefreshSecondsForSleep() {
-#ifndef SIMULATOR
-  if (gpio.deviceIsX4() && SETTINGS.sleepScreen == SystemSetting::DATETIME) {
-    return SETTINGS.getSleepClockRefreshSeconds();
+void normalizeUnavailableClockSettings() {
+  if (gpio.deviceIsX3()) {
+    return;
   }
-#endif
-  return 0;
+
+  bool changed = false;
+  if (SETTINGS.sleepScreen == SystemSetting::DATETIME) {
+    SETTINGS.sleepScreen = SystemSetting::LIGHT;
+    changed = true;
+  }
+  if (SETTINGS.sleepClockRefreshInterval != SystemSetting::CLOCK_REFRESH_OFF) {
+    SETTINGS.sleepClockRefreshInterval = SystemSetting::CLOCK_REFRESH_OFF;
+    changed = true;
+  }
+  if (changed) {
+    SETTINGS.saveToFile();
+  }
 }
 
 void enterDeepSleep() {
-  const uint32_t sleepClockRefreshSeconds = getSleepClockRefreshSecondsForSleep();
-#ifndef SIMULATOR
-  if (gpio.deviceIsX4()) {
-    StoredClock::persistCurrent();
-  }
-#endif
+  normalizeUnavailableClockSettings();
   switchTo<SleepActivity>(render, input);
   display.deepSleep();
-#ifndef SIMULATOR
-  if (gpio.deviceIsX4()) {
-    StoredClock::markSleepStart();
-  }
-  gpio.startDeepSleep(sleepClockRefreshSeconds);
-#else
-  (void)sleepClockRefreshSeconds;
   gpio.startDeepSleep();
-#endif
 }
 
 void setupDisplayAndFonts() {
@@ -252,22 +248,15 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  normalizeUnavailableClockSettings();
 #ifndef SIMULATOR
   display.setSunlightFadeFixEnabled(SETTINGS.fixSunlightFade != 0);
-  if (gpio.deviceIsX4()) {
-    StoredClock::applySleepElapsed();
-  }
 #endif
 
   switch (gpio.getWakeupReason()) {
     case HalGPIO::WakeupReason::PowerButton:
       verifyPowerButtonDuration();
       break;
-#ifndef SIMULATOR
-    case HalGPIO::WakeupReason::Timer:
-      enterDeepSleep();
-      return;
-#endif
     case HalGPIO::WakeupReason::AfterUSBPower:
       gpio.startDeepSleep();
       break;

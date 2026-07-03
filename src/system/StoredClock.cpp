@@ -8,10 +8,6 @@
 
 #include "state/SystemSetting.h"
 
-#ifndef SIMULATOR
-#include <soc/esp32c3/rtc.h>
-#endif
-
 namespace {
 constexpr char CLOCK_FILE[] = "/.system/clock.bin";
 constexpr uint8_t CLOCK_FILE_VERSION = 1;
@@ -19,13 +15,6 @@ constexpr uint8_t CLOCK_FILE_VERSION = 1;
 bool runtimeBaseAvailable = false;
 StoredClock::DateTime runtimeBase;
 uint32_t runtimeBaseMillis = 0;
-#ifndef SIMULATOR
-RTC_DATA_ATTR bool sleepStartRtcValid = false;
-RTC_DATA_ATTR uint64_t sleepStartRtcUs = 0;
-#else
-bool sleepStartRtcValid = false;
-uint64_t sleepStartRtcUs = 0;
-#endif
 
 bool valid(const StoredClock::DateTime& dt) {
   if (dt.year < 2024 || dt.year > 2099) return false;
@@ -176,26 +165,6 @@ bool loadFallbackClock(StoredClock::DateTime& outDateTime) {
   return true;
 }
 
-uint32_t elapsedSleepSeconds() {
-#ifndef SIMULATOR
-  if (!sleepStartRtcValid) {
-    return 0;
-  }
-
-  const uint64_t nowUs = esp_rtc_get_time_us();
-  if (nowUs <= sleepStartRtcUs) {
-    return 0;
-  }
-
-  const uint64_t seconds = (nowUs - sleepStartRtcUs) / 1000000ULL;
-  if (seconds > UINT32_MAX) {
-    return UINT32_MAX;
-  }
-  return static_cast<uint32_t>(seconds);
-#else
-  return 0;
-#endif
-}
 }  // namespace
 
 namespace StoredClock {
@@ -253,28 +222,6 @@ bool persistCurrent() {
   if (!load(dt)) {
     return false;
   }
-  return save(dt);
-}
-
-void markSleepStart() {
-#ifndef SIMULATOR
-  sleepStartRtcUs = esp_rtc_get_time_us();
-  sleepStartRtcValid = true;
-#endif
-}
-
-bool applySleepElapsed() {
-  const uint32_t seconds = elapsedSleepSeconds();
-  sleepStartRtcValid = false;
-  if (seconds == 0) {
-    return false;
-  }
-
-  DateTime dt;
-  if (!loadFallbackClock(dt)) {
-    return false;
-  }
-  advanceDateTime(dt, seconds);
   return save(dt);
 }
 

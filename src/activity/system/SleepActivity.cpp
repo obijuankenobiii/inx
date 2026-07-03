@@ -34,7 +34,6 @@
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 #include "system/SleepClockRenderer.h"
-#include "system/StoredClock.h"
 #include "util/StringUtils.h"
 #include <cmath>
 #include <memory>
@@ -56,6 +55,10 @@ bool sleepTwoBitEnabled() {
 
 bool sleepImageQualityEnabled() {
   return SETTINGS.sleepImageQuality == SystemSetting::SLEEP_IMAGE_HIGH;
+}
+
+bool dateTimeSleepScreenAvailable() {
+  return gpio.deviceIsX3();
 }
 
 ImageRenderMode sleepImageRenderMode() {
@@ -306,8 +309,9 @@ void SleepActivity::onEnter() {
   // whitens a mostly-white incoming screen (e.g. a book text page); coming from the home/library screen (dark
   // covers) a single FAST pass leaves gray residue and the quality refresh then starts dirty. HALF reliably
   // clears from any screen.
-  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT &&
-      SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::DATETIME) {
+  const bool renderDateTime = SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::DATETIME &&
+                              dateTimeSleepScreenAvailable();
+  if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT && !renderDateTime) {
     renderer.clearScreen(0Xff);
     renderer.displayBuffer();
   }
@@ -326,7 +330,11 @@ void SleepActivity::onEnter() {
       renderCoverSleepScreen();
       break;
     case SystemSetting::SLEEP_SCREEN_MODE::DATETIME:
-      renderDateTimeSleepScreen();
+      if (dateTimeSleepScreenAvailable()) {
+        renderDateTimeSleepScreen();
+      } else {
+        renderDefaultSleepScreen();
+      }
       break;
     default:
       renderDefaultSleepScreen();
@@ -647,28 +655,24 @@ void SleepActivity::renderDefaultSleepScreen() const {
  * @brief Renders a minimal date/time sleep screen using the X3 RTC.
  */
 void SleepActivity::renderDateTimeSleepScreen() const {
-  StoredClock::DateTime dateTime;
   bool hasClock = false;
+  SleepClockRenderer::DateTimeView view;
 #ifndef SIMULATOR
+  HalGPIO::DateTime dateTime;
   if (gpio.deviceIsX3()) {
     hasClock = gpio.readDateTime(dateTime);
-  } else {
-    hasClock = StoredClock::load(dateTime);
+    if (hasClock) {
+      view.year = dateTime.year;
+      view.month = dateTime.month;
+      view.day = dateTime.day;
+      view.hour = dateTime.hour;
+      view.minute = dateTime.minute;
+      view.weekday = dateTime.weekday;
+    }
   }
-#else
-  hasClock = StoredClock::load(dateTime);
 #endif
 
   renderer.clearScreen(0xff);
-  SleepClockRenderer::DateTimeView view;
-  if (hasClock) {
-    view.year = dateTime.year;
-    view.month = dateTime.month;
-    view.day = dateTime.day;
-    view.hour = dateTime.hour;
-    view.minute = dateTime.minute;
-    view.weekday = dateTime.weekday;
-  }
   SleepClockRenderer::render(renderer, SETTINGS.sleepClockStyle, view, hasClock, 0, 0, renderer.getScreenWidth(),
                              renderer.getScreenHeight());
 

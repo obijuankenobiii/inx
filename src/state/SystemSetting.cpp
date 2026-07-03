@@ -775,22 +775,6 @@ int SystemSetting::getRefreshFrequency() const {
   }
 }
 
-uint32_t SystemSetting::getSleepClockRefreshSeconds() const {
-  switch (sleepClockRefreshInterval) {
-    case CLOCK_REFRESH_10_MIN:
-      return 10UL * 60UL;
-    case CLOCK_REFRESH_15_MIN:
-      return 15UL * 60UL;
-    case CLOCK_REFRESH_30_MIN:
-      return 30UL * 60UL;
-    case CLOCK_REFRESH_60_MIN:
-      return 60UL * 60UL;
-    case CLOCK_REFRESH_OFF:
-    default:
-      return 0;
-  }
-}
-
 int SystemSetting::getTimeZoneOffsetMinutes() const {
   const int quarterHours = static_cast<int>(timeZoneQuarterOffset) - 48;
   return quarterHours * 15;

@@ -9,6 +9,7 @@
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include <Epub.h>
 #include <FsHelpers.h>
+#include <HalGPIO.h>
 #endif
 #include <SDCardManager.h>
 #include <WiFi.h>
@@ -85,6 +86,14 @@ void clearEpubCacheIfNeeded(const String& filePath) {
   }
 #else
   (void)filePath;
+#endif
+}
+
+bool clockSettingsAvailable() {
+#ifndef INX_SIMULATOR_WEB_ONLY
+  return gpio.deviceIsX3();
+#else
+  return false;
 #endif
 }
 
@@ -1369,19 +1378,25 @@ void LocalServer::handleSettingsPage() const {
 
 void LocalServer::handleSettingsGet() const {
   JsonDocument doc;
+  const bool clockAvailable = clockSettingsAvailable();
+  const uint8_t sleepScreen = (!clockAvailable && SETTINGS.sleepScreen == SystemSetting::DATETIME)
+                                  ? SystemSetting::LIGHT
+                                  : SETTINGS.sleepScreen;
   
   
-  doc["sleepScreen"] = SETTINGS.sleepScreen;
+  doc["clockAvailable"] = clockAvailable;
+  doc["sleepScreen"] = sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
   doc["sleepImageQuality"] = SETTINGS.sleepImageQuality;
   doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepImageQuality;
   doc["sleepImageTwoBit"] = SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
-  doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
-  doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
-  doc["sleepClockRefreshInterval"] = SETTINGS.sleepClockRefreshInterval;
-  doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
+  if (clockAvailable) {
+    doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
+    doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
+    doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
+  }
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["libraryMode"] = SETTINGS.libraryMode;
@@ -1461,6 +1476,7 @@ void LocalServer::handleSettingsUpdate() const {
   }
   
   bool changed = false;
+  const bool clockAvailable = clockSettingsAvailable();
   
   
   for (JsonPair kv : doc.as<JsonObject>()) {
@@ -1468,7 +1484,11 @@ void LocalServer::handleSettingsUpdate() const {
     int value = kv.value().as<int>();
     
     if (strcmp(key, "sleepScreen") == 0) {
-      SETTINGS.sleepScreen = (uint8_t)value;
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::SLEEP_SCREEN_MODE_COUNT || (!clockAvailable && v == SystemSetting::DATETIME)) {
+        v = SystemSetting::LIGHT;
+      }
+      SETTINGS.sleepScreen = v;
       changed = true;
     }
     else if (strcmp(key, "sleepScreenCoverMode") == 0) {
@@ -1503,25 +1523,19 @@ void LocalServer::handleSettingsUpdate() const {
       }
       changed = true;
     }
-    else if (strcmp(key, "sleepClockStyle") == 0) {
+    else if (clockAvailable && strcmp(key, "sleepClockStyle") == 0) {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::SLEEP_CLOCK_STYLE_COUNT) v = SystemSetting::CLOCK_CENTERED_DATE;
       SETTINGS.sleepClockStyle = v;
       changed = true;
     }
-    else if (strcmp(key, "sleepClockTimeFormat") == 0) {
+    else if (clockAvailable && strcmp(key, "sleepClockTimeFormat") == 0) {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::CLOCK_TIME_FORMAT_COUNT) v = SystemSetting::CLOCK_24_HOUR;
       SETTINGS.sleepClockTimeFormat = v;
       changed = true;
     }
-    else if (strcmp(key, "sleepClockRefreshInterval") == 0) {
-      uint8_t v = static_cast<uint8_t>(value);
-      if (v >= SystemSetting::CLOCK_REFRESH_INTERVAL_COUNT) v = SystemSetting::CLOCK_REFRESH_OFF;
-      SETTINGS.sleepClockRefreshInterval = v;
-      changed = true;
-    }
-    else if (strcmp(key, "timeZoneQuarterOffset") == 0) {
+    else if (clockAvailable && strcmp(key, "timeZoneQuarterOffset") == 0) {
       int v = static_cast<int>(value);
       if (v < 0) v = 0;
       if (v > 104) v = 104;
