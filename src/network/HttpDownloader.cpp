@@ -18,56 +18,14 @@
 
 #ifdef SIMULATOR
 
-#include <HTTPClient.h>
-#include <WiFiClient.h>
-#include <WiFiClientSecure.h>
-
-void HttpDownloader::addBasicAuth(HTTPClient& http, const std::string& username, const std::string& password) {
-  if (!username.empty() && !password.empty()) {
-    std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
-}
-
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent,
                               const std::string& username, const std::string& password) {
-  std::unique_ptr<WiFiClient> client;
-  if (UrlUtils::isHttpsUrl(url)) {
-    auto* secureClient = new WiFiClientSecure();
-    secureClient->setInsecure();
-    client.reset(secureClient);
-  } else {
-    client.reset(new WiFiClient());
-  }
-  HTTPClient http;
-
-  Serial.printf("[%lu] [HTTP] Fetching: %s\n", millis(), url.c_str());
-
-  client->setTimeout(15000);
-  if (!http.begin(*client, url.c_str())) {
-    Serial.printf("[%lu] [HTTP] Failed to begin HTTP connection\n", millis());
-    return false;
-  }
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" INX_VERSION);
-  http.setTimeout(15000);
-
-  addBasicAuth(http, username, password);
-
-  const int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("[%lu] [HTTP] Fetch failed with HTTP %d\n", millis(), httpCode);
-    http.end();
-    return false;
-  }
-
-  http.writeToStream(&outContent);
-
-  http.end();
-
-  Serial.printf("[%lu] [HTTP] Fetch success\n", millis());
-  return true;
+  (void)url;
+  (void)outContent;
+  (void)username;
+  (void)password;
+  Serial.printf("[%lu] [HTTP] Simulator does not support HTTP requests\n", millis());
+  return false;
 }
 
 #else
@@ -224,93 +182,12 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   }
 
 #ifdef SIMULATOR
-  std::unique_ptr<WiFiClient> client;
-  if (UrlUtils::isHttpsUrl(url)) {
-    auto* secureClient = new WiFiClientSecure();
-    secureClient->setInsecure();
-    client.reset(secureClient);
-  } else {
-    client.reset(new WiFiClient());
-  }
-
-  HTTPClient http;
-  client->setTimeout(15000);
-  if (!http.begin(*client, url.c_str())) {
-    Serial.printf("[%lu] [HTTP] Failed to begin HTTP connection\n", millis());
-    file.close();
-    SdMan.remove(destPath.c_str());
-    return HTTP_ERROR;
-  }
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" INX_VERSION);
-  http.setTimeout(15000);
-
-  if (!username.empty() && !password.empty()) {
-    std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
-
-  const int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("[%lu] [HTTP] Download failed with HTTP %d\n", millis(), httpCode);
-    http.end();
-    file.close();
-    SdMan.remove(destPath.c_str());
-    return HTTP_ERROR;
-  }
-
-  const size_t contentLength = http.getSize();
-  Serial.printf("[%lu] [HTTP] Content-Length: %zu\n", millis(), contentLength);
-
-  WiFiClient* stream = http.getStreamPtr();
-  if (!stream) {
-    Serial.printf("[%lu] [HTTP] Failed to get stream\n", millis());
-    file.close();
-    SdMan.remove(destPath.c_str());
-    http.end();
-    return HTTP_ERROR;
-  }
-
-  uint8_t buffer[DOWNLOAD_CHUNK_SIZE];
-  size_t downloaded = 0;
-  const size_t total = contentLength > 0 ? contentLength : 0;
-
-  while (http.connected() && (contentLength == 0 || downloaded < contentLength)) {
-    const size_t available = stream->available();
-    if (available == 0) {
-      delay(1);
-      continue;
-    }
-    const size_t toRead = available < DOWNLOAD_CHUNK_SIZE ? available : DOWNLOAD_CHUNK_SIZE;
-    const size_t bytesRead = stream->readBytes(buffer, toRead);
-    if (bytesRead == 0) {
-      break;
-    }
-    const size_t written = file.write(buffer, bytesRead);
-    if (written != bytesRead) {
-      Serial.printf("[%lu] [HTTP] Write failed: wrote %zu of %zu bytes\n", millis(), written, bytesRead);
-      file.close();
-      SdMan.remove(destPath.c_str());
-      http.end();
-      return FILE_ERROR;
-    }
-    downloaded += bytesRead;
-    if (progress && total > 0) {
-      progress(downloaded, total);
-    }
-  }
-
+  (void)username;
+  (void)password;
+  (void)progress;
   file.close();
-  http.end();
-
-  if (contentLength > 0 && downloaded != contentLength) {
-    Serial.printf("[%lu] [HTTP] Size mismatch: got %zu, expected %zu\n", millis(), downloaded, contentLength);
-    SdMan.remove(destPath.c_str());
-    return HTTP_ERROR;
-  }
-
-  return OK;
+  Serial.printf("[%lu] [HTTP] Simulator does not support HTTP downloads\n", millis());
+  return HTTP_ERROR;
 
 #else
   DownloadCtx dctx = {&file, progress, 0, 0};
