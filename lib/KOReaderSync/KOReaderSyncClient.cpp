@@ -26,6 +26,8 @@ namespace {
 constexpr char DEVICE_NAME[] = "CrossPoint";
 constexpr char DEVICE_ID[] = "crosspoint-reader";
 
+#ifndef SIMULATOR
+
 bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
 
 struct KoreaderCtx {
@@ -95,6 +97,17 @@ int doRequest(const std::string& url, const std::string& method,
   esp_http_client_cleanup(client);
   return status;
 }
+
+#else
+
+int doRequest(const std::string& url, const std::string& method,
+              const std::string* body, std::string* responseBody) {
+  (void)url; (void)method; (void)body; (void)responseBody;
+  Serial.printf("[%lu] [KOSync] Simulator does not support KOReaderSync HTTP requests\n", millis());
+  return -1;
+}
+
+#endif
 
 }  // namespace
 

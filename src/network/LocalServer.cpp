@@ -346,9 +346,11 @@ void LocalServer::begin() {
   server->on("/api/koreader", HTTP_GET, [this] { handleKOReaderGet(); });
   server->on("/api/koreader", HTTP_POST, [this] { handleKOReaderPost(); });
 
+#ifndef INX_SIMULATOR_WEB_ONLY
   server->on("/api/opds", HTTP_GET, [this] { handleOpdsGet(); });
   server->on("/api/opds", HTTP_POST, [this] { handleOpdsPost(); });
   server->on("/api/opds/*", HTTP_DELETE, [this] { handleOpdsDelete(); });
+#endif
 
   server->on("/api/fonts/rescan", HTTP_POST, [this] { handleFontsRescan(); });
 
