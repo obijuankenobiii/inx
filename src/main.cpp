@@ -211,12 +211,14 @@ void enterDeepSleep() {
 #ifndef SIMULATOR
   if (gpio.deviceIsX4()) {
     StoredClock::persistCurrent();
-    StoredClock::scheduleSleepAdvance(sleepClockRefreshSeconds);
   }
 #endif
   switchTo<SleepActivity>(render, input);
   display.deepSleep();
 #ifndef SIMULATOR
+  if (gpio.deviceIsX4()) {
+    StoredClock::markSleepStart();
+  }
   gpio.startDeepSleep(sleepClockRefreshSeconds);
 #else
   (void)sleepClockRefreshSeconds;
@@ -252,6 +254,9 @@ void setup() {
   SETTINGS.loadFromFile();
 #ifndef SIMULATOR
   display.setSunlightFadeFixEnabled(SETTINGS.fixSunlightFade != 0);
+  if (gpio.deviceIsX4()) {
+    StoredClock::applySleepElapsed();
+  }
 #endif
 
   switch (gpio.getWakeupReason()) {
@@ -260,7 +265,6 @@ void setup() {
       break;
 #ifndef SIMULATOR
     case HalGPIO::WakeupReason::Timer:
-      StoredClock::applyScheduledSleepAdvance();
       enterDeepSleep();
       return;
 #endif

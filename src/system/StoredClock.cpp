@@ -8,6 +8,10 @@
 
 #include "state/SystemSetting.h"
 
+#ifndef SIMULATOR
+#include <soc/esp32c3/rtc.h>
+#endif
+
 namespace {
 constexpr char CLOCK_FILE[] = "/.system/clock.bin";
 constexpr uint8_t CLOCK_FILE_VERSION = 1;
@@ -16,9 +20,11 @@ bool runtimeBaseAvailable = false;
 StoredClock::DateTime runtimeBase;
 uint32_t runtimeBaseMillis = 0;
 #ifndef SIMULATOR
-RTC_DATA_ATTR uint32_t scheduledSleepAdvanceSeconds = 0;
+RTC_DATA_ATTR bool sleepStartRtcValid = false;
+RTC_DATA_ATTR uint64_t sleepStartRtcUs = 0;
 #else
-uint32_t scheduledSleepAdvanceSeconds = 0;
+bool sleepStartRtcValid = false;
+uint64_t sleepStartRtcUs = 0;
 #endif
 
 bool valid(const StoredClock::DateTime& dt) {
@@ -34,12 +40,33 @@ bool isLeapYear(uint16_t year) {
   return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
+uint16_t daysBeforeYear(uint16_t year) {
+  uint16_t days = 0;
+  for (uint16_t y = 1970; y < year; ++y) {
+    days += isLeapYear(y) ? 366 : 365;
+  }
+  return days;
+}
+
 uint8_t daysInMonth(uint16_t year, uint8_t month) {
   static constexpr uint8_t DAYS[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   if (month == 2 && isLeapYear(year)) {
     return 29;
   }
   return month >= 1 && month <= 12 ? DAYS[month] : 31;
+}
+
+uint16_t daysBeforeMonth(uint16_t year, uint8_t month) {
+  uint16_t days = 0;
+  for (uint8_t m = 1; m < month; ++m) {
+    days += daysInMonth(year, m);
+  }
+  return days;
+}
+
+uint64_t dateTimeSeconds(const StoredClock::DateTime& dt) {
+  return (static_cast<uint64_t>(daysBeforeYear(dt.year)) + daysBeforeMonth(dt.year, dt.month) + dt.day - 1) * 86400ULL +
+         static_cast<uint64_t>(dt.hour) * 3600ULL + static_cast<uint64_t>(dt.minute) * 60ULL + dt.second;
 }
 
 uint8_t weekdayFromTm(const tm& t) {
@@ -148,6 +175,27 @@ bool loadFallbackClock(StoredClock::DateTime& outDateTime) {
   outDateTime = dt;
   return true;
 }
+
+uint32_t elapsedSleepSeconds() {
+#ifndef SIMULATOR
+  if (!sleepStartRtcValid) {
+    return 0;
+  }
+
+  const uint64_t nowUs = esp_rtc_get_time_us();
+  if (nowUs <= sleepStartRtcUs) {
+    return 0;
+  }
+
+  const uint64_t seconds = (nowUs - sleepStartRtcUs) / 1000000ULL;
+  if (seconds > UINT32_MAX) {
+    return UINT32_MAX;
+  }
+  return static_cast<uint32_t>(seconds);
+#else
+  return 0;
+#endif
+}
 }  // namespace
 
 namespace StoredClock {
@@ -179,13 +227,25 @@ bool save(const DateTime& dateTime) {
 }
 
 bool load(DateTime& outDateTime) {
-  DateTime dt;
-  if (loadSystemClock(dt)) {
-    outDateTime = dt;
+  DateTime systemTime;
+  const bool hasSystemTime = loadSystemClock(systemTime);
+  DateTime fallbackTime;
+  const bool hasFallbackTime = loadFallbackClock(fallbackTime);
+
+  if (hasSystemTime && hasFallbackTime) {
+    outDateTime = dateTimeSeconds(fallbackTime) > dateTimeSeconds(systemTime) ? fallbackTime : systemTime;
     return true;
   }
 
-  return loadFallbackClock(outDateTime);
+  if (hasSystemTime) {
+    outDateTime = systemTime;
+    return true;
+  }
+  if (hasFallbackTime) {
+    outDateTime = fallbackTime;
+    return true;
+  }
+  return false;
 }
 
 bool persistCurrent() {
@@ -196,11 +256,16 @@ bool persistCurrent() {
   return save(dt);
 }
 
-void scheduleSleepAdvance(uint32_t seconds) { scheduledSleepAdvanceSeconds = seconds; }
+void markSleepStart() {
+#ifndef SIMULATOR
+  sleepStartRtcUs = esp_rtc_get_time_us();
+  sleepStartRtcValid = true;
+#endif
+}
 
-bool applyScheduledSleepAdvance() {
-  const uint32_t seconds = scheduledSleepAdvanceSeconds;
-  scheduledSleepAdvanceSeconds = 0;
+bool applySleepElapsed() {
+  const uint32_t seconds = elapsedSleepSeconds();
+  sleepStartRtcValid = false;
   if (seconds == 0) {
     return false;
   }
