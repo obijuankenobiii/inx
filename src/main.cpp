@@ -211,6 +211,7 @@ void enterDeepSleep() {
 #ifndef SIMULATOR
   if (gpio.deviceIsX4()) {
     StoredClock::persistCurrent();
+    StoredClock::scheduleSleepAdvance(sleepClockRefreshSeconds);
   }
 #endif
   switchTo<SleepActivity>(render, input);
@@ -259,6 +260,7 @@ void setup() {
       break;
 #ifndef SIMULATOR
     case HalGPIO::WakeupReason::Timer:
+      StoredClock::applyScheduledSleepAdvance();
       enterDeepSleep();
       return;
 #endif

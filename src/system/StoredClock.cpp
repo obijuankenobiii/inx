@@ -15,6 +15,11 @@ constexpr uint8_t CLOCK_FILE_VERSION = 1;
 bool runtimeBaseAvailable = false;
 StoredClock::DateTime runtimeBase;
 uint32_t runtimeBaseMillis = 0;
+#ifndef SIMULATOR
+RTC_DATA_ATTR uint32_t scheduledSleepAdvanceSeconds = 0;
+#else
+uint32_t scheduledSleepAdvanceSeconds = 0;
+#endif
 
 bool valid(const StoredClock::DateTime& dt) {
   if (dt.year < 2024 || dt.year > 2099) return false;
@@ -125,6 +130,24 @@ bool loadSystemClock(StoredClock::DateTime& outDateTime) {
   outDateTime = dt;
   return true;
 }
+
+bool loadFallbackClock(StoredClock::DateTime& outDateTime) {
+  StoredClock::DateTime dt;
+  uint32_t baseMillis = 0;
+  if (runtimeBaseAvailable) {
+    dt = runtimeBase;
+    baseMillis = runtimeBaseMillis;
+  } else if (!readStoredClock(dt)) {
+    return false;
+  }
+
+  advanceDateTime(dt, static_cast<uint32_t>((millis() - baseMillis) / 1000UL));
+  if (!valid(dt)) {
+    return false;
+  }
+  outDateTime = dt;
+  return true;
+}
 }  // namespace
 
 namespace StoredClock {
@@ -162,20 +185,7 @@ bool load(DateTime& outDateTime) {
     return true;
   }
 
-  uint32_t baseMillis = 0;
-  if (runtimeBaseAvailable) {
-    dt = runtimeBase;
-    baseMillis = runtimeBaseMillis;
-  } else if (!readStoredClock(dt)) {
-    return false;
-  }
-
-  advanceDateTime(dt, static_cast<uint32_t>((millis() - baseMillis) / 1000UL));
-  if (!valid(dt)) {
-    return false;
-  }
-  outDateTime = dt;
-  return true;
+  return loadFallbackClock(outDateTime);
 }
 
 bool persistCurrent() {
@@ -183,6 +193,23 @@ bool persistCurrent() {
   if (!load(dt)) {
     return false;
   }
+  return save(dt);
+}
+
+void scheduleSleepAdvance(uint32_t seconds) { scheduledSleepAdvanceSeconds = seconds; }
+
+bool applyScheduledSleepAdvance() {
+  const uint32_t seconds = scheduledSleepAdvanceSeconds;
+  scheduledSleepAdvanceSeconds = 0;
+  if (seconds == 0) {
+    return false;
+  }
+
+  DateTime dt;
+  if (!loadFallbackClock(dt)) {
+    return false;
+  }
+  advanceDateTime(dt, seconds);
   return save(dt);
 }
 
