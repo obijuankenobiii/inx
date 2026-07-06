@@ -198,6 +198,7 @@ bool SystemSetting::saveToFile() const {
  * @brief Loads all settings from file
  * @return true if load successful, false otherwise
  */
+// cppcheck-suppress checkLevelNormal ; large versioned-field function, exhaustive level not worth the CI runtime cost
 bool SystemSetting::loadFromFile() {
   FsFile inputFile;
 
@@ -212,12 +213,9 @@ bool SystemSetting::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20 &&
-      version != 22 && version != 23 && version != 24 && version != 25 && version != 26) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
-                  version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
+  if (version > SETTINGS_FILE_VERSION) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected <= %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -254,15 +252,10 @@ bool SystemSetting::loadFromFile() {
     {
       uint8_t rawFontFamily = 0;
       serialization::readPod(inputFile, rawFontFamily);
-      if (version >= 15) {
-        fontFamily = rawFontFamily;
+      fontFamily = rawFontFamily;
 #ifndef INX_SIMULATOR_WEB_ONLY
-        FontManager::clampReaderFontFamilySlot(fontFamily);
+      FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
-      } else {
-        /** Legacy v14 and older: first slot was removed; Atkinson remains 1, everything else maps to Literata. */
-        fontFamily = (rawFontFamily == ATKINSON_HYPERLEGIBLE) ? ATKINSON_HYPERLEGIBLE : LITERATA;
-      }
     }
     if (++settingsRead >= fileSettingsCount) break;
 
@@ -350,70 +343,20 @@ bool SystemSetting::loadFromFile() {
     readAndValidate(inputFile, bootSetting, BOOT_SETTING_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
 
-    if (version >= 4) {
-      readAndValidate(inputFile, statusBarLeft, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
+    readAndValidate(inputFile, statusBarLeft, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-      readAndValidate(inputFile, statusBarMiddle, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
+    readAndValidate(inputFile, statusBarMiddle, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-      readAndValidate(inputFile, statusBarRight, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
-    } else {
-      switch (statusBar) {
-        case NONE:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_NONE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case NO_PROGRESS:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case FULL:
-        default:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
-          statusBarRight = STATUS_ITEM_PAGE_NUMBERS;
-          break;
-        case FULL_WITH_PROGRESS_BAR:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT;
-          statusBarRight = STATUS_ITEM_CHAPTER_TITLE;
-          break;
-        case ONLY_PROGRESS_BAR:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PROGRESS_BAR;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case BATTERY_PERCENTAGE:
-          statusBarLeft = STATUS_ITEM_BATTERY_PERCENTAGE;
-          statusBarMiddle = STATUS_ITEM_NONE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case PERCENTAGE:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PERCENTAGE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case PAGE_BARS:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PAGE_BARS;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-      }
-    }
+    readAndValidate(inputFile, statusBarRight, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-    if (version >= 6) {
-      serialization::readPod(inputFile, pageAutoTurnSeconds);
-      if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
-        pageAutoTurnSeconds = 0;
-      }
-      if (++settingsRead >= fileSettingsCount) break;
-    } else {
+    serialization::readPod(inputFile, pageAutoTurnSeconds);
+    if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
       pageAutoTurnSeconds = 0;
     }
+    if (++settingsRead >= fileSettingsCount) break;
 
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, readerImageGrayscale);
@@ -466,40 +409,27 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      if (version >= 16) {
-        serialization::readPod(inputFile, refreshOnLoadRecent);
-        if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+      serialization::readPod(inputFile, refreshOnLoadRecent);
+      if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+      ++settingsRead;
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadLibrary);
+        if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
         ++settingsRead;
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadLibrary);
-          if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadSettings);
-          if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadSync);
-          if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadStatistics);
-          if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
-          ++settingsRead;
-        }
-      } else {
-        uint8_t legacyRefresh = 0;
-        serialization::readPod(inputFile, legacyRefresh);
-        if (legacyRefresh > 1) legacyRefresh = 0;
-        const uint8_t on = legacyRefresh ? 1u : 0u;
-        refreshOnLoadRecent = on;
-        refreshOnLoadLibrary = on;
-        refreshOnLoadSettings = on;
-        refreshOnLoadSync = on;
-        refreshOnLoadStatistics = on;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadSettings);
+        if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadSync);
+        if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadStatistics);
+        if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
         ++settingsRead;
       }
     }
@@ -529,11 +459,6 @@ bool SystemSetting::loadFromFile() {
       if (librarySortMode > 7) {
         librarySortMode = 0;
       }
-      ++settingsRead;
-    }
-    if (version <= 26 && settingsRead < fileSettingsCount) {
-      uint8_t removedDisplayFix = 0;
-      serialization::readPod(inputFile, removedDisplayFix);
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
@@ -681,31 +606,6 @@ bool SystemSetting::loadFromFile() {
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
-
-  
-  if (version == 10) {
-    if (legacyReaderImagePresentation == 1u) {
-      legacyReaderImagePresentation = 0u;
-    }
-    if (legacyDisplayImagePresentation == 1u) {
-      legacyDisplayImagePresentation = 0u;
-    }
-  }
-
-  
-  if (version == 10 || version == 11) {
-    auto mapLegacyPresentation = [](uint8_t& p) {
-      if (p == 0u) {
-        p = 1u;
-      } else if (p == 1u) {
-        p = 2u;
-      } else if (p >= LEGACY_IMAGE_PRESENTATION_COUNT) {
-        p = 1u;
-      }
-    };
-    mapLegacyPresentation(legacyReaderImagePresentation);
-    mapLegacyPresentation(legacyDisplayImagePresentation);
-  }
 
   return true;
 }

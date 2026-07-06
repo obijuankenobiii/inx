@@ -131,12 +131,6 @@ void ReaderPresetEditorActivity::onExit() {
   drawer_.reset();
 }
 
-void ReaderPresetEditorActivity::renderAll() {
-  renderer.clearScreen(0xFF);
-  renderPreview();
-  if (drawer_) drawer_->render();  // embedded => draws region then invalidate pushes the screen
-}
-
 void ReaderPresetEditorActivity::renderPreview() {
   const int screenW = renderer.getScreenWidth();
   const int margin = std::max<int>(6, working_.screenMargin);

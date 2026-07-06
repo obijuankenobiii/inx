@@ -49,7 +49,7 @@ namespace {
 /** Encodes spine and page for MenuDrawer::BookmarkNavItem::storageIndex (page < 100000). */
 constexpr int kAnnotationNavPack = 100000;
 
-static std::string chapterTitleForSpine(Epub* epub, int spineIndex) {
+static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
   if (!epub) {
     return "";
   }
@@ -1367,12 +1367,12 @@ void EpubActivity::openPercentSelectionFromMenu() {
     return;
   }
   dismissMenuDrawerForBlockingWork();
-  float bookProgress = 0.0f;
+  float bookProgressPercent = 0.0f;
   if (epub->getBookSize() > 0 && section && section->pageCount > 0) {
     const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
-    bookProgress = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
+    bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
   }
-  int initialPercent = static_cast<int>(bookProgress + 0.5f);
+  int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
   if (initialPercent < 0) initialPercent = 0;
   if (initialPercent > 100) initialPercent = 100;
 
@@ -1616,12 +1616,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   bool needAnnotationGeometry = annUi_.isActive();
   if (!annUi_.isActive() && !annUi_.annotations().records().empty()) {
-    for (const EpubAnnotationRecord& rec : annUi_.annotations().records()) {
-      if (section && EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage)) {
-        needAnnotationGeometry = true;
-        break;
-      }
-    }
+    needAnnotationGeometry =
+        std::any_of(annUi_.annotations().records().begin(), annUi_.annotations().records().end(),
+                    [this](const EpubAnnotationRecord& rec) {
+                      return section && EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage);
+                    });
   }
 
   bool omitStoredWordStrings = false;
@@ -1727,14 +1726,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   if (displayImagePlaceholder) {
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true, /*onlyGrayscale=*/true);
-    displayPageBuffer();
-  } else if (!displayWithQualityPass) {
-    displayPageBuffer();
-  } else if (pagesUntilFullRefresh <= 1) {
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-  } else {
-    pagesUntilFullRefresh--;
   }
+  displayPageBuffer();
 
   if (highQuality && bwStored) {
     ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {

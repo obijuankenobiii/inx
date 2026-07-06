@@ -69,9 +69,8 @@ void BookState::addOrUpdateBook(const std::string& path,
 std::vector<BookState::Book> BookState::getFavoriteBooks() const {
   std::vector<Book> result;
   result.reserve(favoriteIndices_.size());
-  for (size_t idx : favoriteIndices_) {
-    result.push_back(books[idx]);
-  }
+  std::transform(favoriteIndices_.begin(), favoriteIndices_.end(), std::back_inserter(result),
+                 [this](size_t idx) { return books[idx]; });
   return result;
 }
 

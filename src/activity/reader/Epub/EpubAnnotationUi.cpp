@@ -202,7 +202,7 @@ void EpubAnnotationUi::exit(EpubActivity& act) {
 
 bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
   using Btn = MappedInputManager::Button;
-  MappedInputManager& m = act.mappedInput;
+  const MappedInputManager& m = act.mappedInput;
   const unsigned long now = millis();
 
   // One edge = one move. Holding the same direction starts repeat only after a long enough delay
@@ -336,7 +336,7 @@ void EpubAnnotationUi::ensureDiskListLoaded(EpubActivity& act) {
   annotations_.ensurePageLoaded(act.epub->getCachePath(), act.currentSpineIndex, act.section->currentPage);
 }
 
-void EpubAnnotationUi::updateStoredRangesForPage(EpubActivity& act) {
+void EpubAnnotationUi::updateStoredRangesForPage(const EpubActivity& act) {
   if (!act.section) {
     storedRanges_.clear();
     return;
@@ -383,15 +383,8 @@ void EpubAnnotationUi::prepareWordGeometry(EpubActivity& act) {
       wordIndexCacheFontId_ == fontId && wordIndexCacheHeaderFontId_ == headerFontId &&
       wordIndexCacheMarginL_ == ml && wordIndexCacheMarginT_ == mt;
 
-  bool anyWordText = false;
-  if (!words_.empty()) {
-    for (const auto& w : words_) {
-      if (!w.text.empty()) {
-        anyWordText = true;
-        break;
-      }
-    }
-  }
+  const bool anyWordText =
+      std::any_of(words_.begin(), words_.end(), [](const PageWordHit& w) { return !w.text.empty(); });
 
   // Reading mode may build the index with omitStoredWordStrings (no per-word strings). Annotation needs strings for
   // extractRangeText / save — force rebuild when the cache has words but no text.
@@ -601,7 +594,7 @@ void EpubAnnotationUi::moveFocusLine(const int delta) {
 }
 
 void EpubAnnotationUi::handleInput(EpubActivity& act) {
-  MappedInputManager& m = act.mappedInput;
+  const MappedInputManager& m = act.mappedInput;
 
   if (m.wasReleased(MappedInputManager::Button::Power)) {
     const unsigned long ht = m.getHeldTime();

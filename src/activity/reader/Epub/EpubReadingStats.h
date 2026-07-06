@@ -11,14 +11,14 @@ class Section;
 
 class EpubReadingStats {
  public:
-  void init(Epub& epub, const Section* section, int currentSpineIndex);
-  void maybeCommitSession(Epub& epub);
+  void init(const Epub& epub, const Section* section, int currentSpineIndex);
+  void maybeCommitSession(const Epub& epub);
   void startPageTimer();
   bool hasActivePageTimer() const;
-  void endPageTimer(Epub& epub, const Section* section, int currentSpineIndex);
+  void endPageTimer(const Epub& epub, const Section* section, int currentSpineIndex);
   void addChapterRead();
-  void save(Epub& epub);
-  void display(GfxRenderer& renderer, Epub& epub) const;
+  void save(const Epub& epub);
+  void display(GfxRenderer& renderer, const Epub& epub) const;
 
  private:
   static std::string formatTime(uint32_t timeMs);

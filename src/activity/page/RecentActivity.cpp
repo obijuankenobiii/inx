@@ -99,12 +99,7 @@ static RecentActivity::ViewMode viewModeForLibrarySetting(uint8_t mode) {
 
 /** O(1) vs library size: at most RecentActivity::MAX_RECENT_BOOKS path compares. */
 static bool recentBooksContainPath(const std::vector<RecentBook>& books, const std::string& path) {
-  for (const auto& b : books) {
-    if (b.path == path) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(books.begin(), books.end(), [&path](const RecentBook& b) { return b.path == path; });
 }
 
 /** No-cover: stats-style double frame + title one word per line, each line centered (see StatisticActivity::renderCover). */

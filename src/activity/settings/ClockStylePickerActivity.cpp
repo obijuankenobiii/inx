@@ -39,7 +39,7 @@ void ClockStylePickerActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   selectedIndex = SETTINGS.sleepClockStyle;
-  if (selectedIndex < 0 || selectedIndex >= SleepClockRenderer::styleCount()) {
+  if (selectedIndex >= SleepClockRenderer::styleCount()) {
     selectedIndex = 0;
   }
 

@@ -56,7 +56,7 @@ class EpubAnnotationUi {
   void repaint(EpubActivity& act);
 
   void ensureDiskListLoaded(EpubActivity& act);
-  void updateStoredRangesForPage(EpubActivity& act);
+  void updateStoredRangesForPage(const EpubActivity& act);
 
   void drawStoredOverlay(EpubActivity& act);
   void drawUiOverlay(EpubActivity& act);

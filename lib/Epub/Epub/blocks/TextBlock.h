@@ -8,6 +8,7 @@
 #include <EpdFontFamily.h>
 #include <SdFat.h>
 
+#include <algorithm>
 #include <list>
 #include <memory>
 #include <string>
@@ -100,10 +101,7 @@ class TextBlock final : public Block {
   size_t getWordCount() const { return words.size(); }
   /** True if any word in the line is flagged small caps. */
   bool hasSmallCaps() const {
-    for (const auto f : wordSmallCaps) {
-      if (f != 0) return true;
-    }
-    return false;
+    return std::any_of(wordSmallCaps.begin(), wordSmallCaps.end(), [](uint8_t f) { return f != 0; });
   }
   std::string getWordAt(size_t index) const;
   uint16_t getWordXAt(size_t index) const;

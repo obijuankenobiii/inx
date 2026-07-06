@@ -34,7 +34,6 @@ class ReaderPresetEditorActivity final : public ActivityWithSubactivity {
   void loop() override;
 
  private:
-  void renderAll();
   void renderPreview();
   void renderPreviewStatusBar(int barTop, int barHeight);
   void beginExit();
