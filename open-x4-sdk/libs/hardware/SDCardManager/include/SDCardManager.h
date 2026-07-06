@@ -5,10 +5,11 @@
  * @brief Public interface and types for SDCardManager.
  */
 
-#include <WString.h>
-#include <vector>
-#include <string>
 #include <SdFat.h>
+#include <WString.h>
+
+#include <string>
+#include <vector>
 
 class SDCardManager {
  public:
@@ -16,18 +17,15 @@ class SDCardManager {
   bool begin();
   bool ready() const;
   std::vector<String> listFiles(const char* path = "/", int maxFiles = 10000);
-  
+
   String readFile(const char* path);
-  
-  
-  
+
   bool readFileToStream(const char* path, Print& out, size_t chunkSize = 256);
-  
+
   size_t readFileToBuffer(const char* path, char* buffer, size_t bufferSize, size_t maxBytes = 0);
-  
-  
+
   bool writeFile(const char* path, const String& content);
-  
+
   bool ensureDirectoryExists(const char* path);
 
   FsFile open(const char* path, const oflag_t oflag = O_RDONLY) { return sd.open(path, oflag); }
@@ -45,7 +43,7 @@ class SDCardManager {
   bool openFileForWrite(const char* moduleName, const String& path, FsFile& file);
   bool removeDir(const char* path);
 
- static SDCardManager& getInstance() { return instance; }
+  static SDCardManager& getInstance() { return instance; }
 
  private:
   static SDCardManager instance;

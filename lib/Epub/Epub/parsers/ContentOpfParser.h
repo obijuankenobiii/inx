@@ -37,18 +37,16 @@ class ContentOpfParser final : public Print {
   FsFile tempItemStore;
   std::string coverItemId;
 
-  
   struct ItemIndexEntry {
-    uint32_t idHash;      
-    uint16_t idLen;       
-    uint32_t fileOffset;  
+    uint32_t idHash;
+    uint16_t idLen;
+    uint32_t fileOffset;
   };
   std::vector<ItemIndexEntry> itemIndex;
   bool useItemIndex = false;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
 
-  
   static uint32_t fnvHash(const std::string& s) {
     uint32_t hash = 2166136261u;
     for (char c : s) {
@@ -67,7 +65,7 @@ class ContentOpfParser final : public Print {
   std::string author;
   std::string language;
   std::string tocNcxPath;
-  std::string tocNavPath;  
+  std::string tocNavPath;
   std::string coverItemHref;
   std::string textReferenceHref;
 
@@ -81,6 +79,9 @@ class ContentOpfParser final : public Print {
   size_t write(uint8_t) override;
   size_t write(const uint8_t* buffer, size_t size) override;
 
-  struct ManifestItem { std::string href; std::string mimeType; };
+  struct ManifestItem {
+    std::string href;
+    std::string mimeType;
+  };
   std::vector<ManifestItem> getImages() const;
 };

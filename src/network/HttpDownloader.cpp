@@ -19,7 +19,6 @@
 #include "util/UrlUtils.h"
 
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
-  
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
@@ -36,7 +35,6 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" INX_VERSION);
 
-  
   if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
     std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
     String encoded = base64::encode(credentials.c_str());
@@ -69,7 +67,6 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              ProgressCallback progress) {
-  
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
@@ -87,7 +84,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" INX_VERSION);
 
-  
   if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
     std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
     String encoded = base64::encode(credentials.c_str());
@@ -104,12 +100,10 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   const size_t contentLength = http.getSize();
   Serial.printf("[%lu] [HTTP] Content-Length: %zu\n", millis(), contentLength);
 
-  
   if (SdMan.exists(destPath.c_str())) {
     SdMan.remove(destPath.c_str());
   }
 
-  
   FsFile file;
   if (!SdMan.openFileForWrite("HTTP", destPath.c_str(), file)) {
     Serial.printf("[%lu] [HTTP] Failed to open file for writing\n", millis());
@@ -117,7 +111,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return FILE_ERROR;
   }
 
-  
   Stream* stream = http.getStreamPtr();
   if (!stream) {
     Serial.printf("[%lu] [HTTP] Failed to get stream\n", millis());
@@ -127,7 +120,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return HTTP_ERROR;
   }
 
-  
   uint8_t buffer[DOWNLOAD_CHUNK_SIZE];
   size_t downloaded = 0;
   const size_t total = contentLength > 0 ? contentLength : 0;
@@ -167,7 +159,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   Serial.printf("[%lu] [HTTP] Downloaded %zu bytes\n", millis(), downloaded);
 
-  
   if (contentLength > 0 && downloaded != contentLength) {
     Serial.printf("[%lu] [HTTP] Size mismatch: got %zu, expected %zu\n", millis(), downloaded, contentLength);
     SdMan.remove(destPath.c_str());

@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 
-
 struct SerializedHyphenationPatterns {
   const std::uint8_t* data;
   size_t size;

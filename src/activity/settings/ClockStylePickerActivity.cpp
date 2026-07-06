@@ -85,8 +85,8 @@ void ClockStylePickerActivity::render() {
   char countText[8];
   std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, SleepClockRenderer::styleCount());
   renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
-                       pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8, 6,
-                       countText, true);
+                       pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8, 6, countText,
+                       true);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "Prev", "Next");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -121,8 +121,7 @@ void ClockStylePickerActivity::loop() {
   if (mappedInput.wasPressed(MenuNav::itemPrev()) || mappedInput.wasPressed(MenuNav::tabPrev())) {
     selectedIndex = (selectedIndex + SleepClockRenderer::styleCount() - 1) % SleepClockRenderer::styleCount();
     needRedraw = true;
-  } else if (mappedInput.wasPressed(MenuNav::itemNext()) ||
-             mappedInput.wasPressed(MenuNav::tabNext())) {
+  } else if (mappedInput.wasPressed(MenuNav::itemNext()) || mappedInput.wasPressed(MenuNav::tabNext())) {
     selectedIndex = (selectedIndex + 1) % SleepClockRenderer::styleCount();
     needRedraw = true;
   }

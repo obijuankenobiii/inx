@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Utf8.h>
+
 #include <algorithm>
 #include <cstring>
 #include <iterator>
@@ -133,11 +134,13 @@ bool ExternalFont::load(const char* path) {
 
   metaCacheClear();
   bitmapCacheClear();
-  Serial.printf("[ExternalFont] On-demand glyph table: %u glyphs, mode=%s, aa=%d, meta %u-slot (~%u B), bitmap %u-slot x %u B (~%u B)\n",
-                m_glyphCount, m_fontData->is2Bit ? "2bit" : "1bit", m_hasAntiAliasData ? 1 : 0,
-                static_cast<unsigned>(kGlyphMetaCacheSlots), static_cast<unsigned>(sizeof(m_metaCache)),
-                static_cast<unsigned>(kGlyphBitmapCacheSlots), static_cast<unsigned>(kGlyphBitmapCacheMaxBytes),
-                static_cast<unsigned>(kGlyphBitmapCacheSlots * sizeof(GlyphBitmapCacheSlot)));
+  Serial.printf(
+      "[ExternalFont] On-demand glyph table: %u glyphs, mode=%s, aa=%d, meta %u-slot (~%u B), bitmap %u-slot x %u B "
+      "(~%u B)\n",
+      m_glyphCount, m_fontData->is2Bit ? "2bit" : "1bit", m_hasAntiAliasData ? 1 : 0,
+      static_cast<unsigned>(kGlyphMetaCacheSlots), static_cast<unsigned>(sizeof(m_metaCache)),
+      static_cast<unsigned>(kGlyphBitmapCacheSlots), static_cast<unsigned>(kGlyphBitmapCacheMaxBytes),
+      static_cast<unsigned>(kGlyphBitmapCacheSlots * sizeof(GlyphBitmapCacheSlot)));
   return true;
 }
 
@@ -333,7 +336,6 @@ bool ExternalFont::bitmapCacheCanStore(const uint32_t offset, const uint32_t len
   }
   return true;
 }
-
 
 bool ExternalFont::getGlyphMetadata(uint32_t cp, EpdGlyph& out) {
   if (m_glyphCount == 0) {

@@ -139,9 +139,7 @@ int TextRender::getWidth(const int fontId, const char* text, const EpdFontFamily
   return w;
 }
 
-int TextRender::getHeight(const int fontId) const {
-  return getLineHeight(fontId);
-}
+int TextRender::getHeight(const int fontId) const { return getLineHeight(fontId); }
 
 int TextRender::getFontAscenderSize(const int fontId) const {
   if (gfx.fontMap.count(fontId) == 0) {
@@ -235,7 +233,6 @@ bool TextRender::supportsAntiAliasing(const int fontId) const {
   return true;
 }
 
-
 int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdFontFamily::Style style) const {
   if (!text || *text == '\0' || gfx.fontMap.count(fontId) == 0) {
     return 0;
@@ -273,7 +270,6 @@ int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdF
   return totalWidth;
 }
 
-
 std::string TextRender::truncate(const int fontId, const char* text, const int maxWidth,
                                  const EpdFontFamily::Style style) const {
   if (!text || maxWidth <= 0) return "";
@@ -293,7 +289,7 @@ std::string TextRender::truncate(const int fontId, const char* text, const int m
 }
 
 void TextRender::rotated90CW(const int fontId, const int x, const int y, const char* text, const bool black,
-                                 const EpdFontFamily::Style style) const {
+                             const EpdFontFamily::Style style) const {
   if (text == nullptr || *text == '\0' || gfx.fontMap.count(fontId) == 0) {
     return;
   }
@@ -373,7 +369,7 @@ void TextRender::rotated90CW(const int fontId, const int x, const int y, const c
 }
 
 void TextRender::render(const int fontId, const int x, const int y, const char* text, const bool black,
-                      const EpdFontFamily::Style style) const {
+                        const EpdFontFamily::Style style) const {
   const int yPos = y + getFontAscenderSize(fontId);
   int xpos = x;
 
@@ -423,7 +419,7 @@ int TextRender::renderSmallCaps(const int fontId, const int x, const int y, cons
 }
 
 void TextRender::centered(const int fontId, const int y, const char* text, const bool black,
-                              const EpdFontFamily::Style style) const {
+                          const EpdFontFamily::Style style) const {
   const int x = (gfx.getScreenWidth() - getWidth(fontId, text, style)) / 2;
   render(fontId, x, y, text, black, style);
 }
@@ -475,8 +471,7 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
       }
     } else {
       constexpr size_t kMaxRowBytes = 512;
-      const size_t rowBytes =
-          is2Bit ? (static_cast<size_t>(width) + 3u) / 4u : (static_cast<size_t>(width) + 7u) / 8u;
+      const size_t rowBytes = is2Bit ? (static_cast<size_t>(width) + 3u) / 4u : (static_cast<size_t>(width) + 7u) / 8u;
       if (rowBytes == 0 || rowBytes > kMaxRowBytes) {
         *x += glyph->advanceX;
         return;
@@ -594,8 +589,7 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
       }
     } else {
       constexpr size_t kMaxRowBytes = 512;
-      const size_t rowBytes =
-          is2Bit ? (static_cast<size_t>(width) + 3u) / 4u : (static_cast<size_t>(width) + 7u) / 8u;
+      const size_t rowBytes = is2Bit ? (static_cast<size_t>(width) + 3u) / 4u : (static_cast<size_t>(width) + 7u) / 8u;
       if (rowBytes == 0 || rowBytes > kMaxRowBytes) {
         *x += scaledAdvanceX;
         return;

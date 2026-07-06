@@ -5,6 +5,9 @@
 
 #include "ReaderActivity.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "Epub.h"
 #include "Epub/EpubActivity.h"
 #include "Txt.h"
@@ -13,9 +16,6 @@
 #include "XtcReaderActivity.h"
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
-
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 /**
  * @brief Extracts the parent directory path from a file path
@@ -115,7 +115,7 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
 void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
   std::string bookPath = epub->getPath();
 
-  auto callback = onGoBack;  
+  auto callback = onGoBack;
 
   exitActivity();
   enterNewActivity(new EpubActivity(

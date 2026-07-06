@@ -9,7 +9,6 @@
 
 namespace {
 
-
 uint32_t toLowerLatinImpl(const uint32_t cp) {
   if (cp >= 'A' && cp <= 'Z') {
     return cp - 'A' + 'a';
@@ -19,19 +18,16 @@ uint32_t toLowerLatinImpl(const uint32_t cp) {
   }
 
   switch (cp) {
-    case 0x0152:      
-      return 0x0153;  
-    case 0x0178:      
-      return 0x00FF;  
-    case 0x1E9E:      
-      return 0x00DF;  
+    case 0x0152:
+      return 0x0153;
+    case 0x0178:
+      return 0x00FF;
+    case 0x1E9E:
+      return 0x00DF;
     default:
       return cp;
   }
 }
-
-
-
 
 uint32_t toLowerCyrillicImpl(const uint32_t cp) {
   if (cp >= 0x0410 && cp <= 0x042F) {
@@ -43,7 +39,7 @@ uint32_t toLowerCyrillicImpl(const uint32_t cp) {
   return cp;
 }
 
-}  
+}  // namespace
 
 uint32_t toLowerLatin(const uint32_t cp) { return toLowerLatinImpl(cp); }
 
@@ -60,10 +56,10 @@ bool isLatinLetter(const uint32_t cp) {
   }
 
   switch (cp) {
-    case 0x0152:  
-    case 0x0153:  
-    case 0x0178:  
-    case 0x1E9E:  
+    case 0x0152:
+    case 0x0153:
+    case 0x0178:
+    case 0x1E9E:
       return true;
     default:
       return false;
@@ -87,20 +83,20 @@ bool isPunctuation(const uint32_t cp) {
     case '\'':
     case ')':
     case '(':
-    case 0x00AB:  
-    case 0x00BB:  
-    case 0x2018:  
-    case 0x2019:  
-    case 0x201C:  
-    case 0x201D:  
-    case 0x00A0:  
+    case 0x00AB:
+    case 0x00BB:
+    case 0x2018:
+    case 0x2019:
+    case 0x201C:
+    case 0x201D:
+    case 0x00A0:
     case '{':
     case '}':
     case '[':
     case ']':
     case '/':
-    case 0x203A:  
-    case 0x2026:  
+    case 0x203A:
+    case 0x2026:
       return true;
     default:
       return false;
@@ -112,26 +108,26 @@ bool isAsciiDigit(const uint32_t cp) { return cp >= '0' && cp <= '9'; }
 bool isExplicitHyphen(const uint32_t cp) {
   switch (cp) {
     case '-':
-    case 0x00AD:  
-    case 0x058A:  
-    case 0x2010:  
-    case 0x2011:  
-    case 0x2012:  
-    case 0x2013:  
-    case 0x2014:  
-    case 0x2015:  
-    case 0x2043:  
-    case 0x207B:  
-    case 0x208B:  
-    case 0x2212:  
-    case 0x2E17:  
-    case 0x2E3A:  
-    case 0x2E3B:  
-    case 0xFE58:  
-    case 0xFE63:  
-    case 0xFF0D:  
-    case 0x005F:  
-    case 0x2026:  
+    case 0x00AD:
+    case 0x058A:
+    case 0x2010:
+    case 0x2011:
+    case 0x2012:
+    case 0x2013:
+    case 0x2014:
+    case 0x2015:
+    case 0x2043:
+    case 0x207B:
+    case 0x208B:
+    case 0x2212:
+    case 0x2E17:
+    case 0x2E3A:
+    case 0x2E3B:
+    case 0xFE58:
+    case 0xFE63:
+    case 0xFF0D:
+    case 0x005F:
+    case 0x2026:
       return true;
     default:
       return false;
@@ -145,7 +141,6 @@ void trimSurroundingPunctuationAndFootnote(std::vector<CodepointInfo>& cps) {
     return;
   }
 
-  
   if (cps.size() >= 3) {
     int end = static_cast<int>(cps.size()) - 1;
     while (end >= 0 && isPunctuation(cps[end].value)) {

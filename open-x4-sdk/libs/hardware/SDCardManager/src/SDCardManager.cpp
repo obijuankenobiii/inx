@@ -5,8 +5,8 @@
 
 #include "SDCardManager.h"
 
-#include <cstring>
 #include <cctype>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -72,7 +72,7 @@ bool openByDirectoryScan(SdFat& sd, const char* path, FsFile& file) {
   dir.close();
   return false;
 }
-}
+}  // namespace
 
 SDCardManager SDCardManager::instance;
 
@@ -90,9 +90,7 @@ bool SDCardManager::begin() {
   return initialized;
 }
 
-bool SDCardManager::ready() const {
-  return initialized;
-}
+bool SDCardManager::ready() const { return initialized; }
 
 bool SDCardManager::exists(const char* path) {
   if (sd.exists(path)) {
@@ -153,7 +151,7 @@ String SDCardManager::readFile(const char* path) {
   }
 
   String content = "";
-  constexpr size_t maxSize = 50000;  
+  constexpr size_t maxSize = 50000;
   size_t readSize = 0;
   while (f.available() && readSize < maxSize) {
     const char c = static_cast<char>(f.read());
@@ -194,8 +192,7 @@ bool SDCardManager::readFileToStream(const char* path, Print& out, const size_t 
 }
 
 size_t SDCardManager::readFileToBuffer(const char* path, char* buffer, const size_t bufferSize, const size_t maxBytes) {
-  if (!buffer || bufferSize == 0)
-    return 0;
+  if (!buffer || bufferSize == 0) return 0;
   if (!initialized) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.println("SDCardManager: not initialized; cannot read file");
@@ -236,7 +233,6 @@ bool SDCardManager::writeFile(const char* path, const String& content) {
     return false;
   }
 
-  
   if (sd.exists(path)) {
     sd.remove(path);
   }
@@ -260,19 +256,17 @@ bool SDCardManager::ensureDirectoryExists(const char* path) {
     return false;
   }
 
-  
   if (sd.exists(path)) {
     FsFile dir = sd.open(path);
     if (dir && dir.isDirectory()) {
       dir.close();
-    if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
+      if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
       if (Serial) Serial.printf("Directory already exists: %s\n", path);
       return true;
     }
     dir.close();
   }
 
-  
   if (sd.mkdir(path)) {
     if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
     if (Serial) Serial.printf("Created directory: %s\n", path);
@@ -324,7 +318,6 @@ bool SDCardManager::openFileForWrite(const char* moduleName, const String& path,
 }
 
 bool SDCardManager::removeDir(const char* path) {
-  
   auto dir = sd.open(path);
   if (!dir) {
     return false;

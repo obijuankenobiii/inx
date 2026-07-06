@@ -6,15 +6,14 @@
 #include "SleepActivity.h"
 
 #include <Arduino.h>
-
 #include <Bitmap.h>
 #include <Epub.h>
 #include <Epub/Page.h>
 #include <Epub/Section.h>
 #include <GfxRenderer.h>
-#include <ImageRender.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Txt.h>
 #include <Xtc.h>
@@ -22,7 +21,11 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <memory>
+#include <vector>
+
 #include "../reader/Epub/StatusBar.h"
 #include "images/CorgiSleep.h"
 #include "state/BookProgress.h"
@@ -35,9 +38,6 @@
 #include "system/ScreenComponents.h"
 #include "system/SleepClockRenderer.h"
 #include "util/StringUtils.h"
-#include <cmath>
-#include <memory>
-#include <vector>
 
 namespace {
 bool isSleepImagePathJpeg(const std::string& path) {
@@ -53,13 +53,9 @@ bool sleepTwoBitEnabled() {
          SETTINGS.sleepScreenCoverFilter == SystemSetting::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 }
 
-bool sleepImageQualityEnabled() {
-  return SETTINGS.sleepImageQuality == SystemSetting::SLEEP_IMAGE_HIGH;
-}
+bool sleepImageQualityEnabled() { return SETTINGS.sleepImageQuality == SystemSetting::SLEEP_IMAGE_HIGH; }
 
-bool dateTimeSleepScreenAvailable() {
-  return gpio.deviceIsX3();
-}
+bool dateTimeSleepScreenAvailable() { return gpio.deviceIsX3(); }
 
 ImageRenderMode sleepImageRenderMode() {
   return sleepTwoBitEnabled() ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
@@ -105,8 +101,7 @@ std::string pathForFixedSleepBmp() {
   }
   if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.bmp") == 0) return SdMan.exists("/sleep.bmp") ? "/sleep.bmp" : "";
   if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.jpg") == 0) return SdMan.exists("/sleep.jpg") ? "/sleep.jpg" : "";
-  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.jpeg") == 0)
-    return SdMan.exists("/sleep.jpeg") ? "/sleep.jpeg" : "";
+  if (strcmp(SETTINGS.sleepCustomBmp, "/sleep.jpeg") == 0) return SdMan.exists("/sleep.jpeg") ? "/sleep.jpeg" : "";
   const std::string path = std::string("/sleep/") + SETTINGS.sleepCustomBmp;
   if (SdMan.exists(path.c_str())) {
     return path;
@@ -289,7 +284,7 @@ std::string resolveLastReadCoverPathForSleep(const std::string& path) {
 
 /**
  * @brief Initializes and renders the sleep screen when activity becomes active.
- * 
+ *
  * Selects and renders the appropriate sleep screen based on the current
  * sleep screen mode setting (transparent, blank, custom, cover, or default).
  */
@@ -301,8 +296,8 @@ void SleepActivity::onEnter() {
   // whitens a mostly-white incoming screen (e.g. a book text page); coming from the home/library screen (dark
   // covers) a single FAST pass leaves gray residue and the quality refresh then starts dirty. HALF reliably
   // clears from any screen.
-  const bool renderDateTime = SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::DATETIME &&
-                              dateTimeSleepScreenAvailable();
+  const bool renderDateTime =
+      SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::DATETIME && dateTimeSleepScreenAvailable();
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT && !renderDateTime) {
     renderer.clearScreen(0Xff);
     renderer.displayBuffer();
@@ -336,7 +331,7 @@ void SleepActivity::onEnter() {
 
 /**
  * @brief Renders a custom sleep screen from user-provided images.
- * 
+ *
  * Uses a fixed image from settings when set; otherwise picks randomly from /sleep/
  * and SD-root sleep.bmp/jpg/jpeg. Falls back to default sleep screen if no images are found.
  */
@@ -377,7 +372,7 @@ void SleepActivity::renderCustomSleepScreen() const {
 
 /**
  * @brief Renders a transparent overlay sleep screen.
- * 
+ *
  * Displays a semi-transparent image overlay on top of the current screen content.
  */
 void SleepActivity::renderTransparentSleepScreen() const {
@@ -414,13 +409,12 @@ void SleepActivity::renderTransparentSleepScreen() const {
     }
   }
 
-
   renderDefaultSleepScreen();
 }
 
 /**
  * @brief Renders the cover of the last opened book as sleep screen.
- * 
+ *
  * Extracts and displays the cover image from the most recently opened book
  * (EPUB, XTC, or TXT format). Applies cropping or scaling based on settings.
  */
@@ -516,13 +510,15 @@ void SleepActivity::renderFill(const Bitmap& bitmap) const {
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill,
+                                  ImageRenderMode::TwoBit);
       renderer.copyGrayscaleLsbBuffers();
 
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill, ImageRenderMode::TwoBit);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, kCoverFill,
+                                  ImageRenderMode::TwoBit);
       renderer.copyGrayscaleMsbBuffers();
 
       renderer.displayGrayBuffer(false);
@@ -540,8 +536,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
   const auto pageHeight = renderer.getScreenHeight();
   float cropX = 0, cropY = 0;
 
-  Serial.printf("[SLP] bitmap %d x %d, screen %d x %d\n", bitmap.getWidth(), bitmap.getHeight(), pageWidth,
-                pageHeight);
+  Serial.printf("[SLP] bitmap %d x %d, screen %d x %d\n", bitmap.getWidth(), bitmap.getHeight(), pageWidth, pageHeight);
   if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
     float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
     const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
@@ -601,13 +596,15 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill,
+                                  ImageRenderMode::TwoBit);
       renderer.copyGrayscaleLsbBuffers();
 
       bitmap.rewindToData();
       renderer.clearScreen(0x00);
       renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill, ImageRenderMode::TwoBit);
+      renderer.bitmap.sleepScreen(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, coverFill,
+                                  ImageRenderMode::TwoBit);
       renderer.copyGrayscaleMsbBuffers();
 
       renderer.displayGrayBuffer(false);
@@ -619,7 +616,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
 
 /**
  * @brief Renders the default sleep screen with Corgi logo.
- * 
+ *
  * Displays the CorgiSleep logo centered on the screen with optional inversion
  * based on sleep screen mode settings.
  */
@@ -668,7 +665,7 @@ void SleepActivity::renderDateTimeSleepScreen() const {
 
 /**
  * @brief Renders a completely blank sleep screen.
- * 
+ *
  * Clears the screen to save power and prevent screen burn-in during sleep.
  */
 void SleepActivity::renderBlankSleepScreen() const {

@@ -31,7 +31,7 @@ int CornerSpanFromRy(const int r, const int ry) {
 }  // namespace
 
 void RectangleRender::render(const int x, const int y, const int width, const int height, const bool state,
-                           const bool rounded) const {
+                             const bool rounded) const {
   if (!rounded) {
     gfx.line.render(x, y, x + width - 1, y, state);
     gfx.line.render(x + width - 1, y, x + width - 1, y + height - 1, state);
@@ -123,9 +123,8 @@ void RectangleRender::dotted(const int x, const int y, const int width, const in
 
 void RectangleRender::fill(const int x, const int y, const int width, const int height, const bool state,
                            const bool rounded) const {
-  fill(x, y, width, height, state ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                  : static_cast<int>(GfxRenderer::FillTone::Paper),
-       rounded);
+  fill(x, y, width, height,
+       state ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper), rounded);
 }
 
 void RectangleRender::fill(const int x, const int y, const int width, const int height, const int tone,
@@ -162,8 +161,7 @@ void RectangleRender::fill(const int x, const int y, const int width, const int 
   }
 
   for (int cornerY = 0; cornerY < radius; cornerY++) {
-    const int cornerSpan =
-        static_cast<int>(std::sqrt(radius * radius - (radius - cornerY) * (radius - cornerY)));
+    const int cornerSpan = static_cast<int>(std::sqrt(radius * radius - (radius - cornerY) * (radius - cornerY)));
     const int topY = y + cornerY;
     gfx.line.render(x + radius - cornerSpan, topY, x + width - radius + cornerSpan - 1, topY, state);
 

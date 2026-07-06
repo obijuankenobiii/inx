@@ -12,7 +12,7 @@
 namespace {
 constexpr uint8_t STATE_FILE_VERSION = 3;
 constexpr char STATE_FILE[] = "/.system/state.bin";
-}  
+}  // namespace
 
 Session Session::instance;
 
@@ -38,7 +38,6 @@ bool Session::saveToFile() const {
 }
 
 bool Session::loadFromFile() {
-  
   if (!SdMan.exists(STATE_FILE)) {
     lastRead = "";
     lastSleepImage = 0;
@@ -82,7 +81,6 @@ bool Session::loadFromFile() {
 
   inputFile.close();
 
-  
   if (lastRead.length() > 512) {
     lastRead = "";
     lastSleepImage = 0;

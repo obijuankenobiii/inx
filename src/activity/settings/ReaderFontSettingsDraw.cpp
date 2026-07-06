@@ -5,11 +5,11 @@
 
 #include "ReaderFontSettingsDraw.h"
 
+#include <EpdFontFamily.h>
+
 #include <algorithm>
 #include <cmath>
 #include <string>
-
-#include <EpdFontFamily.h>
 
 #include "system/Fonts.h"
 
@@ -41,7 +41,7 @@ void drawSliderThumb(const GfxRenderer& renderer, int cx, int cy, bool ink) {
   renderer.polygon.render(xs, ys, n, true, ink);
 }
 
-}  
+}  // namespace
 
 namespace ReaderFontSettingsDraw {
 
@@ -73,8 +73,7 @@ void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily,
   const int trackY = itemY + itemHeight - 9;
   const int maxPreviewW = std::max(24, valueAreaRight - valueAreaLeft - 8);
 
-  const std::string loremShown =
-      renderer.text.truncate(fidSel, "Lorem", maxPreviewW, EpdFontFamily::REGULAR);
+  const std::string loremShown = renderer.text.truncate(fidSel, "Lorem", maxPreviewW, EpdFontFamily::REGULAR);
   const int loremW = renderer.text.getWidth(fidSel, loremShown.c_str(), EpdFontFamily::REGULAR);
   const int loremLh = renderer.text.getLineHeight(fidSel);
   int loremY = itemY + 4;
@@ -133,4 +132,4 @@ void drawToggleCheckbox(const GfxRenderer& renderer, int valueColumnRight, int i
   }
 }
 
-}  
+}  // namespace ReaderFontSettingsDraw

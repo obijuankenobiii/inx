@@ -10,9 +10,9 @@
 #include <algorithm>
 #include <vector>
 
+#include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
 #include "ReaderPresetEditorActivity.h"
-#include "../util/KeyboardEntryActivity.h"
 #include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
 #include "system/MenuNav.h"
@@ -51,8 +51,7 @@ const char* xtcAutoTurnLabel() {
 
 const char* xtcRefreshLabel() {
   static char buf[12];
-  snprintf(buf, sizeof(buf), "%u page%s", SETTINGS.xtcRefreshFrequency,
-           SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
+  snprintf(buf, sizeof(buf), "%u page%s", SETTINGS.xtcRefreshFrequency, SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
   return buf;
 }
 }  // namespace
@@ -83,9 +82,7 @@ void ReaderPresetsActivity::onEnter() {
   render();
 }
 
-void ReaderPresetsActivity::onExit() {
-  exitActivity();
-}
+void ReaderPresetsActivity::onExit() { exitActivity(); }
 
 int ReaderPresetsActivity::presetRowsStart() const { return 2 + (xtcExpanded_ ? 4 : 0); }
 
@@ -96,9 +93,7 @@ int ReaderPresetsActivity::presetIndexForRow(int row) const {
   return row < start ? -1 : row - start;
 }
 
-bool ReaderPresetsActivity::isXtcSettingRow(const int row) const {
-  return xtcExpanded_ && row >= 2 && row <= 5;
-}
+bool ReaderPresetsActivity::isXtcSettingRow(const int row) const { return xtcExpanded_ && row >= 2 && row <= 5; }
 
 void ReaderPresetsActivity::changeXtcSetting(const int row, const int delta) {
   if (row == 2) {
@@ -123,9 +118,9 @@ void ReaderPresetsActivity::changeXtcSetting(const int row, const int delta) {
     idx = (idx + (delta >= 0 ? 1 : count - 1)) % count;
     SETTINGS.xtcRefreshFrequency = values[idx];
   } else if (row == 5) {
-    SETTINGS.xtcShortPwrBtn =
-        SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_NEXT ? SystemSetting::XTC_POWER_PAGE_REFRESH
-                                                                 : SystemSetting::XTC_POWER_NEXT;
+    SETTINGS.xtcShortPwrBtn = SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_NEXT
+                                  ? SystemSetting::XTC_POWER_PAGE_REFRESH
+                                  : SystemSetting::XTC_POWER_NEXT;
   }
   SETTINGS.saveToFile();
 }
@@ -173,18 +168,18 @@ void ReaderPresetsActivity::render() {
       } else {
         renderer.rectangle.fill(0, itemY, screenW, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Paper));
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected, EpdFontFamily::REGULAR);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
+                           EpdFontFamily::REGULAR);
 
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
       continue;
     }
 
     if (rowIndex == 1) {
-      renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
-                              isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                         : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1,
-                           EpdFontFamily::BOLD);
+      renderer.rectangle.fill(
+          0, itemY, screenW, kListItemHeight,
+          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1, EpdFontFamily::BOLD);
       const char* tag = xtcExpanded_ ? "-" : "+";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
@@ -193,9 +188,9 @@ void ReaderPresetsActivity::render() {
     }
 
     if (isXtcSettingRow(rowIndex)) {
-      renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
-                              isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                         : static_cast<int>(GfxRenderer::FillTone::Paper));
+      renderer.rectangle.fill(
+          0, itemY, screenW, kListItemHeight,
+          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Quality";
       const char* value = readerQualityLabel(SETTINGS.xtcImageQuality);
       if (rowIndex == 3) {
@@ -210,15 +205,14 @@ void ReaderPresetsActivity::render() {
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value,
-                           isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value, isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
       continue;
     }
 
-    renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
-                            isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                       : static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(
+        0, itemY, screenW, kListItemHeight,
+        isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int presetIndex = presetIndexForRow(rowIndex);
     const std::string name = READER_PRESETS.nameOf(presetIndex);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, name.c_str(), isSelected ? 0 : 1);
@@ -253,16 +247,15 @@ void ReaderPresetsActivity::renderOverlay() {
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
   const int overlayHeaderH = 40;
   const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2 - 1;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true,
-                       EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
   renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
   for (size_t i = 0; i < options.size(); i++) {
     const int rowY = boxY + 42 + static_cast<int>(i) * rowH;
     const bool sel = (static_cast<int>(i) == overlaySel_);
-    renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH,
-                            sel ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                : static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(
+        boxX + 1, rowY, boxW - 2, rowH,
+        sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, options[i].c_str(), sel ? 0 : 1);
   }

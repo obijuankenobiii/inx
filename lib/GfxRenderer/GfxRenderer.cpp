@@ -6,11 +6,14 @@
 #include "GfxRenderer.h"
 
 #include <Utf8.h>
+
+#include <algorithm>
+#include <cmath>
 #include <memory>
 #include <set>
 #include <vector>
-#include <algorithm>
-#include <cmath>
+
+#include "ImageRender.h"
 
 #ifdef SIMULATOR
 #include <HalGPIO.h>
@@ -47,27 +50,21 @@ void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
 void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int* rotatedY) const {
   switch (orientation) {
     case Portrait: {
-      
-      
       *rotatedX = y;
       *rotatedY = panelHeight - 1 - x;
       break;
     }
     case LandscapeClockwise: {
-      
       *rotatedX = panelWidth - 1 - x;
       *rotatedY = panelHeight - 1 - y;
       break;
     }
     case PortraitInverted: {
-      
-      
       *rotatedX = panelWidth - 1 - y;
       *rotatedY = x;
       break;
     }
     case LandscapeCounterClockwise: {
-      
       *rotatedX = x;
       *rotatedY = y;
       break;
@@ -78,7 +75,6 @@ void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int
 void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   uint8_t* frameBuffer = display.getFrameBuffer();
 
-  
   if (!frameBuffer) {
     Serial.printf("[%lu] [GFX] !! No framebuffer\n", millis());
     return;
@@ -88,20 +84,18 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   int rotatedY = 0;
   rotateCoordinates(x, y, &rotatedX, &rotatedY);
 
-  
   if (rotatedX < 0 || rotatedX >= panelWidth || rotatedY < 0 || rotatedY >= panelHeight) {
     Serial.printf("[%lu] [GFX] !! Outside range (%d, %d) -> (%d, %d)\n", millis(), x, y, rotatedX, rotatedY);
     return;
   }
 
-  
   const uint32_t byteIndex = rotatedY * panelWidthBytes + (rotatedX / 8);
-  const uint8_t bitPosition = 7 - (rotatedX % 8);  
+  const uint8_t bitPosition = 7 - (rotatedX % 8);
 
   if (state) {
-    frameBuffer[byteIndex] &= ~(1 << bitPosition);  
+    frameBuffer[byteIndex] &= ~(1 << bitPosition);
   } else {
-    frameBuffer[byteIndex] |= 1 << bitPosition;  
+    frameBuffer[byteIndex] |= 1 << bitPosition;
   }
 }
 
@@ -205,11 +199,11 @@ int GfxRenderer::getScreenWidth() const {
   switch (orientation) {
     case Portrait:
     case PortraitInverted:
-      
+
       return panelHeight;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
-      
+
       return panelWidth;
   }
   return panelHeight;
@@ -219,11 +213,11 @@ int GfxRenderer::getScreenHeight() const {
   switch (orientation) {
     case Portrait:
     case PortraitInverted:
-      
+
       return panelWidth;
     case LandscapeClockwise:
     case LandscapeCounterClockwise:
-      
+
       return panelHeight;
   }
   return panelWidth;
@@ -232,9 +226,6 @@ int GfxRenderer::getScreenHeight() const {
 uint8_t* GfxRenderer::getFrameBuffer() const { return display.getFrameBuffer(); }
 
 size_t GfxRenderer::getBufferSize() const { return frameBufferSize; }
-
-
-
 
 void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuffers(display.getFrameBuffer()); }
 
@@ -303,13 +294,11 @@ bool GfxRenderer::storeBwBuffer() {
     return false;
   }
 
-  
   if (bwBufferChunks.empty()) {
     bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
   }
 
   for (size_t i = 0; i < bwBufferChunks.size(); i++) {
-    
     if (bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunk %zu already stored - this is likely a bug, freeing chunk\n",
                     millis(), i);
@@ -322,9 +311,8 @@ bool GfxRenderer::storeBwBuffer() {
     bwBufferChunks[i] = static_cast<uint8_t*>(malloc(chunkSize));
 
     if (!bwBufferChunks[i]) {
-      Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i,
-                    chunkSize);
-      
+      Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i, chunkSize);
+
       freeBwBufferChunks();
       return false;
     }
@@ -341,7 +329,6 @@ bool GfxRenderer::storeBwBuffer() {
  * Uses chunked restoration to match chunked storage.
  */
 void GfxRenderer::restoreBwBuffer() {
-  
   bool missingChunks = false;
   for (const auto& bwBufferChunk : bwBufferChunks) {
     if (!bwBufferChunk) {
@@ -363,7 +350,6 @@ void GfxRenderer::restoreBwBuffer() {
   }
 
   for (size_t i = 0; i < bwBufferChunks.size(); i++) {
-    
     if (!bwBufferChunks[i]) {
       Serial.printf("[%lu] [GFX] !! BW buffer chunks not stored - this is likely a bug\n", millis());
       freeBwBufferChunks();
@@ -392,7 +378,7 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
 }
 
 void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveText,
-                                       const std::function<void()>& drawPlane, const bool fastQuality) {
+                                        const std::function<void()>& drawPlane, const bool fastQuality) {
   const bool useFastQuality = quality && fastQuality && !deviceIsX3();
 
   if (quality && !deviceIsX3()) {
@@ -412,6 +398,7 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
   } else {
     displayGrayBuffer(quality);
   }
+  ImageRender::flushPendingDiskCache(*this);
   setRenderMode(BW);
 
   if (preserveText) {

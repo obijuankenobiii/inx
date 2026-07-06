@@ -20,11 +20,11 @@
 #include <cstdio>
 #include <string>
 
-#include "state/SystemSetting.h"
-#include "state/Session.h"
-#include "system/MappedInputManager.h"
 #include "state/RecentBooks.h"
+#include "state/Session.h"
+#include "state/SystemSetting.h"
 #include "system/Fonts.h"
+#include "system/MappedInputManager.h"
 
 namespace {
 constexpr unsigned long skipPageMs = 700;
@@ -160,7 +160,7 @@ void changePowerButton() {
                                 ? SystemSetting::XTC_POWER_PAGE_REFRESH
                                 : SystemSetting::XTC_POWER_NEXT;
 }
-}  
+}  // namespace
 
 void XtcReaderActivity::taskTrampoline(void* param) {
   auto* self = static_cast<XtcReaderActivity*>(param);
@@ -193,12 +193,7 @@ void XtcReaderActivity::onEnter() {
 
   updateRequired = true;
 
-  xTaskCreate(&XtcReaderActivity::taskTrampoline, "XtcReaderActivityTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&XtcReaderActivity::taskTrampoline, "XtcReaderActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 void XtcReaderActivity::onExit() {
@@ -234,7 +229,6 @@ void XtcReaderActivity::onExit() {
 }
 
 void XtcReaderActivity::loop() {
-  
   if (subActivity) {
     subActivity->loop();
     return;
@@ -257,19 +251,16 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= goHomeMs) {
     onGoToRecent();
     return;
   }
 
-  
   if (mappedInput.wasReleased(MappedInputManager::Button::Back) && mappedInput.getHeldTime() < goHomeMs) {
     onGoBack();
     return;
   }
 
-  
   const bool usePressForPageTurn = SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
   const bool prevTriggered = usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
                                                     mappedInput.wasPressed(MappedInputManager::Button::Left))
@@ -291,7 +282,8 @@ void XtcReaderActivity::loop() {
 
   if (!prevTriggered && !nextTriggered) {
     if (SETTINGS.xtcPageAutoTurnSeconds > 0 && xtc && xtc->getPageCount() > 0 && currentPage < xtc->getPageCount() &&
-        pageStartTime > 0 && millis() - pageStartTime >= static_cast<uint32_t>(SETTINGS.xtcPageAutoTurnSeconds) * 1000UL) {
+        pageStartTime > 0 &&
+        millis() - pageStartTime >= static_cast<uint32_t>(SETTINGS.xtcPageAutoTurnSeconds) * 1000UL) {
       turnPage(true);
     }
     return;
@@ -311,8 +303,7 @@ void XtcReaderActivity::loop() {
   const bool skipPages =
       SETTINGS.longPressChapterSkip != SystemSetting::LONG_PRESS_OFF && mappedInput.getHeldTime() > skipPageMs;
   const int skipAmount =
-      !skipPages ? 1
-                  : (SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? 5 : 10);
+      !skipPages ? 1 : (SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? 5 : 10);
 
   if (prevTriggered) {
     turnPage(false, skipAmount);
@@ -514,17 +505,17 @@ void XtcReaderActivity::renderMenuMain() {
   renderer.line.render(drawerX, drawerY + headerH - 1, drawerX + drawerW, drawerY + headerH - 1, true);
 
   const char* labels[itemCount] = {"Table of Contents", "Auto Page Turn", "Page Until Refresh",
-                                   "Image Quality", "Power Button", "Go Home"};
-  const char* values[itemCount] = {"", autoTurnLabel(), refreshLabel(), qualityLabel(SETTINGS.xtcImageQuality),
-                                   powerLabel(), ""};
+                                   "Image Quality",     "Power Button",   "Go Home"};
+  const char* values[itemCount] = {
+      "", autoTurnLabel(), refreshLabel(), qualityLabel(SETTINGS.xtcImageQuality), powerLabel(), ""};
 
   for (int i = 0; i < visibleRows && menuScrollOffset + i < itemCount; ++i) {
     const int idx = menuScrollOffset + i;
     const int rowY = drawerY + headerH + i * XTC_MENU_ITEM_HEIGHT;
     const bool selected = idx == menuSelectedIndex;
-    renderer.rectangle.fill(drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
-                            selected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(
+        drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
+        selected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 18, textY, labels[idx], selected ? 0 : 1,
                          idx == 0 ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
@@ -575,9 +566,9 @@ void XtcReaderActivity::renderMenuChapters() {
     const int idx = chapterScrollOffset + i;
     const int rowY = drawerY + headerH + i * XTC_MENU_ITEM_HEIGHT;
     const bool selected = idx == chapterSelectedIndex;
-    renderer.rectangle.fill(drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
-                            selected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(
+        drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
+        selected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     const std::string& title = chapters[idx].name;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 18, textY,
@@ -612,7 +603,6 @@ void XtcReaderActivity::renderScreen() {
     return;
   }
 
-  
   if (currentPage >= xtc->getPageCount()) {
     const uint32_t pageCount = xtc->getPageCount();
     if (pageCount > 0) {
@@ -642,8 +632,7 @@ void XtcReaderActivity::renderEndOfBookStats() {
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true,
-                       EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatReadingTime(bookStats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
@@ -697,7 +686,6 @@ void XtcReaderActivity::renderPage() {
     return;
   }
 
-  
   size_t bytesRead = xtc->loadPage(currentPage, pageBuffer, pageBufferSize);
   if (bytesRead == 0) {
     Serial.printf("[%lu] [XTR] Failed to load page %lu\n", millis(), currentPage);
@@ -708,27 +696,16 @@ void XtcReaderActivity::renderPage() {
     return;
   }
 
-  
   renderer.clearScreen();
 
-  
-  
   const uint16_t maxSrcY = pageHeight;
 
   if (bitDepth == 2) {
-    
-    
-    
-    
-    
-    
-
     const size_t planeSize = (static_cast<size_t>(pageWidth) * pageHeight + 7) / 8;
-    const uint8_t* plane1 = pageBuffer;              
-    const uint8_t* plane2 = pageBuffer + planeSize;  
-    const size_t colBytes = (pageHeight + 7) / 8;    
+    const uint8_t* plane1 = pageBuffer;
+    const uint8_t* plane2 = pageBuffer + planeSize;
+    const size_t colBytes = (pageHeight + 7) / 8;
 
-    
     auto getPixelValue = [&](uint16_t x, uint16_t y) -> uint8_t {
       const size_t colIndex = pageWidth - 1 - x;
       const size_t byteInCol = y / 8;
@@ -758,9 +735,9 @@ void XtcReaderActivity::renderPage() {
       }
     };
 
-    const uint8_t imageQuality =
-        SETTINGS.xtcImageQuality < SystemSetting::READER_IMAGE_QUALITY_COUNT ? SETTINGS.xtcImageQuality
-                                                                             : SystemSetting::READER_IMAGE_LOW;
+    const uint8_t imageQuality = SETTINGS.xtcImageQuality < SystemSetting::READER_IMAGE_QUALITY_COUNT
+                                     ? SETTINGS.xtcImageQuality
+                                     : SystemSetting::READER_IMAGE_LOW;
 
     if (imageQuality == SystemSetting::READER_IMAGE_LOW) {
       renderBwPreview();
@@ -779,20 +756,22 @@ void XtcReaderActivity::renderPage() {
     }
 
     if (imageQuality == SystemSetting::READER_IMAGE_HIGH) {
-      renderer.renderGrayscalePasses(/*quality=*/true, /*preserveText=*/false, [&] {
-        renderer.clearScreen(0xFF);
-        const bool x3 = renderer.deviceIsX3();
-        const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
-        for (uint16_t y = 0; y < pageHeight; y++) {
-          for (uint16_t x = 0; x < pageWidth; x++) {
-            const uint8_t code = xtcQualityGray2Code(getPixelValue(x, y), x3);
-            if ((renderMode == GfxRenderer::GRAY2_LSB && ((code & 0b01u) == 0)) ||
-                (renderMode == GfxRenderer::GRAY2_MSB && ((code & 0b10u) == 0))) {
-              renderer.drawPixel(x, y, true);
-            }
-          }
-        }
-      }, /*fastQuality=*/true);
+      renderer.renderGrayscalePasses(/*quality=*/true, /*preserveText=*/false,
+                                     [&] {
+                                       renderer.clearScreen(0xFF);
+                                       const bool x3 = renderer.deviceIsX3();
+                                       const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+                                       for (uint16_t y = 0; y < pageHeight; y++) {
+                                         for (uint16_t x = 0; x < pageWidth; x++) {
+                                           const uint8_t code = xtcQualityGray2Code(getPixelValue(x, y), x3);
+                                           if ((renderMode == GfxRenderer::GRAY2_LSB && ((code & 0b01u) == 0)) ||
+                                               (renderMode == GfxRenderer::GRAY2_MSB && ((code & 0b10u) == 0))) {
+                                             renderer.drawPixel(x, y, true);
+                                           }
+                                         }
+                                       }
+                                     },
+                                     /*fastQuality=*/true);
 
       updateRefreshCadence();
       free(pageBuffer);
@@ -850,17 +829,15 @@ void XtcReaderActivity::renderPage() {
                   xtc->getPageCount());
     return;
   } else {
-    
-    const size_t srcRowBytes = (pageWidth + 7) / 8;  
+    const size_t srcRowBytes = (pageWidth + 7) / 8;
 
     for (uint16_t srcY = 0; srcY < maxSrcY; srcY++) {
       const size_t srcRowStart = srcY * srcRowBytes;
 
       for (uint16_t srcX = 0; srcX < pageWidth; srcX++) {
-        
         const size_t srcByte = srcRowStart + srcX / 8;
         const size_t srcBit = 7 - (srcX % 8);
-        const bool isBlack = !((pageBuffer[srcByte] >> srcBit) & 1);  
+        const bool isBlack = !((pageBuffer[srcByte] >> srcBit) & 1);
 
         if (isBlack) {
           renderer.drawPixel(srcX, srcY, true);
@@ -868,13 +845,9 @@ void XtcReaderActivity::renderPage() {
       }
     }
   }
-  
 
   free(pageBuffer);
 
-  
-
-  
   if (pagesUntilFullRefresh <= 1) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     pagesUntilFullRefresh = SETTINGS.xtcRefreshFrequency;
@@ -908,7 +881,6 @@ void XtcReaderActivity::loadProgress() {
       currentPage = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
       Serial.printf("[%lu] [XTR] Loaded progress: page %lu\n", millis(), currentPage);
 
-      
       if (currentPage >= xtc->getPageCount()) {
         currentPage = 0;
       }

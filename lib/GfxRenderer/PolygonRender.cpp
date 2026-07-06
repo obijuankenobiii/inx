@@ -5,7 +5,7 @@
 #include "GfxRenderer.h"
 
 void PolygonRender::render(const int* xPoints, const int* yPoints, const int numPoints, const bool filled,
-                         const bool state) const {
+                           const bool state) const {
   if (numPoints < 2) {
     return;
   }

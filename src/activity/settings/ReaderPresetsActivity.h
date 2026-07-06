@@ -17,8 +17,7 @@
 
 class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu {
  public:
-  ReaderPresetsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                        const std::function<void()>& onGoBack,
+  ReaderPresetsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::function<void()>& onGoBack,
                         std::function<void()> tabNavigateRecent = nullptr,
                         std::function<void()> tabNavigateLibrary = nullptr,
                         std::function<void()> tabNavigateSync = nullptr,
@@ -33,7 +32,7 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
 
   void render();
   void renderOverlay();
-  int rowCount() const;             ///< Add-new + XTC section + preset count
+  int rowCount() const;  ///< Add-new + XTC section + preset count
   int presetRowsStart() const;
   int presetIndexForRow(int row) const;  ///< store index for a preset row, or -1 for the Add-new row
   bool isXtcSettingRow(int row) const;

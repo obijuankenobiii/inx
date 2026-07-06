@@ -34,19 +34,16 @@ class XtcParser {
   XtcParser();
   ~XtcParser();
 
-  
   XtcError open(const char* filepath);
   void close();
   bool isOpen() const { return m_isOpen; }
 
-  
   const XtcHeader& getHeader() const { return m_header; }
   uint16_t getPageCount() const { return m_header.pageCount; }
   uint16_t getWidth() const { return m_defaultWidth; }
   uint16_t getHeight() const { return m_defaultHeight; }
-  uint8_t getBitDepth() const { return m_bitDepth; }  
+  uint8_t getBitDepth() const { return m_bitDepth; }
 
-  
   bool getPageInfo(uint32_t pageIndex, PageInfo& info) const;
 
   /**
@@ -72,17 +69,14 @@ class XtcParser {
                              std::function<void(const uint8_t* data, size_t size, size_t offset)> callback,
                              size_t chunkSize = 1024);
 
-  
   std::string getTitle() const { return m_title; }
   std::string getAuthor() const { return m_author; }
 
   bool hasChapters() const { return m_hasChapters; }
   const std::vector<ChapterInfo>& getChapters() const { return m_chapters; }
 
-  
   static bool isValidXtcFile(const char* filepath);
 
-  
   XtcError getLastError() const { return m_lastError; }
 
  private:
@@ -95,11 +89,10 @@ class XtcParser {
   std::string m_author;
   uint16_t m_defaultWidth;
   uint16_t m_defaultHeight;
-  uint8_t m_bitDepth;  
+  uint8_t m_bitDepth;
   bool m_hasChapters;
   XtcError m_lastError;
 
-  
   XtcError readHeader();
   XtcError readPageTable();
   XtcError readTitle();
@@ -107,4 +100,4 @@ class XtcParser {
   XtcError readChapters();
 };
 
-}  
+}  // namespace xtc

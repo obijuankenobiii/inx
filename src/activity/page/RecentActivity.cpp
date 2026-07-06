@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "images/Down.h"
+#include "images/Star.h"
 #include "images/Up.h"
 #include "state/BookState.h"
 #include "state/Statistics.h"
@@ -29,8 +30,6 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "util/StringUtils.h"
-
-#include "images/Star.h"
 
 namespace {
 
@@ -102,9 +101,10 @@ static bool recentBooksContainPath(const std::vector<RecentBook>& books, const s
   return std::any_of(books.begin(), books.end(), [&path](const RecentBook& b) { return b.path == path; });
 }
 
-/** No-cover: stats-style double frame + title one word per line, each line centered (see StatisticActivity::renderCover). */
+/** No-cover: stats-style double frame + title one word per line, each line centered (see
+ * StatisticActivity::renderCover). */
 static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, int w, int h, const std::string& title,
-                                          int fontId) {
+                                         int fontId) {
   if (w <= 1 || h <= 1) {
     return;
   }
@@ -197,7 +197,7 @@ static void drawFlowCarouselBackdropInRect(const GfxRenderer& renderer, int rx, 
   }
 }
 
-}  
+}  // namespace
 
 namespace {
 constexpr int kRecentThumbGap = 20;
@@ -229,7 +229,7 @@ struct SimpleUiMetrics {
 
 /** Matches `renderSimpleUi` geometry for input clamping. */
 inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
-  constexpr int kTabBarH = 65;  
+  constexpr int kTabBarH = 65;
   SimpleUiMetrics m;
   m.bodyTop = kTabBarH - 6 + 8;
   constexpr int kHintReserve = 52;
@@ -258,9 +258,7 @@ inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
   m.favTop = m.bodyTop + m.topBandH;
   m.favListTop = m.favTop + m.favHeaderBlockH;
   // Rows occupy [rowY, rowY + rowH); last pixel rowY + rowH - 1 must stay within bodyBottom.
-  m.maxVis = std::min(
-      kSimpleUiFavoritesVisibleMax,
-      std::max(1, (m.bodyBottom - m.favListTop) / std::max(1, m.rowH)));
+  m.maxVis = std::min(kSimpleUiFavoritesVisibleMax, std::max(1, (m.bodyBottom - m.favListTop) / std::max(1, m.rowH)));
   return m;
 }
 
@@ -427,7 +425,7 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
     }
     snprintf(secBuf, sizeof(secBuf), "%u", othVal);
     renderer.text.render(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
-                      EpdFontFamily::BOLD);
+                         EpdFontFamily::BOLD);
   };
 
   auto drawComparedTime = [&](int x, int y, uint32_t curMs, uint32_t othMs) {
@@ -444,7 +442,7 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
     }
     const std::string othStr = formatTime(othMs);
     renderer.text.render(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, othStr.c_str(), true,
-                      EpdFontFamily::BOLD);
+                         EpdFontFamily::BOLD);
   };
 
   auto drawComparedAvgPage = [&](int x, int y, uint32_t curMs, uint32_t othMs) {
@@ -469,7 +467,7 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
       renderer.bitmap.icon(Down, iconX, y + kCmpIconY, kCmpIconSz, kCmpIconSz);
     }
     renderer.text.render(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
-                      EpdFontFamily::BOLD);
+                         EpdFontFamily::BOLD);
   };
 
   auto drawComparedProgressPct = [&](int x, int y, float curPct, float othPct) {
@@ -500,7 +498,7 @@ void RecentActivity::renderDefaultStatsGrid(int gridStartY, int screenW) {
       }
     }
     renderer.text.render(CMP_FONT, iconX + kCmpIconSz + kCmpGapAfterIcon, y + kCmpValY, secBuf, true,
-                      EpdFontFamily::BOLD);
+                         EpdFontFamily::BOLD);
   };
 
   const uint32_t curTime = hasStats ? stats.totalReadingTimeMs : 0;
@@ -625,8 +623,7 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
   recentStats_.clear();
   recentBooks.reserve(MAX_RECENT_BOOKS);
   recentStats_.reserve(MAX_RECENT_BOOKS);
-  const int maxShow =
-      std::min(MAX_RECENT_BOOKS, std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
+  const int maxShow = std::min(MAX_RECENT_BOOKS, std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
   if (resetScroll) {
     scrollOffset = 0;
     scrollOffsetDefault = 0;
@@ -677,8 +674,6 @@ bool RecentActivity::openBookPath(const std::string& path, const std::string& ti
     }
     return false;
   }
-
-
 
   bookSelected = true;
   onSelectBook(selectedPath);
@@ -765,10 +760,9 @@ void RecentActivity::renderRemoveConfirmation() {
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "RECENT BOOK", true, EpdFontFamily::BOLD);
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Remove from recent?", true,
                          EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, title.c_str(), true,
-                         EpdFontFamily::REGULAR);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 26,
-                         "The book file and reading progress will stay.", true, EpdFontFamily::REGULAR);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, title.c_str(), true, EpdFontFamily::REGULAR);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 26, "The book file and reading progress will stay.",
+                         true, EpdFontFamily::REGULAR);
   const auto labels = mappedInput.mapLabels("Cancel", "Remove", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
@@ -777,8 +771,7 @@ void RecentActivity::renderRemoveConfirmation() {
 
 const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(const int index) const {
   static const CachedRecentStats empty;
-  if (index < 0 || index >= static_cast<int>(recentStats_.size()) ||
-      index >= static_cast<int>(recentBooks.size())) {
+  if (index < 0 || index >= static_cast<int>(recentStats_.size()) || index >= static_cast<int>(recentBooks.size())) {
     return empty;
   }
   CachedRecentStats& cached = recentStats_[static_cast<size_t>(index)];
@@ -942,8 +935,7 @@ void RecentActivity::renderIcons(int startY) {
   const int availW = std::max(1, screenW - GRID_SPACING * 2);
   const int availH = std::max(1, screenH - startY - GRID_SPACING * 2);
 
-  const int kGapY =
-      (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
+  const int kGapY = (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
   const int blockH = kRowsVisible * kFrameH + (kRowsVisible - 1) * kGapY;
   const int blockTop = startY + GRID_SPACING + std::max(0, (availH - blockH) / 2);
 
@@ -1038,8 +1030,7 @@ void RecentActivity::drawBufferedSelectionOverlay() {
   const int screenH = renderer.getScreenHeight() - 30;
   const int availW = std::max(1, screenW - GRID_SPACING * 2);
   const int availH = std::max(1, screenH - startY - GRID_SPACING * 2);
-  const int kGapY =
-      (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
+  const int kGapY = (kRowsVisible > 1) ? std::max(8, (availH - kRowsVisible * kFrameH) / (kRowsVisible - 1)) : 0;
   const int blockH = kRowsVisible * kFrameH + (kRowsVisible - 1) * kGapY;
   const int blockTop = startY + GRID_SPACING + std::max(0, (availH - blockH) / 2);
   const int twoW = kCols * kFrameW + (kCols - 1) * kGapX;
@@ -1048,8 +1039,7 @@ void RecentActivity::drawBufferedSelectionOverlay() {
   const int visualRow = selectedRow - scrollOffset;
   const int boxX = row0X + col * (kFrameW + kGapX);
   const int boxY = blockTop + visualRow * (kFrameH + kGapY);
-  renderer.rectangle.render(boxX - 2, boxY - 2, kFrameW + 4, kFrameH + 4, true,
-                            SETTINGS.bitmapRoundedCorners != 0);
+  renderer.rectangle.render(boxX - 2, boxY - 2, kFrameW + 4, kFrameH + 4, true, SETTINGS.bitmapRoundedCorners != 0);
 }
 
 /**
@@ -1104,10 +1094,11 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
       int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
       snprintf(pText, sizeof(pText), "%d%%", percent);
       int pW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pText);
-      renderer.rectangle.fill(barX + barW - pW - 5, barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 10,
-                        pW + 5, 30, false, true);
+      renderer.rectangle.fill(barX + barW - pW - 5,
+                              barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 10, pW + 5, 30,
+                              false, true);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barX + barW - pW,
-                        barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 6, pText);
+                           barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 6, pText);
     }
   }
 }
@@ -1143,13 +1134,12 @@ void RecentActivity::renderList(int startY) {
 
     const int ty = y + (rowH - thumbH) / 2;
     const int tx = padX;
-    const std::string cacheDir =
-        book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+    const std::string cacheDir = book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
     if (thumbRound) {
       renderer.rectangle.fill(tx, ty, thumbW, thumbH, false, true);
     }
     drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID,
-                            false);
+                          false);
 
     const int textX = tx + thumbW + 14;
     const int textRight = screenW - padX;
@@ -1161,8 +1151,7 @@ void RecentActivity::renderList(int startY) {
     const int lhA = renderer.text.getLineHeight(fontAuthor);
     const int tyT = y + 20;
     const std::string dispTitle = bookDisplayTitle(book);
-    const std::string titleLine =
-        renderer.text.truncate(fontTitle, dispTitle.c_str(), textW, EpdFontFamily::REGULAR);
+    const std::string titleLine = renderer.text.truncate(fontTitle, dispTitle.c_str(), textW, EpdFontFamily::REGULAR);
     renderer.text.render(fontTitle, textX, tyT, titleLine.c_str(), true, EpdFontFamily::REGULAR);
     int lastTextBottom = tyT + lhT;
     int tyA = tyT + lhT + 4;
@@ -1237,33 +1226,19 @@ std::unique_ptr<RecentActivity::LayoutEngine> RecentActivity::makeLayoutEngine(V
   }
 }
 
-void RecentActivity::DefaultViewLayout::paint(RecentActivity& self) {
-  self.renderDefault();
-}
+void RecentActivity::DefaultViewLayout::paint(RecentActivity& self) { self.renderDefault(); }
 
-void RecentActivity::GridViewLayout::paint(RecentActivity& self) {
-  self.renderGrid(self.recentGridPaintStartY());
-}
+void RecentActivity::GridViewLayout::paint(RecentActivity& self) { self.renderGrid(self.recentGridPaintStartY()); }
 
-void RecentActivity::IconsViewLayout::paint(RecentActivity& self) {
-  self.renderIcons(self.recentIconsPaintStartY());
-}
+void RecentActivity::IconsViewLayout::paint(RecentActivity& self) { self.renderIcons(self.recentIconsPaintStartY()); }
 
-void RecentActivity::CoverViewLayout::paint(RecentActivity& self) {
-  self.renderCoverMode();
-}
+void RecentActivity::CoverViewLayout::paint(RecentActivity& self) { self.renderCoverMode(); }
 
-void RecentActivity::SimpleUiViewLayout::paint(RecentActivity& self) {
-  self.renderSimpleUi();
-}
+void RecentActivity::SimpleUiViewLayout::paint(RecentActivity& self) { self.renderSimpleUi(); }
 
-void RecentActivity::ListViewLayout::paint(RecentActivity& self) {
-  self.renderList(self.recentListPaintStartY());
-}
+void RecentActivity::ListViewLayout::paint(RecentActivity& self) { self.renderList(self.recentListPaintStartY()); }
 
-void RecentActivity::FlowViewLayout::paint(RecentActivity& self) {
-  self.renderFlow();
-}
+void RecentActivity::FlowViewLayout::paint(RecentActivity& self) { self.renderFlow(); }
 
 void RecentActivity::renderCoverMode() {
   const int screenW = renderer.getScreenWidth();
@@ -1296,8 +1271,7 @@ void RecentActivity::renderCoverMode() {
   constexpr int kCoverToTextGap = 18;
   constexpr int kMinTextBottomPad = 8;
   const bool showProgress = b.progress >= 0.0f && b.progress <= 1.0f;
-  const int textBlockH =
-      titleLh + kAuthorGap + authorLh + (showProgress ? (kProgressGap + kProgressH) : 0);
+  const int textBlockH = titleLh + kAuthorGap + authorLh + (showProgress ? (kProgressGap + kProgressH) : 0);
 
   int coverW = std::max(80, screenW * 75 / 100);
   const int maxCoverW = std::max(80, screenW - GRID_SPACING * 2);
@@ -1356,8 +1330,7 @@ void RecentActivity::renderCoverMode() {
 
 bool RecentActivity::canUseRecentPageBuffer() const {
   return !recentBooks.empty() &&
-         (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons ||
-          currentViewMode == ViewMode::List);
+         (currentViewMode == ViewMode::Grid || currentViewMode == ViewMode::Icons || currentViewMode == ViewMode::List);
 }
 
 bool RecentActivity::storeRecentPageBuffer() {
@@ -1500,8 +1473,8 @@ void RecentActivity::renderDefault() {
         [&](int bi) -> std::string { return bookDisplayTitle(recentBooks[static_cast<size_t>(bi)]); },
         [&](int bi) { return selectorIndex == bi; });
   } else {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID,
-                              bodyTop + std::max(8, carouselH / 2 - 8), "No recent books");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bodyTop + std::max(8, carouselH / 2 - 8),
+                           "No recent books");
   }
 
   const int belowY = bodyTop + carouselH;
@@ -1596,7 +1569,8 @@ void RecentActivity::loop() {
           (isSimpleUi && totalBooks > 0 && selectorIndex == 0) ||
           (isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks)) {
         beginRemoveConfirmation();
-      } else if (!isDefaultView && !isSimpleUi && !isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
+      } else if (!isDefaultView && !isSimpleUi && !isCoverView && totalBooks > 0 && selectorIndex >= 0 &&
+                 selectorIndex < totalBooks) {
         beginRemoveConfirmation();
       }
     }
@@ -1827,7 +1801,6 @@ void RecentActivity::renderFlow() {
   int rightX = centerX + centerW + 20;
   int sideY = centerY + (centerH - sideH) / 2;
 
-  
   if (currentIndex > 0) {
     const RecentBook& leftBook = recentBooks[currentIndex - 1];
     renderer.rectangle.fill(leftX, sideY, sideW, sideH, false, rr);
@@ -1857,7 +1830,7 @@ void RecentActivity::renderFlow() {
 
   int statsX = 30;
   int statsY = carouselY + carouselH + 25;
-  renderer.line.render(0, carouselY + carouselH + 10,  screenW, carouselY + carouselH + 10, true);
+  renderer.line.render(0, carouselY + carouselH + 10, screenW, carouselY + carouselH + 10, true);
   std::string title;
   if (!currentBook.title.empty()) {
     title = currentBook.title;
@@ -1867,7 +1840,7 @@ void RecentActivity::renderFlow() {
   std::string truncatedTitle =
       renderer.text.truncate(ATKINSON_HYPERLEGIBLE_18_FONT_ID, title.c_str(), screenW - 60, EpdFontFamily::BOLD);
   renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY, truncatedTitle.c_str(), true,
-                    EpdFontFamily::BOLD);
+                       EpdFontFamily::BOLD);
 
   int authorY = statsY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_18_FONT_ID) - 5;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
@@ -1939,7 +1912,8 @@ void RecentActivity::renderSimpleUi() {
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
     renderer.rectangle.fill(rx, ry, m.thumbW, m.thumbH, false, rr);
     const std::string cdir = b.cachePath.empty() ? epubCachePathForBookPath(b.path) : b.cachePath;
-    drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID, true);
+    drawRecentThumbnailAt(rx, ry, m.thumbW, m.thumbH, cdir, bookDisplayTitle(b), ATKINSON_HYPERLEGIBLE_12_FONT_ID,
+                          true);
     if (sel) {
       renderer.rectangle.render(rx - 2, ry - 2, m.thumbW + 4, m.thumbH + 4, true, rr);
     } else if (!rr) {
@@ -1951,16 +1925,14 @@ void RecentActivity::renderSimpleUi() {
     std::string titleStr = b.title.empty() ? formatTitle(getBaseFilename(b.path)) : b.title;
     const int textX = rx + m.thumbW + 18;
     const int maxTextW = std::max(40, screenW - textX - m.marginL);
-    const std::string titleDraw =
-        renderer.text.truncate(titleFont, titleStr.c_str(), maxTextW, EpdFontFamily::BOLD);
+    const std::string titleDraw = renderer.text.truncate(titleFont, titleStr.c_str(), maxTextW, EpdFontFamily::BOLD);
     const int lhTitle = renderer.text.getLineHeight(titleFont);
     const int lhAuthor = renderer.text.getLineHeight(authorFont);
     const int authorGap = 8;
     constexpr int kSimpleProgressBarH = 6;
     constexpr int kSimpleProgressBarGap = 12;
     const bool showProg = b.progress >= 0.0f && b.progress <= 1.0f;
-    const int blockH =
-        lhTitle + authorGap + lhAuthor + (showProg ? (kSimpleProgressBarGap + kSimpleProgressBarH) : 0);
+    const int blockH = lhTitle + authorGap + lhAuthor + (showProg ? (kSimpleProgressBarGap + kSimpleProgressBarH) : 0);
     const int textY = m.bodyTop + (m.topBandH - blockH) / 2;
     renderer.text.render(titleFont, textX, textY, titleDraw.c_str(), true, EpdFontFamily::BOLD);
     const std::string auth = b.author.empty() ? std::string() : b.author;
@@ -1978,15 +1950,14 @@ void RecentActivity::renderSimpleUi() {
     }
   } else {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, m.bodyTop + std::max(20, m.topBandH / 2 - 16),
-                              "No recent books", true);
+                           "No recent books", true);
   }
 
   if (m.favTop < m.bodyBottom) {
     renderer.rectangle.fill(0, m.favTop, screenW, m.bodyBottom - m.favTop, false);
     renderer.line.render(0, m.favTop, screenW, m.favTop, true);
     const int favHdrFont = kSimpleUiBodyFont;
-    renderer.text.render(favHdrFont, m.marginL, m.favTop + kFavHeaderPadTop, "Favorites", true,
-                        EpdFontFamily::BOLD);
+    renderer.text.render(favHdrFont, m.marginL, m.favTop + kFavHeaderPadTop, "Favorites", true, EpdFontFamily::BOLD);
     const int hdrSepY = m.favListTop - 1;
     if (hdrSepY > m.favTop) {
       renderer.line.render(0, hdrSepY, screenW, hdrSepY, true);
@@ -2031,7 +2002,7 @@ void RecentActivity::renderSimpleUi() {
     std::string disp = fb.title.empty() ? formatTitle(getBaseFilename(fb.path)) : fb.title;
     const std::string trunc = renderer.text.truncate(favFont, disp.c_str(), maxTitleW);
     renderer.bitmap.icon(Star, starX, textY + 2, 24, 24, BitmapRender::Orientation::None, rowSel);
-    renderer.text.render(favFont, titleX , textY, trunc.c_str(), !rowSel);
+    renderer.text.render(favFont, titleX, textY, trunc.c_str(), !rowSel);
     rowY += m.rowH;
     renderer.line.render(0, rowY, screenW, rowY, true);
   }

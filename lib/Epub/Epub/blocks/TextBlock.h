@@ -52,16 +52,18 @@ class TextBlock final : public Block {
    * @param style Alignment style for the line
    */
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
-                     std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> word_small_caps,
-                     const Style style, std::list<uint8_t> word_underline = {})
-      : words(std::move(words)), wordXpos(std::move(word_xpos)),
-        wordStyles(std::move(word_styles)), wordSmallCaps(std::move(word_small_caps)),
-        wordUnderline(std::move(word_underline)), style(style) {}
+                     std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> word_small_caps, const Style style,
+                     std::list<uint8_t> word_underline = {})
+      : words(std::move(words)),
+        wordXpos(std::move(word_xpos)),
+        wordStyles(std::move(word_styles)),
+        wordSmallCaps(std::move(word_small_caps)),
+        wordUnderline(std::move(word_underline)),
+        style(style) {}
 
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
                      std::list<EpdFontFamily::Style> word_styles, std::list<uint8_t> bionic_prefix_bytes,
-                     std::list<uint8_t> word_small_caps,
-                     const Style style, std::list<uint8_t> word_underline = {},
+                     std::list<uint8_t> word_small_caps, const Style style, std::list<uint8_t> word_underline = {},
                      std::list<std::string> word_image_paths = {}, std::list<uint16_t> word_image_w = {},
                      std::list<uint16_t> word_image_h = {})
       : words(std::move(words)),
@@ -74,26 +76,26 @@ class TextBlock final : public Block {
         wordImageW(std::move(word_image_w)),
         wordImageH(std::move(word_image_h)),
         style(style) {}
-  
+
   ~TextBlock() override = default;
-  
+
   /**
    * Sets the alignment style.
-   * 
+   *
    * @param style New alignment style
    */
   void setStyle(const Style style) { this->style = style; }
-  
+
   /**
    * Gets the current alignment style.
-   * 
+   *
    * @return Current style
    */
   Style getStyle() const { return style; }
-  
+
   /**
    * Checks if the block contains any words.
-   * 
+   *
    * @return true if empty
    */
   bool isEmpty() override { return words.empty(); }
@@ -122,15 +124,15 @@ class TextBlock final : public Block {
       fn(i, *wordIt, *xIt, *styleIt);
     }
   }
-  
+
   /**
    * Layout is pre-calculated during parsing.
    */
   void layout(GfxRenderer& renderer) override {};
-  
+
   /**
    * Renders the text block at the specified position.
-   * 
+   *
    * @param renderer The graphics renderer
    * @param fontId Font ID to use for rendering
    * @param x Base X coordinate
@@ -138,25 +140,25 @@ class TextBlock final : public Block {
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
   void render(GfxRenderer& renderer, int fontId, int x, int y) const;
-  
+
   /**
    * Gets the block type identifier.
-   * 
+   *
    * @return TEXT_BLOCK
    */
   BlockType getType() override { return TEXT_BLOCK; }
-  
+
   /**
    * Serializes the text block to a file.
-   * 
+   *
    * @param file File to write to
    * @return true if successful
    */
   bool serialize(FsFile& file) const;
-  
+
   /**
    * Deserializes a text block from a file.
-   * 
+   *
    * @param file File to read from
    * @return Unique pointer to the deserialized text block
    */

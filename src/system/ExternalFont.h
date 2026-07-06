@@ -1,21 +1,22 @@
 #pragma once
 #include <string>
-#include "SDCardManager.h"
+
 #include "EpdFontData.h"
+#include "SDCardManager.h"
 
 class ExternalFont {
-public:
-    ExternalFont();
-    ~ExternalFont();
-    bool load(const char* path);
-    void unload();
-    void setGlyphBitmapCacheEnabled(bool enabled);
-    bool getGlyphMetadata(uint32_t codePoint, EpdGlyph& outGlyph);
-    bool getGlyphBitmap(uint32_t offset, uint32_t length, uint8_t* outputBuffer);
-    bool hasAntiAliasData() const { return m_hasAntiAliasData; }
-    EpdFontData* getData() { return m_fontData; }
+ public:
+  ExternalFont();
+  ~ExternalFont();
+  bool load(const char* path);
+  void unload();
+  void setGlyphBitmapCacheEnabled(bool enabled);
+  bool getGlyphMetadata(uint32_t codePoint, EpdGlyph& outGlyph);
+  bool getGlyphBitmap(uint32_t offset, uint32_t length, uint8_t* outputBuffer);
+  bool hasAntiAliasData() const { return m_hasAntiAliasData; }
+  EpdFontData* getData() { return m_fontData; }
 
-private:
+ private:
   bool detectAntiAliasData();
   bool readGlyphEntryAtIndex(uint32_t index, uint8_t out24[24]) const;
   bool readCodepointAtIndex(uint32_t index, uint32_t& outCp) const;

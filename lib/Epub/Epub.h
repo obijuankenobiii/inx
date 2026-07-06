@@ -6,6 +6,7 @@
  */
 
 #include <Print.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,13 +42,13 @@ class Epub {
   bool isLoaded() const;
   bool clearCache();
   void setupCacheDir() const;
-  
+
   std::string getCacheImgPath(const std::string& internalHref) const;
   bool extractItemToPath(const std::string& itemHref, const std::string& outPath, size_t chunkSize = 2048) const;
   bool extractAndConvertImageFullScreen(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                         int targetH, bool cropToFill) const;
-  bool extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, 
-                              int targetW = 0, int targetH = 0) const;
+  bool extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW = 0,
+                              int targetH = 0) const;
 
   const std::string& getCachePath() const;
   const std::string& getPath() const;
@@ -66,11 +67,11 @@ class Epub {
   std::string getSmallThumbBmpPath() const;
   bool generateThumbBmp() const;
 
-  uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr, bool trailingNullByte = false) const;
+  uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr,
+                                   bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
   bool getItemSize(const std::string& itemHref, size_t* size) const;
 
-  
   int getSpineItemsCount() const;
   BookMetadataCache::SpineEntry getSpineItem(int spineIndex) const;
   int getTocItemsCount() const;
@@ -86,8 +87,7 @@ class Epub {
   std::string getCssContent(const std::string& cssPath) const;
   std::vector<std::string> getAllCssPaths() const;
   std::string getCombinedCss() const;
-  
-  
+
   size_t getCumulativeSpineItemSize(int spineIndex) const;
   size_t getBookSize() const;
   float calculateProgress(int currentSpineIndex, float currentSpineRead) const;

@@ -22,7 +22,6 @@ constexpr int MAX_COST = std::numeric_limits<int>::max();
 
 namespace {
 
-
 constexpr char SOFT_HYPHEN_UTF8[] = "\xC2\xAD";
 constexpr size_t SOFT_HYPHEN_BYTES = 2;
 
@@ -83,9 +82,8 @@ void stripSoftHyphensInPlace(std::string& word) {
   }
 }
 
-
-uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId,
-                          const std::string& word, const EpdFontFamily::Style style, const bool smallCaps = false,
+uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                          const EpdFontFamily::Style style, const bool smallCaps = false,
                           const bool appendHyphen = false) {
   const bool hasSoftHyphen = containsSoftHyphen(word);
   if (!hasSoftHyphen && !appendHyphen) {
@@ -104,9 +102,8 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId,
                    : renderer.text.getWidth(fontId, sanitized.c_str(), style);
 }
 
-uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId,
-                          const std::string& word, const EpdFontFamily::Style style, const uint8_t bionicPrefixBytes,
-                          const bool smallCaps,
+uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                          const EpdFontFamily::Style style, const uint8_t bionicPrefixBytes, const bool smallCaps,
                           const bool appendHyphen = false) {
   if (bionicPrefixBytes == 0 || bionicPrefixBytes >= word.size()) {
     return measureWordWidth(renderer, fontId, word, style, smallCaps, appendHyphen);
@@ -143,8 +140,7 @@ std::vector<size_t> computeGreedyLineBreaksWithDropIndent(const int pageWidth, c
   while (currentIndex < n) {
     const size_t lineStart = currentIndex;
     int lineWidth = 0;
-    const int lineW =
-        (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
+    const int lineW = (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
 
     while (currentIndex < n) {
       const bool isFirstWord = currentIndex == lineStart;
@@ -212,7 +208,6 @@ void ParsedText::addImage(std::string cachePath, const uint16_t displayW, const 
   wordImageH.push_back(displayH);
 }
 
-
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
                                        const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                                        const bool includeLastLine) {
@@ -220,7 +215,6 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     return;
   }
 
-  
   applyParagraphIndent(renderer, fontId);
 
   const int pageWidth = viewportWidth;
@@ -232,7 +226,6 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   const int dropW = static_cast<int>(leftIndentWidth);
   const int dropL = static_cast<int>(leftIndentLineCount);
   if (hyphenationEnabled) {
-    
     lineBreakIndices = computeHyphenatedLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
   } else {
     lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
@@ -287,8 +280,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   }
 
   /** Break words wider than the *tightest* column they may occupy (narrow drop-cap lines), not full pageWidth. */
-  const int narrowColumn =
-      (dropIndentW > 0 && dropIndentLines > 0) ? std::max(1, pageWidth - dropIndentW) : pageWidth;
+  const int narrowColumn = (dropIndentW > 0 && dropIndentLines > 0) ? std::max(1, pageWidth - dropIndentW) : pageWidth;
   for (size_t i = 0; i < wordWidths.size(); ++i) {
     while (static_cast<int>(wordWidths[i]) > narrowColumn) {
       if (!hyphenateWordAtIndex(i, narrowColumn, renderer, fontId, wordWidths, true)) {
@@ -299,7 +291,6 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   const int n = static_cast<int>(words.size());
 
-  
   if (dropIndentW <= 0 || dropIndentLines <= 0) {
     const size_t totalWordCount = words.size();
     constexpr size_t kMaxOptimalLineBreakWords = 220;
@@ -383,9 +374,10 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   const int maxEll = n + 1;
 
-  
-  std::vector<std::vector<int>> dp(static_cast<size_t>(n + 1), std::vector<int>(static_cast<size_t>(maxEll + 1), MAX_COST));
-  std::vector<std::vector<size_t>> ans(static_cast<size_t>(n + 1), std::vector<size_t>(static_cast<size_t>(maxEll + 1), 0));
+  std::vector<std::vector<int>> dp(static_cast<size_t>(n + 1),
+                                   std::vector<int>(static_cast<size_t>(maxEll + 1), MAX_COST));
+  std::vector<std::vector<size_t>> ans(static_cast<size_t>(n + 1),
+                                       std::vector<size_t>(static_cast<size_t>(maxEll + 1), 0));
 
   for (int ell = 0; ell <= maxEll; ++ell) {
     dp[static_cast<size_t>(n)][static_cast<size_t>(ell)] = 0;
@@ -393,8 +385,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   for (int i = n - 1; i >= 0; --i) {
     for (int ell = 0; ell <= n; ++ell) {
-      const int W =
-          (dropIndentW > 0 && ell < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
+      const int W = (dropIndentW > 0 && ell < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
 
       int currlen = -spaceWidth;
       dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = MAX_COST;
@@ -429,7 +420,8 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       if (dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] == MAX_COST) {
         ans[static_cast<size_t>(i)][static_cast<size_t>(ell)] = static_cast<size_t>(i);
         if (i + 1 < n) {
-          dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = dp[static_cast<size_t>(i + 1)][static_cast<size_t>(ell + 1)];
+          dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] =
+              dp[static_cast<size_t>(i + 1)][static_cast<size_t>(ell + 1)];
         } else {
           dp[static_cast<size_t>(i)][static_cast<size_t>(ell)] = 0;
         }
@@ -479,7 +471,6 @@ void ParsedText::applyParagraphIndent(const GfxRenderer& renderer, const int fon
   }
 }
 
-
 std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& renderer, const int fontId,
                                                             const int pageWidth, const int spaceWidth,
                                                             std::vector<uint16_t>& wordWidths, int dropIndentW,
@@ -491,10 +482,8 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
   while (currentIndex < wordWidths.size()) {
     const size_t lineStart = currentIndex;
     int lineWidth = 0;
-    const int lineW =
-        (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
+    const int lineW = (dropIndentW > 0 && lineNum < dropIndentLines) ? pageWidth - dropIndentW : pageWidth;
 
-    
     while (currentIndex < wordWidths.size()) {
       const bool isFirstWord = currentIndex == lineStart;
       const int spacing = isFirstWord ? 0 : spaceWidth;
@@ -510,19 +499,16 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
         continue;
       }
 
-      
       const int availableWidth = lineW - lineWidth - spacing;
-      const bool allowFallbackBreaks = isFirstWord;  
+      const bool allowFallbackBreaks = isFirstWord;
 
       if (availableWidth > 0 &&
           hyphenateWordAtIndex(currentIndex, availableWidth, renderer, fontId, wordWidths, allowFallbackBreaks)) {
-        
         lineWidth += spacing + wordWidths[currentIndex];
         ++currentIndex;
         break;
       }
 
-      
       if (currentIndex == lineStart) {
         lineWidth += candidateWidth;
         ++currentIndex;
@@ -537,17 +523,13 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
   return lineBreakIndices;
 }
 
-
-
 bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availableWidth, const GfxRenderer& renderer,
                                       const int fontId, std::vector<uint16_t>& wordWidths,
                                       const bool allowFallbackBreaks) {
-  
   if (availableWidth <= 0 || wordIndex >= words.size()) {
     return false;
   }
 
-  
   auto wordIt = words.begin();
   auto styleIt = wordStyles.begin();
   auto bionicIt = bionicPrefixBytes.begin();
@@ -578,7 +560,6 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   const bool smallCaps = *smallCapsIt != 0;
   const bool underline = *underlineIt != 0;
 
-  
   auto breakInfos = Hyphenator::breakOffsets(word, allowFallbackBreaks);
   if (breakInfos.empty()) {
     return false;
@@ -588,7 +569,6 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   int chosenWidth = -1;
   bool chosenNeedsHyphen = true;
 
-  
   for (const auto& info : breakInfos) {
     const size_t offset = info.byteOffset;
     if (offset == 0 || offset >= word.size()) {
@@ -597,10 +577,10 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
 
     const bool needsHyphen = info.requiresInsertedHyphen;
     const uint8_t hyphenPrefixBytes = bionicReadingEnabled ? bionicPrefixLengthBytes(word.substr(0, offset)) : 0;
-    const int prefixWidth = measureWordWidth(renderer, fontId, word.substr(0, offset), style,
-                                             hyphenPrefixBytes, smallCaps, needsHyphen);
+    const int prefixWidth =
+        measureWordWidth(renderer, fontId, word.substr(0, offset), style, hyphenPrefixBytes, smallCaps, needsHyphen);
     if (prefixWidth > availableWidth || prefixWidth <= chosenWidth) {
-      continue;  
+      continue;
     }
 
     chosenWidth = prefixWidth;
@@ -609,18 +589,15 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   }
 
   if (chosenWidth < 0) {
-    
     return false;
   }
 
-  
   std::string remainder = word.substr(chosenOffset);
   wordIt->resize(chosenOffset);
   if (chosenNeedsHyphen) {
     wordIt->push_back('-');
   }
 
-  
   auto insertWordIt = std::next(wordIt);
   auto insertStyleIt = std::next(styleIt);
   auto insertBionicIt = std::next(bionicIt);
@@ -641,10 +618,8 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
     wordImageH.insert(std::next(imgHIt), 0);
   }
 
-  
   wordWidths[wordIndex] = static_cast<uint16_t>(chosenWidth);
-  const uint16_t remainderWidth =
-      measureWordWidth(renderer, fontId, remainder, style, remainderBionic, smallCaps);
+  const uint16_t remainderWidth = measureWordWidth(renderer, fontId, remainder, style, remainderBionic, smallCaps);
   wordWidths.insert(wordWidths.begin() + wordIndex + 1, remainderWidth);
   return true;
 }
@@ -656,7 +631,6 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   const size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
   const size_t lineWordCount = lineBreak - lastBreakAt;
 
-  
   int lineWordWidthSum = 0;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     lineWordWidthSum += wordWidths[i];
@@ -669,18 +643,15 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     maxLineContentWidth_ = static_cast<uint16_t>(std::min(naturalLineWidth, 65535));
   }
 
-  
   uint16_t currentIndent = 0;
   if (this->leftIndentLineCount > 0) {
     currentIndent = this->leftIndentWidth;
     this->leftIndentLineCount--;
   }
 
-  
   const int effectivePageWidth = pageWidth - currentIndent;
   const int spareSpace = effectivePageWidth - lineWordWidthSum;
 
-  
   int spacing = spaceWidth;
   const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
   const int gapCount = lineWordCount >= 2 ? static_cast<int>(lineWordCount) - 1 : 0;
@@ -694,9 +665,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
       spacing = std::max(1, tightened);
     }
   }
-  
 
-  
   uint16_t xpos = currentIndent;
   if (style == TextBlock::RIGHT_ALIGN && spareSpace >= 0) {
     xpos += spareSpace - (lineWordCount - 1) * spaceWidth;
@@ -704,7 +673,6 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos += (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
-  
   std::list<uint16_t> lineXPos;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     const uint16_t currentWordWidth = wordWidths[i];
@@ -725,7 +693,6 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos = static_cast<uint16_t>(static_cast<int>(xpos) + static_cast<int>(currentWordWidth) + gapAfter);
   }
 
-  
   auto wordEndIt = words.begin();
   auto wordStyleEndIt = wordStyles.begin();
   auto bionicEndIt = bionicPrefixBytes.begin();

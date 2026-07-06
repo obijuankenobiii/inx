@@ -9,21 +9,17 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
-
 WifiCredentialStore WifiCredentialStore::instance;
 
 namespace {
 
 constexpr uint8_t WIFI_FILE_VERSION = 1;
 
-
 constexpr char WIFI_FILE[] = "/.system/wifi.bin";
-
-
 
 constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73, 0x50, 0x6F, 0x69, 0x6E, 0x74};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
-}  
+}  // namespace
 
 void WifiCredentialStore::obfuscate(std::string& data) const {
   Serial.printf("[%lu] [WCS] Obfuscating/deobfuscating %zu bytes\n", millis(), data.size());
@@ -33,7 +29,6 @@ void WifiCredentialStore::obfuscate(std::string& data) const {
 }
 
 bool WifiCredentialStore::saveToFile() const {
-  
   SdMan.mkdir("/.system");
 
   FsFile file;
@@ -41,18 +36,14 @@ bool WifiCredentialStore::saveToFile() const {
     return false;
   }
 
-  
   serialization::writePod(file, WIFI_FILE_VERSION);
   serialization::writePod(file, static_cast<uint8_t>(credentials.size()));
 
-  
   for (const auto& cred : credentials) {
-    
     serialization::writeString(file, cred.ssid);
     Serial.printf("[%lu] [WCS] Saving SSID: %s, password length: %zu\n", millis(), cred.ssid.c_str(),
                   cred.password.size());
 
-    
     std::string obfuscatedPwd = cred.password;
     obfuscate(obfuscatedPwd);
     serialization::writeString(file, obfuscatedPwd);
@@ -70,7 +61,6 @@ bool WifiCredentialStore::loadFromFile() {
     return false;
   }
 
-  
   uint8_t version;
   serialization::readPod(file, version);
   if (version != WIFI_FILE_VERSION) {
@@ -79,23 +69,19 @@ bool WifiCredentialStore::loadFromFile() {
     return false;
   }
 
-  
   uint8_t count;
   serialization::readPod(file, count);
 
-  
   credentials.clear();
   for (uint8_t i = 0; i < count && i < MAX_NETWORKS; i++) {
     WifiCredential cred;
 
-    
     serialization::readString(file, cred.ssid);
 
-    
     serialization::readString(file, cred.password);
     Serial.printf("[%lu] [WCS] Loaded SSID: %s, obfuscated password length: %zu\n", millis(), cred.ssid.c_str(),
                   cred.password.size());
-    obfuscate(cred.password);  
+    obfuscate(cred.password);
     Serial.printf("[%lu] [WCS] After deobfuscation, password length: %zu\n", millis(), cred.password.size());
 
     credentials.push_back(cred);
@@ -107,7 +93,6 @@ bool WifiCredentialStore::loadFromFile() {
 }
 
 bool WifiCredentialStore::addCredential(const std::string& ssid, const std::string& password) {
-  
   const auto cred = find_if(credentials.begin(), credentials.end(),
                             [&ssid](const WifiCredential& cred) { return cred.ssid == ssid; });
   if (cred != credentials.end()) {
@@ -116,13 +101,11 @@ bool WifiCredentialStore::addCredential(const std::string& ssid, const std::stri
     return saveToFile();
   }
 
-  
   if (credentials.size() >= MAX_NETWORKS) {
     Serial.printf("[%lu] [WCS] Cannot add more networks, limit of %zu reached\n", millis(), MAX_NETWORKS);
     return false;
   }
 
-  
   credentials.push_back({ssid, password});
   Serial.printf("[%lu] [WCS] Added credentials for: %s\n", millis(), ssid.c_str());
   return saveToFile();
@@ -136,7 +119,7 @@ bool WifiCredentialStore::removeCredential(const std::string& ssid) {
     Serial.printf("[%lu] [WCS] Removed credentials for: %s\n", millis(), ssid.c_str());
     return saveToFile();
   }
-  return false;  
+  return false;
 }
 
 const WifiCredential* WifiCredentialStore::findCredential(const std::string& ssid) const {

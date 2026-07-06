@@ -7,9 +7,10 @@
 
 #include <ImageRenderMode.h>
 #include <SdFat.h>
+
+#include <algorithm>
 #include <utility>
 #include <vector>
-#include <algorithm>
 
 #include "blocks/TextBlock.h"
 
@@ -34,7 +35,7 @@ class PageElement {
  public:
   int16_t xPos;
   int16_t yPos;
-  
+
   /**
    * Constructs a page element at the specified position.
    * * @param xPos X coordinate on the page
@@ -42,13 +43,13 @@ class PageElement {
    */
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
   virtual ~PageElement() = default;
-  
+
   /**
    * Returns the element type tag for identification.
    * * @return The element type tag
    */
   virtual PageElementTag getTag() const = 0;
-  
+
   /**
    * Renders the element on the screen.
    * * @param renderer The graphics renderer
@@ -59,7 +60,7 @@ class PageElement {
    */
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                       ImageRenderMode imageMode = ImageRenderMode::OneBit) = 0;
-  
+
   /**
    * Serializes the element to a file.
    * * @param file The file to write to
@@ -149,10 +150,7 @@ class PageDropCap final : public PageElement {
    * @param fontId The specific large font ID to use
    */
   PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId, bool inlineFirstLine = false)
-      : PageElement(xPos, yPos),
-        text(std::move(text)),
-        dropCapFontId(fontId),
-        inlineFirstLine(inlineFirstLine) {}
+      : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId), inlineFirstLine(inlineFirstLine) {}
 
   const std::string& getDropCapText() const { return text; }
   int getDropCapFontId() const { return dropCapFontId; }
@@ -282,12 +280,10 @@ class PageCssBorderLine final : public PageElement {
 class Page {
  public:
   std::vector<std::shared_ptr<PageElement>> elements;
-  
+
   bool hasImages() const {
     return std::any_of(elements.begin(), elements.end(),
-                       [](const std::shared_ptr<PageElement>& element) {
-                         return element->getTag() == TAG_PageImage;
-                       });
+                       [](const std::shared_ptr<PageElement>& element) { return element->getTag() == TAG_PageImage; });
   }
 
   // True if at least one image on the page has continuous-tone content worth rendering in grayscale. Pages whose

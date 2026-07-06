@@ -28,11 +28,9 @@ class Txt {
 
   void setupCacheDir() const;
 
-  
   [[nodiscard]] std::string getCoverBmpPath() const;
   [[nodiscard]] bool generateCoverBmp() const;
   [[nodiscard]] std::string findCoverImage() const;
 
-  
   [[nodiscard]] bool readContent(uint8_t* buffer, size_t offset, size_t length) const;
 };

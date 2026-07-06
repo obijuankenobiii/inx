@@ -5,10 +5,10 @@
 #include <SDCardManager.h>
 #include <WiFi.h>
 
+#include "KOReaderCredentialStore.h"
 #include "network/LocalServer.h"
 #include "state/NetworkCredential.h"
 #include "state/SystemSetting.h"
-#include "KOReaderCredentialStore.h"
 
 namespace {
 LocalServer server;

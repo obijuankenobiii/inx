@@ -118,8 +118,7 @@ void EpubReadingStats::display(GfxRenderer& renderer, const Epub& epub) const {
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true,
-                       EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatTime(stats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);

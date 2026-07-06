@@ -7,7 +7,6 @@
 
 #include <expat.h>
 
-
 inline void destroyXmlParser(XML_Parser& parser) {
   if (!parser) return;
   XML_StopParser(parser, XML_FALSE);

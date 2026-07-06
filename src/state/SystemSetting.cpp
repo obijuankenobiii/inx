@@ -13,8 +13,8 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #ifndef INX_SIMULATOR_WEB_ONLY
@@ -69,7 +69,7 @@ void sanitizeSleepCustomBmp(char* buf) {
 bool validRefreshFrequency(const uint8_t value) {
   return value == 1 || value == 5 || value == 10 || value == 15 || value == 30;
 }
-}  
+}  // namespace
 
 void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
   if (s == nullptr || s[0] == '\0') {
@@ -112,7 +112,8 @@ bool SystemSetting::saveToFile() const {
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
-    if (mut->sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT) mut->sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
+    if (mut->sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT)
+      mut->sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
     if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
     if (mut->xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) mut->xtcImageQuality = READER_IMAGE_LOW;
     if (mut->xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) mut->xtcShortPwrBtn = XTC_POWER_NEXT;
@@ -539,8 +540,7 @@ bool SystemSetting::loadFromFile() {
     xtcImageQuality = readerImageGrayscale;
   }
   if (settingsRead < 61) {
-    xtcShortPwrBtn =
-        readerShortPwrBtn == READER_PAGE_REFRESH ? XTC_POWER_PAGE_REFRESH : XTC_POWER_NEXT;
+    xtcShortPwrBtn = readerShortPwrBtn == READER_PAGE_REFRESH ? XTC_POWER_PAGE_REFRESH : XTC_POWER_NEXT;
   }
   if (settingsRead < 62) {
     xtcPageAutoTurnSeconds = pageAutoTurnSeconds;

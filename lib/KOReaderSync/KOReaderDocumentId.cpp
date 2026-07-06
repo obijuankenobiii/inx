@@ -18,7 +18,7 @@ std::string getFilename(const std::string& path) {
   }
   return path.substr(pos + 1);
 }
-}  
+}  // namespace
 
 std::string KOReaderDocumentId::calculateFromFilename(const std::string& filePath) {
   const std::string filename = getFilename(filePath);
@@ -37,9 +37,6 @@ std::string KOReaderDocumentId::calculateFromFilename(const std::string& filePat
 }
 
 size_t KOReaderDocumentId::getOffset(int i) {
-  
-  
-  
   if (i < 0) {
     return 0;
   }
@@ -56,30 +53,24 @@ std::string KOReaderDocumentId::calculate(const std::string& filePath) {
   const size_t fileSize = file.fileSize();
   Serial.printf("[%lu] [KODoc] Calculating hash for file: %s (size: %zu)\n", millis(), filePath.c_str(), fileSize);
 
-  
   MD5Builder md5;
   md5.begin();
 
-  
   uint8_t buffer[CHUNK_SIZE];
   size_t totalBytesRead = 0;
 
-  
   for (int i = -1; i < OFFSET_COUNT - 1; i++) {
     const size_t offset = getOffset(i);
 
-    
     if (offset >= fileSize) {
       continue;
     }
 
-    
     if (!file.seekSet(offset)) {
       Serial.printf("[%lu] [KODoc] Failed to seek to offset %zu\n", millis(), offset);
       continue;
     }
 
-    
     const size_t bytesToRead = std::min(CHUNK_SIZE, fileSize - offset);
     const size_t bytesRead = file.read(buffer, bytesToRead);
 
@@ -91,7 +82,6 @@ std::string KOReaderDocumentId::calculate(const std::string& filePath) {
 
   file.close();
 
-  
   md5.calculate();
   std::string result = md5.toString().c_str();
 

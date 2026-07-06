@@ -9,7 +9,6 @@ class GfxRenderer;
 
 typedef enum { TEXT_BLOCK, IMAGE_BLOCK } BlockType;
 
-
 class Block {
  public:
   virtual ~Block() = default;

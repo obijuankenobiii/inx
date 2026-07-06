@@ -1,18 +1,17 @@
 #include "EpubAnnotationUi.h"
 
-#include "EpubActivity.h"
-
 #include <Epub/Page.h>
 #include <Epub/PageWordIndex.h>
 #include <GfxRenderer.h>
 #include <HalGPIO.h>
-#include <ctime>
 
+#include <algorithm>
 #include <climits>
 #include <cstring>
+#include <ctime>
 #include <new>
-#include <algorithm>
 
+#include "EpubActivity.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -297,7 +296,7 @@ std::string EpubAnnotationUi::extractRangeText(const size_t anchorFlat, const si
 }
 
 void EpubAnnotationUi::drawLatticeHighlightRect(EpubActivity& act, const int x, const int y, const int width,
-                                               const int height) {
+                                                const int height) {
   if (width <= 0 || height <= 0) {
     return;
   }
@@ -363,8 +362,8 @@ void EpubAnnotationUi::clampSelectionToValidWords() {
     }
   }
   pendingSpans_.erase(std::remove_if(pendingSpans_.begin(), pendingSpans_.end(),
-                                       [](const std::pair<size_t, size_t>& p) { return p.first > p.second; }),
-                        pendingSpans_.end());
+                                     [](const std::pair<size_t, size_t>& p) { return p.first > p.second; }),
+                      pendingSpans_.end());
 }
 
 void EpubAnnotationUi::prepareWordGeometry(EpubActivity& act) {
@@ -378,10 +377,10 @@ void EpubAnnotationUi::prepareWordGeometry(EpubActivity& act) {
   const int mt = info.totalMarginTop;
   const int ml = info.totalMarginLeft;
 
-  const bool wordIndexCacheHit =
-      wordIndexCacheSpine_ == act.currentSpineIndex && wordIndexCachePage_ == act.section->currentPage &&
-      wordIndexCacheFontId_ == fontId && wordIndexCacheHeaderFontId_ == headerFontId &&
-      wordIndexCacheMarginL_ == ml && wordIndexCacheMarginT_ == mt;
+  const bool wordIndexCacheHit = wordIndexCacheSpine_ == act.currentSpineIndex &&
+                                 wordIndexCachePage_ == act.section->currentPage && wordIndexCacheFontId_ == fontId &&
+                                 wordIndexCacheHeaderFontId_ == headerFontId && wordIndexCacheMarginL_ == ml &&
+                                 wordIndexCacheMarginT_ == mt;
 
   const bool anyWordText =
       std::any_of(words_.begin(), words_.end(), [](const PageWordHit& w) { return !w.text.empty(); });

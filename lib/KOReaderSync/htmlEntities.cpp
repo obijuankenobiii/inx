@@ -3,9 +3,6 @@
  * @brief Definitions for htmlEntities.
  */
 
-
-
-
 #include "htmlEntities.h"
 
 #include <cstring>
@@ -14,7 +11,6 @@ struct EntityPair {
   const char* key;
   const char* value;
 };
-
 
 static constexpr EntityPair ENTITY_LOOKUP[] = {
     {"&AElig;", "Æ"},    {"&Aacute;", "Á"},     {"&Acirc;", "Â"},      {"&Agrave;", "À"},   {"&Alpha;", "Α"},
@@ -69,7 +65,6 @@ static constexpr EntityPair ENTITY_LOOKUP[] = {
 
 static const size_t ENTITY_LOOKUP_COUNT = sizeof(ENTITY_LOOKUP) / sizeof(ENTITY_LOOKUP[0]);
 
-
 const char* lookupHtmlEntity(const char* entity, size_t len) {
   if (entity == nullptr || len == 0) return nullptr;
 
@@ -83,7 +78,6 @@ const char* lookupHtmlEntity(const char* entity, size_t len) {
     const size_t cmpLen = (len < keyLen) ? len : keyLen;
     int cmp = memcmp(entity, key, cmpLen);
     if (cmp == 0) {
-      
       if (len < keyLen)
         cmp = -1;
       else if (len > keyLen)

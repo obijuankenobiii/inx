@@ -19,15 +19,15 @@
 
 inline bool isTrackedCssProperty(const std::string& name) {
   static const char* const kTracked[] = {
-      "background",       "background-image", "block-size",        "border",
-      "border-bottom",    "border-left",      "border-right",      "border-style",
-      "border-top",       "border-width",     "display",           "font-size",
-      "font-style",       "font-variant",     "font-variant-caps", "font-weight",
-      "height",           "initial-letter",   "inline-size",       "line-height",
-      "margin",           "margin-bottom",    "margin-top",        "max-block-size",
-      "max-height",       "max-inline-size",  "max-width",         "min-block-size",
-      "min-height",       "min-inline-size",  "min-width",         "padding",
-      "padding-bottom",   "padding-top",      "text-align",        "text-indent",
+      "background",     "background-image", "block-size",        "border",
+      "border-bottom",  "border-left",      "border-right",      "border-style",
+      "border-top",     "border-width",     "display",           "font-size",
+      "font-style",     "font-variant",     "font-variant-caps", "font-weight",
+      "height",         "initial-letter",   "inline-size",       "line-height",
+      "margin",         "margin-bottom",    "margin-top",        "max-block-size",
+      "max-height",     "max-inline-size",  "max-width",         "min-block-size",
+      "min-height",     "min-inline-size",  "min-width",         "padding",
+      "padding-bottom", "padding-top",      "text-align",        "text-indent",
       "width",
   };
   return std::binary_search(std::begin(kTracked), std::end(kTracked), name.c_str(),

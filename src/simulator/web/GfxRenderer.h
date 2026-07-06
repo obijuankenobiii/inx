@@ -4,12 +4,7 @@
 
 class GfxRenderer {
  public:
-  enum Orientation {
-    Portrait,
-    LandscapeClockwise,
-    PortraitInverted,
-    LandscapeCounterClockwise
-  };
+  enum Orientation { Portrait, LandscapeClockwise, PortraitInverted, LandscapeCounterClockwise };
 
   Orientation getOrientation() const { return orientation; }
   void setOrientation(Orientation nextOrientation) { orientation = nextOrientation; }

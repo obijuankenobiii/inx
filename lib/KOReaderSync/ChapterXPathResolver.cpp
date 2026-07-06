@@ -490,7 +490,7 @@ class XPathProgressResolver final : public Print {
   std::vector<PathSegment> path;
   std::string xpath;
 };
-}  
+}  // namespace
 
 std::string ChapterXPathResolver::findXPathForParagraph(const std::shared_ptr<Epub>& epub, const int spineIndex,
                                                         const uint16_t paragraphIndex) {
@@ -563,7 +563,7 @@ std::string ChapterXPathResolver::findXPathForProgress(const std::shared_ptr<Epu
 
   if (resolver.hasMatch()) {
     KOX_LOG_DBG("Resolved progress %.3f in spine %d -> %s", intraSpineProgress, spineIndex,
-            resolver.getXPath().c_str());
+                resolver.getXPath().c_str());
     return resolver.getXPath();
   }
 

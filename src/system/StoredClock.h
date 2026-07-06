@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HalGPIO.h>
+
 #include <cstdint>
 
 namespace StoredClock {

@@ -5,7 +5,7 @@
 #include "GfxRenderer.h"
 
 void UiRender::buttonHints(const int fontId, const char* btn1, const char* btn2, const char* btn3,
-                               const char* btn4) const {
+                           const char* btn4) const {
   const GfxRenderer::Orientation origOrientation = gfx.getOrientation();
   gfx.setOrientation(GfxRenderer::Orientation::Portrait);
 
@@ -32,7 +32,7 @@ void UiRender::buttonHints(const int fontId, const char* btn1, const char* btn2,
 }
 
 void UiRender::sideButtonHints(const int fontId, const char* powerBtn, const char* topBtn,
-                                   const char* bottomBtn) const {
+                               const char* bottomBtn) const {
   if (gfx.deviceIsX3()) {
     constexpr int buttonWidth = 106;
     constexpr int buttonHeight = 40;

@@ -5,13 +5,12 @@
  * @brief Public interface and types for MenuDrawer.
  */
 
-#include "GfxRenderer.h"
-#include "system/MappedInputManager.h"
-
 #include <functional>
 #include <string>
 #include <vector>
 
+#include "GfxRenderer.h"
+#include "system/MappedInputManager.h"
 
 class Epub;
 
@@ -19,243 +18,244 @@ class Epub;
  * @brief Menu drawer that slides up from the bottom of the screen
  */
 class MenuDrawer {
-public:
-    enum class MenuAction {
-        SHOW_BOOKMARKS,
-        SHOW_ANNOTATIONS,
-        SELECT_CHAPTER,
-        GO_TO_PERCENT,
-        KOREADER_SYNC,
-        GO_HOME,
-        DELETE_CACHE,
-        DELETE_PROGRESS,
-        DELETE_BOOK,
-        GENERATE_FULL_DATA,
-        REGENERATE_THUMBNAIL
-    };
+ public:
+  enum class MenuAction {
+    SHOW_BOOKMARKS,
+    SHOW_ANNOTATIONS,
+    SELECT_CHAPTER,
+    GO_TO_PERCENT,
+    KOREADER_SYNC,
+    GO_HOME,
+    DELETE_CACHE,
+    DELETE_PROGRESS,
+    DELETE_BOOK,
+    GENERATE_FULL_DATA,
+    REGENERATE_THUMBNAIL
+  };
 
-    /** One row in the bookmark drawer (same role as a TOC line). */
-    struct BookmarkNavItem {
-        std::string label;
-        int storageIndex = 0;
-        bool isCurrentPosition = false;
-    };
+  /** One row in the bookmark drawer (same role as a TOC line). */
+  struct BookmarkNavItem {
+    std::string label;
+    int storageIndex = 0;
+    bool isCurrentPosition = false;
+  };
 
-    using ActionCallback = std::function<void(MenuAction)>;
-    using DismissCallback = std::function<void()>;
-    using TocSelectionCallback = std::function<void(int spineIndex)>;
-    using BookmarkListProvider = std::function<std::vector<BookmarkNavItem>()>;
-    using BookmarkSelectCallback = std::function<void(int storageIndex)>;
-    using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
-    using AnnotationListProvider = std::function<std::vector<BookmarkNavItem>()>;
-    using AnnotationSelectCallback = std::function<void(int storageIndex)>;
+  using ActionCallback = std::function<void(MenuAction)>;
+  using DismissCallback = std::function<void()>;
+  using TocSelectionCallback = std::function<void(int spineIndex)>;
+  using BookmarkListProvider = std::function<std::vector<BookmarkNavItem>()>;
+  using BookmarkSelectCallback = std::function<void(int storageIndex)>;
+  using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
+  using AnnotationListProvider = std::function<std::vector<BookmarkNavItem>()>;
+  using AnnotationSelectCallback = std::function<void(int storageIndex)>;
 
-    /**
-     * @brief Constructs a new MenuDrawer
-     * @param renderer Reference to the graphics renderer
-     * @param onAction Callback when a menu action is selected
-     * @param onDismiss Callback when the drawer is dismissed
-     */
-    MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCallback onDismiss = nullptr);
-    
-    ~MenuDrawer();
+  /**
+   * @brief Constructs a new MenuDrawer
+   * @param renderer Reference to the graphics renderer
+   * @param onAction Callback when a menu action is selected
+   * @param onDismiss Callback when the drawer is dismissed
+   */
+  MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCallback onDismiss = nullptr);
 
-    /**
-     * @brief Shows the menu drawer
-     */
-    void show();
-    
-    /**
-     * @brief Hides the menu drawer
-     */
-    void hide();
-    
-    /**
-     * @brief Checks if the drawer is visible
-     * @return true if visible
-     */
-    bool isVisible() const { return visible; }
-    
-    /**
-     * @brief Checks if the drawer has been dismissed
-     * @return true if dismissed
-     */
-    bool isDismissed() const { return dismissed; }
-    
-    /**
-     * @brief Renders the menu drawer
-     */
-    void render();
-    
-    /**
-     * @brief Handles input for the menu drawer
-     * @param input Reference to the input manager
-     */
-    void handleInput(MappedInputManager& input);
-    
-    /**
-     * @brief Sets the book title to display in the header
-     * @param title Book title
-     */
-    void setBookTitle(const std::string& title) { bookTitle = title; }
-    
-    /**
-     * @brief Sets the EPUB reader for TOC access
-     * @param epub Pointer to the EPUB reader
-     */
-    void setEpub(Epub* epub) { this->epub = epub; }
+  ~MenuDrawer();
 
-    /** Current spine while reading; used to pre-select the TOC row when opening the chapter list. */
-    void setReaderSpineIndex(int spineIndex) { readerSpineIndex_ = spineIndex; }
-    
-    /**
-     * @brief Sets the callback for TOC chapter selection
-     * @param callback Function to call when a chapter is selected
-     */
-    void setTocSelectionCallback(TocSelectionCallback callback) { tocSelectionCallback = callback; }
+  /**
+   * @brief Shows the menu drawer
+   */
+  void show();
 
-    void setBookmarkListProvider(BookmarkListProvider provider) { bookmarkListProvider = std::move(provider); }
+  /**
+   * @brief Hides the menu drawer
+   */
+  void hide();
 
-    void setBookmarkSelectCallback(BookmarkSelectCallback callback) { bookmarkSelectCallback = std::move(callback); }
+  /**
+   * @brief Checks if the drawer is visible
+   * @return true if visible
+   */
+  bool isVisible() const { return visible; }
 
-    void setBookmarkDeleteCallback(BookmarkDeleteCallback callback) { bookmarkDeleteCallback = std::move(callback); }
+  /**
+   * @brief Checks if the drawer has been dismissed
+   * @return true if dismissed
+   */
+  bool isDismissed() const { return dismissed; }
 
-    void setAnnotationListProvider(AnnotationListProvider provider) { annotationListProvider = std::move(provider); }
+  /**
+   * @brief Renders the menu drawer
+   */
+  void render();
 
-    void setAnnotationSelectCallback(AnnotationSelectCallback callback) { annotationSelectCallback = std::move(callback); }
+  /**
+   * @brief Handles input for the menu drawer
+   * @param input Reference to the input manager
+   */
+  void handleInput(MappedInputManager& input);
 
-    /** Used for layout-aware bookmark drawer button labels (Up / Del). */
-    void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
+  /**
+   * @brief Sets the book title to display in the header
+   * @param title Book title
+   */
+  void setBookTitle(const std::string& title) { bookTitle = title; }
 
-    /** Recompute drawer geometry after renderer orientation or screen size changes. */
-    void relayoutForRendererChange();
+  /**
+   * @brief Sets the EPUB reader for TOC access
+   * @param epub Pointer to the EPUB reader
+   */
+  void setEpub(Epub* epub) { this->epub = epub; }
 
-private:
-    /**
-     * @brief Renders the drawer with specified refresh mode
-     * @param mode Display refresh mode
-     */
-    void renderWithRefresh();
+  /** Current spine while reading; used to pre-select the TOC row when opening the chapter list. */
+  void setReaderSpineIndex(int spineIndex) { readerSpineIndex_ = spineIndex; }
 
-    /**
-     * @brief Draws the background panel
-     */
-    void drawBackground();
-    
-    /**
-     * @brief Draws all menu items
-     */
-    void drawMenuItems();
+  /**
+   * @brief Sets the callback for TOC chapter selection
+   * @param callback Function to call when a chapter is selected
+   */
+  void setTocSelectionCallback(TocSelectionCallback callback) { tocSelectionCallback = callback; }
 
-    void drawMenuItemRow(int visibleRow, int menuIndex);
-    
-    /**
-     * @brief Draws scroll indicator when needed
-     */
-    void drawScrollIndicator();
+  void setBookmarkListProvider(BookmarkListProvider provider) { bookmarkListProvider = std::move(provider); }
 
-    void clearScrollIndicatorArea();
-    
-    /**
-     * @brief Renders the Table of Contents view as a drawer
-     */
-    void renderToc();
+  void setBookmarkSelectCallback(BookmarkSelectCallback callback) { bookmarkSelectCallback = std::move(callback); }
 
-    void renderBookmarks();
+  void setBookmarkDeleteCallback(BookmarkDeleteCallback callback) { bookmarkDeleteCallback = std::move(callback); }
 
-    void renderAnnotations();
+  void setAnnotationListProvider(AnnotationListProvider provider) { annotationListProvider = std::move(provider); }
 
-    void refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator);
+  void setAnnotationSelectCallback(AnnotationSelectCallback callback) {
+    annotationSelectCallback = std::move(callback);
+  }
 
-    /**
-     * @brief Draws the TOC background with drawer effect
-     */
-    void drawTocBackground();
+  /** Used for layout-aware bookmark drawer button labels (Up / Del). */
+  void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
 
-    /**
-     * @brief Handles input when TOC is shown
-     * @param input Reference to the input manager (const to avoid modification)
-     */
-    void handleTocInput(const MappedInputManager& input);
+  /** Recompute drawer geometry after renderer orientation or screen size changes. */
+  void relayoutForRendererChange();
 
-    void handleBookmarksInput(const MappedInputManager& input);
+ private:
+  /**
+   * @brief Renders the drawer with specified refresh mode
+   * @param mode Display refresh mode
+   */
+  void renderWithRefresh();
 
-    void handleAnnotationsInput(const MappedInputManager& input);
+  /**
+   * @brief Draws the background panel
+   */
+  void drawBackground();
 
-    /**
-     * @brief Exits TOC view and returns to main menu
-     */
-    void exitToc();
+  /**
+   * @brief Draws all menu items
+   */
+  void drawMenuItems();
 
-    void exitBookmarks();
+  void drawMenuItemRow(int visibleRow, int menuIndex);
 
-    void exitAnnotations();
+  /**
+   * @brief Draws scroll indicator when needed
+   */
+  void drawScrollIndicator();
 
-    void refreshBookmarkEntriesFromProvider();
+  void clearScrollIndicatorArea();
 
-    /**
-     * @brief Gets the number of TOC items that fit on screen
-     * @return Number of items per page
-     */
-    int getTocPageItems() const;
-    
-    GfxRenderer& renderer;
-    ActionCallback onAction;
-    DismissCallback onDismiss;
-    TocSelectionCallback tocSelectionCallback;
-    BookmarkListProvider bookmarkListProvider;
-    BookmarkSelectCallback bookmarkSelectCallback;
-    BookmarkDeleteCallback bookmarkDeleteCallback;
-    AnnotationListProvider annotationListProvider;
-    AnnotationSelectCallback annotationSelectCallback;
-    MappedInputManager* mappedInputForHints = nullptr;
+  /**
+   * @brief Renders the Table of Contents view as a drawer
+   */
+  void renderToc();
 
-    std::string bookTitle;
-    Epub* epub = nullptr;
-    int readerSpineIndex_ = -1;
-    
-    struct MenuItem {
-        std::string label;
-        MenuAction action;
-    };
-    
-    std::vector<MenuItem> menuItems;
-    
-    int drawerHeight;
-    int drawerY;
-    /** Left edge and width of drawer panel (full width in portrait, right half in landscape). */
-    int drawerX = 0;
-    int drawerWidth = 0;
-    int tocDrawerX = 0;
-    int tocDrawerWidth = 0;
-    int itemHeight;
-    int itemsPerPage;
-    int selectedIndex;
-    int scrollOffset;
-    bool visible;
-    bool dismissed;
-    uint32_t lastInputTime;
-    
-    
-    bool showingToc = false;
-    bool showingBookmarks = false;
-    bool showingAnnotations = false;
-    bool isFromToc = false;
-    int tocSelectedIndex = 0;
-    int tocScrollOffset = 0;
-    int tocDrawerHeight = 0;      
-    int tocDrawerY = 0;           
+  void renderBookmarks();
 
-    void syncLayoutFromRenderer();
-    void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
-    /** Maps back/confirm/left/right semantics via Navigation → Button Layout (see MappedInputManager::mapLabels). */
-    void drawMappedButtonHints(const char* back, const char* confirm, const char* previous, const char* next);
-    /** Same as drawMappedButtonHints plus Next & Previous Mapping + drawer orientation (TOC list). */
-    void drawMappedReaderNavHints(const char* back, const char* confirm, const char* prevSym, const char* nextSym);
+  void renderAnnotations();
 
-    std::vector<BookmarkNavItem> bookmarkEntries;
-    int bookmarkSelectedIndex = 0;
+  void refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator);
 
-    std::vector<BookmarkNavItem> annotationEntries;
-    int annotationSelectedIndex = 0;
+  /**
+   * @brief Draws the TOC background with drawer effect
+   */
+  void drawTocBackground();
+
+  /**
+   * @brief Handles input when TOC is shown
+   * @param input Reference to the input manager (const to avoid modification)
+   */
+  void handleTocInput(const MappedInputManager& input);
+
+  void handleBookmarksInput(const MappedInputManager& input);
+
+  void handleAnnotationsInput(const MappedInputManager& input);
+
+  /**
+   * @brief Exits TOC view and returns to main menu
+   */
+  void exitToc();
+
+  void exitBookmarks();
+
+  void exitAnnotations();
+
+  void refreshBookmarkEntriesFromProvider();
+
+  /**
+   * @brief Gets the number of TOC items that fit on screen
+   * @return Number of items per page
+   */
+  int getTocPageItems() const;
+
+  GfxRenderer& renderer;
+  ActionCallback onAction;
+  DismissCallback onDismiss;
+  TocSelectionCallback tocSelectionCallback;
+  BookmarkListProvider bookmarkListProvider;
+  BookmarkSelectCallback bookmarkSelectCallback;
+  BookmarkDeleteCallback bookmarkDeleteCallback;
+  AnnotationListProvider annotationListProvider;
+  AnnotationSelectCallback annotationSelectCallback;
+  MappedInputManager* mappedInputForHints = nullptr;
+
+  std::string bookTitle;
+  Epub* epub = nullptr;
+  int readerSpineIndex_ = -1;
+
+  struct MenuItem {
+    std::string label;
+    MenuAction action;
+  };
+
+  std::vector<MenuItem> menuItems;
+
+  int drawerHeight;
+  int drawerY;
+  /** Left edge and width of drawer panel (full width in portrait, right half in landscape). */
+  int drawerX = 0;
+  int drawerWidth = 0;
+  int tocDrawerX = 0;
+  int tocDrawerWidth = 0;
+  int itemHeight;
+  int itemsPerPage;
+  int selectedIndex;
+  int scrollOffset;
+  bool visible;
+  bool dismissed;
+  uint32_t lastInputTime;
+
+  bool showingToc = false;
+  bool showingBookmarks = false;
+  bool showingAnnotations = false;
+  bool isFromToc = false;
+  int tocSelectedIndex = 0;
+  int tocScrollOffset = 0;
+  int tocDrawerHeight = 0;
+  int tocDrawerY = 0;
+
+  void syncLayoutFromRenderer();
+  void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);
+  /** Maps back/confirm/left/right semantics via Navigation → Button Layout (see MappedInputManager::mapLabels). */
+  void drawMappedButtonHints(const char* back, const char* confirm, const char* previous, const char* next);
+  /** Same as drawMappedButtonHints plus Next & Previous Mapping + drawer orientation (TOC list). */
+  void drawMappedReaderNavHints(const char* back, const char* confirm, const char* prevSym, const char* nextSym);
+
+  std::vector<BookmarkNavItem> bookmarkEntries;
+  int bookmarkSelectedIndex = 0;
+
+  std::vector<BookmarkNavItem> annotationEntries;
+  int annotationSelectedIndex = 0;
 };

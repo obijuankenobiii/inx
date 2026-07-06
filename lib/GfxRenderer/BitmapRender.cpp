@@ -2,13 +2,15 @@
  * @file BitmapRender.cpp
  */
 #include "BitmapRender.h"
-#include "BitmapUtil.h"
-#include "GfxRenderer.h"
 
 #include <Arduino.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+
+#include "BitmapUtil.h"
+#include "GfxRenderer.h"
 
 namespace {
 /** Corner radius for rounded fillRect/drawRect: subtle, not pill-shaped (was min/4). */
@@ -175,11 +177,11 @@ bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int heigh
   const uint8_t byte = bitmap[sy * stride + sx / 8];
   return (byte & (0x80 >> (sx % 8))) != 0;
 }
-}
+}  // namespace
 
 void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
-                             const float cropX, const float cropY,
-                             const RoundedOutside roundedOutside, const ImageRenderMode mode) const {
+                          const float cropX, const float cropY, const RoundedOutside roundedOutside,
+                          const ImageRenderMode mode) const {
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     oneBit(bitmap, x, y, maxWidth, maxHeight, roundedOutside);
     return;
@@ -216,10 +218,8 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   const int contentW = bitmap.getWidth() - 2 * cropPixX;
   const int contentH = bitmap.getHeight() - 2 * cropPixY;
 
-  const int drawnW =
-      contentW > 0 ? static_cast<int>(std::floor(static_cast<float>(contentW) * scale)) : 0;
-  const int drawnH =
-      contentH > 0 ? static_cast<int>(std::floor(static_cast<float>(contentH) * scale)) : 0;
+  const int drawnW = contentW > 0 ? static_cast<int>(std::floor(static_cast<float>(contentW) * scale)) : 0;
+  const int drawnH = contentH > 0 ? static_cast<int>(std::floor(static_cast<float>(contentH) * scale)) : 0;
   const int maskW = maxWidth > 0 ? maxWidth : drawnW;
   const int maskH = maxHeight > 0 ? maxHeight : drawnH;
 
@@ -331,8 +331,7 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
     }
   }
 
-  if (roundedOutside != BitmapRender::RoundedOutside::None && contentW > 0 && contentH > 0 && maskW > 0 &&
-      maskH > 0) {
+  if (roundedOutside != BitmapRender::RoundedOutside::None && contentW > 0 && contentH > 0 && maskW > 0 && maskH > 0) {
     maskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
   }
 
@@ -340,8 +339,8 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   free(rowBufBytes);
 }
 
-void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
-                                 const int maxHeight, const RoundedOutside roundedOutside) const {
+void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
+                          const RoundedOutside roundedOutside) const {
   constexpr float kScaleEps = 1e-5f;
   constexpr float kHuge = 1e9f;
   float scale = 1.0f;
@@ -462,8 +461,8 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
   free(rowBufBytes);
 }
 
-void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int height,
-                           Orientation orientation, bool invert) const {
+void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int height, Orientation orientation,
+                        bool invert) const {
   int outW = width;
   int outH = height;
   switch (orientation) {
@@ -517,9 +516,7 @@ void BitmapRender::maskRoundedOutside(const int x, const int y, const int width,
 }
 
 void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight,
-                    uint8_t transparentStage,
-                    Orientation orientation) const {
-
+                               uint8_t transparentStage, Orientation orientation) const {
   float scaleX = 1.0f;
   float scaleY = 1.0f;
 
@@ -568,7 +565,6 @@ void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth,
     if (destY < 0 || destY >= gfx.getScreenHeight()) continue;
 
     for (int bmpX = 0; bmpX < tgtW; bmpX++) {
-
       uint8_t val = (outRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8))) & 0x03;
 
       int destX = x + static_cast<int>(bmpX * scale);
@@ -576,10 +572,8 @@ void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth,
 
       bool shouldDraw;
       if (transparentStage == 1) {
-
         shouldDraw = (val < 3);
       } else {
-
         shouldDraw = (val == 3);
       }
 
@@ -601,8 +595,8 @@ void BitmapRender::transparent(const Bitmap& bitmap, int x, int y, int maxWidth,
 
 namespace SleepScreenBitmap {
 
-static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const int x, const int y,
-                           const int maxWidth, const int maxHeight) {
+static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const int x, const int y, const int maxWidth,
+                             const int maxHeight) {
   float scale = 1.0f;
   bool isScaled = false;
   if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
@@ -660,11 +654,11 @@ static void renderBitmap1Bit(const GfxRenderer& gfx, const Bitmap& bitmap, const
   free(rowBufBytes);
 }
 
-}
+}  // namespace SleepScreenBitmap
 
-void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth,
-                                  const int maxHeight, const float cropX, const float cropY,
-                                  const bool coverFill, const ImageRenderMode mode) const {
+void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
+                               const float cropX, const float cropY, const bool coverFill,
+                               const ImageRenderMode mode) const {
   if (mode == ImageRenderMode::OneBit && bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     SleepScreenBitmap::renderBitmap1Bit(gfx, bitmap, x, y, maxWidth, maxHeight);
     return;
@@ -678,8 +672,7 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
   const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
   const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
 
-  const float widthScale =
-      (maxWidth > 0 && croppedWidth > 0.0f) ? static_cast<float>(maxWidth) / croppedWidth : 0.0f;
+  const float widthScale = (maxWidth > 0 && croppedWidth > 0.0f) ? static_cast<float>(maxWidth) / croppedWidth : 0.0f;
   const float heightScale =
       (maxHeight > 0 && croppedHeight > 0.0f) ? static_cast<float>(maxHeight) / croppedHeight : 0.0f;
 
@@ -748,12 +741,10 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
       continue;
     }
 
-    const float ly =
-        static_cast<float>(-cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY));
+    const float ly = static_cast<float>(-cropPixY + (bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY));
     float lyEnd = ly;
     if ((bmpY + 1) < (bitmap.getHeight() - cropPixY)) {
-      lyEnd = static_cast<float>(-cropPixY +
-                                 (bitmap.isTopDown() ? (bmpY + 1) : bitmap.getHeight() - 1 - (bmpY + 1)));
+      lyEnd = static_cast<float>(-cropPixY + (bitmap.isTopDown() ? (bmpY + 1) : bitmap.getHeight() - 1 - (bmpY + 1)));
     } else {
       lyEnd = ly + (bitmap.isTopDown() ? 1.f : -1.f);
     }
@@ -790,8 +781,7 @@ void BitmapRender::sleepScreen(const Bitmap& bitmap, const int x, const int y, c
           plotSleepPixel(sx, sy, val);
         }
       } else if (!upscale) {
-        const int screenX =
-            static_cast<int>(std::floor(static_cast<float>(relX) * scale)) + x;
+        const int screenX = static_cast<int>(std::floor(static_cast<float>(relX) * scale)) + x;
         if (screenX >= screenW) {
           break;
         }

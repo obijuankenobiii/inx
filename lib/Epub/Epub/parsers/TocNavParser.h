@@ -12,17 +12,15 @@
 
 class BookMetadataCache;
 
-
-
 class TocNavParser final : public Print {
   enum ParserState {
     START,
     IN_HTML,
     IN_BODY,
-    IN_NAV_TOC,  
-    IN_OL,       
-    IN_LI,       
-    IN_ANCHOR,   
+    IN_NAV_TOC,
+    IN_OL,
+    IN_LI,
+    IN_ANCHOR,
   };
 
   const std::string& baseContentPath;
@@ -31,9 +29,8 @@ class TocNavParser final : public Print {
   ParserState state = START;
   BookMetadataCache* cache;
 
-  
   uint8_t olDepth = 0;
-  
+
   std::string currentLabel;
   std::string currentHref;
 

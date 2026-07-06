@@ -61,7 +61,7 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
   return in.wasPressed(MappedInputManager::Button::Right);
 }
 
-}  
+}  // namespace
 
 /**
  * @brief Constructs a new SettingsDrawer
@@ -521,8 +521,8 @@ void SettingsDrawer::setupMenu() {
     chapterEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* kLabels[] = {"Off", "Chapter skip", "Skip 5 pages"};
       const unsigned idx = s.longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5
-                                 ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
-                                 : s.longPressChapterSkip;
+                               ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
+                               : s.longPressChapterSkip;
       return kLabels[idx];
     };
     chapterEntry.change = [](BookSettings& s, int delta) {
@@ -621,7 +621,6 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(statusRightEntry);
   }
-
 }
 
 /**
@@ -630,10 +629,9 @@ void SettingsDrawer::setupMenu() {
  * @return String representation of the item
  */
 const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
-  static const char* names[] = {"None",           "Page Numbers", "Percentage",     "Chapter Title",
-                                "Battery Icon",   "Battery %",    "Battery Icon+%", "Progress Bar",
-                                "Progress Bar+%", "Page Bars",    "Book Title",     "Author Name",
-                                "Page Num+%"};
+  static const char* names[] = {"None",       "Page Numbers",   "Percentage",   "Chapter Title",  "Battery Icon",
+                                "Battery %",  "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
+                                "Book Title", "Author Name",    "Page Num+%"};
   int index = static_cast<int>(item);
   if (index < 0 || index >= static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
     index = 0;
@@ -694,10 +692,8 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   }
   if (!isLandscapeReader(renderer)) {
     if (mappedInputForHints_ != nullptr) {
-      const auto labels =
-          mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
-                               labels.btn4);
+      const auto labels = mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
     }
@@ -713,7 +709,8 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + kDrawerHeaderTitleY;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true,
+                       EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
   currentY += kDrawerHeaderTagGap + 5;
@@ -742,9 +739,9 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
 
-  renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight,
-                          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+  renderer.rectangle.fill(
+      drawerX, itemY, drawerWidth, itemHeight,
+      isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
 
   if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
     const int textX = drawerX + 15;
@@ -754,8 +751,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     const char* indicator = entry.getValueText(settings);
     if (indicator && indicator[0] != '\0') {
       const int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
-                           indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY, indicator,
+                           isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
     renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
@@ -770,14 +767,13 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   if (entry.item == MenuItem::FontFamily) {
     const char* val = entry.getValueText(settings);
     if (val && val[0] != '\0') {
-      ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
-                                                     itemHeight, isSelected, val);
+      ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY, itemHeight,
+                                                     isSelected, val);
     }
   } else if (entry.item == MenuItem::FontSize) {
     const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
-    ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
-                                                       valueAreaLeft, valueColumnRight, itemY, itemHeight,
-                                                       isSelected);
+    ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize, valueAreaLeft,
+                                                       valueColumnRight, itemY, itemHeight, isSelected);
   } else {
     bool checkbox = false;
     bool checked = false;
@@ -818,8 +814,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
       const char* val = entry.getValueText(settings);
       if (val && val[0] != '\0') {
         const int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
-                             isSelected ? 0 : 1);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val, isSelected ? 0 : 1);
       }
     }
   }

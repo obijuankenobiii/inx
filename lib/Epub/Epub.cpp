@@ -6,23 +6,22 @@
 #include "Epub.h"
 
 #include <Arduino.h>
-
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
 #include <PngToBmpConverter.h>
 #include <SDCardManager.h>
 #include <ZipFile.h>
-#include "../../src/util/StringUtils.h"
-
-#include "Epub/parsers/ContainerParser.h"
-#include "Epub/parsers/ContentOpfParser.h"
-#include "Epub/parsers/TocNavParser.h"
-#include "Epub/parsers/TocNcxParser.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+
+#include "../../src/util/StringUtils.h"
+#include "Epub/parsers/ContainerParser.h"
+#include "Epub/parsers/ContentOpfParser.h"
+#include "Epub/parsers/TocNavParser.h"
+#include "Epub/parsers/TocNcxParser.h"
 
 namespace {
 
@@ -58,7 +57,7 @@ bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
 constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
 constexpr const char* kBookMetadataCacheFile = "/book.bin";
 
-}  
+}  // namespace
 
 /**
  * @brief Checks file type is png.
@@ -162,8 +161,8 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
  */
 bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string& outBmpPath, int targetW,
                                   int targetH) const {
-  Serial.printf("[%lu] [EBP-IMG] extract start href=%s out=%s\n", static_cast<unsigned long>(millis()), itemHref.c_str(),
-                outBmpPath.c_str());
+  Serial.printf("[%lu] [EBP-IMG] extract start href=%s out=%s\n", static_cast<unsigned long>(millis()),
+                itemHref.c_str(), outBmpPath.c_str());
 
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
@@ -179,8 +178,7 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
   tempFile.close();
 
   if (!extracted) {
-    Serial.printf("[%lu] [EBP-IMG] zip read failed href=%s\n", static_cast<unsigned long>(millis()),
-                  itemHref.c_str());
+    Serial.printf("[%lu] [EBP-IMG] zip read failed href=%s\n", static_cast<unsigned long>(millis()), itemHref.c_str());
     SdMan.remove(tempPath.c_str());
     return false;
   }
@@ -296,7 +294,6 @@ bool Epub::extractAndConvertImageFullScreen(const std::string& itemHref, const s
   bool success = false;
 
   if (isBmpFile(itemHref)) {
-    
     if (targetW > 0 && targetH > 0) {
       success = JpegToBmpConverter::resizeBitmap(sourceFile, destFile, targetW, targetH);
       if (!success) {
@@ -547,7 +544,6 @@ bool Epub::load(const bool buildIfMissing) {
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
   if (bookMetadataCache->load()) {
-    
     return true;
   }
 
@@ -581,14 +577,13 @@ bool Epub::load(const bool buildIfMissing) {
   if (!opfParser.tocNavPath.empty()) tocNavItem = opfParser.tocNavPath;
 
   bookMetadataCache->endContentOpfPass();
-  
-  
+
   bookMetadataCache->beginCssPass();
   if (!bookMetadataCache->extractAndCacheCssFiles(filepath)) {
     Serial.printf("[EBP] Warning: Failed to extract CSS files\n");
   }
   bookMetadataCache->endCssPass();
-  
+
   bookMetadataCache->beginTocPass();
   bool tocParsed = (!tocNavItem.empty()) ? parseTocNavFile() : false;
   if (!tocParsed && !tocNcxItem.empty()) tocParsed = parseTocNcxFile();
@@ -602,13 +597,9 @@ bool Epub::load(const bool buildIfMissing) {
   return bookMetadataCache->load();
 }
 
-bool Epub::hasMetadataCache() const {
-  return SdMan.exists((cachePath + kBookMetadataCacheFile).c_str());
-}
+bool Epub::hasMetadataCache() const { return SdMan.exists((cachePath + kBookMetadataCacheFile).c_str()); }
 
-bool Epub::isLoaded() const {
-  return bookMetadataCache && bookMetadataCache->isLoaded();
-}
+bool Epub::isLoaded() const { return bookMetadataCache && bookMetadataCache->isLoaded(); }
 
 /**
  * @brief Clears all cached data for this EPUB.
@@ -824,10 +815,10 @@ std::vector<std::string> Epub::getAllCssPaths() const {
  */
 std::string Epub::getCombinedCss() const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return "";
-  
+
   std::string combined;
   auto paths = getAllCssPaths();
-  
+
   for (const auto& path : paths) {
     std::string cssContent = getCssContent(path);
     if (!cssContent.empty()) {
@@ -837,7 +828,7 @@ std::string Epub::getCombinedCss() const {
       combined += cssContent;
     }
   }
-  
+
   return combined;
 }
 

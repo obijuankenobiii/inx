@@ -5,9 +5,7 @@
 #include <cstring>
 
 namespace {
-int clamp255(const int v) {
-  return std::max(0, std::min(255, v));
-}
+int clamp255(const int v) { return std::max(0, std::min(255, v)); }
 
 constexpr int kCleanPaperMin = 248;
 

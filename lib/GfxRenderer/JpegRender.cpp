@@ -5,14 +5,15 @@
 
 #include "JpegRender.h"
 
-#include "BitmapUtil.h"
-#include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <picojpeg.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+
+#include "BitmapUtil.h"
+#include "GfxRenderer.h"
 
 namespace {
 struct JpegReadContext {
@@ -81,19 +82,19 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
-constexpr int kJpegDitherSolidWhiteMin = 255;  // Changed from 255 - more light grays
-constexpr int kJpegTwoBitSolidBlackMax = 10;   // Snap dark tones to clean black instead of dithering them to gray
-constexpr int kJpegTwoBitSolidWhiteMin = 224;  // Keep upper mids from blowing out to white too early
-constexpr int kJpegTwoBitContrastPercent = 128; // Restore midtone separation closer to the quality render
+constexpr int kJpegDitherSolidWhiteMin = 255;    // Changed from 255 - more light grays
+constexpr int kJpegTwoBitSolidBlackMax = 10;     // Snap dark tones to clean black instead of dithering them to gray
+constexpr int kJpegTwoBitSolidWhiteMin = 224;    // Keep upper mids from blowing out to white too early
+constexpr int kJpegTwoBitContrastPercent = 128;  // Restore midtone separation closer to the quality render
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
 constexpr int kJpegTwoBitSharpenMax = 130;
 constexpr int kJpegTwoBitEdgeThreshold = 0;
-constexpr int kJpegTwoBitEdgeMaxDarken = 0;    // Reduced from 36
-constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
-constexpr int kJpegTwoBitHighlightMaxLift = 50;  // Reduced from 100 - less over-lifting
-constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
-constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
+constexpr int kJpegTwoBitEdgeMaxDarken = 0;       // Reduced from 36
+constexpr int kJpegTwoBitHighlightThreshold = 5;  // Reduced from 8 - detect more highlights
+constexpr int kJpegTwoBitHighlightMaxLift = 50;   // Reduced from 100 - less over-lifting
+constexpr int kJpegTwoBitShadowStart = 1;         // Increased from 10
+constexpr int kJpegTwoBitShadowMaxDarken = 0;     // Keep at 0 (already is)
 constexpr int kJpegTwoBitShadowTextureLiftMin = 52;
 constexpr int kJpegTwoBitShadowTextureLiftMax = 126;
 constexpr int kJpegTwoBitShadowTextureLift = 6;
@@ -125,7 +126,6 @@ constexpr int kX3MediumWhiteMin = 255;  // output tone >= this -> pure white (hi
 constexpr int kX3MediumPivot = 180;     // contrast pivot; higher biases the image brighter
 constexpr int kX3MediumContrast = 120;  // % contrast expansion (>100 = punchier / less flat)
 
-
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
   return std::max(0, std::min(255, adjusted));
@@ -138,15 +138,14 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
   const int lightEdge = gray - neighbor;
   int sharpenedGray = gray;
   if (std::abs(detail) > kJpegTwoBitSharpenThreshold) {
-    const int boost = std::max(-kJpegTwoBitSharpenMax,
-                               std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
+    const int boost =
+        std::max(-kJpegTwoBitSharpenMax, std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
   int tone = jpegTwoBitTone(sharpenedGray);
   if (gray < kJpegTwoBitShadowStart) {
-    const int shadowDarken =
-        ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
+    const int shadowDarken = ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
     tone = std::max(0, tone - shadowDarken);
   }
   if (lightEdge > kJpegTwoBitHighlightThreshold) {
@@ -181,9 +180,9 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
   const int detail = gray - neighbor;
   int sharpenedGray = gray;
   if (std::abs(detail) > kJpegTwoBitQualitySharpenThreshold) {
-    const int boost = std::max(-kJpegTwoBitQualitySharpenMax,
-                               std::min(kJpegTwoBitQualitySharpenMax,
-                                        (detail * kJpegTwoBitQualitySharpenPercent) / 100));
+    const int boost =
+        std::max(-kJpegTwoBitQualitySharpenMax,
+                 std::min(kJpegTwoBitQualitySharpenMax, (detail * kJpegTwoBitQualitySharpenPercent) / 100));
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
@@ -222,16 +221,14 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
 // ============================================================================================
 
 // X4 reference look (do not lift; shadows are slightly deepened on the quality curve).
-int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
+int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
   if (quality) {
     return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax);
   }
   return jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
 }
 
-int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
+int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
   // Quality (GRAY2) is unchanged from before: the X4-shared curve with the X3 shadow lift.
   if (quality) {
     return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift);
@@ -297,19 +294,18 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
   const uint8_t grayscaleCode =
       (renderer.deviceIsX3() ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
   if (renderMode == GfxRenderer::BW) {
-    if ((mode == ImageRenderMode::TwoBit && level > 0) ||
-        (mode == ImageRenderMode::OneBit && level < 3)) {
+    if ((mode == ImageRenderMode::TwoBit && level > 0) || (mode == ImageRenderMode::OneBit && level < 3)) {
       renderer.drawPixel(x, y, true);
     }
-  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
-             ((grayscaleCode & 0b10) != 0)) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && ((grayscaleCode & 0b10) != 0)) {
     renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
-             ((grayscaleCode & 0b01) != 0)) {
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && ((grayscaleCode & 0b01) != 0)) {
     renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b01) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_LSB &&
+             ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b01) == 0)) {
     renderer.drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b10) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_MSB &&
+             ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b10) == 0)) {
     renderer.drawPixel(x, y, true);
   }
 }
@@ -317,7 +313,7 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
 }  // namespace
 
 bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                        const ImageRenderMode mode, const bool quality) const {
+                        const ImageRenderMode mode, const bool quality, ImageLevelCapture* capture) const {
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
@@ -362,6 +358,17 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   const bool verticalUpscale = outHeight > cropSrcHeight;
   const bool horizontalUpscale = outWidth > cropSrcWidth;
 
+  if (capture && (mode != ImageRenderMode::TwoBit || capture->capacity < outWidth * outHeight)) {
+    capture = nullptr;
+  }
+  if (capture) {
+    capture->outWidth = outWidth;
+    capture->outHeight = outHeight;
+    capture->drawOffsetX = drawOffsetX;
+    capture->drawOffsetY = drawOffsetY;
+    capture->captured = true;
+  }
+
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
   uint8_t* prevScaledRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
@@ -375,9 +382,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow ||
-      (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
-      !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+  if (!mcuRowBuffer || !scaledRow || (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum || !rowCount ||
+      (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     free(scaledRow);
@@ -406,7 +412,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       return level > 0;
     }
 
-    const uint8_t grayscaleCode = (deviceIsX3 ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
+    const uint8_t grayscaleCode =
+        (deviceIsX3 ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
     if (renderMode == GfxRenderer::GRAYSCALE_MSB) {
       state = false;
       return (grayscaleCode & 0b10) != 0;
@@ -476,10 +483,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       const int gray = row[ox];
 
       int q;
-      const int solidBlackMax =
-          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
-      const int solidWhiteMin =
-          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
+      const int solidBlackMax = mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
+      const int solidWhiteMin = mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
       if (gray <= solidBlackMax) {
         q = 0;
       } else if (gray >= solidWhiteMin) {
@@ -488,13 +493,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone =
-              deviceIsX3
-                  ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone)
-                  : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
-          q = (qualityTone ? twoBitDitherer->processQuality(tone, step)
-                           : twoBitDitherer->process(tone, step))
-                  .value;
+          const int tone = deviceIsX3 ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone)
+                                      : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
+          q = (qualityTone ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
         } else {
@@ -504,6 +505,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       bool pixelState = true;
       if (quantizedPixelDraw(q, pixelState)) {
         renderer_.drawPixel(drawOffsetX + ox, screenY, pixelState);
+      }
+      if (capture && mode == ImageRenderMode::TwoBit) {
+        const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
+        capture->levels[(screenY - capture->drawOffsetY) * outWidth + ox] = level;
       }
     }
     if (mode == ImageRenderMode::TwoBit) {
@@ -606,13 +611,13 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   return currentOutY > 0;
 }
 
-bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                          bool cropToFill, const ImageRenderMode mode, const bool quality) const {
+bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
+                          const ImageRenderMode mode, const bool quality, ImageLevelCapture* capture) const {
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality, capture);
   file.close();
   return ok;
 }

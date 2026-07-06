@@ -27,18 +27,12 @@ class GfxRenderer {
   // GRAY2_* : quality 2-bit planes used with the quality image LUT.
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB, GRAY2_LSB, GRAY2_MSB };
 
-  enum Orientation {
-    Portrait,                  
-    LandscapeClockwise,        
-    PortraitInverted,          
-    LandscapeCounterClockwise  
-  };
+  enum Orientation { Portrait, LandscapeClockwise, PortraitInverted, LandscapeCounterClockwise };
 
-  
   enum ImageOrientation { None, Rotate90CW, Rotate180, Rotate270CW };
 
  private:
-  static constexpr size_t BW_BUFFER_CHUNK_SIZE = 8000;  
+  static constexpr size_t BW_BUFFER_CHUNK_SIZE = 8000;
 
   HalDisplay& display;
   RenderMode renderMode;
@@ -66,7 +60,6 @@ class GfxRenderer {
   static constexpr int VIEWABLE_MARGIN_BOTTOM = 3;
   static constexpr int VIEWABLE_MARGIN_LEFT = 3;
 
-  
   void insertFont(int fontId, EpdFontFamily font);
   void insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> streamingFont, const EpdFontFamily& font);
   void removeFont(int fontId);
@@ -76,7 +69,6 @@ class GfxRenderer {
   void setOrientation(const Orientation o) { orientation = o; }
   Orientation getOrientation() const { return orientation; }
 
-  
   int getScreenWidth() const;
   int getScreenHeight() const;
   void displayBuffer(const HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
@@ -87,28 +79,24 @@ class GfxRenderer {
   /** Solid ink/paper, or Gray (50% checkerboard dither in BW, similar to light fills in list UIs). */
   enum class FillTone : uint8_t { Paper, Ink, Gray };
 
-  
   void drawPixel(int x, int y, bool state = true) const;
   bool readPixel(int x, int y) const;
   bool readPackedRow1bpp(int x, int y, int width, uint8_t* outRow) const;
   void drawPackedRow1bpp(int x, int y, int width, const uint8_t* row) const;
 
-  
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height,
                  ImageOrientation imgOrientation = None) const;
-
 
   /** Pixels outside the rounded clip after `Bitmap.Draw` (same geometry as rounded `fillRect`). */
   enum class BitmapRoundedCornerOutside : uint8_t {
     None = 0,
-    PaperOutside = 1,             
+    PaperOutside = 1,
     /** ~25% ink on screen even/even pixels outside rounded corners (matches Recent carousel dither). */
     SparseInkAlignedOutside = 2,
   };
 
  private:
  public:
-  
   void setRenderMode(const RenderMode mode) { this->renderMode = mode; }
   RenderMode getRenderMode() const { return renderMode; }
   bool deviceIsX3() const;
@@ -137,13 +125,10 @@ class GfxRenderer {
   /** Drop BW shadow chunks, grayscale HAL state, and force BW mode (call when leaving image-heavy readers). */
   void resetTransientReaderState();
 
-  
   uint8_t* getFrameBuffer() const;
   size_t getBufferSize() const;
   void grayscaleRevert() const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
-
-  
 
   RectangleRender rectangle;
   LineRender line;

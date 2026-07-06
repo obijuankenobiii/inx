@@ -4,9 +4,9 @@
 
 #include "EpubAnnotations.h"
 
+#include <SDCardManager.h>
 #include <Serialization.h>
 
-#include <SDCardManager.h>
 #include <algorithm>
 #include <cstdio>
 #include <sstream>

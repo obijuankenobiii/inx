@@ -87,8 +87,7 @@ void renderUnavailable(GfxRenderer& renderer, int x, int y, int w, int h) {
   centerText(renderer, TINY_FONT, x, w, centerY + 8, "Sync time in settings");
 }
 
-void renderCenteredDate(GfxRenderer& renderer, const SleepClockRenderer::DateTimeView& dt, int x, int y, int w,
-                        int h);
+void renderCenteredDate(GfxRenderer& renderer, const SleepClockRenderer::DateTimeView& dt, int x, int y, int w, int h);
 
 void renderStackedCity(GfxRenderer& renderer, const SleepClockRenderer::DateTimeView& dt, int x, int y, int w, int h) {
   char hourText[4];
@@ -144,7 +143,8 @@ void renderCenteredDate(GfxRenderer& renderer, const SleepClockRenderer::DateTim
   centerText(renderer, DATE_FONT, x, w, y + h - 42, dateText, true);
 }
 
-void renderHorizontalCard(GfxRenderer& renderer, const SleepClockRenderer::DateTimeView& dt, int x, int y, int w, int h) {
+void renderHorizontalCard(GfxRenderer& renderer, const SleepClockRenderer::DateTimeView& dt, int x, int y, int w,
+                          int h) {
   if (w < 80 || h < 90) {
     renderCenteredDate(renderer, dt, x, y, w, h);
     return;
@@ -164,8 +164,8 @@ void renderHorizontalCard(GfxRenderer& renderer, const SleepClockRenderer::DateT
   const int cardH = largeScreen ? 188 : std::max(1, h > 220 ? 170 : h);
   const int cardX = largeScreen ? x + (w - cardW) / 2 : x;
   const int cardY = y + (h - cardH) / 2;
-  const int dateW = largeScreen ? clampInt(cardW * 25 / 100, 104, cardW - 220)
-                                : clampInt(cardW * 28 / 100, 44, cardW - 72);
+  const int dateW =
+      largeScreen ? clampInt(cardW * 25 / 100, 104, cardW - 220) : clampInt(cardW * 28 / 100, 44, cardW - 72);
 
   renderer.rectangle.fill(cardX, cardY, dateW, cardH, true);
 

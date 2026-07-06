@@ -55,20 +55,18 @@ class ParagraphStreamer final : public Print {
   char entityBuffer[MAX_ENTITY_SIZE] = {};
   size_t entityLen = 0;
 
-  
   size_t fwdTarget;
   int fwdResult = 0;
   bool fwdCaptured = false;
 
-  
   int revParagraph;
   int revChar;
   int pCount = 0;
   bool revPFound = false;
   bool revDone = false;
-  int revVisChars = 0;        
-  size_t totalVisChars = 0;   
-  size_t targetVisChars = 0;  
+  int revVisChars = 0;
+  size_t totalVisChars = 0;
+  size_t targetVisChars = 0;
 
   void onP() {
     pCount++;
@@ -169,7 +167,6 @@ class ParagraphStreamer final : public Print {
       }
     }
 
-    
     switch (pState) {
       case IDLE:
         if (c == '<') pState = SAW_LT;
@@ -203,7 +200,7 @@ bool streamSpine(const std::shared_ptr<Epub>& epub, int spineIndex, ParagraphStr
   const auto href = epub->getSpineItem(spineIndex).href;
   return !href.empty() && epub->readItemContentsToStream(href, s, 1024);
 }
-}  
+}  // namespace
 
 KOReaderPosition ProgressMapper::toKOReader(const std::shared_ptr<Epub>& epub, const CrossPointPosition& pos) {
   KOReaderPosition result;

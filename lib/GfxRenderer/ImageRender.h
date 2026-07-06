@@ -45,6 +45,12 @@ class ImageRender {
   static void displayGrayscale(GfxRenderer& renderer, bool quality, bool preserveText,
                                const std::function<void()>& drawPlane, bool fastQuality = false);
 
+  // Writes out any quality (GRAY2) image level-cache entry captured during the two-pass render whose
+  // disk cache write was deferred past the physical refresh (see the in-memory level cache in
+  // ImageRender.cpp). Called once from GfxRenderer::renderGrayscalePasses() right after the display
+  // flash, so the SD write never sits on the visible critical path.
+  static void flushPendingDiskCache(GfxRenderer& renderer);
+
  private:
   enum class Format { Bitmap, Jpeg, Png };
 

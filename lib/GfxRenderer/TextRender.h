@@ -1,6 +1,7 @@
 #pragma once
 
 #include <EpdFontFamily.h>
+
 #include <string>
 
 class GfxRenderer;
@@ -21,15 +22,15 @@ class TextRender {
   std::string truncate(int fontId, const char* text, int maxWidth,
                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void rotated90CW(int fontId, int x, int y, const char* text, bool black = true,
-                       EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                   EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void render(int fontId, int x, int y, const char* text, bool black = true,
-            EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+              EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getSmallCapsWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   /** Renders small caps and returns the x position after the text (its advance), so callers don't re-measure. */
   int renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,
                       EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void centered(int fontId, int y, const char* text, bool black = true,
-                    EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
 
  private:
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,

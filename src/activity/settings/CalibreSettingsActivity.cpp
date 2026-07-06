@@ -10,16 +10,16 @@
 
 #include <cstring>
 
+#include "activity/util/KeyboardEntryActivity.h"
 #include "state/SystemSetting.h"
+#include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
-#include "activity/util/KeyboardEntryActivity.h"
-#include "system/Fonts.h"
 
 namespace {
 constexpr int MENU_ITEMS = 3;
 const char* menuNames[MENU_ITEMS] = {"OPDS Server URL", "Username", "Password"};
-}  
+}  // namespace
 
 void CalibreSettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CalibreSettingsActivity*>(param);
@@ -33,12 +33,7 @@ void CalibreSettingsActivity::onEnter() {
   selectedIndex = 0;
   updateRequired = true;
 
-  xTaskCreate(&CalibreSettingsActivity::taskTrampoline, "CalibreSettingsTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&CalibreSettingsActivity::taskTrampoline, "CalibreSettingsTask", 4096, this, 1, &displayTaskHandle);
 }
 
 void CalibreSettingsActivity::onExit() {
@@ -69,12 +64,10 @@ void CalibreSettingsActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasPressed(MenuNav::itemPrev()) ||
-      mappedInput.wasPressed(MenuNav::tabPrev())) {
+  if (mappedInput.wasPressed(MenuNav::itemPrev()) || mappedInput.wasPressed(MenuNav::tabPrev())) {
     selectedIndex = (selectedIndex + MENU_ITEMS - 1) % MENU_ITEMS;
     updateRequired = true;
-  } else if (mappedInput.wasPressed(MenuNav::itemNext()) ||
-             mappedInput.wasPressed(MenuNav::tabNext())) {
+  } else if (mappedInput.wasPressed(MenuNav::itemNext()) || mappedInput.wasPressed(MenuNav::tabNext())) {
     selectedIndex = (selectedIndex + 1) % MENU_ITEMS;
     updateRequired = true;
   }
@@ -84,12 +77,9 @@ void CalibreSettingsActivity::handleSelection() {
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
   if (selectedIndex == 0) {
-    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "OPDS Server URL", SETTINGS.opdsServerUrl, 10,
-        127,    
-        false,  
+        renderer, mappedInput, "OPDS Server URL", SETTINGS.opdsServerUrl, 10, 127, false,
         [this](const std::string& url) {
           strncpy(SETTINGS.opdsServerUrl, url.c_str(), sizeof(SETTINGS.opdsServerUrl) - 1);
           SETTINGS.opdsServerUrl[sizeof(SETTINGS.opdsServerUrl) - 1] = '\0';
@@ -102,12 +92,9 @@ void CalibreSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 1) {
-    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "Username", SETTINGS.opdsUsername, 10,
-        63,     
-        false,  
+        renderer, mappedInput, "Username", SETTINGS.opdsUsername, 10, 63, false,
         [this](const std::string& username) {
           strncpy(SETTINGS.opdsUsername, username.c_str(), sizeof(SETTINGS.opdsUsername) - 1);
           SETTINGS.opdsUsername[sizeof(SETTINGS.opdsUsername) - 1] = '\0';
@@ -120,12 +107,9 @@ void CalibreSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 2) {
-    
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "Password", SETTINGS.opdsPassword, 10,
-        63,     
-        false,  
+        renderer, mappedInput, "Password", SETTINGS.opdsPassword, 10, 63, false,
         [this](const std::string& password) {
           strncpy(SETTINGS.opdsPassword, password.c_str(), sizeof(SETTINGS.opdsPassword) - 1);
           SETTINGS.opdsPassword[sizeof(SETTINGS.opdsPassword) - 1] = '\0';
@@ -164,23 +148,19 @@ void CalibreSettingsActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
 
-  
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
 
-  
-  renderer.rectangle.fill(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30, static_cast<int>(GfxRenderer::FillTone::Ink));
+  renderer.rectangle.fill(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30,
+                          static_cast<int>(GfxRenderer::FillTone::Ink));
 
-  
   for (int i = 0; i < MENU_ITEMS; i++) {
     const int settingY = 70 + i * 30;
     const bool isSelected = (i == selectedIndex);
 
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
-    
     const char* status = "[Not Set]";
     if (i == 0) {
       status = (strlen(SETTINGS.opdsServerUrl) > 0) ? "[Set]" : "[Not Set]";
@@ -193,7 +173,6 @@ void CalibreSettingsActivity::render() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
   }
 
-  
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 

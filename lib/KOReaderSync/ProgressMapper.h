@@ -14,19 +14,19 @@
  * CrossPoint position representation.
  */
 struct CrossPointPosition {
-  int spineIndex;                  
-  int pageNumber;                  
-  int totalPages;                  
-  uint16_t paragraphIndex = 0;     
-  bool hasParagraphIndex = false;  
+  int spineIndex;
+  int pageNumber;
+  int totalPages;
+  uint16_t paragraphIndex = 0;
+  bool hasParagraphIndex = false;
 };
 
 /**
  * KOReader position representation.
  */
 struct KOReaderPosition {
-  std::string xpath;  
-  float percentage;   
+  std::string xpath;
+  float percentage;
 };
 
 /**

@@ -5,8 +5,8 @@
 
 #include "KeyboardEntryActivity.h"
 
-#include "system/MappedInputManager.h"
 #include "system/Fonts.h"
+#include "system/MappedInputManager.h"
 
 namespace {
 constexpr int KEY_HEIGHT = 34;
@@ -17,12 +17,8 @@ constexpr int PAGE_MARGIN = 18;
 constexpr uint32_t kDisplayTaskStackBytes = 8192;
 }  // namespace
 
-
-const char* const KeyboardEntryActivity::keyboard[NUM_ROWS] = {
-    "`1234567890-=", "qwertyuiop[]\\", "asdfghjkl;'", "zxcvbnm,./",
-    "^  _____<OK"  
-};
-
+const char* const KeyboardEntryActivity::keyboard[NUM_ROWS] = {"`1234567890-=", "qwertyuiop[]\\", "asdfghjkl;'",
+                                                               "zxcvbnm,./", "^  _____<OK"};
 
 const char* const KeyboardEntryActivity::keyboardShift[NUM_ROWS] = {"~!@#$%^&*()_+", "QWERTYUIOP{}|", "ASDFGHJKL:\"",
                                                                     "ZXCVBNM<>?", "SPECIAL ROW"};
@@ -49,7 +45,6 @@ void KeyboardEntryActivity::onEnter() {
 
   renderingMutex = xSemaphoreCreateMutex();
 
-  
   updateRequired = true;
 
   xTaskCreate(&KeyboardEntryActivity::taskTrampoline, "KeyboardEntryActivity", kDisplayTaskStackBytes, this, 1,
@@ -59,7 +54,6 @@ void KeyboardEntryActivity::onEnter() {
 void KeyboardEntryActivity::onExit() {
   Activity::onExit();
 
-  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -72,18 +66,17 @@ void KeyboardEntryActivity::onExit() {
 int KeyboardEntryActivity::getRowLength(const int row) const {
   if (row < 0 || row >= NUM_ROWS) return 0;
 
-  
   switch (row) {
     case 0:
-      return 13;  
+      return 13;
     case 1:
-      return 13;  
+      return 13;
     case 2:
-      return 11;  
+      return 11;
     case 3:
-      return 10;  
+      return 10;
     case 4:
-      return 10;  
+      return 10;
     default:
       return 0;
   }
@@ -99,16 +92,13 @@ char KeyboardEntryActivity::getSelectedChar() const {
 }
 
 void KeyboardEntryActivity::handleKeyPress() {
-  
   if (selectedRow == SPECIAL_ROW) {
     if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
-      
       shiftActive = !shiftActive;
       return;
     }
 
     if (selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL) {
-      
       if (maxLength == 0 || text.length() < maxLength) {
         text += ' ';
       }
@@ -116,7 +106,6 @@ void KeyboardEntryActivity::handleKeyPress() {
     }
 
     if (selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL) {
-      
       if (!text.empty()) {
         text.pop_back();
       }
@@ -124,7 +113,6 @@ void KeyboardEntryActivity::handleKeyPress() {
     }
 
     if (selectedCol >= DONE_COL) {
-      
       if (onComplete) {
         onComplete(text);
       }
@@ -132,7 +120,6 @@ void KeyboardEntryActivity::handleKeyPress() {
     }
   }
 
-  
   const char c = getSelectedChar();
   if (c == '\0') {
     return;
@@ -140,7 +127,7 @@ void KeyboardEntryActivity::handleKeyPress() {
 
   if (maxLength == 0 || text.length() < maxLength) {
     text += c;
-    
+
     if (shiftActive && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
       shiftActive = false;
     }
@@ -148,15 +135,13 @@ void KeyboardEntryActivity::handleKeyPress() {
 }
 
 void KeyboardEntryActivity::loop() {
-  
   if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
     if (selectedRow > 0) {
       selectedRow--;
-      
+
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
     } else {
-      
       selectedRow = NUM_ROWS - 1;
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
@@ -170,7 +155,6 @@ void KeyboardEntryActivity::loop() {
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
     } else {
-      
       selectedRow = 0;
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
@@ -181,20 +165,14 @@ void KeyboardEntryActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
     const int maxCol = getRowLength(selectedRow) - 1;
 
-    
     if (selectedRow == SPECIAL_ROW) {
-      
       if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
-        
         selectedCol = maxCol;
       } else if (selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL) {
-        
         selectedCol = SHIFT_COL;
       } else if (selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL) {
-        
         selectedCol = SPACE_COL;
       } else if (selectedCol >= DONE_COL) {
-        
         selectedCol = BACKSPACE_COL;
       }
       updateRequired = true;
@@ -204,7 +182,6 @@ void KeyboardEntryActivity::loop() {
     if (selectedCol > 0) {
       selectedCol--;
     } else {
-      
       selectedCol = maxCol;
     }
     updateRequired = true;
@@ -213,20 +190,14 @@ void KeyboardEntryActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
     const int maxCol = getRowLength(selectedRow) - 1;
 
-    
     if (selectedRow == SPECIAL_ROW) {
-      
       if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
-        
         selectedCol = SPACE_COL;
       } else if (selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL) {
-        
         selectedCol = BACKSPACE_COL;
       } else if (selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL) {
-        
         selectedCol = DONE_COL;
       } else if (selectedCol >= DONE_COL) {
-        
         selectedCol = SHIFT_COL;
       }
       updateRequired = true;
@@ -236,19 +207,16 @@ void KeyboardEntryActivity::loop() {
     if (selectedCol < maxCol) {
       selectedCol++;
     } else {
-      
       selectedCol = 0;
     }
     updateRequired = true;
   }
 
-  
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     handleKeyPress();
     updateRequired = true;
   }
 
-  
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     if (onCancel) {
       onCancel();
@@ -277,7 +245,6 @@ void KeyboardEntryActivity::render() const {
     displayText = text;
   }
 
-  
   displayText += "_";
 
   const int inputX = PAGE_MARGIN;
@@ -298,25 +265,24 @@ void KeyboardEntryActivity::render() const {
     renderer.text.render(hintFont, inputX + inputW - countW - 10, inputY + inputH + 8, countText, true);
   }
 
-  
   const int keyboardAreaHeight = NUM_ROWS * (KEY_HEIGHT + KEY_SPACING);
   const int keyboardStartY = pageHeight - keyboardAreaHeight - BOTTOM_MARGIN;
 
-  
   const char* const* layout = shiftActive ? keyboardShift : keyboard;
 
-  
-  const int maxKeysInRow = 13;  
+  const int maxKeysInRow = 13;
   const int keyWidth = (pageWidth - PAGE_MARGIN * 2 - (maxKeysInRow - 1) * KEY_SPACING) / maxKeysInRow;
 
   auto drawKey = [&](const int x, const int y, const int w, const int h, const char* label, const bool selected,
                      const bool emphasized = false) {
-    const int labelW = renderer.text.getWidth(keyFont, label, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+    const int labelW =
+        renderer.text.getWidth(keyFont, label, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
     const int labelX = x + (w - labelW) / 2;
     const int labelY = y + (h - renderer.text.getLineHeight(keyFont)) / 2;
     if (selected) {
       renderer.rectangle.fill(x, y, w, h, true, true);
-      renderer.text.render(keyFont, labelX, labelY, label, false, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+      renderer.text.render(keyFont, labelX, labelY, label, false,
+                           emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
       return;
     }
 
@@ -325,53 +291,44 @@ void KeyboardEntryActivity::render() const {
     if (emphasized) {
       renderer.rectangle.render(x + 2, y + 2, w - 4, h - 4, true, true);
     }
-    renderer.text.render(keyFont, labelX, labelY, label, true, emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+    renderer.text.render(keyFont, labelX, labelY, label, true,
+                         emphasized ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
   };
 
   for (int row = 0; row < NUM_ROWS; row++) {
     const int rowY = keyboardStartY + row * (KEY_HEIGHT + KEY_SPACING);
     const int rowLength = getRowLength(row);
 
-    
     if (row == 4) {
-      
-      
       const int shiftWidth = 2 * keyWidth + KEY_SPACING;
       const int spaceWidth = 5 * keyWidth + 4 * KEY_SPACING;
       const int backspaceWidth = 2 * keyWidth + KEY_SPACING;
       const int okWidth = 2 * keyWidth + KEY_SPACING;
-      
-      
+
       const int totalRowWidth = shiftWidth + spaceWidth + backspaceWidth + okWidth + 3 * KEY_SPACING;
       const int startX = (pageWidth - totalRowWidth) / 2;
-      
+
       int currentX = startX;
 
-      
       const bool shiftSelected = (selectedRow == 4 && selectedCol >= SHIFT_COL && selectedCol < SPACE_COL);
       drawKey(currentX, rowY, shiftWidth, KEY_HEIGHT, shiftActive ? "SHIFT" : "Aa", shiftSelected, shiftActive);
       currentX += shiftWidth + KEY_SPACING;
 
-      
       const bool spaceSelected = (selectedRow == 4 && selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL);
       drawKey(currentX, rowY, spaceWidth, KEY_HEIGHT, "SPACE", spaceSelected);
       currentX += spaceWidth + KEY_SPACING;
 
-      
       const bool bsSelected = (selectedRow == 4 && selectedCol >= BACKSPACE_COL && selectedCol < DONE_COL);
       drawKey(currentX, rowY, backspaceWidth, KEY_HEIGHT, "DEL", bsSelected);
       currentX += backspaceWidth + KEY_SPACING;
 
-      
       const bool okSelected = (selectedRow == 4 && selectedCol >= DONE_COL);
       drawKey(currentX, rowY, okWidth, KEY_HEIGHT, "OK", okSelected, true);
     } else {
-      
       const int totalRowWidth = rowLength * keyWidth + (rowLength - 1) * KEY_SPACING;
       const int startX = (pageWidth - totalRowWidth) / 2;
 
       for (int col = 0; col < rowLength; col++) {
-        
         const char c = layout[row][col];
         char keyLabel[2] = {c, '\0'};
 
@@ -382,7 +339,6 @@ void KeyboardEntryActivity::render() const {
     }
   }
 
-  
   const auto labels = mappedInput.mapLabels("Back", "Select", "Prev", "Next");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 

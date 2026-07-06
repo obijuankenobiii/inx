@@ -5,8 +5,8 @@
  * @brief Public interface and types for SystemSetting.
  */
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <iosfwd>
 
 class GfxRenderer;
@@ -15,562 +15,529 @@ class GfxRenderer;
  * @brief System settings management class
  */
 class SystemSetting {
-private:
-    SystemSetting() = default;
-    static SystemSetting instance;
+ private:
+  SystemSetting() = default;
+  static SystemSetting instance;
 
-public:
-    SystemSetting(const SystemSetting&) = delete;
-    SystemSetting& operator=(const SystemSetting&) = delete;
+ public:
+  SystemSetting(const SystemSetting&) = delete;
+  SystemSetting& operator=(const SystemSetting&) = delete;
 
-    /**
-     * @brief Sleep screen display modes
-     */
-    enum SLEEP_SCREEN_MODE { 
-        DARK = 0,           ///< Dark screen
-        LIGHT = 1,          ///< Light screen
-        CUSTOM = 2,         ///< Custom image
-        COVER = 3,          ///< Book cover
-        TRANSPARENT = 4,    ///< Transparent
-        BLANK = 5,          ///< Blank screen
-        DATETIME = 6,       ///< Minimal date and time
-        SLEEP_SCREEN_MODE_COUNT 
-    };
+  /**
+   * @brief Sleep screen display modes
+   */
+  enum SLEEP_SCREEN_MODE {
+    DARK = 0,         ///< Dark screen
+    LIGHT = 1,        ///< Light screen
+    CUSTOM = 2,       ///< Custom image
+    COVER = 3,        ///< Book cover
+    TRANSPARENT = 4,  ///< Transparent
+    BLANK = 5,        ///< Blank screen
+    DATETIME = 6,     ///< Minimal date and time
+    SLEEP_SCREEN_MODE_COUNT
+  };
 
-    enum SLEEP_CLOCK_STYLE {
-        CLOCK_STACKED_CITY = 0,
-        CLOCK_CENTERED_DATE = 1,
-        CLOCK_HORIZONTAL_CARD = 2,
-        SLEEP_CLOCK_STYLE_COUNT
-    };
+  enum SLEEP_CLOCK_STYLE {
+    CLOCK_STACKED_CITY = 0,
+    CLOCK_CENTERED_DATE = 1,
+    CLOCK_HORIZONTAL_CARD = 2,
+    SLEEP_CLOCK_STYLE_COUNT
+  };
 
-    enum CLOCK_TIME_FORMAT {
-        CLOCK_12_HOUR = 0,
-        CLOCK_24_HOUR = 1,
-        CLOCK_TIME_FORMAT_COUNT
-    };
+  enum CLOCK_TIME_FORMAT { CLOCK_12_HOUR = 0, CLOCK_24_HOUR = 1, CLOCK_TIME_FORMAT_COUNT };
 
-    enum SLEEP_CLOCK_REFRESH_INTERVAL {
-        CLOCK_REFRESH_OFF = 0,
-        CLOCK_REFRESH_10_MIN = 1,
-        CLOCK_REFRESH_15_MIN = 2,
-        CLOCK_REFRESH_30_MIN = 3,
-        CLOCK_REFRESH_60_MIN = 4,
-        CLOCK_REFRESH_INTERVAL_COUNT
-    };
-    
-    /**
-     * @brief Sleep screen cover scaling modes
-     */
-    enum SLEEP_SCREEN_COVER_MODE {
-        FIT = 0,   ///< Fill: scale to screen with aspect crop (full uncropped EPUB cover)
-        CROP = 1,  ///< EPUB: use pre-cropped cover asset; draw full screen (no extra crop)
-        SLEEP_SCREEN_COVER_MODE_COUNT
-    };
-    
-    /**
-     * @brief Sleep screen cover filter options
-     */
-    enum SLEEP_SCREEN_COVER_FILTER {
-        NO_FILTER = 0,                      ///< No filter
-        BLACK_AND_WHITE = 1,                ///< Black and white
-        INVERTED_BLACK_AND_WHITE = 2,       ///< Inverted black and white
-        SLEEP_SCREEN_COVER_FILTER_COUNT
-    };
+  enum SLEEP_CLOCK_REFRESH_INTERVAL {
+    CLOCK_REFRESH_OFF = 0,
+    CLOCK_REFRESH_10_MIN = 1,
+    CLOCK_REFRESH_15_MIN = 2,
+    CLOCK_REFRESH_30_MIN = 3,
+    CLOCK_REFRESH_60_MIN = 4,
+    CLOCK_REFRESH_INTERVAL_COUNT
+  };
 
-    enum SLEEP_IMAGE_QUALITY {
-        SLEEP_IMAGE_LOW = 0,     ///< 1-bit image rendering
-        SLEEP_IMAGE_MEDIUM = 1,  ///< 2-bit fast image rendering
-        SLEEP_IMAGE_HIGH = 2,    ///< 2-bit quality image rendering
-        SLEEP_IMAGE_QUALITY_COUNT
-    };
+  /**
+   * @brief Sleep screen cover scaling modes
+   */
+  enum SLEEP_SCREEN_COVER_MODE {
+    FIT = 0,   ///< Fill: scale to screen with aspect crop (full uncropped EPUB cover)
+    CROP = 1,  ///< EPUB: use pre-cropped cover asset; draw full screen (no extra crop)
+    SLEEP_SCREEN_COVER_MODE_COUNT
+  };
 
-    /**
-     * @brief Navigation disable modes
-     */
-    enum DISABLE_NAVIGATION_MODE {
-        NAV_NONE = 0,       ///< Navigation enabled
-        LEFT_RIGHT = 1,     ///< Disable left/right
-        UP_DOWN = 2,        ///< Disable up/down
-        DISABLE_NAVIGATION_MODE_COUNT
-    };
+  /**
+   * @brief Sleep screen cover filter options
+   */
+  enum SLEEP_SCREEN_COVER_FILTER {
+    NO_FILTER = 0,                 ///< No filter
+    BLACK_AND_WHITE = 1,           ///< Black and white
+    INVERTED_BLACK_AND_WHITE = 2,  ///< Inverted black and white
+    SLEEP_SCREEN_COVER_FILTER_COUNT
+  };
 
-    /**
-     * @brief Status bar item types for configurable sections
-     */
-    enum STATUS_BAR_ITEM {
-        STATUS_ITEM_NONE = 0,                       ///< No item
-        STATUS_ITEM_PAGE_NUMBERS = 1,               ///< Page numbers
-        STATUS_ITEM_PERCENTAGE = 2,                 ///< Reading percentage
-        STATUS_ITEM_CHAPTER_TITLE = 3,              ///< Chapter title
-        STATUS_ITEM_BATTERY_ICON = 4,               ///< Battery icon only
-        STATUS_ITEM_BATTERY_PERCENTAGE = 5,         ///< Battery percentage text
-        STATUS_ITEM_BATTERY_ICON_WITH_PERCENT = 6,  ///< Battery icon with percentage
-        STATUS_ITEM_PROGRESS_BAR = 7,               ///< Progress bar only
-        STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT = 8,  ///< Progress bar with percentage
-        STATUS_ITEM_PAGE_BARS = 9,                  ///< Page bars
-        STATUS_ITEM_BOOK_TITLE = 10,                ///< Book title
-        STATUS_ITEM_AUTHOR_NAME = 11,               ///< Author name
-        STATUS_ITEM_PAGE_NUMBERS_WITH_PERCENT = 12, ///< Page numbers and percentage combined (e.g., "12/340 45%")
-        STATUS_BAR_ITEM_COUNT
-    };
+  enum SLEEP_IMAGE_QUALITY {
+    SLEEP_IMAGE_LOW = 0,     ///< 1-bit image rendering
+    SLEEP_IMAGE_MEDIUM = 1,  ///< 2-bit fast image rendering
+    SLEEP_IMAGE_HIGH = 2,    ///< 2-bit quality image rendering
+    SLEEP_IMAGE_QUALITY_COUNT
+  };
 
-    /**
-     * @brief Legacy status bar mode (kept for backward compatibility)
-     */
-    enum STATUS_BAR_MODE {
-        NONE = 0,                       ///< No status bar
-        NO_PROGRESS = 1,                ///< Status bar without progress
-        FULL = 2,                       ///< Full status bar with percentage
-        FULL_WITH_PROGRESS_BAR = 3,     ///< Full status bar with progress bar
-        ONLY_PROGRESS_BAR = 4,          ///< Progress bar only
-        BATTERY_PERCENTAGE = 5,         ///< Battery with percentage
-        PERCENTAGE = 6,                 ///< Just percentage
-        PAGE_BARS = 7,                  ///< Dynamic page bars
-        STATUS_BAR_MODE_COUNT
-    };
+  /**
+   * @brief Navigation disable modes
+   */
+  enum DISABLE_NAVIGATION_MODE {
+    NAV_NONE = 0,    ///< Navigation enabled
+    LEFT_RIGHT = 1,  ///< Disable left/right
+    UP_DOWN = 2,     ///< Disable up/down
+    DISABLE_NAVIGATION_MODE_COUNT
+  };
 
-    /**
-     * @brief Screen orientation modes
-     */
-    enum ORIENTATION {
-        PORTRAIT = 0,       ///< Portrait orientation
-        LANDSCAPE_CW = 1,   ///< Landscape clockwise
-        INVERTED = 2,       ///< Inverted portrait
-        LANDSCAPE_CCW = 3,  ///< Landscape counter-clockwise
-        ORIENTATION_COUNT
-    };
+  /**
+   * @brief Status bar item types for configurable sections
+   */
+  enum STATUS_BAR_ITEM {
+    STATUS_ITEM_NONE = 0,                        ///< No item
+    STATUS_ITEM_PAGE_NUMBERS = 1,                ///< Page numbers
+    STATUS_ITEM_PERCENTAGE = 2,                  ///< Reading percentage
+    STATUS_ITEM_CHAPTER_TITLE = 3,               ///< Chapter title
+    STATUS_ITEM_BATTERY_ICON = 4,                ///< Battery icon only
+    STATUS_ITEM_BATTERY_PERCENTAGE = 5,          ///< Battery percentage text
+    STATUS_ITEM_BATTERY_ICON_WITH_PERCENT = 6,   ///< Battery icon with percentage
+    STATUS_ITEM_PROGRESS_BAR = 7,                ///< Progress bar only
+    STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT = 8,   ///< Progress bar with percentage
+    STATUS_ITEM_PAGE_BARS = 9,                   ///< Page bars
+    STATUS_ITEM_BOOK_TITLE = 10,                 ///< Book title
+    STATUS_ITEM_AUTHOR_NAME = 11,                ///< Author name
+    STATUS_ITEM_PAGE_NUMBERS_WITH_PERCENT = 12,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
+    STATUS_BAR_ITEM_COUNT
+  };
 
-    /**
-     * @brief Front button layout configurations
-     */
-    enum FRONT_BUTTON_LAYOUT {
-        BACK_CONFIRM_LEFT_RIGHT = 0,    ///< Back/Confirm on left, Prev/Next on right
-        LEFT_RIGHT_BACK_CONFIRM = 1,    ///< Prev/Next on left, Back/Confirm on right
-        LEFT_BACK_CONFIRM_RIGHT = 2,    ///< Prev on left, Back/Confirm in middle, Next on right
-        BACK_CONFIRM_RIGHT_LEFT = 3,    ///< Back/Confirm on right, Prev/Next on left
-        FRONT_BUTTON_LAYOUT_COUNT
-    };
+  /**
+   * @brief Legacy status bar mode (kept for backward compatibility)
+   */
+  enum STATUS_BAR_MODE {
+    NONE = 0,                    ///< No status bar
+    NO_PROGRESS = 1,             ///< Status bar without progress
+    FULL = 2,                    ///< Full status bar with percentage
+    FULL_WITH_PROGRESS_BAR = 3,  ///< Full status bar with progress bar
+    ONLY_PROGRESS_BAR = 4,       ///< Progress bar only
+    BATTERY_PERCENTAGE = 5,      ///< Battery with percentage
+    PERCENTAGE = 6,              ///< Just percentage
+    PAGE_BARS = 7,               ///< Dynamic page bars
+    STATUS_BAR_MODE_COUNT
+  };
 
-    /**
-     * @brief Side button layout configurations
-     */
-    enum SIDE_BUTTON_LAYOUT { 
-        PREV_NEXT = 0,      ///< Previous on top, Next on bottom
-        NEXT_PREV = 1,      ///< Next on top, Previous on bottom
-        SIDE_BUTTON_LAYOUT_COUNT 
-    };
+  /**
+   * @brief Screen orientation modes
+   */
+  enum ORIENTATION {
+    PORTRAIT = 0,       ///< Portrait orientation
+    LANDSCAPE_CW = 1,   ///< Landscape clockwise
+    INVERTED = 2,       ///< Inverted portrait
+    LANDSCAPE_CCW = 3,  ///< Landscape counter-clockwise
+    ORIENTATION_COUNT
+  };
 
-    /**
-     * @brief Reader direction mapping for navigation
-     */
-    enum READER_DIRECTION_MAPPING {
-        MAP_LEFT_RIGHT = 0,     ///< Map left/right to prev/next
-        MAP_RIGHT_LEFT = 1,     ///< Map right/left to prev/next
-        MAP_UP_DOWN = 2,        ///< Map up/down to prev/next
-        MAP_DOWN_UP = 3,        ///< Map down/up to prev/next
-        MAP_NONE = 4,           ///< No mapping
-        READER_DIRECTION_MAPPING_COUNT
-    };
+  /**
+   * @brief Front button layout configurations
+   */
+  enum FRONT_BUTTON_LAYOUT {
+    BACK_CONFIRM_LEFT_RIGHT = 0,  ///< Back/Confirm on left, Prev/Next on right
+    LEFT_RIGHT_BACK_CONFIRM = 1,  ///< Prev/Next on left, Back/Confirm on right
+    LEFT_BACK_CONFIRM_RIGHT = 2,  ///< Prev on left, Back/Confirm in middle, Next on right
+    BACK_CONFIRM_RIGHT_LEFT = 3,  ///< Back/Confirm on right, Prev/Next on left
+    FRONT_BUTTON_LAYOUT_COUNT
+  };
 
-    /**
-     * @brief Which buttons navigate the main menu tab bar vs the page items.
-     */
-    enum MAIN_MENU_NAV {
-        MAIN_MENU_NAV_FRONT = 0,  ///< Front buttons: Left/Right switch tabs, Up/Down move items (default)
-        MAIN_MENU_NAV_SIDE = 1,   ///< Side buttons: Up/Down switch tabs, Left/Right move items
-        MAIN_MENU_NAV_COUNT
-    };
+  /**
+   * @brief Side button layout configurations
+   */
+  enum SIDE_BUTTON_LAYOUT {
+    PREV_NEXT = 0,  ///< Previous on top, Next on bottom
+    NEXT_PREV = 1,  ///< Next on top, Previous on bottom
+    SIDE_BUTTON_LAYOUT_COUNT
+  };
 
-    /**
-     * @brief Reader menu button assignment
-     */
-    enum READER_MENU_BUTTON {
-        MENU_UP = 0,        ///< Menu on up button
-        MENU_DOWN = 1,      ///< Menu on down button
-        MENU_LEFT = 2,      ///< Menu on left button
-        MENU_RIGHT = 3,     ///< Menu on right button
-        READER_MENU_BUTTON_COUNT
-    };
-    
-    /**
-     * @brief Font family options (stored in fontFamily / BookSettings::fontFamily)
-     * @details 0–1 are built-ins; 2+ select SD card folders under /fonts (sorted names), see FontManager.
-     */
-    enum FONT_FAMILY {
-        LITERATA = 0,                ///< Literata (default body font)
-        ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible
-        FONT_FAMILY_BUILTIN_COUNT,
-        FONT_FAMILY_COUNT = FONT_FAMILY_BUILTIN_COUNT  ///< Built-in count; reader option count includes SD families
-    };
-    
-    /**
-     * @brief Font size options
-     */
-    enum FONT_SIZE { 
-        EXTRA_SMALL = 0,    ///< Extra small font
-        SMALL = 1,          ///< Small font
-        MEDIUM = 2,         ///< Medium font
-        LARGE = 3,          ///< Large font
-        EXTRA_LARGE = 4,    ///< Extra large font
-        FONT_SIZE_COUNT 
-    };
-    
-    /**
-     * @brief Reader line height (vertical rhythm): scales font advanceY × multiplier when laying out EPUB lines.
-     */
-    enum LINE_COMPRESSION {
-        TIGHT = 0,
-        NORMAL = 1,
-        WIDE = 2,
-        EXTRA_WIDE = 3,
-        LOOSE = 4,
-        LINE_COMPRESSION_COUNT
-    };
-    
-    /**
-     * @brief Paragraph alignment options
-     */
-    enum PARAGRAPH_ALIGNMENT {
-        JUSTIFIED = 0,      ///< Justified alignment
-        LEFT_ALIGN = 1,     ///< Left alignment
-        CENTER_ALIGN = 2,   ///< Center alignment
-        RIGHT_ALIGN = 3,    ///< Right alignment
-        /** Same role as CrossPoint “Book style”: use EPUB `text-align` / cascade for each block (value must match
-         *  EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h). */
-        FOLLOW_CSS = 4,
-        PARAGRAPH_ALIGNMENT_COUNT
-    };
+  /**
+   * @brief Reader direction mapping for navigation
+   */
+  enum READER_DIRECTION_MAPPING {
+    MAP_LEFT_RIGHT = 0,  ///< Map left/right to prev/next
+    MAP_RIGHT_LEFT = 1,  ///< Map right/left to prev/next
+    MAP_UP_DOWN = 2,     ///< Map up/down to prev/next
+    MAP_DOWN_UP = 3,     ///< Map down/up to prev/next
+    MAP_NONE = 4,        ///< No mapping
+    READER_DIRECTION_MAPPING_COUNT
+  };
 
-    /**
-     * @brief Sleep timeout duration options
-     */
-    enum SLEEP_TIMEOUT {
-        SLEEP_1_MIN = 0,    ///< 1 minute timeout
-        SLEEP_5_MIN = 1,    ///< 5 minute timeout
-        SLEEP_10_MIN = 2,   ///< 10 minute timeout
-        SLEEP_15_MIN = 3,   ///< 15 minute timeout
-        SLEEP_30_MIN = 4,   ///< 30 minute timeout
-        SLEEP_TIMEOUT_COUNT
-    };
+  /**
+   * @brief Which buttons navigate the main menu tab bar vs the page items.
+   */
+  enum MAIN_MENU_NAV {
+    MAIN_MENU_NAV_FRONT = 0,  ///< Front buttons: Left/Right switch tabs, Up/Down move items (default)
+    MAIN_MENU_NAV_SIDE = 1,   ///< Side buttons: Up/Down switch tabs, Left/Right move items
+    MAIN_MENU_NAV_COUNT
+  };
 
-    /**
-     * @brief Screen refresh frequency options
-     */
-    enum REFRESH_FREQUENCY {
-        REFRESH_1 = 0,      ///< Refresh every page
-        REFRESH_5 = 1,      ///< Refresh every 5 pages
-        REFRESH_10 = 2,     ///< Refresh every 10 pages
-        REFRESH_15 = 3,     ///< Refresh every 15 pages
-        REFRESH_30 = 4,     ///< Refresh every 30 pages
-        REFRESH_FREQUENCY_COUNT
-    };
+  /**
+   * @brief Reader menu button assignment
+   */
+  enum READER_MENU_BUTTON {
+    MENU_UP = 0,     ///< Menu on up button
+    MENU_DOWN = 1,   ///< Menu on down button
+    MENU_LEFT = 2,   ///< Menu on left button
+    MENU_RIGHT = 3,  ///< Menu on right button
+    READER_MENU_BUTTON_COUNT
+  };
 
-    /**
-     * @brief Global short power button behavior (for library, home, etc.)
-     */
-    enum SHORT_PWRBTN { 
-        IGNORE = 0,         ///< Ignore short press
-        SLEEP = 1,          ///< Put to sleep
-        PAGE_REFRESH = 2,   ///< Refresh page
-        SHORT_PWRBTN_COUNT 
-    };
-    
-    /**
-     * @brief Reader-specific short power button behavior
-     */
-    enum READER_SHORT_PWRBTN {
-        READER_PAGE_TURN = 0,       ///< Turn page
-        READER_PAGE_REFRESH = 1,    ///< Refresh screen
-        READER_ANNOTATE = 2,        ///< Enter EPUB highlight / annotation mode
-        READER_SHORT_PWRBTN_COUNT
-    };
+  /**
+   * @brief Font family options (stored in fontFamily / BookSettings::fontFamily)
+   * @details 0–1 are built-ins; 2+ select SD card folders under /fonts (sorted names), see FontManager.
+   */
+  enum FONT_FAMILY {
+    LITERATA = 0,               ///< Literata (default body font)
+    ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible
+    FONT_FAMILY_BUILTIN_COUNT,
+    FONT_FAMILY_COUNT = FONT_FAMILY_BUILTIN_COUNT  ///< Built-in count; reader option count includes SD families
+  };
 
-    enum XTC_SHORT_PWRBTN {
-        XTC_POWER_NEXT = 0,
-        XTC_POWER_PAGE_REFRESH = 1,
-        XTC_SHORT_PWRBTN_COUNT
-    };
-    
-    /**
-     * @brief Battery percentage display options
-     */
-    enum HIDE_BATTERY_PERCENTAGE { 
-        HIDE_NEVER = 0,     ///< Always show
-        HIDE_READER = 1,    ///< Hide in reader
-        HIDE_ALWAYS = 2,    ///< Always hide
-        HIDE_BATTERY_PERCENTAGE_COUNT 
-    };
+  /**
+   * @brief Font size options
+   */
+  enum FONT_SIZE {
+    EXTRA_SMALL = 0,  ///< Extra small font
+    SMALL = 1,        ///< Small font
+    MEDIUM = 2,       ///< Medium font
+    LARGE = 3,        ///< Large font
+    EXTRA_LARGE = 4,  ///< Extra large font
+    FONT_SIZE_COUNT
+  };
 
-    /**
-     * @brief Recent library display modes
-     */
-    enum RECENT_LIBRARY_MODE {
-        RECENT_GRID = 0,    ///< Grid view
-        RECENT_LIST = 1,    ///< Current / previous (stats + carousel strip)
-        RECENT_FLOW = 2,    ///< Flow carousel
-        RECENT_SIMPLE = 3,  ///< Simple: recent cover on top, favorites list below
-        RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
-        RECENT_ICONS = 5,   ///< 2×3 icon grid (200×200); scroll for more books
-        RECENT_COVER = 6,   ///< Latest recent book cover with title, author, and progress
-        RECENT_LIBRARY_MODE_COUNT
-    };
+  /**
+   * @brief Reader line height (vertical rhythm): scales font advanceY × multiplier when laying out EPUB lines.
+   */
+  enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2, EXTRA_WIDE = 3, LOOSE = 4, LINE_COMPRESSION_COUNT };
 
-    /**
-     * @brief Library browser display modes
-     */
-    enum LIBRARY_MODE {
-        LIBRARY_LIST = 0,   ///< Compact list browser
-        LIBRARY_GRID = 1,   ///< 3x4 icon grid browser
-        LIBRARY_MODE_COUNT
-    };
+  /**
+   * @brief Paragraph alignment options
+   */
+  enum PARAGRAPH_ALIGNMENT {
+    JUSTIFIED = 0,     ///< Justified alignment
+    LEFT_ALIGN = 1,    ///< Left alignment
+    CENTER_ALIGN = 2,  ///< Center alignment
+    RIGHT_ALIGN = 3,   ///< Right alignment
+    /** Same role as CrossPoint “Book style”: use EPUB `text-align` / cascade for each block (value must match
+     *  EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h). */
+    FOLLOW_CSS = 4,
+    PARAGRAPH_ALIGNMENT_COUNT
+  };
 
-    /**
-     * @brief Library browser content view
-     */
-    enum LIBRARY_VIEW_MODE {
-        LIBRARY_VIEW_FOLDERS = 0,  ///< Folder/group browser
-        LIBRARY_VIEW_BOOKS = 1,    ///< Flat book list
-        LIBRARY_VIEW_TAGS = 2,     ///< Tag collections
-        LIBRARY_VIEW_SHELF = 3,    ///< Cover-first shelf
-        LIBRARY_VIEW_MODE_COUNT
-    };
+  /**
+   * @brief Sleep timeout duration options
+   */
+  enum SLEEP_TIMEOUT {
+    SLEEP_1_MIN = 0,   ///< 1 minute timeout
+    SLEEP_5_MIN = 1,   ///< 5 minute timeout
+    SLEEP_10_MIN = 2,  ///< 10 minute timeout
+    SLEEP_15_MIN = 3,  ///< 15 minute timeout
+    SLEEP_30_MIN = 4,  ///< 30 minute timeout
+    SLEEP_TIMEOUT_COUNT
+  };
 
-    /**
-     * @brief Boot destination settings
-     */
-    enum BOOT_SETTING {
-        RECENT_PAGE = 0,    ///< Boot to recent page
-        HOME_PAGE = 1,      ///< Boot to home page
-        BOOT_SETTING_COUNT
-    };
+  /**
+   * @brief Screen refresh frequency options
+   */
+  enum REFRESH_FREQUENCY {
+    REFRESH_1 = 0,   ///< Refresh every page
+    REFRESH_5 = 1,   ///< Refresh every 5 pages
+    REFRESH_10 = 2,  ///< Refresh every 10 pages
+    REFRESH_15 = 3,  ///< Refresh every 15 pages
+    REFRESH_30 = 4,  ///< Refresh every 30 pages
+    REFRESH_FREQUENCY_COUNT
+  };
 
-    /**
-     * @brief Legacy image-dither values kept only for settings-file compatibility; rendering always uses Floyd.
-     */
-    enum READER_IMAGE_DITHER {
-        IMAGE_DITHER_NONE = 0,
-        IMAGE_DITHER_FLOYD_STEINBERG = 1,
-        IMAGE_DITHER_ATKINSON = 2,
-        READER_IMAGE_DITHER_COUNT
-    };
+  /**
+   * @brief Global short power button behavior (for library, home, etc.)
+   */
+  enum SHORT_PWRBTN {
+    IGNORE = 0,        ///< Ignore short press
+    SLEEP = 1,         ///< Put to sleep
+    PAGE_REFRESH = 2,  ///< Refresh page
+    SHORT_PWRBTN_COUNT
+  };
 
-    
-    uint8_t sleepScreen = LIGHT;                                ///< Sleep screen display mode
-    uint8_t sleepScreenCoverMode = FIT;                         ///< Sleep screen cover scaling mode
-    uint8_t sleepScreenCoverFilter = NO_FILTER;                 ///< Sleep screen cover filter
-    /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
-    uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
-    /**
-     * Fixed custom/transparent sleep image when multiple images exist.
-     * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
-     * Basename only = use /sleep/<basename> (e.g. night.bmp / night.jpg).
-     * Exactly "/sleep.bmp" (or /sleep.jpg/.jpeg) = use SD-root fallback file only.
-     */
-    char sleepCustomBmp[64] = "";
-    uint8_t sleepClockStyle = CLOCK_CENTERED_DATE;              ///< Date/time sleep screen style
-    uint8_t sleepClockTimeFormat = CLOCK_24_HOUR;               ///< 12/24 hour clock format
-    uint8_t sleepClockRefreshInterval = CLOCK_REFRESH_OFF;       ///< Legacy settings slot; Date Time is X3-only
-    /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
-    uint8_t timeZoneQuarterOffset = 80;
+  /**
+   * @brief Reader-specific short power button behavior
+   */
+  enum READER_SHORT_PWRBTN {
+    READER_PAGE_TURN = 0,     ///< Turn page
+    READER_PAGE_REFRESH = 1,  ///< Refresh screen
+    READER_ANNOTATE = 2,      ///< Enter EPUB highlight / annotation mode
+    READER_SHORT_PWRBTN_COUNT
+  };
 
-    
-    uint8_t statusBar = FULL;                                   ///< Legacy status bar mode
-    
-    
-    uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;   ///< Left status bar section
-    uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;             ///< Middle status bar section
-    uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;               ///< Right status bar section
-    
-    
-    uint8_t extraParagraphSpacing = 1;                          ///< Extra paragraph spacing enabled
-    uint8_t textAntiAliasing = 0;                               ///< Text anti-aliasing enabled
-    
-    
-    uint8_t shortPwrBtn = IGNORE;                               ///< Short power button behavior
-    
-    
-    uint8_t readerShortPwrBtn = READER_PAGE_TURN;               ///< Reader short power button behavior
-    uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;                    ///< XTC short power button behavior
-    uint8_t xtcPageAutoTurnSeconds = 0;                         ///< XTC auto page turn interval, 0=off
-    
-    
-    uint8_t orientation = PORTRAIT;                             ///< Screen orientation
-    
-    
-    uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;        ///< Front button layout
-    uint8_t sideButtonLayout = PREV_NEXT;                       ///< Side button layout
-    
-    
-    uint8_t readerDirectionMapping = MAP_NONE;                  ///< Reader direction mapping
-    uint8_t readerMenuButton = MENU_UP;                         ///< Reader menu button assignment
-    uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;                  ///< Main-menu tab vs item navigation buttons
-    
-    
-    uint8_t fontFamily = LITERATA;                              ///< Font family
-    uint8_t fontSize = SMALL;                                   ///< Font size
-    uint8_t lineHeight = 100;                                   ///< Reader line height, % of natural (10-200)
-    uint8_t textSpace = 100;                                    ///< Reader word spacing, % of natural (10-200)
-    uint8_t paragraphAlignment = JUSTIFIED;                     ///< Paragraph alignment
-    /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
-    uint8_t paragraphCssIndentEnabled = 0;
+  enum XTC_SHORT_PWRBTN { XTC_POWER_NEXT = 0, XTC_POWER_PAGE_REFRESH = 1, XTC_SHORT_PWRBTN_COUNT };
 
-    
-    uint8_t sleepTimeout = SLEEP_10_MIN;                        ///< Sleep timeout
-    
-    
-    uint8_t refreshFrequency = REFRESH_15;                      ///< Refresh frequency
-    uint8_t hyphenationEnabled = 1;                             ///< Hyphenation enabled
-    uint8_t bionicReadingEnabled = 0;                            ///< Bionic Reading enabled
+  /**
+   * @brief Battery percentage display options
+   */
+  enum HIDE_BATTERY_PERCENTAGE {
+    HIDE_NEVER = 0,   ///< Always show
+    HIDE_READER = 1,  ///< Hide in reader
+    HIDE_ALWAYS = 2,  ///< Always hide
+    HIDE_BATTERY_PERCENTAGE_COUNT
+  };
 
-    
-    uint8_t screenMargin = 20;                                  ///< Screen margin in pixels
-    
-    
-    char opdsServerUrl[128] = "";                               ///< OPDS server URL
-    char opdsUsername[64] = "";                                 ///< OPDS username
-    char opdsPassword[64] = "";                                 ///< OPDS password
-    
-    uint8_t hideBatteryPercentage = HIDE_NEVER;                 ///< Hide battery percentage setting
-    /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only. */
-    static constexpr uint8_t LONG_PRESS_OFF = 0;
-    static constexpr uint8_t LONG_PRESS_CHAPTER_SKIP = 1;
-    static constexpr uint8_t LONG_PRESS_PAGE_SKIP_5 = 2;
-    uint8_t longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
-    uint8_t useLibraryIndex = 0;                                ///< Use library index enabled
-    /** Half refresh once after first paint on hub screens (ghosting cleanup). */
-    uint8_t refreshOnLoadRecent = 0;
-    uint8_t refreshOnLoadLibrary = 0;
-    uint8_t refreshOnLoadSettings = 0;
-    uint8_t refreshOnLoadSync = 0;
-    uint8_t refreshOnLoadStatistics = 0;
-    uint8_t disableNavigation = NAV_NONE;                       ///< Navigation disable mode
-    
-    
-    uint8_t recentLibraryMode = RECENT_FLOW;                  ///< Recent library display mode
-    uint8_t libraryMode = LIBRARY_LIST;                       ///< Library browser display mode
-    uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;           ///< Last Library browser content view
-    /** How many recent books to show on the Recent hub (1–8). */
-    uint8_t recentVisibleCount = 8;
-    /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
-    uint8_t librarySortEnabled = 1;
-    /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
-    uint8_t librarySortMode = 0;
+  /**
+   * @brief Recent library display modes
+   */
+  enum RECENT_LIBRARY_MODE {
+    RECENT_GRID = 0,       ///< Grid view
+    RECENT_LIST = 1,       ///< Current / previous (stats + carousel strip)
+    RECENT_FLOW = 2,       ///< Flow carousel
+    RECENT_SIMPLE = 3,     ///< Simple: recent cover on top, favorites list below
+    RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
+    RECENT_ICONS = 5,      ///< 2×3 icon grid (200×200); scroll for more books
+    RECENT_COVER = 6,      ///< Latest recent book cover with title, author, and progress
+    RECENT_LIBRARY_MODE_COUNT
+  };
 
-    uint8_t bootSetting = RECENT_PAGE;                          ///< Boot destination setting
+  /**
+   * @brief Library browser display modes
+   */
+  enum LIBRARY_MODE {
+    LIBRARY_LIST = 0,  ///< Compact list browser
+    LIBRARY_GRID = 1,  ///< 3x4 icon grid browser
+    LIBRARY_MODE_COUNT
+  };
 
-    /**
-     * @brief Page auto-turn interval in seconds
-     * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
-     */
-    uint8_t pageAutoTurnSeconds = 0;
+  /**
+   * @brief Library browser content view
+   */
+  enum LIBRARY_VIEW_MODE {
+    LIBRARY_VIEW_FOLDERS = 0,  ///< Folder/group browser
+    LIBRARY_VIEW_BOOKS = 1,    ///< Flat book list
+    LIBRARY_VIEW_TAGS = 2,     ///< Tag collections
+    LIBRARY_VIEW_SHELF = 3,    ///< Cover-first shelf
+    LIBRARY_VIEW_MODE_COUNT
+  };
 
-    /** Book image quality (READER_IMAGE_QUALITY): 0=Low(1-bit), 1=Medium(fast 2-bit grayscale),
-     *  2=High(quality 2-bit grayscale with text preserved). */
-    enum READER_IMAGE_QUALITY {
-        READER_IMAGE_LOW = 0,     ///< 1-bit (no grayscale)
-        READER_IMAGE_MEDIUM = 1,  ///< 2-bit grayscale, fast LUT (lut_grayscale), text-preserving
-        READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT, text preserved
-        READER_IMAGE_QUALITY_COUNT
-    };
-    uint8_t readerImageGrayscale = READER_IMAGE_LOW;
-    uint8_t xtcImageQuality = READER_IMAGE_LOW;
-    uint8_t xtcRefreshFrequency = 15;                            ///< XTC full refresh cadence in pages
-    /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
-    uint8_t readerSmartRefreshOnImages = 1;
-    /** Legacy ignored value retained for settings-file compatibility. */
-    uint8_t legacyReaderImagePresentation = 1;
-    /** Legacy ignored value retained for settings-file compatibility. */
-    uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
-    /** Legacy ignored value retained for settings-file compatibility. */
-    uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
-    /** Legacy ignored value retained for settings-file compatibility. */
-    uint8_t legacyDisplayImagePresentation = 1;
-    /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats: paper). */
-    uint8_t bitmapRoundedCorners = 0;
+  /**
+   * @brief Boot destination settings
+   */
+  enum BOOT_SETTING {
+    RECENT_PAGE = 0,  ///< Boot to recent page
+    HOME_PAGE = 1,    ///< Boot to home page
+    BOOT_SETTING_COUNT
+  };
 
-    ~SystemSetting() = default;
+  /**
+   * @brief Legacy image-dither values kept only for settings-file compatibility; rendering always uses Floyd.
+   */
+  enum READER_IMAGE_DITHER {
+    IMAGE_DITHER_NONE = 0,
+    IMAGE_DITHER_FLOYD_STEINBERG = 1,
+    IMAGE_DITHER_ATKINSON = 2,
+    READER_IMAGE_DITHER_COUNT
+  };
 
-    /**
-     * @brief Gets the singleton instance
-     * @return Reference to the SystemSetting instance
-     */
-    static SystemSetting& getInstance() { 
-        return instance; 
-    }
+  uint8_t sleepScreen = LIGHT;                 ///< Sleep screen display mode
+  uint8_t sleepScreenCoverMode = FIT;          ///< Sleep screen cover scaling mode
+  uint8_t sleepScreenCoverFilter = NO_FILTER;  ///< Sleep screen cover filter
+  /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
+  uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
+  /**
+   * Fixed custom/transparent sleep image when multiple images exist.
+   * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
+   * Basename only = use /sleep/<basename> (e.g. night.bmp / night.jpg).
+   * Exactly "/sleep.bmp" (or /sleep.jpg/.jpeg) = use SD-root fallback file only.
+   */
+  char sleepCustomBmp[64] = "";
+  uint8_t sleepClockStyle = CLOCK_CENTERED_DATE;          ///< Date/time sleep screen style
+  uint8_t sleepClockTimeFormat = CLOCK_24_HOUR;           ///< 12/24 hour clock format
+  uint8_t sleepClockRefreshInterval = CLOCK_REFRESH_OFF;  ///< Legacy settings slot; Date Time is X3-only
+  /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
+  uint8_t timeZoneQuarterOffset = 80;
 
-    enum class RefreshOnLoadPage : uint8_t { Recent, Library, Settings, Sync, Statistics };
+  uint8_t statusBar = FULL;  ///< Legacy status bar mode
 
-    /**
-     * If the per-page refresh-on-load toggle is on, performs one HALF_REFRESH (no-op when off).
-     */
-    void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, RefreshOnLoadPage page) const;
+  uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;  ///< Left status bar section
+  uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;            ///< Middle status bar section
+  uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;              ///< Right status bar section
 
-    /**
-     * @brief Gets power button duration in milliseconds
-     * @return Duration in ms (10ms for sleep, 400ms for ignore)
-     */
-    uint16_t getPowerButtonDuration() const {
-        return (shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) ? 10 : 400;
-    }
-    
-    /**
-     * @brief Gets reader font ID based on font family and size
-     * @return Font identifier for rendering
-     */
-    int getReaderFontId() const;
+  uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
+  uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
 
-    /**
-     * @brief Reader font ID for a given family and size (e.g. settings previews).
-     */
-    int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
+  uint8_t shortPwrBtn = IGNORE;  ///< Short power button behavior
 
-    /**
-     * @brief Font ID for reader **settings UI** previews only (built-in; avoids loading SD streaming fonts in menus).
-     */
-    int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
-    
-    /**
-     * @brief Validates and stores the fixed custom sleep image choice (basename under /sleep/ or SD-root sleep file).
-     * @param s nullptr or empty string clears (random selection each sleep).
-     */
-    void setSleepCustomBmpFromInput(const char* s);
+  uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
+  uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
+  uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
 
-    /**
-     * @brief Saves all settings to file
-     * @return true if save successful, false otherwise
-     */
-    bool saveToFile() const;
-    
-    /**
-     * @brief Loads all settings from file
-     * @return true if load successful, false otherwise
-     */
-    bool loadFromFile();
-    
-    /**
-     * @brief Gets reader line compression factor based on font and spacing
-     * @return Line compression multiplier
-     */
-    float getReaderLineCompression() const;
+  uint8_t orientation = PORTRAIT;  ///< Screen orientation
 
-    /** Word-spacing multiplier (textSpace/100, 100 = natural inter-word space). */
-    float getReaderWordSpacingFactor() const;
+  uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;  ///< Front button layout
+  uint8_t sideButtonLayout = PREV_NEXT;                 ///< Side button layout
 
-    /**
-     * @brief Gets sleep timeout in milliseconds
-     * @return Sleep timeout in milliseconds
-     */
-    unsigned long getSleepTimeoutMs() const;
-    
-    /**
-     * @brief Gets screen refresh frequency in pages
-     * @return Number of pages between refreshes
-     */
-    int getRefreshFrequency() const;
+  uint8_t readerDirectionMapping = MAP_NONE;  ///< Reader direction mapping
+  uint8_t readerMenuButton = MENU_UP;         ///< Reader menu button assignment
+  uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
 
-    int getTimeZoneOffsetMinutes() const;
-    void formatTimeZone(char* out, size_t outSize) const;
+  uint8_t fontFamily = LITERATA;           ///< Font family
+  uint8_t fontSize = SMALL;                ///< Font size
+  uint8_t lineHeight = 100;                ///< Reader line height, % of natural (10-200)
+  uint8_t textSpace = 100;                 ///< Reader word spacing, % of natural (10-200)
+  uint8_t paragraphAlignment = JUSTIFIED;  ///< Paragraph alignment
+  /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
+  uint8_t paragraphCssIndentEnabled = 0;
+
+  uint8_t sleepTimeout = SLEEP_10_MIN;  ///< Sleep timeout
+
+  uint8_t refreshFrequency = REFRESH_15;  ///< Refresh frequency
+  uint8_t hyphenationEnabled = 1;         ///< Hyphenation enabled
+  uint8_t bionicReadingEnabled = 0;       ///< Bionic Reading enabled
+
+  uint8_t screenMargin = 20;  ///< Screen margin in pixels
+
+  char opdsServerUrl[128] = "";  ///< OPDS server URL
+  char opdsUsername[64] = "";    ///< OPDS username
+  char opdsPassword[64] = "";    ///< OPDS password
+
+  uint8_t hideBatteryPercentage = HIDE_NEVER;  ///< Hide battery percentage setting
+  /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only. */
+  static constexpr uint8_t LONG_PRESS_OFF = 0;
+  static constexpr uint8_t LONG_PRESS_CHAPTER_SKIP = 1;
+  static constexpr uint8_t LONG_PRESS_PAGE_SKIP_5 = 2;
+  uint8_t longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
+  uint8_t useLibraryIndex = 0;  ///< Use library index enabled
+  /** Half refresh once after first paint on hub screens (ghosting cleanup). */
+  uint8_t refreshOnLoadRecent = 0;
+  uint8_t refreshOnLoadLibrary = 0;
+  uint8_t refreshOnLoadSettings = 0;
+  uint8_t refreshOnLoadSync = 0;
+  uint8_t refreshOnLoadStatistics = 0;
+  uint8_t disableNavigation = NAV_NONE;  ///< Navigation disable mode
+
+  uint8_t recentLibraryMode = RECENT_FLOW;         ///< Recent library display mode
+  uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
+  uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
+  /** How many recent books to show on the Recent hub (1–8). */
+  uint8_t recentVisibleCount = 8;
+  /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
+  uint8_t librarySortEnabled = 1;
+  /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
+  uint8_t librarySortMode = 0;
+
+  uint8_t bootSetting = RECENT_PAGE;  ///< Boot destination setting
+
+  /**
+   * @brief Page auto-turn interval in seconds
+   * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
+   */
+  uint8_t pageAutoTurnSeconds = 0;
+
+  /** Book image quality (READER_IMAGE_QUALITY): 0=Low(1-bit), 1=Medium(fast 2-bit grayscale),
+   *  2=High(quality 2-bit grayscale with text preserved). */
+  enum READER_IMAGE_QUALITY {
+    READER_IMAGE_LOW = 0,     ///< 1-bit (no grayscale)
+    READER_IMAGE_MEDIUM = 1,  ///< 2-bit grayscale, fast LUT (lut_grayscale), text-preserving
+    READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT, text preserved
+    READER_IMAGE_QUALITY_COUNT
+  };
+  uint8_t readerImageGrayscale = READER_IMAGE_LOW;
+  uint8_t xtcImageQuality = READER_IMAGE_LOW;
+  uint8_t xtcRefreshFrequency = 15;  ///< XTC full refresh cadence in pages
+  /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
+  uint8_t readerSmartRefreshOnImages = 1;
+  /** Legacy ignored value retained for settings-file compatibility. */
+  uint8_t legacyReaderImagePresentation = 1;
+  /** Legacy ignored value retained for settings-file compatibility. */
+  uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
+  /** Legacy ignored value retained for settings-file compatibility. */
+  uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
+  /** Legacy ignored value retained for settings-file compatibility. */
+  uint8_t legacyDisplayImagePresentation = 1;
+  /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats:
+   * paper). */
+  uint8_t bitmapRoundedCorners = 0;
+
+  ~SystemSetting() = default;
+
+  /**
+   * @brief Gets the singleton instance
+   * @return Reference to the SystemSetting instance
+   */
+  static SystemSetting& getInstance() { return instance; }
+
+  enum class RefreshOnLoadPage : uint8_t { Recent, Library, Settings, Sync, Statistics };
+
+  /**
+   * If the per-page refresh-on-load toggle is on, performs one HALF_REFRESH (no-op when off).
+   */
+  void runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, RefreshOnLoadPage page) const;
+
+  /**
+   * @brief Gets power button duration in milliseconds
+   * @return Duration in ms (10ms for sleep, 400ms for ignore)
+   */
+  uint16_t getPowerButtonDuration() const { return (shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) ? 10 : 400; }
+
+  /**
+   * @brief Gets reader font ID based on font family and size
+   * @return Font identifier for rendering
+   */
+  int getReaderFontId() const;
+
+  /**
+   * @brief Reader font ID for a given family and size (e.g. settings previews).
+   */
+  int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
+
+  /**
+   * @brief Font ID for reader **settings UI** previews only (built-in; avoids loading SD streaming fonts in menus).
+   */
+  int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
+
+  /**
+   * @brief Validates and stores the fixed custom sleep image choice (basename under /sleep/ or SD-root sleep file).
+   * @param s nullptr or empty string clears (random selection each sleep).
+   */
+  void setSleepCustomBmpFromInput(const char* s);
+
+  /**
+   * @brief Saves all settings to file
+   * @return true if save successful, false otherwise
+   */
+  bool saveToFile() const;
+
+  /**
+   * @brief Loads all settings from file
+   * @return true if load successful, false otherwise
+   */
+  bool loadFromFile();
+
+  /**
+   * @brief Gets reader line compression factor based on font and spacing
+   * @return Line compression multiplier
+   */
+  float getReaderLineCompression() const;
+
+  /** Word-spacing multiplier (textSpace/100, 100 = natural inter-word space). */
+  float getReaderWordSpacingFactor() const;
+
+  /**
+   * @brief Gets sleep timeout in milliseconds
+   * @return Sleep timeout in milliseconds
+   */
+  unsigned long getSleepTimeoutMs() const;
+
+  /**
+   * @brief Gets screen refresh frequency in pages
+   * @return Number of pages between refreshes
+   */
+  int getRefreshFrequency() const;
+
+  int getTimeZoneOffsetMinutes() const;
+  void formatTimeZone(char* out, size_t outSize) const;
 };
 
 #define SETTINGS SystemSetting::getInstance()

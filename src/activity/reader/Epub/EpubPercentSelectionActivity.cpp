@@ -2,8 +2,8 @@
 
 #include <GfxRenderer.h>
 
-#include "system/MappedInputManager.h"
 #include "system/Fonts.h"
+#include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
 
 namespace {
@@ -17,9 +17,7 @@ void EpubPercentSelectionActivity::onEnter() {
   render();
 }
 
-void EpubPercentSelectionActivity::onExit() {
-  ActivityWithSubactivity::onExit();
-}
+void EpubPercentSelectionActivity::onExit() { ActivityWithSubactivity::onExit(); }
 
 void EpubPercentSelectionActivity::adjustPercent(const int delta) {
   // Apply delta and clamp within 0-100.
@@ -44,24 +42,21 @@ void EpubPercentSelectionActivity::loop() {
   }
 
   unsigned long now = millis();
-  
-  if (mappedInput.wasPressed(MappedInputManager::Button::Left) || 
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Left) ||
       (mappedInput.isPressed(MappedInputManager::Button::Left) && now - lastStepTime > 150)) {
     adjustPercent(-kSmallStep);
     lastStepTime = now;
-  }
-  else if (mappedInput.wasPressed(MappedInputManager::Button::Right) || 
-           (mappedInput.isPressed(MappedInputManager::Button::Right) && now - lastStepTime > 150)) {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Right) ||
+             (mappedInput.isPressed(MappedInputManager::Button::Right) && now - lastStepTime > 150)) {
     adjustPercent(kSmallStep);
     lastStepTime = now;
-  }
-  else if (mappedInput.wasPressed(MappedInputManager::Button::Up) || 
-           (mappedInput.isPressed(MappedInputManager::Button::Up) && now - lastStepTime > 150)) {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+             (mappedInput.isPressed(MappedInputManager::Button::Up) && now - lastStepTime > 150)) {
     adjustPercent(kLargeStep);
     lastStepTime = now;
-  }
-  else if (mappedInput.wasPressed(MappedInputManager::Button::Down) || 
-           (mappedInput.isPressed(MappedInputManager::Button::Down) && now - lastStepTime > 150)) {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+             (mappedInput.isPressed(MappedInputManager::Button::Down) && now - lastStepTime > 150)) {
     adjustPercent(-kLargeStep);
     lastStepTime = now;
   }
@@ -73,11 +68,14 @@ void EpubPercentSelectionActivity::render() {
   // Title and numeric percent value.
   const char* titleText = "Go to Percent";
   const int titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleText, EpdFontFamily::BOLD);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, (renderer.getScreenWidth() - titleWidth) / 2, 15, titleText, true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, (renderer.getScreenWidth() - titleWidth) / 2, 15, titleText,
+                       true, EpdFontFamily::BOLD);
 
   const std::string percentText = std::to_string(percent) + "%";
-  const int pctWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, percentText.c_str(), EpdFontFamily::BOLD);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, (renderer.getScreenWidth() - pctWidth) / 2, 90, percentText.c_str(), true, EpdFontFamily::BOLD);
+  const int pctWidth =
+      renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, percentText.c_str(), EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, (renderer.getScreenWidth() - pctWidth) / 2, 90,
+                       percentText.c_str(), true, EpdFontFamily::BOLD);
 
   // Draw slider track.
   const int screenWidth = renderer.getScreenWidth();

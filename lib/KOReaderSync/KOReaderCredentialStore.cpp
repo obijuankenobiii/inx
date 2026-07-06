@@ -10,7 +10,6 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
-
 KOReaderCredentialStore KOReaderCredentialStore::instance;
 
 namespace {
@@ -19,11 +18,9 @@ constexpr uint8_t KOREADER_FILE_VERSION = 1;
 
 constexpr char DEFAULT_SERVER_URL[] = "https://sync.koreader.rocks:443";
 
-
-
 constexpr uint8_t OBFUSCATION_KEY[] = {0x4B, 0x4F, 0x52, 0x65, 0x61, 0x64, 0x65, 0x72};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
-}  
+}  // namespace
 
 void KOReaderCredentialStore::obfuscate(std::string& data) const {
   for (size_t i = 0; i < data.size(); i++) {
@@ -32,7 +29,6 @@ void KOReaderCredentialStore::obfuscate(std::string& data) const {
 }
 
 bool KOReaderCredentialStore::saveToFile() const {
-  
   SdMan.mkdir("/.system");
 
   FsFile file;
@@ -40,22 +36,17 @@ bool KOReaderCredentialStore::saveToFile() const {
     return false;
   }
 
-  
   serialization::writePod(file, KOREADER_FILE_VERSION);
 
-  
   serialization::writeString(file, username);
   Serial.printf("[%lu] [KRS] Saving username: %s\n", millis(), username.c_str());
 
-  
   std::string obfuscatedPwd = password;
   obfuscate(obfuscatedPwd);
   serialization::writeString(file, obfuscatedPwd);
 
-  
   serialization::writeString(file, serverUrl);
 
-  
   serialization::writePod(file, static_cast<uint8_t>(matchMethod));
 
   file.close();
@@ -70,7 +61,6 @@ bool KOReaderCredentialStore::loadFromFile() {
     return false;
   }
 
-  
   uint8_t version;
   serialization::readPod(file, version);
   if (version != KOREADER_FILE_VERSION) {
@@ -78,29 +68,25 @@ bool KOReaderCredentialStore::loadFromFile() {
     return false;
   }
 
-  
   if (file.available()) {
     serialization::readString(file, username);
   } else {
     username.clear();
   }
 
-  
   if (file.available()) {
     serialization::readString(file, password);
-    obfuscate(password);  
+    obfuscate(password);
   } else {
     password.clear();
   }
 
-  
   if (file.available()) {
     serialization::readString(file, serverUrl);
   } else {
     serverUrl.clear();
   }
 
-  
   if (file.available()) {
     uint8_t method;
     serialization::readPod(file, method);
@@ -124,7 +110,6 @@ std::string KOReaderCredentialStore::getMd5Password() const {
     return "";
   }
 
-  
   MD5Builder md5;
   md5.begin();
   md5.add(password.c_str());
@@ -152,7 +137,6 @@ std::string KOReaderCredentialStore::getBaseUrl() const {
     return DEFAULT_SERVER_URL;
   }
 
-  
   if (serverUrl.find("://") == std::string::npos) {
     return "http://" + serverUrl;
   }

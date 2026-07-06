@@ -31,6 +31,14 @@ class ImageDisplayCache {
   static bool store(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
                     const ImageDisplayCacheOptions& options);
 
+  // Writes both the GRAY2_LSB and GRAY2_MSB cache files directly from a decoded level buffer (see
+  // ImageLevelCapture in BitmapUtil.h) instead of reading the live framebuffer. Used to defer a quality
+  // image's disk cache write until after the physical refresh, once the framebuffer no longer holds
+  // this image's pixels. `levels` must be sized exactly width*height (i.e. the decoded image exactly
+  // filled the requested box, no letterboxing) and quality is always true for this path.
+  static bool storeFromLevels(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
+                              bool cropToFill, const uint8_t* levels, bool deviceIsX3);
+
  private:
   static bool exists(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
                      const ImageDisplayCacheOptions& options);

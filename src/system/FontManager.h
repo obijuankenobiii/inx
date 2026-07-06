@@ -6,6 +6,7 @@
  */
 
 #include <GfxRenderer.h>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -32,7 +33,7 @@ class FontManager {
   static void initialize(GfxRenderer& renderer);
 
   static int getNextFont(int currentFontId);
-  
+
   static int getMaxFontId(int currentFontId);
 
   static bool scanSDFonts(const char* sdPath = "/fonts", bool forceRescan = false);

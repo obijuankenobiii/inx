@@ -7,31 +7,6 @@
 
 #pragma once
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #if defined(__TINYC__) && (defined(__linux) || defined(__linux__))
 
 #define MINIZ_NO_TIME
@@ -58,7 +33,6 @@
 #define MINIZ_LITTLE_ENDIAN 0
 #endif
 
-
 #if !defined(MINIZ_USE_UNALIGNED_LOADS_AND_STORES)
 #if MINIZ_X86_OR_X64_CPU
 
@@ -81,11 +55,7 @@
 extern "C" {
 #endif
 
-
-
-
 typedef unsigned long mz_ulong;
-
 
 MINIZ_EXPORT void mz_free(void* p);
 
@@ -97,17 +67,13 @@ MINIZ_EXPORT mz_ulong mz_adler32(mz_ulong adler, const unsigned char* ptr, size_
 
 MINIZ_EXPORT mz_ulong mz_crc32(mz_ulong crc, const unsigned char* ptr, size_t buf_len);
 
-
 enum { MZ_DEFAULT_STRATEGY = 0, MZ_FILTERED = 1, MZ_HUFFMAN_ONLY = 2, MZ_RLE = 3, MZ_FIXED = 4 };
 
-
 #define MZ_DEFLATED 8
-
 
 typedef void* (*mz_alloc_func)(void* opaque, size_t items, size_t size);
 typedef void (*mz_free_func)(void* opaque, void* address);
 typedef void* (*mz_realloc_func)(void* opaque, void* address, size_t items, size_t size);
-
 
 enum {
   MZ_NO_COMPRESSION = 0,
@@ -127,9 +93,7 @@ enum {
 
 #ifndef MINIZ_NO_ZLIB_APIS
 
-
 enum { MZ_NO_FLUSH = 0, MZ_PARTIAL_FLUSH = 1, MZ_SYNC_FLUSH = 2, MZ_FULL_FLUSH = 3, MZ_FINISH = 4, MZ_BLOCK = 5 };
-
 
 enum {
   MZ_OK = 0,
@@ -144,133 +108,71 @@ enum {
   MZ_PARAM_ERROR = -10000
 };
 
-
 #define MZ_DEFAULT_WINDOW_BITS 15
 
 struct mz_internal_state;
 
-
 typedef struct mz_stream_s {
-  const unsigned char* next_in; 
-  unsigned int avail_in;        
-  mz_ulong total_in;            
+  const unsigned char* next_in;
+  unsigned int avail_in;
+  mz_ulong total_in;
 
-  unsigned char* next_out; 
-  unsigned int avail_out;  
-  mz_ulong total_out;      
+  unsigned char* next_out;
+  unsigned int avail_out;
+  mz_ulong total_out;
 
-  char* msg;                       
-  struct mz_internal_state* state; 
+  char* msg;
+  struct mz_internal_state* state;
 
-  mz_alloc_func zalloc; 
-  mz_free_func zfree;   
-  void* opaque;         
+  mz_alloc_func zalloc;
+  mz_free_func zfree;
+  void* opaque;
 
-  int data_type;     
-  mz_ulong adler;    
-  mz_ulong reserved; 
+  int data_type;
+  mz_ulong adler;
+  mz_ulong reserved;
 } mz_stream;
 
 typedef mz_stream* mz_streamp;
 
-
 MINIZ_EXPORT const char* mz_version(void);
 
-
-
-
-
-
-
-
-
-
-
-
 MINIZ_EXPORT int mz_deflateInit(mz_streamp pStream, int level);
-
-
-
-
-
 
 MINIZ_EXPORT int mz_deflateInit2(mz_streamp pStream, int level, int method, int window_bits, int mem_level,
                                  int strategy);
 
-
 MINIZ_EXPORT int mz_deflateReset(mz_streamp pStream);
-
-
-
-
-
-
-
-
-
-
 
 MINIZ_EXPORT int mz_deflate(mz_streamp pStream, int flush);
 
-
-
-
-
 MINIZ_EXPORT int mz_deflateEnd(mz_streamp pStream);
 
-
 MINIZ_EXPORT mz_ulong mz_deflateBound(mz_streamp pStream, mz_ulong source_len);
-
-
 
 MINIZ_EXPORT int mz_compress(unsigned char* pDest, mz_ulong* pDest_len, const unsigned char* pSource,
                              mz_ulong source_len);
 MINIZ_EXPORT int mz_compress2(unsigned char* pDest, mz_ulong* pDest_len, const unsigned char* pSource,
                               mz_ulong source_len, int level);
 
-
 MINIZ_EXPORT mz_ulong mz_compressBound(mz_ulong source_len);
-
 
 MINIZ_EXPORT int mz_inflateInit(mz_streamp pStream);
 
-
-
 MINIZ_EXPORT int mz_inflateInit2(mz_streamp pStream, int window_bits);
-
 
 MINIZ_EXPORT int mz_inflateReset(mz_streamp pStream);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 MINIZ_EXPORT int mz_inflate(mz_streamp pStream, int flush);
 
-
 MINIZ_EXPORT int mz_inflateEnd(mz_streamp pStream);
-
-
 
 MINIZ_EXPORT int mz_uncompress(unsigned char* pDest, mz_ulong* pDest_len, const unsigned char* pSource,
                                mz_ulong source_len);
 MINIZ_EXPORT int mz_uncompress2(unsigned char* pDest, mz_ulong* pDest_len, const unsigned char* pSource,
                                 mz_ulong* pSource_len);
 
-
 MINIZ_EXPORT const char* mz_error(int err);
-
-
 
 #ifndef MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 typedef unsigned char Byte;
@@ -345,9 +247,9 @@ typedef void* const voidpc;
 #define ZLIB_VER_SUBREVISION MZ_VER_SUBREVISION
 #define zlibVersion mz_version
 #define zlib_version mz_version()
-#endif 
+#endif
 
-#endif 
+#endif
 
 #ifdef __cplusplus
 }
@@ -358,7 +260,6 @@ typedef void* const voidpc;
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
 
 typedef unsigned char mz_uint8;
 typedef signed short mz_int16;
@@ -372,7 +273,6 @@ typedef int mz_bool;
 #define MZ_FALSE (0)
 #define MZ_TRUE (1)
 
-
 #ifdef _MSC_VER
 #define MZ_MACRO_END while (0, 0)
 #else
@@ -384,7 +284,7 @@ typedef int mz_bool;
 #else
 #include <stdio.h>
 #define MZ_FILE FILE
-#endif 
+#endif
 
 #ifdef MINIZ_NO_TIME
 typedef struct mz_dummy_time_t_tag {
@@ -452,22 +352,9 @@ extern MINIZ_EXPORT void* miniz_def_realloc_func(void* opaque, void* address, si
 extern "C" {
 #endif
 
-
-
 #define TDEFL_LESS_MEMORY 0
 
-
-
 enum { TDEFL_HUFFMAN_ONLY = 0, TDEFL_DEFAULT_MAX_PROBES = 128, TDEFL_MAX_PROBES_MASK = 0xFFF };
-
-
-
-
-
-
-
-
-
 
 enum {
   TDEFL_WRITE_ZLIB_HEADER = 0x01000,
@@ -480,40 +367,17 @@ enum {
   TDEFL_FORCE_ALL_RAW_BLOCKS = 0x80000
 };
 
-
-
-
-
-
-
-
-
-
 MINIZ_EXPORT void* tdefl_compress_mem_to_heap(const void* pSrc_buf, size_t src_buf_len, size_t* pOut_len, int flags);
-
-
 
 MINIZ_EXPORT size_t tdefl_compress_mem_to_mem(void* pOut_buf, size_t out_buf_len, const void* pSrc_buf,
                                               size_t src_buf_len, int flags);
-
-
-
-
-
-
-
-
-
-
 
 MINIZ_EXPORT void* tdefl_write_image_to_png_file_in_memory_ex(const void* pImage, int w, int h, int num_chans,
                                                               size_t* pLen_out, mz_uint level, mz_bool flip);
 MINIZ_EXPORT void* tdefl_write_image_to_png_file_in_memory(const void* pImage, int w, int h, int num_chans,
                                                            size_t* pLen_out);
 
-
 typedef mz_bool (*tdefl_put_buf_func_ptr)(const void* pBuf, int len, void* pUser);
-
 
 MINIZ_EXPORT mz_bool tdefl_compress_mem_to_output(const void* pBuf, size_t buf_len,
                                                   tdefl_put_buf_func_ptr pPut_buf_func, void* pPut_buf_user, int flags);
@@ -528,7 +392,6 @@ enum {
   TDEFL_MIN_MATCH_LEN = 3,
   TDEFL_MAX_MATCH_LEN = 258
 };
-
 
 #if TDEFL_LESS_MEMORY
 enum {
@@ -552,7 +415,6 @@ enum {
 };
 #endif
 
-
 typedef enum {
   TDEFL_STATUS_BAD_PARAM = -2,
   TDEFL_STATUS_PUT_BUF_FAILED = -1,
@@ -560,9 +422,7 @@ typedef enum {
   TDEFL_STATUS_DONE = 1
 } tdefl_status;
 
-
 typedef enum { TDEFL_NO_FLUSH = 0, TDEFL_SYNC_FLUSH = 2, TDEFL_FULL_FLUSH = 3, TDEFL_FINISH = 4 } tdefl_flush;
-
 
 typedef struct {
   tdefl_put_buf_func_ptr m_pPut_buf_func;
@@ -591,19 +451,11 @@ typedef struct {
   mz_uint8 m_output_buf[TDEFL_OUT_BUF_SIZE];
 } tdefl_compressor;
 
-
-
-
-
-
 MINIZ_EXPORT tdefl_status tdefl_init(tdefl_compressor* d, tdefl_put_buf_func_ptr pPut_buf_func, void* pPut_buf_user,
                                      int flags);
 
-
 MINIZ_EXPORT tdefl_status tdefl_compress(tdefl_compressor* d, const void* pIn_buf, size_t* pIn_buf_size, void* pOut_buf,
                                          size_t* pOut_buf_size, tdefl_flush flush);
-
-
 
 MINIZ_EXPORT tdefl_status tdefl_compress_buffer(tdefl_compressor* d, const void* pIn_buf, size_t in_buf_size,
                                                 tdefl_flush flush);
@@ -611,15 +463,9 @@ MINIZ_EXPORT tdefl_status tdefl_compress_buffer(tdefl_compressor* d, const void*
 MINIZ_EXPORT tdefl_status tdefl_get_prev_return_status(tdefl_compressor* d);
 MINIZ_EXPORT mz_uint32 tdefl_get_adler32(tdefl_compressor* d);
 
-
-
-
-
 MINIZ_EXPORT mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits, int strategy);
 
 #ifndef MINIZ_NO_MALLOC
-
-
 
 MINIZ_EXPORT tdefl_compressor* tdefl_compressor_alloc(void);
 MINIZ_EXPORT void tdefl_compressor_free(tdefl_compressor* pComp);
@@ -630,15 +476,9 @@ MINIZ_EXPORT void tdefl_compressor_free(tdefl_compressor* pComp);
 #endif
 #pragma once
 
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
-
-
 
 enum {
   TINFL_FLAG_PARSE_ZLIB_HEADER = 1,
@@ -647,23 +487,11 @@ enum {
   TINFL_FLAG_COMPUTE_ADLER32 = 8
 };
 
-
-
-
-
-
-
-
-
 MINIZ_EXPORT void* tinfl_decompress_mem_to_heap(const void* pSrc_buf, size_t src_buf_len, size_t* pOut_len, int flags);
-
-
 
 #define TINFL_DECOMPRESS_MEM_TO_MEM_FAILED ((size_t)(-1))
 MINIZ_EXPORT size_t tinfl_decompress_mem_to_mem(void* pOut_buf, size_t out_buf_len, const void* pSrc_buf,
                                                 size_t src_buf_len, int flags);
-
-
 
 typedef int (*tinfl_put_buf_func_ptr)(const void* pBuf, int len, void* pUser);
 MINIZ_EXPORT int tinfl_decompress_mem_to_callback(const void* pIn_buf, size_t* pIn_buf_size,
@@ -674,49 +502,28 @@ typedef struct tinfl_decompressor_tag tinfl_decompressor;
 
 #ifndef MINIZ_NO_MALLOC
 
-
-
 MINIZ_EXPORT tinfl_decompressor* tinfl_decompressor_alloc(void);
 MINIZ_EXPORT void tinfl_decompressor_free(tinfl_decompressor* pDecomp);
 #endif
 
-
 #define TINFL_LZ_DICT_SIZE 32768
 
-
 typedef enum {
-  
-  
-  
+
   TINFL_STATUS_FAILED_CANNOT_MAKE_PROGRESS = -4,
 
-  
   TINFL_STATUS_BAD_PARAM = -3,
 
-  
   TINFL_STATUS_ADLER32_MISMATCH = -2,
 
-  
   TINFL_STATUS_FAILED = -1,
 
-  
-
-  
-  
   TINFL_STATUS_DONE = 0,
 
-  
-  
-  
   TINFL_STATUS_NEEDS_MORE_INPUT = 1,
 
-  
-  
-  
-  
   TINFL_STATUS_HAS_MORE_OUTPUT = 2
 } tinfl_status;
-
 
 #define tinfl_init(r) \
   do {                \
@@ -725,12 +532,9 @@ typedef enum {
   MZ_MACRO_END
 #define tinfl_get_adler32(r) (r)->m_check_adler32
 
-
-
 MINIZ_EXPORT tinfl_status tinfl_decompress(tinfl_decompressor* r, const mz_uint8* pIn_buf_next, size_t* pIn_buf_size,
                                            mz_uint8* pOut_buf_start, mz_uint8* pOut_buf_next, size_t* pOut_buf_size,
                                            const mz_uint32 decomp_flags);
-
 
 enum {
   TINFL_MAX_HUFF_TABLES = 3,
@@ -775,8 +579,6 @@ struct tinfl_decompressor_tag {
 
 #pragma once
 
-
-
 #ifndef MINIZ_NO_ARCHIVE_APIS
 
 #ifdef __cplusplus
@@ -784,20 +586,17 @@ extern "C" {
 #endif
 
 enum {
-  
+
   MZ_ZIP_MAX_IO_BUF_SIZE = 64 * 1024,
   MZ_ZIP_MAX_ARCHIVE_FILENAME_SIZE = 512,
   MZ_ZIP_MAX_ARCHIVE_FILE_COMMENT_SIZE = 512
 };
 
 typedef struct {
-  
   mz_uint32 m_file_index;
 
-  
   mz_uint64 m_central_dir_ofs;
 
-  
   mz_uint16 m_version_made_by;
   mz_uint16 m_version_needed;
   mz_uint16 m_bit_flag;
@@ -807,40 +606,27 @@ typedef struct {
   MZ_TIME_T m_time;
 #endif
 
-  
   mz_uint32 m_crc32;
 
-  
   mz_uint64 m_comp_size;
 
-  
   mz_uint64 m_uncomp_size;
 
-  
   mz_uint16 m_internal_attr;
   mz_uint32 m_external_attr;
 
-  
   mz_uint64 m_local_header_ofs;
 
-  
   mz_uint32 m_comment_size;
 
-  
   mz_bool m_is_directory;
 
-  
   mz_bool m_is_encrypted;
 
-  
   mz_bool m_is_supported;
 
-  
-  
   char m_filename[MZ_ZIP_MAX_ARCHIVE_FILENAME_SIZE];
 
-  
-  
   char m_comment[MZ_ZIP_MAX_ARCHIVE_FILE_COMMENT_SIZE];
 
 } mz_zip_archive_file_stat;
@@ -864,14 +650,12 @@ typedef enum {
   MZ_ZIP_FLAG_IGNORE_PATH = 0x0200,
   MZ_ZIP_FLAG_COMPRESSED_DATA = 0x0400,
   MZ_ZIP_FLAG_DO_NOT_SORT_CENTRAL_DIRECTORY = 0x0800,
-  MZ_ZIP_FLAG_VALIDATE_LOCATE_FILE_FLAG =
-      0x1000, 
-  MZ_ZIP_FLAG_VALIDATE_HEADERS_ONLY =
-      0x2000, 
-  MZ_ZIP_FLAG_WRITE_ZIP64 = 0x4000, 
+  MZ_ZIP_FLAG_VALIDATE_LOCATE_FILE_FLAG = 0x1000,
+  MZ_ZIP_FLAG_VALIDATE_HEADERS_ONLY = 0x2000,
+  MZ_ZIP_FLAG_WRITE_ZIP64 = 0x4000,
   MZ_ZIP_FLAG_WRITE_ALLOW_READING = 0x8000,
   MZ_ZIP_FLAG_ASCII_FILENAME = 0x10000,
-  
+
   MZ_ZIP_FLAG_WRITE_HEADER_SET_SIZE = 0x20000
 } mz_zip_flags;
 
@@ -884,7 +668,6 @@ typedef enum {
   MZ_ZIP_TYPE_CFILE,
   MZ_ZIP_TOTAL_TYPES
 } mz_zip_type;
-
 
 typedef enum {
   MZ_ZIP_NO_ERROR = 0,
@@ -926,7 +709,6 @@ typedef struct {
   mz_uint64 m_archive_size;
   mz_uint64 m_central_directory_file_ofs;
 
-  
   mz_uint32 m_total_files;
   mz_zip_mode m_zip_mode;
   mz_zip_type m_zip_type;
@@ -967,41 +749,26 @@ typedef struct {
 
 } mz_zip_reader_extract_iter_state;
 
-
-
-
-
 MINIZ_EXPORT mz_bool mz_zip_reader_init(mz_zip_archive* pZip, mz_uint64 size, mz_uint flags);
 
 MINIZ_EXPORT mz_bool mz_zip_reader_init_mem(mz_zip_archive* pZip, const void* pMem, size_t size, mz_uint flags);
 
 #ifndef MINIZ_NO_STDIO
 
-
-
 MINIZ_EXPORT mz_bool mz_zip_reader_init_file(mz_zip_archive* pZip, const char* pFilename, mz_uint32 flags);
 MINIZ_EXPORT mz_bool mz_zip_reader_init_file_v2(mz_zip_archive* pZip, const char* pFilename, mz_uint flags,
                                                 mz_uint64 file_start_ofs, mz_uint64 archive_size);
-
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_reader_init_cfile(mz_zip_archive* pZip, MZ_FILE* pFile, mz_uint64 archive_size,
                                               mz_uint flags);
 #endif
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_end(mz_zip_archive* pZip);
-
-
-
-
 
 MINIZ_EXPORT void mz_zip_zero_struct(mz_zip_archive* pZip);
 
 MINIZ_EXPORT mz_zip_mode mz_zip_get_mode(mz_zip_archive* pZip);
 MINIZ_EXPORT mz_zip_type mz_zip_get_type(mz_zip_archive* pZip);
-
 
 MINIZ_EXPORT mz_uint mz_zip_reader_get_num_files(mz_zip_archive* pZip);
 
@@ -1009,10 +776,7 @@ MINIZ_EXPORT mz_uint64 mz_zip_get_archive_size(mz_zip_archive* pZip);
 MINIZ_EXPORT mz_uint64 mz_zip_get_archive_file_start_offset(mz_zip_archive* pZip);
 MINIZ_EXPORT MZ_FILE* mz_zip_get_cfile(mz_zip_archive* pZip);
 
-
 MINIZ_EXPORT size_t mz_zip_read_archive_data(mz_zip_archive* pZip, mz_uint64 file_ofs, void* pBuf, size_t n);
-
-
 
 MINIZ_EXPORT mz_zip_error mz_zip_set_last_error(mz_zip_archive* pZip, mz_zip_error err_num);
 MINIZ_EXPORT mz_zip_error mz_zip_peek_last_error(mz_zip_archive* pZip);
@@ -1020,40 +784,25 @@ MINIZ_EXPORT mz_zip_error mz_zip_clear_last_error(mz_zip_archive* pZip);
 MINIZ_EXPORT mz_zip_error mz_zip_get_last_error(mz_zip_archive* pZip);
 MINIZ_EXPORT const char* mz_zip_get_error_string(mz_zip_error mz_err);
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_is_file_a_directory(mz_zip_archive* pZip, mz_uint file_index);
-
 
 MINIZ_EXPORT mz_bool mz_zip_reader_is_file_encrypted(mz_zip_archive* pZip, mz_uint file_index);
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_is_file_supported(mz_zip_archive* pZip, mz_uint file_index);
-
-
 
 MINIZ_EXPORT mz_uint mz_zip_reader_get_filename(mz_zip_archive* pZip, mz_uint file_index, char* pFilename,
                                                 mz_uint filename_buf_size);
-
-
-
 
 MINIZ_EXPORT int mz_zip_reader_locate_file(mz_zip_archive* pZip, const char* pName, const char* pComment,
                                            mz_uint flags);
 MINIZ_EXPORT mz_bool mz_zip_reader_locate_file_v2(mz_zip_archive* pZip, const char* pName, const char* pComment,
                                                   mz_uint flags, mz_uint32* file_index);
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_file_stat(mz_zip_archive* pZip, mz_uint file_index, mz_zip_archive_file_stat* pStat);
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_is_zip64(mz_zip_archive* pZip);
 
-
-
 MINIZ_EXPORT size_t mz_zip_get_central_dir_size(mz_zip_archive* pZip);
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_to_mem_no_alloc(mz_zip_archive* pZip, mz_uint file_index, void* pBuf,
                                                            size_t buf_size, mz_uint flags, void* pUser_read_buf,
@@ -1062,26 +811,20 @@ MINIZ_EXPORT mz_bool mz_zip_reader_extract_file_to_mem_no_alloc(mz_zip_archive* 
                                                                 size_t buf_size, mz_uint flags, void* pUser_read_buf,
                                                                 size_t user_read_buf_size);
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_to_mem(mz_zip_archive* pZip, mz_uint file_index, void* pBuf, size_t buf_size,
                                                   mz_uint flags);
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_file_to_mem(mz_zip_archive* pZip, const char* pFilename, void* pBuf,
                                                        size_t buf_size, mz_uint flags);
-
-
-
 
 MINIZ_EXPORT void* mz_zip_reader_extract_to_heap(mz_zip_archive* pZip, mz_uint file_index, size_t* pSize,
                                                  mz_uint flags);
 MINIZ_EXPORT void* mz_zip_reader_extract_file_to_heap(mz_zip_archive* pZip, const char* pFilename, size_t* pSize,
                                                       mz_uint flags);
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_to_callback(mz_zip_archive* pZip, mz_uint file_index,
                                                        mz_file_write_func pCallback, void* pOpaque, mz_uint flags);
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_file_to_callback(mz_zip_archive* pZip, const char* pFilename,
                                                             mz_file_write_func pCallback, void* pOpaque, mz_uint flags);
-
 
 MINIZ_EXPORT mz_zip_reader_extract_iter_state* mz_zip_reader_extract_iter_new(mz_zip_archive* pZip, mz_uint file_index,
                                                                               mz_uint flags);
@@ -1094,12 +837,10 @@ MINIZ_EXPORT mz_bool mz_zip_reader_extract_iter_free(mz_zip_reader_extract_iter_
 
 #ifndef MINIZ_NO_STDIO
 
-
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_to_file(mz_zip_archive* pZip, mz_uint file_index, const char* pDst_filename,
                                                    mz_uint flags);
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_file_to_file(mz_zip_archive* pZip, const char* pArchive_filename,
                                                         const char* pDst_filename, mz_uint flags);
-
 
 MINIZ_EXPORT mz_bool mz_zip_reader_extract_to_cfile(mz_zip_archive* pZip, mz_uint file_index, MZ_FILE* File,
                                                     mz_uint flags);
@@ -1118,26 +859,16 @@ MINIZ_EXPORT mz_bool mz_zip_reader_extract_file_to_cfile(mz_zip_archive* pZip, c
 	mz_bool mz_zip_streaming_extract_end(mz_zip_archive *pZip, mz_zip_streaming_extract_state_ptr pState);
 #endif
 
-
-
 MINIZ_EXPORT mz_bool mz_zip_validate_file(mz_zip_archive* pZip, mz_uint file_index, mz_uint flags);
 
-
 MINIZ_EXPORT mz_bool mz_zip_validate_archive(mz_zip_archive* pZip, mz_uint flags);
-
 
 MINIZ_EXPORT mz_bool mz_zip_validate_mem_archive(const void* pMem, size_t size, mz_uint flags, mz_zip_error* pErr);
 MINIZ_EXPORT mz_bool mz_zip_validate_file_archive(const char* pFilename, mz_uint flags, mz_zip_error* pErr);
 
-
 MINIZ_EXPORT mz_bool mz_zip_end(mz_zip_archive* pZip);
 
-
-
 #ifndef MINIZ_NO_ARCHIVE_WRITING_APIS
-
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_writer_init(mz_zip_archive* pZip, mz_uint64 existing_size);
 MINIZ_EXPORT mz_bool mz_zip_writer_init_v2(mz_zip_archive* pZip, mz_uint64 existing_size, mz_uint flags);
@@ -1155,22 +886,11 @@ MINIZ_EXPORT mz_bool mz_zip_writer_init_file_v2(mz_zip_archive* pZip, const char
 MINIZ_EXPORT mz_bool mz_zip_writer_init_cfile(mz_zip_archive* pZip, MZ_FILE* pFile, mz_uint flags);
 #endif
 
-
-
-
-
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_init_from_reader(mz_zip_archive* pZip, const char* pFilename);
 MINIZ_EXPORT mz_bool mz_zip_writer_init_from_reader_v2(mz_zip_archive* pZip, const char* pFilename, mz_uint flags);
 
-
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_add_mem(mz_zip_archive* pZip, const char* pArchive_name, const void* pBuf,
                                            size_t buf_size, mz_uint level_and_flags);
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_writer_add_mem_ex(mz_zip_archive* pZip, const char* pArchive_name, const void* pBuf,
                                               size_t buf_size, const void* pComment, mz_uint16 comment_size,
@@ -1183,8 +903,6 @@ MINIZ_EXPORT mz_bool mz_zip_writer_add_mem_ex_v2(mz_zip_archive* pZip, const cha
                                                  mz_uint user_extra_data_local_len, const char* user_extra_data_central,
                                                  mz_uint user_extra_data_central_len);
 
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_add_read_buf_callback(
     mz_zip_archive* pZip, const char* pArchive_name, mz_file_read_func read_callback, void* callback_opaque,
     mz_uint64 max_size, const MZ_TIME_T* pFile_time, const void* pComment, mz_uint16 comment_size,
@@ -1193,10 +911,8 @@ MINIZ_EXPORT mz_bool mz_zip_writer_add_read_buf_callback(
 
 #ifndef MINIZ_NO_STDIO
 
-
 MINIZ_EXPORT mz_bool mz_zip_writer_add_file(mz_zip_archive* pZip, const char* pArchive_name, const char* pSrc_filename,
                                             const void* pComment, mz_uint16 comment_size, mz_uint level_and_flags);
-
 
 MINIZ_EXPORT mz_bool mz_zip_writer_add_cfile(mz_zip_archive* pZip, const char* pArchive_name, MZ_FILE* pSrc_file,
                                              mz_uint64 max_size, const MZ_TIME_T* pFile_time, const void* pComment,
@@ -1205,29 +921,14 @@ MINIZ_EXPORT mz_bool mz_zip_writer_add_cfile(mz_zip_archive* pZip, const char* p
                                              const char* user_extra_data_central, mz_uint user_extra_data_central_len);
 #endif
 
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_add_from_zip_reader(mz_zip_archive* pZip, mz_zip_archive* pSource_zip,
                                                        mz_uint src_file_index);
 
-
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_finalize_archive(mz_zip_archive* pZip);
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_writer_finalize_heap_archive(mz_zip_archive* pZip, void** ppBuf, size_t* pSize);
 
-
-
 MINIZ_EXPORT mz_bool mz_zip_writer_end(mz_zip_archive* pZip);
-
-
-
-
-
-
 
 MINIZ_EXPORT mz_bool mz_zip_add_mem_to_archive_file_in_place(const char* pZip_filename, const char* pArchive_name,
                                                              const void* pBuf, size_t buf_size, const void* pComment,
@@ -1237,19 +938,16 @@ MINIZ_EXPORT mz_bool mz_zip_add_mem_to_archive_file_in_place_v2(const char* pZip
                                                                 mz_uint16 comment_size, mz_uint level_and_flags,
                                                                 mz_zip_error* pErr);
 
-
-
-
 MINIZ_EXPORT void* mz_zip_extract_archive_file_to_heap(const char* pZip_filename, const char* pArchive_name,
                                                        size_t* pSize, mz_uint flags);
 MINIZ_EXPORT void* mz_zip_extract_archive_file_to_heap_v2(const char* pZip_filename, const char* pArchive_name,
                                                           const char* pComment, size_t* pSize, mz_uint flags,
                                                           mz_zip_error* pErr);
 
-#endif 
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif 
+#endif

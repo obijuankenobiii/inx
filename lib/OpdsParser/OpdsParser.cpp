@@ -38,7 +38,6 @@ size_t OpdsParser::write(const uint8_t* xmlData, const size_t length) {
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, characterData);
 
-  
   const char* currentPos = reinterpret_cast<const char*>(xmlData);
   size_t remaining = length;
   constexpr size_t chunkSize = 1024;
@@ -114,7 +113,6 @@ const char* OpdsParser::findAttribute(const XML_Char** atts, const char* name) {
 void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<OpdsParser*>(userData);
 
-  
   if (strcmp(name, "entry") == 0 || strstr(name, ":entry") != nullptr) {
     self->inEntry = true;
     self->currentEntry = OpdsEntry{};
@@ -123,49 +121,42 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
 
   if (!self->inEntry) return;
 
-  
   if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
     self->inTitle = true;
     self->currentText.clear();
     return;
   }
 
-  
   if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
     self->inAuthor = true;
     return;
   }
 
-  
   if (self->inAuthor && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
     self->inAuthorName = true;
     self->currentText.clear();
     return;
   }
 
-  
   if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
     self->inId = true;
     self->currentText.clear();
     return;
   }
 
-  
   if (strcmp(name, "link") == 0 || strstr(name, ":link") != nullptr) {
     const char* rel = findAttribute(atts, "rel");
     const char* type = findAttribute(atts, "type");
     const char* href = findAttribute(atts, "href");
 
     if (href) {
-      
       if (rel && type && strstr(rel, "opds-spec.org/acquisition") != nullptr &&
           strcmp(type, "application/epub+zip") == 0) {
         self->currentEntry.type = OpdsEntryType::BOOK;
         self->currentEntry.href = href;
       }
-      
+
       else if (type && strstr(type, "application/atom+xml") != nullptr) {
-        
         if (self->currentEntry.type != OpdsEntryType::BOOK) {
           self->currentEntry.type = OpdsEntryType::NAVIGATION;
           self->currentEntry.href = href;
@@ -178,9 +169,7 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
 void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<OpdsParser*>(userData);
 
-  
   if (strcmp(name, "entry") == 0 || strstr(name, ":entry") != nullptr) {
-    
     if (!self->currentEntry.title.empty() && !self->currentEntry.href.empty()) {
       self->entries.push_back(self->currentEntry);
     }
@@ -191,7 +180,6 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
 
   if (!self->inEntry) return;
 
-  
   if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
     if (self->inTitle) {
       self->currentEntry.title = self->currentText;
@@ -200,13 +188,11 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
     return;
   }
 
-  
   if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
     self->inAuthor = false;
     return;
   }
 
-  
   if (self->inAuthor && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
     if (self->inAuthorName) {
       self->currentEntry.author = self->currentText;
@@ -215,7 +201,6 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
     return;
   }
 
-  
   if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
     if (self->inId) {
       self->currentEntry.id = self->currentText;
@@ -228,7 +213,6 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
 void XMLCALL OpdsParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<OpdsParser*>(userData);
 
-  
   if (self->inTitle || self->inAuthorName || self->inId) {
     self->currentText.append(s, len);
   }

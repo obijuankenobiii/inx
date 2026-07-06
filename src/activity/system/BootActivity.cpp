@@ -8,13 +8,12 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
-#include "state/SystemSetting.h"
-#include "state/Session.h"
-#include "state/RecentBooks.h"
-#include "state/BookState.h"
-
 #include "KOReaderCredentialStore.h"
 #include "images/CorgiWhite.h"
+#include "state/BookState.h"
+#include "state/RecentBooks.h"
+#include "state/Session.h"
+#include "state/SystemSetting.h"
 
 extern void onGoToRecent();
 extern void onGoToReader(const std::string&);

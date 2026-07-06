@@ -16,9 +16,9 @@ struct RecentBook {
   float progress = -1.0f;
 
   RecentBook() = default;
-  
-  RecentBook(const std::string& p, const std::string& cp, const std::string& t, 
-             const std::string& a, float prog = -1.0f)
+
+  RecentBook(const std::string& p, const std::string& cp, const std::string& t, const std::string& a,
+             float prog = -1.0f)
       : path(p), cachePath(cp), title(t), author(a), progress(prog) {}
 
   bool operator==(const RecentBook& other) const { return path == other.path; }
@@ -44,9 +44,8 @@ class RecentBooks {
    * @param author Book author
    * @param progress Reading progress (0.0-1.0, -1.0 if unknown)
    */
-  void addBook(const std::string& path, const std::string& cachePath,
-               const std::string& title, const std::string& author, 
-               float progress = -1.0f, bool saveNow = true);
+  void addBook(const std::string& path, const std::string& cachePath, const std::string& title,
+               const std::string& author, float progress = -1.0f, bool saveNow = true);
 
   /**
    * @brief Update reading progress for an existing book

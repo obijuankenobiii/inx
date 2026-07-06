@@ -18,15 +18,15 @@
 #include "state/RecentBooks.h"
 #include "state/Session.h"
 #include "state/SystemSetting.h"
+#include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
-#include "system/Fonts.h"
 
 namespace {
 constexpr int kTitleFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
 constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int kMetaFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-}
+}  // namespace
 
 void ClearCacheActivity::taskTrampoline(void* param) {
   auto* self = static_cast<ClearCacheActivity*>(param);
@@ -41,18 +41,12 @@ void ClearCacheActivity::onEnter() {
   selectedGroup = 0;
   updateRequired = true;
 
-  xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 void ClearCacheActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -118,8 +112,7 @@ void ClearCacheActivity::render() {
       renderer.rectangle.fill(left - 8, actionY - 8, right - left + 16, 44,
                               static_cast<int>(GfxRenderer::FillTone::Ink), false);
     }
-    renderer.text.render(kBodyFont, left, actionY, "Clear selected",
-                         actionFocused ? false : anyGroupSelected(),
+    renderer.text.render(kBodyFont, left, actionY, "Clear selected", actionFocused ? false : anyGroupSelected(),
                          actionFocused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     if (!anyGroupSelected()) {

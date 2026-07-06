@@ -15,8 +15,8 @@
 #include <new>
 #include <string>
 
-#include "activity/network/CalibreConnectActivity.h"
 #include "activity/browser/OpdsBookBrowserActivity.h"
+#include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -77,7 +77,7 @@ void switchTo(Args&&... args) {
     delete currentActivity;
     currentActivity = nullptr;
   }
-  
+
   currentActivity = new T(std::forward<Args>(args)...);
 #ifdef SIMULATOR
   Serial.printf("[%lu] [SIM] Activity: %s\n", millis(), currentActivity->getName());
@@ -151,8 +151,8 @@ void onGoToFileTransfer() {
  * @brief Navigates to the settings activity.
  */
 void onGoToSettings() {
-  switchTo<SettingsActivity>(render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer,
-                             onGoToStatistics);
+  switchTo<SettingsActivity>(
+      render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer, onGoToStatistics);
 }
 
 /**

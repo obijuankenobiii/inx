@@ -14,7 +14,7 @@
 namespace {
 constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char itemCacheFile[] = "/.items.bin";
-}  
+}  // namespace
 
 bool ContentOpfParser::setup() {
   parser = XML_ParserCreate(nullptr);
@@ -31,8 +31,8 @@ bool ContentOpfParser::setup() {
 
 ContentOpfParser::~ContentOpfParser() {
   if (parser) {
-    XML_StopParser(parser, XML_FALSE);                
-    XML_SetElementHandler(parser, nullptr, nullptr);  
+    XML_StopParser(parser, XML_FALSE);
+    XML_SetElementHandler(parser, nullptr, nullptr);
     XML_SetCharacterDataHandler(parser, nullptr);
     XML_ParserFree(parser);
     parser = nullptr;
@@ -61,8 +61,8 @@ size_t ContentOpfParser::write(const uint8_t* buffer, const size_t size) {
 
     if (!buf) {
       Serial.printf("[%lu] [COF] Couldn't allocate memory for buffer\n", millis());
-      XML_StopParser(parser, XML_FALSE);                
-      XML_SetElementHandler(parser, nullptr, nullptr);  
+      XML_StopParser(parser, XML_FALSE);
+      XML_SetElementHandler(parser, nullptr, nullptr);
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -75,8 +75,8 @@ size_t ContentOpfParser::write(const uint8_t* buffer, const size_t size) {
     if (XML_ParseBuffer(parser, static_cast<int>(toRead), remainingSize == toRead) == XML_STATUS_ERROR) {
       Serial.printf("[%lu] [COF] Parse error at line %lu: %s\n", millis(), XML_GetCurrentLineNumber(parser),
                     XML_ErrorString(XML_GetErrorCode(parser)));
-      XML_StopParser(parser, XML_FALSE);                
-      XML_SetElementHandler(parser, nullptr, nullptr);  
+      XML_StopParser(parser, XML_FALSE);
+      XML_SetElementHandler(parser, nullptr, nullptr);
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -138,7 +138,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           millis());
     }
 
-    
     if (self->itemIndex.size() >= LARGE_SPINE_THRESHOLD) {
       std::sort(self->itemIndex.begin(), self->itemIndex.end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
         return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
@@ -151,7 +150,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_PACKAGE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
     self->state = IN_GUIDE;
-    
+
     Serial.printf("[%lu] [COF] Entering guide state.\n", millis());
     if (!SdMan.openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
       Serial.printf(
@@ -197,7 +196,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    
     if (self->tempItemStore) {
       ItemIndexEntry entry;
       entry.idHash = fnvHash(itemId);
@@ -206,7 +204,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       self->itemIndex.push_back(entry);
     }
 
-    
     serialization::writeString(self->tempItemStore, itemId);
     serialization::writeString(self->tempItemStore, href);
 
@@ -223,9 +220,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    
     if (!properties.empty() && self->tocNavPath.empty()) {
-      
       if (properties == "nav" || properties.find("nav ") == 0 || properties.find(" nav") != std::string::npos) {
         self->tocNavPath = href;
         Serial.printf("[%lu] [COF] Found EPUB 3 nav document: %s\n", millis(), href.c_str());
@@ -234,8 +229,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     return;
   }
 
-  
-  
   if (self->cache) {
     if (self->state == IN_SPINE && (strcmp(name, "itemref") == 0 || strcmp(name, "opf:itemref") == 0)) {
       for (int i = 0; atts[i]; i += 2) {
@@ -245,7 +238,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           bool found = false;
 
           if (self->useItemIndex) {
-            
             uint32_t targetHash = fnvHash(idref);
             uint16_t targetLen = static_cast<uint16_t>(idref.size());
 
@@ -255,7 +247,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
                                          return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
                                        });
 
-            
             while (it != self->itemIndex.end() && it->idHash == targetHash) {
               self->tempItemStore.seek(it->fileOffset);
               std::string itemId;
@@ -268,9 +259,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
               ++it;
             }
           } else {
-            
-            
-            
             self->tempItemStore.seek(0);
             std::string itemId;
             while (self->tempItemStore.available()) {
@@ -291,7 +279,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       return;
     }
   }
-  
+
   if (self->state == IN_GUIDE && (strcmp(name, "reference") == 0 || strcmp(name, "opf:reference") == 0)) {
     std::string type;
     std::string textHref;
@@ -384,33 +372,32 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
 }
 
 std::vector<ContentOpfParser::ManifestItem> ContentOpfParser::getImages() const {
-    std::vector<ManifestItem> images;
-    FsFile file;
-    
-    std::string path = cachePath + "/.items.bin";
-    
-    if (!SdMan.openFileForRead("EBP", path, file)) return images;
+  std::vector<ManifestItem> images;
+  FsFile file;
 
-    
-    while (file.available()) {
-        uint8_t idLen = file.read();
-        file.seekCur(idLen); 
-        
-        uint8_t hrefLen = file.read();
-        char hrefBuf[hrefLen + 1];
-        file.read(hrefBuf, hrefLen);
-        hrefBuf[hrefLen] = '\0';
-        
-        uint8_t mimeLen = file.read();
-        char mimeBuf[mimeLen + 1];
-        file.read(mimeBuf, mimeLen);
-        mimeBuf[mimeLen] = '\0';
-        
-        std::string mime = mimeBuf;
-        if (mime.find("image/") == 0) {
-            images.push_back({hrefBuf, mime});
-        }
+  std::string path = cachePath + "/.items.bin";
+
+  if (!SdMan.openFileForRead("EBP", path, file)) return images;
+
+  while (file.available()) {
+    uint8_t idLen = file.read();
+    file.seekCur(idLen);
+
+    uint8_t hrefLen = file.read();
+    char hrefBuf[hrefLen + 1];
+    file.read(hrefBuf, hrefLen);
+    hrefBuf[hrefLen] = '\0';
+
+    uint8_t mimeLen = file.read();
+    char mimeBuf[mimeLen + 1];
+    file.read(mimeBuf, mimeLen);
+    mimeBuf[mimeLen] = '\0';
+
+    std::string mime = mimeBuf;
+    if (mime.find("image/") == 0) {
+      images.push_back({hrefBuf, mime});
     }
-    file.close();
-    return images;
+  }
+  file.close();
+  return images;
 }

@@ -21,8 +21,8 @@ bool ContainerParser::setup() {
 
 ContainerParser::~ContainerParser() {
   if (parser) {
-    XML_StopParser(parser, XML_FALSE);                
-    XML_SetElementHandler(parser, nullptr, nullptr);  
+    XML_StopParser(parser, XML_FALSE);
+    XML_SetElementHandler(parser, nullptr, nullptr);
     XML_ParserFree(parser);
     parser = nullptr;
   }
@@ -61,7 +61,6 @@ size_t ContainerParser::write(const uint8_t* buffer, const size_t size) {
 void XMLCALL ContainerParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ContainerParser*>(userData);
 
-  
   if (self->state == START && strcmp(name, "container") == 0) {
     self->state = IN_CONTAINER;
     return;
@@ -84,7 +83,6 @@ void XMLCALL ContainerParser::startElement(void* userData, const XML_Char* name,
       }
     }
 
-    
     if (mediaType && path && strcmp(mediaType, "application/oebps-package+xml") == 0) {
       self->fullPath = path;
     }

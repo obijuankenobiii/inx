@@ -21,25 +21,23 @@ class JpegToBmpConverter {
                                         unsigned char* pBytes_actually_read, void* pCallback_data);
   static bool jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool oneBit, bool quickMode = false);
-  
-  static bool jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth,
-                                                  int targetHeight, bool oneBit, bool quickMode = false,
-                                                  bool cropToFill = true);
+
+  static bool jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
+                                                  bool oneBit, bool quickMode = false, bool cropToFill = true);
 
  public:
   static bool jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut);
-  
+
   static bool jpegFileToBmpStreamWithSize(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
-  
+
   static bool jpegFileTo1BitBmpStream(FsFile& jpegFile, Print& bmpOut);
-  
+
   static bool jpegFileTo1BitBmpStreamWithSize(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
-  
+
   static bool jpegFileToBmpStreamQuick(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth, int targetMaxHeight);
 
-  
   static bool jpegFileTo1BitBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
-                                            bool cropToFill = true);
+                                              bool cropToFill = true);
   static bool jpegFileToBmpStreamCentered(FsFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
                                           bool cropToFill = true);
 
@@ -66,8 +64,8 @@ class JpegToBmpConverter {
    * Resize a JPEG cover and write it back as a JPEG thumbnail.
    * This keeps cache thumbnails as thumb.jpg instead of converting them to BMP.
    */
-  bool jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth = 225,
-                               int targetMaxHeight = 340, uint8_t quality = 82);
+  bool jpegFileToThumbnailJpeg(FsFile& jpegFile, Print& jpegOut, int targetMaxWidth = 225, int targetMaxHeight = 340,
+                               uint8_t quality = 82);
 
   /**
    * Single decode pass for jpegFileToThumbnailJpeg. `maxColorBudget` (bytes, 0 = no extra cap)

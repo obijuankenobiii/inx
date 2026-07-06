@@ -8,7 +8,6 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 #include <WiFi.h>
-
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -80,8 +79,7 @@ void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, co
                             const float progress, const size_t processedBytes, const size_t totalBytes) {
   const int centerY = bodyTop + (screenHeight - bodyTop - 80) / 2;
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "INSTALLING UPDATE", true,
-                         EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "INSTALLING UPDATE", true, EpdFontFamily::BOLD);
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Installing firmware", true,
                          EpdFontFamily::BOLD);
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, "Please keep the device powered on.", true,
@@ -107,10 +105,9 @@ void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, co
   } else {
     metaLine = "Preparing package";
   }
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, metaLine.c_str(), true,
-                         EpdFontFamily::REGULAR);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, metaLine.c_str(), true, EpdFontFamily::REGULAR);
 }
-}
+}  // namespace
 
 void OtaUpdateActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OtaUpdateActivity*>(param);
@@ -169,12 +166,7 @@ void OtaUpdateActivity::onEnter() {
   sourceSelectedIndex = 0;
   updateRequired = true;
 
-  xTaskCreate(&OtaUpdateActivity::taskTrampoline, "OtaUpdateActivityTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&OtaUpdateActivity::taskTrampoline, "OtaUpdateActivityTask", 4096, this, 1, &displayTaskHandle);
 
   Serial.printf("[%lu] [OTA] Waiting for update source selection\n", millis());
 }
@@ -224,13 +216,11 @@ const std::string& OtaUpdateActivity::selectedSdFirmwarePath() const {
 void OtaUpdateActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
-  WiFi.disconnect(false);  
-  delay(100);              
+  WiFi.disconnect(false);
+  delay(100);
   WiFi.mode(WIFI_OFF);
-  delay(100);  
+  delay(100);
 
-  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -297,27 +287,28 @@ void OtaUpdateActivity::render() {
   } else if (state == WIFI_SELECTION) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Choose a network above.", true,
-                              EpdFontFamily::REGULAR);
+                           EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == CHECKING_FOR_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "This may take a moment.", true,
-                              EpdFontFamily::REGULAR);
+                           EpdFontFamily::REGULAR);
   } else if (state == WAITING_CONFIRMATION) {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop, "Current Version: " INX_VERSION, true,
-                      EpdFontFamily::REGULAR);
+                         EpdFontFamily::REGULAR);
     const std::string newVer = "New Version: " + updater.getLatestVersion();
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28, newVer.c_str(), true, EpdFontFamily::REGULAR);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 28, newVer.c_str(), true,
+                         EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == WAITING_SD_SELECTION) {
     const int totalFiles = static_cast<int>(sdFirmwareFiles.size());
     if (totalFiles == 0) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop,
-                           "No firmware .bin files found.", true, EpdFontFamily::BOLD);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 32,
-                           "Put .bin files in / or /firmware.", true, EpdFontFamily::REGULAR);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop, "No firmware .bin files found.", true,
+                           EpdFontFamily::BOLD);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 32, "Put .bin files in / or /firmware.",
+                           true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
@@ -336,10 +327,11 @@ void OtaUpdateActivity::render() {
         const int itemY = bodyTop + (i - sdFirmwareScrollOffset) * kFirmwareItemHeight;
         const bool selected = sdFirmwareSelectedIndex == i;
         if (selected) {
-          renderer.rectangle.fill(0, itemY, pageWidth, kFirmwareItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+          renderer.rectangle.fill(0, itemY, pageWidth, kFirmwareItemHeight,
+                                  static_cast<int>(GfxRenderer::FillTone::Ink));
         }
-        const std::string label = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
-                                                         sdFirmwareFiles[static_cast<size_t>(i)].c_str(), pageWidth - 40);
+        const std::string label = renderer.text.truncate(
+            ATKINSON_HYPERLEGIBLE_10_FONT_ID, sdFirmwareFiles[static_cast<size_t>(i)].c_str(), pageWidth - 40);
         const int textY =
             itemY + (kFirmwareItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
         renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label.c_str(), !selected,
@@ -361,8 +353,7 @@ void OtaUpdateActivity::render() {
       const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
       const std::string fileName = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                                           fileNameFromPath(firmwarePath).c_str(), pageWidth - 56);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "SD FIRMWARE", true,
-                             EpdFontFamily::BOLD);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "SD FIRMWARE", true, EpdFontFamily::BOLD);
       renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Install update?", true,
                              EpdFontFamily::BOLD);
       renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, fileName.c_str(), true,
@@ -375,8 +366,8 @@ void OtaUpdateActivity::render() {
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Firmware file is missing.",
-                             true, EpdFontFamily::REGULAR);
+      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Firmware file is missing.", true,
+                             EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
@@ -385,8 +376,7 @@ void OtaUpdateActivity::render() {
                            updater.getTotalSize());
   } else if (state == NO_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true,
-                              EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true, EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FAILED) {
@@ -398,12 +388,12 @@ void OtaUpdateActivity::render() {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
-                              "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
+                           "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
   } else if (state == SHUTTING_DOWN) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
-                              "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
+                           "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
   }
 
   renderer.displayBuffer();
@@ -424,8 +414,7 @@ void OtaUpdateActivity::loop() {
       goBack();
       return;
     }
-    if (mappedInput.wasPressed(MenuNav::itemPrev()) ||
-        mappedInput.wasPressed(MenuNav::itemNext())) {
+    if (mappedInput.wasPressed(MenuNav::itemPrev()) || mappedInput.wasPressed(MenuNav::itemNext())) {
       sourceSelectedIndex = sourceSelectedIndex == 0 ? 1 : 0;
       updateRequired = true;
       return;
@@ -439,8 +428,8 @@ void OtaUpdateActivity::loop() {
         Serial.printf("[%lu] [OTA] Turning on WiFi...\n", millis());
         WiFi.mode(WIFI_STA);
         Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
-        enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
-                                                   [this](const bool connected) { onWifiSelectionComplete(connected); }));
+        enterNewActivity(new WifiSelectionActivity(
+            renderer, mappedInput, [this](const bool connected) { onWifiSelectionComplete(connected); }));
       } else {
         scanSdFirmwareFiles();
         xSemaphoreTake(renderingMutex, portMAX_DELAY);

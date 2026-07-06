@@ -157,7 +157,6 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
   }
 }
 
-
 bool TextBlock::serialize(FsFile& file) const {
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||
       (!bionicPrefixBytes.empty() && bionicPrefixBytes.size() != words.size()) ||

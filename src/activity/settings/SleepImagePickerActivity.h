@@ -5,12 +5,12 @@
  * @brief Public interface and types for SleepImagePickerActivity.
  */
 
-#include <functional>
+#include <HalDisplay.h>
+
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
-
-#include <HalDisplay.h>
 
 #include "activity/ActivityWithSubactivity.h"
 

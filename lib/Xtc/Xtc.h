@@ -54,28 +54,24 @@ class Xtc {
    */
   void setupCacheDir() const;
 
-  
   const std::string& getCachePath() const { return cachePath; }
   const std::string& getPath() const { return filepath; }
 
-  
   std::string getTitle() const;
   std::string getAuthor() const;
   bool hasChapters() const;
   const std::vector<xtc::ChapterInfo>& getChapters() const;
 
-  
   std::string getCoverBmpPath() const;
   bool generateCoverBmp() const;
-  
+
   std::string getThumbBmpPath() const;
   bool generateThumbBmp() const;
 
-  
   uint32_t getPageCount() const;
   uint16_t getPageWidth() const;
   uint16_t getPageHeight() const;
-  uint8_t getBitDepth() const;  
+  uint8_t getBitDepth() const;
 
   /**
    * Load page bitmap data
@@ -97,12 +93,9 @@ class Xtc {
                                   std::function<void(const uint8_t* data, size_t size, size_t offset)> callback,
                                   size_t chunkSize = 1024) const;
 
-  
   uint8_t calculateProgress(uint32_t currentPage) const;
 
-  
   bool isLoaded() const { return loaded; }
 
-  
   xtc::XtcError getLastError() const;
 };

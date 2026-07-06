@@ -8,19 +8,17 @@
 
 #include <GfxRenderer.h>
 
-#include "system/Battery.h"
-#include "state/SystemSetting.h"
-#include "system/MappedInputManager.h"
-#include "system/MenuNav.h"
-#include "system/ScreenComponents.h"
-#include "system/Fonts.h"
-
-
 #include "images/Library.h"
 #include "images/Recent.h"
 #include "images/Setting.h"
-#include "images/Sync.h"
 #include "images/Stats.h"
+#include "images/Sync.h"
+#include "state/SystemSetting.h"
+#include "system/Battery.h"
+#include "system/Fonts.h"
+#include "system/MappedInputManager.h"
+#include "system/MenuNav.h"
+#include "system/ScreenComponents.h"
 
 class Menu {
  protected:
@@ -73,7 +71,8 @@ class Menu {
       }
 
       if (isSelected) {
-        renderer.rectangle.fill(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
+        renderer.rectangle.fill(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT,
+                                static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
       renderer.line.render(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);

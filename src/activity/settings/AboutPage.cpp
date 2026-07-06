@@ -6,8 +6,9 @@
 #include "AboutPage.h"
 
 #include <Arduino.h>
-#include <cstdio>
 #include <esp_heap_caps.h>
+
+#include <cstdio>
 
 #include "system/Fonts.h"
 
@@ -25,11 +26,7 @@ void formatHeapSize(const size_t bytes, char* out, const size_t outSize) {
 }  // namespace
 
 AboutPage::AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput)
-    : renderer(renderer),
-      mappedInput(mappedInput),
-      visible(false),
-      dismissed(false),
-      lastInputTime(0) {}
+    : renderer(renderer), mappedInput(mappedInput), visible(false), dismissed(false), lastInputTime(0) {}
 
 AboutPage::~AboutPage() = default;
 
@@ -58,7 +55,6 @@ void AboutPage::handleInput() {
     lastInputTime = currentTime;
     return;
   }
-
 }
 
 void AboutPage::render() {
@@ -84,7 +80,8 @@ void AboutPage::renderWithRefresh() {
   renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 24, yPos, "Inx", true, EpdFontFamily::BOLD);
   yPos += 36;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "Current version", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "Current version", true,
+                       EpdFontFamily::BOLD);
   yPos += 22;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, INX_VERSION, true, EpdFontFamily::REGULAR);
   yPos += 36;
@@ -104,8 +101,7 @@ void AboutPage::renderWithRefresh() {
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "RAM used / total", true,
                        EpdFontFamily::BOLD);
   yPos += 22;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, heapLine, true,
-                       EpdFontFamily::REGULAR);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, heapLine, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Close", "", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

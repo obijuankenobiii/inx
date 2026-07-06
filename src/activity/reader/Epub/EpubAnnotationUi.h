@@ -1,7 +1,5 @@
 #pragma once
 
-#include "EpubAnnotations.h"
-
 #include <Epub/PageWordIndex.h>
 
 #include <climits>
@@ -11,6 +9,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "EpubAnnotations.h"
 
 class EpubActivity;
 

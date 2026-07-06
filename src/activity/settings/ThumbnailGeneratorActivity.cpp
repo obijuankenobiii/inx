@@ -38,17 +38,17 @@ void drawThinProgressBar(const GfxRenderer& renderer, const int x, const int y, 
 }
 
 void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth, const int screenHeight,
-                               const bool running, const bool success, const bool cancelled,
-                               const int processedCount, const int generatedCount, const int skippedCount,
-                               const int failedCount, const char* currentPath) {
+                               const bool running, const bool success, const bool cancelled, const int processedCount,
+                               const int generatedCount, const int skippedCount, const int failedCount,
+                               const char* currentPath) {
   const int centerY = screenHeight / 2;
 
-  const char* eyebrow = running ? "GENERATING THUMBNAILS"
-                        : success ? "THUMBNAILS READY"
+  const char* eyebrow = running     ? "GENERATING THUMBNAILS"
+                        : success   ? "THUMBNAILS READY"
                         : cancelled ? "GENERATION STOPPED"
                                     : "GENERATION FAILED";
-  const char* title = running ? "Scanning library"
-                      : success ? "Thumbnails complete"
+  const char* title = running     ? "Scanning library"
+                      : success   ? "Thumbnails complete"
                       : cancelled ? "Stopped"
                                   : "Thumbnail generation failed";
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, eyebrow, true, EpdFontFamily::BOLD);
@@ -82,7 +82,7 @@ void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth,
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 54, path.c_str(), true, EpdFontFamily::REGULAR);
   }
 }
-}
+}  // namespace
 
 void ThumbnailGeneratorActivity::displayTaskTrampoline(void* param) {
   static_cast<ThumbnailGeneratorActivity*>(param)->displayTaskLoop();

@@ -12,9 +12,9 @@
 #include <Serialization.h>
 #include <Utf8.h>
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
-#include <algorithm>
 
 #include "../../../src/images/Hr.h"
 
@@ -44,7 +44,7 @@ void drawImagePlaceholderDots(GfxRenderer& renderer, const int x, const int y, c
   }
 }
 
-}
+}  // namespace
 
 /**
  * Renders a text line on the screen.
@@ -54,8 +54,7 @@ void drawImagePlaceholderDots(GfxRenderer& renderer, const int x, const int y, c
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                      ImageRenderMode ) {
+void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -88,7 +87,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * Renders a small-caps line using the active body font; small-caps are synthesized from that font.
  */
 void PageSmallCaps::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                           ImageRenderMode ) {
+                           ImageRenderMode) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -119,7 +118,7 @@ std::unique_ptr<PageSmallCaps> PageSmallCaps::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        ImageRenderMode ) {
+                        ImageRenderMode) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -160,7 +159,7 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                         ImageRenderMode ) {
+                         ImageRenderMode) {
   // The drop cap and the first body line both start at yPos, but their fonts have different space above the
   // caps (ascender - glyph.top). Align the drop cap's cap-top with the body cap-top by that inset difference.
   const uint8_t* p = reinterpret_cast<const uint8_t*>(text.c_str());
@@ -249,8 +248,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   }
 }
 
-void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                       ImageRenderMode) {
+void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
   const int originX = xPos + xOffset;
   const int originY = yPos + yOffset;
   // Use the effective line height baked at layout time (respects the line-spacing setting); fall back
@@ -578,9 +576,8 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
   return true;
 }
 
-void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset,
-                  const int yOffset, bool skipImages, const ImageRenderMode imageMode,
-                  const bool skipOnlyGrayscaleImages) const {
+void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
+                  bool skipImages, const ImageRenderMode imageMode, const bool skipOnlyGrayscaleImages) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       const auto* image = static_cast<const PageImage*>(element.get());

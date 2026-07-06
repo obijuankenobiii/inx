@@ -49,10 +49,10 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Display mode for the library
    */
   enum class ViewMode {
-    FOLDER_VIEW,    ///< Hierarchical folder navigation
-    BOOK_LIST_VIEW, ///< Flat list of all books
-    TAG_VIEW,       ///< Indexed books grouped into user tag collections
-    SHELF_VIEW      ///< Cover-first shelf view
+    FOLDER_VIEW,     ///< Hierarchical folder navigation
+    BOOK_LIST_VIEW,  ///< Flat list of all books
+    TAG_VIEW,        ///< Indexed books grouped into user tag collections
+    SHELF_VIEW       ///< Cover-first shelf view
   };
 
   /**
@@ -152,7 +152,6 @@ class LibraryActivity final : public Activity, public Menu {
   /** Millis deadline for next Up repeat while held (0 = not repeating). */
   unsigned long libraryListUpNextMs = 0;
 
-  
   int itemsPerPage;                           ///< Dynamic items per page based on view mode
   int currentPage;                            ///< Current page index (0-based)
   int totalPages;                             ///< Total number of pages
@@ -166,13 +165,11 @@ class LibraryActivity final : public Activity, public Menu {
   std::vector<BookTags::Entry> cachedTagEntries_;
   bool cachedTagEntriesLoaded_ = false;
 
-  
   const std::function<void()> onGoToRecent;                         ///< Callback to go to recent books
   const std::function<void(const std::string& path)> onSelectBook;  ///< Callback to open a book
   const std::function<void()> onRecentOpen;                         ///< Callback to open recent tab
   const std::function<void()> onSettingsOpen;                       ///< Callback to open settings tab
 
-  
   ViewMode currentViewMode;  ///< Current display mode
   SortMode currentSortMode;  ///< Current sorting mode
 

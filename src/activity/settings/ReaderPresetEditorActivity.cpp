@@ -143,9 +143,8 @@ void ReaderPresetEditorActivity::renderPreview() {
   const int bodyTop = 16;
   const int bodyBottom = previewHeight_ - statusBarHeight - 6;
   const int maxWidth = std::max(40, screenW - 2 * margin);
-  const int spaceWidth =
-      std::max(1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) *
-                                               working_.getReaderWordSpacingFactor())));
+  const int spaceWidth = std::max(
+      1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) * working_.getReaderWordSpacingFactor())));
   int lineHeight = static_cast<int>(renderer.text.getLineHeight(fontId) * working_.getReaderLineCompression());
   if (lineHeight < 8) lineHeight = renderer.text.getLineHeight(fontId);
 

@@ -25,12 +25,11 @@ void addAuthHeaders(HTTPClient& http) {
   http.addHeader("x-auth-user", KOREADER_STORE.getUsername().c_str());
   http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password().c_str());
 
-  
   http.setAuthorization(KOREADER_STORE.getUsername().c_str(), KOREADER_STORE.getPassword().c_str());
 }
 
 bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
-}  
+}  // namespace
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   if (!KOREADER_STORE.hasCredentials()) {
@@ -95,7 +94,6 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   const int httpCode = http.GET();
 
   if (httpCode == 200) {
-    
     String responseBody = http.getString();
     http.end();
 
@@ -156,7 +154,6 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   addAuthHeaders(http);
   http.addHeader("Content-Type", "application/json");
 
-  
   JsonDocument doc;
   doc["document"] = progress.document;
   doc["progress"] = progress.progress;
