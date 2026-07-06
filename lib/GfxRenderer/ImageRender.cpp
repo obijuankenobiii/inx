@@ -9,8 +9,6 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 
-#include <vector>
-
 #include "../../src/util/StringUtils.h"
 #include "Bitmap.h"
 #include "BitmapUtil.h"
@@ -21,9 +19,9 @@
 
 namespace {
 // Caps how large an image's level buffer (1 byte/pixel) can be before we skip the decode-once
-// optimization and fall back to the old double-decode/sync-store behavior. ~120KB is comfortably
-// affordable against this device's free heap for the lifetime of a single page render.
-constexpr size_t kMaxCachedLevelBytes = 120 * 1024;
+// optimization and fall back to the old double-decode/sync-store behavior. Kept modest since this
+// competes with JPEG/PNG decode buffers for the same heap during page render.
+constexpr size_t kMaxCachedLevelBytes = 48 * 1024;
 
 // In-memory cache of one quality (GRAY2) image's decoded levels, alive only for the duration of the
 // current two-pass render cycle. Single slot: a second image on the same page safely misses (falls
@@ -32,10 +30,16 @@ struct QualityLevelCache {
   std::string path;
   int x = 0, y = 0, width = 0, height = 0;
   bool cropToFill = false;
-  std::vector<uint8_t> levelStorage;
+  // Raw nothrow-allocated buffer (not std::vector): an allocation failure here must never throw -
+  // there's no exception handler on this firmware, so an uncaught bad_alloc is an abort()/crash.
+  // Grown on demand and reused across calls rather than freed each time.
+  uint8_t* levelStorage = nullptr;
+  int levelStorageCapacity = 0;
   ImageLevelCapture capture;
   bool keyValid = false;
   bool diskFlushPending = false;
+
+  ~QualityLevelCache() { delete[] levelStorage; }
 
   bool matches(const std::string& p, const int rx, const int ry, const int rw, const int rh, const bool crop) const {
     return keyValid && x == rx && y == ry && width == rw && height == rh && cropToFill == crop && path == p;
@@ -63,11 +67,17 @@ struct QualityLevelCache {
     capture = ImageLevelCapture{};
     const size_t need = static_cast<size_t>(rw) * static_cast<size_t>(rh);
     if (need == 0 || need > kMaxCachedLevelBytes) {
-      levelStorage.clear();
       return;
     }
-    levelStorage.assign(need, 0);
-    capture.levels = levelStorage.data();
+    if (static_cast<size_t>(levelStorageCapacity) < need) {
+      delete[] levelStorage;
+      levelStorage = new (std::nothrow) uint8_t[need];
+      levelStorageCapacity = levelStorage ? static_cast<int>(need) : 0;
+    }
+    if (!levelStorage) {
+      return;
+    }
+    capture.levels = levelStorage;
     capture.capacity = static_cast<int>(need);
   }
 };
