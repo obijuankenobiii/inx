@@ -225,13 +225,23 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
         case StatusBarItem::AUTHOR_NAME: {
             std::string author = m_epub.getAuthor();
             int maxWidth = sectionWidth - 10;
-            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 
+            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
                                                           author.c_str(), maxWidth);
             int xPos = getPositionX(truncated.c_str());
             m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
             break;
         }
-            
+
+        case StatusBarItem::PAGE_NUMBERS_WITH_PERCENT: {
+            std::string combined = pageStr + " " + percentStr;
+            int maxWidth = sectionWidth - 10;
+            std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
+                                                          combined.c_str(), maxWidth);
+            int xPos = getPositionX(truncated.c_str());
+            m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+            break;
+        }
+
         default:
             break;
     }

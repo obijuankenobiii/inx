@@ -29,6 +29,7 @@ enum class StatusBarItem {
   PAGE_BARS,                  ///< Vertical bars representing pages
   BOOK_TITLE,                 ///< Book title
   AUTHOR_NAME,                ///< Author name
+  PAGE_NUMBERS_WITH_PERCENT,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
   STATUS_BAR_ITEM_COUNT
 };
 
