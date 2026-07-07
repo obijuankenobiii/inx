@@ -9,6 +9,8 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 
+#include <memory>
+
 #include "../../src/util/StringUtils.h"
 #include "Bitmap.h"
 #include "BitmapUtil.h"
@@ -16,74 +18,6 @@
 #include "ImageDisplayCache.h"
 #include "JpegRender.h"
 #include "PngRender.h"
-
-namespace {
-// Caps how large an image's level buffer (1 byte/pixel) can be before we skip the decode-once
-// optimization and fall back to the old double-decode/sync-store behavior. Kept modest since this
-// competes with JPEG/PNG decode buffers for the same heap during page render.
-constexpr size_t kMaxCachedLevelBytes = 48 * 1024;
-
-// In-memory cache of one quality (GRAY2) image's decoded levels, alive only for the duration of the
-// current two-pass render cycle. Single slot: a second image on the same page safely misses (falls
-// back to a normal decode for it) rather than risking any cross-image aliasing.
-struct QualityLevelCache {
-  std::string path;
-  int x = 0, y = 0, width = 0, height = 0;
-  bool cropToFill = false;
-  // Raw nothrow-allocated buffer (not std::vector): an allocation failure here must never throw -
-  // there's no exception handler on this firmware, so an uncaught bad_alloc is an abort()/crash.
-  // Grown on demand and reused across calls rather than freed each time.
-  uint8_t* levelStorage = nullptr;
-  int levelStorageCapacity = 0;
-  ImageLevelCapture capture;
-  bool keyValid = false;
-  bool diskFlushPending = false;
-
-  ~QualityLevelCache() { delete[] levelStorage; }
-
-  bool matches(const std::string& p, const int rx, const int ry, const int rw, const int rh, const bool crop) const {
-    return keyValid && x == rx && y == ry && width == rw && height == rh && cropToFill == crop && path == p;
-  }
-
-  // The old framebuffer-based disk cache captures the whole requested box (including any letterbox
-  // background around a non-cropToFill image whose aspect ratio doesn't exactly match the box). The
-  // level buffer only holds the pixels the decoder actually drew, so deferring the disk write to
-  // flushPendingDiskCache() is only correct when the decoded image exactly fills the box with no
-  // letterboxing - otherwise fall back to the old immediate framebuffer-based store.
-  bool exactlyFillsBox(const int rx, const int ry, const int rw, const int rh) const {
-    return capture.captured && capture.drawOffsetX == rx && capture.drawOffsetY == ry && capture.outWidth == rw &&
-           capture.outHeight == rh;
-  }
-
-  void beginFor(const std::string& p, const int rx, const int ry, const int rw, const int rh, const bool crop) {
-    path = p;
-    x = rx;
-    y = ry;
-    width = rw;
-    height = rh;
-    cropToFill = crop;
-    keyValid = true;
-    diskFlushPending = false;
-    capture = ImageLevelCapture{};
-    const size_t need = static_cast<size_t>(rw) * static_cast<size_t>(rh);
-    if (need == 0 || need > kMaxCachedLevelBytes) {
-      return;
-    }
-    if (static_cast<size_t>(levelStorageCapacity) < need) {
-      delete[] levelStorage;
-      levelStorage = new (std::nothrow) uint8_t[need];
-      levelStorageCapacity = levelStorage ? static_cast<int>(need) : 0;
-    }
-    if (!levelStorage) {
-      return;
-    }
-    capture.levels = levelStorage;
-    capture.capacity = static_cast<int>(need);
-  }
-};
-
-QualityLevelCache g_qualityLevelCache;
-}  // namespace
 
 ImageRender ImageRender::create(GfxRenderer& renderer, const std::string& path) {
   return ImageRender(renderer, path, detectFormat(path));
@@ -131,6 +65,11 @@ bool ImageRender::getDimensionsForFormat(const std::string& path, Format format,
 }
 
 bool ImageRender::render(int x, int y, int width, int height, const Options& options) const {
+  return render(x, y, width, height, options, nullptr);
+}
+
+bool ImageRender::render(int x, int y, int width, int height, const Options& options,
+                         JpegLevelCapture* jpegCapture) const {
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = options.mode;
@@ -141,46 +80,28 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
       options.useDisplayCache &&
       ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
        options.mode == ImageRenderMode::TwoBit);
-  if (canUseDisplayCache) {
+  // Skip the on-disk raster cache lookup only when replaying a capture (nothing to look up for - we
+  // already have the pixels in memory). On the first (capture) call, jpegCapture->captured is still
+  // false here, so a cache hit is still preferred over decoding at all.
+  if (canUseDisplayCache && !(jpegCapture && jpegCapture->captured)) {
     const bool cacheHit = ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
     if (cacheHit) {
       return true;
     }
   }
 
-  // Quality (GRAY2) images are drawn twice, once per bit-plane (see GfxRenderer::renderGrayscalePasses).
-  // Decoding a JPEG/PNG on this ESP32 is expensive and plane-independent, so cache the per-pixel
-  // quantized levels from the first pass and replay them for the second instead of re-decoding.
-  // Rounded-corner masking isn't reflected in the level buffer, so those images skip this path.
-  const bool qualityCacheEligible = options.quality && options.mode == ImageRenderMode::TwoBit &&
-                                    options.roundedOutside == BitmapRender::RoundedOutside::None &&
-                                    (format_ == Format::Jpeg || format_ == Format::Png);
-  ImageLevelCapture* capture = nullptr;
-  if (qualityCacheEligible) {
-    if (g_qualityLevelCache.matches(path_, x, y, width, height, options.cropToFill) &&
-        g_qualityLevelCache.capture.captured) {
-      Serial.printf("[%lu] [IMGQ] level-cache hit, skipping decode: %s\n", millis(), path_.c_str());
-      replayImageLevelCapture(g_qualityLevelCache.capture, renderer_, renderer_.deviceIsX3());
-      if (canUseDisplayCache) {
-        if (g_qualityLevelCache.exactlyFillsBox(x, y, width, height)) {
-          g_qualityLevelCache.diskFlushPending = true;
-        } else {
-          ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
-        }
-      }
-      return true;
-    }
-    g_qualityLevelCache.beginFor(path_, x, y, width, height, options.cropToFill);
-    capture = &g_qualityLevelCache.capture;
-  }
-
   bool ok = false;
   if (format_ == Format::Jpeg) {
     JpegRender jpeg(renderer_);
-    ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.quality, capture);
+    if (jpegCapture && jpegCapture->captured) {
+      jpeg.replayCapture(*jpegCapture, options.mode);
+      ok = true;
+    } else {
+      ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.quality, jpegCapture);
+    }
   } else if (format_ == Format::Png) {
     PngRender png(renderer_);
-    ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, capture);
+    ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);
   } else {
     FsFile file;
     if (!SdMan.openFileForRead("EHP", path_, file)) {
@@ -212,13 +133,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   }
 
   if (ok && canUseDisplayCache) {
-    if (qualityCacheEligible && g_qualityLevelCache.exactlyFillsBox(x, y, width, height)) {
-      // Defer the SD write to flushPendingDiskCache(), called after the physical refresh so it never
-      // sits on the visible critical path.
-      g_qualityLevelCache.diskFlushPending = true;
-    } else {
-      ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
-    }
+    ImageDisplayCache::store(renderer_, path_, x, y, width, height, cacheOptions);
   }
   return ok;
 }
@@ -249,6 +164,33 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
     return true;  // served from cache (handles both planes + refresh + cleanup)
   }
 
+  // JPEGs decode via a slow SD read + DCT pass; renderGrayscalePasses below calls its drawPlane lambda
+  // once per plane (LSB, then MSB), and a plain render() re-decodes the whole file each time. Capture the
+  // first pass's per-pixel dither level and replay it for the second pass instead - same visual result,
+  // no second decode. The capture is packed 2 bits/pixel (4 pixels/byte - see JpegLevelCapture), so this
+  // covers a full screen-sized image in a bounded, freed-before-return buffer; oversized images just fall
+  // through to the normal double-decode path below.
+  constexpr size_t kMaxCapturePixels = 400000;
+  const size_t capturePixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+  if (format_ == Format::Jpeg && capturePixelCount > 0 && capturePixelCount <= kMaxCapturePixels) {
+    const size_t neededBytes = (capturePixelCount + 3) / 4;
+    std::unique_ptr<uint8_t[]> captureBuffer(new (std::nothrow) uint8_t[neededBytes]);
+    if (captureBuffer) {
+      JpegLevelCapture capture;
+      capture.values = captureBuffer.get();
+      capture.capacity = neededBytes;
+
+      renderer_.renderGrayscalePasses(
+          quality, /*preserveText=*/false,
+          [&] {
+            renderer_.clearScreen(quality ? 0xFF : 0x00);
+            render(x, y, width, height, opt, &capture);
+          },
+          opt.fastQuality);
+      return true;
+    }
+  }
+
   renderer_.renderGrayscalePasses(
       quality, /*preserveText=*/false,
       [&] {
@@ -270,18 +212,4 @@ bool ImageRender::render(int x, int y, int width, int height, ImageRenderMode mo
   Options options;
   options.mode = mode;
   return render(x, y, width, height, options);
-}
-
-void ImageRender::flushPendingDiskCache(GfxRenderer& renderer) {
-  if (!g_qualityLevelCache.diskFlushPending || !g_qualityLevelCache.capture.captured) {
-    g_qualityLevelCache.diskFlushPending = false;
-    return;
-  }
-  const bool stored = ImageDisplayCache::storeFromLevels(renderer, g_qualityLevelCache.path, g_qualityLevelCache.x,
-                                                         g_qualityLevelCache.y, g_qualityLevelCache.width,
-                                                         g_qualityLevelCache.height, g_qualityLevelCache.cropToFill,
-                                                         g_qualityLevelCache.capture.levels, renderer.deviceIsX3());
-  Serial.printf("[%lu] [IMGQ] deferred disk cache flush %s: %s\n", millis(), stored ? "ok" : "failed",
-                g_qualityLevelCache.path.c_str());
-  g_qualityLevelCache.diskFlushPending = false;
 }

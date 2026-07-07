@@ -21,12 +21,10 @@ class PngRender {
  public:
   explicit PngRender(GfxRenderer& renderer) : renderer_(renderer) {}
 
-  // `capture`, when non-null, is populated with per-pixel quantized levels for a TwoBit decode (see
-  // ImageLevelCapture in BitmapUtil.h) so a second call for the opposite GRAY2 plane can skip decoding.
   bool render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
-              ImageRenderMode mode = ImageRenderMode::OneBit, ImageLevelCapture* capture = nullptr) const;
+              ImageRenderMode mode = ImageRenderMode::OneBit) const;
   bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
-                ImageRenderMode mode = ImageRenderMode::OneBit, ImageLevelCapture* capture = nullptr) const;
+                ImageRenderMode mode = ImageRenderMode::OneBit) const;
 
   static bool getDimensions(FsFile& pngFile, int* outW, int* outH);
   static bool getDimensions(const std::string& path, int* outW, int* outH);

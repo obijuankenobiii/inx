@@ -8,6 +8,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <ImageRender.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 #include <Utf8.h>
@@ -229,6 +230,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
                             const ImageRenderMode imageMode, const bool quality) {
   (void)xOffset;
   (void)fontId;
+  const uint32_t tImageStart = millis();
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
   // The viewport top margin is reduced by the font's glyph top inset so text starts at the visual margin
@@ -243,9 +245,68 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   options.quality = quality;
   options.fastQuality = false;
   const ImageRender image = ImageRender::create(renderer, cachePath);
+
+  // Two-pass grayscale composites (renderGrayscalePasses) call this twice per image: once with the
+  // renderer set to the LSB plane, once for MSB. A plain render() would decode the source file fresh
+  // both times; capture the LSB pass's dither output instead and replay it for MSB (JPEG only - PNG/BMP
+  // and oversized images just leave grayscaleCaptureValid_ false and fall through unchanged below).
+  const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+  const bool isLsbPass = renderMode == GfxRenderer::GRAY2_LSB || renderMode == GfxRenderer::GRAYSCALE_LSB;
+  const bool isMsbPass = renderMode == GfxRenderer::GRAY2_MSB || renderMode == GfxRenderer::GRAYSCALE_MSB;
+
+  if (imageMode == ImageRenderMode::TwoBit && isMsbPass && grayscaleCaptureValid_) {
+    JpegLevelCapture capture;
+    capture.values = grayscaleCaptureBuffer_.get();
+    capture.capacity = grayscaleCaptureCapacity_;
+    capture.width = grayscaleCaptureWidth_;
+    capture.height = grayscaleCaptureHeight_;
+    capture.drawOffsetX = grayscaleCaptureOffsetX_;
+    capture.drawOffsetY = grayscaleCaptureOffsetY_;
+    capture.captured = true;
+    grayscaleCaptureValid_ = false;  // one-shot: consumed by this MSB pass
+    if (!image.render(renderX, renderY, width, height, options, &capture)) {
+      Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
+    }
+    Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) msb-replay-path: %lums\n", millis(), cachePath.c_str(),
+                  static_cast<unsigned long>(millis() - tImageStart));
+    return;
+  }
+
+  if (imageMode == ImageRenderMode::TwoBit && isLsbPass) {
+    // Packed 2 bits/pixel (4 pixels/byte - see JpegLevelCapture), so this pixel-count cap covers a
+    // full-page image (e.g. 480x720) in a bounded, page-lifetime buffer instead of never fitting one.
+    constexpr size_t kMaxGrayscaleCapturePixels = 400000;
+    const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+    const size_t needed = (pixelCount + 3) / 4;
+    if (pixelCount > 0 && pixelCount <= kMaxGrayscaleCapturePixels) {
+      if (!grayscaleCaptureBuffer_ || grayscaleCaptureCapacity_ < needed) {
+        grayscaleCaptureBuffer_.reset(new (std::nothrow) uint8_t[needed]);
+        grayscaleCaptureCapacity_ = grayscaleCaptureBuffer_ ? needed : 0;
+      }
+      if (grayscaleCaptureBuffer_) {
+        JpegLevelCapture capture;
+        capture.values = grayscaleCaptureBuffer_.get();
+        capture.capacity = grayscaleCaptureCapacity_;
+        if (!image.render(renderX, renderY, width, height, options, &capture)) {
+          Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
+        }
+        grayscaleCaptureValid_ = capture.captured;
+        grayscaleCaptureWidth_ = capture.width;
+        grayscaleCaptureHeight_ = capture.height;
+        grayscaleCaptureOffsetX_ = capture.drawOffsetX;
+        grayscaleCaptureOffsetY_ = capture.drawOffsetY;
+        Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) lsb-capture-path captured=%d: %lums\n", millis(),
+                      cachePath.c_str(), capture.captured ? 1 : 0, static_cast<unsigned long>(millis() - tImageStart));
+        return;
+      }
+    }
+  }
+
   if (!image.render(renderX, renderY, width, height, options)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
+  Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) plain-path: %lums\n", millis(), cachePath.c_str(),
+                static_cast<unsigned long>(millis() - tImageStart));
 }
 
 void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {

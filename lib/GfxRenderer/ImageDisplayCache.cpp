@@ -11,9 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 
-#include "BitmapUtil.h"
 #include "GfxRenderer.h"
 
 namespace {
@@ -405,76 +403,4 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
   file.close();
 
   return true;
-}
-
-bool ImageDisplayCache::storeFromLevels(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
-                                        const int width, const int height, const bool cropToFill, const uint8_t* levels,
-                                        const bool deviceIsX3) {
-  if (!levels) {
-    return false;
-  }
-  VisibleRect visible;
-  if (!visibleBounds(renderer, x, y, width, height, visible)) {
-    return false;
-  }
-
-  const int rowBytes = (visible.width + 7) / 8;
-  uint8_t rowBuf[kIoBufferSize];
-  if (rowBytes > static_cast<int>(sizeof(rowBuf))) {
-    return false;
-  }
-
-  auto writePlane = [&](const GfxRenderer::RenderMode plane) -> bool {
-    ImageDisplayCacheOptions options;
-    options.cropToFill = cropToFill;
-    options.mode = ImageRenderMode::TwoBit;
-    options.renderPlane = static_cast<uint8_t>(plane);
-    options.quality = true;
-
-    const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
-    if (cachePath.empty() || !ensureCacheDir(cachePath)) {
-      return false;
-    }
-    FsFile file;
-    if (!SdMan.openFileForWrite("IDC", cachePath, file)) {
-      return false;
-    }
-
-    const CacheHeader header = {.magic = kMagic,
-                                .version = kVersion,
-                                .headerSize = sizeof(CacheHeader),
-                                .width = static_cast<uint16_t>(visible.width),
-                                .height = static_cast<uint16_t>(visible.height),
-                                .rowBytes = static_cast<uint16_t>(rowBytes),
-                                .reserved = 0};
-    if (file.write(&header, sizeof(header)) != sizeof(header)) {
-      file.close();
-      SdMan.remove(cachePath.c_str());
-      return false;
-    }
-
-    const uint8_t renderModeValue = static_cast<uint8_t>(plane);
-    for (int row = 0; row < visible.height; row++) {
-      memset(rowBuf, 0, static_cast<size_t>(rowBytes));
-      const uint8_t* levelRow =
-          levels + static_cast<size_t>(row + visible.sourceOffsetY) * width + visible.sourceOffsetX;
-      for (int col = 0; col < visible.width; col++) {
-        if (qualityGray2PixelSet(levelRow[col], renderModeValue, deviceIsX3)) {
-          rowBuf[col / 8] |= static_cast<uint8_t>(0x80 >> (col % 8));
-        }
-      }
-      if (file.write(rowBuf, static_cast<size_t>(rowBytes)) != static_cast<size_t>(rowBytes)) {
-        file.close();
-        SdMan.remove(cachePath.c_str());
-        return false;
-      }
-    }
-
-    file.close();
-    return true;
-  };
-
-  const bool lsbOk = writePlane(GfxRenderer::GRAY2_LSB);
-  const bool msbOk = writePlane(GfxRenderer::GRAY2_MSB);
-  return lsbOk && msbOk;
 }

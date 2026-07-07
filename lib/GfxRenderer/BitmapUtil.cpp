@@ -13,8 +13,12 @@
 #include <cstdlib>
 #include <cstring>
 
+// Same per-pixel hot-loop rationale as JpegRender.cpp/PngRender.cpp/ImageToneDither.cpp: these small
+// helpers (adjustTwoBitImageLevelForDisplay, mapQualityGray2Level, quantize*) run once or twice per
+// pixel of every image render. Placed after includes so it doesn't affect inlined header code.
+#pragma GCC optimize("O2")
+
 #include "Bitmap.h"
-#include "GfxRenderer.h"
 #include "HalGPIO.h"
 
 /**
@@ -197,32 +201,6 @@ uint8_t mapQualityGray2Level(const uint8_t level, const bool deviceIsX3) {
   if (l == 1u) return 2u;
   if (l == 2u) return 1u;
   return l;
-}
-
-bool qualityGray2PixelSet(const uint8_t level, const uint8_t renderModeValue, const bool deviceIsX3) {
-  if (renderModeValue == static_cast<uint8_t>(GfxRenderer::GRAY2_LSB)) {
-    return (mapQualityGray2Level(level, deviceIsX3) & 0b01) == 0;
-  }
-  if (renderModeValue == static_cast<uint8_t>(GfxRenderer::GRAY2_MSB)) {
-    return (mapQualityGray2Level(level, deviceIsX3) & 0b10) == 0;
-  }
-  return false;
-}
-
-void replayImageLevelCapture(const ImageLevelCapture& capture, const GfxRenderer& renderer, const bool deviceIsX3) {
-  if (!capture.captured || !capture.levels) {
-    return;
-  }
-  const uint8_t renderModeValue = static_cast<uint8_t>(renderer.getRenderMode());
-  for (int oy = 0; oy < capture.outHeight; oy++) {
-    const uint8_t* row = capture.levels + static_cast<size_t>(oy) * capture.outWidth;
-    const int screenY = capture.drawOffsetY + oy;
-    for (int ox = 0; ox < capture.outWidth; ox++) {
-      if (qualityGray2PixelSet(row[ox], renderModeValue, deviceIsX3)) {
-        renderer.drawPixel(capture.drawOffsetX + ox, screenY, true);
-      }
-    }
-  }
 }
 
 static inline uint8_t quantizeNoise(int gray, int x, int y) {

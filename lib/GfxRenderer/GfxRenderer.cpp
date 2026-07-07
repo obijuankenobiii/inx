@@ -13,8 +13,6 @@
 #include <set>
 #include <vector>
 
-#include "ImageRender.h"
-
 #ifdef SIMULATOR
 #include <HalGPIO.h>
 extern HalGPIO gpio;
@@ -47,7 +45,11 @@ void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
   fontMap.emplace(fontId, std::move(font));
 }
 
-void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int* rotatedY) const {
+// Called once per pixel from every image/text/shape draw; opted into -O2 (the firmware otherwise builds
+// with -Os for flash size - see JpegRender.cpp for the fuller rationale). Function-scoped rather than a
+// whole-file pragma since most of this file isn't in a per-pixel hot path.
+__attribute__((optimize("O2"))) void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX,
+                                                                    int* rotatedY) const {
   switch (orientation) {
     case Portrait: {
       *rotatedX = y;
@@ -72,7 +74,7 @@ void GfxRenderer::rotateCoordinates(const int x, const int y, int* rotatedX, int
   }
 }
 
-void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
+__attribute__((optimize("O2"))) void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   uint8_t* frameBuffer = display.getFrameBuffer();
 
   if (!frameBuffer) {
@@ -398,7 +400,6 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
   } else {
     displayGrayBuffer(quality);
   }
-  ImageRender::flushPendingDiskCache(*this);
   setRenderMode(BW);
 
   if (preserveText) {

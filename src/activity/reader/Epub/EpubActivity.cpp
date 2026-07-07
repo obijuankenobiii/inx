@@ -129,6 +129,7 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       lastPreloadedSpineIndex(-1),
       lastPageHadImages(false),
       lastPageHadLargeImage(false),
+      lastPageWasHighQuality(false),
       bookmarkLongPressProcessed(false),
       settingsDrawer(nullptr),
       settingsDrawerVisible(false),
@@ -1689,10 +1690,15 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool mediumImageGrayscale = needsImageGrayscale && !highQuality;
   const bool needsTextAntiAliasPass = textAa;
 
+  // No pre-emptive smart refresh for THIS page just because it's highQuality - EInkDisplay::displayBuffer()
+  // already calls grayscaleRevert() (its own cleanup pass) whenever returning from grayscale/quality mode,
+  // so a half refresh here would be a redundant second cleanup before the quality LUT even runs. But that
+  // cleanup only benefits the high-quality page itself; leaving one for a page that ISN'T high-quality
+  // still needs its own half refresh here, since nothing else will clean it up for a plain page.
   const bool smartRefreshAfterLargeImage = !pageHasImages && lastPageHadImages && lastPageHadLargeImage;
-  const bool smartRefreshForAaHighQuality = highQuality && needsTextAntiAliasPass;
+  const bool smartRefreshAfterHighQuality = lastPageWasHighQuality && !highQuality;
   if (bookSettings.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive() &&
-      (smartRefreshAfterLargeImage || smartRefreshForAaHighQuality)) {
+      (smartRefreshAfterLargeImage || smartRefreshAfterHighQuality)) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
@@ -1774,6 +1780,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   lastPageHadImages = pageHasImages;
   lastPageHadLargeImage = pageHasLargeImage;
+  lastPageWasHighQuality = highQuality;
 
   if (annUi_.isActive()) {
     annUi_.drawUiOverlay(*this);

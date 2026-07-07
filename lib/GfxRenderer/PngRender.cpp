@@ -15,6 +15,11 @@
 #include "BitmapUtil.h"
 #include "GfxRenderer.h"
 
+// Same per-pixel hot-loop rationale as JpegRender.cpp: opt this file's own code into -O2 despite the
+// firmware's default -Os, since scanline decode + tone/dither math here runs once per pixel of every PNG
+// render. Placed after all includes so it doesn't retroactively apply to inlined header code.
+#pragma GCC optimize("O2")
+
 namespace {
 constexpr int kPngDitherSolidBlackMax = 32;
 constexpr int kPngDitherSolidWhiteMin = 255 - kPngDitherSolidBlackMax;
@@ -70,7 +75,6 @@ struct RenderContext {
   ImageRenderMode mode;
   FourToneImageDitherer* twoBitDitherer;
   Atkinson1BitDitherer* oneBitDitherer;
-  ImageLevelCapture* capture;
 };
 
 bool readBE32(FsFile& file, uint32_t& value) {
@@ -440,10 +444,6 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
   }
 
   const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
-  if (ctx.capture) {
-    ctx.capture->levels[(y - ctx.capture->drawOffsetY) * ctx.capture->outWidth + (x - ctx.capture->drawOffsetX)] =
-        level;
-  }
   const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
   if (renderMode == GfxRenderer::BW) {
     if ((ctx.mode == ImageRenderMode::TwoBit && level > 0) || (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
@@ -558,7 +558,7 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 }  // namespace
 
 bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                       const ImageRenderMode mode, ImageLevelCapture* capture) const {
+                       const ImageRenderMode mode) const {
   if (!pngFile || targetWidth <= 0 || targetHeight <= 0) return false;
 
   int sourceW = 0;
@@ -603,25 +603,13 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
     return false;
   }
 
-  if (capture && (mode != ImageRenderMode::TwoBit || capture->capacity < outW * outH)) {
-    capture = nullptr;
-  }
-  if (capture) {
-    capture->outWidth = outW;
-    capture->outHeight = outH;
-    capture->drawOffsetX = drawX;
-    capture->drawOffsetY = drawY;
-    capture->captured = true;
-  }
-
   RenderContext ctx = {.renderer = &renderer_,
                        .x = drawX,
                        .y = drawY,
                        .width = outW,
                        .mode = mode,
                        .twoBitDitherer = twoBitDitherer,
-                       .oneBitDitherer = oneBitDitherer,
-                       .capture = capture};
+                       .oneBitDitherer = oneBitDitherer};
   const bool ok = decodeAndRender(pngFile, ctx, outW, outH, srcX, srcY, srcW, srcH);
   delete twoBitDitherer;
   delete oneBitDitherer;
@@ -629,10 +617,10 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
 }
 
 bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                         const ImageRenderMode mode, ImageLevelCapture* capture) const {
+                         const ImageRenderMode mode) const {
   FsFile file;
   if (!SdMan.openFileForRead("PNG", path, file)) return false;
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, capture);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
   file.close();
   return ok;
 }

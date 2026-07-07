@@ -9,6 +9,7 @@
 #include <SdFat.h>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -173,6 +174,18 @@ class PageImage final : public PageElement {
   int16_t width;
   int16_t height;
   bool grayscale;  // true = image has continuous-tone content worth grayscale; false = ~1-bit (comic/line art)
+
+  // Two-pass grayscale rendering (LSB plane then MSB plane) would otherwise decode this image's JPEG
+  // twice. renderImage() captures the LSB pass's per-pixel dither level here (packed 2 bits/pixel) and
+  // replays it for MSB instead of re-decoding. Scoped to this PageImage's lifetime (one page's worth),
+  // bounded by pixel count in renderImage() - see kMaxGrayscaleCapturePixels there.
+  std::unique_ptr<uint8_t[]> grayscaleCaptureBuffer_;
+  size_t grayscaleCaptureCapacity_ = 0;
+  int grayscaleCaptureWidth_ = 0;
+  int grayscaleCaptureHeight_ = 0;
+  int grayscaleCaptureOffsetX_ = 0;
+  int grayscaleCaptureOffsetY_ = 0;
+  bool grayscaleCaptureValid_ = false;
 
  public:
   PageImage(std::string path, const int16_t w, const int16_t h, const int16_t xPos, const int16_t yPos,
