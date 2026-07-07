@@ -156,17 +156,7 @@ constexpr int kJpegTwoBitQualitySharpenPercent = 105;
 constexpr int kJpegTwoBitQualitySharpenMax = 38;
 constexpr int kJpegTwoBitQualityShadowKnee = 96;
 constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
-// X3 quality (GRAY2) shadow lift — X3 renders darker, so the quality curve lifts shadows on X3.
-constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
-
-// X3 medium (GRAYSCALE) tone shaping. X3 renders flat/gray, so expand the tonal range instead of just
-// lifting: darker blacks + whiter whites (kills the gray cast) and a contrast stretch (kills the
-// flatness). Pivot >128 biases it brighter so it doesn't go dark. X3 medium only; quality/X4 untouched.
-constexpr int kX3MediumBlackMax = 20;   // output tone <= this -> pure black (lower = keeps more dark gray)
-constexpr int kX3MediumWhiteMin = 255;  // output tone >= this -> pure white (higher = keeps more light gray)
-constexpr int kX3MediumPivot = 180;     // contrast pivot; higher biases the image brighter
-constexpr int kX3MediumContrast = 120;  // % contrast expansion (>100 = punchier / less flat)
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
@@ -257,37 +247,17 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
 }
 
 // ============================================================================================
-// Per-device JPEG tone. Pick the device function at the call site; tune each independently here.
+// JPEG tone curve, shared by both devices (X3 and X4). Any visual difference between the two panels
+// is handled entirely by their waveform data (lut_x4_quality/lut_grayscale for X4, the
+// lut_x3_*_img/lut_x3_*_gray tables for X3), not by device-specific software tone mapping.
 //   quality == true  -> GRAY2 quality curve
 //   quality == false -> medium (GRAYSCALE) detail curve
 // ============================================================================================
-
-// X4 reference look (do not lift; shadows are slightly deepened on the quality curve).
-int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
+int jpegTone(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
   if (quality) {
     return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax);
   }
   return jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
-}
-
-int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
-  // Quality (GRAY2) is unchanged from before: the X4-shared curve with the X3 shadow lift.
-  if (quality) {
-    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift);
-  }
-
-  // Medium (GRAYSCALE): start from the original detail tone, then expand the range so it isn't
-  // flat/gray — snap deep tones to black and high tones to white, and stretch contrast around a
-  // bright-biased pivot.
-  int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
-  if (tone <= kX3MediumBlackMax) {
-    return 0;
-  }
-  if (tone >= kX3MediumWhiteMin) {
-    return 255;
-  }
-  tone = ((tone - kX3MediumPivot) * kX3MediumContrast) / 100 + kX3MediumPivot;
-  return std::max(0, std::min(255, tone));
 }
 
 // MEDIUM grayscale image-level -> lut_grayscale entry (code). Bit0 = LSB plane (BW RAM, cmd 0x24),
@@ -306,8 +276,11 @@ constexpr uint8_t kGrayscaleCodeForLevel[4] = {
     0b01,  // level 3  black      -> entry 01 (darkest)
 };
 
-// X3 fast grayscale does not follow the same effective on-panel order as X4. In particular,
-// the old direct plane mapping makes dark gray and black swap places. Keep X3 explicit too.
+// Medium/fast (GRAYSCALE) mode uses an opposite bit polarity from quality (GRAY2) mode (this path
+// SETs the ink bit, GRAY2 CLEARs it - see the differing drawPixel() state args below), so the level<->
+// waveform-table derivation validated for GRAY2's X3 fix does not carry over here without separately
+// re-deriving and testing X3's lut_x3_*_gray tables. Left device-specific until that's done, rather
+// than risk breaking a mode that wasn't part of the reported issue.
 constexpr uint8_t kX3GrayscaleCodeForLevel[4] = {
     0b00,  // level 0  white
     0b11,  // level 1  dark gray
@@ -338,10 +311,10 @@ void drawPixelForLevel(const GfxRenderer& renderer, const int x, const int y, co
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && ((grayscaleCode & 0b01) != 0)) {
     renderer.drawPixel(x, y, false);
   } else if (renderMode == GfxRenderer::GRAY2_LSB &&
-             ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b01) == 0)) {
+             ((mapQualityGray2Level(level) & 0b01) == 0)) {
     renderer.drawPixel(x, y, true);
   } else if (renderMode == GfxRenderer::GRAY2_MSB &&
-             ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b10) == 0)) {
+             ((mapQualityGray2Level(level) & 0b10) == 0)) {
     renderer.drawPixel(x, y, true);
   }
 }
@@ -460,7 +433,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
     return false;
   }
 
-  const bool deviceIsX3 = renderer_.deviceIsX3();
   const bool qualityTone = quality;
 
   int currentOutY = 0;
@@ -523,8 +495,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone = deviceIsX3 ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone)
-                                      : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
+          const int tone = jpegTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
           q = (qualityTone ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;

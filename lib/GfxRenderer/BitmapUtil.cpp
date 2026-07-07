@@ -193,11 +193,8 @@ uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
   return l;
 }
 
-uint8_t mapQualityGray2Level(const uint8_t level, const bool deviceIsX3) {
+uint8_t mapQualityGray2Level(const uint8_t level) {
   const uint8_t l = level & 3u;
-  if (deviceIsX3) {
-    return l;
-  }
   if (l == 1u) return 2u;
   if (l == 2u) return 1u;
   return l;
