@@ -18,8 +18,8 @@
 
 #ifdef SIMULATOR
 
-bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent,
-                              const std::string& username, const std::string& password) {
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
   (void)url;
   (void)outContent;
   (void)username;
@@ -30,7 +30,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent,
 
 #else
 
-#include "esp_http_client.h"
+#include <esp_http_client.h>
 
 extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
@@ -82,8 +82,8 @@ static esp_err_t downloadEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
-static bool doFetch(const std::string& url, FetchCtx* fetchCtx,
-                    const std::string& username, const std::string& password) {
+static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::string& username,
+                    const std::string& password) {
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
   cfg.event_handler = fetchEventHandler;
@@ -127,8 +127,8 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx,
   return true;
 }
 
-bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent,
-                              const std::string& username, const std::string& password) {
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
   Serial.printf("[%lu] [HTTP] Fetching: %s\n", millis(), url.c_str());
   FetchCtx ctx = {&outContent};
   return doFetch(url, &ctx, username, password);
@@ -148,8 +148,8 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
   return fetchUrl(url, outContent, user, pass);
 }
 
-bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent,
-                              const std::string& username, const std::string& password) {
+bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
+                              const std::string& password) {
   StreamString stream;
   if (!fetchUrl(url, stream, username, password)) {
     return false;
