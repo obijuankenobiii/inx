@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "../state/SystemSetting.h"
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"

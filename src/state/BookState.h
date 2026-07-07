@@ -50,7 +50,6 @@ class BookState {
   std::vector<Book> getFavoriteBooks() const;
   std::vector<Book> getReadingBooks() const;
   std::vector<Book> getFinishedBooks() const;
-  std::vector<Book> getRecentlyAdded(int limit = 10) const;
 
   Book* findBookByPath(const std::string& path);
 

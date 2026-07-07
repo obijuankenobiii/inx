@@ -17,6 +17,7 @@
 
 #include "activity/browser/OpdsBookBrowserActivity.h"
 #include "activity/OpdsServerListActivity.h"
+#include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"

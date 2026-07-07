@@ -89,14 +89,6 @@ std::vector<BookState::Book> BookState::getFinishedBooks() const {
   return result;
 }
 
-std::vector<BookState::Book> BookState::getRecentlyAdded(int limit) const {
-  std::vector<Book> sorted = books;
-  std::sort(sorted.begin(), sorted.end(), [](const Book& a, const Book& b) { return a.id > b.id; });
-
-  if (sorted.size() > limit) sorted.resize(limit);
-  return sorted;
-}
-
 BookState::Book* BookState::findBookByPath(const std::string& path) {
   const auto mapIt = pathIndex_.find(path);
   if (mapIt == pathIndex_.end()) {
