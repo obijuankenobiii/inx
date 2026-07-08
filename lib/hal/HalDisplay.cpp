@@ -70,9 +70,9 @@ void HalDisplay::copyGrayscaleMsbBuffers(const uint8_t* msbBuffer) { einkDisplay
 
 void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) { einkDisplay.cleanupGrayscaleBuffers(bwBuffer); }
 
-void HalDisplay::displayGrayBuffer(const bool quality) { einkDisplay.displayGrayBuffer(false, nullptr, quality); }
-
-void HalDisplay::displayTextGrayBuffer() { einkDisplay.displayTextGrayBuffer(false); }
+void HalDisplay::displayGrayBuffer(const bool quality, const bool trackForRevert) {
+  einkDisplay.displayGrayBuffer(false, nullptr, quality, trackForRevert);
+}
 
 void HalDisplay::displayGrayBufferFastQuality() {
   if (deviceIsX3()) {

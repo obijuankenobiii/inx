@@ -435,7 +435,7 @@ void TxtReaderActivity::renderPage() {
     renderLines();
     renderer.copyGrayscaleMsbBuffers();
 
-    renderer.displayTextGrayBuffer();
+    renderer.displayGrayBuffer(false, /*trackForRevert=*/false);
     renderer.setRenderMode(GfxRenderer::BW);
 
     renderer.restoreBwBuffer();

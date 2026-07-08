@@ -39,8 +39,7 @@ class HalDisplay {
   void copyGrayscaleMsbBuffers(const uint8_t* msbBuffer);
   void cleanupGrayscaleBuffers(const uint8_t* bwBuffer);
 
-  void displayGrayBuffer(bool quality = false);
-  void displayTextGrayBuffer();
+  void displayGrayBuffer(bool quality = false, bool trackForRevert = true);
   void displayGrayBufferFastQuality();
   void prepareQualityGrayscale();
 

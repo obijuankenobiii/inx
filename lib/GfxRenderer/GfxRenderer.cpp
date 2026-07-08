@@ -233,14 +233,8 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(display.getFrameBuffer()); }
 
-void GfxRenderer::displayGrayBuffer(const bool quality) const { display.displayGrayBuffer(quality); }
-
-void GfxRenderer::displayTextGrayBuffer() const {
-#ifdef SIMULATOR
-  display.displayGrayBuffer(false);
-#else
-  display.displayTextGrayBuffer();
-#endif
+void GfxRenderer::displayGrayBuffer(const bool quality, const bool trackForRevert) const {
+  display.displayGrayBuffer(quality, trackForRevert);
 }
 
 void GfxRenderer::displayGrayBufferFastQuality() const {
@@ -398,7 +392,7 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
   if (useFastQuality) {
     displayGrayBufferFastQuality();
   } else {
-    displayGrayBuffer(quality);
+    displayGrayBuffer(quality, !preserveText);
   }
   setRenderMode(BW);
 
@@ -406,26 +400,6 @@ void GfxRenderer::renderGrayscalePasses(const bool quality, const bool preserveT
     restoreBwBuffer();  // rebase the BW baseline from the stored text frame (text-preserving reader)
   } else {
     clearScreen(0xFF);  // clean baseline so the next BW refresh isn't rebased from the leftover MSB plane
-    cleanupGrayscaleWithFrameBuffer();
-  }
-}
-
-void GfxRenderer::renderTextGrayscalePasses(const bool preserveText, const std::function<void()>& drawPlane) {
-  setRenderMode(GRAYSCALE_LSB);
-  drawPlane();
-  copyGrayscaleLsbBuffers();
-
-  setRenderMode(GRAYSCALE_MSB);
-  drawPlane();
-  copyGrayscaleMsbBuffers();
-
-  displayTextGrayBuffer();
-  setRenderMode(BW);
-
-  if (preserveText) {
-    restoreBwBuffer();
-  } else {
-    clearScreen(0xFF);
     cleanupGrayscaleWithFrameBuffer();
   }
 }
