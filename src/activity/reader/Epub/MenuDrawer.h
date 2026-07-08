@@ -48,6 +48,9 @@ class MenuDrawer {
   using BookmarkDeleteCallback = std::function<void(int storageIndex)>;
   using AnnotationListProvider = std::function<std::vector<BookmarkNavItem>()>;
   using AnnotationSelectCallback = std::function<void(int storageIndex)>;
+  /** Called when the percent view is opened, to seed its initial value (current reading position). */
+  using PercentProvider = std::function<int()>;
+  using PercentSelectedCallback = std::function<void(int percent)>;
 
   /**
    * @brief Constructs a new MenuDrawer
@@ -125,6 +128,10 @@ class MenuDrawer {
     annotationSelectCallback = std::move(callback);
   }
 
+  void setPercentProvider(PercentProvider provider) { percentProvider = std::move(provider); }
+
+  void setPercentSelectedCallback(PercentSelectedCallback callback) { percentSelectedCallback = std::move(callback); }
+
   /** Used for layout-aware bookmark drawer button labels (Up / Del). */
   void setMappedInputForHints(MappedInputManager* input) { mappedInputForHints = input; }
 
@@ -166,6 +173,9 @@ class MenuDrawer {
 
   void renderAnnotations();
 
+  /** Renders the "Go to Percent" view in the same drawer panel/chrome as TOC/Bookmarks/Annotations. */
+  void renderPercent();
+
   void refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator);
 
   /**
@@ -183,6 +193,8 @@ class MenuDrawer {
 
   void handleAnnotationsInput(const MappedInputManager& input);
 
+  void handlePercentInput(const MappedInputManager& input);
+
   /**
    * @brief Exits TOC view and returns to main menu
    */
@@ -191,6 +203,8 @@ class MenuDrawer {
   void exitBookmarks();
 
   void exitAnnotations();
+
+  void exitPercent();
 
   void refreshBookmarkEntriesFromProvider();
 
@@ -209,6 +223,8 @@ class MenuDrawer {
   BookmarkDeleteCallback bookmarkDeleteCallback;
   AnnotationListProvider annotationListProvider;
   AnnotationSelectCallback annotationSelectCallback;
+  PercentProvider percentProvider;
+  PercentSelectedCallback percentSelectedCallback;
   MappedInputManager* mappedInputForHints = nullptr;
 
   std::string bookTitle;
@@ -240,6 +256,8 @@ class MenuDrawer {
   bool showingToc = false;
   bool showingBookmarks = false;
   bool showingAnnotations = false;
+  bool showingPercent = false;
+  int percentValue_ = 0;
   bool isFromToc = false;
   int tocSelectedIndex = 0;
   int tocScrollOffset = 0;

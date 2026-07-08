@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "EpubAnnotations.h"
-#include "EpubPercentSelectionActivity.h"
 #include "EpubReadingStats.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
@@ -963,6 +962,13 @@ void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
   startPageTimer();
 }
 
+void EpubActivity::onPercentDrawerSelected(int percent) {
+  toggleMenuDrawer();
+  jumpToPercent(percent);
+  updateRequired = true;
+  startPageTimer();
+}
+
 void EpubActivity::goToAnnotationPage(int spine, int page) {
   if (currentSpineIndex != spine) {
     currentSpineIndex = spine;
@@ -992,7 +998,8 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
             case MenuDrawer::MenuAction::GO_TO_PERCENT:
-              openPercentSelectionFromMenu();
+              // Handled inside MenuDrawer itself (percentProvider/percentSelectedCallback below), same
+              // as SELECT_CHAPTER/SHOW_BOOKMARKS/SHOW_ANNOTATIONS - never reaches this callback.
               break;
             case MenuDrawer::MenuAction::GO_HOME:
               goHome();
@@ -1095,6 +1102,19 @@ void EpubActivity::toggleMenuDrawer() {
       });
       menuDrawer->setAnnotationSelectCallback(
           [this](const int storageIndex) { onAnnotationDrawerSelected(storageIndex); });
+      menuDrawer->setPercentProvider([this]() -> int {
+        float bookProgressPercent = 0.0f;
+        if (epub && epub->getBookSize() > 0 && section && section->pageCount > 0) {
+          const float chapterProgress =
+              static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+          bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
+        }
+        int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
+        if (initialPercent < 0) initialPercent = 0;
+        if (initialPercent > 100) initialPercent = 100;
+        return initialPercent;
+      });
+      menuDrawer->setPercentSelectedCallback([this](const int percent) { onPercentDrawerSelected(percent); });
     }
   }
 
@@ -1358,35 +1378,6 @@ void EpubActivity::openKOReaderSyncFromMenu() {
         currentSpineIndex = newSpineIndex;
         nextPageNumber = newPageNumber;
         section.reset();
-        updateRequired = true;
-        startPageTimer();
-      }));
-}
-
-void EpubActivity::openPercentSelectionFromMenu() {
-  if (!epub) {
-    return;
-  }
-  dismissMenuDrawerForBlockingWork();
-  float bookProgressPercent = 0.0f;
-  if (epub->getBookSize() > 0 && section && section->pageCount > 0) {
-    const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
-    bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
-  }
-  int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
-  if (initialPercent < 0) initialPercent = 0;
-  if (initialPercent > 100) initialPercent = 100;
-
-  enterNewActivity(new EpubPercentSelectionActivity(
-      renderer, mappedInput, initialPercent,
-      [this]() {
-        exitActivity();
-        updateRequired = true;
-        startPageTimer();
-      },
-      [this](const int percent) {
-        exitActivity();
-        jumpToPercent(percent);
         updateRequired = true;
         startPageTimer();
       }));

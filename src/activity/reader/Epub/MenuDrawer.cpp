@@ -179,6 +179,8 @@ MenuDrawer::~MenuDrawer() {
   bookmarkDeleteCallback = nullptr;
   annotationListProvider = nullptr;
   annotationSelectCallback = nullptr;
+  percentProvider = nullptr;
+  percentSelectedCallback = nullptr;
   mappedInputForHints = nullptr;
   epub = nullptr;
 }
@@ -194,6 +196,7 @@ void MenuDrawer::show() {
   showingToc = false;
   showingBookmarks = false;
   showingAnnotations = false;
+  showingPercent = false;
   selectedIndex = 0;
   scrollOffset = 0;
   tocSelectedIndex = 0;
@@ -214,6 +217,7 @@ void MenuDrawer::hide() {
   showingToc = false;
   showingBookmarks = false;
   showingAnnotations = false;
+  showingPercent = false;
 }
 
 /**
@@ -238,6 +242,8 @@ void MenuDrawer::renderWithRefresh() {
     renderAnnotations();
   } else if (showingToc) {
     renderToc();
+  } else if (showingPercent) {
+    renderPercent();
   } else {
     drawBackground();
     drawMenuItems();
@@ -319,7 +325,7 @@ void MenuDrawer::clearScrollIndicatorArea() {
 }
 
 void MenuDrawer::refreshMainMenuSelection(int previousIndex, bool redrawScrollIndicator) {
-  if (!visible || showingToc || showingBookmarks || showingAnnotations) {
+  if (!visible || showingToc || showingBookmarks || showingAnnotations || showingPercent) {
     return;
   }
 
@@ -577,6 +583,113 @@ void MenuDrawer::renderAnnotations() {
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "");
+}
+
+/**
+ * @brief Renders the "Go to Percent" view in the same drawer panel/chrome as TOC/Bookmarks/Annotations
+ */
+void MenuDrawer::renderPercent() {
+  const int panelW = tocDrawerWidth;
+
+  drawTocBackground();
+
+  // Header band matches TOC/Bookmarks/Annotations exactly.
+  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Go to Percent", true,
+                       EpdFontFamily::BOLD);
+
+  const int dividerY = tocDrawerY + headerH;
+  renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
+
+  const int centerX = tocDrawerX + panelW / 2;
+
+  const std::string percentText = std::to_string(percentValue_) + "%";
+  const int pctWidth =
+      renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, percentText.c_str(), EpdFontFamily::BOLD);
+  const int pctY = dividerY + 40;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerX - pctWidth / 2, pctY, percentText.c_str(), true,
+                       EpdFontFamily::BOLD);
+
+  // Slider track, sized to fit the drawer panel (narrower in landscape's half-screen layout).
+  const int barWidth = std::min(300, panelW - 80);
+  const int barHeight = 16;
+  const int barX = centerX - barWidth / 2;
+  const int barY = pctY + 60;
+
+  renderer.rectangle.render(barX, barY, barWidth, barHeight, true);
+
+  const int fillWidth = (barWidth - 4) * percentValue_ / 100;
+  if (fillWidth > 0) {
+    renderer.rectangle.fill(barX + 2, barY + 2, fillWidth, barHeight - 4, true);
+  }
+
+  const int knobX = barX + 2 + fillWidth - 2;
+  renderer.rectangle.fill(knobX, barY - 4, 4, barHeight + 8, true);
+
+  // Hint text for step sizes, positioned like TOC/Bookmarks/Annotations' footer page counter.
+  const std::string hintText = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                       "Left/Right: +/-1%  Up/Down: +/-10%", panelW - 40);
+  const int hintWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, hintText.c_str());
+  constexpr int kPercentFooterAboveHints = 75;
+  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kPercentFooterAboveHints);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerX - hintWidth / 2, footerY, hintText.c_str(), true);
+
+  drawMappedButtonHints("\xC2\xAB Back", "Select", "-", "+");
+}
+
+/**
+ * @brief Handles input when the percent picker is shown
+ * @param input Reference to the input manager
+ */
+void MenuDrawer::handlePercentInput(const MappedInputManager& input) {
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
+    exitPercent();
+    lastInputTime = xTaskGetTickCount();
+    renderWithRefresh();
+    return;
+  }
+
+  if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+    showingPercent = false;
+    visible = false;
+    if (percentSelectedCallback) {
+      percentSelectedCallback(percentValue_);
+    }
+    lastInputTime = xTaskGetTickCount();
+    return;
+  }
+
+  const uint32_t currentTime = xTaskGetTickCount();
+  if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  int delta = 0;
+  if (input.isPressed(MappedInputManager::Button::Left)) {
+    delta = -1;
+  } else if (input.isPressed(MappedInputManager::Button::Right)) {
+    delta = 1;
+  } else if (input.isPressed(MappedInputManager::Button::Up)) {
+    delta = 10;
+  } else if (input.isPressed(MappedInputManager::Button::Down)) {
+    delta = -10;
+  }
+
+  if (delta != 0) {
+    percentValue_ = std::max(0, std::min(100, percentValue_ + delta));
+    lastInputTime = currentTime;
+    renderWithRefresh();
+  }
+}
+
+/**
+ * @brief Exits percent view and returns to main menu
+ */
+void MenuDrawer::exitPercent() {
+  showingPercent = false;
+  selectedIndex = 0;
+  scrollOffset = 0;
 }
 
 /**
@@ -849,6 +962,11 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     return;
   }
 
+  if (showingPercent) {
+    handlePercentInput(input);
+    return;
+  }
+
   if (input.wasReleased(MappedInputManager::Button::Back)) {
     hide();
     if (onDismiss) {
@@ -902,6 +1020,11 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
           }
         }
         showingAnnotations = true;
+        lastInputTime = xTaskGetTickCount();
+        renderWithRefresh();
+      } else if (menuItems[selectedIndex].action == MenuAction::GO_TO_PERCENT) {
+        percentValue_ = percentProvider ? percentProvider() : 0;
+        showingPercent = true;
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else {

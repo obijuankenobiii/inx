@@ -8,6 +8,7 @@
 #include <Epub.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Xtc.h>
 
@@ -15,6 +16,7 @@
 #include <cstring>
 #include <string>
 
+#include "activity/page/LibraryActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "util/StringUtils.h"
@@ -22,6 +24,24 @@
 namespace {
 constexpr uint32_t kDisplayTaskStack = 4096;
 constexpr uint32_t kWorkerTaskStack = 12288;
+
+// Pre-populate the on-disk display cache for a freshly-generated thumbnail at the exact size
+// LibraryActivity's shelf grid draws covers at, so the shelf's first render after "Generate
+// Thumbnails" hits the cache (raw read) instead of paying for a fresh decode+dither per book.
+void precacheShelfThumbnail(GfxRenderer& renderer, const std::string& thumbPath) {
+  int coverW = 0;
+  int coverH = 0;
+  LibraryActivity::getShelfCoverSize(renderer, coverW, coverH);
+  if (coverW <= 2 || coverH <= 2) {
+    return;
+  }
+  ImageRender::Options options;
+  // Must match LibraryActivity::renderShelfCard's options exactly (cropToFill included) - the display
+  // cache is keyed on these, so a mismatch here means the shelf render misses this cache entry.
+  options.cropToFill = true;
+  options.useDisplayCache = true;
+  ImageRender::create(renderer, thumbPath).render(0, 0, coverW - 2, coverH - 2, options);
+}
 
 void drawThinProgressBar(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
                          const int fillX, const int fillW) {
@@ -189,6 +209,17 @@ bool ThumbnailGeneratorActivity::processBook(const std::string& path) {
     processedCount++;
     if (ok) {
       generatedCount++;
+      // precacheShelfThumbnail draws into the shared framebuffer (it's just borrowing ImageRender's
+      // decode-then-store side effect) - take the same mutex displayTaskLoop uses before render(), so
+      // the two don't interleave writes to the same buffer or race a displayBuffer() refresh.
+      if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (SdMan.exists(thumbJpegPath.c_str())) {
+          precacheShelfThumbnail(renderer, thumbJpegPath);
+        } else if (SdMan.exists(thumbBmpPath.c_str())) {
+          precacheShelfThumbnail(renderer, thumbBmpPath);
+        }
+        xSemaphoreGive(renderingMutex);
+      }
     } else {
       failedCount++;
     }
@@ -207,6 +238,10 @@ bool ThumbnailGeneratorActivity::processBook(const std::string& path) {
     processedCount++;
     if (ok) {
       generatedCount++;
+      if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        precacheShelfThumbnail(renderer, thumbBmpPath);
+        xSemaphoreGive(renderingMutex);
+      }
     } else {
       failedCount++;
     }
