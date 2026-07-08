@@ -44,8 +44,7 @@ esp_err_t koreaderEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
-int doRequest(const std::string& url, const std::string& method,
-              const std::string* body, std::string* responseBody) {
+int doRequest(const std::string& url, const std::string& method, const std::string* body, std::string* responseBody) {
   KoreaderCtx ctx = {responseBody};
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
@@ -100,9 +99,11 @@ int doRequest(const std::string& url, const std::string& method,
 
 #else
 
-int doRequest(const std::string& url, const std::string& method,
-              const std::string* body, std::string* responseBody) {
-  (void)url; (void)method; (void)body; (void)responseBody;
+int doRequest(const std::string& url, const std::string& method, const std::string* body, std::string* responseBody) {
+  (void)url;
+  (void)method;
+  (void)body;
+  (void)responseBody;
   Serial.printf("[%lu] [KOSync] Simulator does not support KOReaderSync HTTP requests\n", millis());
   return -1;
 }
@@ -136,7 +137,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
 }
 
 KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& documentHash,
-                                                           KOReaderProgress& outProgress) {
+                                                          KOReaderProgress& outProgress) {
   if (!KOREADER_STORE.hasCredentials()) {
     Serial.printf("[%lu] [KOSync] No credentials configured\n", millis());
     return NO_CREDENTIALS;

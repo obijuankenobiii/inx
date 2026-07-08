@@ -628,8 +628,8 @@ void MenuDrawer::renderPercent() {
   renderer.rectangle.fill(knobX, barY - 4, 4, barHeight + 8, true);
 
   // Hint text for step sizes, positioned like TOC/Bookmarks/Annotations' footer page counter.
-  const std::string hintText = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
-                                                       "Left/Right: +/-1%  Up/Down: +/-10%", panelW - 40);
+  const std::string hintText =
+      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Left/Right: +/-1%  Up/Down: +/-10%", panelW - 40);
   const int hintWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, hintText.c_str());
   constexpr int kPercentFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kPercentFooterAboveHints);

@@ -16,9 +16,8 @@
 #include <iterator>
 #include <string>
 
-#include "CalibreSettingsActivity.h"
 #include "../OpdsServerListActivity.h"
-#include "ClockStylePickerActivity.h"
+#include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
 #include "KOReaderSettingsActivity.h"

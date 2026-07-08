@@ -19,7 +19,7 @@ constexpr char OPDS_FILE[] = "/.system/opds_servers.bin";
 
 constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73, 0x50, 0x6F, 0x69, 0x6E, 0x74};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
-}
+}  // namespace
 
 void OpdsServerStore::obfuscate(std::string& data) const {
   for (size_t i = 0; i < data.size(); i++) {
@@ -89,10 +89,9 @@ bool OpdsServerStore::loadFromFile() {
   return true;
 }
 
-bool OpdsServerStore::addServer(const std::string& name, const std::string& url,
-                                const std::string& username, const std::string& password) {
-  auto existing = find_if(servers.begin(), servers.end(),
-                          [&name](const OpdsServerEntry& s) { return s.name == name; });
+bool OpdsServerStore::addServer(const std::string& name, const std::string& url, const std::string& username,
+                                const std::string& password) {
+  auto existing = find_if(servers.begin(), servers.end(), [&name](const OpdsServerEntry& s) { return s.name == name; });
   if (existing != servers.end()) {
     existing->url = url;
     existing->username = username;
@@ -112,8 +111,7 @@ bool OpdsServerStore::addServer(const std::string& name, const std::string& url,
 }
 
 bool OpdsServerStore::removeServer(const std::string& name) {
-  auto existing = find_if(servers.begin(), servers.end(),
-                          [&name](const OpdsServerEntry& s) { return s.name == name; });
+  auto existing = find_if(servers.begin(), servers.end(), [&name](const OpdsServerEntry& s) { return s.name == name; });
   if (existing != servers.end()) {
     servers.erase(existing);
     Serial.printf("[%lu] [OSS] Removed server: %s\n", millis(), name.c_str());
@@ -123,8 +121,7 @@ bool OpdsServerStore::removeServer(const std::string& name) {
 }
 
 const OpdsServerEntry* OpdsServerStore::findServer(const std::string& name) const {
-  auto existing = find_if(servers.begin(), servers.end(),
-                          [&name](const OpdsServerEntry& s) { return s.name == name; });
+  auto existing = find_if(servers.begin(), servers.end(), [&name](const OpdsServerEntry& s) { return s.name == name; });
   if (existing != servers.end()) {
     return &*existing;
   }

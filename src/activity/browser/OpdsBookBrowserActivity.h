@@ -29,10 +29,8 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
                                    const std::function<void()>& onGoToRecent)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                   const std::function<void()>& onGoToRecent,
-                                   const std::string& serverUrl,
-                                   const std::string& serverUsername,
-                                   const std::string& serverPassword)
+                                   const std::function<void()>& onGoToRecent, const std::string& serverUrl,
+                                   const std::string& serverUsername, const std::string& serverPassword)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput),
         onGoToRecent(onGoToRecent),
         serverUrl(serverUrl),

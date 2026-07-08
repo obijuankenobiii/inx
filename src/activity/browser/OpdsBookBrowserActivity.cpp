@@ -330,7 +330,6 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   downloadTotal = 0;
   updateRequired = true;
 
-  
   const char* activeUrl = serverUrl.c_str();
   if (activeUrl[0] == '\0') {
     activeUrl = SETTINGS.opdsServerUrl;
@@ -348,13 +347,12 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   std::string user = serverUsername.empty() ? SETTINGS.opdsUsername : serverUsername;
   std::string pass = serverPassword.empty() ? SETTINGS.opdsPassword : serverPassword;
 
-  const auto result =
-      HttpDownloader::downloadToFile(downloadUrl, filename, user, pass,
-                                     [this](const size_t downloaded, const size_t total) {
-        downloadProgress = downloaded;
-        downloadTotal = total;
-        updateRequired = true;
-      });
+  const auto result = HttpDownloader::downloadToFile(downloadUrl, filename, user, pass,
+                                                     [this](const size_t downloaded, const size_t total) {
+                                                       downloadProgress = downloaded;
+                                                       downloadTotal = total;
+                                                       updateRequired = true;
+                                                     });
 
   if (result == HttpDownloader::OK) {
     Serial.printf("[%lu] [OPDS] Download complete: %s\n", millis(), filename.c_str());
