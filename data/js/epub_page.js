@@ -78,6 +78,10 @@ function escapeHtml(s) {
   return s ? s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) : "";
 }
 
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;");
+}
+
 function formatFileSize(bytes) {
   if (!bytes) return "0 B";
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -224,6 +228,81 @@ async function promptNewFolder() {
   }
 }
 
+function getSelectedItems() {
+  return Array.from(document.querySelectorAll(".select-box:checked")).map((box) => ({
+    path: box.dataset.path || "",
+    name: box.dataset.name || "",
+    type: box.dataset.type || "file",
+  })).filter((item) => item.path);
+}
+
+function updateBulkActions() {
+  const selected = getSelectedItems();
+  const bar = document.getElementById("bulk-actions");
+  const count = document.getElementById("bulk-count");
+  if (bar) bar.classList.toggle("active", selected.length > 0);
+  if (count) count.textContent = selected.length + " selected";
+}
+
+async function deleteOnePath(path, type) {
+  const formData = new FormData();
+  formData.append("path", path);
+  formData.append("type", type);
+  const res = await fetch("/delete", { method: "POST", body: formData });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+async function deletePathRecursive(path, type) {
+  if (type === "folder") {
+    const res = await fetch("/api/files?path=" + encodeURIComponent(path));
+    if (!res.ok) throw new Error(await res.text());
+    const children = await res.json();
+    for (const child of children) {
+      const childPath = path.replace(/\/$/, "") + "/" + child.name;
+      await deletePathRecursive(childPath, child.isDirectory ? "folder" : "file");
+    }
+  }
+  await deleteOnePath(path, type);
+}
+
+async function deleteSelectedItems() {
+  const selected = getSelectedItems();
+  if (!selected.length) return;
+  const folders = selected.filter((item) => item.type === "folder").length;
+  const books = selected.length - folders;
+  const label = [
+    books ? books + " book" + (books === 1 ? "" : "s") : "",
+    folders ? folders + " folder" + (folders === 1 ? "" : "s") : "",
+  ].filter(Boolean).join(" and ");
+  if (!confirm("Delete " + label + "? Folders and their contents will be deleted.")) return;
+
+  const button = document.getElementById("bulk-delete-btn");
+  if (button) button.disabled = true;
+  clearModalLog("modalLog");
+  hideEpubFolderImportResults();
+  setUploadStatus("Deleting…", "0/" + selected.length, 0, true);
+
+  let deleted = 0;
+  const failed = [];
+  for (let i = 0; i < selected.length; i++) {
+    const item = selected[i];
+    setUploadStatus("Deleting " + item.name, i + 1 + "/" + selected.length, Math.round((i / selected.length) * 100), true);
+    try {
+      await deletePathRecursive(item.path, item.type);
+      deleted++;
+      addModalLog("modalLog", "Deleted: " + item.name, "success");
+    } catch (e) {
+      failed.push(item.name);
+      addModalLog("modalLog", "Delete failed: " + item.name + " (" + e.message + ")", "error");
+    }
+  }
+
+  setUploadStatus("Delete complete", deleted + "/" + selected.length, 100, true);
+  showEpubFolderImportResults(deleted, failed, selected.map((item) => ({ name: item.name })));
+  if (button) button.disabled = false;
+  await hydrate();
+}
+
 function addDropHandlers(el, onDrop) {
   ["dragenter", "dragover"].forEach((evt) =>
     el.addEventListener(evt, (e) => {
@@ -294,6 +373,7 @@ async function hydrate() {
     if (!visible.length) {
       table.innerHTML =
         '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg><div>No folders or EPUB files here yet</div></div>';
+      updateBulkActions();
       return;
     }
     visible.sort((a, b) =>
@@ -303,24 +383,30 @@ async function hydrate() {
     let html = '<div class="file-list">';
     for (const item of visible) {
       const itemPath = currentPath.replace(/\/$/, "") + "/" + item.name;
+      const itemPathAttr = escapeAttr(itemPath);
+      const itemNameAttr = escapeAttr(item.name);
       if (item.isDirectory) {
         html +=
-          '<a class="file-row is-folder folder-row" data-path="' + escapeHtml(itemPath) + '" href="/epub?path=' +
-          encodeURIComponent(itemPath) + '">' +
+          '<div class="file-row is-folder folder-row" data-path="' + itemPathAttr + '">' +
+          '<input class="select-box" type="checkbox" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr + '" data-type="folder" onchange="updateBulkActions()">' +
+          '<a class="row-main" href="/epub?path=' + encodeURIComponent(itemPath) + '">' +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '</span><span class="meta">Folder</span>' +
-          '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a>';
+          '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a></div>';
       } else {
         html +=
-          '<button type="button" class="file-row epub-file" onclick="window.location.href=\'/epub-viewer.html?path=' +
+          '<div class="file-row epub-file">' +
+          '<input class="select-box" type="checkbox" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr + '" data-type="file" onchange="updateBulkActions()">' +
+          '<button type="button" class="row-main" onclick="window.location.href=\'/epub-viewer.html?path=' +
           encodeURIComponent(itemPath) + "'\">" +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17V5.5A1 1 0 0 1 6 4.5Z"/><path d="M7.5 19.5A2.5 2.5 0 0 1 7.5 14H18"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '<span class="epub-badge">EPUB</span></span>' +
-          '<span class="meta">' + formatFileSize(item.size) + '</span></button>';
+          '<span class="meta">' + formatFileSize(item.size) + '</span></button></div>';
       }
     }
     html += "</div>";
     table.innerHTML = html;
+    updateBulkActions();
 
     table.querySelectorAll(".folder-row").forEach((row) => {
       const folderPath = row.getAttribute("data-path");
@@ -330,6 +416,7 @@ async function hydrate() {
     });
   } catch (e) {
     table.innerHTML = '<div class="empty-state">Unable to load folder</div>';
+    updateBulkActions();
   }
 }
 

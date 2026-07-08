@@ -280,6 +280,10 @@ void EInkDisplay::begin() {
 
   // Initialize to white
   memset(frameBuffer0, 0xFF, bufferSize);
+  isScreenOn = false;
+  customLutActive = false;
+  inGrayscaleMode = false;
+  drawGrayscale = false;
   _x3RedRamSynced = false;
   _x3InitialFullSyncsRemaining = _x3Mode ? 1 : 0;
   _x3ForceFullSyncNext = false;

@@ -124,10 +124,10 @@ class EInkDisplay {
   SPISettings spiSettings;
 
   // State
-  bool isScreenOn;
-  bool customLutActive;
-  bool inGrayscaleMode;
-  bool drawGrayscale;
+  bool isScreenOn = false;
+  bool customLutActive = false;
+  bool inGrayscaleMode = false;
+  bool drawGrayscale = false;
 
   // Low-level display control
   void resetDisplay();
