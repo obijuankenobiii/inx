@@ -115,10 +115,6 @@ class EpubActivity final : public ActivityWithSubactivity {
   bool lastPageHadImages = false;
   /** Previous page: image union bbox at least half screen in both dimensions (for smart HALF refresh). */
   bool lastPageHadLargeImage = false;
-  /** Previous page rendered a high-quality (GRAY2) image. Its own quality LUT cleans up ghosting for
-   * itself, but that cleanup doesn't help the page that follows if that one isn't also high-quality -
-   * this page needs its own half refresh in that case (see smartRefreshAfterHighQuality). */
-  bool lastPageWasHighQuality = false;
 
   int lastGoodSpineIndex_ = 0;
   int lastGoodPageNumber_ = 0;
