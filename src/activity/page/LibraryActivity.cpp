@@ -1341,6 +1341,7 @@ void LibraryActivity::render() const {
     suppressShelfSelectionHighlight_ = canUseShelfBuffer;
     renderLibraryList(gridStartY);
     suppressShelfSelectionHighlight_ = false;
+
     drawButtonHints();
   }
 
@@ -2337,7 +2338,7 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   const int coverH = cardH;
 
   if (selected) {
-    constexpr int kSelectionBorder = 2;
+    constexpr int kSelectionBorder = 4;
     renderer.rectangle.fill(coverX - kSelectionBorder, coverY - kSelectionBorder, coverW + kSelectionBorder * 2,
                             coverH + kSelectionBorder * 2, true);
   }
@@ -2425,9 +2426,10 @@ bool LibraryActivity::restoreLibraryShelfBuffer() const {
 }
 
 void LibraryActivity::freeLibraryShelfBuffer() const {
-  if (libraryShelfPageBuffer_) {
-    free(libraryShelfPageBuffer_);
-    libraryShelfPageBuffer_ = nullptr;
+  uint8_t* buffer = libraryShelfPageBuffer_;
+  libraryShelfPageBuffer_ = nullptr;
+  if (buffer) {
+    std::free(buffer);
   }
   libraryShelfPageBufferStored_ = false;
   libraryShelfPageBufferPage_ = -1;
