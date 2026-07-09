@@ -137,7 +137,7 @@ constexpr int LIB_GRID_LABEL_H = 28;
 constexpr int LIB_SHELF_COLS = 3;
 constexpr int LIB_SHELF_ROWS = 3;
 constexpr int LIB_SHELF_GAP_X = 15;
-constexpr int LIB_SHELF_GAP_Y = 15;
+constexpr int LIB_SHELF_GAP_Y = 12;
 constexpr int LIB_SHELF_OUTER_PAD_X = 14;
 constexpr int LIB_SHELF_OUTER_PAD_Y = 10;
 constexpr int LIB_SHELF_BADGE_SIZE = 22;
@@ -2296,7 +2296,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH) {
   const int startY = TAB_BAR_HEIGHT * 2 - 3;
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight() - 30;
+  const int screenH = renderer.getScreenHeight() - 10;
   const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;
   const int availableH = screenH - startY - LIB_SHELF_OUTER_PAD_Y * 2;
   // Card size must account for (COLS-1)/(ROWS-1) inter-card gaps, not a single flat gap - otherwise a
