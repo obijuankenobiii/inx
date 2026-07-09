@@ -48,7 +48,8 @@ const SettingInfo systemPageSettingsX3[] = {
                       GroupType::IMAGE),
     SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality, {"Low", "Medium", "High"},
                       GroupType::IMAGE),
-    SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
+    SettingInfo::Enum("Thumbnail corners", &SystemSetting::bitmapRoundedCorners, {"Square", "Rounded", "Subtle"},
+                      GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
@@ -104,7 +105,8 @@ const SettingInfo systemPageSettingsX4[] = {
                       GroupType::IMAGE),
     SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality, {"Low", "Medium", "High"},
                       GroupType::IMAGE),
-    SettingInfo::Toggle("Rounded thumbnails", &SystemSetting::bitmapRoundedCorners, GroupType::IMAGE),
+    SettingInfo::Enum("Thumbnail corners", &SystemSetting::bitmapRoundedCorners, {"Square", "Rounded", "Subtle"},
+                      GroupType::IMAGE),
 
     SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,

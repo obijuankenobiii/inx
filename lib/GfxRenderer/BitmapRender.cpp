@@ -71,7 +71,10 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
   if (drawnW < 3 || drawnH < 3) {
     return;
   }
-  const int r = roundedRectCornerRadius(drawnW, drawnH);
+  const bool subtle = style == BitmapRender::RoundedOutside::SubtlePaperOutside ||
+                      style == BitmapRender::RoundedOutside::SubtleSparseInkAlignedOutside;
+  const int r = subtle ? std::max(2, roundedRectCornerRadius(drawnW, drawnH) / 2)
+                       : roundedRectCornerRadius(drawnW, drawnH);
   if (r < 1) {
     return;
   }
@@ -82,7 +85,8 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
     if (px < 0 || px >= sw || py < 0 || py >= sh) {
       return;
     }
-    if (style == BitmapRender::RoundedOutside::PaperOutside) {
+    if (style == BitmapRender::RoundedOutside::PaperOutside ||
+        style == BitmapRender::RoundedOutside::SubtlePaperOutside) {
       gfx.drawPixel(px, py, false);
     } else {
       // Screen-fixed 1/4 tone so corner touch-up matches carousel/list dithers that use the same lattice
@@ -237,7 +241,9 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   };
 
   auto emitPixel = [&](const int screenX, const int screenY, const uint8_t val) {
-    if (roundedOutside == BitmapRender::RoundedOutside::PaperOutside && maskW > 0 && maskH > 0) {
+    if ((roundedOutside == BitmapRender::RoundedOutside::PaperOutside ||
+         roundedOutside == BitmapRender::RoundedOutside::SubtlePaperOutside) &&
+        maskW > 0 && maskH > 0) {
       if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }
@@ -378,7 +384,9 @@ void BitmapRender::oneBit(const Bitmap& bitmap, const int x, const int y, const 
   };
 
   auto emitPixel1 = [&](const int screenX, const int screenY, const uint8_t val) {
-    if (roundedOutside == BitmapRender::RoundedOutside::PaperOutside && maskW > 0 && maskH > 0) {
+    if ((roundedOutside == BitmapRender::RoundedOutside::PaperOutside ||
+         roundedOutside == BitmapRender::RoundedOutside::SubtlePaperOutside) &&
+        maskW > 0 && maskH > 0) {
       if (!pixelInRoundedRectFillShape(screenX, screenY, x, y, maskW, maskH)) {
         return;
       }

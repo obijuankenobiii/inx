@@ -16,6 +16,8 @@ class BitmapRender {
     None = 0,
     PaperOutside = 1,
     SparseInkAlignedOutside = 2,
+    SubtlePaperOutside = 3,
+    SubtleSparseInkAlignedOutside = 4,
   };
 
   enum class Orientation : uint8_t {

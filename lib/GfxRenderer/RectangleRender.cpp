@@ -6,12 +6,12 @@
 #include "GfxRenderer.h"
 
 namespace {
-int RoundedRectCornerRadius(const int width, const int height) {
+int RoundedRectCornerRadius(const int width, const int height, const bool subtle) {
   const int m = std::min(width, height);
   if (m < 5) {
     return 1;
   }
-  int r = m / 10;
+  int r = m / (subtle ? 20 : 10);
   if (r < 2) {
     r = 2;
   }
@@ -31,7 +31,7 @@ int CornerSpanFromRy(const int r, const int ry) {
 }  // namespace
 
 void RectangleRender::render(const int x, const int y, const int width, const int height, const bool state,
-                             const bool rounded) const {
+                             const bool rounded, const bool subtle) const {
   if (!rounded) {
     gfx.line.render(x, y, x + width - 1, y, state);
     gfx.line.render(x + width - 1, y, x + width - 1, y + height - 1, state);
@@ -40,7 +40,7 @@ void RectangleRender::render(const int x, const int y, const int width, const in
     return;
   }
 
-  const int radius = RoundedRectCornerRadius(width, height);
+  const int radius = RoundedRectCornerRadius(width, height, subtle);
   const int left = x + radius;
   const int right = x + width - radius - 1;
   if (right > left) {
@@ -122,17 +122,18 @@ void RectangleRender::dotted(const int x, const int y, const int width, const in
 }
 
 void RectangleRender::fill(const int x, const int y, const int width, const int height, const bool state,
-                           const bool rounded) const {
+                           const bool rounded, const bool subtle) const {
   fill(x, y, width, height,
-       state ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper), rounded);
+       state ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper), rounded,
+       subtle);
 }
 
 void RectangleRender::fill(const int x, const int y, const int width, const int height, const int tone,
-                           const bool rounded) const {
+                           const bool rounded, const bool subtle) const {
   const auto fillTone = static_cast<GfxRenderer::FillTone>(tone);
   if (fillTone == GfxRenderer::FillTone::Gray) {
     if (rounded) {
-      fill(x, y, width, height, static_cast<int>(GfxRenderer::FillTone::Ink), true);
+      fill(x, y, width, height, static_cast<int>(GfxRenderer::FillTone::Ink), true, subtle);
       return;
     }
     const int x1 = std::max(0, x);
@@ -155,7 +156,7 @@ void RectangleRender::fill(const int x, const int y, const int width, const int 
     return;
   }
 
-  const int radius = RoundedRectCornerRadius(width, height);
+  const int radius = RoundedRectCornerRadius(width, height, subtle);
   for (int fillY = y + radius; fillY < y + height - radius; fillY++) {
     gfx.line.render(x, fillY, x + width - 1, fillY, state);
   }

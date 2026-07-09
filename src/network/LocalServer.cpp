@@ -1720,7 +1720,10 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
       changed = true;
     } else if (strcmp(key, "bitmapRoundedCorners") == 0) {
-      SETTINGS.bitmapRoundedCorners = (uint8_t)value ? 1 : 0;
+      int cornerStyle = static_cast<int>(value);
+      if (cornerStyle < 0) cornerStyle = 0;
+      if (cornerStyle > 2) cornerStyle = 2;
+      SETTINGS.bitmapRoundedCorners = static_cast<uint8_t>(cornerStyle);
       changed = true;
     } else if (strcmp(key, "opdsServerUrl") == 0) {
       copySettingString(SETTINGS.opdsServerUrl, sizeof(SETTINGS.opdsServerUrl), kv.value().as<const char*>());

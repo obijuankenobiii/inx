@@ -436,7 +436,7 @@ bool SystemSetting::loadFromFile() {
     }
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, bitmapRoundedCorners);
-      if (bitmapRoundedCorners > 1) {
+      if (bitmapRoundedCorners > 2) {
         bitmapRoundedCorners = 0;
       }
       ++settingsRead;

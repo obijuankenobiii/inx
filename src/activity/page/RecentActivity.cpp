@@ -109,7 +109,8 @@ static void drawRecentNoCoverPlaceholder(GfxRenderer& renderer, int x, int y, in
     return;
   }
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-  renderer.rectangle.fill(x, y, w, h, false, rr);
+  const bool subtle = SETTINGS.bitmapRoundedCorners == 2;
+  renderer.rectangle.fill(x, y, w, h, false, rr, subtle);
   if (!rr) {
     renderer.rectangle.render(x, y, w, h, true, false);
     if (w > 6 && h > 6) {
@@ -292,11 +293,17 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
     ImageRender::Options options;
     options.cropToFill = true;
     options.useDisplayCache = true;
-    options.roundedOutside =
-        SETTINGS.bitmapRoundedCorners == 0
-            ? BitmapRender::RoundedOutside::None
-            : (roundedCornerBackdropIsDither ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
-                                             : BitmapRender::RoundedOutside::PaperOutside);
+    if (SETTINGS.bitmapRoundedCorners == 0) {
+      options.roundedOutside = BitmapRender::RoundedOutside::None;
+    } else if (SETTINGS.bitmapRoundedCorners == 2) {
+      options.roundedOutside = roundedCornerBackdropIsDither
+                                   ? BitmapRender::RoundedOutside::SubtleSparseInkAlignedOutside
+                                   : BitmapRender::RoundedOutside::SubtlePaperOutside;
+    } else {
+      options.roundedOutside = roundedCornerBackdropIsDither
+                                   ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
+                                   : BitmapRender::RoundedOutside::PaperOutside;
+    }
 
     renderer.rectangle.fill(x, y, w, h, false);
     if (ImageRender::create(renderer, imagePath).render(x, y, w, h, options)) {

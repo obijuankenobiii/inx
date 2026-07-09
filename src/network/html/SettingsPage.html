@@ -151,8 +151,8 @@
         <div class="setting-control"><select id="sleepImageQuality"></select></div>
       </div>
       <div class="setting-item">
-        <div><div class="setting-label">Rounded thumbnails</div></div>
-        <div class="setting-control"><label class="toggle-switch"><input id="bitmapRoundedCorners" type="checkbox"><span class="toggle-slider"></span></label></div>
+        <div><div class="setting-label">Thumbnail corners</div></div>
+        <div class="setting-control"><select id="bitmapRoundedCorners"></select></div>
       </div>
     </div>
     <div class="settings-section">
@@ -414,6 +414,7 @@ const options = {
   shortPwrBtn: ["Ignore", "Sleep", "Page Refresh"],
   sleepTimeout: ["1 min", "5 min", "10 min", "15 min", "30 min"],
   bootSetting: ["Recent Books", "Home Page"],
+  bitmapRoundedCorners: ["Square", "Rounded", "Subtle"],
   fontSize: ["Extra Small", "Small", "Medium", "Large", "X Large"],
   lineSpacing: ["Tight", "Normal", "Wide", "Wider", "Loose"],
   paragraphAlignment: ["Justify", "Left", "Center", "Right", "Css"],
@@ -429,7 +430,7 @@ const options = {
   statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
 };
 const boolSettings = [
-  "bitmapRoundedCorners", "useLibraryIndex", "librarySortEnabled",
+  "useLibraryIndex", "librarySortEnabled",
   "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
   "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled", "bionicReadingEnabled",
   "textAntiAliasing", "readerSmartRefreshOnImages"
