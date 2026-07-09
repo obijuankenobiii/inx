@@ -28,23 +28,6 @@ bool needsGrayscalePass(const PageImage& image) {
          image.getHeight() > kSmallImageGrayscaleLimit;
 }
 
-void drawImagePlaceholderDots(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
-  if (width <= 20 || height <= 20) {
-    return;
-  }
-
-  const int dotSize = std::max(4, std::min(12, std::min(width, height) / 12));
-  const int dotGap = dotSize * 2;
-  const int totalWidth = dotSize * 3 + dotGap * 2;
-  const int dotY = y + (height - dotSize) / 2;
-  int dotX = x + (width - totalWidth) / 2;
-
-  for (int i = 0; i < 3; ++i) {
-    renderer.rectangle.fill(dotX, dotY, dotSize, dotSize, true, true);
-    dotX += dotSize + dotGap;
-  }
-}
-
 }  // namespace
 
 /**
@@ -597,7 +580,6 @@ void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yO
       if (img.getWidth() > 8 && img.getHeight() > 8) {
         renderer.rectangle.render(rx + 3, ry + 3, img.getWidth() - 6, img.getHeight() - 6, true);
       }
-      drawImagePlaceholderDots(renderer, rx, ry, img.getWidth(), img.getHeight());
     } else {
       renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), false);
     }

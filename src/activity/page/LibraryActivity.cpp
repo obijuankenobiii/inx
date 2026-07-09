@@ -2336,15 +2336,16 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   const int coverY = originY + row * (cardH + LIB_SHELF_GAP_Y);
   const int coverW = cardW;
   const int coverH = cardH;
+  const bool rounded = SETTINGS.bitmapRoundedCorners != 0;
 
   if (selected) {
     constexpr int kSelectionBorder = 4;
     renderer.rectangle.fill(coverX - kSelectionBorder, coverY - kSelectionBorder, coverW + kSelectionBorder * 2,
-                            coverH + kSelectionBorder * 2, true);
+                            coverH + kSelectionBorder * 2, true, rounded);
   }
 
-  renderer.rectangle.fill(coverX, coverY, coverW, coverH, false);
-  renderer.rectangle.render(coverX, coverY, coverW, coverH, true);
+  renderer.rectangle.fill(coverX, coverY, coverW, coverH, false, rounded);
+  renderer.rectangle.render(coverX, coverY, coverW, coverH, true, rounded);
 
   bool drewCover = false;
   const std::string imagePath = getShelfImagePath(item.path);
@@ -2352,6 +2353,8 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
     ImageRender::Options options;
     options.cropToFill = true;
     options.useDisplayCache = true;
+    options.roundedOutside =
+        rounded ? BitmapRender::RoundedOutside::PaperOutside : BitmapRender::RoundedOutside::None;
     drewCover =
         ImageRender::create(renderer, imagePath).render(coverX + 1, coverY + 1, coverW - 2, coverH - 2, options);
   }
