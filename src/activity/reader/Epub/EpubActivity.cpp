@@ -1698,8 +1698,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   }
 
+  // Medium uses the same BW restore/rebase lifecycle as text AA. Without a
+  // snapshot when AA is disabled, the non-preserving grayscale cleanup leaves
+  // visible differential ghosting on the following page.
   const bool bwStored =
-      (skipImagesInPageRender || (needsTextAntiAliasPass && !highQuality)) && renderer.storeBwBuffer();
+      (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
+      renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
   const bool displayImagePlaceholder = displayWithQualityPass;
   auto displayPageBuffer = [this]() {
@@ -1746,7 +1750,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     });
   } else if (mediumImageGrayscale || (needsTextAntiAliasPass && bwStored)) {
     ImageRender::displayGrayscale(
-        renderer, /*quality=*/false, /*preserveText=*/needsTextAntiAliasPass && bwStored, [&] {
+        renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
           renderer.clearScreen(0x00);
           if (needsTextAntiAliasPass && bwStored) {
             page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
