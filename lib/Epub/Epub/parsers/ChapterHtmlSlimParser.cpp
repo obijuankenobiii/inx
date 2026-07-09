@@ -189,7 +189,9 @@ bool hasExplicitSmallCapsHint(const char* tagName, const std::string& classAttr,
   if (tagName == nullptr || std::strcmp(tagName, "span") != 0) {
     return false;
   }
-  return containsAsciiInsensitive(classAttr, "smallcaps") || containsAsciiInsensitive(classAttr, "small-caps") ||
+  return containsAsciiInsensitive(classAttr, "small") || containsAsciiInsensitive(idAttr, "small") || 
+          containsAsciiInsensitive(classAttr, "small_caps") || containsAsciiInsensitive(idAttr, "small_caps") || 
+          containsAsciiInsensitive(classAttr, "smallcaps") || containsAsciiInsensitive(classAttr, "small-caps") ||
          containsAsciiInsensitive(idAttr, "smallcaps") || containsAsciiInsensitive(idAttr, "small-caps") ||
          containsAsciiInsensitive(styleAttr, "small-caps");
 }
