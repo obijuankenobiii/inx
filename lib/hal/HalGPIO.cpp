@@ -10,6 +10,9 @@
 #include <esp_sleep.h>
 #include <time.h>
 
+#include <algorithm>
+#include <cstdlib>
+
 namespace X3GPIO {
 
 struct X3ProbeResult {
@@ -245,6 +248,124 @@ bool HalGPIO::wasReleased(uint8_t buttonIndex) const { return inputMgr.wasReleas
 bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
+
+HalGPIO::MotionGesture HalGPIO::readMotionGesture(const uint8_t orientation, const uint8_t mode,
+                                                 const uint8_t sensitivity) {
+  if (!deviceIsX3()) {
+    return MotionGesture::None;
+  }
+  if (mode == 0 && !motionSensorInitialized) {
+    return MotionGesture::None;
+  }
+
+  const unsigned long now = millis();
+  if (motionLastPollMs != 0 && now - motionLastPollMs < 50) {
+    return MotionGesture::None;
+  }
+  motionLastPollMs = now;
+
+  X3GPIO::beginX3I2C();
+  if (!motionSensorInitialized) {
+    uint8_t whoami = 0;
+    if (X3GPIO::readI2CReg8(I2C_ADDR_QMI8658, QMI8658_WHO_AM_I_REG, &whoami) &&
+        whoami == QMI8658_WHO_AM_I_VALUE) {
+      motionSensorAddress = I2C_ADDR_QMI8658;
+    } else if (X3GPIO::readI2CReg8(I2C_ADDR_QMI8658_ALT, QMI8658_WHO_AM_I_REG, &whoami) &&
+               whoami == QMI8658_WHO_AM_I_VALUE) {
+      motionSensorAddress = I2C_ADDR_QMI8658_ALT;
+    } else {
+      X3GPIO::endX3I2C();
+      return MotionGesture::None;
+    }
+
+    const uint8_t ctrl1 = 0x60;  // Register auto-increment.
+    const uint8_t ctrl3 = 0x58;  // Gyroscope: +/-512 dps, 28 Hz.
+    const uint8_t ctrl7 = 0x02;  // Enable gyroscope only.
+    const bool configured = X3GPIO::writeI2CRegs(motionSensorAddress, QMI8658_CTRL1_REG, &ctrl1, 1) &&
+                            X3GPIO::writeI2CRegs(motionSensorAddress, QMI8658_CTRL3_REG, &ctrl3, 1) &&
+                            X3GPIO::writeI2CRegs(motionSensorAddress, QMI8658_CTRL7_REG, &ctrl7, 1);
+    if (!configured) {
+      motionSensorAddress = 0;
+      X3GPIO::endX3I2C();
+      return MotionGesture::None;
+    }
+    motionSensorInitialized = true;
+    motionSensorStartedMs = now;
+    motionLastGestureMs = now;
+  }
+
+  if (mode == 0) {
+    const uint8_t ctrl7 = 0x00;
+    const uint8_t ctrl1 = 0x61;
+    X3GPIO::writeI2CRegs(motionSensorAddress, QMI8658_CTRL7_REG, &ctrl7, 1);
+    X3GPIO::writeI2CRegs(motionSensorAddress, QMI8658_CTRL1_REG, &ctrl1, 1);
+    motionSensorInitialized = false;
+    motionGestureInProgress = false;
+    X3GPIO::endX3I2C();
+    return MotionGesture::None;
+  }
+
+  uint8_t raw[6] = {};
+  const bool readOk = X3GPIO::readI2CRegs(motionSensorAddress, QMI8658_GYRO_X_L_REG, raw,
+                                         static_cast<uint8_t>(sizeof(raw)));
+  X3GPIO::endX3I2C();
+  if (!readOk) {
+    return MotionGesture::None;
+  }
+
+  if (now - motionSensorStartedMs < 300) {
+    return MotionGesture::None;
+  }
+
+  const int16_t gx = static_cast<int16_t>((static_cast<uint16_t>(raw[1]) << 8) | raw[0]);
+  const int16_t gy = static_cast<int16_t>((static_cast<uint16_t>(raw[3]) << 8) | raw[2]);
+  int32_t axis = 0;
+  switch (orientation) {
+    case 1:  // Landscape clockwise
+      axis = -static_cast<int32_t>(gy);
+      break;
+    case 2:  // Portrait inverted
+      axis = -static_cast<int32_t>(gx);
+      break;
+    case 3:  // Landscape counter-clockwise
+      axis = gy;
+      break;
+    default:
+      axis = gx;
+      break;
+  }
+  if (mode == 2) {
+    axis = -axis;
+  }
+
+  constexpr int32_t kGyroLsbPerDps = 64;
+  constexpr int32_t kNeutralThreshold = 50 * kGyroLsbPerDps;
+  const int32_t triggerDps = sensitivity >= 2 ? 180 : sensitivity == 0 ? 360 : 270;
+  const int32_t triggerThreshold = triggerDps * kGyroLsbPerDps;
+
+  if (motionGestureInProgress) {
+    if (std::abs(axis) < kNeutralThreshold) {
+      motionGestureInProgress = false;
+    }
+    return MotionGesture::None;
+  }
+
+  if (now - motionLastGestureMs < 600) {
+    return MotionGesture::None;
+  }
+
+  if (axis > triggerThreshold) {
+    motionGestureInProgress = true;
+    motionLastGestureMs = now;
+    return MotionGesture::Next;
+  }
+  if (axis < -triggerThreshold) {
+    motionGestureInProgress = true;
+    motionLastGestureMs = now;
+    return MotionGesture::Previous;
+  }
+  return MotionGesture::None;
+}
 
 void HalGPIO::startDeepSleep() {
   while (inputMgr.isPressed(BTN_POWER)) {

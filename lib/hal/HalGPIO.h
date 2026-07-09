@@ -38,6 +38,10 @@
 #define I2C_ADDR_QMI8658_ALT 0x6A
 #define QMI8658_WHO_AM_I_REG 0x00
 #define QMI8658_WHO_AM_I_VALUE 0x05
+#define QMI8658_CTRL1_REG 0x02
+#define QMI8658_CTRL3_REG 0x04
+#define QMI8658_CTRL7_REG 0x08
+#define QMI8658_GYRO_X_L_REG 0x3B
 
 class HalGPIO {
 #if CROSSPOINT_EMULATED == 0
@@ -61,9 +65,16 @@ class HalGPIO {
   DeviceType deviceType = DeviceType::X4;
   mutable int batteryCachedPercent = 0;
   mutable unsigned long batteryLastPollMs = 0;
+  uint8_t motionSensorAddress = 0;
+  bool motionSensorInitialized = false;
+  bool motionGestureInProgress = false;
+  unsigned long motionLastPollMs = 0;
+  unsigned long motionSensorStartedMs = 0;
+  unsigned long motionLastGestureMs = 0;
 
  public:
   static constexpr unsigned long BATTERY_POLL_MS = 1500;
+  enum class MotionGesture : uint8_t { None, Previous, Next };
 
   HalGPIO() = default;
 
@@ -86,6 +97,7 @@ class HalGPIO {
   bool wasReleased(uint8_t buttonIndex) const;
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
+  MotionGesture readMotionGesture(uint8_t orientation, uint8_t mode, uint8_t sensitivity);
 
   void startDeepSleep();
 

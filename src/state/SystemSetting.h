@@ -459,6 +459,10 @@ class SystemSetting {
   /** When set, hub thumbnails use rounded clip on `GfxRenderer::drawBitmap` (Recent: sparse ink outside arc; stats:
    * paper). */
   uint8_t bitmapRoundedCorners = 0;
+  /** X3 only: 0=off, 1=normal direction, 2=inverted direction. */
+  uint8_t shakePageTurn = 0;
+  /** X3 gyro threshold: 0=low, 1=normal, 2=high sensitivity. */
+  uint8_t shakePageTurnSensitivity = 1;
 
   ~SystemSetting() = default;
 

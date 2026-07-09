@@ -880,6 +880,16 @@ void EpubActivity::loop() {
     return;
   }
 
+  const HalGPIO::MotionGesture motionGesture =
+      mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
+                                    SETTINGS.shakePageTurnSensitivity);
+  if (motionGesture != HalGPIO::MotionGesture::None) {
+    endPageTimer();
+    pageTurn(motionGesture == HalGPIO::MotionGesture::Next);
+    lastAutoPageTurnTime = millis();
+    return;
+  }
+
   if (prev) {
     endPageTimer();
     pageTurn(false);

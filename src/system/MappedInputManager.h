@@ -39,6 +39,7 @@ class MappedInputManager {
   bool isPressed(Button button) const;
   bool wasAnyPressed() const;
   bool wasAnyReleased() const;
+  HalGPIO::MotionGesture readMotionGesture(uint8_t orientation, uint8_t mode, uint8_t sensitivity) const;
   unsigned long getHeldTime() const;
 
   /** Raw GPIO read (layout + invert still apply to HalGPIO indices). For fixed chords use HalGPIO::BTN_* ). */

@@ -60,6 +60,10 @@ const SettingInfo systemPageSettingsX3[] = {
                       GroupType::DEVICE_BUTTONS),
     SettingInfo::Enum("Main Menu Buttons", &SystemSetting::mainMenuNav, {"Front (Left/Right)", "Side (Up/Down)"},
                       GroupType::DEVICE_BUTTONS),
+    SettingInfo::Enum("Flick page turn", &SystemSetting::shakePageTurn, {"Off", "Normal", "Inverted"},
+                      GroupType::DEVICE_BUTTONS),
+    SettingInfo::Enum("Flick sensitivity", &SystemSetting::shakePageTurnSensitivity, {"Low", "Normal", "High"},
+                      GroupType::DEVICE_BUTTONS),
 
     SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
     SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"},

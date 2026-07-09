@@ -1469,6 +1469,8 @@ void LocalServer::handleSettingsGet() const {
   doc["readerMenuButton"] = SETTINGS.readerMenuButton;
   doc["longPressChapterSkip"] = SETTINGS.longPressChapterSkip;
   doc["readerShortPwrBtn"] = SETTINGS.readerShortPwrBtn;
+  doc["shakePageTurn"] = SETTINGS.shakePageTurn;
+  doc["shakePageTurnSensitivity"] = SETTINGS.shakePageTurnSensitivity;
 
   doc["textAntiAliasing"] = SETTINGS.textAntiAliasing;
   doc["refreshFrequency"] = SETTINGS.refreshFrequency;
@@ -1655,6 +1657,15 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "readerShortPwrBtn") == 0) {
       SETTINGS.readerShortPwrBtn = (uint8_t)value;
+      changed = true;
+    } else if (strcmp(key, "shakePageTurn") == 0) {
+      const int motionMode = static_cast<int>(value);
+      SETTINGS.shakePageTurn = static_cast<uint8_t>(motionMode < 0 ? 0 : motionMode > 2 ? 2 : motionMode);
+      changed = true;
+    } else if (strcmp(key, "shakePageTurnSensitivity") == 0) {
+      const int sensitivity = static_cast<int>(value);
+      SETTINGS.shakePageTurnSensitivity =
+          static_cast<uint8_t>(sensitivity < 0 ? 0 : sensitivity > 2 ? 2 : sensitivity);
       changed = true;
     } else if (strcmp(key, "textAntiAliasing") == 0) {
       SETTINGS.textAntiAliasing = (uint8_t)value;

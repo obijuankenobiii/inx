@@ -40,8 +40,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 27;
-constexpr uint8_t SETTINGS_COUNT = 65;
+constexpr uint8_t SETTINGS_FILE_VERSION = 29;
+constexpr uint8_t SETTINGS_COUNT = 67;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -120,6 +120,8 @@ bool SystemSetting::saveToFile() const {
     if (mut->xtcPageAutoTurnSeconds > 60 || mut->xtcPageAutoTurnSeconds % 10 != 0) mut->xtcPageAutoTurnSeconds = 0;
     if (!validRefreshFrequency(mut->xtcRefreshFrequency)) mut->xtcRefreshFrequency = 15;
     if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
+    if (mut->shakePageTurn > 2) mut->shakePageTurn = 0;
+    if (mut->shakePageTurnSensitivity > 2) mut->shakePageTurnSensitivity = 1;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -188,6 +190,8 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, xtcPageAutoTurnSeconds);
   serialization::writePod(outputFile, xtcRefreshFrequency);
   serialization::writePod(outputFile, sleepClockRefreshInterval);
+  serialization::writePod(outputFile, shakePageTurn);
+  serialization::writePod(outputFile, shakePageTurnSensitivity);
 
   outputFile.close();
 
@@ -527,6 +531,16 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, sleepClockRefreshInterval, CLOCK_REFRESH_INTERVAL_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, shakePageTurn);
+      if (shakePageTurn > 2) shakePageTurn = 0;
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, shakePageTurnSensitivity);
+      if (shakePageTurnSensitivity > 2) shakePageTurnSensitivity = 1;
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -550,6 +564,12 @@ bool SystemSetting::loadFromFile() {
   }
   if (settingsRead < 65) {
     sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
+  }
+  if (settingsRead < 66) {
+    shakePageTurn = 0;
+  }
+  if (settingsRead < 67) {
+    shakePageTurnSensitivity = 1;
   }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 8) {
