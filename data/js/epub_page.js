@@ -1,3 +1,4 @@
+const SYSTEM_FOLDERS = ["fonts", "sleep"];
 let currentPath="/",generatePackagedThumbnail=!1,jszipLoadPromise=null;function loadJsZip(){return"undefined"!=typeof JSZip?Promise.resolve():(jszipLoadPromise||(jszipLoadPromise=new Promise(function(e,t){var o=document.createElement("script");o.src="/js/jszip.min.js";o.async=!0;o.onload=function(){"undefined"!=typeof JSZip?e():(jszipLoadPromise=null,t(new Error("JSZip init failed")))};o.onerror=function(){jszipLoadPromise=null,t(new Error("JSZip load failed"))};document.head.appendChild(o)})),jszipLoadPromise)}const epubThumbCheckbox=document.getElementById("epubGeneratePackagedThumbnailCheckbox");function isPackagedDeviceThumbnailPath(e){return typeof e=="string"&&e.replace(/\\/g,"/").toLowerCase()=="meta-inf/thumbnail.jpg"}function updateToggleUI(){epubThumbCheckbox&&(epubThumbCheckbox.checked=generatePackagedThumbnail);const e=document.getElementById("optimizerSummaryBanner");if(e){const t="Preserve formats: JPEG/JPG resized and re-encoded in place to max 480×800; PNG and others unchanged.",o=generatePackagedThumbnail?" Embeds META-INF/thumbnail.jpg from a cover-like image for fast imports.":" Omits packaged thumbnail; reader builds thumb.bmp from cover on device.";e.textContent=t+o}}function toggleEpubGeneratePackagedThumbnail(){generatePackagedThumbnail=epubThumbCheckbox?epubThumbCheckbox.checked:!generatePackagedThumbnail,localStorage.setItem("epubGeneratePackagedThumbnail",generatePackagedThumbnail),updateToggleUI(),addModalLog("modalLog",generatePackagedThumbnail?"Device thumbnail: will embed META-INF/thumbnail.jpg on import.":"Device thumbnail: will not embed (and strips it if present when re-importing).","success")}function addModalLog(e,t,o="info"){const a=document.getElementById(e);if(a){e=(new Date).toLocaleTimeString();const n=document.createElement("div");n.className=o,n.innerHTML=`[${e}] ${t}`,a.appendChild(n),n.scrollIntoView({behavior:"smooth",block:"nearest"})}}function clearModalLog(e){const t=document.getElementById(e);t&&(t.innerHTML='<div class="info">Ready</div>')}function isCoverImage(e){var t=e.toLowerCase();for(const o of[/cover/i,/titlepage/i,/front[-_]?cover/i,/thumbnail/i,/\/cover\//i,/\/images\/cover/i,/\/img\/cover/i,/\/metadata\/cover/i,/^cover\./i,/^title\./i])if(o.test(t))return!0;return!1}async function resizeJpegInPlace(blob,path,opts){
 opts=opts||{};const maxW=void 0!==opts.maxW?opts.maxW:480,maxH=void 0!==opts.maxH?opts.maxH:800,quality=void 0!==opts.quality?opts.quality:.82;const ab=await blob.arrayBuffer(),typed=new Blob([ab],{type:"image/jpeg"});let sw,sh,drawSrc;try{if(typeof createImageBitmap=="function"){drawSrc=await createImageBitmap(typed);sw=drawSrc.width;sh=drawSrc.height}else throw 0}catch(_){await new Promise((ok,err)=>{const I=new Image,u=URL.createObjectURL(typed);I.onload=()=>{URL.revokeObjectURL(u);drawSrc=I;sw=I.width;sh=I.height;ok()};I.onerror=()=>{URL.revokeObjectURL(u);err(new Error("Failed to load image: "+path))};I.src=u})}
 let tw=sw,th=sh;const needsResize=maxW<sw||maxH<sh;if(needsResize){const scale=Math.min(maxW/sw,maxH/sh);tw=Math.max(1,Math.floor(sw*scale));th=Math.max(1,Math.floor(sh*scale))}
@@ -303,6 +304,28 @@ async function deleteSelectedItems() {
   await hydrate();
 }
 
+async function promptRename(path, currentName, type) {
+  const isFolder = type === "folder";
+  const dot = isFolder ? -1 : currentName.lastIndexOf(".");
+  const base = dot > 0 ? currentName.slice(0, dot) : currentName;
+  const ext = dot > 0 ? currentName.slice(dot) : "";
+  const input = (prompt("Rename to", base) || "").trim();
+  if (!input || input === base) return;
+  if (!/^(?!\.{1,2}$)[^"*:<>?\\/|]+$/.test(input)) {
+    alert("Invalid name");
+    return;
+  }
+  const formData = new FormData();
+  formData.append("path", path);
+  formData.append("name", input + ext);
+  const res = await fetch("/rename", { method: "POST", body: formData });
+  if (res.ok) {
+    await hydrate();
+  } else {
+    alert((await res.text()) || "Unable to rename item");
+  }
+}
+
 function addDropHandlers(el, onDrop) {
   ["dragenter", "dragover"].forEach((evt) =>
     el.addEventListener(evt, (e) => {
@@ -360,16 +383,17 @@ async function hydrate() {
     const res = await fetch("/api/files?path=" + encodeURIComponent(currentPath));
     const items = await res.json();
 
+    // "fonts" and "sleep" are system folders (custom fonts, sleep-screen images) - not book storage.
+    const visible = items.filter((i) =>
+      i.isDirectory ? !SYSTEM_FOLDERS.includes(i.name.toLowerCase()) : i.name.toLowerCase().endsWith(".epub")
+    );
+
     let folderCount = 0;
     let epubCount = 0;
-    items.forEach((i) => {
-      if (i.isDirectory) folderCount++;
-      else if (i.name.toLowerCase().endsWith(".epub")) epubCount++;
-    });
+    visible.forEach((i) => (i.isDirectory ? folderCount++ : epubCount++));
     const summary = document.getElementById("folder-summary");
     if (summary) summary.textContent = folderCount + " folder(s), " + epubCount + " book(s)";
 
-    const visible = items.filter((i) => i.isDirectory || i.name.toLowerCase().endsWith(".epub"));
     if (!visible.length) {
       table.innerHTML =
         '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg><div>No folders or EPUB files here yet</div></div>';
@@ -385,6 +409,11 @@ async function hydrate() {
       const itemPath = currentPath.replace(/\/$/, "") + "/" + item.name;
       const itemPathAttr = escapeAttr(itemPath);
       const itemNameAttr = escapeAttr(item.name);
+      const renameBtn =
+        '<button type="button" class="row-action rename-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
+        '" data-type="' + (item.isDirectory ? "folder" : "file") + '" onclick="promptRename(this.dataset.path,this.dataset.name,this.dataset.type)" title="Rename" aria-label="Rename">' +
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m13.5 3.5 3 3L7 16H4v-3l9.5-9.5Z"/></svg></button>';
+
       if (item.isDirectory) {
         html +=
           '<div class="file-row is-folder folder-row" data-path="' + itemPathAttr + '">' +
@@ -392,7 +421,8 @@ async function hydrate() {
           '<a class="row-main" href="/epub?path=' + encodeURIComponent(itemPath) + '">' +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '</span><span class="meta">Folder</span>' +
-          '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a></div>';
+          '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a>' +
+          renameBtn + '</div>';
       } else {
         html +=
           '<div class="file-row epub-file">' +
@@ -401,7 +431,8 @@ async function hydrate() {
           encodeURIComponent(itemPath) + "'\">" +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17V5.5A1 1 0 0 1 6 4.5Z"/><path d="M7.5 19.5A2.5 2.5 0 0 1 7.5 14H18"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '<span class="epub-badge">EPUB</span></span>' +
-          '<span class="meta">' + formatFileSize(item.size) + '</span></button></div>';
+          '<span class="meta">' + formatFileSize(item.size) + '</span></button>' +
+          renameBtn + '</div>';
       }
     }
     html += "</div>";

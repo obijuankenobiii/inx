@@ -200,6 +200,17 @@ void RecentBooks::removeBook(const std::string& path) {
   }
 }
 
+void RecentBooks::renamePath(const std::string& oldPath, const std::string& newPath, const std::string& newCachePath) {
+  auto it = std::find_if(recentBooks.begin(), recentBooks.end(),
+                         [&](const RecentBook& book) { return book.path == oldPath; });
+
+  if (it != recentBooks.end()) {
+    it->path = newPath;
+    it->cachePath = newCachePath;
+    saveToFile();
+  }
+}
+
 void RecentBooks::clear(const bool saveNow) {
   recentBooks.clear();
   if (saveNow) {

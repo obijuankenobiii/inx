@@ -11,6 +11,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct FileInfo {
@@ -80,6 +81,10 @@ class LocalServer {
   void handleUploadPost() const;
   void handleCreateFolder() const;
   void handleDelete() const;
+  void handleRename() const;
+  void collectEpubRenames(const std::string& oldDirPath, const std::string& newDirPath,
+                          std::vector<std::pair<std::string, std::string>>& out) const;
+  void migrateEpubBookState(const std::string& oldPath, const std::string& newPath) const;
 
   void handleSettingsPage() const;
   void handleSettingsGet() const;

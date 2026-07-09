@@ -23,8 +23,10 @@
   .tab-content { display: none; }
   .tab-content.active { display: block; }
   .settings-section { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(18px); border-radius: 22px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04); border: 0.5px solid rgba(0, 0, 0, 0.05); }
-  .section-header { padding: 20px 24px 8px 24px; }
+  .section-header { padding: 20px 24px 8px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .section-header h3 { font-size: 17px; font-weight: 590; color: #1d1d1f; }
+  .section-add-btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 16px; background: #e8e8ed; color: #1d1d1f; border: none; border-radius: 980px; font-size: 13px; font-weight: 560; cursor: pointer; transition: background 0.15s ease; white-space: nowrap; font-family: inherit; }
+  .section-add-btn:hover { background: #dcdce0; }
   .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 0.5px solid rgba(0, 0, 0, 0.04); transition: background 0.2s ease; }
   .setting-item:hover { background: rgba(0, 0, 0, 0.02); }
   .setting-item:last-child { border-bottom: none; }
@@ -40,21 +42,21 @@
   .toggle-slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 2px; bottom: 2px; background-color: #fff; transition: 0.3s ease; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
   input:checked + .toggle-slider { background-color: #34c759; }
   input:checked + .toggle-slider:before { transform: translateX(20px); }
-  .wifi-list { width: 100%; margin-top: 8px; }
-  .wifi-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 0.5px solid rgba(0, 0, 0, 0.04); }
+  .wifi-list { width: 100%; }
+  .wifi-item { padding: 14px 24px; border-bottom: 0.5px solid rgba(0, 0, 0, 0.04); transition: background 0.2s ease; }
+  .wifi-item:hover { background: rgba(0, 0, 0, 0.02); }
   .wifi-item:last-child { border-bottom: none; }
-  .wifi-ssid { font-size: 14px; font-weight: 500; }
-  .wifi-actions { display: flex; gap: 8px; }
-  .wifi-actions button { padding: 4px 12px; font-size: 12px; border-radius: 980px; border: none; cursor: pointer; }
-  .btn-remove { background: #ff3b30; color: #fff; }
-  .btn-remove:hover { background: #e6352a; }
-  .btn-add { background: #111; color: #fff; margin-top: 12px; width: 100%; padding: 10px; border-radius: 980px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; }
-  .btn-add:hover { background: #333; }
-  .wifi-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid rgba(0, 0, 0, 0.06); }
+  .wifi-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .wifi-ssid { font-size: 15px; font-weight: 500; color: #1d1d1f; }
+  .wifi-url { font-size: 12.5px; color: #8e8e93; margin-top: 2px; word-break: break-all; }
+  .icon-btn { flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 8px; color: #a1a1a6; cursor: pointer; padding: 0; transition: background 0.15s ease, color 0.15s ease; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .icon-btn:hover { background: #fdecec; color: #ff3b30; }
+  .wifi-empty { padding: 14px 24px; font-size: 14px; color: #8e8e93; }
+  .wifi-form { display: none; border-top: 0.5px solid rgba(0, 0, 0, 0.06); }
   .wifi-form.show { display: block; }
-  .wifi-form input { width: 100%; margin-bottom: 8px; padding: 10px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; }
-  .wifi-form-buttons { display: flex; gap: 8px; margin-top: 8px; }
-  .wifi-form-buttons button { flex: 1; padding: 10px; border-radius: 980px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .wifi-form-buttons { display: flex; gap: 8px; padding: 14px 24px 20px; }
+  .wifi-form-buttons button { flex: 1; padding: 10px; border-radius: 980px; border: none; cursor: pointer; font-size: 14px; font-weight: 510; font-family: inherit; }
   .action-buttons { display: flex; gap: 12px; justify-content: flex-end; margin-top: 32px; }
   .action-btn { padding: 10px 24px; border-radius: 980px; font-size: 15px; font-weight: 510; cursor: pointer; transition: all 0.2s ease; border: none; }
   .btn-primary { background: #111; color: #fff; }
@@ -206,12 +208,17 @@
     <p class="hint">Actions such as Index library, reset, updates, and About are available on the device.</p>
 
     <div class="settings-section">
-      <div class="section-header"><h3>WiFi Networks</h3></div>
-      <div class="wifi-list" id="wifiList"><div class="setting-item"><div><div class="setting-label">Loading...</div></div></div></div>
-      <button class="btn-add" onclick="showAddWifiForm()">+ Add WiFi Network</button>
+      <div class="section-header"><h3>WiFi Networks</h3><button type="button" class="section-add-btn" onclick="showAddWifiForm()">+ Add</button></div>
+      <div class="wifi-list" id="wifiList"><div class="wifi-empty">Loading…</div></div>
       <div class="wifi-form" id="addWifiForm">
-        <input id="newWifiSSID" placeholder="Network Name (SSID)" autocomplete="off">
-        <input id="newWifiPassword" type="password" placeholder="Password">
+        <div class="setting-item">
+          <div><div class="setting-label">Network Name</div></div>
+          <div class="setting-control"><input id="newWifiSSID" placeholder="SSID" autocomplete="off"></div>
+        </div>
+        <div class="setting-item">
+          <div><div class="setting-label">Password</div></div>
+          <div class="setting-control"><input id="newWifiPassword" type="password" placeholder="Password"></div>
+        </div>
         <div class="wifi-form-buttons">
           <button class="btn-primary" onclick="saveWifiNetwork()">Save</button>
           <button class="btn-secondary" onclick="hideAddWifiForm()">Cancel</button>
@@ -219,14 +226,25 @@
       </div>
     </div>
     <div class="settings-section">
-      <div class="section-header"><h3>OPDS Servers</h3></div>
-      <div class="wifi-list" id="opdsList"><div class="setting-item"><div><div class="setting-label">Loading...</div></div></div></div>
-      <button class="btn-add" onclick="showAddOpdsForm()">+ Add OPDS Server</button>
+      <div class="section-header"><h3>OPDS Servers</h3><button type="button" class="section-add-btn" onclick="showAddOpdsForm()">+ Add</button></div>
+      <div class="wifi-list" id="opdsList"><div class="wifi-empty">Loading…</div></div>
       <div class="wifi-form" id="addOpdsForm">
-        <input id="newOpdsName" placeholder="Server Name" autocomplete="off">
-        <input id="newOpdsUrl" placeholder="Server URL (e.g. http://192.168.1.100/opds)" autocomplete="off">
-        <input id="newOpdsUsername" placeholder="Username (optional)" autocomplete="off">
-        <input id="newOpdsPassword" type="password" placeholder="Password (optional)">
+        <div class="setting-item">
+          <div><div class="setting-label">Server Name</div></div>
+          <div class="setting-control"><input id="newOpdsName" placeholder="Name" autocomplete="off"></div>
+        </div>
+        <div class="setting-item">
+          <div><div class="setting-label">Server URL</div></div>
+          <div class="setting-control"><input id="newOpdsUrl" placeholder="http://192.168.1.100/opds" autocomplete="off"></div>
+        </div>
+        <div class="setting-item">
+          <div><div class="setting-label">Username</div></div>
+          <div class="setting-control"><input id="newOpdsUsername" placeholder="Optional" autocomplete="off"></div>
+        </div>
+        <div class="setting-item">
+          <div><div class="setting-label">Password</div></div>
+          <div class="setting-control"><input id="newOpdsPassword" type="password" placeholder="Optional"></div>
+        </div>
         <div class="wifi-form-buttons">
           <button class="btn-primary" onclick="saveOpdsServer()">Save</button>
           <button class="btn-secondary" onclick="hideAddOpdsForm()">Cancel</button>
@@ -491,6 +509,10 @@ async function loadKOReaderSettings() {
   }
 }
 
+function removeIcon() {
+  return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M8.5 9v5M11.5 9v5M5.5 5.5 6.2 16a1 1 0 0 0 1 .9h5.6a1 1 0 0 0 1-.9l.7-10.5"/></svg>';
+}
+
 function renderWifiList() {
   const n = document.getElementById("wifiList");
   if (!n) return;
@@ -499,11 +521,13 @@ function renderWifiList() {
     wifiNetworks.forEach(function (e) {
       const t = document.createElement("div");
       t.className = "wifi-item";
-      t.innerHTML = '<span class="wifi-ssid">' + escapeHtml(e.ssid) + '</span><div class="wifi-actions"><button type="button" class="btn-remove" onclick="removeWifiNetwork(\'' + escapeHtml(e.ssid).replace(/'/g, "\\'") + '\')">Remove</button></div>';
+      t.innerHTML =
+        '<div class="wifi-row"><span class="wifi-ssid">' + escapeHtml(e.ssid) + '</span>' +
+        '<button type="button" class="icon-btn" title="Remove" aria-label="Remove" onclick="removeWifiNetwork(\'' + escapeHtml(e.ssid).replace(/'/g, "\\'") + '\')">' + removeIcon() + '</button></div>';
       n.appendChild(t);
     });
   } else {
-    n.innerHTML = '<div class="setting-item"><div><div class="setting-label">No saved networks</div></div></div>';
+    n.innerHTML = '<div class="wifi-empty">No saved networks</div>';
   }
 }
 
@@ -576,11 +600,13 @@ function renderOpdsList(servers) {
     servers.forEach(function (s) {
       const t = document.createElement("div");
       t.className = "wifi-item";
-      t.innerHTML = '<div><span class="wifi-ssid">' + escapeHtml(s.name) + '</span><br><span style="font-size:12px;color:#888;">' + escapeHtml(s.url) + '</span></div><div class="wifi-actions"><button type="button" class="btn-remove" onclick="removeOpdsServer(\'' + escapeHtml(s.name).replace(/'/g, "\\'") + '\')">Remove</button></div>';
+      t.innerHTML =
+        '<div class="wifi-row"><div><div class="wifi-ssid">' + escapeHtml(s.name) + '</div><div class="wifi-url">' + escapeHtml(s.url) + '</div></div>' +
+        '<button type="button" class="icon-btn" title="Remove" aria-label="Remove" onclick="removeOpdsServer(\'' + escapeHtml(s.name).replace(/'/g, "\\'") + '\')">' + removeIcon() + '</button></div>';
       n.appendChild(t);
     });
   } else {
-    n.innerHTML = '<div class="setting-item"><div><div class="setting-label">No saved servers</div></div></div>';
+    n.innerHTML = '<div class="wifi-empty">No saved servers</div>';
   }
 }
 

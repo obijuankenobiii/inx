@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 
 #include "../state/SystemSetting.h"
 #include "html/EpubPageHtml.generated.h"
@@ -32,7 +33,9 @@
 #include "html/TagsPageHtml.generated.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include "activity/settings/LibraryIndexer.h"
+#include "state/BookState.h"
 #include "state/BookTags.h"
+#include "state/RecentBooks.h"
 #include "system/FontManager.h"
 #include "util/StringUtils.h"
 #endif
@@ -326,6 +329,8 @@ void LocalServer::begin() {
   server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
 
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+
+  server->on("/rename", HTTP_POST, [this] { handleRename(); });
 
   server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
   server->on("/api/settings", HTTP_GET, [this] { handleSettingsGet(); });
@@ -1154,6 +1159,132 @@ void LocalServer::handleDelete() const {
     Serial.printf("[%lu] [WEB] Failed to delete: %s\n", millis(), itemPath.c_str());
     server->send(500, "text/plain", "Failed to delete item");
   }
+}
+
+void LocalServer::collectEpubRenames(const std::string& oldDirPath, const std::string& newDirPath,
+                                     std::vector<std::pair<std::string, std::string>>& out) const {
+  scanFiles(oldDirPath.c_str(), [&](const FileInfo info) {
+    const std::string childOld = oldDirPath + "/" + info.name.c_str();
+    const std::string childNew = newDirPath + "/" + info.name.c_str();
+    if (info.isDirectory) {
+      collectEpubRenames(childOld, childNew, out);
+    } else if (info.isEpub) {
+      out.emplace_back(childOld, childNew);
+    }
+  });
+}
+
+void LocalServer::migrateEpubBookState(const std::string& oldPath, const std::string& newPath) const {
+#ifndef INX_SIMULATOR_WEB_ONLY
+  // Bookmarks, annotations, reading progress, and book settings all live under a cache dir keyed by
+  // hash(filepath) (see Epub::Epub) - move it alongside the file so a rename doesn't orphan that state.
+  const std::string oldCachePath = "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(oldPath));
+  const std::string newCachePath = "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(newPath));
+
+  if (SdMan.exists(oldCachePath.c_str()) && !SdMan.exists(newCachePath.c_str())) {
+    SdMan.rename(oldCachePath.c_str(), newCachePath.c_str());
+  }
+
+  BOOK_STATE.renamePath(oldPath, newPath);
+  RECENT_BOOKS.renamePath(oldPath, newPath, newCachePath);
+#else
+  (void)oldPath;
+  (void)newPath;
+#endif
+}
+
+void LocalServer::handleRename() const {
+  if (!server->hasArg("path") || !server->hasArg("name")) {
+    server->send(400, "text/plain", "Missing path or name");
+    return;
+  }
+
+  String itemPath = server->arg("path");
+  String newName = server->arg("name");
+  newName.trim();
+
+  if (itemPath.isEmpty() || itemPath == "/") {
+    server->send(400, "text/plain", "Cannot rename root directory");
+    return;
+  }
+  if (!itemPath.startsWith("/")) {
+    itemPath = "/" + itemPath;
+  }
+  if (itemPath.length() > 1 && itemPath.endsWith("/")) {
+    itemPath = itemPath.substring(0, itemPath.length() - 1);
+  }
+
+  if (newName.isEmpty() || newName.indexOf('/') != -1 || newName.indexOf('\\') != -1 || newName == "." ||
+      newName == "..") {
+    server->send(400, "text/plain", "Invalid name");
+    return;
+  }
+
+  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
+
+  if (itemName.startsWith(".")) {
+    Serial.printf("[%lu] [WEB] Rename rejected - hidden/system item: %s\n", millis(), itemPath.c_str());
+    server->send(403, "text/plain", "Cannot rename system files");
+    return;
+  }
+
+  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+    if (itemName.equals(HIDDEN_ITEMS[i])) {
+      Serial.printf("[%lu] [WEB] Rename rejected - protected item: %s\n", millis(), itemPath.c_str());
+      server->send(403, "text/plain", "Cannot rename protected items");
+      return;
+    }
+  }
+
+  if (!SdMan.exists(itemPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Rename failed - item not found: %s\n", millis(), itemPath.c_str());
+    server->send(404, "text/plain", "Item not found");
+    return;
+  }
+
+  const int lastSlash = itemPath.lastIndexOf('/');
+  const String parentPath = lastSlash > 0 ? itemPath.substring(0, lastSlash) : String("");
+  const String newPath = parentPath + "/" + newName;
+
+  if (newPath == itemPath) {
+    server->send(200, "text/plain", "Renamed successfully");
+    return;
+  }
+
+  // FAT/exFAT lookups are case-insensitive, so a pure case change (Foo.epub -> FOO.epub) would otherwise
+  // collide with itself here; only block on a genuine name clash.
+  if (strcasecmp(newName.c_str(), itemName.c_str()) != 0 && SdMan.exists(newPath.c_str())) {
+    server->send(409, "text/plain", "An item with that name already exists");
+    return;
+  }
+
+  FsFile item = SdMan.open(itemPath.c_str());
+  const bool isDir = item && item.isDirectory();
+  if (item) {
+    item.close();
+  }
+
+  std::vector<std::pair<std::string, std::string>> epubRenames;
+  if (isDir) {
+    collectEpubRenames(itemPath.c_str(), newPath.c_str(), epubRenames);
+  } else if (isEpubFile(itemName)) {
+    epubRenames.emplace_back(itemPath.c_str(), newPath.c_str());
+  }
+
+  Serial.printf("[%lu] [WEB] Renaming %s -> %s\n", millis(), itemPath.c_str(), newPath.c_str());
+
+  if (!SdMan.rename(itemPath.c_str(), newPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Failed to rename: %s\n", millis(), itemPath.c_str());
+    server->send(500, "text/plain", "Failed to rename item");
+    return;
+  }
+
+  for (const auto& renamePair : epubRenames) {
+    migrateEpubBookState(renamePair.first, renamePair.second);
+  }
+
+  Serial.printf("[%lu] [WEB] Successfully renamed: %s -> %s\n", millis(), itemPath.c_str(), newPath.c_str());
+  server->send(200, "text/plain", "Renamed successfully");
 }
 
 void LocalServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {

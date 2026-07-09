@@ -97,6 +97,16 @@ BookState::Book* BookState::findBookByPath(const std::string& path) {
   return &books[mapIt->second];
 }
 
+void BookState::renamePath(const std::string& oldPath, const std::string& newPath) {
+  const auto mapIt = pathIndex_.find(oldPath);
+  if (mapIt == pathIndex_.end()) {
+    return;
+  }
+  books[mapIt->second].path = newPath;
+  rebuildPathIndex();
+  saveToFile();
+}
+
 void BookState::toggleFavorite(const std::string& path) {
   Book* b = findBookByPath(path);
   if (b != nullptr) {

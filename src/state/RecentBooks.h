@@ -61,6 +61,14 @@ class RecentBooks {
   void removeBook(const std::string& path);
 
   /**
+   * @brief Repoint an existing entry's path/cachePath after a rename/move. No-op if oldPath isn't tracked.
+   * @param oldPath Previous full path to the EPUB file
+   * @param newPath New full path to the EPUB file
+   * @param newCachePath New cache directory path
+   */
+  void renamePath(const std::string& oldPath, const std::string& newPath, const std::string& newCachePath);
+
+  /**
    * @brief Clear all recent books from memory and optionally persist the empty list
    */
   void clear(bool saveNow = true);

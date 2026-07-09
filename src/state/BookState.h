@@ -53,6 +53,10 @@ class BookState {
 
   Book* findBookByPath(const std::string& path);
 
+  /** Repoints an existing book's path entry (favorite/reading/finished flags, id) after a rename/move. No-op if oldPath
+   * isn't tracked. */
+  void renamePath(const std::string& oldPath, const std::string& newPath);
+
   void toggleFavorite(const std::string& path);
   void setReading(const std::string& path, bool isReading);
   void setFinished(const std::string& path, bool isFinished);
