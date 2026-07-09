@@ -24,6 +24,7 @@
 #include "../state/SystemSetting.h"
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
+#include "html/FilesPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
@@ -315,6 +316,7 @@ void LocalServer::begin() {
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
   server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
+  server->on("/js/files_page.js", HTTP_GET, [this] { handleFilesPageJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -354,6 +356,7 @@ void LocalServer::begin() {
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
   Serial.printf("✓ jszip.min.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(JSZIP_MIN_JS) - 1));
   Serial.printf("✓ epub_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(EPUB_PAGE_JS) - 1));
+  Serial.printf("✓ files_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(FILES_PAGE_JS) - 1));
   Serial.printf("✓ inx_font_pack.js from firmware flash (%u bytes)\n",
                 static_cast<unsigned>(sizeof(INX_FONT_PACK_JS) - 1));
 
@@ -591,6 +594,10 @@ void LocalServer::handleJsZipMinJs() const {
 
 void LocalServer::handleEpubPageJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), EPUB_PAGE_JS, sizeof(EPUB_PAGE_JS) - 1);
+}
+
+void LocalServer::handleFilesPageJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), FILES_PAGE_JS, sizeof(FILES_PAGE_JS) - 1);
 }
 
 void LocalServer::handleFileListData() const {

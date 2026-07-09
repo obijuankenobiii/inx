@@ -304,6 +304,20 @@ async function deleteSelectedItems() {
   await hydrate();
 }
 
+async function promptDeleteItem(path, name, type) {
+  const isFolder = type === "folder";
+  const copy = isFolder
+    ? 'Delete "' + name + '" and everything inside it? This cannot be undone.'
+    : 'Delete "' + name + '"? This cannot be undone.';
+  if (!confirm(copy)) return;
+  try {
+    await deletePathRecursive(path, type);
+    await hydrate();
+  } catch (e) {
+    alert((e && e.message) || "Unable to delete item");
+  }
+}
+
 async function promptRename(path, currentName, type) {
   const isFolder = type === "folder";
   const dot = isFolder ? -1 : currentName.lastIndexOf(".");
@@ -413,6 +427,10 @@ async function hydrate() {
         '<button type="button" class="row-action rename-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
         '" data-type="' + (item.isDirectory ? "folder" : "file") + '" onclick="promptRename(this.dataset.path,this.dataset.name,this.dataset.type)" title="Rename" aria-label="Rename">' +
         '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m13.5 3.5 3 3L7 16H4v-3l9.5-9.5Z"/></svg></button>';
+      const deleteBtn =
+        '<button type="button" class="row-action danger delete-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
+        '" data-type="' + (item.isDirectory ? "folder" : "file") + '" onclick="promptDeleteItem(this.dataset.path,this.dataset.name,this.dataset.type)" title="Delete" aria-label="Delete">' +
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 3.5h4L13 6H7l1-2.5ZM6 6l.7 10h6.6L14 6M8.5 8.5v5M11.5 8.5v5"/></svg></button>';
 
       if (item.isDirectory) {
         html +=
@@ -422,7 +440,7 @@ async function hydrate() {
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '</span><span class="meta">Folder</span>' +
           '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a>' +
-          renameBtn + '</div>';
+          renameBtn + deleteBtn + '</div>';
       } else {
         html +=
           '<div class="file-row epub-file">' +
@@ -432,7 +450,7 @@ async function hydrate() {
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17V5.5A1 1 0 0 1 6 4.5Z"/><path d="M7.5 19.5A2.5 2.5 0 0 1 7.5 14H18"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '<span class="epub-badge">EPUB</span></span>' +
           '<span class="meta">' + formatFileSize(item.size) + '</span></button>' +
-          renameBtn + '</div>';
+          renameBtn + deleteBtn + '</div>';
       }
     }
     html += "</div>";
