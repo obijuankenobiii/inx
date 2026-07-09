@@ -89,9 +89,7 @@ bool readBQ27220CurrentMA(int16_t* outCurrent) {
   return true;
 }
 
-bool readBQ27220StateOfCharge(uint16_t* outSoc) {
-  return readI2CReg16LE(I2C_ADDR_BQ27220, BQ27220_SOC_REG, outSoc);
-}
+bool readBQ27220StateOfCharge(uint16_t* outSoc) { return readI2CReg16LE(I2C_ADDR_BQ27220, BQ27220_SOC_REG, outSoc); }
 
 void beginX3I2C() {
   Wire.begin(X3_I2C_SDA, X3_I2C_SCL, X3_I2C_FREQ);
@@ -249,27 +247,34 @@ bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 
 void HalGPIO::startDeepSleep() {
-  
   while (inputMgr.isPressed(BTN_POWER)) {
     delay(50);
     inputMgr.update();
   }
-  
+
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
-  
+
   esp_deep_sleep_start();
 }
 
 int HalGPIO::getBatteryPercentage() const {
   if (deviceIsX3()) {
+    const unsigned long now = millis();
+    if (batteryLastPollMs != 0 && (now - batteryLastPollMs) < BATTERY_POLL_MS) {
+      return batteryCachedPercent;
+    }
+
     uint16_t soc = 0;
     X3GPIO::beginX3I2C();
     const bool ok = X3GPIO::readBQ27220StateOfCharge(&soc);
     X3GPIO::endX3I2C();
     if (ok && soc <= 100) {
-      return static_cast<int>(soc);
+      batteryCachedPercent = static_cast<int>(soc);
+      batteryLastPollMs = now;
+      return batteryCachedPercent;
     }
-    return 0;
+    batteryLastPollMs = now;
+    return batteryCachedPercent;
   }
   static const BatteryMonitor battery = BatteryMonitor(BAT_GPIO0);
   return battery.readPercentage();
@@ -350,7 +355,7 @@ bool HalGPIO::syncRtcFromSystemTime() const {
     return false;
   }
 
-  struct tm localTime {};
+  struct tm localTime{};
   if (localtime_r(&now, &localTime) == nullptr) {
     return false;
   }

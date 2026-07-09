@@ -22,91 +22,72 @@
 
 namespace xtc {
 
+constexpr uint32_t XTC_MAGIC = 0x00435458;
 
+constexpr uint32_t XTCH_MAGIC = 0x48435458;
 
-constexpr uint32_t XTC_MAGIC = 0x00435458;  
+constexpr uint32_t XTG_MAGIC = 0x00475458;
 
-constexpr uint32_t XTCH_MAGIC = 0x48435458;  
-
-constexpr uint32_t XTG_MAGIC = 0x00475458;  
-
-constexpr uint32_t XTH_MAGIC = 0x00485458;  
-
+constexpr uint32_t XTH_MAGIC = 0x00485458;
 
 constexpr uint16_t DISPLAY_WIDTH = 480;
 constexpr uint16_t DISPLAY_HEIGHT = 800;
 
-
 #pragma pack(push, 1)
 struct XtcHeader {
-  uint32_t magic;            
-  uint8_t versionMajor;      
-  uint8_t versionMinor;      
-  uint16_t pageCount;        
-  uint8_t readDirection;     
-  uint8_t hasMetadata;       
-  uint8_t hasThumbnails;     
-  uint8_t hasChapters;       
-  uint32_t currentPage;      
-  uint64_t metadataOffset;   
-  uint64_t pageTableOffset;  
-  uint64_t dataOffset;       
-  uint64_t thumbOffset;      
-  uint32_t chapterOffset;    
-  uint32_t padding;          
+  uint32_t magic;
+  uint8_t versionMajor;
+  uint8_t versionMinor;
+  uint16_t pageCount;
+  uint8_t readDirection;
+  uint8_t hasMetadata;
+  uint8_t hasThumbnails;
+  uint8_t hasChapters;
+  uint32_t currentPage;
+  uint64_t metadataOffset;
+  uint64_t pageTableOffset;
+  uint64_t dataOffset;
+  uint64_t thumbOffset;
+  uint32_t chapterOffset;
+  uint32_t padding;
 };
 #pragma pack(pop)
-
 
 #pragma pack(push, 1)
 struct PageTableEntry {
-  uint64_t dataOffset;  
-  uint32_t dataSize;    
-  uint16_t width;       
-  uint16_t height;      
+  uint64_t dataOffset;
+  uint32_t dataSize;
+  uint16_t width;
+  uint16_t height;
 };
 #pragma pack(pop)
-
-
 
 #pragma pack(push, 1)
 struct XtgPageHeader {
-  uint32_t magic;       
-  uint16_t width;       
-  uint16_t height;      
-  uint8_t colorMode;    
-  uint8_t compression;  
-  uint32_t dataSize;    
-  uint64_t md5;         
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+  uint32_t magic;
+  uint16_t width;
+  uint16_t height;
+  uint8_t colorMode;
+  uint8_t compression;
+  uint32_t dataSize;
+  uint64_t md5;
 };
 #pragma pack(pop)
 
-
 struct PageInfo {
-  uint32_t offset;   
-  uint32_t size;     
-  uint16_t width;    
-  uint16_t height;   
-  uint8_t bitDepth;  
-  uint8_t padding;   
-};  
+  uint32_t offset;
+  uint32_t size;
+  uint16_t width;
+  uint16_t height;
+  uint8_t bitDepth;
+  uint8_t padding;
+};
 
 struct ChapterInfo {
   std::string name;
   uint16_t startPage;
   uint16_t endPage;
 };
-
 
 enum class XtcError {
   OK = 0,
@@ -120,7 +101,6 @@ enum class XtcError {
   MEMORY_ERROR,
   DECOMPRESSION_ERROR,
 };
-
 
 inline const char* errorToString(XtcError err) {
   switch (err) {
@@ -159,4 +139,4 @@ inline bool isXtcExtension(const char* filename) {
   return (strcasecmp(ext, ".xtc") == 0 || strcasecmp(ext, ".xtch") == 0);
 }
 
-}  
+}  // namespace xtc

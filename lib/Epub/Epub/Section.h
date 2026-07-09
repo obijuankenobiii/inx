@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "Epub.h"
 
@@ -23,10 +24,12 @@ class Section {
   GfxRenderer& renderer;
   std::string filePath;
   FsFile file;
+  uint32_t lutOffset = 0;
+  std::vector<uint32_t> pageOffsets;
 
   /**
    * Writes the header information to the section file.
-   * 
+   *
    * @param fontId Font identifier for text rendering
    * @param lineCompression Line spacing factor
    * @param extraParagraphSpacing Whether to add extra spacing between paragraphs
@@ -41,20 +44,19 @@ class Section {
 
   /**
    * Handles completion of a page during section creation.
-   * 
+   *
    * @param page Unique pointer to the completed page
    * @return The file position where the page was written
    */
-  uint32_t onPageComplete(std::unique_ptr<Page> page);
+  uint32_t onPageComplete(std::unique_ptr<Page> page, const std::function<void(Page&, uint16_t)>& pageBuiltFn);
 
  public:
   uint16_t pageCount = 0;
-  uint16_t imagePageCount = 0;  // number of pages containing images (set during createSectionFile)
   int currentPage = 0;
 
   /**
    * Constructs a new Section.
-   * 
+   *
    * @param epub Shared pointer to the EPUB document
    * @param spineIndex Index of this section in the EPUB spine
    * @param renderer Reference to the graphics renderer
@@ -64,12 +66,12 @@ class Section {
         spineIndex(spineIndex),
         renderer(renderer),
         filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
-  
-  ~Section() = default;
+
+  ~Section();
 
   /**
    * Loads and verifies a section file from disk.
-   * 
+   *
    * @param fontId Font identifier to verify against
    * @param lineCompression Line spacing factor to verify against
    * @param extraParagraphSpacing Paragraph spacing setting to verify against
@@ -85,7 +87,7 @@ class Section {
 
   /**
    * Removes the section file from the filesystem.
-   * 
+   *
    * @return true if file was successfully removed or didn't exist
    */
   bool clearCache() const;
@@ -93,7 +95,7 @@ class Section {
   /**
    * Creates a new section file by parsing the HTML content and building pages.
    * Can optionally skip image processing to only rebuild text layout.
-   * 
+   *
    * @param fontId Font identifier for text rendering
    * @param headerFontId Font identifier for header rendering
    * @param maxFontId Font identifier for header rendering
@@ -111,11 +113,11 @@ class Section {
                          bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
                          bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,
-                         bool skipImages = false);
+                         bool skipImages = false, const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr);
 
   /**
    * Loads a specific page from the section file.
-   * 
+   *
    * @return Unique pointer to the loaded page, or nullptr on failure
    */
   std::unique_ptr<Page> loadPageFromSectionFile();

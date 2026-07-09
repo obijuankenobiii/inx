@@ -13,16 +13,20 @@
 #include <ctime>
 
 #include "KOReaderCredentialStore.h"
+#ifndef SIMULATOR
 #include "esp_http_client.h"
 
 extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
 }
+#endif
 
 namespace {
 
 constexpr char DEVICE_NAME[] = "CrossPoint";
 constexpr char DEVICE_ID[] = "crosspoint-reader";
+
+#ifndef SIMULATOR
 
 bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
 
@@ -40,8 +44,7 @@ esp_err_t koreaderEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
-int doRequest(const std::string& url, const std::string& method,
-              const std::string* body, std::string* responseBody) {
+int doRequest(const std::string& url, const std::string& method, const std::string* body, std::string* responseBody) {
   KoreaderCtx ctx = {responseBody};
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
@@ -94,6 +97,19 @@ int doRequest(const std::string& url, const std::string& method,
   return status;
 }
 
+#else
+
+int doRequest(const std::string& url, const std::string& method, const std::string* body, std::string* responseBody) {
+  (void)url;
+  (void)method;
+  (void)body;
+  (void)responseBody;
+  Serial.printf("[%lu] [KOSync] Simulator does not support KOReaderSync HTTP requests\n", millis());
+  return -1;
+}
+
+#endif
+
 }  // namespace
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
@@ -112,6 +128,8 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
     return OK;
   } else if (httpCode == 401) {
     return AUTH_FAILED;
+  } else if (httpCode == 404) {
+    return NOT_FOUND;
   } else if (httpCode < 0) {
     return NETWORK_ERROR;
   }
@@ -192,6 +210,8 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
     return OK;
   } else if (httpCode == 401) {
     return AUTH_FAILED;
+  } else if (httpCode == 404) {
+    return NOT_FOUND;
   } else if (httpCode < 0) {
     return NETWORK_ERROR;
   }
@@ -213,7 +233,7 @@ const char* KOReaderSyncClient::errorString(Error error) {
     case JSON_ERROR:
       return "JSON parse error";
     case NOT_FOUND:
-      return "No progress found";
+      return "No progress found (first time reading this book?)";
     default:
       return "Unknown error";
   }

@@ -40,12 +40,9 @@ class KOReaderDocumentId {
   static std::string calculateFromFilename(const std::string& filePath);
 
  private:
-  
   static constexpr size_t CHUNK_SIZE = 1024;
 
-  
   static constexpr int OFFSET_COUNT = 12;
 
-  
   static size_t getOffset(int i);
 };

@@ -25,13 +25,7 @@ class ClearCacheActivity final : public ActivityWithSubactivity {
 
  private:
   enum State { WARNING, CLEARING, SUCCESS, FAILED };
-  enum CacheGroup : uint8_t {
-    GROUP_DISPLAY = 0,
-    GROUP_BOOK = 1,
-    GROUP_RECENT = 2,
-    GROUP_NETWORK = 3,
-    GROUP_COUNT = 4
-  };
+  enum CacheGroup : uint8_t { GROUP_DISPLAY = 0, GROUP_BOOK = 1, GROUP_RECENT = 2, GROUP_NETWORK = 3, GROUP_COUNT = 4 };
 
   State state = WARNING;
   TaskHandle_t displayTaskHandle = nullptr;

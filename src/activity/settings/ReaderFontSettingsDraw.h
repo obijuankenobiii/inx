@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GfxRenderer.h>
+
 #include <cstdint>
 
 namespace ReaderFontSettingsDraw {
@@ -20,4 +21,4 @@ void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily,
 void drawToggleCheckbox(const GfxRenderer& renderer, int valueColumnRight, int itemY, int itemHeight, bool rowSelected,
                         bool checked);
 
-}  
+}  // namespace ReaderFontSettingsDraw

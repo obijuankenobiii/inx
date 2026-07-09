@@ -4,10 +4,12 @@
 #include <cstdlib>
 #include <cstring>
 
+// Hot per-pixel dithering math for every image render; opted into -O2 (see JpegRender.cpp for why - the
+// firmware otherwise builds with -Os). Placed after includes so it doesn't affect inlined header code.
+#pragma GCC optimize("O2")
+
 namespace {
-int clamp255(const int v) {
-  return std::max(0, std::min(255, v));
-}
+int clamp255(const int v) { return std::max(0, std::min(255, v)); }
 
 constexpr int kCleanPaperMin = 248;
 

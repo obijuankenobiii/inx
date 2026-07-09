@@ -12,11 +12,15 @@ void EpdFontFamily::setData(Style style, const EpdFontData* data) {
   if (!target) {
     // EpdFont(const EpdFontData* data) is the required constructor
     target = new EpdFont(data);
-    
-    if (style == BOLD) bold = target;
-    else if (style == ITALIC) italic = target;
-    else if (style == BOLD_ITALIC) boldItalic = target;
-    else regular = target;
+
+    if (style == BOLD)
+      bold = target;
+    else if (style == ITALIC)
+      italic = target;
+    else if (style == BOLD_ITALIC)
+      boldItalic = target;
+    else
+      regular = target;
   } else {
     // If it already existed, just update the pointer
     target->data = const_cast<EpdFontData*>(data);
@@ -66,6 +70,6 @@ const EpdGlyph* EpdFontFamily::getGlyph(const uint32_t cp, const Style style) co
   // CRITICAL: Prevents Load Access Fault (Guru Meditation)
   // If font->data->glyph is null, it means the metadata is on SD, not in RAM.
   if (!font || !font->data || !font->data->glyph) return nullptr;
-  
+
   return font->getGlyph(cp);
 }

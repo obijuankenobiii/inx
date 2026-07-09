@@ -9,6 +9,7 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
+
 #include <algorithm>
 #include <cstdint>
 
@@ -16,7 +17,7 @@ namespace {
 constexpr uint8_t BOOKS_FILE_VERSION = 2;
 constexpr uint8_t BOOKS_FILE_VERSION_V1 = 1;
 constexpr char BOOKS_FILE[] = "/.metadata/books.bin";
-}  
+}  // namespace
 
 BookState BookState::instance;
 
@@ -50,9 +51,7 @@ void BookState::compactIdleMetadata() {
   }
 }
 
-void BookState::addOrUpdateBook(const std::string& path, 
-                                const std::string& title,
-                                const std::string& author) {
+void BookState::addOrUpdateBook(const std::string& path, const std::string& title, const std::string& author) {
   const auto mapIt = pathIndex_.find(path);
   if (mapIt != pathIndex_.end()) {
     books[mapIt->second].title = title;
@@ -69,38 +68,25 @@ void BookState::addOrUpdateBook(const std::string& path,
 std::vector<BookState::Book> BookState::getFavoriteBooks() const {
   std::vector<Book> result;
   result.reserve(favoriteIndices_.size());
-  for (size_t idx : favoriteIndices_) {
-    result.push_back(books[idx]);
-  }
+  std::transform(favoriteIndices_.begin(), favoriteIndices_.end(), std::back_inserter(result),
+                 [this](size_t idx) { return books[idx]; });
   return result;
 }
 
 std::vector<BookState::Book> BookState::getReadingBooks() const {
   std::vector<Book> result;
-  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
-               [](const Book& book) { return book.isReading; });
-  std::sort(result.begin(), result.end(),
-            [](const Book& a, const Book& b) { return a.id > b.id; });
+  std::copy_if(books.begin(), books.end(), std::back_inserter(result), [](const Book& book) { return book.isReading; });
+  std::sort(result.begin(), result.end(), [](const Book& a, const Book& b) { return a.id > b.id; });
   return result;
 }
 
 std::vector<BookState::Book> BookState::getFinishedBooks() const {
   std::vector<Book> result;
-  
+
   std::copy_if(books.begin(), books.end(), std::back_inserter(result),
                [](const Book& book) { return book.isFinished; });
-  std::sort(result.begin(), result.end(),
-            [](const Book& a, const Book& b) { return a.id > b.id; });
+  std::sort(result.begin(), result.end(), [](const Book& a, const Book& b) { return a.id > b.id; });
   return result;
-}
-
-std::vector<BookState::Book> BookState::getRecentlyAdded(int limit) const {
-  std::vector<Book> sorted = books;
-  std::sort(sorted.begin(), sorted.end(),
-            [](const Book& a, const Book& b) { return a.id > b.id; });
-  
-  if (sorted.size() > limit) sorted.resize(limit);
-  return sorted;
 }
 
 BookState::Book* BookState::findBookByPath(const std::string& path) {
@@ -171,7 +157,7 @@ bool BookState::saveToFile() const {
     serialization::writeString(outputFile, book.title);
     serialization::writeString(outputFile, book.author);
     serialization::writePod(outputFile, book.id);
-    
+
     uint8_t flags = 0;
     if (book.isFavorite) flags |= 0x01;
     if (book.isReading) flags |= 0x02;
@@ -250,6 +236,4 @@ bool BookState::loadFromFile() {
   return true;
 }
 
-void BookState::compactForIdle() {
-  compactIdleMetadata();
-}
+void BookState::compactForIdle() { compactIdleMetadata(); }

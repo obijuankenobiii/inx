@@ -5,8 +5,8 @@
  * @brief Public interface and types for RecentActivity.
  */
 
-#include <functional>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -52,12 +52,12 @@ class RecentActivity final : public Activity, public Menu {
    */
   enum class ViewMode {
     Default,
-    Grid,  /**< Display books in a grid with covers */
-    Flow,  /**< Flow carousel */
+    Grid,     /**< Display books in a grid with covers */
+    Flow,     /**< Flow carousel */
     SimpleUi, /**< Recent cover on gray band, favorites list below */
-    List, /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
-    Icons, /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
-    Cover /**< Latest recent cover only, with title, author, and progress below */
+    List,     /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
+    Icons,    /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
+    Cover     /**< Latest recent cover only, with title, author, and progress below */
   };
 
  private:
@@ -86,6 +86,8 @@ class RecentActivity final : public Activity, public Menu {
   mutable std::vector<CachedRecentStats> recentStats_;
   mutable std::map<std::string, std::string> thumbnailPathCache_;
   mutable std::map<std::string, std::string> coverPathCache_;
+  bool removeConfirmOpen_ = false;
+  int removeConfirmIndex_ = -1;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -105,6 +107,11 @@ class RecentActivity final : public Activity, public Menu {
   void loadRecentBooks(bool resetScroll = true);
   bool openBookPath(const std::string& path, const std::string& title = "", const std::string& author = "",
                     bool removeMissingFromRecents = false);
+  int selectedRecentIndexForRemove() const;
+  void beginRemoveConfirmation();
+  void cancelRemoveConfirmation();
+  void confirmRemoveRecent();
+  void renderRemoveConfirmation();
   const CachedRecentStats& statsForRecentIndex(int index) const;
   void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
@@ -114,7 +121,7 @@ class RecentActivity final : public Activity, public Menu {
 
   /**
    * Renders a single grid item with cover, title, author and progress.
-   * 
+   *
    * @param gridX Grid column index
    * @param gridY Grid row index
    * @param startY Starting Y coordinate for the grid
@@ -131,14 +138,14 @@ class RecentActivity final : public Activity, public Menu {
 
   /**
    * Renders the complete grid view including all visible books.
-   * 
+   *
    * @param startY Starting Y coordinate for the grid
    */
   void renderGrid(int startY);
 
   /**
    * Renders the complete grid view including all visible books.
-   * 
+   *
    * @param startY Starting Y coordinate for the grid
    */
   void renderFlow();
@@ -150,11 +157,13 @@ class RecentActivity final : public Activity, public Menu {
   void renderList(int startY);
   void renderIcons(int startY);
 
-  /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use paper corners. */
+  /** If rounded thumbs on a gray dither strip/carousel, pass true so corners blend; otherwise paper-white cards use
+   * paper corners. */
   std::string resolveThumbnailPath(const std::string& cacheDir) const;
   std::string resolveCoverPath(const std::string& cacheDir) const;
-  void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir, const std::string& placeholderTitle,
-                             int placeholderFontId, bool roundedCornerBackdropIsDither = false);
+  void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
+                             const std::string& placeholderTitle, int placeholderFontId,
+                             bool roundedCornerBackdropIsDither = false);
   /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
   void renderDefaultStatsGrid(int gridStartY, int screenW);
 
@@ -200,7 +209,7 @@ class RecentActivity final : public Activity, public Menu {
 
   /**
    * Calculates the number of rows that can be displayed on screen at once.
-   * 
+   *
    * @return Number of visible rows based on current view mode
    */
   int getVisibleRows() const;
@@ -210,8 +219,8 @@ class RecentActivity final : public Activity, public Menu {
    * Overridden from Menu.
    */
   void navigateToSelectedMenu() override {
-    if (tabSelectorIndex == 1) onLibraryOpen(); 
-    if (tabSelectorIndex == 4) onGoToStatistics(); 
+    if (tabSelectorIndex == 1) onLibraryOpen();
+    if (tabSelectorIndex == 4) onGoToStatistics();
   }
 
   ViewMode currentViewMode = ViewMode::Flow;
@@ -219,7 +228,7 @@ class RecentActivity final : public Activity, public Menu {
  public:
   /**
    * Constructs a new RecentActivity.
-   * 
+   *
    * @param renderer Graphics renderer for display output
    * @param mappedInput Input manager for handling button presses
    * @param onLibraryOpen Callback for opening library tab
@@ -227,27 +236,23 @@ class RecentActivity final : public Activity, public Menu {
    * @param onSelectBook Callback when a book is selected to open
    * @param onGoToRecent Callback for returning to home screen
    */
-  explicit RecentActivity(GfxRenderer& renderer, 
-                         MappedInputManager& mappedInput,
-                         const std::function<void()>& onLibraryOpen,
-                         const std::function<void()>& onGoToStatistics,
-                         const std::function<void(const std::string& path)>& onSelectBook,
-                         const std::function<void()>& onGoToRecent)
+  explicit RecentActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                          const std::function<void()>& onLibraryOpen, const std::function<void()>& onGoToStatistics,
+                          const std::function<void(const std::string& path)>& onSelectBook,
+                          const std::function<void()>& onGoToRecent)
       : Activity("Recent", renderer, mappedInput),
         Menu(),
         onLibraryOpen(onLibraryOpen),
         onSelectBook(onSelectBook),
         onGoToStatistics(onGoToStatistics),
         onGoToRecent(onGoToRecent),
-        hasRandomFavorite(false)
-     {}
+        hasRandomFavorite(false) {}
   ~RecentActivity() override;
 
  private:
   void drawListStatsStrip(int bandX, int bandY, int bandW, int bandH, int hScroll, int count,
                           const std::function<std::string(int)>& cacheDirAt,
-                          const std::function<std::string(int)>& titleAt,
-                          const std::function<bool(int)>& selectedAt);
+                          const std::function<std::string(int)>& titleAt, const std::function<bool(int)>& selectedAt);
 
   bool firstRender = true;
   bool suppressBufferedSelection_ = false;

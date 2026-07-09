@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
-
 #include <miniz.h>
 
 #include <algorithm>
@@ -414,8 +413,7 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         for (uint32_t x = 0; x < w; x++) {
           const uint8_t* p = src + x * 6;
           uint8_t gray = rgbToGrayFast(p[0], p[2], p[4]);
-          if (ctx.hasTransparentRgb &&
-              (static_cast<uint16_t>(p[0]) << 8 | p[1]) == ctx.transparentRed &&
+          if (ctx.hasTransparentRgb && (static_cast<uint16_t>(p[0]) << 8 | p[1]) == ctx.transparentRed &&
               (static_cast<uint16_t>(p[2]) << 8 | p[3]) == ctx.transparentGreen &&
               (static_cast<uint16_t>(p[4]) << 8 | p[5]) == ctx.transparentBlue) {
             gray = 255;
@@ -434,8 +432,8 @@ static void convertScanlineToGray(const PngDecodeContext& ctx, uint8_t* grayRow)
         int shift = (ppb - 1 - (x % ppb)) * ctx.bitDepth;
         uint8_t idx = (src[x / ppb] >> shift) & mask;
         if (idx >= palSize) idx = 0;
-        grayRow[x] = compositeOverWhite(rgbToGrayFast(pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]),
-                                        ctx.paletteAlpha[idx]);
+        grayRow[x] =
+            compositeOverWhite(rgbToGrayFast(pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]), ctx.paletteAlpha[idx]);
       }
       break;
     }
@@ -815,7 +813,8 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
         if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
       } else {
         for (int x = 0; x < outWidth; x++) {
-          const uint8_t twoBit = imageDitherer ? imageDitherer->process(grayRow[x], x).level : quantize(grayRow[x], x, y);
+          const uint8_t twoBit =
+              imageDitherer ? imageDitherer->process(grayRow[x], x).level : quantize(grayRow[x], x, y);
           const int byteIndex = (x * 2) / 8;
           const int bitOffset = 6 - ((x * 2) % 8);
           rowBuffer[byteIndex] |= (twoBit << bitOffset);
@@ -1013,8 +1012,8 @@ bool PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(FsFile& pngFile, Print& b
   return pngFileToBmpStreamInternal(pngFile, bmpOut, targetMaxWidth, targetMaxHeight, true, cropToFill);
 }
 
-bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth, int targetHeight,
-                                                      bool cropToFill) {
+bool PngToBmpConverter::pngFileTo1BitBmpStreamCentered(FsFile& pngFile, Print& bmpOut, int targetWidth,
+                                                       int targetHeight, bool cropToFill) {
   return pngFileToBmpStreamInternal(pngFile, bmpOut, targetWidth, targetHeight, true, cropToFill);
 }
 
@@ -1034,9 +1033,4 @@ bool PngToBmpConverter::pngFileTo1BitThumbnailBmp(FsFile& pngFile, Print& bmpOut
   const int tw = targetMaxWidth > 0 ? targetMaxWidth : 225;
   const int th = targetMaxHeight > 0 ? targetMaxHeight : 340;
   return pngFileTo1BitBmpStreamWithSize(pngFile, bmpOut, tw, th);
-}
-
-void PngToBmpConverter::printPngInfo(uint8_t* pngBuffer, size_t fileSize) {
-  (void)pngBuffer;
-  (void)fileSize;
 }

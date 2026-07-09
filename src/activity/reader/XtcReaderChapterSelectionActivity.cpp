@@ -7,12 +7,12 @@
 
 #include <GfxRenderer.h>
 
-#include "system/MappedInputManager.h"
 #include "system/Fonts.h"
+#include "system/MappedInputManager.h"
 
 namespace {
 constexpr int SKIP_PAGE_MS = 700;
-}  
+}
 
 int XtcReaderChapterSelectionActivity::getPageItems() const {
   constexpr int startY = 60;
@@ -59,12 +59,8 @@ void XtcReaderChapterSelectionActivity::onEnter() {
   selectorIndex = findChapterIndexForPage(currentPage);
 
   updateRequired = true;
-  xTaskCreate(&XtcReaderChapterSelectionActivity::taskTrampoline, "XtcReaderChapterSelectionActivityTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&XtcReaderChapterSelectionActivity::taskTrampoline, "XtcReaderChapterSelectionActivityTask", 4096, this,
+              1, &displayTaskHandle);
 }
 
 void XtcReaderChapterSelectionActivity::onExit() {
@@ -147,14 +143,14 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
   }
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
-  renderer.rectangle.fill(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30, static_cast<int>(GfxRenderer::FillTone::Ink));
+  renderer.rectangle.fill(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30,
+                          static_cast<int>(GfxRenderer::FillTone::Ink));
   for (int i = pageStartIndex; i < static_cast<int>(chapters.size()) && i < pageStartIndex + pageItems; i++) {
     const auto& chapter = chapters[i];
     const char* title = chapter.name.empty() ? "Unnamed" : chapter.name.c_str();
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
   }
 
-  
   if (renderer.getOrientation() != GfxRenderer::LandscapeClockwise) {
     const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

@@ -158,6 +158,12 @@ Click **File Manager** to access file management features.
 
 This is useful for organizing your ebooks by genre, author, or series.
 
+### Settings
+
+Open **Settings** from the navigation bar to edit device settings from your browser. The page includes WiFi credentials, reader/display options, KOReader Sync, and OPDS Browser settings.
+
+For OPDS, set the server URL, username, and password from the web page instead of typing them on the device keyboard. If a password is already saved, the password field stays blank; leaving it blank keeps the saved password, entering a new value replaces it, and **Clear** removes it.
+
 #### Deleting Files and Folders
 
 1. Click the **🗑️** (trash) icon next to any file or folder
@@ -191,6 +197,24 @@ For power users, you can manage files directly from your terminal using `curl` w
 - **Maximum Upload Size:** Limited by available SD card space
 - **Supported File Format:** `.epub` only
 - **Browser Compatibility:** All modern browsers (Chrome, Firefox, Safari, Edge)
+
+### Local Simulator
+
+The CrossPoint simulator can run the full Inx SDL/device UI locally:
+
+```sh
+CROSSPOINT_SIM_SD=./fs_ pio run -e simulator -t run_simulator
+```
+
+When the simulated device starts a hotspot or local network server, open `http://127.0.0.1:8080/settings`.
+
+For faster dashboard-only checks:
+
+```sh
+CROSSPOINT_SIM_SD=./fs_ pio run -e simulator_web -t run_simulator
+```
+
+For more details, see the [CrossPoint simulator project](https://github.com/crosspoint-reader/crosspoint-simulator).
 
 ---
 

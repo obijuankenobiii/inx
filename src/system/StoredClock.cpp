@@ -7,7 +7,7 @@ namespace {
 constexpr char CLOCK_FILE[] = "/.system/clock.bin";
 constexpr uint8_t CLOCK_FILE_VERSION = 1;
 
-bool valid(const HalGPIO::DateTime& dt) {
+bool valid(const StoredClock::DateTime& dt) {
   if (dt.year < 2024 || dt.year > 2099) return false;
   if (dt.month < 1 || dt.month > 12) return false;
   if (dt.day < 1 || dt.day > 31) return false;
@@ -19,7 +19,7 @@ bool valid(const HalGPIO::DateTime& dt) {
 
 namespace StoredClock {
 
-bool save(const HalGPIO::DateTime& dateTime) {
+bool save(const DateTime& dateTime) {
   if (!valid(dateTime)) {
     return false;
   }
@@ -42,14 +42,14 @@ bool save(const HalGPIO::DateTime& dateTime) {
   return true;
 }
 
-bool load(HalGPIO::DateTime& outDateTime) {
+bool load(DateTime& outDateTime) {
   FsFile file;
   if (!SdMan.openFileForRead("CLK", CLOCK_FILE, file)) {
     return false;
   }
 
   uint8_t version = 0;
-  HalGPIO::DateTime dt;
+  DateTime dt;
   serialization::readPod(file, version);
   if (version != CLOCK_FILE_VERSION) {
     file.close();

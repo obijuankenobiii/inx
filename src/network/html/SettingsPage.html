@@ -31,6 +31,7 @@
   .setting-label { font-size: 15px; font-weight: 500; color: #1d1d1f; }
   .setting-description { display: none; }
   .setting-control { width: 260px; text-align: right; }
+  
   .setting-control input, .setting-control select { width: 100%; padding: 8px 14px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; font-size: 14px; background: #fff; color: #1d1d1f; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
   .setting-control input[type="checkbox"] { width: auto; }
   .toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; }
@@ -60,6 +61,7 @@
   .btn-primary:hover { background: #333; transform: scale(1.02); box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25); }
   .btn-secondary { background: #e8e8ed; color: #111; }
   .btn-secondary:hover { background: #dcdce0; }
+  
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1d1d1f; color: #fff; padding: 10px 20px; border-radius: 980px; font-size: 13px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 1000; }
   .toast.show { opacity: 1; }
   .hint { font-size: 12px; color: #888; padding: 12px 24px 20px; line-height: 1.4; }
@@ -68,7 +70,7 @@
     .header h1 { font-size: 22px; }
     .setting-item { flex-direction: column; align-items: flex-start; gap: 12px; }
     .setting-control { width: 100%; }
-    .action-buttons { flex-direction: column; }
+       .action-buttons { flex-direction: column; }
     .action-btn { width: 100%; text-align: center; }
   }
   ::selection { background: #111; color: #fff; }
@@ -101,18 +103,6 @@
         <div class="setting-control"><input id="sleepCustomBmp" placeholder="Filename (.bmp/.jpg/.jpeg) or empty for random" autocomplete="off"></div>
       </div>
       <div class="setting-item">
-        <div><div class="setting-label">Clock design</div></div>
-        <div class="setting-control"><select id="sleepClockStyle"></select></div>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Clock format</div></div>
-        <div class="setting-control"><select id="sleepClockTimeFormat"></select></div>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Timezone</div></div>
-        <div class="setting-control"><select id="timeZoneQuarterOffset"></select></div>
-      </div>
-      <div class="setting-item">
         <div><div class="setting-label">Hide Battery %</div></div>
         <div class="setting-control"><select id="hideBatteryPercentage"></select></div>
       </div>
@@ -128,9 +118,20 @@
         <div><div class="setting-label">Recent books shown</div></div>
         <div class="setting-control"><select id="recentVisibleCount"></select></div>
       </div>
+    </div>
+    <div class="settings-section" id="clockSettingsSection">
+      <div class="section-header"><h3>Clock</h3></div>
       <div class="setting-item">
-        <div><div class="setting-label">Fix sunlight fade</div></div>
-        <div class="setting-control"><label class="toggle-switch"><input id="fixSunlightFade" type="checkbox"><span class="toggle-slider"></span></label></div>
+        <div><div class="setting-label">Clock design</div></div>
+        <div class="setting-control"><select id="sleepClockStyle"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Clock format</div></div>
+        <div class="setting-control"><select id="sleepClockTimeFormat"></select></div>
+      </div>
+      <div class="setting-item">
+        <div><div class="setting-label">Timezone</div></div>
+        <div class="setting-control"><select id="timeZoneQuarterOffset"></select></div>
       </div>
     </div>
     <div class="settings-section">
@@ -202,7 +203,7 @@
         <div class="setting-control"><label class="toggle-switch"><input id="refreshOnLoadStatistics" type="checkbox"><span class="toggle-slider"></span></label></div>
       </div>
     </div>
-    <p class="hint">Actions such as Index library, KOReader Sync, OPDS, reset, updates, and About are available on the device.</p>
+    <p class="hint">Actions such as Index library, reset, updates, and About are available on the device.</p>
 
     <div class="settings-section">
       <div class="section-header"><h3>WiFi Networks</h3></div>
@@ -410,7 +411,7 @@ const options = {
   statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
 };
 const boolSettings = [
-  "bitmapRoundedCorners", "fixSunlightFade", "useLibraryIndex", "librarySortEnabled",
+  "bitmapRoundedCorners", "useLibraryIndex", "librarySortEnabled",
   "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
   "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled", "bionicReadingEnabled",
   "textAntiAliasing", "readerSmartRefreshOnImages"
@@ -423,6 +424,15 @@ function timezoneLabel(slot) {
   const sign = mins < 0 ? "-" : "+";
   const abs = Math.abs(mins);
   return "UTC" + sign + String(Math.floor(abs / 60)).padStart(2, "0") + ":" + String(abs % 60).padStart(2, "0");
+}
+
+function clockAvailable() {
+  return settingsData.clockAvailable === true || settingsData.clockAvailable === 1;
+}
+
+function updateClockAvailability() {
+  const section = document.getElementById("clockSettingsSection");
+  if (section) section.style.display = clockAvailable() ? "" : "none";
 }
 
 function switchTab(id, btn) {
@@ -718,10 +728,11 @@ function populateSleepCustomBmp() {
 }
 
 function populateSettings() {
+  updateClockAvailability();
   for (const key of Object.keys(options)) {
     const el = document.getElementById(key);
     if (!el || settingsData[key] === undefined) continue;
-    const labels = options[key];
+    const labels = key === "sleepScreen" && !clockAvailable() ? options[key].slice(0, 6) : options[key];
     el.innerHTML = "";
     labels.forEach(function (label, idx) {
       const opt = document.createElement("option");
@@ -800,6 +811,10 @@ async function saveSetting(key, val) {
     })).ok;
     if (ok) {
       settingsData[key] = val;
+      if (key === "opdsPassword") {
+        settingsData.opdsPasswordSet = val.length > 0;
+        updateOPDSPasswordUi();
+      }
       const node = document.getElementById(key);
       const row = node ? node.closest(".setting-item") : null;
       if (row) row.style.background = "";

@@ -10,9 +10,9 @@
 
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncClient.h"
-#include "system/MappedInputManager.h"
 #include "activity/network/WifiSelectionActivity.h"
 #include "system/Fonts.h"
+#include "system/MappedInputManager.h"
 
 void KOReaderAuthActivity::taskTrampoline(void* param) {
   auto* self = static_cast<KOReaderAuthActivity*>(param);
@@ -60,23 +60,15 @@ void KOReaderAuthActivity::onEnter() {
 
   renderingMutex = xSemaphoreCreateMutex();
 
-  xTaskCreate(&KOReaderAuthActivity::taskTrampoline, "KOAuthTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&KOReaderAuthActivity::taskTrampoline, "KOAuthTask", 4096, this, 1, &displayTaskHandle);
 
-  
   WiFi.mode(WIFI_STA);
 
-  
   if (WiFi.status() == WL_CONNECTED) {
     state = AUTHENTICATING;
     statusMessage = "Authenticating...";
     updateRequired = true;
 
-    
     xTaskCreate(
         [](void* param) {
           auto* self = static_cast<KOReaderAuthActivity*>(param);
@@ -87,7 +79,6 @@ void KOReaderAuthActivity::onEnter() {
     return;
   }
 
-  
   enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                              [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
@@ -95,7 +86,6 @@ void KOReaderAuthActivity::onEnter() {
 void KOReaderAuthActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
   WiFi.disconnect(false);
   delay(100);
   WiFi.mode(WIFI_OFF);

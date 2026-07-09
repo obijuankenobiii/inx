@@ -13,6 +13,7 @@
 #include <string>
 
 class GfxRenderer;
+struct JpegLevelCapture;
 
 class ImageRender {
  public:
@@ -32,6 +33,11 @@ class ImageRender {
   bool render(int x, int y, int width, int height) const;
   bool render(int x, int y, int width, int height, const Options& options) const;
   bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
+  // Same as above, but for JPEGs, threads a level capture through so a caller doing a two-pass
+  // grayscale render can decode once (first call fills `jpegCapture`) and replay for the second
+  // pass (subsequent call, when `jpegCapture->captured` is already true, skips decoding entirely).
+  // No-op for non-JPEG formats.
+  bool render(int x, int y, int width, int height, const Options& options, JpegLevelCapture* jpegCapture) const;
   bool displayCachedTwoBit(int x, int y, int width, int height, const Options& options, bool quality = false) const;
   // Full-screen 2-bit grayscale display in ONE call: serves from the display cache if present, otherwise
   // renders both planes (storing them) and drives the gray refresh, then resets BW mode + a clean baseline.

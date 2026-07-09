@@ -14,10 +14,10 @@
 class ZipFile {
  public:
   struct FileStatSlim {
-    uint16_t method;             
-    uint32_t compressedSize;     
-    uint32_t uncompressedSize;   
-    uint32_t localHeaderOffset;  
+    uint16_t method;
+    uint32_t compressedSize;
+    uint32_t uncompressedSize;
+    uint32_t localHeaderOffset;
   };
 
   struct ZipDetails {
@@ -26,14 +26,12 @@ class ZipFile {
     bool isSet;
   };
 
-  
   struct SizeTarget {
-    uint64_t hash;   
-    uint16_t len;    
-    uint16_t index;  
+    uint64_t hash;
+    uint16_t len;
+    uint16_t index;
   };
 
-  
   static uint64_t fnvHash64(const char* s, size_t len) {
     uint64_t hash = 14695981039346656037ull;
     for (size_t i = 0; i < len; i++) {
@@ -49,7 +47,6 @@ class ZipFile {
   ZipDetails zipDetails = {0, 0, false};
   std::unordered_map<std::string, FileStatSlim> fileStatSlimCache;
 
-  
   uint32_t lastCentralDirPos = 0;
   bool lastCentralDirPosValid = false;
 
@@ -60,19 +57,15 @@ class ZipFile {
  public:
   explicit ZipFile(const std::string& filePath) : filePath(filePath) {}
   ~ZipFile() = default;
-  
-  
+
   bool isOpen() const { return !!file; }
   bool open();
   bool close();
   bool loadAllFileStatSlims();
   bool getInflatedFileSize(const char* filename, size_t* size);
-  
-  
-  
+
   int fillUncompressedSizes(std::vector<SizeTarget>& targets, std::vector<uint32_t>& sizes);
-  
-  
+
   uint8_t* readFileToMemory(const char* filename, size_t* size = nullptr, bool trailingNullByte = false);
   bool readFileToStream(const char* filename, Print& out, size_t chunkSize);
 };

@@ -29,7 +29,7 @@ class InputManager {
    */
   bool isPressed(uint8_t buttonIndex) const;
 
- /**
+  /**
    * Returns true if the button went from unpressed to pressed between the last two #update() calls.
    *
    * This differs from #isPressed() in that pressing and holding a button will cause this function
@@ -70,7 +70,6 @@ class InputManager {
    */
   unsigned long getHeldTime() const;
 
-  
   static constexpr uint8_t BTN_BACK = 0;
   static constexpr uint8_t BTN_CONFIRM = 1;
   static constexpr uint8_t BTN_LEFT = 2;
@@ -79,15 +78,12 @@ class InputManager {
   static constexpr uint8_t BTN_DOWN = 5;
   static constexpr uint8_t BTN_POWER = 6;
 
-  
   static constexpr int BUTTON_ADC_PIN_1 = 1;
   static constexpr int BUTTON_ADC_PIN_2 = 2;
   static constexpr int POWER_BUTTON_PIN = 3;
 
-  
   bool isPowerButtonPressed() const;
 
-  
   static const char* getButtonName(uint8_t buttonIndex);
 
  private:

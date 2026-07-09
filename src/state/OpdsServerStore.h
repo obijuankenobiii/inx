@@ -40,8 +40,8 @@ class OpdsServerStore {
   bool saveToFile() const;
   bool loadFromFile();
 
-  bool addServer(const std::string& name, const std::string& url,
-                 const std::string& username, const std::string& password);
+  bool addServer(const std::string& name, const std::string& url, const std::string& username,
+                 const std::string& password);
   bool removeServer(const std::string& name);
   const OpdsServerEntry* findServer(const std::string& name) const;
 

@@ -5,6 +5,7 @@
 
 #include "CategorySettingsActivity.h"
 
+#include <EpdFontFamily.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
@@ -15,10 +16,10 @@
 #include <iterator>
 #include <string>
 
-#include "CalibreSettingsActivity.h"
 #include "../OpdsServerListActivity.h"
-#include "ClockStylePickerActivity.h"
+#include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
+#include "ClockStylePickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
@@ -31,8 +32,6 @@
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
 #include "util/StringUtils.h"
-
-#include <EpdFontFamily.h>
 
 namespace {
 constexpr const char* kSleepImageIndexPath = "/.system/sleep_images.idx";
@@ -133,7 +132,6 @@ void CategorySettingsActivity::toggleGroup(GroupType group) {
   groupExpanded[group] = !groupExpanded[group];
   setupMenu();
 
-  
   for (size_t i = 0; i < menuItems.size(); i++) {
     if (menuItems[i].type == SettingType::SEPARATOR && menuItems[i].group == group) {
       selectedIndex = i;
@@ -358,7 +356,7 @@ void CategorySettingsActivity::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= (int)menuItems.size()) return;
   const auto& selected = menuItems[selectedIndex];
   if (selected.type == SettingType::SEPARATOR) return;
-  
+
   if (selected.type == SettingType::ACTION) return;
   selected.change(delta);
 }
@@ -393,8 +391,8 @@ void CategorySettingsActivity::applySelectedOption(MenuEntry& entry, const int o
   if (entry.type == SettingType::VALUE) {
     const int step = std::max(1, static_cast<int>(entry.valueRange.step));
     const int value = static_cast<int>(entry.valueRange.min) + optionIndex * step;
-    SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(std::max(static_cast<int>(entry.valueRange.min),
-                                                               std::min(static_cast<int>(entry.valueRange.max), value)));
+    SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(
+        std::max(static_cast<int>(entry.valueRange.min), std::min(static_cast<int>(entry.valueRange.max), value)));
   } else {
     SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(optionIndex);
   }
@@ -658,7 +656,6 @@ void CategorySettingsActivity::loop() {
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool backPressed = mappedInput.wasPressed(MappedInputManager::Button::Back);
 
-  
   if (leftPressed) {
     int newTabIndex = (tabSelectorIndex - 1 + TAB_COUNT) % TAB_COUNT;
     tabSelectorIndex = newTabIndex;
@@ -668,7 +665,7 @@ void CategorySettingsActivity::loop() {
       navigateToSelectedMenu();
       return;
     }
-    
+
     updateRequired = true;
     return;
   }
@@ -828,8 +825,7 @@ void CategorySettingsActivity::render() {
 
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerTextY =
-      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
 
@@ -857,7 +853,6 @@ void CategorySettingsActivity::render() {
     int index = i + scrollOffset;
     const auto& entry = menuItems[index];
 
-    
     if (entry.type == SettingType::SEPARATOR && (entry.name == nullptr || entry.name[0] == '\0')) {
       continue;
     }
@@ -903,8 +898,8 @@ void CategorySettingsActivity::render() {
     } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Family") == 0) {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, SETTINGS.fontFamily, pageWidth - 24, itemY,
-                                                       itemHeight, isSelected, val);
+        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, SETTINGS.fontFamily, pageWidth - 24, itemY, itemHeight,
+                                                       isSelected, val);
       }
     } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Size") == 0) {
       const int valueAreaLeft = std::max(textX + 88, pageWidth * 38 / 100);
@@ -923,7 +918,6 @@ void CategorySettingsActivity::render() {
     visibleCount++;
   }
 
-  
   if ((int)menuItems.size() > itemsPerPage) {
     int listHeight = itemsPerPage * itemHeight;
     int thumbH = (itemsPerPage * listHeight) / menuItems.size();

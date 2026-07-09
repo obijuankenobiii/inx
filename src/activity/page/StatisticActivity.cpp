@@ -196,7 +196,8 @@ void fillAnnulusToneScanlines(const GfxRenderer& renderer, int cx, int cy, int r
   }
 }
 
-void drawFullDonutGauge(const GfxRenderer& renderer, int cx, int cy, int rOut, int thick, float pct01, const char* centerPct) {
+void drawFullDonutGauge(const GfxRenderer& renderer, int cx, int cy, int rOut, int thick, float pct01,
+                        const char* centerPct) {
   const int thickMin = 6;
   const int thickMax = std::max(thickMin + 2, rOut - 8);
   const int thickUse = std::max(thickMin, std::min(thickMax, thick));
@@ -255,14 +256,15 @@ static GlobalAllItemsGeom computeGlobalAllItemsGeom(const GfxRenderer& renderer)
   const int kCaptionStackH = lhSans * 2 + 6;
   constexpr int kMetricsPadT = 8;
   const int kMetricsH = kMetricsPadT + lhNum + 4 + lhSm;
-  const int rowH = std::max(kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR + kGlobalAllItemsDonutR + kGlobalAllItemsDonutPadB,
-                            kCaptionStackH + 4);
+  const int rowH =
+      std::max(kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR + kGlobalAllItemsDonutR + kGlobalAllItemsDonutPadB,
+               kCaptionStackH + 4);
   return {lhSans, lhNum, kCaptionStackH, kMetricsPadT, kMetricsH, rowH};
 }
 
 /** Donut row + right captions only (gauge height = rowH). Donut is centered horizontally in the inner band. */
-static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLeft, int innerRight, int y, float finishedRatio01,
-                                       const GlobalAllItemsGeom& g) {
+static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLeft, int innerRight, int y,
+                                       float finishedRatio01, const GlobalAllItemsGeom& g) {
   const int innerW = innerRight - innerLeft;
   const int cx = innerLeft + innerW / 2;
   const int cy = y + kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR;
@@ -285,14 +287,16 @@ static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLef
 /**
  * Horizontal rule + two-column metrics (second band).
  * yRulePreferred: caller’s ideal rule Y (after gauge + gap).
- * yRuleMin: never place the rule above this (prevents the old min(y, yEnd-h) clamp from erasing the gap under the gauge).
+ * yRuleMin: never place the rule above this (prevents the old min(y, yEnd-h) clamp from erasing the gap under the
+ * gauge).
  */
 static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLeft, int innerRight, int yRulePreferred,
                                         int yRuleMin, int yContentEnd, uint32_t booksFinished, uint32_t booksOpened,
                                         const GlobalAllItemsGeom& g) {
   const int innerW = innerRight - innerLeft;
   const int yMaxRule = yContentEnd - g.kMetricsH - 2;
-  /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax, which stole the gap under the gauge). */
+  /** Prefer the caller’s Y, never above yMaxRule, never below yRuleMin when there is room (old code only did min→yMax,
+   * which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
   // Lift the whole finished/opened band so it clears the button hints below.
   int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) - 10;
@@ -342,8 +346,7 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
   const int gap = (numRows > 2 ? gapBeforeLastRowPx : 0);
   std::vector<int> yBound(static_cast<size_t>(numRows + 1), y);
   for (int r = 1; r <= numRows; ++r) {
-    yBound[static_cast<size_t>(r)] =
-        yBound[static_cast<size_t>(r - 1)] + cellH + ((r == numRows - 1) ? gap : 0);
+    yBound[static_cast<size_t>(r)] = yBound[static_cast<size_t>(r - 1)] + cellH + ((r == numRows - 1) ? gap : 0);
   }
   const int blockH = yBound[static_cast<size_t>(numRows)] - y;
   constexpr int kEdgePad = 8;
@@ -355,7 +358,7 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
   drawVertRule(renderer, midX, y, blockH);
   for (int r = 1; r < numRows; ++r) {
     renderer.line.render(innerLeft, yBound[static_cast<size_t>(r)], innerLeft + innerW, yBound[static_cast<size_t>(r)],
-                      true);
+                         true);
   }
 
   const int lhVal = renderer.text.getLineHeight(FONT_SERIF_LG);
@@ -394,15 +397,15 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
   return blockH;
 }
 
-int drawFourColumnStats2x2(const GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0, const char* l0,
-                           const char* v1, const char* l1, const char* v2, const char* l2, const char* v3,
-                           const char* l3, int cellH, int row0LiftPx) {
+int drawFourColumnStats2x2(const GfxRenderer& renderer, int innerLeft, int y, int innerW, const char* v0,
+                           const char* l0, const char* v1, const char* l1, const char* v2, const char* l2,
+                           const char* v3, const char* l3, int cellH, int row0LiftPx) {
   const char* vals[] = {v0, v1, v2, v3};
   const char* labs[] = {l0, l1, l2, l3};
   return drawFourColumnStatsNx2(renderer, innerLeft, y, innerW, vals, labs, 2, cellH, row0LiftPx, 0);
 }
 
-}
+}  // namespace
 
 void StatisticActivity::loadStats() {
   ScreenComponents::LoadingProgressLayout layout =
@@ -492,7 +495,8 @@ bool StatisticActivity::ensureBookStatsLoaded(const int bookIdx) {
   if (bookIdx < 0 || bookIdx >= static_cast<int>(allBooksStats.size())) {
     return false;
   }
-  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size()) && loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] != 0) {
+  if (bookIdx < static_cast<int>(loadedBookStatsFlags_.size()) &&
+      loadedBookStatsFlags_[static_cast<size_t>(bookIdx)] != 0) {
     return true;
   }
   BookReadingStats& slot = allBooksStats[static_cast<size_t>(bookIdx)];
@@ -517,12 +521,11 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   ImageRender::Options imageOptions;
   imageOptions.cropToFill = true;
   imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
-                                                                    : BitmapRender::RoundedOutside::None;
+                                                                   : BitmapRender::RoundedOutside::None;
 
   if (SdMan.exists(coverJpegPath.c_str())) {
-    coverDrawn =
-        ImageRender::create(renderer, coverJpegPath)
-            .render(x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), imageOptions);
+    coverDrawn = ImageRender::create(renderer, coverJpegPath)
+                     .render(x + 2, y + 2, std::max(1, width - 4), std::max(1, height - 4), imageOptions);
   }
   if (!coverDrawn && SdMan.exists(coverPath.c_str())) {
     const int maxW = std::max(1, width - 4);
@@ -639,7 +642,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     ImageRender::Options imageOptions;
     imageOptions.cropToFill = true;
     imageOptions.roundedOutside = SETTINGS.bitmapRoundedCorners != 0 ? BitmapRender::RoundedOutside::PaperOutside
-                                                                      : BitmapRender::RoundedOutside::None;
+                                                                     : BitmapRender::RoundedOutside::None;
     if (ImageRender::create(renderer, coverPath).render(innerX + 2, innerY + 2, availW, availH, imageOptions)) {
       return {frameW, frameH};
     }
@@ -704,16 +707,13 @@ int StatisticActivity::renderRecent(int y, int innerLeft, int innerRight, int in
   int yThumbBottom;
   if (!allBooksStats.empty()) {
     const BookReadingStats& cur = allBooksStats[0];
-    const float prog = (cur.progressPercent >= 0.f)
-                           ? std::min(1.f, std::max(0.f, cur.progressPercent / 100.f))
-                           : 0.f;
+    const float prog = (cur.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, cur.progressPercent / 100.f)) : 0.f;
     tf = drawGlobalRecentThumbBlock(innerLeft, yCoverTop, cur.path, cur.title);
     const int textX = innerLeft + tf.first + kThumbTextGap;
     const int textColW = std::max(40, innerRight - textX);
 
     const int yTitle = yCoverTop + kGlobalThumbOuterPad;
-    std::string titleLine =
-        renderer.text.truncate(FONT_SERIF, cur.title.c_str(), textColW, EpdFontFamily::ITALIC);
+    std::string titleLine = renderer.text.truncate(FONT_SERIF, cur.title.c_str(), textColW, EpdFontFamily::ITALIC);
     renderer.text.render(FONT_SERIF, textX, yTitle, titleLine.c_str(), true, EpdFontFamily::ITALIC);
     const int yAuthor = yTitle + lhSerif + g8;
     if (!cur.author.empty()) {
@@ -756,8 +756,8 @@ int StatisticActivity::renderFirstGrid(int y, int innerLeft, int innerW, int Mar
   const float pgPerMin = readMin > 0.01f ? static_cast<float>(globalStats.totalPagesRead) / readMin : 0.f;
   snprintf(v3, sizeof(v3), "%.1f", pgPerMin);
 
-  drawFourColumnStats2x2(renderer, innerLeft, y, innerW, v0, "Total hours", v1, "Avg. min/session", v2, "Pages read", v3,
-                         "Pages per min", kStatsRowH, 0);
+  drawFourColumnStats2x2(renderer, innerLeft, y, innerW, v0, "Total hours", v1, "Avg. min/session", v2, "Pages read",
+                         v3, "Pages per min", kStatsRowH, 0);
   return y + hFirstGrid + Margin;
 }
 
@@ -765,8 +765,8 @@ int StatisticActivity::renderGuage(int y, int innerLeft, int innerRight, int Mar
   const GlobalAllItemsGeom g = computeGlobalAllItemsGeom(renderer);
   float ratio = 0.f;
   if (globalStats.totalBooksStarted > 0) {
-    ratio = std::min(1.f, static_cast<float>(globalStats.totalBooksFinished) /
-                             static_cast<float>(globalStats.totalBooksStarted));
+    ratio = std::min(
+        1.f, static_cast<float>(globalStats.totalBooksFinished) / static_cast<float>(globalStats.totalBooksStarted));
   }
   drawGlobalAllItemsGaugeRow(renderer, innerLeft, innerRight, y, ratio, g);
   return y + g.rowH + Margin;
@@ -834,8 +834,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   coverH = std::min(coverH, (coverW * 3) / 2);
   coverH = std::min(coverH, coverAllow);
 
-  const float prog =
-      (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
+  const float prog = (b.progressPercent >= 0.f) ? std::min(1.f, std::max(0.f, b.progressPercent / 100.f)) : 0.f;
   const int boxX = innerLeft;
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
   renderer.rectangle.fill(boxX, yCoverTop, coverW, coverH, false, rr);
@@ -863,9 +862,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   char v0[20], v1[20], v2[20], v3[20], vSess[16], vChap[16];
   const float bookHrs = static_cast<float>(b.totalReadingTimeMs) / 3600000.f;
   snprintf(v0, sizeof(v0), "%.1f", bookHrs);
-  const float bookAvgMin = b.sessionCount > 0 ? static_cast<float>(b.totalReadingTimeMs) / 60000.f /
-                                                  static_cast<float>(b.sessionCount)
-                                              : 0.f;
+  const float bookAvgMin = b.sessionCount > 0
+                               ? static_cast<float>(b.totalReadingTimeMs) / 60000.f / static_cast<float>(b.sessionCount)
+                               : 0.f;
   snprintf(v1, sizeof(v1), "%.0f", bookAvgMin);
   snprintf(v2, sizeof(v2), "%u", b.totalPagesRead);
   const float bookReadMin = static_cast<float>(b.totalReadingTimeMs) / 60000.f;

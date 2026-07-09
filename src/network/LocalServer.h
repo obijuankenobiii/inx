@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 
-
 struct FileInfo {
   String name;
   size_t size;
@@ -36,43 +35,35 @@ class LocalServer {
   LocalServer();
   ~LocalServer();
 
-  
   void begin();
 
-  
   void stop();
 
-  
   void handleClient();
 
-  
   bool isRunning() const { return running; }
 
   WsUploadStatus getWsUploadStatus() const;
 
-  
   uint16_t getPort() const { return port; }
 
  private:
   std::unique_ptr<WebServer> server = nullptr;
   std::unique_ptr<WebSocketsServer> wsServer = nullptr;
   bool running = false;
-  bool apMode = false;  
+  bool apMode = false;
   uint16_t port = 80;
-  uint16_t wsPort = 81;  
+  uint16_t wsPort = 81;
   WiFiUDP udp;
   bool udpActive = false;
 
-  
   void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   static void wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 
-  
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
   String formatFileSize(size_t bytes) const;
   bool isEpubFile(const String& filename) const;
 
-  
   void handleRoot() const;
   void handleFontManagerPage() const;
   void handleTagsPage() const;
@@ -90,7 +81,6 @@ class LocalServer {
   void handleCreateFolder() const;
   void handleDelete() const;
 
-  
   void handleSettingsPage() const;
   void handleSettingsGet() const;
   void handleSettingsUpdate() const;

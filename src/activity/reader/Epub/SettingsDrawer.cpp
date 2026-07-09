@@ -61,7 +61,7 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
   return in.wasPressed(MappedInputManager::Button::Right);
 }
 
-}  
+}  // namespace
 
 /**
  * @brief Constructs a new SettingsDrawer
@@ -147,7 +147,7 @@ void SettingsDrawer::setupMenu() {
     MenuEntry presetEntry;
     presetEntry.item = MenuItem::PresetPicker;
     presetEntry.group = GroupType::FONT;
-    presetEntry.name = "Apply preset";
+    presetEntry.name = presetAppliedInDrawer_ ? "Preset in use" : "Apply preset";
     presetEntry.getValueText = [this](const BookSettings&) -> const char* {
       thread_local std::string tls;
       tls = ReaderPresetStore::getInstance().nameOf(presetPickIndex_);
@@ -157,6 +157,8 @@ void SettingsDrawer::setupMenu() {
       const int n = ReaderPresetStore::getInstance().count();
       if (n <= 0) return;
       presetPickIndex_ = ((presetPickIndex_ + delta) % n + n) % n;
+      ReaderPresetStore::getInstance().applyToBook(presetPickIndex_, settings);
+      presetAppliedInDrawer_ = true;
     };
     menuItems.push_back(presetEntry);
   }
@@ -485,6 +487,33 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(refreshEntry);
 
+    MenuEntry powerEntry;
+    powerEntry.item = MenuItem::ReaderPowerButton;
+    powerEntry.group = GroupType::CONTROLS;
+    powerEntry.name = "Power Button";
+    powerEntry.getValueText = [](const BookSettings&) -> const char* {
+      switch (SETTINGS.readerShortPwrBtn) {
+        case SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_REFRESH:
+          return "Page Refresh";
+        case SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE:
+          return "Annotate";
+        default:
+          return "Page Turn";
+      }
+    };
+    powerEntry.change = [](BookSettings&, int delta) {
+      int v = static_cast<int>(SETTINGS.readerShortPwrBtn) + delta;
+      if (v < 0) {
+        v = SystemSetting::READER_SHORT_PWRBTN::READER_SHORT_PWRBTN_COUNT - 1;
+      }
+      if (v >= SystemSetting::READER_SHORT_PWRBTN::READER_SHORT_PWRBTN_COUNT) {
+        v = 0;
+      }
+      SETTINGS.readerShortPwrBtn = static_cast<uint8_t>(v);
+      SETTINGS.saveToFile();
+    };
+    menuItems.push_back(powerEntry);
+
     MenuEntry chapterEntry;
     chapterEntry.item = MenuItem::ChapterSkip;
     chapterEntry.group = GroupType::CONTROLS;
@@ -492,8 +521,8 @@ void SettingsDrawer::setupMenu() {
     chapterEntry.getValueText = [](const BookSettings& s) -> const char* {
       static const char* kLabels[] = {"Off", "Chapter skip", "Skip 5 pages"};
       const unsigned idx = s.longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5
-                                 ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
-                                 : s.longPressChapterSkip;
+                               ? SystemSetting::LONG_PRESS_CHAPTER_SKIP
+                               : s.longPressChapterSkip;
       return kLabels[idx];
     };
     chapterEntry.change = [](BookSettings& s, int delta) {
@@ -553,7 +582,7 @@ void SettingsDrawer::setupMenu() {
     };
     statusLeftEntry.change = [](BookSettings& s, int delta) {
       int newVal = static_cast<int>(s.statusBarLeft.item) + delta;
-      if (newVal >= 0 && newVal <= static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
+      if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarLeft.item = static_cast<StatusBarItem>(newVal);
         s.useCustomSettings = true;
       }
@@ -569,7 +598,7 @@ void SettingsDrawer::setupMenu() {
     };
     statusMiddleEntry.change = [](BookSettings& s, int delta) {
       int newVal = static_cast<int>(s.statusBarMiddle.item) + delta;
-      if (newVal >= 0 && newVal <= static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
+      if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarMiddle.item = static_cast<StatusBarItem>(newVal);
         s.useCustomSettings = true;
       }
@@ -585,14 +614,13 @@ void SettingsDrawer::setupMenu() {
     };
     statusRightEntry.change = [](BookSettings& s, int delta) {
       int newVal = static_cast<int>(s.statusBarRight.item) + delta;
-      if (newVal >= 0 && newVal <= static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
+      if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarRight.item = static_cast<StatusBarItem>(newVal);
         s.useCustomSettings = true;
       }
     };
     menuItems.push_back(statusRightEntry);
   }
-
 }
 
 /**
@@ -601,11 +629,11 @@ void SettingsDrawer::setupMenu() {
  * @return String representation of the item
  */
 const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
-  static const char* names[] = {"None",           "Page Numbers", "Percentage",     "Chapter Title",
-                                "Battery Icon",   "Battery %",    "Battery Icon+%", "Progress Bar",
-                                "Progress Bar+%", "Page Bars",    "Book Title",     "Author Name"};
+  static const char* names[] = {"None",       "Page Numbers",   "Percentage",   "Chapter Title",  "Battery Icon",
+                                "Battery %",  "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars",
+                                "Book Title", "Author Name",    "Page Num+%"};
   int index = static_cast<int>(item);
-  if (index > static_cast<int>(StatusBarItem::AUTHOR_NAME)) {
+  if (index < 0 || index >= static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
     index = 0;
   }
   return names[index];
@@ -664,10 +692,8 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   }
   if (!isLandscapeReader(renderer)) {
     if (mappedInputForHints_ != nullptr) {
-      const auto labels =
-          mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
-                               labels.btn4);
+      const auto labels = mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
     }
@@ -683,7 +709,8 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   int currentY = drawerY + kDrawerHeaderTitleY;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true,
+                       EpdFontFamily::BOLD);
 
   const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
   currentY += kDrawerHeaderTagGap + 5;
@@ -712,9 +739,9 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
 
-  renderer.rectangle.fill(drawerX, itemY, drawerWidth, itemHeight,
-                          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink)
-                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
+  renderer.rectangle.fill(
+      drawerX, itemY, drawerWidth, itemHeight,
+      isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
 
   if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
     const int textX = drawerX + 15;
@@ -724,8 +751,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     const char* indicator = entry.getValueText(settings);
     if (indicator && indicator[0] != '\0') {
       const int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY,
-                           indicator, isSelected ? 0 : 1, EpdFontFamily::BOLD);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY, indicator,
+                           isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
     renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
@@ -740,14 +767,13 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   if (entry.item == MenuItem::FontFamily) {
     const char* val = entry.getValueText(settings);
     if (val && val[0] != '\0') {
-      ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY,
-                                                     itemHeight, isSelected, val);
+      ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, settings.fontFamily, valueColumnRight, itemY, itemHeight,
+                                                     isSelected, val);
     }
   } else if (entry.item == MenuItem::FontSize) {
     const int valueAreaLeft = std::max(textX + 72, drawerX + drawerWidth * 35 / 100);
-    ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize,
-                                                       valueAreaLeft, valueColumnRight, itemY, itemHeight,
-                                                       isSelected);
+    ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, settings.fontFamily, settings.fontSize, valueAreaLeft,
+                                                       valueColumnRight, itemY, itemHeight, isSelected);
   } else {
     bool checkbox = false;
     bool checked = false;
@@ -788,8 +814,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
       const char* val = entry.getValueText(settings);
       if (val && val[0] != '\0') {
         const int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val,
-                             isSelected ? 0 : 1);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val, isSelected ? 0 : 1);
       }
     }
   }
@@ -928,13 +953,6 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
       if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
         toggleGroup(selected.group);
         needRedraw = true;
-      } else if (selected.item == MenuItem::PresetPicker) {
-        // Snapshot-apply the highlighted preset onto this book, then rebuild rows to reflect new values.
-        ReaderPresetStore::getInstance().applyToBook(presetPickIndex_, settings);
-        setupMenu();
-        settingsUpdated = true;
-        if (onSettingsChanged) onSettingsChanged();
-        needRedraw = true;
       }
     }
   }
@@ -956,10 +974,18 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
  */
 void SettingsDrawer::applyChange(int delta) {
   if (selectedIndex < 0 || selectedIndex >= static_cast<int>(menuItems.size())) return;
-  const auto& selected = menuItems[selectedIndex];
-  selected.change(settings, delta);
+  const MenuItem selectedItem = menuItems[selectedIndex].item;
+  menuItems[selectedIndex].change(settings, delta);
 
-  switch (selected.item) {
+  if (selectedItem == MenuItem::PresetPicker) {
+    setupMenu();
+    if (selectedIndex >= static_cast<int>(menuItems.size())) {
+      selectedIndex = std::max(0, static_cast<int>(menuItems.size()) - 1);
+    }
+    return;
+  }
+
+  switch (selectedItem) {
     case MenuItem::FontSize:
     case MenuItem::LineHeight:
     case MenuItem::TextSpace:
@@ -975,6 +1001,7 @@ void SettingsDrawer::applyChange(int delta) {
     case MenuItem::PageAutoTurn:
     case MenuItem::ReaderImageGrayscale:
     case MenuItem::ReaderSmartImageRefresh:
+    case MenuItem::ReaderPowerButton:
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:
@@ -989,5 +1016,5 @@ void SettingsDrawer::applyChange(int delta) {
       break;
   }
 
-  if (onSettingsChanged) onSettingsChanged();
+  if (selectedItem != MenuItem::ReaderPowerButton && onSettingsChanged) onSettingsChanged();
 }

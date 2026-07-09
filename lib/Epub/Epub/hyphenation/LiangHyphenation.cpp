@@ -8,8 +8,6 @@
 #include <algorithm>
 #include <vector>
 
-
-
 namespace {
 
 struct AugmentedWord {
@@ -20,7 +18,6 @@ struct AugmentedWord {
   bool empty() const { return bytes.empty(); }
   size_t charCount() const { return charByteOffsets.size(); }
 };
-
 
 size_t encodeUtf8(uint32_t cp, std::vector<uint8_t>& out) {
   if (cp <= 0x7Fu) {
@@ -44,7 +41,6 @@ size_t encodeUtf8(uint32_t cp, std::vector<uint8_t>& out) {
   out.push_back(static_cast<uint8_t>(0x80u | (cp & 0x3Fu)));
   return 4;
 }
-
 
 AugmentedWord buildAugmentedWord(const std::vector<CodepointInfo>& cps, const LiangWordConfig& config) {
   AugmentedWord word;
@@ -82,10 +78,6 @@ AugmentedWord buildAugmentedWord(const std::vector<CodepointInfo>& cps, const Li
   return word;
 }
 
-
-
-
-
 struct AutomatonState {
   const uint8_t* data = nullptr;
   size_t size = 0;
@@ -100,10 +92,6 @@ struct AutomatonState {
   bool valid() const { return data != nullptr; }
 };
 
-
-
-
-
 struct EmbeddedAutomaton {
   const uint8_t* data = nullptr;
   size_t size = 0;
@@ -111,7 +99,6 @@ struct EmbeddedAutomaton {
 
   bool valid() const { return data != nullptr && size >= 4 && rootOffset < size; }
 };
-
 
 EmbeddedAutomaton parseAutomaton(const SerializedHyphenationPatterns& patterns) {
   EmbeddedAutomaton automaton;
@@ -131,7 +118,6 @@ EmbeddedAutomaton parseAutomaton(const SerializedHyphenationPatterns& patterns) 
   return automaton;
 }
 
-
 const EmbeddedAutomaton& getAutomaton(const SerializedHyphenationPatterns& patterns) {
   struct CacheEntry {
     const SerializedHyphenationPatterns* key;
@@ -149,7 +135,6 @@ const EmbeddedAutomaton& getAutomaton(const SerializedHyphenationPatterns& patte
   return cache.back().automaton;
 }
 
-
 AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   AutomatonState state;
   if (!automaton.valid() || addr >= automaton.size) {
@@ -161,10 +146,7 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   size_t pos = 0;
 
   const uint8_t header = base[pos++];
-  
-  
-  
-  
+
   const bool hasLevels = (header >> 7) != 0;
   uint8_t stride = static_cast<uint8_t>((header >> 5) & 0x03u);
   if (stride == 0) {
@@ -186,8 +168,7 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
     }
     const uint8_t offsetHi = base[pos++];
     const uint8_t offsetLoLen = base[pos++];
-    
-    
+
     const size_t offset = (static_cast<size_t>(offsetHi) << 4) | (offsetLoLen >> 4);
     levelsLen = offsetLoLen & 0x0Fu;
     if (offset + levelsLen > automaton.size) {
@@ -220,7 +201,6 @@ AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   return state;
 }
 
-
 int32_t decodeDelta(const uint8_t* buf, uint8_t stride) {
   if (stride == 1) {
     return static_cast<int8_t>(buf[0]);
@@ -233,22 +213,18 @@ int32_t decodeDelta(const uint8_t* buf, uint8_t stride) {
   return unsignedVal - (1 << 23);
 }
 
-
 bool transition(const EmbeddedAutomaton& automaton, const AutomatonState& state, uint8_t letter, AutomatonState& out) {
   if (!state.valid()) {
     return false;
   }
 
-  
-  
   for (size_t idx = 0; idx < state.childCount; ++idx) {
     if (state.transitions[idx] != letter) {
       continue;
     }
     const uint8_t* deltaPtr = state.targets + idx * state.stride;
     const int32_t delta = decodeDelta(deltaPtr, state.stride);
-    
-    
+
     const int64_t nextAddr = static_cast<int64_t>(state.addr) + delta;
     if (nextAddr < 0 || static_cast<size_t>(nextAddr) >= automaton.size) {
       return false;
@@ -258,9 +234,6 @@ bool transition(const EmbeddedAutomaton& automaton, const AutomatonState& state,
   }
   return false;
 }
-
-
-
 
 std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, const std::vector<uint8_t>& scores,
                                         const size_t minPrefix, const size_t minSuffix) {
@@ -293,8 +266,7 @@ std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, c
   return indexes;
 }
 
-}  
-
+}  // namespace
 
 std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
                                       const SerializedHyphenationPatterns& patterns, const LiangWordConfig& config) {
@@ -313,10 +285,8 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     return {};
   }
 
-  
   std::vector<uint8_t> scores(augmented.charCount(), 0);
 
-  
   for (size_t charStart = 0; charStart < augmented.charByteOffsets.size(); ++charStart) {
     const size_t byteStart = augmented.charByteOffsets[charStart];
     AutomatonState state = root;
@@ -324,13 +294,13 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     for (size_t cursor = byteStart; cursor < augmented.bytes.size(); ++cursor) {
       AutomatonState next;
       if (!transition(automaton, state, augmented.bytes[cursor], next)) {
-        break;  
+        break;
       }
       state = next;
 
       if (state.levels && state.levelsLen > 0) {
         size_t offset = 0;
-        
+
         for (size_t i = 0; i < state.levelsLen; ++i) {
           const uint8_t packed = state.levels[i];
           const size_t dist = static_cast<size_t>(packed / 10);
@@ -344,10 +314,10 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
 
           const int32_t boundary = augmented.byteToCharIndex[splitByte];
           if (boundary < 0) {
-            continue;  
+            continue;
           }
           if (boundary < 2 || boundary + 2 > static_cast<int32_t>(augmented.charCount())) {
-            continue;  
+            continue;
           }
 
           const size_t idx = static_cast<size_t>(boundary);

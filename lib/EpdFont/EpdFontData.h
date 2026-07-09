@@ -3,9 +3,6 @@
  * @brief Public interface and types for EpdFontData.
  */
 
-
-
-
 #pragma once
 #include <cstdint>
 

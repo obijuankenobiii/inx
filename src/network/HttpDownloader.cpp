@@ -10,11 +10,28 @@
 #include <base64.h>
 
 #include <cstring>
+#include <memory>
 #include <string>
 
 #include "esp_http_client.h"
 #include "state/SystemSetting.h"
 #include "util/UrlUtils.h"
+
+#ifdef SIMULATOR
+
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
+  (void)url;
+  (void)outContent;
+  (void)username;
+  (void)password;
+  Serial.printf("[%lu] [HTTP] Simulator does not support HTTP requests\n", millis());
+  return false;
+}
+
+#else
+
+#include <esp_http_client.h>
 
 extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
@@ -53,8 +70,11 @@ static esp_err_t downloadEventHandler(esp_http_client_event_t* event) {
   if (event->event_id == HTTP_EVENT_ON_DATA && event->data && event->data_len > 0) {
     auto* ctx = static_cast<DownloadCtx*>(event->user_data);
     if (ctx && ctx->file) {
-      ctx->file->write(event->data, event->data_len);
-      ctx->downloaded += event->data_len;
+      const size_t written = ctx->file->write(event->data, event->data_len);
+      if (written != static_cast<size_t>(event->data_len)) {
+        return ESP_FAIL;
+      }
+      ctx->downloaded += written;
       if (ctx->progress && ctx->total > 0) {
         ctx->progress(ctx->downloaded, ctx->total);
       }
@@ -63,8 +83,8 @@ static esp_err_t downloadEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
-static bool doFetch(const std::string& url, FetchCtx* fetchCtx,
-                    const std::string& username, const std::string& password) {
+static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::string& username,
+                    const std::string& password) {
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
   cfg.event_handler = fetchEventHandler;
@@ -75,7 +95,6 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx,
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;
   cfg.buffer_size_tx = 1024;
-  cfg.disable_auto_redirect = false;
 
   esp_http_client_handle_t client = esp_http_client_init(&cfg);
   if (!client) {
@@ -109,17 +128,19 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx,
   return true;
 }
 
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
+  Serial.printf("[%lu] [HTTP] Fetching: %s\n", millis(), url.c_str());
+  FetchCtx ctx = {&outContent};
+  return doFetch(url, &ctx, username, password);
+}
+
+#endif
+
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   std::string user = SETTINGS.opdsUsername;
   std::string pass = SETTINGS.opdsPassword;
   return fetchUrl(url, outContent, user, pass);
-}
-
-bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent,
-                              const std::string& username, const std::string& password) {
-  Serial.printf("[%lu] [HTTP] Fetching: %s\n", millis(), url.c_str());
-  FetchCtx ctx = {&outContent};
-  return doFetch(url, &ctx, username, password);
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
@@ -128,8 +149,8 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
   return fetchUrl(url, outContent, user, pass);
 }
 
-bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent,
-                              const std::string& username, const std::string& password) {
+bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
+                              const std::string& password) {
   StreamString stream;
   if (!fetchUrl(url, stream, username, password)) {
     return false;
@@ -161,6 +182,15 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return FILE_ERROR;
   }
 
+#ifdef SIMULATOR
+  (void)username;
+  (void)password;
+  (void)progress;
+  file.close();
+  Serial.printf("[%lu] [HTTP] Simulator does not support HTTP downloads\n", millis());
+  return HTTP_ERROR;
+
+#else
   DownloadCtx dctx = {&file, progress, 0, 0};
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
@@ -172,7 +202,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;
   cfg.buffer_size_tx = 1024;
-  cfg.disable_auto_redirect = false;
 
   esp_http_client_handle_t client = esp_http_client_init(&cfg);
   if (!client) {
@@ -220,4 +249,5 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   }
 
   return OK;
+#endif
 }

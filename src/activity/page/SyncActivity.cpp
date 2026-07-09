@@ -7,21 +7,20 @@
 
 #include <GfxRenderer.h>
 
+#include "images/Calibre.h"
+#include "images/Opds.h"
+#include "images/Qr.h"
+#include "images/Wifi.h"
+#include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
-
-#include "images/Wifi.h"
-#include "images/Qr.h"
-#include "images/Opds.h"
-#include "images/Calibre.h"
-#include "state/SystemSetting.h"
 
 namespace {
 constexpr int MENU_ITEM_COUNT = 4;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser"};
 constexpr int LIST_ITEM_HEIGHT = 60;
-}
+}  // namespace
 
 /**
  * Lifecycle hook called when entering the activity.
@@ -129,8 +128,7 @@ void SyncActivity::render() const {
 
   const int headerY = TAB_BAR_HEIGHT;
   const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerTextY =
-      headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
@@ -152,8 +150,7 @@ void SyncActivity::render() const {
       constexpr int kIconSize = 30;
       const int textX = 70;
       const int iconX = (textX - kIconSize) / 2;
-      const int titleY =
-          itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      const int titleY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
 
       switch (i) {
@@ -161,14 +158,14 @@ void SyncActivity::render() const {
           renderer.bitmap.icon(Wifi, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
         case 1:
-          renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
+          renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None,
+                               isSelected);
           break;
         case 2:
           renderer.bitmap.icon(Qr, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
         case 3:
-          renderer.bitmap.icon(Opds, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None,
-                               isSelected);
+          renderer.bitmap.icon(Opds, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
           break;
       }
 
@@ -186,6 +183,4 @@ void SyncActivity::render() const {
   renderer.displayBuffer();
 }
 
-void SyncActivity::onExit() {
-  Activity::onExit();
-}
+void SyncActivity::onExit() { Activity::onExit(); }

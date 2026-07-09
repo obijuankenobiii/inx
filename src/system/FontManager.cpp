@@ -1,16 +1,17 @@
 #include "FontManager.h"
 
 #include <Arduino.h>
+
 #include <algorithm>
-#include <climits>
 #include <cctype>
+#include <climits>
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
 
-#include "ExternalFont.h"
 #include "EpdFontFamily.h"
+#include "ExternalFont.h"
 #include "SDCardManager.h"
 #include "system/Fonts.h"
 
@@ -35,8 +36,7 @@ std::vector<std::string> g_sdFamiliesSorted;
  */
 static int extractSizeFromFilename(const std::string& filename) {
   const size_t dot = filename.rfind('.');
-  const std::string stem =
-      (dot != std::string::npos && dot > 0) ? filename.substr(0, dot) : filename;
+  const std::string stem = (dot != std::string::npos && dot > 0) ? filename.substr(0, dot) : filename;
   const size_t us = stem.rfind('_');
   if (us != std::string::npos && us + 1 < stem.size()) {
     size_t j = us + 1;
@@ -133,8 +133,7 @@ void FontManager::initialize(GfxRenderer& renderer) {
                                                    &literata18BoldItalicFont);
 
   static EpdFont atkinson_hyperlegible8RegularFont(&atkinson_hyperlegible_8_regular);
-  static EpdFontFamily atkinson_hyperlegible8FontFamily(&atkinson_hyperlegible8RegularFont, nullptr, nullptr,
-                                                          nullptr);
+  static EpdFontFamily atkinson_hyperlegible8FontFamily(&atkinson_hyperlegible8RegularFont, nullptr, nullptr, nullptr);
 
   static EpdFont atkinson_hyperlegible10RegularFont(&atkinson_hyperlegible_10_regular);
   static EpdFont atkinson_hyperlegible10BoldFont(&atkinson_hyperlegible_10_bold);
@@ -241,7 +240,6 @@ int FontManager::getNextFont(int currentFontId) {
 
   return currentFontId;
 }
-
 
 /**
  * @brief Scans SD card for font files
@@ -493,6 +491,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
       Serial.printf("[FontManager] Skipping %s (failed to load): %s\n", label, path.c_str());
       return nullptr;
     }
+    stream->setGlyphBitmapCacheEnabled(true);
     return stream;
   };
 
@@ -501,7 +500,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     Serial.printf("[FontManager] Failed to load regular: %s\n", entry->regularPath.c_str());
     return false;
   }
-  regularStream->setLowercaseGlyphBitmapCacheEnabled(true);
+  regularStream->setGlyphBitmapCacheEnabled(true);
 
   entry->regularFont = new EpdFont(regularStream->getData());
   g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->regularFont));
@@ -526,8 +525,7 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->boldItalic));
   }
 
-  entry->fontFamily =
-      new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalic);
+  entry->fontFamily = new EpdFontFamily(entry->regularFont, entry->boldFont, entry->italicFont, entry->boldItalic);
   g_fontFamilyStorage.push_back(std::unique_ptr<EpdFontFamily>(entry->fontFamily));
 
   entry->isLoaded = true;

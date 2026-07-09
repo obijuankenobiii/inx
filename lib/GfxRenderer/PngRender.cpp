@@ -5,14 +5,20 @@
 
 #include "PngRender.h"
 
-#include "BitmapUtil.h"
-#include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <miniz.h>
 
 #include <algorithm>
 #include <cstring>
 #include <new>
+
+#include "BitmapUtil.h"
+#include "GfxRenderer.h"
+
+// Same per-pixel hot-loop rationale as JpegRender.cpp: opt this file's own code into -O2 despite the
+// firmware's default -Os, since scanline decode + tone/dither math here runs once per pixel of every PNG
+// render. Placed after all includes so it doesn't retroactively apply to inlined header code.
+#pragma GCC optimize("O2")
 
 namespace {
 constexpr int kPngDitherSolidBlackMax = 32;
@@ -90,9 +96,8 @@ uint8_t paethPredictor(uint8_t a, uint8_t b, uint8_t c) {
 }
 
 uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) {
-  const int luma = (static_cast<uint32_t>(r) * 77u + static_cast<uint32_t>(g) * 150u +
-                    static_cast<uint32_t>(b) * 29u) >>
-                   8;
+  const int luma =
+      (static_cast<uint32_t>(r) * 77u + static_cast<uint32_t>(g) * 150u + static_cast<uint32_t>(b) * 29u) >> 8;
   const int maxChannel = std::max(static_cast<int>(r), std::max(static_cast<int>(g), static_cast<int>(b)));
   const int minChannel = std::min(static_cast<int>(r), std::min(static_cast<int>(g), static_cast<int>(b)));
   const int chroma = maxChannel - minChannel;
@@ -211,8 +216,7 @@ bool beginPng(FsFile& pngFile, PngContext& ctx) {
   const uint8_t interlace = ihdrRest[4];
   pngFile.seekCur(4);
 
-  if (compression != 0 || filter != 0 || interlace != 0 || width == 0 || height == 0 || width > 2048 ||
-      height > 3072) {
+  if (compression != 0 || filter != 0 || interlace != 0 || width == 0 || height == 0 || width > 2048 || height > 3072) {
     return false;
   }
 
@@ -359,7 +363,8 @@ void convertScanlineToGray(const PngContext& ctx, uint8_t* grayRow) {
   switch (ctx.colorType) {
     case PNG_COLOR_GRAYSCALE:
       if (ctx.bitDepth == 8) {
-        for (uint32_t x = 0; x < w; x++) grayRow[x] = (ctx.hasTransparentGray && src[x] == ctx.transparentGray) ? 255 : src[x];
+        for (uint32_t x = 0; x < w; x++)
+          grayRow[x] = (ctx.hasTransparentGray && src[x] == ctx.transparentGray) ? 255 : src[x];
       } else if (ctx.bitDepth == 16) {
         for (uint32_t x = 0; x < w; x++) {
           const uint8_t* p = src + x * 2;
@@ -396,9 +401,8 @@ void convertScanlineToGray(const PngContext& ctx, uint8_t* grayRow) {
         const int shift = (ppb - 1 - (x % ppb)) * ctx.bitDepth;
         uint8_t idx = (src[x / ppb] >> shift) & mask;
         if (idx >= ctx.paletteSize) idx = 0;
-        grayRow[x] = compositeOverWhite(rgbToGray(ctx.palette[idx * 3], ctx.palette[idx * 3 + 1],
-                                                  ctx.palette[idx * 3 + 2]),
-                                        ctx.paletteAlpha[idx]);
+        grayRow[x] = compositeOverWhite(
+            rgbToGray(ctx.palette[idx * 3], ctx.palette[idx * 3 + 1], ctx.palette[idx * 3 + 2]), ctx.paletteAlpha[idx]);
       }
       break;
     }
@@ -442,8 +446,7 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
   const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
   const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
   if (renderMode == GfxRenderer::BW) {
-    if ((ctx.mode == ImageRenderMode::TwoBit && level > 0) ||
-        (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
+    if ((ctx.mode == ImageRenderMode::TwoBit && level > 0) || (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
       ctx.renderer->drawPixel(x, y, true);
     }
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
@@ -452,11 +455,9 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
              (ctx.renderer->deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
     ctx.renderer->drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAY2_LSB &&
-             ((mapQualityGray2Level(level, ctx.renderer->deviceIsX3()) & 0b01) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level) & 0b01) == 0)) {
     ctx.renderer->drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2_MSB &&
-             ((mapQualityGray2Level(level, ctx.renderer->deviceIsX3()) & 0b10) == 0)) {
+  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level) & 0b10) == 0)) {
     ctx.renderer->drawPixel(x, y, true);
   }
 }
@@ -469,8 +470,7 @@ bool drawGrayRow(RenderContext& ctx, const uint8_t* grayRow, int width, int rowI
     const int gray = grayRow[ox];
 
     int q;
-    const int solidBlackMax =
-        ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidBlackMax : kPngDitherSolidBlackMax;
+    const int solidBlackMax = ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidBlackMax : kPngDitherSolidBlackMax;
     const int solidWhiteMin = ctx.mode == ImageRenderMode::TwoBit ? kPngTwoBitSolidWhiteMin : kPngDitherSolidWhiteMin;
     if (gray <= solidBlackMax) {
       q = 0;
@@ -520,8 +520,7 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 
   int currentSrcY = -1;
   for (int oy = 0; oy < outH; oy++) {
-    const int sy =
-        srcY + (outH <= 1 ? 0 : std::min(srcH - 1, (oy * srcH) / outH));
+    const int sy = srcY + (outH <= 1 ? 0 : std::min(srcH - 1, (oy * srcH) / outH));
     while (currentSrcY < sy) {
       if (!decodeScanline(ctx)) {
         free(graySrc);
@@ -615,8 +614,8 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
   return ok;
 }
 
-bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                         bool cropToFill, const ImageRenderMode mode) const {
+bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
+                         const ImageRenderMode mode) const {
   FsFile file;
   if (!SdMan.openFileForRead("PNG", path, file)) return false;
   const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
@@ -638,8 +637,8 @@ bool PngRender::getDimensions(FsFile& pngFile, int* outW, int* outH) {
   uint8_t ihdrType[4];
   const bool ok = pngFile.read(sig, 8) == 8 && memcmp(sig, kPngSignature, 8) == 0 && readBE32(pngFile, ihdrLen) &&
                   pngFile.read(ihdrType, 4) == 4 && memcmp(ihdrType, "IHDR", 4) == 0 && ihdrLen >= 13 &&
-                  readBE32(pngFile, width) && readBE32(pngFile, height) && width > 0 && height > 0 &&
-                  width <= 2048 && height <= 3072;
+                  readBE32(pngFile, width) && readBE32(pngFile, height) && width > 0 && height > 0 && width <= 2048 &&
+                  height <= 3072;
   if (ok) {
     *outW = static_cast<int>(width);
     *outH = static_cast<int>(height);

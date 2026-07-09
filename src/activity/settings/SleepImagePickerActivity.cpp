@@ -35,7 +35,7 @@ constexpr int RANDOM_BUTTON_W = 178;
 constexpr int RANDOM_BUTTON_H = 28;
 constexpr int FOOTER_SIDE_PAD = 20;
 
-}  
+}  // namespace
 
 void SleepImagePickerActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
@@ -103,9 +103,7 @@ int SleepImagePickerActivity::pageStartForIndex(const int index) const {
   return (index / GRID_ITEMS) * GRID_ITEMS;
 }
 
-int SleepImagePickerActivity::indexForSlot(const int pageStart, const int slot) const {
-  return pageStart + slot;
-}
+int SleepImagePickerActivity::indexForSlot(const int pageStart, const int slot) const { return pageStart + slot; }
 
 int SleepImagePickerActivity::slotForIndex(const int pageStart, const int index) const {
   const int offset = index - pageStart;
@@ -406,7 +404,8 @@ void SleepImagePickerActivity::loop() {
 
   if (randomPressed) {
     randomEnabled = !randomEnabled;
-    SETTINGS.setSleepCustomBmpFromInput(randomEnabled ? "" : (rows.empty() ? "" : rows[static_cast<size_t>(selectedIndex)].value.c_str()));
+    SETTINGS.setSleepCustomBmpFromInput(
+        randomEnabled ? "" : (rows.empty() ? "" : rows[static_cast<size_t>(selectedIndex)].value.c_str()));
     SETTINGS.saveToFile();
     renderedPageStart = -1;
     freeGridBuffer();

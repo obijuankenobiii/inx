@@ -44,8 +44,10 @@ class EInkDisplay {
 
   // Frame buffer operations
   void clearScreen(uint8_t color = 0xFF) const;
-  void drawImage(const uint8_t* imageData, uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool fromProgmem = false) const;
-  void drawImageTransparent(const uint8_t* imageData, uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool fromProgmem = false) const;
+  void drawImage(const uint8_t* imageData, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                 bool fromProgmem = false) const;
+  void drawImageTransparent(const uint8_t* imageData, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                            bool fromProgmem = false) const;
 #ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
   void swapBuffers();
 #endif
@@ -61,7 +63,8 @@ class EInkDisplay {
   void displayBuffer(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
-  void displayGrayBuffer(bool turnOffScreen = false, const unsigned char* lutData = nullptr, bool quality = false);
+  void displayGrayBuffer(bool turnOffScreen = false, const unsigned char* lutData = nullptr, bool quality = false,
+                         bool trackForRevert = true);
   void displayGrayBufferFastQuality(bool turnOffScreen = false);
   void prepareQualityGrayscale();
   // Quality grayscale restricted to a pixel rectangle (only those pixels are driven; rest of screen preserved).
@@ -70,22 +73,19 @@ class EInkDisplay {
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
   // Hint the X3 policy to run a one-shot full resync on next update.
-  void requestResync(uint8_t settlePasses = 0);
+  void requestResync();
 
   // debug function
   void grayscaleRevert();
 
   // LUT control
   void setCustomLUT(bool enabled, const unsigned char* lutData = nullptr);
-  void setSunlightFadeFixEnabled(bool enabled);
 
   // Power management
   void deepSleep();
 
   // Access to frame buffer
-  uint8_t* getFrameBuffer() const {
-    return frameBuffer;
-  }
+  uint8_t* getFrameBuffer() const { return frameBuffer; }
 
   // Save the current framebuffer to a PBM file (desktop/test builds only)
   void saveFrameBufferAsPBM(const char* filename);
@@ -111,7 +111,6 @@ class EInkDisplay {
   X3GrayState _x3GrayState;
   uint8_t _x3InitialFullSyncsRemaining = 0;
   bool _x3ForceFullSyncNext = false;
-  uint8_t _x3ForcedConditionPassesNext = 0;
   // Frame buffer (statically allocated)
   uint8_t frameBuffer0[MAX_BUFFER_SIZE];
   uint8_t* frameBuffer;
@@ -124,11 +123,10 @@ class EInkDisplay {
   SPISettings spiSettings;
 
   // State
-  bool isScreenOn;
-  bool customLutActive;
-  bool sunlightFadeFixEnabled;
-  bool inGrayscaleMode;
-  bool drawGrayscale;
+  bool isScreenOn = false;
+  bool customLutActive = false;
+  bool inGrayscaleMode = false;
+  bool drawGrayscale = false;
 
   // Low-level display control
   void resetDisplay();

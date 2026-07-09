@@ -6,42 +6,48 @@
 #include "LocalServer.h"
 
 #include <ArduinoJson.h>
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include <Epub.h>
 #include <FsHelpers.h>
+#include <HalGPIO.h>
+#endif
 #include <SDCardManager.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 
+#include "../state/SystemSetting.h"
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
+#include "html/HomePageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
 #include "html/JsZipMinJs.generated.h"
-#include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "html/TagsPageHtml.generated.h"
-#include "util/StringUtils.h"
-#include "state/SystemSetting.h"
-#include "state/BookTags.h"
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include "activity/settings/LibraryIndexer.h"
+#include "state/BookTags.h"
+#include "system/FontManager.h"
+#include "util/StringUtils.h"
+#endif
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include "state/OpdsServerStore.h"
-#include "system/FontManager.h"
+#endif
 
 namespace {
-
 
 const char* HIDDEN_ITEMS[] = {"System Volume Information", ".metadata"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
-
 
 LocalServer* wsInstance = nullptr;
 
@@ -49,7 +55,6 @@ volatile bool webLibraryIndexing = false;
 volatile int webLibraryIndexCurrent = 0;
 volatile int webLibraryIndexTotal = 0;
 char webLibraryIndexPath[128] = "";
-
 
 FsFile wsUploadFile;
 String wsUploadFileName;
@@ -62,15 +67,37 @@ String wsLastCompleteName;
 size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
 
+void copySettingString(char* dest, size_t destSize, const char* value) {
+  if (destSize == 0) {
+    return;
+  }
+  if (value == nullptr) {
+    value = "";
+  }
+  strncpy(dest, value, destSize - 1);
+  dest[destSize - 1] = '\0';
+}
 
 void clearEpubCacheIfNeeded(const String& filePath) {
-  
+#ifndef INX_SIMULATOR_WEB_ONLY
   if (StringUtils::checkFileExtension(filePath, ".epub")) {
     Epub(filePath.c_str(), "/.metadata").clearCache();
     Serial.printf("[%lu] [WEB] Cleared epub cache for: %s\n", millis(), filePath.c_str());
   }
+#else
+  (void)filePath;
+#endif
 }
 
+bool clockSettingsAvailable() {
+#ifndef INX_SIMULATOR_WEB_ONLY
+  return gpio.deviceIsX3();
+#else
+  return false;
+#endif
+}
+
+#ifndef INX_SIMULATOR_WEB_ONLY
 struct IndexedBookInfo {
   String path;
   String title;
@@ -78,9 +105,15 @@ struct IndexedBookInfo {
   String tag;
 };
 
+std::string lowerAscii(const String& value) {
+  std::string lowered = value.c_str();
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return lowered;
+}
+
 String jsonEscape(const String& s) {
   String out;
-  out.reserve(s.length() + 8);
   for (size_t i = 0; i < s.length(); ++i) {
     char c = s.charAt(i);
     switch (c) {
@@ -230,10 +263,8 @@ void webLibraryIndexTask(void*) {
   webLibraryIndexing = false;
   vTaskDelete(nullptr);
 }
-}  
-
-
-
+#endif
+}  // namespace
 
 LocalServer::LocalServer() {}
 
@@ -245,10 +276,9 @@ void LocalServer::begin() {
     return;
   }
 
-  
   const wifi_mode_t wifiMode = WiFi.getMode();
   const bool isStaConnected = (wifiMode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
-  const bool isInApMode = (wifiMode & WIFI_MODE_AP) && (WiFi.softAPgetStationNum() >= 0);  
+  const bool isInApMode = (wifiMode & WIFI_MODE_AP) && (WiFi.softAPgetStationNum() >= 0);
 
   if (!isStaConnected && !isInApMode) {
     Serial.printf("[%lu] [WEB] Cannot start webserver - no valid network (mode=%d, status=%d)\n", millis(), wifiMode,
@@ -256,7 +286,6 @@ void LocalServer::begin() {
     return;
   }
 
-  
   apMode = isInApMode;
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap before begin: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -265,12 +294,7 @@ void LocalServer::begin() {
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server.reset(new WebServer(port));
 
-  
-  
   WiFi.setSleep(false);
-
-  
-  
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
 
@@ -279,7 +303,6 @@ void LocalServer::begin() {
     return;
   }
 
-  
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
   server->on("/", HTTP_GET, [this] { handleRoot(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
@@ -298,15 +321,11 @@ void LocalServer::begin() {
   server->on("/api/library-index/status", HTTP_GET, [this] { handleLibraryIndexStatus(); });
   server->on("/download", HTTP_GET, [this] { handleDownload(); });
 
-  
   server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
 
-  
   server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
 
-  
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
-
 
   server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
   server->on("/api/settings", HTTP_GET, [this] { handleSettingsGet(); });
@@ -318,9 +337,11 @@ void LocalServer::begin() {
   server->on("/api/koreader", HTTP_GET, [this] { handleKOReaderGet(); });
   server->on("/api/koreader", HTTP_POST, [this] { handleKOReaderPost(); });
 
+#ifndef INX_SIMULATOR_WEB_ONLY
   server->on("/api/opds", HTTP_GET, [this] { handleOpdsGet(); });
   server->on("/api/opds", HTTP_POST, [this] { handleOpdsPost(); });
   server->on("/api/opds/*", HTTP_DELETE, [this] { handleOpdsDelete(); });
+#endif
 
   server->on("/api/fonts/rescan", HTTP_POST, [this] { handleFontsRescan(); });
 
@@ -333,7 +354,6 @@ void LocalServer::begin() {
 
   server->begin();
 
-  
   Serial.printf("[%lu] [WEB] Starting WebSocket server on port %d...\n", millis(), wsPort);
   wsServer.reset(new WebSocketsServer(wsPort));
   wsInstance = const_cast<LocalServer*>(this);
@@ -348,7 +368,7 @@ void LocalServer::begin() {
   running = true;
 
   Serial.printf("[%lu] [WEB] Web server started on port %d\n", millis(), port);
-  
+
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   Serial.printf("[%lu] [WEB] Access at http://%s/\n", millis(), ipAddr.c_str());
   Serial.printf("[%lu] [WEB] WebSocket at ws://%s:%d/\n", millis(), ipAddr.c_str(), wsPort);
@@ -363,17 +383,15 @@ void LocalServer::stop() {
   }
 
   Serial.printf("[%lu] [WEB] STOP INITIATED - setting running=false first\n", millis());
-  running = false;  
+  running = false;
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap before stop: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  
   if (wsUploadInProgress && wsUploadFile) {
     wsUploadFile.close();
     wsUploadInProgress = false;
   }
 
-  
   if (wsServer) {
     Serial.printf("[%lu] [WEB] Stopping WebSocket server...\n", millis());
     wsServer->close();
@@ -387,39 +405,32 @@ void LocalServer::stop() {
     udpActive = false;
   }
 
-  
   delay(20);
 
   server->stop();
   Serial.printf("[%lu] [WEB] [MEM] Free heap after server->stop(): %d bytes\n", millis(), ESP.getFreeHeap());
 
-  
   delay(10);
 
   server.reset();
   Serial.printf("[%lu] [WEB] Web server stopped and deleted\n", millis());
   Serial.printf("[%lu] [WEB] [MEM] Free heap after delete server: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  
-  
   Serial.printf("[%lu] [WEB] [MEM] Free heap final: %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
 void LocalServer::handleClient() {
   static unsigned long lastDebugPrint = 0;
 
-  
   if (!running) {
     return;
   }
 
-  
   if (!server) {
     Serial.printf("[%lu] [WEB] WARNING: handleClient called with null server!\n", millis());
     return;
   }
 
-  
   if (millis() - lastDebugPrint > 10000) {
     Serial.printf("[%lu] [WEB] handleClient active, server running on port %d\n", millis(), port);
     lastDebugPrint = millis();
@@ -427,12 +438,10 @@ void LocalServer::handleClient() {
 
   server->handleClient();
 
-  
   if (wsServer) {
     wsServer->loop();
   }
 
-  
   if (udpActive) {
     int packetSize = udp.parsePacket();
     if (packetSize > 0) {
@@ -479,7 +488,6 @@ void LocalServer::handleNotFound() const {
 }
 
 void LocalServer::handleStatus() const {
-  
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 
   JsonDocument doc;
@@ -516,10 +524,8 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
     file.getName(name, sizeof(name));
     auto fileName = String(name);
 
-    
     bool shouldHide = fileName.startsWith(".");
 
-    
     if (!shouldHide) {
       for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
         if (fileName.equals(HIDDEN_ITEMS[i])) {
@@ -546,17 +552,18 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
     }
 
     file.close();
-    yield();               
-    esp_task_wdt_reset();  
+    yield();
+    esp_task_wdt_reset();
     file = root.openNextFile();
   }
   root.close();
 }
 
 bool LocalServer::isEpubFile(const String& filename) const {
-  String lower = filename;
-  lower.toLowerCase();
-  return lower.endsWith(".epub");
+  std::string lower = filename.c_str();
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".epub") == 0;
 }
 
 void LocalServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
@@ -570,8 +577,7 @@ void LocalServer::handleFontManagerPage() const { server->send(200, "text/html",
 void LocalServer::handleTagsPage() const { server->send(200, "text/html", TagsPageHtml); }
 
 void LocalServer::handleInxFontPackJs() const {
-  server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_FONT_PACK_JS,
-                  sizeof(INX_FONT_PACK_JS) - 1);
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_FONT_PACK_JS, sizeof(INX_FONT_PACK_JS) - 1);
 }
 
 void LocalServer::handleJsZipMinJs() const {
@@ -583,15 +589,14 @@ void LocalServer::handleEpubPageJs() const {
 }
 
 void LocalServer::handleFileListData() const {
-  
   String currentPath = "/";
   if (server->hasArg("path")) {
     currentPath = server->arg("path");
-    
+
     if (!currentPath.startsWith("/")) {
       currentPath = "/" + currentPath;
     }
-    
+
     if (currentPath.length() > 1 && currentPath.endsWith("/")) {
       currentPath = currentPath.substring(0, currentPath.length() - 1);
     }
@@ -614,7 +619,6 @@ void LocalServer::handleFileListData() const {
 
     const size_t written = serializeJson(doc, output, outputSize);
     if (written >= outputSize) {
-      
       Serial.printf("[%lu] [WEB] Skipping file entry with oversized JSON for name: %s\n", millis(), info.name.c_str());
       return;
     }
@@ -627,23 +631,22 @@ void LocalServer::handleFileListData() const {
     server->sendContent(output);
   });
   server->sendContent("]");
-  
+
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
 }
 
 void LocalServer::handleBookTagsGet() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   std::vector<IndexedBookInfo> books;
   const bool hasIndex = loadIndexedBooksWithTags(books);
   std::vector<std::string> tags;
   BookTags::loadTagList(tags);
 
   std::sort(books.begin(), books.end(), [](const IndexedBookInfo& a, const IndexedBookInfo& b) {
-    String aTitle = a.title;
-    String bTitle = b.title;
-    aTitle.toLowerCase();
-    bTitle.toLowerCase();
-    return aTitle < bTitle;
+    return lowerAscii(a.title) < lowerAscii(b.title);
   });
 
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -671,9 +674,13 @@ void LocalServer::handleBookTagsGet() const {
   }
   server->sendContent("]}");
   server->sendContent("");
+#endif
 }
 
 void LocalServer::handleLibraryIndexRefresh() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (webLibraryIndexing) {
     server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
     return;
@@ -684,8 +691,7 @@ void LocalServer::handleLibraryIndexRefresh() const {
   webLibraryIndexTotal = 0;
   webLibraryIndexPath[0] = '\0';
 
-  BaseType_t created =
-      xTaskCreate(webLibraryIndexTask, "WebLibIndex", 4096, nullptr, 1, nullptr);
+  BaseType_t created = xTaskCreate(webLibraryIndexTask, "WebLibIndex", 4096, nullptr, 1, nullptr);
   if (created != pdPASS) {
     webLibraryIndexing = false;
     server->send(500, "application/json", "{\"ok\":false,\"error\":\"task\"}");
@@ -693,9 +699,13 @@ void LocalServer::handleLibraryIndexRefresh() const {
   }
 
   server->send(200, "application/json", "{\"ok\":true,\"indexing\":true}");
+#endif
 }
 
 void LocalServer::handleLibraryIndexStatus() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(200, "application/json", "{\"indexing\":false,\"current\":0,\"total\":0,\"path\":\"\"}");
+#else
   String body = "{\"indexing\":";
   body += webLibraryIndexing ? "true" : "false";
   body += ",\"current\":";
@@ -706,9 +716,13 @@ void LocalServer::handleLibraryIndexStatus() const {
   body += jsonEscape(String(webLibraryIndexPath));
   body += "\"}";
   server->send(200, "application/json", body);
+#endif
 }
 
 void LocalServer::handleBookTagsPost() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -766,6 +780,7 @@ void LocalServer::handleBookTagsPost() const {
   }
 
   server->send(200, "application/json", "{\"ok\":true}");
+#endif
 }
 
 void LocalServer::handleDownload() const {
@@ -831,7 +846,6 @@ void LocalServer::handleDownload() const {
   file.close();
 }
 
-
 static FsFile uploadFile;
 static String uploadFileName;
 static String uploadPath = "/";
@@ -839,13 +853,9 @@ static size_t uploadSize = 0;
 static bool uploadSuccess = false;
 static String uploadError = "";
 
-
-
-
-constexpr size_t UPLOAD_BUFFER_SIZE = 4096;  
+constexpr size_t UPLOAD_BUFFER_SIZE = 4096;
 static uint8_t* uploadBuffer = nullptr;
 static size_t uploadBufferPos = 0;
-
 
 static unsigned long uploadStartTime = 0;
 static unsigned long totalWriteTime = 0;
@@ -859,12 +869,12 @@ static void freeUploadBuffer() {
 
 static bool flushUploadBuffer() {
   if (uploadBufferPos > 0 && uploadFile && uploadBuffer) {
-    esp_task_wdt_reset();  
+    esp_task_wdt_reset();
     const unsigned long writeStart = millis();
     const size_t written = uploadFile.write(uploadBuffer, uploadBufferPos);
     totalWriteTime += millis() - writeStart;
     writeCount++;
-    esp_task_wdt_reset();  
+    esp_task_wdt_reset();
 
     if (written != uploadBufferPos) {
       Serial.printf("[%lu] [WEB] [UPLOAD] Buffer flush failed: expected %d, wrote %d\n", millis(), uploadBufferPos,
@@ -873,6 +883,7 @@ static bool flushUploadBuffer() {
       return false;
     }
     uploadBufferPos = 0;
+    yield();
   }
   return true;
 }
@@ -880,10 +891,8 @@ static bool flushUploadBuffer() {
 void LocalServer::handleUpload() const {
   static size_t lastLoggedSize = 0;
 
-  
   esp_task_wdt_reset();
 
-  
   if (!running || !server) {
     Serial.printf("[%lu] [WEB] [UPLOAD] ERROR: handleUpload called but server not running!\n", millis());
     return;
@@ -892,7 +901,6 @@ void LocalServer::handleUpload() const {
   const HTTPUpload& upload = server->upload();
 
   if (upload.status == UPLOAD_FILE_START) {
-    
     esp_task_wdt_reset();
 
     uploadFileName = upload.filename;
@@ -906,16 +914,13 @@ void LocalServer::handleUpload() const {
     writeCount = 0;
     freeUploadBuffer();
 
-    
-    
-    
     if (server->hasArg("path")) {
       uploadPath = server->arg("path");
-      
+
       if (!uploadPath.startsWith("/")) {
         uploadPath = "/" + uploadPath;
       }
-      
+
       if (uploadPath.length() > 1 && uploadPath.endsWith("/")) {
         uploadPath = uploadPath.substring(0, uploadPath.length() - 1);
       }
@@ -926,12 +931,10 @@ void LocalServer::handleUpload() const {
     Serial.printf("[%lu] [WEB] [UPLOAD] START: %s to path: %s\n", millis(), uploadFileName.c_str(), uploadPath.c_str());
     Serial.printf("[%lu] [WEB] [UPLOAD] Free heap: %d bytes\n", millis(), ESP.getFreeHeap());
 
-    
     String filePath = uploadPath;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += uploadFileName;
 
-    
     esp_task_wdt_reset();
     if (SdMan.exists(filePath.c_str())) {
       Serial.printf("[%lu] [WEB] [UPLOAD] Overwriting existing file: %s\n", millis(), filePath.c_str());
@@ -939,7 +942,6 @@ void LocalServer::handleUpload() const {
       SdMan.remove(filePath.c_str());
     }
 
-    
     esp_task_wdt_reset();
     if (!SdMan.openFileForWrite("WEB", filePath, uploadFile)) {
       uploadError = "Failed to create file on SD card";
@@ -960,8 +962,6 @@ void LocalServer::handleUpload() const {
     Serial.printf("[%lu] [WEB] [UPLOAD] File created successfully: %s\n", millis(), filePath.c_str());
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (uploadFile && uploadError.isEmpty()) {
-      
-      
       const uint8_t* data = upload.buf;
       size_t remaining = upload.currentSize;
 
@@ -974,7 +974,6 @@ void LocalServer::handleUpload() const {
         data += toCopy;
         remaining -= toCopy;
 
-        
         if (uploadBufferPos >= UPLOAD_BUFFER_SIZE) {
           if (!flushUploadBuffer()) {
             uploadError = "Failed to write to SD card - disk may be full";
@@ -986,7 +985,6 @@ void LocalServer::handleUpload() const {
 
       uploadSize += upload.currentSize;
 
-      
       if (uploadSize - lastLoggedSize >= 102400) {
         const unsigned long elapsed = millis() - uploadStartTime;
         const float kbps = (elapsed > 0) ? (uploadSize / 1024.0) / (elapsed / 1000.0) : 0;
@@ -997,7 +995,6 @@ void LocalServer::handleUpload() const {
     }
   } else if (upload.status == UPLOAD_FILE_END) {
     if (uploadFile) {
-      
       if (!flushUploadBuffer()) {
         uploadError = "Failed to write final data to SD card";
       }
@@ -1014,7 +1011,6 @@ void LocalServer::handleUpload() const {
         Serial.printf("[%lu] [WEB] [UPLOAD] Diagnostics: %d writes, total write time: %lu ms (%.1f%%)\n", millis(),
                       writeCount, totalWriteTime, writePercent);
 
-        
         String filePath = uploadPath;
         if (!filePath.endsWith("/")) filePath += "/";
         filePath += uploadFileName;
@@ -1025,7 +1021,7 @@ void LocalServer::handleUpload() const {
     freeUploadBuffer();
     if (uploadFile) {
       uploadFile.close();
-      
+
       String filePath = uploadPath;
       if (!filePath.endsWith("/")) filePath += "/";
       filePath += uploadFileName;
@@ -1046,7 +1042,6 @@ void LocalServer::handleUploadPost() const {
 }
 
 void LocalServer::handleCreateFolder() const {
-  
   if (!server->hasArg("name")) {
     server->send(400, "text/plain", "Missing folder name");
     return;
@@ -1054,13 +1049,11 @@ void LocalServer::handleCreateFolder() const {
 
   const String folderName = server->arg("name");
 
-  
   if (folderName.isEmpty()) {
     server->send(400, "text/plain", "Folder name cannot be empty");
     return;
   }
 
-  
   String parentPath = "/";
   if (server->hasArg("path")) {
     parentPath = server->arg("path");
@@ -1072,20 +1065,17 @@ void LocalServer::handleCreateFolder() const {
     }
   }
 
-  
   String folderPath = parentPath;
   if (!folderPath.endsWith("/")) folderPath += "/";
   folderPath += folderName;
 
   Serial.printf("[%lu] [WEB] Creating folder: %s\n", millis(), folderPath.c_str());
 
-  
   if (SdMan.exists(folderPath.c_str())) {
     server->send(400, "text/plain", "Folder already exists");
     return;
   }
 
-  
   if (SdMan.mkdir(folderPath.c_str())) {
     Serial.printf("[%lu] [WEB] Folder created successfully: %s\n", millis(), folderPath.c_str());
     server->send(200, "text/plain", "Folder created: " + folderName);
@@ -1096,7 +1086,6 @@ void LocalServer::handleCreateFolder() const {
 }
 
 void LocalServer::handleDelete() const {
-  
   if (!server->hasArg("path")) {
     server->send(400, "text/plain", "Missing path");
     return;
@@ -1105,28 +1094,23 @@ void LocalServer::handleDelete() const {
   String itemPath = server->arg("path");
   const String itemType = server->hasArg("type") ? server->arg("type") : "file";
 
-  
   if (itemPath.isEmpty() || itemPath == "/") {
     server->send(400, "text/plain", "Cannot delete root directory");
     return;
   }
 
-  
   if (!itemPath.startsWith("/")) {
     itemPath = "/" + itemPath;
   }
 
-  
   const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
 
-  
   if (itemName.startsWith(".")) {
     Serial.printf("[%lu] [WEB] Delete rejected - hidden/system item: %s\n", millis(), itemPath.c_str());
     server->send(403, "text/plain", "Cannot delete system files");
     return;
   }
 
-  
   for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
     if (itemName.equals(HIDDEN_ITEMS[i])) {
       Serial.printf("[%lu] [WEB] Delete rejected - protected item: %s\n", millis(), itemPath.c_str());
@@ -1135,7 +1119,6 @@ void LocalServer::handleDelete() const {
     }
   }
 
-  
   if (!SdMan.exists(itemPath.c_str())) {
     Serial.printf("[%lu] [WEB] Delete failed - item not found: %s\n", millis(), itemPath.c_str());
     server->send(404, "text/plain", "Item not found");
@@ -1147,13 +1130,10 @@ void LocalServer::handleDelete() const {
   bool success = false;
 
   if (itemType == "folder") {
-    
     FsFile dir = SdMan.open(itemPath.c_str());
     if (dir && dir.isDirectory()) {
-      
       FsFile entry = dir.openNextFile();
       if (entry) {
-        
         entry.close();
         dir.close();
         Serial.printf("[%lu] [WEB] Delete failed - folder not empty: %s\n", millis(), itemPath.c_str());
@@ -1164,7 +1144,6 @@ void LocalServer::handleDelete() const {
     }
     success = SdMan.rmdir(itemPath.c_str());
   } else {
-    
     success = SdMan.remove(itemPath.c_str());
   }
 
@@ -1177,27 +1156,20 @@ void LocalServer::handleDelete() const {
   }
 }
 
-
 void LocalServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (wsInstance) {
     wsInstance->onWebSocketEvent(num, type, payload, length);
   }
 }
 
-
-
-
-
-
-
 void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
       Serial.printf("[%lu] [WS] Client %u disconnected\n", millis(), num);
-      
+
       if (wsUploadInProgress && wsUploadFile) {
         wsUploadFile.close();
-        
+
         String filePath = wsUploadPath;
         if (!filePath.endsWith("/")) filePath += "/";
         filePath += wsUploadFileName;
@@ -1213,12 +1185,10 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
     }
 
     case WStype_TEXT: {
-      
       String msg = String((char*)payload);
       Serial.printf("[%lu] [WS] Text from client %u: %s\n", millis(), num, msg.c_str());
 
       if (msg.startsWith("START:")) {
-        
         int firstColon = msg.indexOf(':', 6);
         int secondColon = msg.indexOf(':', firstColon + 1);
 
@@ -1229,13 +1199,11 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
           wsUploadReceived = 0;
           wsUploadStartTime = millis();
 
-          
           if (!wsUploadPath.startsWith("/")) wsUploadPath = "/" + wsUploadPath;
           if (wsUploadPath.length() > 1 && wsUploadPath.endsWith("/")) {
             wsUploadPath = wsUploadPath.substring(0, wsUploadPath.length() - 1);
           }
 
-          
           String filePath = wsUploadPath;
           if (!filePath.endsWith("/")) filePath += "/";
           filePath += wsUploadFileName;
@@ -1243,13 +1211,11 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
           Serial.printf("[%lu] [WS] Starting upload: %s (%d bytes) to %s\n", millis(), wsUploadFileName.c_str(),
                         wsUploadSize, filePath.c_str());
 
-          
           esp_task_wdt_reset();
           if (SdMan.exists(filePath.c_str())) {
             SdMan.remove(filePath.c_str());
           }
 
-          
           esp_task_wdt_reset();
           if (!SdMan.openFileForWrite("WS", filePath, wsUploadFile)) {
             wsServer->sendTXT(num, "ERROR:Failed to create file");
@@ -1273,7 +1239,6 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
         return;
       }
 
-      
       esp_task_wdt_reset();
       size_t written = wsUploadFile.write(payload, length);
       esp_task_wdt_reset();
@@ -1287,7 +1252,6 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
 
       wsUploadReceived += written;
 
-      
       static size_t lastProgressSent = 0;
       if (wsUploadReceived - lastProgressSent >= 65536 || wsUploadReceived >= wsUploadSize) {
         String progress = "PROGRESS:" + String(wsUploadReceived) + ":" + String(wsUploadSize);
@@ -1295,7 +1259,6 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
         lastProgressSent = wsUploadReceived;
       }
 
-      
       if (wsUploadReceived >= wsUploadSize) {
         wsUploadFile.close();
         wsUploadInProgress = false;
@@ -1310,7 +1273,6 @@ void LocalServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
         Serial.printf("[%lu] [WS] Upload complete: %s (%d bytes in %lu ms, %.1f KB/s)\n", millis(),
                       wsUploadFileName.c_str(), wsUploadSize, elapsed, kbps);
 
-        
         String filePath = wsUploadPath;
         if (!filePath.endsWith("/")) filePath += "/";
         filePath += wsUploadFileName;
@@ -1334,30 +1296,34 @@ void LocalServer::handleSettingsPage() const {
 
 void LocalServer::handleSettingsGet() const {
   JsonDocument doc;
-  
-  
-  doc["sleepScreen"] = SETTINGS.sleepScreen;
+  const bool clockAvailable = clockSettingsAvailable();
+  const uint8_t sleepScreen = (!clockAvailable && SETTINGS.sleepScreen == SystemSetting::DATETIME)
+                                  ? SystemSetting::LIGHT
+                                  : SETTINGS.sleepScreen;
+
+  doc["clockAvailable"] = clockAvailable;
+  doc["sleepScreen"] = sleepScreen;
   doc["sleepScreenCoverMode"] = SETTINGS.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = SETTINGS.sleepScreenCoverFilter;
   doc["sleepImageQuality"] = SETTINGS.sleepImageQuality;
   doc["sleepScreenCoverGrayscale"] = SETTINGS.sleepImageQuality;
   doc["sleepImageTwoBit"] = SETTINGS.sleepImageQuality != SystemSetting::SLEEP_IMAGE_LOW;
   doc["sleepCustomBmp"] = SETTINGS.sleepCustomBmp;
-  doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
-  doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
-  doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
+  if (clockAvailable) {
+    doc["sleepClockStyle"] = SETTINGS.sleepClockStyle;
+    doc["sleepClockTimeFormat"] = SETTINGS.sleepClockTimeFormat;
+    doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
+  }
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["libraryMode"] = SETTINGS.libraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
-  doc["fixSunlightFade"] = SETTINGS.fixSunlightFade;
   doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
   doc["librarySortMode"] = SETTINGS.librarySortMode;
 
   doc["fontFamily"] = SETTINGS.fontFamily;
   doc["fontSize"] = SETTINGS.fontSize;
-  
-  
+
   doc["lineHeight"] = SETTINGS.lineHeight;
   doc["textSpace"] = SETTINGS.textSpace;
   doc["screenMargin"] = SETTINGS.screenMargin;
@@ -1367,14 +1333,12 @@ void LocalServer::handleSettingsGet() const {
   doc["orientation"] = SETTINGS.orientation;
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
   doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
-  
-  
+
   doc["readerDirectionMapping"] = SETTINGS.readerDirectionMapping;
   doc["readerMenuButton"] = SETTINGS.readerMenuButton;
   doc["longPressChapterSkip"] = SETTINGS.longPressChapterSkip;
   doc["readerShortPwrBtn"] = SETTINGS.readerShortPwrBtn;
-  
-  
+
   doc["textAntiAliasing"] = SETTINGS.textAntiAliasing;
   doc["refreshFrequency"] = SETTINGS.refreshFrequency;
   doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
@@ -1383,12 +1347,10 @@ void LocalServer::handleSettingsGet() const {
   doc["statusBarLeft"] = SETTINGS.statusBarLeft;
   doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
   doc["statusBarRight"] = SETTINGS.statusBarRight;
-  
-  
+
   doc["frontButtonLayout"] = SETTINGS.frontButtonLayout;
   doc["shortPwrBtn"] = SETTINGS.shortPwrBtn;
-  
-  
+
   doc["sleepTimeout"] = SETTINGS.sleepTimeout;
   doc["useLibraryIndex"] = SETTINGS.useLibraryIndex;
   doc["bootSetting"] = SETTINGS.bootSetting;
@@ -1400,7 +1362,10 @@ void LocalServer::handleSettingsGet() const {
   doc["refreshOnLoadStatistics"] = SETTINGS.refreshOnLoadStatistics;
   doc["pageAutoTurnSeconds"] = SETTINGS.pageAutoTurnSeconds;
   doc["bitmapRoundedCorners"] = SETTINGS.bitmapRoundedCorners;
-  
+  doc["opdsServerUrl"] = SETTINGS.opdsServerUrl;
+  doc["opdsUsername"] = SETTINGS.opdsUsername;
+  doc["opdsPasswordSet"] = strlen(SETTINGS.opdsPassword) > 0;
+
   String json;
   serializeJson(doc, json);
   server->send(200, "application/json", json);
@@ -1411,360 +1376,323 @@ void LocalServer::handleSettingsUpdate() const {
     server->send(400, "text/plain", "Missing JSON body");
     return;
   }
-  
+
   String body = server->arg("plain");
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, body);
-  
+
   if (error) {
     server->send(400, "text/plain", "Invalid JSON");
     return;
   }
-  
+
   bool changed = false;
-  
-  
+  const bool clockAvailable = clockSettingsAvailable();
+
   for (JsonPair kv : doc.as<JsonObject>()) {
     const char* key = kv.key().c_str();
     int value = kv.value().as<int>();
-    
+
     if (strcmp(key, "sleepScreen") == 0) {
-      SETTINGS.sleepScreen = (uint8_t)value;
+      uint8_t v = static_cast<uint8_t>(value);
+      if (v >= SystemSetting::SLEEP_SCREEN_MODE_COUNT || (!clockAvailable && v == SystemSetting::DATETIME)) {
+        v = SystemSetting::LIGHT;
+      }
+      SETTINGS.sleepScreen = v;
       changed = true;
-    }
-    else if (strcmp(key, "sleepScreenCoverMode") == 0) {
+    } else if (strcmp(key, "sleepScreenCoverMode") == 0) {
       SETTINGS.sleepScreenCoverMode = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "sleepScreenCoverFilter") == 0) {
+    } else if (strcmp(key, "sleepScreenCoverFilter") == 0) {
       SETTINGS.sleepScreenCoverFilter = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
+    } else if (strcmp(key, "sleepScreenCoverGrayscale") == 0) {
       SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
                                        ? static_cast<uint8_t>(value)
                                        : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
-    }
-    else if (strcmp(key, "sleepImageQuality") == 0) {
+    } else if (strcmp(key, "sleepImageQuality") == 0) {
       SETTINGS.sleepImageQuality = (value >= 0 && value < SystemSetting::SLEEP_IMAGE_QUALITY_COUNT)
                                        ? static_cast<uint8_t>(value)
                                        : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
-    }
-    else if (strcmp(key, "sleepImageTwoBit") == 0) {
+    } else if (strcmp(key, "sleepImageTwoBit") == 0) {
       SETTINGS.sleepImageQuality = (uint8_t)value ? SystemSetting::SLEEP_IMAGE_MEDIUM : SystemSetting::SLEEP_IMAGE_LOW;
       changed = true;
-    }
-    else if (strcmp(key, "sleepCustomBmp") == 0) {
+    } else if (strcmp(key, "sleepCustomBmp") == 0) {
       if (kv.value().isNull()) {
         SETTINGS.setSleepCustomBmpFromInput(nullptr);
       } else {
         SETTINGS.setSleepCustomBmpFromInput(kv.value().as<const char*>());
       }
       changed = true;
-    }
-    else if (strcmp(key, "sleepClockStyle") == 0) {
+    } else if (clockAvailable && strcmp(key, "sleepClockStyle") == 0) {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::SLEEP_CLOCK_STYLE_COUNT) v = SystemSetting::CLOCK_CENTERED_DATE;
       SETTINGS.sleepClockStyle = v;
       changed = true;
-    }
-    else if (strcmp(key, "sleepClockTimeFormat") == 0) {
+    } else if (clockAvailable && strcmp(key, "sleepClockTimeFormat") == 0) {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::CLOCK_TIME_FORMAT_COUNT) v = SystemSetting::CLOCK_24_HOUR;
       SETTINGS.sleepClockTimeFormat = v;
       changed = true;
-    }
-    else if (strcmp(key, "timeZoneQuarterOffset") == 0) {
+    } else if (clockAvailable && strcmp(key, "timeZoneQuarterOffset") == 0) {
       int v = static_cast<int>(value);
       if (v < 0) v = 0;
       if (v > 104) v = 104;
       SETTINGS.timeZoneQuarterOffset = static_cast<uint8_t>(v);
       changed = true;
-    }
-    else if (strcmp(key, "hideBatteryPercentage") == 0) {
+    } else if (strcmp(key, "hideBatteryPercentage") == 0) {
       SETTINGS.hideBatteryPercentage = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "recentLibraryMode") == 0) {
+    } else if (strcmp(key, "recentLibraryMode") == 0) {
       SETTINGS.recentLibraryMode = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "libraryMode") == 0) {
+    } else if (strcmp(key, "libraryMode") == 0) {
       uint8_t v = static_cast<uint8_t>(value);
       if (v >= SystemSetting::LIBRARY_MODE_COUNT) v = SystemSetting::LIBRARY_LIST;
       SETTINGS.libraryMode = v;
       changed = true;
-    }
-    else if (strcmp(key, "recentVisibleCount") == 0) {
+    } else if (strcmp(key, "recentVisibleCount") == 0) {
       int v = static_cast<int>(value);
       if (v < 1) v = 1;
       if (v > 8) v = 8;
       SETTINGS.recentVisibleCount = static_cast<uint8_t>(v);
       changed = true;
-    }
-    else if (strcmp(key, "fixSunlightFade") == 0) {
-      SETTINGS.fixSunlightFade = (uint8_t)value ? 1 : 0;
-      changed = true;
-    }
-    else if (strcmp(key, "librarySortEnabled") == 0) {
+    } else if (strcmp(key, "librarySortEnabled") == 0) {
       SETTINGS.librarySortEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "librarySortMode") == 0) {
+    } else if (strcmp(key, "librarySortMode") == 0) {
       int v = static_cast<int>(value);
       if (v < 0) v = 0;
       if (v > 6) v = 0;
       SETTINGS.librarySortMode = static_cast<uint8_t>(v);
       changed = true;
-    }
-    else if (strcmp(key, "fontFamily") == 0) {
+    } else if (strcmp(key, "fontFamily") == 0) {
       SETTINGS.fontFamily = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "fontSize") == 0) {
+    } else if (strcmp(key, "fontSize") == 0) {
       SETTINGS.fontSize = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "lineHeight") == 0) {
+    } else if (strcmp(key, "lineHeight") == 0) {
       uint8_t v = (uint8_t)value;
       SETTINGS.lineHeight = (v < 10 || v > 200) ? 100 : v;
       changed = true;
-    }
-    else if (strcmp(key, "textSpace") == 0) {
+    } else if (strcmp(key, "textSpace") == 0) {
       uint8_t v = (uint8_t)value;
       SETTINGS.textSpace = (v < 10 || v > 200) ? 100 : v;
       changed = true;
-    }
-    else if (strcmp(key, "screenMargin") == 0) {
+    } else if (strcmp(key, "screenMargin") == 0) {
       SETTINGS.screenMargin = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "paragraphAlignment") == 0) {
+    } else if (strcmp(key, "paragraphAlignment") == 0) {
       SETTINGS.paragraphAlignment = (uint8_t)value;
       if (SETTINGS.paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
         SETTINGS.paragraphAlignment = SystemSetting::JUSTIFIED;
       }
       changed = true;
-    }
-    else if (strcmp(key, "extraParagraphSpacing") == 0) {
+    } else if (strcmp(key, "extraParagraphSpacing") == 0) {
       SETTINGS.extraParagraphSpacing = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "paragraphCssIndentEnabled") == 0) {
+    } else if (strcmp(key, "paragraphCssIndentEnabled") == 0) {
       SETTINGS.paragraphCssIndentEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "orientation") == 0) {
+    } else if (strcmp(key, "orientation") == 0) {
       SETTINGS.orientation = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "hyphenationEnabled") == 0) {
+    } else if (strcmp(key, "hyphenationEnabled") == 0) {
       SETTINGS.hyphenationEnabled = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "bionicReadingEnabled") == 0) {
+    } else if (strcmp(key, "bionicReadingEnabled") == 0) {
       SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "readerDirectionMapping") == 0) {
+    } else if (strcmp(key, "readerDirectionMapping") == 0) {
       SETTINGS.readerDirectionMapping = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "readerMenuButton") == 0) {
+    } else if (strcmp(key, "readerMenuButton") == 0) {
       uint8_t v = (uint8_t)value;
       if (v >= SystemSetting::READER_MENU_BUTTON_COUNT) {
         v = SystemSetting::MENU_UP;
       }
       SETTINGS.readerMenuButton = v;
       changed = true;
-    }
-    else if (strcmp(key, "longPressChapterSkip") == 0) {
+    } else if (strcmp(key, "longPressChapterSkip") == 0) {
       const int v = static_cast<int>(value);
       SETTINGS.longPressChapterSkip =
-          (v < 0) ? 0 : (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? SystemSetting::LONG_PRESS_PAGE_SKIP_5 : (uint8_t)v);
+          (v < 0) ? 0
+                  : (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? SystemSetting::LONG_PRESS_PAGE_SKIP_5 : (uint8_t)v);
       changed = true;
-    }
-    else if (strcmp(key, "readerShortPwrBtn") == 0) {
+    } else if (strcmp(key, "readerShortPwrBtn") == 0) {
       SETTINGS.readerShortPwrBtn = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "textAntiAliasing") == 0) {
+    } else if (strcmp(key, "textAntiAliasing") == 0) {
       SETTINGS.textAntiAliasing = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "refreshFrequency") == 0) {
+    } else if (strcmp(key, "refreshFrequency") == 0) {
       SETTINGS.refreshFrequency = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "readerImageGrayscale") == 0) {
+    } else if (strcmp(key, "readerImageGrayscale") == 0) {
       SETTINGS.readerImageGrayscale = (value >= 0 && value < SystemSetting::READER_IMAGE_QUALITY_COUNT)
                                           ? (uint8_t)value
                                           : SystemSetting::READER_IMAGE_LOW;
       changed = true;
-    }
-    else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
+    } else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
       SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "statusBar") == 0) {
+    } else if (strcmp(key, "statusBar") == 0) {
       SETTINGS.statusBar = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "statusBarLeft") == 0) {
+    } else if (strcmp(key, "statusBarLeft") == 0) {
       SETTINGS.statusBarLeft = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "statusBarMiddle") == 0) {
+    } else if (strcmp(key, "statusBarMiddle") == 0) {
       SETTINGS.statusBarMiddle = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "statusBarRight") == 0) {
+    } else if (strcmp(key, "statusBarRight") == 0) {
       SETTINGS.statusBarRight = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "frontButtonLayout") == 0) {
+    } else if (strcmp(key, "frontButtonLayout") == 0) {
       SETTINGS.frontButtonLayout = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "shortPwrBtn") == 0) {
+    } else if (strcmp(key, "shortPwrBtn") == 0) {
       SETTINGS.shortPwrBtn = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "sleepTimeout") == 0) {
+    } else if (strcmp(key, "sleepTimeout") == 0) {
       SETTINGS.sleepTimeout = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "useLibraryIndex") == 0) {
+    } else if (strcmp(key, "useLibraryIndex") == 0) {
       SETTINGS.useLibraryIndex = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "bootSetting") == 0) {
+    } else if (strcmp(key, "bootSetting") == 0) {
       SETTINGS.bootSetting = (uint8_t)value;
       changed = true;
-    }
-    else if (strcmp(key, "refreshOnLoadRecent") == 0) {
+    } else if (strcmp(key, "refreshOnLoadRecent") == 0) {
       SETTINGS.refreshOnLoadRecent = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "refreshOnLoadLibrary") == 0) {
+    } else if (strcmp(key, "refreshOnLoadLibrary") == 0) {
       SETTINGS.refreshOnLoadLibrary = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "refreshOnLoadSettings") == 0) {
+    } else if (strcmp(key, "refreshOnLoadSettings") == 0) {
       SETTINGS.refreshOnLoadSettings = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "refreshOnLoadSync") == 0) {
+    } else if (strcmp(key, "refreshOnLoadSync") == 0) {
       SETTINGS.refreshOnLoadSync = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "refreshOnLoadStatistics") == 0) {
+    } else if (strcmp(key, "refreshOnLoadStatistics") == 0) {
       SETTINGS.refreshOnLoadStatistics = (uint8_t)value ? 1 : 0;
       changed = true;
-    }
-    else if (strcmp(key, "pageAutoTurnSeconds") == 0) {
+    } else if (strcmp(key, "pageAutoTurnSeconds") == 0) {
       int v = static_cast<int>(value);
       if (v < 0) v = 0;
       if (v > 180) v = 180;
       v = (v / 10) * 10;
       SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
       changed = true;
-    }
-    else if (strcmp(key, "bitmapRoundedCorners") == 0) {
+    } else if (strcmp(key, "bitmapRoundedCorners") == 0) {
       SETTINGS.bitmapRoundedCorners = (uint8_t)value ? 1 : 0;
+      changed = true;
+    } else if (strcmp(key, "opdsServerUrl") == 0) {
+      copySettingString(SETTINGS.opdsServerUrl, sizeof(SETTINGS.opdsServerUrl), kv.value().as<const char*>());
+      changed = true;
+    } else if (strcmp(key, "opdsUsername") == 0) {
+      copySettingString(SETTINGS.opdsUsername, sizeof(SETTINGS.opdsUsername), kv.value().as<const char*>());
+      changed = true;
+    } else if (strcmp(key, "opdsPassword") == 0) {
+      copySettingString(SETTINGS.opdsPassword, sizeof(SETTINGS.opdsPassword), kv.value().as<const char*>());
       changed = true;
     }
   }
-  
+
   if (changed) {
     SETTINGS.saveToFile();
     Serial.printf("[%lu] [WEB] Settings updated and saved\n", millis());
   }
-  
+
   server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void LocalServer::handleWifiGet() const {
-    JsonDocument doc;
-    const auto& creds = WIFI_STORE.getCredentials();
-    JsonArray arr = doc.to<JsonArray>();
-    for (const auto& cred : creds) {
-        JsonObject obj = arr.add<JsonObject>();
-        obj["ssid"] = cred.ssid;
-    }
-    String json;
-    serializeJson(doc, json);
-    server->send(200, "application/json", json);
+  JsonDocument doc;
+  const auto& creds = WIFI_STORE.getCredentials();
+  JsonArray arr = doc.to<JsonArray>();
+  for (const auto& cred : creds) {
+    JsonObject obj = arr.add<JsonObject>();
+    obj["ssid"] = cred.ssid;
+  }
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
 }
 
 void LocalServer::handleWifiPost() const {
-    if (!server->hasArg("plain")) {
-        server->send(400, "text/plain", "Missing JSON");
-        return;
-    }
-    
-    JsonDocument doc;
-    deserializeJson(doc, server->arg("plain"));
-    String ssid = doc["ssid"];
-    String password = doc["password"] | "";
-    
-    if (WIFI_STORE.addCredential(ssid.c_str(), password.c_str())) {
-        WIFI_STORE.saveToFile();
-        server->send(200, "application/json", "{\"status\":\"ok\"}");
-    } else {
-        server->send(500, "text/plain", "Failed to save");
-    }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON");
+    return;
+  }
+
+  JsonDocument doc;
+  deserializeJson(doc, server->arg("plain"));
+  String ssid = doc["ssid"];
+  String password = doc["password"] | "";
+
+  if (WIFI_STORE.addCredential(ssid.c_str(), password.c_str())) {
+    WIFI_STORE.saveToFile();
+    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  } else {
+    server->send(500, "text/plain", "Failed to save");
+  }
 }
 
 void LocalServer::handleWifiDelete() const {
-    String uri = server->uri();
-    int lastSlash = uri.lastIndexOf('/');
-    String ssid = uri.substring(lastSlash + 1);
-    ssid.replace("%20", " ");
-    
-    if (WIFI_STORE.removeCredential(ssid.c_str())) {
-        WIFI_STORE.saveToFile();
-        server->send(200, "application/json", "{\"status\":\"ok\"}");
-    } else {
-        server->send(404, "text/plain", "Not found");
-    }
+  String uri = server->uri();
+  int lastSlash = uri.lastIndexOf('/');
+  String ssid = uri.substring(lastSlash + 1);
+  ssid.replace("%20", " ");
+
+  if (WIFI_STORE.removeCredential(ssid.c_str())) {
+    WIFI_STORE.saveToFile();
+    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  } else {
+    server->send(404, "text/plain", "Not found");
+  }
 }
 
 void LocalServer::handleKOReaderGet() const {
-    JsonDocument doc;
-    doc["username"] = KOREADER_STORE.getUsername();
-    doc["serverUrl"] = KOREADER_STORE.getServerUrl();
-    doc["matchMethod"] = (int)KOREADER_STORE.getMatchMethod();
-    String json;
-    serializeJson(doc, json);
-    server->send(200, "application/json", json);
+  JsonDocument doc;
+  doc["username"] = KOREADER_STORE.getUsername();
+  doc["serverUrl"] = KOREADER_STORE.getServerUrl();
+  doc["matchMethod"] = (int)KOREADER_STORE.getMatchMethod();
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
 }
 
 void LocalServer::handleKOReaderPost() const {
-    if (!server->hasArg("plain")) {
-        server->send(400, "text/plain", "Missing JSON");
-        return;
-    }
-    
-    JsonDocument doc;
-    deserializeJson(doc, server->arg("plain"));
-    
-    String username = doc["username"] | "";
-    String password = doc["password"] | "";
-    String serverUrl = doc["serverUrl"] | "";
-    int matchMethod = doc["matchMethod"] | 0;
-    
-    KOREADER_STORE.setCredentials(username.c_str(), password.c_str());
-    KOREADER_STORE.setServerUrl(serverUrl.c_str());
-    KOREADER_STORE.setMatchMethod((DocumentMatchMethod)matchMethod);
-    KOREADER_STORE.saveToFile();
-    
-    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON");
+    return;
+  }
+
+  JsonDocument doc;
+  deserializeJson(doc, server->arg("plain"));
+
+  String username = doc["username"] | "";
+  String password = doc["password"].is<const char*>() ? (doc["password"] | "") : KOREADER_STORE.getPassword().c_str();
+  String serverUrl = doc["serverUrl"] | "";
+  int matchMethod = doc["matchMethod"] | 0;
+
+  KOREADER_STORE.setCredentials(username.c_str(), password.c_str());
+  KOREADER_STORE.setServerUrl(serverUrl.c_str());
+  KOREADER_STORE.setMatchMethod((DocumentMatchMethod)matchMethod);
+  KOREADER_STORE.saveToFile();
+
+  server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void LocalServer::handleFontsRescan() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
   if (!SdMan.ready()) {
     server->send(503, "application/json", "{\"ok\":false,\"error\":\"sd_unavailable\"}");
     return;
@@ -1775,57 +1703,60 @@ void LocalServer::handleFontsRescan() const {
   } else {
     server->send(500, "application/json", "{\"ok\":false,\"error\":\"scan_failed\"}");
   }
+#endif
 }
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 void LocalServer::handleOpdsGet() const {
-    JsonDocument doc;
-    const auto& servers = OPDS_STORE.getAllServers();
-    JsonArray arr = doc.to<JsonArray>();
-    for (const auto& srv : servers) {
-        JsonObject obj = arr.add<JsonObject>();
-        obj["name"] = srv.name;
-        obj["url"] = srv.url;
-        obj["username"] = srv.username;
-    }
-    String json;
-    serializeJson(doc, json);
-    server->send(200, "application/json", json);
+  JsonDocument doc;
+  const auto& servers = OPDS_STORE.getAllServers();
+  JsonArray arr = doc.to<JsonArray>();
+  for (const auto& srv : servers) {
+    JsonObject obj = arr.add<JsonObject>();
+    obj["name"] = srv.name;
+    obj["url"] = srv.url;
+    obj["username"] = srv.username;
+  }
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
 }
 
 void LocalServer::handleOpdsPost() const {
-    if (!server->hasArg("plain")) {
-        server->send(400, "text/plain", "Missing JSON");
-        return;
-    }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON");
+    return;
+  }
 
-    JsonDocument doc;
-    deserializeJson(doc, server->arg("plain"));
-    String name = doc["name"];
-    String url = doc["url"];
-    String username = doc["username"] | "";
-    String password = doc["password"] | "";
+  JsonDocument doc;
+  deserializeJson(doc, server->arg("plain"));
+  String name = doc["name"];
+  String url = doc["url"];
+  String username = doc["username"] | "";
+  String password = doc["password"] | "";
 
-    if (name.length() == 0 || url.length() == 0) {
-        server->send(400, "text/plain", "Name and URL are required");
-        return;
-    }
+  if (name.length() == 0 || url.length() == 0) {
+    server->send(400, "text/plain", "Name and URL are required");
+    return;
+  }
 
-    if (OPDS_STORE.addServer(name.c_str(), url.c_str(), username.c_str(), password.c_str())) {
-        server->send(200, "application/json", "{\"status\":\"ok\"}");
-    } else {
-        server->send(500, "text/plain", "Failed to save");
-    }
+  if (OPDS_STORE.addServer(name.c_str(), url.c_str(), username.c_str(), password.c_str())) {
+    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  } else {
+    server->send(500, "text/plain", "Failed to save");
+  }
 }
 
 void LocalServer::handleOpdsDelete() const {
-    String uri = server->uri();
-    int lastSlash = uri.lastIndexOf('/');
-    String name = uri.substring(lastSlash + 1);
-    name.replace("%20", " ");
+  String uri = server->uri();
+  int lastSlash = uri.lastIndexOf('/');
+  String name = uri.substring(lastSlash + 1);
+  name.replace("%20", " ");
 
-    if (OPDS_STORE.removeServer(name.c_str())) {
-        server->send(200, "application/json", "{\"status\":\"ok\"}");
-    } else {
-        server->send(404, "text/plain", "Not found");
-    }
+  if (OPDS_STORE.removeServer(name.c_str())) {
+    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  } else {
+    server->send(404, "text/plain", "Not found");
+  }
 }
+#endif

@@ -14,25 +14,20 @@ std::string sanitizeFilename(const std::string& name, size_t maxLength) {
   result.reserve(name.size());
 
   for (char c : name) {
-    
     if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
       result += '_';
     } else if (c >= 32 && c < 127) {
-      
       result += c;
     }
-    
   }
 
-  
   size_t start = result.find_first_not_of(" .");
   if (start == std::string::npos) {
-    return "book";  
+    return "book";
   }
   size_t end = result.find_last_not_of(" .");
   result = result.substr(start, end - start + 1);
 
-  
   if (result.length() > maxLength) {
     result.resize(maxLength);
   }
@@ -55,15 +50,7 @@ bool checkFileExtension(const std::string& fileName, const char* extension) {
 }
 
 bool checkFileExtension(const String& fileName, const char* extension) {
-  if (fileName.length() < strlen(extension)) {
-    return false;
-  }
-
-  String localFile(fileName);
-  String localExtension(extension);
-  localFile.toLowerCase();
-  localExtension.toLowerCase();
-  return localFile.endsWith(localExtension);
+  return checkFileExtension(std::string(fileName.c_str()), extension);
 }
 
-}  
+}  // namespace StringUtils

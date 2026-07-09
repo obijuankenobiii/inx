@@ -1,20 +1,23 @@
 #pragma once
 #include <string>
-#include "SDCardManager.h"
+
 #include "EpdFontData.h"
+#include "SDCardManager.h"
 
 class ExternalFont {
-public:
-    ExternalFont();
-    ~ExternalFont();
-    bool load(const char* path);
-    void unload();
-    void setLowercaseGlyphBitmapCacheEnabled(bool enabled);
-    bool getGlyphMetadata(uint32_t codePoint, EpdGlyph& outGlyph);
-    bool getGlyphBitmap(uint32_t offset, uint32_t length, uint8_t* outputBuffer);
-    EpdFontData* getData() { return m_fontData; }
+ public:
+  ExternalFont();
+  ~ExternalFont();
+  bool load(const char* path);
+  void unload();
+  void setGlyphBitmapCacheEnabled(bool enabled);
+  bool getGlyphMetadata(uint32_t codePoint, EpdGlyph& outGlyph);
+  bool getGlyphBitmap(uint32_t offset, uint32_t length, uint8_t* outputBuffer);
+  bool hasAntiAliasData() const { return m_hasAntiAliasData; }
+  EpdFontData* getData() { return m_fontData; }
 
-private:
+ private:
+  bool detectAntiAliasData();
   bool readGlyphEntryAtIndex(uint32_t index, uint8_t out24[24]) const;
   bool readCodepointAtIndex(uint32_t index, uint32_t& outCp) const;
   void decodeGlyphRow(const uint8_t entry[24], EpdGlyph& out) const;
@@ -25,7 +28,6 @@ private:
   void bitmapCacheStore(uint32_t offset, uint32_t length, const uint8_t* data);
   void bitmapCacheClear();
   bool bitmapCacheCanStore(uint32_t offset, uint32_t length) const;
-  void rememberLowercaseGlyphOffset(uint32_t offset);
 
   static constexpr size_t kGlyphMetaCacheSlots = 64;
   struct GlyphMetaCacheSlot {
@@ -36,17 +38,18 @@ private:
   GlyphMetaCacheSlot m_metaCache[kGlyphMetaCacheSlots];
   uint32_t m_metaCacheGen = 0;
 
-  static constexpr size_t kGlyphBitmapCacheSlots = 26;
-  static constexpr size_t kGlyphBitmapCacheMaxBytes = 128;
+  static constexpr size_t kGlyphBitmapCacheSlots = 32;
+  static constexpr size_t kGlyphBitmapCacheMaxBytes = 512;
   struct GlyphBitmapCacheSlot {
+    const ExternalFont* owner = nullptr;
     uint32_t offset = 0;
     uint16_t length = 0;
     uint32_t stamp = 0;
     uint8_t data[kGlyphBitmapCacheMaxBytes] = {};
   };
-  GlyphBitmapCacheSlot* m_bitmapCache = nullptr;
-  uint32_t m_lowercaseGlyphOffsets[kGlyphBitmapCacheSlots] = {};
-  uint32_t m_bitmapCacheGen = 0;
+  static GlyphBitmapCacheSlot* s_bitmapCache;
+  static uint32_t s_bitmapCacheGen;
+  static uint8_t s_bitmapCacheUsers;
   bool m_bitmapCacheEnabled = false;
 
   EpdFontData* m_fontData;
@@ -55,4 +58,5 @@ private:
   uint32_t m_glyphTableStart = 0;
   uint32_t m_glyphCount = 0;
   uint32_t m_bitmapDataStart = 0;
+  bool m_hasAntiAliasData = false;
 };

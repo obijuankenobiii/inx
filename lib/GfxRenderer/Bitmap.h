@@ -94,15 +94,14 @@ class Bitmap {
   uint32_t bfOffBits = 0;
   uint16_t bpp = 0;
   uint32_t colorsUsed = 0;
-  bool nativePalette = false;  
+  bool nativePalette = false;
   int rowBytes = 0;
   uint8_t paletteLum[256] = {};
 
-  
   mutable int16_t* errorCurRow = nullptr;
   mutable int16_t* errorNextRow = nullptr;
-  mutable int prevRowY = -1;  
+  mutable int prevRowY = -1;
 
   mutable FourToneImageDitherer* imageDitherer = nullptr;
   mutable Atkinson1BitDitherer* oneBitDitherer = nullptr;
-};  
+};

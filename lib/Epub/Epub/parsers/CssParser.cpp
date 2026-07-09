@@ -5,11 +5,11 @@
 
 #include "CssParser.h"
 
-#include "CssTrackedProperties.h"
-
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+
+#include "CssTrackedProperties.h"
 #ifdef ARDUINO
 #include <Esp.h>  // ESP.getFreeHeap() for the CSS heap-reserve guard
 #endif
@@ -232,8 +232,8 @@ SelectorMatchInfo matchSelectorList(const std::string& fullSelectorLower, const 
     TextSlice clause = trimCssWsView({fullSelectorLower.data() + start, clauseLen});
     if (!clause.empty()) {
       const std::string clauseStr(clause.data, clause.size);
-      const bool clauseFirstLetter = clauseStr.find(":first-letter") != std::string::npos ||
-                                     clauseStr.find("::first-letter") != std::string::npos;
+      const bool clauseFirstLetter =
+          clauseStr.find(":first-letter") != std::string::npos || clauseStr.find("::first-letter") != std::string::npos;
       if (!requireFirstLetterPseudo || clauseFirstLetter) {
         const TextSlice lastComp = lastCompoundView(clause);
         SelectorMatchInfo clauseInfo;
@@ -291,7 +291,7 @@ std::string extractCssUrl(const std::string& raw) {
   return url;
 }
 
-}  
+}  // namespace
 
 CssParser::CssParser() {}
 
@@ -325,8 +325,8 @@ void CssParser::parse(const std::string& cssContent, const std::string& sourcePa
   size_t len = cssContent.length();
 
   while (pos < len) {
-    while (pos < len && (cssContent[pos] == ' ' || cssContent[pos] == '\n' || cssContent[pos] == '\r' ||
-                         cssContent[pos] == '\t')) {
+    while (pos < len &&
+           (cssContent[pos] == ' ' || cssContent[pos] == '\n' || cssContent[pos] == '\r' || cssContent[pos] == '\t')) {
       pos++;
     }
 
@@ -600,7 +600,6 @@ int CssParser::parseDimensionValue(const std::string& valueIn, int viewportWidth
 
   if (numStr.empty()) return 0;
 
-  
   char* parseEnd = nullptr;
   const float num = std::strtof(numStr.c_str(), &parseEnd);
   if (parseEnd == numStr.c_str()) {
@@ -660,9 +659,9 @@ int CssParser::parseDimensionValue(const std::string& valueIn, int viewportWidth
 
 int CssParser::getInlineOrSheetLength(const std::string& propName, const std::string& className, const std::string& id,
                                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const {
-  const PercentRefersTo pct =
-      (propName == "height" || propName == "min-height" || propName == "max-height") ? PercentRefersTo::Height
-                                                                                     : PercentRefersTo::Width;
+  const PercentRefersTo pct = (propName == "height" || propName == "min-height" || propName == "max-height")
+                                  ? PercentRefersTo::Height
+                                  : PercentRefersTo::Width;
 
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
@@ -690,8 +689,7 @@ int CssParser::getInlineOrSheetLength(const std::string& propName, const std::st
     if (rule.isPseudoElement) {
       continue;
     }
-    const SelectorMatchInfo matchInfo =
-        matchSelectorList(rule.selectorLower, "", classTokens, idLower, false);
+    const SelectorMatchInfo matchInfo = matchSelectorList(rule.selectorLower, "", classTokens, idLower, false);
     if (!matchInfo.matched) {
       continue;
     }
@@ -853,7 +851,8 @@ int CssParser::getBorderEdgePx(const std::string& edgePropName, const std::strin
   if (!borderSheet.empty()) {
     return parseBorderWidthToken(borderSheet);
   }
-  const std::string borderWidthSheet = getCascadedPropertyValue("border-width", className, id, styleAttr, elementTagLower);
+  const std::string borderWidthSheet =
+      getCascadedPropertyValue("border-width", className, id, styleAttr, elementTagLower);
   if (!borderWidthSheet.empty()) {
     return parseBorderWidthShorthand(borderWidthSheet, topEdge);
   }
@@ -943,7 +942,7 @@ float CssParser::getFontSizeEm(const std::string& elementTagLower, const std::st
 
   if (unit == "em" || unit == "rem") return num;
   if (unit == "%") return num / 100.0f;
-  if (unit == "px") return num / 16.0f;     // relative to the 16px CSS base
+  if (unit == "px") return num / 16.0f;  // relative to the 16px CSS base
   if (unit == "pt") return (num * 96.0f / 72.0f) / 16.0f;
   return num;  // unitless — treat like em
 }
@@ -978,8 +977,7 @@ int CssParser::getMinHeight(const std::string& className, const std::string& id,
   return getInlineOrSheetLength("min-height", className, id, styleAttr, viewportWidth, viewportHeight);
 }
 
-void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw,
-                                      const std::map<std::string, std::string>& props) {
+void CssParser::noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& props) {
   const auto it = props.find("text-align");
   if (it == props.end()) {
     return;
@@ -1042,7 +1040,8 @@ const std::vector<CssParser::MatchedRule>& CssParser::matchedRulesFor(const std:
     if (rule.isPseudoElement) {
       continue;
     }
-    const SelectorMatchInfo matchInfo = matchSelectorList(rule.selectorLower, elementTagLower, classTokens, idLower, false);
+    const SelectorMatchInfo matchInfo =
+        matchSelectorList(rule.selectorLower, elementTagLower, classTokens, idLower, false);
     if (!matchInfo.matched) {
       continue;
     }
@@ -1060,8 +1059,7 @@ const std::vector<CssParser::MatchedRule>& CssParser::matchedRulesFor(const std:
 }
 
 const CssParser::CssRule* CssParser::winningRuleForProperty(const std::string& propName, const std::string& className,
-                                                            const std::string& id,
-                                                            const std::string& elementTagLower,
+                                                            const std::string& id, const std::string& elementTagLower,
                                                             const bool ignoreContextual) const {
   // Rank: id(2) > class(1) > type(0); within a tier a PLAIN selector beats an unverifiable combinator selector
   // (so an element's own ".p1" wins over a scoped ".box .p1" we can't verify). Highest rank wins; equal rank →
@@ -1119,8 +1117,8 @@ bool CssParser::getCascadedPropertyValueAndSource(const std::string& propName, c
   }
   if (outValue) *outValue = winner->properties.find(propName)->second;
   if (outSourcePath) {
-    *outSourcePath = winner->sourcePathIndex < sourcePaths_.size() ? sourcePaths_[winner->sourcePathIndex]
-                                                                   : std::string();
+    *outSourcePath =
+        winner->sourcePathIndex < sourcePaths_.size() ? sourcePaths_[winner->sourcePathIndex] : std::string();
   }
   return true;
 }
@@ -1151,8 +1149,7 @@ int CssParser::mapTextAlignToStyleIndex(const std::string& rawValue) const {
 }
 
 uint8_t CssParser::computeParagraphAlignment(const std::string& className, const std::string& id,
-                                             const std::string& styleAttr,
-                                             const std::string& elementTagLower) const {
+                                             const std::string& styleAttr, const std::string& elementTagLower) const {
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
   const auto inlineIt = inlineMap.find("text-align");
@@ -1180,7 +1177,7 @@ uint8_t CssParser::computeParagraphAlignment(const std::string& className, const
     }
   }
 
-  return 1;  
+  return 1;
 }
 
 bool CssParser::hasTextAlignSpecified(const std::string& elementTagLower, const std::string& className,
@@ -1194,8 +1191,8 @@ bool CssParser::hasTextAlignSpecified(const std::string& elementTagLower, const 
   return winningRuleForProperty("text-align", className, id, elementTagLower, /*ignoreContextual=*/true) != nullptr;
 }
 
-bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::string& className,
-                               const std::string& id, const std::string& styleAttr) const {
+bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr) const {
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
 
@@ -1213,8 +1210,8 @@ bool CssParser::isDisplayBlock(const std::string& elementTagLower, const std::st
   return raw == "block";
 }
 
-bool CssParser::isDisplayNone(const std::string& elementTagLower, const std::string& className,
-                              const std::string& id, const std::string& styleAttr) const {
+bool CssParser::isDisplayNone(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                              const std::string& styleAttr) const {
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
 
@@ -1353,7 +1350,8 @@ bool CssParser::resolveSmallCaps(const std::string& elementTagLower, const std::
     return mapVariant(inlineVariantIt->second, inheritedSmallCaps);
   }
 
-  const std::string sheetCaps = getCascadedPropertyValue("font-variant-caps", className, id, styleAttr, elementTagLower);
+  const std::string sheetCaps =
+      getCascadedPropertyValue("font-variant-caps", className, id, styleAttr, elementTagLower);
   if (!sheetCaps.empty()) {
     return mapVariant(sheetCaps, inheritedSmallCaps);
   }
@@ -1506,15 +1504,16 @@ int CssParser::getParagraphSpacingTopPx(const std::string& elementTagLower, cons
                                         const std::string& id, const std::string& styleAttr, const int viewportWidth,
                                         const int viewportHeight) const {
   (void)elementTagLower;
-  const int marginTop = getSpacingEdgePx("margin-top", "margin", className, id, styleAttr, viewportWidth, viewportHeight);
+  const int marginTop =
+      getSpacingEdgePx("margin-top", "margin", className, id, styleAttr, viewportWidth, viewportHeight);
   const int paddingTop =
       getSpacingEdgePx("padding-top", "padding", className, id, styleAttr, viewportWidth, viewportHeight);
   return marginTop + paddingTop;
 }
 
 int CssParser::getParagraphSpacingBottomPx(const std::string& elementTagLower, const std::string& className,
-                                           const std::string& id, const std::string& styleAttr,
-                                           const int viewportWidth, const int viewportHeight) const {
+                                           const std::string& id, const std::string& styleAttr, const int viewportWidth,
+                                           const int viewportHeight) const {
   (void)elementTagLower;
   const int marginBottom =
       getSpacingEdgePx("margin-bottom", "margin", className, id, styleAttr, viewportWidth, viewportHeight);
@@ -1524,8 +1523,7 @@ int CssParser::getParagraphSpacingBottomPx(const std::string& elementTagLower, c
 }
 
 int CssParser::getMarginTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
-                              const std::string& styleAttr, const int viewportWidth,
-                              const int viewportHeight) const {
+                              const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getSpacingEdgePx("margin-top", "margin", className, id, styleAttr, viewportWidth, viewportHeight,
                           elementTagLower);
 }
@@ -1537,9 +1535,8 @@ int CssParser::getMarginBottomPx(const std::string& elementTagLower, const std::
                           elementTagLower);
 }
 
-int CssParser::getPaddingTopPx(const std::string& elementTagLower, const std::string& className,
-                               const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                               const int viewportHeight) const {
+int CssParser::getPaddingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getSpacingEdgePx("padding-top", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
                           elementTagLower);
 }
@@ -1552,8 +1549,7 @@ int CssParser::getPaddingBottomPx(const std::string& elementTagLower, const std:
 }
 
 int CssParser::getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
-                              const std::string& styleAttr, const int viewportWidth,
-                              const int viewportHeight) const {
+                              const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getBorderEdgePx("border-top", className, id, styleAttr, viewportWidth, viewportHeight, elementTagLower);
 }
 
@@ -1619,8 +1615,7 @@ std::string CssParser::getBackgroundImagePath(const std::string& elementTagLower
   }
   raw.clear();
   sourcePath.clear();
-  if (getCascadedPropertyValueAndSource("background", className, id, styleAttr, elementTagLower, &raw,
-                                        &sourcePath)) {
+  if (getCascadedPropertyValueAndSource("background", className, id, styleAttr, elementTagLower, &raw, &sourcePath)) {
     return resolveUrl(raw, sourcePath);
   }
   return {};
@@ -1642,6 +1637,7 @@ std::string CssParser::trim(const std::string& str) const {
 
 std::string CssParser::toLower(const std::string& str) const {
   std::string result = str;
-  std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return result;
 }

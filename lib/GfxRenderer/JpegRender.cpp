@@ -5,19 +5,35 @@
 
 #include "JpegRender.h"
 
-#include "BitmapUtil.h"
-#include "GfxRenderer.h"
 #include <SDCardManager.h>
 #include <picojpeg.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <memory>
+
+#include "BitmapUtil.h"
+#include "GfxRenderer.h"
+
+// The whole firmware builds with -Os (flash-size priority), which leaves real speed on the table for
+// this file's per-pixel tone-curve/dither/scale math - the hot loop in every JPEG render. Opting just
+// this translation unit's own code into -O2 trades a small amount of flash for meaningfully faster
+// decode, without touching the global build flags (and their flash-size risk) for the rest of the
+// firmware. Placed after all includes so it doesn't also retroactively apply to inlined header code
+// (e.g. SdFat) pulled in above - that caused an attribute-mismatch warning with no benefit.
+#pragma GCC optimize("O2")
 
 namespace {
+// picojpeg pulls bytes through this callback in small, decoder-driven chunks; without buffering here
+// that means one FsFile::read() (a real SD/SPI transaction, tens of ms on a slow card) per chunk. A
+// bigger buffer means far fewer of those round trips for the same file. `bufferSize` lets callers pick
+// the size: a small stack buffer is enough for getDimensions() (which only reads the header before
+// bailing out), while the full decode in render() uses a larger heap buffer (see kJpegDecodeBufferSize).
 struct JpegReadContext {
   FsFile& file;
-  uint8_t buffer[512];
+  uint8_t* buffer;
+  size_t bufferSize;
   size_t bufferPos;
   size_t bufferFilled;
 };
@@ -25,11 +41,11 @@ struct JpegReadContext {
 unsigned char jpegReadCallback(unsigned char* pBuf, unsigned char bufSize, unsigned char* pBytesActRead,
                                void* pCallbackData) {
   auto* context = static_cast<JpegReadContext*>(pCallbackData);
-  if (!context || !context->file) {
+  if (!context || !context->file || !context->buffer) {
     return PJPG_STREAM_READ_ERROR;
   }
   if (context->bufferPos >= context->bufferFilled) {
-    context->bufferFilled = context->file.read(context->buffer, sizeof(context->buffer));
+    context->bufferFilled = context->file.read(context->buffer, context->bufferSize);
     context->bufferPos = 0;
     if (context->bufferFilled == 0) {
       *pBytesActRead = 0;
@@ -44,18 +60,43 @@ unsigned char jpegReadCallback(unsigned char* pBuf, unsigned char bufSize, unsig
   return 0;
 }
 
+// Scans JPEG marker segments up to SOF looking for a progressive encoding, which the decoder can't
+// handle. Reads through a small local buffer instead of one file.read() call per byte - marker
+// segments before SOF (APPn/EXIF/etc.) can span hundreds of bytes, and each FsFile::read() call has
+// real per-call overhead on top of the underlying SD transaction.
 bool isUnsupportedJpeg(FsFile& file) {
   const uint32_t originalPos = file.position();
   file.seek(0);
-  uint8_t buf[2];
+
+  uint8_t buf[256];
+  size_t bufLen = 0;
+  size_t bufPos = 0;
   bool isProgressive = false;
-  while (file.read(buf, 1) == 1) {
-    if (buf[0] != 0xFF) continue;
-    if (file.read(buf, 1) != 1) break;
-    while (buf[0] == 0xFF) {
-      if (file.read(buf, 1) != 1) break;
+
+  auto logicalPos = [&]() -> uint32_t { return file.position() - static_cast<uint32_t>(bufLen - bufPos); };
+  auto nextByte = [&](uint8_t& out) -> bool {
+    if (bufPos >= bufLen) {
+      bufLen = file.read(buf, sizeof(buf));
+      bufPos = 0;
+      if (bufLen == 0) return false;
     }
-    const uint8_t marker = buf[0];
+    out = buf[bufPos++];
+    return true;
+  };
+  auto skip = [&](const uint32_t count) {
+    file.seek(logicalPos() + count);
+    bufLen = 0;
+    bufPos = 0;
+  };
+
+  uint8_t b;
+  while (nextByte(b)) {
+    if (b != 0xFF) continue;
+    if (!nextByte(b)) break;
+    while (b == 0xFF) {
+      if (!nextByte(b)) break;
+    }
+    const uint8_t marker = b;
     if (marker == 0xC2 || marker == 0xC9 || marker == 0xCA) {
       isProgressive = true;
       break;
@@ -65,10 +106,12 @@ bool isUnsupportedJpeg(FsFile& file) {
       break;
     }
     if (marker != 0xD8 && marker != 0xD9 && marker != 0x01 && !(marker >= 0xD0 && marker <= 0xD7)) {
-      if (file.read(buf, 2) != 2) break;
-      const uint16_t len = (buf[0] << 8) | buf[1];
+      uint8_t lenHi;
+      uint8_t lenLo;
+      if (!nextByte(lenHi) || !nextByte(lenLo)) break;
+      const uint16_t len = (static_cast<uint16_t>(lenHi) << 8) | lenLo;
       if (len < 2) break;
-      file.seek(file.position() + len - 2);
+      skip(len - 2);
     }
   }
   file.seek(originalPos);
@@ -81,19 +124,19 @@ inline uint8_t grayFromRgb(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 constexpr int kJpegDitherSolidBlackMax = 20;
-constexpr int kJpegDitherSolidWhiteMin = 255;  // Changed from 255 - more light grays
-constexpr int kJpegTwoBitSolidBlackMax = 10;   // Snap dark tones to clean black instead of dithering them to gray
-constexpr int kJpegTwoBitSolidWhiteMin = 224;  // Keep upper mids from blowing out to white too early
-constexpr int kJpegTwoBitContrastPercent = 128; // Restore midtone separation closer to the quality render
+constexpr int kJpegDitherSolidWhiteMin = 255;    // Changed from 255 - more light grays
+constexpr int kJpegTwoBitSolidBlackMax = 10;     // Snap dark tones to clean black instead of dithering them to gray
+constexpr int kJpegTwoBitSolidWhiteMin = 224;    // Keep upper mids from blowing out to white too early
+constexpr int kJpegTwoBitContrastPercent = 128;  // Restore midtone separation closer to the quality render
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
 constexpr int kJpegTwoBitSharpenMax = 130;
 constexpr int kJpegTwoBitEdgeThreshold = 0;
-constexpr int kJpegTwoBitEdgeMaxDarken = 0;    // Reduced from 36
-constexpr int kJpegTwoBitHighlightThreshold = 5; // Reduced from 8 - detect more highlights
-constexpr int kJpegTwoBitHighlightMaxLift = 50;  // Reduced from 100 - less over-lifting
-constexpr int kJpegTwoBitShadowStart = 1;       // Increased from 10
-constexpr int kJpegTwoBitShadowMaxDarken = 0;    // Keep at 0 (already is)
+constexpr int kJpegTwoBitEdgeMaxDarken = 0;       // Reduced from 36
+constexpr int kJpegTwoBitHighlightThreshold = 5;  // Reduced from 8 - detect more highlights
+constexpr int kJpegTwoBitHighlightMaxLift = 50;   // Reduced from 100 - less over-lifting
+constexpr int kJpegTwoBitShadowStart = 1;         // Increased from 10
+constexpr int kJpegTwoBitShadowMaxDarken = 0;     // Keep at 0 (already is)
 constexpr int kJpegTwoBitShadowTextureLiftMin = 52;
 constexpr int kJpegTwoBitShadowTextureLiftMax = 126;
 constexpr int kJpegTwoBitShadowTextureLift = 6;
@@ -113,18 +156,7 @@ constexpr int kJpegTwoBitQualitySharpenPercent = 105;
 constexpr int kJpegTwoBitQualitySharpenMax = 38;
 constexpr int kJpegTwoBitQualityShadowKnee = 96;
 constexpr int kJpegTwoBitQualityShadowDarkenMax = 6;
-// X3 quality (GRAY2) shadow lift — X3 renders darker, so the quality curve lifts shadows on X3.
-constexpr int kJpegTwoBitQualityX3ShadowLift = 56;
 constexpr int kJpegTwoBitQualityMicroDither = 8;
-
-// X3 medium (GRAYSCALE) tone shaping. X3 renders flat/gray, so expand the tonal range instead of just
-// lifting: darker blacks + whiter whites (kills the gray cast) and a contrast stretch (kills the
-// flatness). Pivot >128 biases it brighter so it doesn't go dark. X3 medium only; quality/X4 untouched.
-constexpr int kX3MediumBlackMax = 20;   // output tone <= this -> pure black (lower = keeps more dark gray)
-constexpr int kX3MediumWhiteMin = 255;  // output tone >= this -> pure white (higher = keeps more light gray)
-constexpr int kX3MediumPivot = 180;     // contrast pivot; higher biases the image brighter
-constexpr int kX3MediumContrast = 120;  // % contrast expansion (>100 = punchier / less flat)
-
 
 int jpegTwoBitTone(const int gray) {
   const int adjusted = ((gray - 128) * kJpegTwoBitContrastPercent) / 100 + 128;
@@ -138,15 +170,14 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
   const int lightEdge = gray - neighbor;
   int sharpenedGray = gray;
   if (std::abs(detail) > kJpegTwoBitSharpenThreshold) {
-    const int boost = std::max(-kJpegTwoBitSharpenMax,
-                               std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
+    const int boost =
+        std::max(-kJpegTwoBitSharpenMax, std::min(kJpegTwoBitSharpenMax, (detail * kJpegTwoBitSharpenPercent) / 100));
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
   int tone = jpegTwoBitTone(sharpenedGray);
   if (gray < kJpegTwoBitShadowStart) {
-    const int shadowDarken =
-        ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
+    const int shadowDarken = ((kJpegTwoBitShadowStart - gray) * kJpegTwoBitShadowMaxDarken) / kJpegTwoBitShadowStart;
     tone = std::max(0, tone - shadowDarken);
   }
   if (lightEdge > kJpegTwoBitHighlightThreshold) {
@@ -181,9 +212,9 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
   const int detail = gray - neighbor;
   int sharpenedGray = gray;
   if (std::abs(detail) > kJpegTwoBitQualitySharpenThreshold) {
-    const int boost = std::max(-kJpegTwoBitQualitySharpenMax,
-                               std::min(kJpegTwoBitQualitySharpenMax,
-                                        (detail * kJpegTwoBitQualitySharpenPercent) / 100));
+    const int boost =
+        std::max(-kJpegTwoBitQualitySharpenMax,
+                 std::min(kJpegTwoBitQualitySharpenMax, (detail * kJpegTwoBitQualitySharpenPercent) / 100));
     sharpenedGray = std::max(0, std::min(255, gray + boost));
   }
 
@@ -216,39 +247,17 @@ int jpegQualityToneCommon(const int gray, const int leftGray, const int rightGra
 }
 
 // ============================================================================================
-// Per-device JPEG tone. Pick the device function at the call site; tune each independently here.
+// JPEG tone curve, shared by both devices (X3 and X4). Any visual difference between the two panels
+// is handled entirely by their waveform data (lut_x4_quality/lut_grayscale for X4, the
+// lut_x3_*_img/lut_x3_*_gray tables for X3), not by device-specific software tone mapping.
 //   quality == true  -> GRAY2 quality curve
 //   quality == false -> medium (GRAYSCALE) detail curve
 // ============================================================================================
-
-// X4 reference look (do not lift; shadows are slightly deepened on the quality curve).
-int jpegToneX4(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
+int jpegTone(const int gray, const int leftGray, const int rightGray, const int x, const int y, const bool quality) {
   if (quality) {
     return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, -kJpegTwoBitQualityShadowDarkenMax);
   }
   return jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
-}
-
-int jpegToneX3(const int gray, const int leftGray, const int rightGray, const int x, const int y,
-               const bool quality) {
-  // Quality (GRAY2) is unchanged from before: the X4-shared curve with the X3 shadow lift.
-  if (quality) {
-    return jpegQualityToneCommon(gray, leftGray, rightGray, x, y, kJpegTwoBitQualityX3ShadowLift);
-  }
-
-  // Medium (GRAYSCALE): start from the original detail tone, then expand the range so it isn't
-  // flat/gray — snap deep tones to black and high tones to white, and stretch contrast around a
-  // bright-biased pivot.
-  int tone = jpegTwoBitDetailTone(gray, leftGray, rightGray, x, y);
-  if (tone <= kX3MediumBlackMax) {
-    return 0;
-  }
-  if (tone >= kX3MediumWhiteMin) {
-    return 255;
-  }
-  tone = ((tone - kX3MediumPivot) * kX3MediumContrast) / 100 + kX3MediumPivot;
-  return std::max(0, std::min(255, tone));
 }
 
 // MEDIUM grayscale image-level -> lut_grayscale entry (code). Bit0 = LSB plane (BW RAM, cmd 0x24),
@@ -267,8 +276,11 @@ constexpr uint8_t kGrayscaleCodeForLevel[4] = {
     0b01,  // level 3  black      -> entry 01 (darkest)
 };
 
-// X3 fast grayscale does not follow the same effective on-panel order as X4. In particular,
-// the old direct plane mapping makes dark gray and black swap places. Keep X3 explicit too.
+// Medium/fast (GRAYSCALE) mode uses an opposite bit polarity from quality (GRAY2) mode (this path
+// SETs the ink bit, GRAY2 CLEARs it - see the differing drawPixel() state args below), so the level<->
+// waveform-table derivation validated for GRAY2's X3 fix does not carry over here without separately
+// re-deriving and testing X3's lut_x3_*_gray tables. Left device-specific until that's done, rather
+// than risk breaking a mode that wasn't part of the reported issue.
 constexpr uint8_t kX3GrayscaleCodeForLevel[4] = {
     0b00,  // level 0  white
     0b11,  // level 1  dark gray
@@ -283,6 +295,28 @@ int quantizeGray(const int corrected, const ImageRenderMode mode) {
   return corrected < 128 ? 0 : 255;
 }
 
+// Two-bit-mode plane decision from an already-resolved dither level (0-3). Split out from
+// drawQuantizedPixel() so a captured/replayed render (which stores level directly - see
+// JpegLevelCapture) doesn't have to redo the q->level conversion.
+void drawPixelForLevel(const GfxRenderer& renderer, const int x, const int y, const uint8_t level) {
+  const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+  const uint8_t grayscaleCode =
+      (renderer.deviceIsX3() ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
+  if (renderMode == GfxRenderer::BW) {
+    if (level > 0) {
+      renderer.drawPixel(x, y, true);
+    }
+  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && ((grayscaleCode & 0b10) != 0)) {
+    renderer.drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && ((grayscaleCode & 0b01) != 0)) {
+    renderer.drawPixel(x, y, false);
+  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level) & 0b01) == 0)) {
+    renderer.drawPixel(x, y, true);
+  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level) & 0b10) == 0)) {
+    renderer.drawPixel(x, y, true);
+  }
+}
+
 void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, const int q,
                         const ImageRenderMode mode) {
   if (mode == ImageRenderMode::OneBit) {
@@ -291,41 +325,29 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
     }
     return;
   }
-
-  const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
-  const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
-  const uint8_t grayscaleCode =
-      (renderer.deviceIsX3() ? kX3GrayscaleCodeForLevel[level & 3] : kGrayscaleCodeForLevel[level & 3]);
-  if (renderMode == GfxRenderer::BW) {
-    if ((mode == ImageRenderMode::TwoBit && level > 0) ||
-        (mode == ImageRenderMode::OneBit && level < 3)) {
-      renderer.drawPixel(x, y, true);
-    }
-  } else if (renderMode == GfxRenderer::GRAYSCALE_MSB &&
-             ((grayscaleCode & 0b10) != 0)) {
-    renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
-             ((grayscaleCode & 0b01) != 0)) {
-    renderer.drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b01) == 0)) {
-    renderer.drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level, renderer.deviceIsX3()) & 0b10) == 0)) {
-    renderer.drawPixel(x, y, true);
-  }
+  drawPixelForLevel(renderer, x, y, adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q)));
 }
 
 }  // namespace
 
 bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                        const ImageRenderMode mode, const bool quality) const {
+                        const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture) const {
+  const uint32_t tRenderStart = millis();
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
   }
-  JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
+  const uint32_t tAfterHeaderScan = millis();
+  constexpr size_t kJpegDecodeBufferSize = 4096;
+  std::unique_ptr<uint8_t[]> readBuffer(new (std::nothrow) uint8_t[kJpegDecodeBufferSize]);
+  if (!readBuffer) {
+    return false;
+  }
+  JpegReadContext context = {jpegFile, readBuffer.get(), kJpegDecodeBufferSize, 0, 0};
   pjpeg_image_info_t imageInfo;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) {
     return false;
   }
+  const uint32_t tAfterInit = millis();
 
   int outWidth = imageInfo.m_width;
   int outHeight = imageInfo.m_height;
@@ -362,6 +384,26 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   const bool verticalUpscale = outHeight > cropSrcHeight;
   const bool horizontalUpscale = outWidth > cropSrcWidth;
 
+  const bool captureRequested = capture != nullptr && mode == ImageRenderMode::TwoBit;
+  if (captureRequested) {
+    const size_t pixelCount = static_cast<size_t>(outWidth) * static_cast<size_t>(outHeight);
+    const size_t needed = (pixelCount + 3) / 4;  // 2 bits/pixel, 4 pixels/byte
+    if (needed > 0 && needed <= capture->capacity) {
+      capture->width = outWidth;
+      capture->height = outHeight;
+      capture->drawOffsetX = drawOffsetX;
+      capture->drawOffsetY = drawOffsetY;
+      capture->captured = true;
+      // Bits are OR'd in below (4 pixels/byte), so start from a clean slate - matters if the decode
+      // fails partway (stale bits from an earlier, larger capture) or the buffer is being reused.
+      memset(capture->values, 0, needed);
+    } else {
+      capture = nullptr;  // doesn't fit the caller's buffer - render normally, just skip capturing
+    }
+  } else {
+    capture = nullptr;
+  }
+
   uint8_t* mcuRowBuffer = static_cast<uint8_t*>(malloc(static_cast<size_t>(imageInfo.m_width) * imageInfo.m_MCUHeight));
   uint8_t* scaledRow = static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth)));
   uint8_t* prevScaledRow = verticalUpscale ? static_cast<uint8_t*>(malloc(static_cast<size_t>(outWidth))) : nullptr;
@@ -375,9 +417,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   } else {
     oneBitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
   }
-  if (!mcuRowBuffer || !scaledRow ||
-      (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum ||
-      !rowCount || (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
+  if (!mcuRowBuffer || !scaledRow || (verticalUpscale && (!prevScaledRow || !blendedRow)) || !rowAccum || !rowCount ||
+      (mode == ImageRenderMode::TwoBit && (!twoBitDitherer || !twoBitDitherer->ok())) ||
       (mode == ImageRenderMode::OneBit && !oneBitDitherer)) {
     free(mcuRowBuffer);
     free(scaledRow);
@@ -390,7 +431,6 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
     return false;
   }
 
-  const bool deviceIsX3 = renderer_.deviceIsX3();
   const bool qualityTone = quality;
 
   int currentOutY = 0;
@@ -443,10 +483,8 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       const int gray = row[ox];
 
       int q;
-      const int solidBlackMax =
-          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
-      const int solidWhiteMin =
-          mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
+      const int solidBlackMax = mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidBlackMax : kJpegDitherSolidBlackMax;
+      const int solidWhiteMin = mode == ImageRenderMode::TwoBit ? kJpegTwoBitSolidWhiteMin : kJpegDitherSolidWhiteMin;
       if (gray <= solidBlackMax) {
         q = 0;
       } else if (gray >= solidWhiteMin) {
@@ -455,20 +493,24 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         if (mode == ImageRenderMode::TwoBit) {
           const int leftGray = ox > 0 ? row[ox - 1] : gray;
           const int rightGray = ox + 1 < outWidth ? row[ox + 1] : gray;
-          const int tone =
-              deviceIsX3
-                  ? jpegToneX3(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone)
-                  : jpegToneX4(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
-          q = (qualityTone ? twoBitDitherer->processQuality(tone, step)
-                           : twoBitDitherer->process(tone, step))
-                  .value;
+          const int tone = jpegTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
+          q = (qualityTone ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
           q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
         } else {
           q = quantizeGray(gray, mode);
         }
       }
-      drawQuantizedPixel(renderer_, drawOffsetX + ox, screenY, q, mode);
+      if (mode == ImageRenderMode::TwoBit) {
+        const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
+        if (capture) {
+          const size_t pixelIndex = static_cast<size_t>(screenY - drawOffsetY) * outWidth + ox;
+          capture->values[pixelIndex / 4] |= static_cast<uint8_t>((level & 0x3) << ((pixelIndex % 4) * 2));
+        }
+        drawPixelForLevel(renderer_, drawOffsetX + ox, screenY, level);
+      } else if (q == 0) {
+        renderer_.drawPixel(drawOffsetX + ox, screenY, true);
+      }
     }
     if (mode == ImageRenderMode::TwoBit) {
       twoBitDitherer->nextRow();
@@ -477,7 +519,10 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
     }
   };
 
+  uint32_t mcuDecodeMs = 0;
+  uint32_t rowProcessMs = 0;
   for (int mcuY = 0; mcuY < imageInfo.m_MCUSPerCol; mcuY++) {
+    const uint32_t tMcuStart = millis();
     for (int mcuX = 0; mcuX < imageInfo.m_MCUSPerRow; mcuX++) {
       if (pjpeg_decode_mcu() != 0) break;
       for (int bY = 0; bY < imageInfo.m_MCUHeight; bY++) {
@@ -492,9 +537,12 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         }
       }
     }
+    const uint32_t tMcuEnd = millis();
+    mcuDecodeMs += tMcuEnd - tMcuStart;
 
     for (int yInMcu = 0; yInMcu < imageInfo.m_MCUHeight && (mcuY * imageInfo.m_MCUHeight + yInMcu) < imageInfo.m_height;
          yInMcu++) {
+      const uint32_t tRowStart = millis();
       const int srcY = mcuY * imageInfo.m_MCUHeight + yInMcu;
       if (srcY < srcOffsetY || srcY >= srcYEnd) continue;
       const uint8_t* srcRow = mcuRowBuffer + yInMcu * imageInfo.m_width;
@@ -528,6 +576,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         }
         memcpy(prevScaledRow, scaledRow, static_cast<size_t>(outWidth));
         hasPrevScaledRow = true;
+        rowProcessMs += millis() - tRowStart;
         continue;
       }
 
@@ -551,6 +600,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
         memset(rowAccum, 0, static_cast<size_t>(outWidth) * sizeof(uint32_t));
         memset(rowCount, 0, static_cast<size_t>(outWidth) * sizeof(uint16_t));
       }
+      rowProcessMs += millis() - tRowStart;
     }
   }
 
@@ -567,18 +617,48 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   delete[] rowCount;
   delete twoBitDitherer;
   delete oneBitDitherer;
+  const uint32_t tEnd = millis();
+  Serial.printf(
+      "[%lu] [IMG-TIMING] JPEG %dx%d->%dx%d mode=%d quality=%d capture=%d: headerScan=%lums init=%lums "
+      "mcuDecode=%lums rowProcess=%lums decode+draw=%lums total=%lums\n",
+      tEnd, imageInfo.m_width, imageInfo.m_height, outWidth, outHeight, static_cast<int>(mode),
+      static_cast<int>(quality), capture ? 1 : 0, static_cast<unsigned long>(tAfterHeaderScan - tRenderStart),
+      static_cast<unsigned long>(tAfterInit - tAfterHeaderScan), static_cast<unsigned long>(mcuDecodeMs),
+      static_cast<unsigned long>(rowProcessMs), static_cast<unsigned long>(tEnd - tAfterInit),
+      static_cast<unsigned long>(tEnd - tRenderStart));
   return currentOutY > 0;
 }
 
-bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight,
-                          bool cropToFill, const ImageRenderMode mode, const bool quality) const {
+bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
+                          const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture) const {
+  const uint32_t tOpenStart = millis();
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality);
+  const uint32_t tOpenEnd = millis();
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality, capture);
   file.close();
+  Serial.printf("[%lu] [IMG-TIMING] fromPath %s: open=%lums render=%lums\n", millis(), path.c_str(),
+                static_cast<unsigned long>(tOpenEnd - tOpenStart), static_cast<unsigned long>(millis() - tOpenEnd));
   return ok;
+}
+
+void JpegRender::replayCapture(const JpegLevelCapture& capture, const ImageRenderMode mode) const {
+  if (!capture.captured || !capture.values) {
+    return;
+  }
+  const uint32_t tStart = millis();
+  for (int row = 0; row < capture.height; row++) {
+    const int screenY = capture.drawOffsetY + row;
+    for (int ox = 0; ox < capture.width; ox++) {
+      const size_t pixelIndex = static_cast<size_t>(row) * capture.width + ox;
+      const uint8_t level = (capture.values[pixelIndex / 4] >> ((pixelIndex % 4) * 2)) & 0x3;
+      drawPixelForLevel(renderer_, capture.drawOffsetX + ox, screenY, level);
+    }
+  }
+  Serial.printf("[%lu] [IMG-TIMING] JPEG replay %dx%d: %lums\n", millis(), capture.width, capture.height,
+                static_cast<unsigned long>(millis() - tStart));
 }
 
 bool JpegRender::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
@@ -589,7 +669,8 @@ bool JpegRender::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
   *outH = 0;
   const uint32_t pos = jpegFile.position();
   jpegFile.seek(0);
-  JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
+  uint8_t headerBuf[512];
+  JpegReadContext context = {jpegFile, headerBuf, sizeof(headerBuf), 0, 0};
   pjpeg_image_info_t imageInfo;
   const bool ok = pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) == 0;
   if (ok) {

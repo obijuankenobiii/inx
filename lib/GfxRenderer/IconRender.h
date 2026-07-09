@@ -15,7 +15,7 @@ class IconRender {
 
   explicit IconRender(GfxRenderer& g) : gfx(g) {}
   void render(const uint8_t bitmap[], int x, int y, int width, int height, Orientation orientation = Orientation::None,
-            bool invert = false) const;
+              bool invert = false) const;
 
  private:
   GfxRenderer& gfx;

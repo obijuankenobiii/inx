@@ -5,14 +5,10 @@
 
 #include "Bitmap.h"
 
-#include "BitmapUtil.h"
-
 #include <cstdlib>
 #include <cstring>
 
-
-
-
+#include "BitmapUtil.h"
 
 Bitmap::~Bitmap() {
   delete[] errorCurRow;
@@ -87,14 +83,12 @@ BmpReaderError Bitmap::parseHeaders() {
   if (!file) return BmpReaderError::FileInvalid;
   if (!file.seek(0)) return BmpReaderError::SeekStartFailed;
 
-  
   const uint16_t bfType = readLE16(file);
   if (bfType != 0x4D42) return BmpReaderError::NotBMP;
 
   file.seekCur(8);
   bfOffBits = readLE32(file);
 
-  
   const uint32_t biSize = readLE32(file);
   if (biSize < 40) return BmpReaderError::DIBTooSmall;
 
@@ -110,33 +104,31 @@ BmpReaderError Bitmap::parseHeaders() {
 
   if (planes != 1) return BmpReaderError::BadPlanes;
   if (!validBpp) return BmpReaderError::UnsupportedBpp;
-  
+
   if (!(comp == 0 || (bpp == 32 && comp == 3))) return BmpReaderError::UnsupportedCompression;
 
-  file.seekCur(12);  
+  file.seekCur(12);
   colorsUsed = readLE32(file);
-  
+
   if (colorsUsed == 0 && bpp <= 8) colorsUsed = 1u << bpp;
   if (colorsUsed > 256u) return BmpReaderError::PaletteTooLarge;
-  file.seekCur(4);  
+  file.seekCur(4);
 
   if (width <= 0 || height <= 0) return BmpReaderError::BadDimensions;
 
-  
   constexpr int MAX_IMAGE_WIDTH = 2048;
   constexpr int MAX_IMAGE_HEIGHT = 3072;
   if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
     return BmpReaderError::ImageTooLarge;
   }
 
-  
   rowBytes = (width * bpp + 31) / 32 * 4;
 
   for (int i = 0; i < 256; i++) paletteLum[i] = static_cast<uint8_t>(i);
   if (colorsUsed > 0) {
     for (uint32_t i = 0; i < colorsUsed; i++) {
       uint8_t rgb[4];
-      file.read(rgb, 4);  
+      file.read(rgb, 4);
       paletteLum[i] = rgbToGray(rgb[2], rgb[1], rgb[0]);
     }
   }
@@ -145,30 +137,24 @@ BmpReaderError Bitmap::parseHeaders() {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
-  
-  
-  
-  nativePalette = bpp <= 2;  
+  nativePalette = bpp <= 2;
   if (!nativePalette && colorsUsed > 0) {
     nativePalette = true;
     for (uint32_t i = 0; i < colorsUsed; i++) {
       const uint8_t lum = paletteLum[i];
-      const uint8_t level = lum >> 6;            
-      const uint8_t reconstructed = level * 85;  
+      const uint8_t level = lum >> 6;
+      const uint8_t reconstructed = level * 85;
       if (lum > reconstructed + 21 || lum + 21 < reconstructed) {
-        nativePalette = false;  
+        nativePalette = false;
         break;
       }
     }
   }
 
-  
   return BmpReaderError::Ok;
 }
 
-
 BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
-  
   if (file.read(rowBuffer, rowBytes) != rowBytes) return BmpReaderError::ShortReadRow;
 
   prevRowY += 1;
@@ -178,7 +164,6 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   int bitShift = 6;
   int currentX = 0;
 
-  
   auto packPixel = [&](const uint8_t lum) {
     uint8_t color;
     color = FourToneImageDitherer::levelFromValue(adjustPixel(lum));
@@ -232,9 +217,8 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     }
     case 1: {
       for (int x = 0; x < width; x++) {
-        
         const uint8_t palIndex = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
-        
+
         packPixel(paletteLum[palIndex]);
       }
       break;
@@ -247,7 +231,6 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     imageDitherer->nextRow();
   }
 
-  
   if (bitShift != 6) *outPtr = currentOutByte;
 
   return BmpReaderError::Ok;
@@ -336,7 +319,6 @@ BmpReaderError Bitmap::rewindToData() const {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
-  
   if (imageDitherer) imageDitherer->reset();
   if (oneBitDitherer) oneBitDitherer->reset();
 

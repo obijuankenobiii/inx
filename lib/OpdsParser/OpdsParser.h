@@ -14,10 +14,7 @@
 /**
  * Type of OPDS entry.
  */
-enum class OpdsEntryType {
-  NAVIGATION,  
-  BOOK         
-};
+enum class OpdsEntryType { NAVIGATION, BOOK };
 
 /**
  * Represents an entry from an OPDS feed (either a navigation link or a book).
@@ -25,11 +22,10 @@ enum class OpdsEntryType {
 struct OpdsEntry {
   OpdsEntryType type = OpdsEntryType::NAVIGATION;
   std::string title;
-  std::string author;  
-  std::string href;    
+  std::string author;
+  std::string href;
   std::string id;
 };
-
 
 using OpdsBook = OpdsEntry;
 
@@ -54,7 +50,6 @@ class OpdsParser final : public Print {
   OpdsParser();
   ~OpdsParser();
 
-  
   OpdsParser(const OpdsParser&) = delete;
   OpdsParser& operator=(const OpdsParser&) = delete;
 
@@ -86,12 +81,10 @@ class OpdsParser final : public Print {
   void clear();
 
  private:
-  
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
 
-  
   static const char* findAttribute(const XML_Char** atts, const char* name);
 
   XML_Parser parser = nullptr;
@@ -99,7 +92,6 @@ class OpdsParser final : public Print {
   OpdsEntry currentEntry;
   std::string currentText;
 
-  
   bool inEntry = false;
   bool inTitle = false;
   bool inAuthor = false;

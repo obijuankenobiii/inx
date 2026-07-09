@@ -23,23 +23,14 @@
  */
 class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
  public:
-  enum class BrowserState {
-    CHECK_WIFI,      
-    WIFI_SELECTION,  
-    LOADING,         
-    BROWSING,        
-    DOWNLOADING,     
-    ERROR            
-  };
+  enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR };
 
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                    const std::function<void()>& onGoToRecent)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                   const std::function<void()>& onGoToRecent,
-                                   const std::string& serverUrl,
-                                   const std::string& serverUsername,
-                                   const std::string& serverPassword)
+                                   const std::function<void()>& onGoToRecent, const std::string& serverUrl,
+                                   const std::string& serverUsername, const std::string& serverPassword)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput),
         onGoToRecent(onGoToRecent),
         serverUrl(serverUrl),
@@ -57,8 +48,8 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
 
   BrowserState state = BrowserState::LOADING;
   std::vector<OpdsEntry> entries;
-  std::vector<std::string> navigationHistory;  
-  std::string currentPath;                     
+  std::vector<std::string> navigationHistory;
+  std::string currentPath;
   int selectorIndex = 0;
   std::string errorMessage;
   std::string statusMessage;

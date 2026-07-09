@@ -30,8 +30,8 @@
    They may be altered/distinct from the originals used in PuTTY source
    code. */
 
-void outbits(struct uzlib_comp *ctx, unsigned long bits, int nbits);
-void zlib_start_block(struct uzlib_comp *ctx);
-void zlib_finish_block(struct uzlib_comp *ctx);
-void zlib_literal(struct uzlib_comp *ctx, unsigned char c);
-void zlib_match(struct uzlib_comp *ctx, int distance, int len);
+void outbits(struct uzlib_comp* ctx, unsigned long bits, int nbits);
+void zlib_start_block(struct uzlib_comp* ctx);
+void zlib_finish_block(struct uzlib_comp* ctx);
+void zlib_literal(struct uzlib_comp* ctx, unsigned char c);
+void zlib_match(struct uzlib_comp* ctx, int distance, int len);

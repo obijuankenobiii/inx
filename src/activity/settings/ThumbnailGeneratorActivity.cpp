@@ -8,12 +8,15 @@
 #include <Epub.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <ImageRender.h>
 #include <SDCardManager.h>
 #include <Xtc.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
+#include "activity/page/LibraryActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "util/StringUtils.h"
@@ -21,7 +24,85 @@
 namespace {
 constexpr uint32_t kDisplayTaskStack = 4096;
 constexpr uint32_t kWorkerTaskStack = 12288;
+
+// Pre-populate the on-disk display cache for a freshly-generated thumbnail at the exact size
+// LibraryActivity's shelf grid draws covers at, so the shelf's first render after "Generate
+// Thumbnails" hits the cache (raw read) instead of paying for a fresh decode+dither per book.
+void precacheShelfThumbnail(GfxRenderer& renderer, const std::string& thumbPath) {
+  int coverW = 0;
+  int coverH = 0;
+  LibraryActivity::getShelfCoverSize(renderer, coverW, coverH);
+  if (coverW <= 2 || coverH <= 2) {
+    return;
+  }
+  ImageRender::Options options;
+  // Must match LibraryActivity::renderShelfCard's options exactly (cropToFill included) - the display
+  // cache is keyed on these, so a mismatch here means the shelf render misses this cache entry.
+  options.cropToFill = true;
+  options.useDisplayCache = true;
+  ImageRender::create(renderer, thumbPath).render(0, 0, coverW - 2, coverH - 2, options);
 }
+
+void drawThinProgressBar(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
+                         const int fillX, const int fillW) {
+  renderer.rectangle.render(x, y, w, h, true);
+  const int innerW = std::max(1, w - 2);
+  renderer.rectangle.fill(x + 1, y + 1, innerW, h - 2, false);
+  if (fillW > 0) {
+    const int clampedX = std::max(0, std::min(innerW, fillX));
+    const int clampedW = std::max(0, std::min(innerW - clampedX, fillW));
+    if (clampedW > 0) {
+      renderer.rectangle.fill(x + 1 + clampedX, y + 1, clampedW, h - 2, true);
+    }
+  }
+}
+
+void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth, const int screenHeight,
+                               const bool running, const bool success, const bool cancelled, const int processedCount,
+                               const int generatedCount, const int skippedCount, const int failedCount,
+                               const char* currentPath) {
+  const int centerY = screenHeight / 2;
+
+  const char* eyebrow = running     ? "GENERATING THUMBNAILS"
+                        : success   ? "THUMBNAILS READY"
+                        : cancelled ? "GENERATION STOPPED"
+                                    : "GENERATION FAILED";
+  const char* title = running     ? "Scanning library"
+                      : success   ? "Thumbnails complete"
+                      : cancelled ? "Stopped"
+                                  : "Thumbnail generation failed";
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, eyebrow, true, EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, title, true, EpdFontFamily::BOLD);
+
+  char line[80];
+  snprintf(line, sizeof(line), "Processed %d books", processedCount);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, line, true, EpdFontFamily::REGULAR);
+
+  const int barW = std::min(300, pageWidth - 72);
+  constexpr int barH = 6;
+  const int barX = (pageWidth - barW) / 2;
+  const int barY = centerY + 28;
+  const int innerW = std::max(1, barW - 2);
+  int fillX = 0;
+  int fillW = 0;
+  if (running) {
+    fillW = std::max(36, innerW / 4);
+    const int travel = std::max(1, innerW - fillW);
+    fillX = (processedCount * 17) % travel;
+  } else if (success) {
+    fillW = innerW;
+  }
+  drawThinProgressBar(renderer, barX, barY, barW, barH, fillX, fillW);
+
+  snprintf(line, sizeof(line), "Generated %d   Skipped %d   Failed %d", generatedCount, skippedCount, failedCount);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, line, true, EpdFontFamily::REGULAR);
+
+  if (running && currentPath && currentPath[0] != '\0') {
+    const std::string path = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, currentPath, pageWidth - 60);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 54, path.c_str(), true, EpdFontFamily::REGULAR);
+  }
+}
+}  // namespace
 
 void ThumbnailGeneratorActivity::displayTaskTrampoline(void* param) {
   static_cast<ThumbnailGeneratorActivity*>(param)->displayTaskLoop();
@@ -128,6 +209,17 @@ bool ThumbnailGeneratorActivity::processBook(const std::string& path) {
     processedCount++;
     if (ok) {
       generatedCount++;
+      // precacheShelfThumbnail draws into the shared framebuffer (it's just borrowing ImageRender's
+      // decode-then-store side effect) - take the same mutex displayTaskLoop uses before render(), so
+      // the two don't interleave writes to the same buffer or race a displayBuffer() refresh.
+      if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (SdMan.exists(thumbJpegPath.c_str())) {
+          precacheShelfThumbnail(renderer, thumbJpegPath);
+        } else if (SdMan.exists(thumbBmpPath.c_str())) {
+          precacheShelfThumbnail(renderer, thumbBmpPath);
+        }
+        xSemaphoreGive(renderingMutex);
+      }
     } else {
       failedCount++;
     }
@@ -146,6 +238,10 @@ bool ThumbnailGeneratorActivity::processBook(const std::string& path) {
     processedCount++;
     if (ok) {
       generatedCount++;
+      if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        precacheShelfThumbnail(renderer, thumbBmpPath);
+        xSemaphoreGive(renderingMutex);
+      }
     } else {
       failedCount++;
     }
@@ -234,15 +330,27 @@ void ThumbnailGeneratorActivity::workerTaskLoop() {
 
 void ThumbnailGeneratorActivity::render() {
   renderer.clearScreen();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 16, "Generate thumbnails", true, EpdFontFamily::BOLD);
 
   const int pageWidth = renderer.getScreenWidth();
-  const int bodyY = 70;
-  char line[64];
+  const int screenHeight = renderer.getScreenHeight();
+  const int centerY = screenHeight / 2;
 
   if (state == READY) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Create missing EPUB/XTC thumbnails");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 34, "Existing thumbnails are skipped");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "GENERATE THUMBNAILS", true,
+                           EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Build missing covers", true,
+                           EpdFontFamily::BOLD);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, "Existing thumbnails are skipped.", true,
+                           EpdFontFamily::REGULAR);
+
+    const int barW = std::min(300, pageWidth - 72);
+    constexpr int barH = 6;
+    const int barX = (pageWidth - barW) / 2;
+    const int barY = centerY + 28;
+    drawThinProgressBar(renderer, barX, barY, barW, barH, 0, 0);
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, "Ready to scan EPUB and XTC books", true,
+                           EpdFontFamily::REGULAR);
+
     const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Start", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
@@ -250,40 +358,16 @@ void ThumbnailGeneratorActivity::render() {
   }
 
   if (state == RUNNING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Generating...");
-    snprintf(line, sizeof(line), "Processed: %d", processedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 34, line);
-    snprintf(line, sizeof(line), "Generated: %d   Skipped: %d", generatedCount, skippedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 68, line);
-    snprintf(line, sizeof(line), "Failed: %d", failedCount);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 102, line);
-    if (currentPath[0] != '\0') {
-      const std::string path = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, currentPath, pageWidth - 60);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, bodyY + 148, path.c_str());
-    }
+    drawThumbnailProgressView(renderer, pageWidth, screenHeight, true, false, false, processedCount, generatedCount,
+                              skippedCount, failedCount, currentPath);
     const auto labels = mappedInput.mapLabels("Stop", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
-  if (state == SUCCESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation complete", true,
-                           EpdFontFamily::BOLD);
-  } else if (state == CANCELLED) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation stopped", true,
-                           EpdFontFamily::BOLD);
-  } else {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, "Thumbnail generation failed", true,
-                           EpdFontFamily::BOLD);
-  }
-
-  snprintf(line, sizeof(line), "Processed: %d", processedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 42, line);
-  snprintf(line, sizeof(line), "Generated: %d   Skipped: %d", generatedCount, skippedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 76, line);
-  snprintf(line, sizeof(line), "Failed: %d", failedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY + 110, line);
+  drawThumbnailProgressView(renderer, pageWidth, screenHeight, false, state == SUCCESS, state == CANCELLED,
+                            processedCount, generatedCount, skippedCount, failedCount, nullptr);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "", "", "");
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

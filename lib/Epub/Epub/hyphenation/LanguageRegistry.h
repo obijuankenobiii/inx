@@ -24,8 +24,6 @@ struct LanguageEntryView {
   const LanguageEntry* end() const { return data + size; }
 };
 
-
 const LanguageHyphenator* getLanguageHyphenatorForPrimaryTag(const std::string& primaryTag);
-
 
 LanguageEntryView getLanguageEntries();

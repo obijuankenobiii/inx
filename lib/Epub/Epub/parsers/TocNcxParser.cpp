@@ -25,8 +25,8 @@ bool TocNcxParser::setup() {
 
 TocNcxParser::~TocNcxParser() {
   if (parser) {
-    XML_StopParser(parser, XML_FALSE);                
-    XML_SetElementHandler(parser, nullptr, nullptr);  
+    XML_StopParser(parser, XML_FALSE);
+    XML_SetElementHandler(parser, nullptr, nullptr);
     XML_SetCharacterDataHandler(parser, nullptr);
     XML_ParserFree(parser);
     parser = nullptr;
@@ -45,8 +45,8 @@ size_t TocNcxParser::write(const uint8_t* buffer, const size_t size) {
     void* const buf = XML_GetBuffer(parser, 1024);
     if (!buf) {
       Serial.printf("[%lu] [TOC] Couldn't allocate memory for buffer\n", millis());
-      XML_StopParser(parser, XML_FALSE);                
-      XML_SetElementHandler(parser, nullptr, nullptr);  
+      XML_StopParser(parser, XML_FALSE);
+      XML_SetElementHandler(parser, nullptr, nullptr);
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -59,8 +59,8 @@ size_t TocNcxParser::write(const uint8_t* buffer, const size_t size) {
     if (XML_ParseBuffer(parser, static_cast<int>(toRead), remainingSize == toRead) == XML_STATUS_ERROR) {
       Serial.printf("[%lu] [TOC] Parse error at line %lu: %s\n", millis(), XML_GetCurrentLineNumber(parser),
                     XML_ErrorString(XML_GetErrorCode(parser)));
-      XML_StopParser(parser, XML_FALSE);                
-      XML_SetElementHandler(parser, nullptr, nullptr);  
+      XML_StopParser(parser, XML_FALSE);
+      XML_SetElementHandler(parser, nullptr, nullptr);
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
       parser = nullptr;
@@ -75,20 +75,6 @@ size_t TocNcxParser::write(const uint8_t* buffer, const size_t size) {
 }
 
 void XMLCALL TocNcxParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
   auto* self = static_cast<TocNcxParser*>(userData);
 
   if (self->state == START && strcmp(name, "ncx") == 0) {
@@ -101,7 +87,6 @@ void XMLCALL TocNcxParser::startElement(void* userData, const XML_Char* name, co
     return;
   }
 
-  
   if ((self->state == IN_NAV_MAP || self->state == IN_NAV_POINT) && strcmp(name, "navPoint") == 0) {
     self->state = IN_NAV_POINT;
     self->currentDepth++;
@@ -161,9 +146,6 @@ void XMLCALL TocNcxParser::endElement(void* userData, const XML_Char* name) {
   }
 
   if (self->state == IN_NAV_POINT && strcmp(name, "content") == 0) {
-    
-    
-    
     if (!self->currentLabel.empty() && !self->currentSrc.empty()) {
       std::string href = FsHelpers::normalisePath(self->baseContentPath + self->currentSrc);
       std::string anchor;
@@ -178,7 +160,6 @@ void XMLCALL TocNcxParser::endElement(void* userData, const XML_Char* name) {
         self->cache->createTocEntry(self->currentLabel, href, anchor, self->currentDepth);
       }
 
-      
       self->currentLabel.clear();
       self->currentSrc.clear();
     }
