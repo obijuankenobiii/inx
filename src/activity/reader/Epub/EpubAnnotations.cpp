@@ -4,9 +4,9 @@
 
 #include "EpubAnnotations.h"
 
+#include <SDCardManager.h>
 #include <Serialization.h>
 
-#include <SDCardManager.h>
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
@@ -43,7 +43,6 @@ bool readSectionPageCount(const std::string& cachePath, int spineIndex, uint16_t
   uint16_t storedViewportWidth = 0;
   uint16_t storedViewportHeight = 0;
   bool storedHyphenationEnabled = false;
-  bool storedRespectCssIndent = false;
   uint16_t storedPageCount = 0;
   uint32_t storedLutOffset = 0;
   serialization::readPod(file, storedFontId);
@@ -54,6 +53,7 @@ bool readSectionPageCount(const std::string& cachePath, int spineIndex, uint16_t
   serialization::readPod(file, storedViewportHeight);
   serialization::readPod(file, storedHyphenationEnabled);
   if (version >= 11) {
+    bool storedRespectCssIndent = false;
     serialization::readPod(file, storedRespectCssIndent);
   }
   serialization::readPod(file, storedPageCount);
@@ -92,7 +92,7 @@ bool enumeratePagesForRecord(const EpubAnnotationRecord& rec, const std::string&
   const int es = static_cast<int>(rec.endSpine);
   const int sp = static_cast<int>(rec.startPage);
   const int ep = static_cast<int>(rec.endPage);
-  if (ss < 0 || es < ss || es >= spineItemsCount) {
+  if (es < ss || es >= spineItemsCount) {
     return false;
   }
   if (ss == es) {
@@ -303,7 +303,7 @@ bool EpubAnnotations::recordTouchesPage(const EpubAnnotationRecord& r, const int
     return false;
   }
   if (ss == es) {
-    return cs == ss && cp >= sp && cp <= ep;
+    return cp >= sp && cp <= ep;
   }
   if (cs == ss) {
     return cp >= sp;

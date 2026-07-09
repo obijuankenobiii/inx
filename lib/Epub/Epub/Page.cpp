@@ -8,19 +8,27 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <ImageRender.h>
+#include <JpegRender.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 #include <Utf8.h>
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
-#include <algorithm>
 
 #include "../../../src/images/Hr.h"
 
 namespace {
 
+constexpr int16_t kSmallImageGrayscaleLimit = 100;
+
+bool needsGrayscalePass(const PageImage& image) {
+  return image.needsGrayscale() && image.getWidth() > kSmallImageGrayscaleLimit &&
+         image.getHeight() > kSmallImageGrayscaleLimit;
 }
+
+}  // namespace
 
 /**
  * Renders a text line on the screen.
@@ -30,8 +38,7 @@ namespace {
  * @param xOffset Horizontal offset for page margins
  * @param yOffset Vertical offset for page margins
  */
-void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                      ImageRenderMode ) {
+void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 /**
@@ -64,7 +71,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
  * Renders a small-caps line using the active body font; small-caps are synthesized from that font.
  */
 void PageSmallCaps::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                           ImageRenderMode ) {
+                           ImageRenderMode) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -95,7 +102,7 @@ std::unique_ptr<PageSmallCaps> PageSmallCaps::deserialize(FsFile& file) {
  * @param yOffset Vertical offset for page margins
  */
 void PageHeader::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        ImageRenderMode ) {
+                        ImageRenderMode) {
   block->render(renderer, headerFontId, xPos + xOffset, yPos + yOffset);
 }
 
@@ -136,14 +143,20 @@ std::unique_ptr<PageHeader> PageHeader::deserialize(FsFile& file) {
  * Uses a specific large font and renders the single character at the start of a paragraph.
  */
 void PageDropCap::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                         ImageRenderMode ) {
+                         ImageRenderMode) {
   // The drop cap and the first body line both start at yPos, but their fonts have different space above the
   // caps (ascender - glyph.top). Align the drop cap's cap-top with the body cap-top by that inset difference.
   const uint8_t* p = reinterpret_cast<const uint8_t*>(text.c_str());
   const uint32_t dropCp = utf8NextCodepoint(&p);
-  const int dropInset = renderer.text.getGlyphTopInset(dropCapFontId, dropCp, EpdFontFamily::BOLD);
-  const int bodyInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
-  const int alignY = yPos + yOffset + (bodyInset - dropInset);
+  int alignY = yPos + yOffset - 2;
+  if (inlineFirstLine) {
+    const int bodyBaseline = yPos + yOffset + renderer.text.getFontAscenderSize(fontId);
+    alignY = bodyBaseline - renderer.text.getFontAscenderSize(dropCapFontId);
+  } else {
+    const int dropInset = renderer.text.getGlyphTopInset(dropCapFontId, dropCp, EpdFontFamily::BOLD);
+    const int bodyInset = renderer.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
+    alignY += (bodyInset - dropInset) + PageDropCap::VERTICAL_ADJUSTMENT;
+  }
   renderer.text.render(dropCapFontId, xPos + xOffset, alignY, text.c_str(), EpdFontFamily::BOLD);
 }
 
@@ -157,6 +170,7 @@ bool PageDropCap::serialize(FsFile& file) {
   serialization::writePod(file, xPos);
   serialization::writePod(file, yPos);
   serialization::writePod(file, dropCapFontId);
+  serialization::writePod(file, inlineFirstLine);
   serialization::writeString(file, text);
   return true;
 }
@@ -174,8 +188,10 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
   serialization::readPod(file, x);
   serialization::readPod(file, y);
   serialization::readPod(file, dcFontId);
+  bool inlineFirstLine = false;
+  serialization::readPod(file, inlineFirstLine);
   serialization::readString(file, text);
-  return std::unique_ptr<PageDropCap>(new PageDropCap(text, x, y, dcFontId));
+  return std::unique_ptr<PageDropCap>(new PageDropCap(text, x, y, dcFontId, inlineFirstLine));
 }
 
 /**
@@ -197,6 +213,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
                             const ImageRenderMode imageMode, const bool quality) {
   (void)xOffset;
   (void)fontId;
+  const uint32_t tImageStart = millis();
   const int screenW = renderer.getScreenWidth();
   int renderX = (screenW - width) / 2;
   // The viewport top margin is reduced by the font's glyph top inset so text starts at the visual margin
@@ -211,13 +228,71 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   options.quality = quality;
   options.fastQuality = false;
   const ImageRender image = ImageRender::create(renderer, cachePath);
+
+  // Two-pass grayscale composites (renderGrayscalePasses) call this twice per image: once with the
+  // renderer set to the LSB plane, once for MSB. A plain render() would decode the source file fresh
+  // both times; capture the LSB pass's dither output instead and replay it for MSB (JPEG only - PNG/BMP
+  // and oversized images just leave grayscaleCaptureValid_ false and fall through unchanged below).
+  const GfxRenderer::RenderMode renderMode = renderer.getRenderMode();
+  const bool isLsbPass = renderMode == GfxRenderer::GRAY2_LSB || renderMode == GfxRenderer::GRAYSCALE_LSB;
+  const bool isMsbPass = renderMode == GfxRenderer::GRAY2_MSB || renderMode == GfxRenderer::GRAYSCALE_MSB;
+
+  if (imageMode == ImageRenderMode::TwoBit && isMsbPass && grayscaleCaptureValid_) {
+    JpegLevelCapture capture;
+    capture.values = grayscaleCaptureBuffer_.get();
+    capture.capacity = grayscaleCaptureCapacity_;
+    capture.width = grayscaleCaptureWidth_;
+    capture.height = grayscaleCaptureHeight_;
+    capture.drawOffsetX = grayscaleCaptureOffsetX_;
+    capture.drawOffsetY = grayscaleCaptureOffsetY_;
+    capture.captured = true;
+    grayscaleCaptureValid_ = false;  // one-shot: consumed by this MSB pass
+    if (!image.render(renderX, renderY, width, height, options, &capture)) {
+      Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
+    }
+    Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) msb-replay-path: %lums\n", millis(), cachePath.c_str(),
+                  static_cast<unsigned long>(millis() - tImageStart));
+    return;
+  }
+
+  if (imageMode == ImageRenderMode::TwoBit && isLsbPass) {
+    // Packed 2 bits/pixel (4 pixels/byte - see JpegLevelCapture), so this pixel-count cap covers a
+    // full-page image (e.g. 480x720) in a bounded, page-lifetime buffer instead of never fitting one.
+    constexpr size_t kMaxGrayscaleCapturePixels = 400000;
+    const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+    const size_t needed = (pixelCount + 3) / 4;
+    if (pixelCount > 0 && pixelCount <= kMaxGrayscaleCapturePixels) {
+      if (!grayscaleCaptureBuffer_ || grayscaleCaptureCapacity_ < needed) {
+        grayscaleCaptureBuffer_.reset(new (std::nothrow) uint8_t[needed]);
+        grayscaleCaptureCapacity_ = grayscaleCaptureBuffer_ ? needed : 0;
+      }
+      if (grayscaleCaptureBuffer_) {
+        JpegLevelCapture capture;
+        capture.values = grayscaleCaptureBuffer_.get();
+        capture.capacity = grayscaleCaptureCapacity_;
+        if (!image.render(renderX, renderY, width, height, options, &capture)) {
+          Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
+        }
+        grayscaleCaptureValid_ = capture.captured;
+        grayscaleCaptureWidth_ = capture.width;
+        grayscaleCaptureHeight_ = capture.height;
+        grayscaleCaptureOffsetX_ = capture.drawOffsetX;
+        grayscaleCaptureOffsetY_ = capture.drawOffsetY;
+        Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) lsb-capture-path captured=%d: %lums\n", millis(),
+                      cachePath.c_str(), capture.captured ? 1 : 0, static_cast<unsigned long>(millis() - tImageStart));
+        return;
+      }
+    }
+  }
+
   if (!image.render(renderX, renderY, width, height, options)) {
     Serial.printf("[PAGEIMG] Failed to draw image: %s\n", cachePath.c_str());
   }
+  Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) plain-path: %lums\n", millis(), cachePath.c_str(),
+                static_cast<unsigned long>(millis() - tImageStart));
 }
 
-void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                       ImageRenderMode) {
+void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
   const int originX = xPos + xOffset;
   const int originY = yPos + yOffset;
   // Use the effective line height baked at layout time (respects the line-spacing setting); fall back
@@ -469,6 +544,12 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
   return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness, style));
 }
 
+bool Page::anyImageNeedsGrayscale() const {
+  return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
+    return element->getTag() == TAG_PageImage && needsGrayscalePass(static_cast<const PageImage&>(*element));
+  });
+}
+
 /**
  * Renders all elements on the page.
  *
@@ -488,12 +569,20 @@ void Page::fillImageRects(GfxRenderer& renderer, const int xOffset, const int yO
       continue;
     }
     const auto& img = static_cast<const PageImage&>(*element);  // match PageImage::render geometry
-    if (onlyGrayscale && !img.needsGrayscale()) {
+    if (onlyGrayscale && !needsGrayscalePass(img)) {
       continue;
     }
     const int rx = std::max(0, (screenW - img.getWidth()) / 2);
     const int ry = std::max(0, img.yPos + yOffset);
-    renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), value);
+    if (value) {
+      renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), false);
+      renderer.rectangle.render(rx, ry, img.getWidth(), img.getHeight(), true);
+      if (img.getWidth() > 8 && img.getHeight() > 8) {
+        renderer.rectangle.render(rx + 3, ry + 3, img.getWidth() - 6, img.getHeight() - 6, true);
+      }
+    } else {
+      renderer.rectangle.fill(rx, ry, img.getWidth(), img.getHeight(), false);
+    }
   }
 }
 
@@ -530,13 +619,12 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
   return true;
 }
 
-void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset,
-                  const int yOffset, bool skipImages, const ImageRenderMode imageMode,
-                  const bool skipOnlyGrayscaleImages) const {
+void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
+                  bool skipImages, const ImageRenderMode imageMode, const bool skipOnlyGrayscaleImages) const {
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       const auto* image = static_cast<const PageImage*>(element.get());
-      if (!skipOnlyGrayscaleImages || image->needsGrayscale()) {
+      if (!skipOnlyGrayscaleImages || needsGrayscalePass(*image)) {
         continue;
       }
     }
@@ -563,13 +651,12 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
       continue;
     }
     auto* image = static_cast<PageImage*>(element.get());
-    if (onlyGrayscale && !image->needsGrayscale()) {
+    if (onlyGrayscale && !needsGrayscalePass(*image)) {
       continue;
     }
     image->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
   }
 }
-
 
 /**
  * Serializes a Page to a file.

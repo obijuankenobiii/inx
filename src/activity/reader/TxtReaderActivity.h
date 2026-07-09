@@ -12,8 +12,8 @@
 
 #include <vector>
 
-#include "state/SystemSetting.h"
 #include "activity/ActivityWithSubactivity.h"
+#include "state/SystemSetting.h"
 
 class TxtReaderActivity final : public ActivityWithSubactivity {
   std::unique_ptr<Txt> txt;
@@ -26,14 +26,12 @@ class TxtReaderActivity final : public ActivityWithSubactivity {
   const std::function<void()> onGoBack;
   const std::function<void()> onGoToRecent;
 
-  
-  std::vector<size_t> pageOffsets;  
+  std::vector<size_t> pageOffsets;
   std::vector<std::string> currentPageLines;
   int linesPerPage = 0;
   int viewportWidth = 0;
   bool initialized = false;
 
-  
   int cachedFontId = 0;
   int cachedScreenMargin = 0;
   uint8_t cachedParagraphAlignment = SystemSetting::LEFT_ALIGN;

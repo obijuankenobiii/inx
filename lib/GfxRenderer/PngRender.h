@@ -7,9 +7,14 @@
 
 #include <string>
 
+#include "BitmapUtil.h"
 #include "ImageRenderMode.h"
 
+#ifdef SIMULATOR
+#include <SDCardManager.h>
+#else
 class FsFile;
+#endif
 class GfxRenderer;
 
 class PngRender {

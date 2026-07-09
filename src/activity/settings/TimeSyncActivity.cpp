@@ -22,9 +22,7 @@
 namespace {
 constexpr int NTP_TIMEOUT_MS = 8000;
 
-uint8_t weekdayFromTm(const tm& t) {
-  return static_cast<uint8_t>(t.tm_wday == 0 ? 7 : t.tm_wday);
-}
+uint8_t weekdayFromTm(const tm& t) { return static_cast<uint8_t>(t.tm_wday == 0 ? 7 : t.tm_wday); }
 }  // namespace
 
 void TimeSyncActivity::onEnter() {
@@ -82,9 +80,8 @@ void TimeSyncActivity::beginWifiOrSync() {
     return;
   }
 
-  enterNewActivity(new WifiSelectionActivity(renderer, mappedInput, [this](const bool connected) {
-    onWifiComplete(connected);
-  }));
+  enterNewActivity(
+      new WifiSelectionActivity(renderer, mappedInput, [this](const bool connected) { onWifiComplete(connected); }));
 }
 
 void TimeSyncActivity::onWifiComplete(const bool connected) {
@@ -129,7 +126,7 @@ void TimeSyncActivity::performSync() {
   }
 
   const time_t localEpoch = utcNow + SETTINGS.getTimeZoneOffsetMinutes() * 60;
-  tm local {};
+  tm local{};
   if (gmtime_r(&localEpoch, &local) == nullptr) {
     state = State::FAILED;
     message = "Could not apply timezone";
@@ -138,7 +135,7 @@ void TimeSyncActivity::performSync() {
     return;
   }
 
-  HalGPIO::DateTime dt;
+  StoredClock::DateTime dt;
   dt.year = static_cast<uint16_t>(local.tm_year + 1900);
   dt.month = static_cast<uint8_t>(local.tm_mon + 1);
   dt.day = static_cast<uint8_t>(local.tm_mday);
@@ -148,9 +145,12 @@ void TimeSyncActivity::performSync() {
   dt.weekday = weekdayFromTm(local);
 
   char buffer[40];
+#ifndef SIMULATOR
   if (gpio.deviceIsX3() && gpio.writeDateTime(dt)) {
     std::snprintf(buffer, sizeof(buffer), "%02u:%02u saved to RTC", dt.hour, dt.minute);
-  } else if (gpio.deviceIsX4() && StoredClock::save(dt)) {
+  } else
+#endif
+      if (gpio.deviceIsX4() && StoredClock::save(dt)) {
     std::snprintf(buffer, sizeof(buffer), "%02u:%02u saved to clock.bin", dt.hour, dt.minute);
   } else {
     std::snprintf(buffer, sizeof(buffer), "%02u:%02u synced", dt.hour, dt.minute);

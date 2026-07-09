@@ -6,11 +6,17 @@
 #include "BitmapUtil.h"
 
 #include <Print.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+
+// Same per-pixel hot-loop rationale as JpegRender.cpp/PngRender.cpp/ImageToneDither.cpp: these small
+// helpers (adjustTwoBitImageLevelForDisplay, mapQualityGray2Level, quantize*) run once or twice per
+// pixel of every image render. Placed after includes so it doesn't affect inlined header code.
+#pragma GCC optimize("O2")
 
 #include "Bitmap.h"
 #include "HalGPIO.h"
@@ -85,21 +91,17 @@ uint8_t rgbToGray(uint8_t r, uint8_t g, uint8_t b) {
   return static_cast<uint8_t>(std::max(luma, std::min(255, lifted)));
 }
 
-
-constexpr bool USE_BRIGHTNESS = false;       
-constexpr int BRIGHTNESS_BOOST = 10;         
-constexpr bool GAMMA_CORRECTION = false;     
-constexpr float CONTRAST_FACTOR = 1.15f;     
-constexpr bool USE_NOISE_DITHERING = false;  
-
-
+constexpr bool USE_BRIGHTNESS = false;
+constexpr int BRIGHTNESS_BOOST = 10;
+constexpr bool GAMMA_CORRECTION = false;
+constexpr float CONTRAST_FACTOR = 1.15f;
+constexpr bool USE_NOISE_DITHERING = false;
 
 static inline int applyGamma(int gray) {
   if (!GAMMA_CORRECTION) return gray;
-  
-  
+
   const int product = gray * 255;
-  
+
   int x = gray;
   if (x > 0) {
     x = (x + product / x) >> 1;
@@ -108,11 +110,7 @@ static inline int applyGamma(int gray) {
   return x > 255 ? 255 : x;
 }
 
-
-
 static inline int applyContrast(int gray) {
-  
-  
   constexpr int factorNum = static_cast<int>(CONTRAST_FACTOR * 100);
   int adjusted = ((gray - 128) * factorNum) / 100 + 128;
   if (adjusted < 0) adjusted = 0;
@@ -123,7 +121,6 @@ static inline int applyContrast(int gray) {
 int adjustPixel(int gray) {
   if (!USE_BRIGHTNESS) return gray;
 
-  
   gray = applyContrast(gray);
   gray += BRIGHTNESS_BOOST;
   if (gray > 255) gray = 255;
@@ -149,7 +146,6 @@ int adjustOneBitPixel(int gray) {
   }
   return std::max(0, std::min(255, gray));
 }
-
 
 uint8_t quantizeSimple(int gray) {
   if (gray < 45) {
@@ -197,17 +193,12 @@ uint8_t adjustTwoBitImageLevelForDisplay(const uint8_t level) {
   return l;
 }
 
-uint8_t mapQualityGray2Level(const uint8_t level, const bool deviceIsX3) {
+uint8_t mapQualityGray2Level(const uint8_t level) {
   const uint8_t l = level & 3u;
-  if (deviceIsX3) {
-    return l;
-  }
   if (l == 1u) return 2u;
   if (l == 2u) return 1u;
   return l;
 }
-
-
 
 static inline uint8_t quantizeNoise(int gray, int x, int y) {
   uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
@@ -224,7 +215,6 @@ static inline uint8_t quantizeNoise(int gray, int x, int y) {
   }
 }
 
-
 uint8_t quantize(int gray, int x, int y) {
   if (USE_NOISE_DITHERING) {
     return quantizeNoise(gray, x, y);
@@ -233,26 +223,20 @@ uint8_t quantize(int gray, int x, int y) {
   }
 }
 
-
-
 uint8_t quantize1bit(int gray, int x, int y) {
   gray = adjustOneBitPixel(gray);
 
-  
   uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
   hash = (hash ^ (hash >> 13)) * 1274126177u;
-  const int threshold = static_cast<int>(hash >> 24);  
+  const int threshold = static_cast<int>(hash >> 24);
 
-  
-  
-  const int adjustedThreshold = 128 + ((threshold - 128) / 2);  
+  const int adjustedThreshold = 128 + ((threshold - 128) / 2);
   return (gray >= adjustedThreshold) ? 1 : 0;
 }
 
 void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder rowOrder) {
   if (!bmpHeader) return;
 
-  
   std::memset(bmpHeader, 0, sizeof(BmpHeader));
 
   uint32_t rowSize = (width + 31) / 32 * 4;
@@ -272,18 +256,16 @@ void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder ro
   bmpHeader->infoHeader.biBitCount = 1;
   bmpHeader->infoHeader.biCompression = 0;
   bmpHeader->infoHeader.biSizeImage = imageSize;
-  bmpHeader->infoHeader.biXPelsPerMeter = 2835;  
-  bmpHeader->infoHeader.biYPelsPerMeter = 2835;  
+  bmpHeader->infoHeader.biXPelsPerMeter = 2835;
+  bmpHeader->infoHeader.biYPelsPerMeter = 2835;
   bmpHeader->infoHeader.biClrUsed = 2;
   bmpHeader->infoHeader.biClrImportant = 2;
 
-  
   bmpHeader->colors[0].rgbBlue = 0;
   bmpHeader->colors[0].rgbGreen = 0;
   bmpHeader->colors[0].rgbRed = 0;
   bmpHeader->colors[0].rgbReserved = 0;
 
-  
   bmpHeader->colors[1].rgbBlue = 255;
   bmpHeader->colors[1].rgbGreen = 255;
   bmpHeader->colors[1].rgbRed = 255;
@@ -306,7 +288,7 @@ inline void epubWebWrite32(Print& out, uint32_t v) {
 
 inline void epubWebWrite32Signed(Print& out, int32_t v) { epubWebWrite32(out, static_cast<uint32_t>(v)); }
 
-}  
+}  // namespace
 
 uint8_t epubWebRgb565ToGray8Rounded(uint16_t p) {
   const int r = ((p >> 11) & 0x1F) << 3;

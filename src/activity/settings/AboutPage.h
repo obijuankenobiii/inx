@@ -32,4 +32,4 @@ class AboutPage {
   uint32_t lastInputTime;
 };
 
-#endif  
+#endif

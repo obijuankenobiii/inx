@@ -15,7 +15,7 @@ constexpr unsigned long kStatsSaveIntervalMs = 30000;
 constexpr uint32_t kReadingSessionCountMinMs = 45000;
 }  // namespace
 
-void EpubReadingStats::init(Epub& epub, const Section* section, const int currentSpineIndex) {
+void EpubReadingStats::init(const Epub& epub, const Section* section, const int currentSpineIndex) {
   readerSessionStartMs_ = millis();
   readingSessionCountCommitted_ = false;
 
@@ -39,7 +39,7 @@ void EpubReadingStats::init(Epub& epub, const Section* section, const int curren
   lastSaveTime_ = millis();
 }
 
-void EpubReadingStats::maybeCommitSession(Epub& epub) {
+void EpubReadingStats::maybeCommitSession(const Epub& epub) {
   if (readingSessionCountCommitted_) {
     return;
   }
@@ -55,7 +55,7 @@ void EpubReadingStats::startPageTimer() { pageStartTime_ = millis(); }
 
 bool EpubReadingStats::hasActivePageTimer() const { return pageStartTime_ > 0; }
 
-void EpubReadingStats::endPageTimer(Epub& epub, const Section* section, const int currentSpineIndex) {
+void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, const int currentSpineIndex) {
   if (pageStartTime_ == 0) {
     return;
   }
@@ -96,12 +96,12 @@ void EpubReadingStats::endPageTimer(Epub& epub, const Section* section, const in
 
 void EpubReadingStats::addChapterRead() { stats_.totalChaptersRead++; }
 
-void EpubReadingStats::save(Epub& epub) {
+void EpubReadingStats::save(const Epub& epub) {
   stats_.lastReadTimeMs = millis();
   ::saveBookStats(epub.getCachePath().c_str(), stats_);
 }
 
-void EpubReadingStats::display(GfxRenderer& renderer, Epub& epub) const {
+void EpubReadingStats::display(GfxRenderer& renderer, const Epub& epub) const {
   renderer.clearScreen(0xff);
   BookReadingStats stats;
   if (!loadBookStats(epub.getCachePath().c_str(), stats)) {
@@ -118,8 +118,7 @@ void EpubReadingStats::display(GfxRenderer& renderer, Epub& epub) const {
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true,
-                       EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatTime(stats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);

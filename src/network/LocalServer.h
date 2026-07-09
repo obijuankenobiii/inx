@@ -11,8 +11,8 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
-
 
 struct FileInfo {
   String name;
@@ -36,49 +36,42 @@ class LocalServer {
   LocalServer();
   ~LocalServer();
 
-  
   void begin();
 
-  
   void stop();
 
-  
   void handleClient();
 
-  
   bool isRunning() const { return running; }
 
   WsUploadStatus getWsUploadStatus() const;
 
-  
   uint16_t getPort() const { return port; }
 
  private:
   std::unique_ptr<WebServer> server = nullptr;
   std::unique_ptr<WebSocketsServer> wsServer = nullptr;
   bool running = false;
-  bool apMode = false;  
+  bool apMode = false;
   uint16_t port = 80;
-  uint16_t wsPort = 81;  
+  uint16_t wsPort = 81;
   WiFiUDP udp;
   bool udpActive = false;
 
-  
   void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   static void wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 
-  
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
   String formatFileSize(size_t bytes) const;
   bool isEpubFile(const String& filename) const;
 
-  
   void handleRoot() const;
   void handleFontManagerPage() const;
   void handleTagsPage() const;
   void handleInxFontPackJs() const;
   void handleJsZipMinJs() const;
   void handleEpubPageJs() const;
+  void handleFilesPageJs() const;
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;
@@ -89,8 +82,11 @@ class LocalServer {
   void handleUploadPost() const;
   void handleCreateFolder() const;
   void handleDelete() const;
+  void handleRename() const;
+  void collectEpubRenames(const std::string& oldDirPath, const std::string& newDirPath,
+                          std::vector<std::pair<std::string, std::string>>& out) const;
+  void migrateEpubBookState(const std::string& oldPath, const std::string& newPath) const;
 
-  
   void handleSettingsPage() const;
   void handleSettingsGet() const;
   void handleSettingsUpdate() const;
@@ -100,6 +96,10 @@ class LocalServer {
   void handleWifiDelete() const;
   void handleKOReaderGet() const;
   void handleKOReaderPost() const;
+
+  void handleOpdsGet() const;
+  void handleOpdsPost() const;
+  void handleOpdsDelete() const;
 
   void handleFontsRescan() const;
   void handleLibraryIndexRefresh() const;

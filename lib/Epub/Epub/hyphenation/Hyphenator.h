@@ -17,11 +17,9 @@ class Hyphenator {
     size_t byteOffset;
     bool requiresInsertedHyphen;
   };
-  
-  
+
   static std::vector<BreakInfo> breakOffsets(const std::string& word, bool includeFallback);
 
-  
   static void setPreferredLanguage(const std::string& lang);
 
  private:

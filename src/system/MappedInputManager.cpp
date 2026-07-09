@@ -24,14 +24,12 @@ struct SideLayoutMap {
   ButtonIndex pageForward;
 };
 
-
 constexpr FrontLayoutMap kFrontLayouts[] = {
     {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT},
     {HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT, HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM},
     {HalGPIO::BTN_CONFIRM, HalGPIO::BTN_LEFT, HalGPIO::BTN_BACK, HalGPIO::BTN_RIGHT},
     {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_RIGHT, HalGPIO::BTN_LEFT},
 };
-
 
 constexpr SideLayoutMap kSideLayouts[] = {
     {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
@@ -56,7 +54,7 @@ MappedInputManager::Button remapDirectional180(const MappedInputManager::Button 
       return button;
   }
 }
-}  
+}  // namespace
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
   const auto frontLayout = static_cast<SystemSetting::FRONT_BUTTON_LAYOUT>(SETTINGS.frontButtonLayout);
@@ -100,15 +98,22 @@ bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
 
 bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); }
 
+HalGPIO::MotionGesture MappedInputManager::readMotionGesture(const uint8_t orientation, const uint8_t mode,
+                                                            const uint8_t sensitivity) const {
+#ifdef SIMULATOR
+  return HalGPIO::MotionGesture::None;
+#else
+  return gpio.readMotionGesture(orientation, mode, sensitivity);
+#endif
+}
+
 unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
 
-bool MappedInputManager::rawHalIsPressed(const uint8_t halButtonIndex) const {
-  return gpio.isPressed(halButtonIndex);
-}
+bool MappedInputManager::rawHalIsPressed(const uint8_t halButtonIndex) const { return gpio.isPressed(halButtonIndex); }
 
 MappedInputManager::SideLabels MappedInputManager::mapSideLabels() const {
   const auto sideLayout = static_cast<SystemSetting::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  
+
   static constexpr const char* kPrev = "\xC2\xAB";
   static constexpr const char* kNext = "\xC2\xBB";
   if (sideLayout == SystemSetting::NEXT_PREV) {
@@ -141,8 +146,8 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
 }
 
 MappedInputManager::Labels MappedInputManager::mapLabelsWithReaderNav(const char* back, const char* confirm,
-                                                                    const char* prevSym, const char* nextSym,
-                                                                    bool landscapeDrawer) const {
+                                                                      const char* prevSym, const char* nextSym,
+                                                                      bool landscapeDrawer) const {
   const char* p = prevSym;
   const char* n = nextSym;
 

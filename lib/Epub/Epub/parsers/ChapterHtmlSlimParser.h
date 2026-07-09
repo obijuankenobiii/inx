@@ -9,8 +9,8 @@
 
 #include <climits>
 #include <functional>
-#include <memory>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -52,15 +52,12 @@ class ChapterHtmlSlimParser {
   int italicUntilDepth = INT_MAX;
   int underlineUntilDepth = INT_MAX;
 
-  
   int fontId;
   int headerFontId;
   int maxFontId;
 
-  
   bool inHeader = false;
 
-  
   bool inDropCap = false;
   int dropCapDepth = INT_MAX;
   bool dropCapConsumeWholeContainer = false;
@@ -158,8 +155,7 @@ class ChapterHtmlSlimParser {
   /** Captures <table>/<tr>/<td>/<th> structure during the main pass. Returns true if the tag was consumed
    *  (the caller should then return), false if it is not table-related. */
   bool handleTableStartElement(const XML_Char* name, const XML_Char** atts, const std::string& tagLower,
-                               const std::string& classAttr, const std::string& idAttr,
-                               const std::string& styleAttr);
+                               const std::string& classAttr, const std::string& idAttr, const std::string& styleAttr);
 
   /**
    * Flushes the accumulated word buffer.
@@ -256,12 +252,11 @@ class ChapterHtmlSlimParser {
    */
   explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
                                  const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId, const int maxFontId,
-                                 const float lineCompression, const float wordSpacingFactor,
-                                 const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
-                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
-                                 const bool hyphenationEnabled, const bool respectCssParagraphIndent,
-                                 const bool bionicReadingEnabled,
+                                 const int headerFontId, const int maxFontId, const float lineCompression,
+                                 const float wordSpacingFactor, const bool extraParagraphSpacing,
+                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
+                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
+                                 const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
                                  const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),

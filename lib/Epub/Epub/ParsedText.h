@@ -44,7 +44,6 @@ class ParsedText {
 
   int cssTextIndentPx = -1;
 
-  
   uint16_t leftIndentWidth = 0;
   uint16_t leftIndentLineCount = 0;
   void applyParagraphIndent(const GfxRenderer& renderer, int fontId);
@@ -82,14 +81,14 @@ class ParsedText {
     leftIndentWidth = 0;
     leftIndentLineCount = 0;
   }
-  
-  
+
   void setLeftIndent(uint16_t width, uint16_t lineCount) {
     leftIndentWidth = width;
     leftIndentLineCount = lineCount;
   }
 
-  /** Called when CSS declares text-indent (including 0); disables legacy first-line em otherwise used for left/justify. */
+  /** Called when CSS declares text-indent (including 0); disables legacy first-line em otherwise used for left/justify.
+   */
   void setCssTextIndentFromCascade(int resolvedPx) { cssTextIndentPx = (resolvedPx > 0) ? resolvedPx : 0; }
 
   TextBlock::Style getStyle() const { return style; }

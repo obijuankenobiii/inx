@@ -5,13 +5,13 @@
  * @brief Public interface and types for BookState.
  */
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <algorithm>
 
 class BookState {
-public:
+ public:
   struct Book {
     std::string path;
     std::string title;
@@ -20,14 +20,14 @@ public:
     bool isFavorite = false;
     bool isReading = false;
     bool isFinished = false;
-    
+
     Book() = default;
-    
-    Book(const std::string& p, const std::string& t, const std::string& a, uint32_t idNum = 0) 
+
+    Book(const std::string& p, const std::string& t, const std::string& a, uint32_t idNum = 0)
         : path(p), title(t), author(a), id(idNum) {}
   };
 
-private:
+ private:
   static BookState instance;
   uint32_t nextId = 1;
   /** path string → index in `books` for O(1) lookup (rebuilt on load). */
@@ -38,23 +38,24 @@ private:
   void rebuildFavoriteIndices();
   void compactIdleMetadata();
 
-public:
+ public:
   std::vector<Book> books;
-  
+
   ~BookState() = default;
 
   static BookState& getInstance() { return instance; }
 
-  void addOrUpdateBook(const std::string& path, 
-                       const std::string& title,
-                       const std::string& author);
+  void addOrUpdateBook(const std::string& path, const std::string& title, const std::string& author);
 
   std::vector<Book> getFavoriteBooks() const;
   std::vector<Book> getReadingBooks() const;
   std::vector<Book> getFinishedBooks() const;
-  std::vector<Book> getRecentlyAdded(int limit = 10) const;
 
   Book* findBookByPath(const std::string& path);
+
+  /** Repoints an existing book's path entry (favorite/reading/finished flags, id) after a rename/move. No-op if oldPath
+   * isn't tracked. */
+  void renamePath(const std::string& oldPath, const std::string& newPath);
 
   void toggleFavorite(const std::string& path);
   void setReading(const std::string& path, bool isReading);

@@ -14,7 +14,7 @@ bool ReadIconBitMsbFirst(const uint8_t* data, const int width, const int x, cons
 }  // namespace
 
 void IconRender::render(const uint8_t bitmap[], const int x, const int y, const int width, const int height,
-                      const Orientation orientation, const bool invert) const {
+                        const Orientation orientation, const bool invert) const {
   for (int dx = 0; dx < width; ++dx) {
     for (int dy = 0; dy < height; ++dy) {
       int srcX = dx;

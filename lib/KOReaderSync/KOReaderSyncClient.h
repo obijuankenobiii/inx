@@ -11,12 +11,12 @@
  * Progress data from KOReader sync server.
  */
 struct KOReaderProgress {
-  std::string document;  
-  std::string progress;  
-  float percentage;      
-  std::string device;    
-  std::string deviceId;  
-  int64_t timestamp;     
+  std::string document;
+  std::string progress;
+  float percentage;
+  std::string device;
+  std::string deviceId;
+  int64_t timestamp;
 };
 
 /**

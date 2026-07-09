@@ -7,9 +7,11 @@
 
 #include <ImageRenderMode.h>
 #include <SdFat.h>
+
+#include <algorithm>
+#include <memory>
 #include <utility>
 #include <vector>
-#include <algorithm>
 
 #include "blocks/TextBlock.h"
 
@@ -34,7 +36,7 @@ class PageElement {
  public:
   int16_t xPos;
   int16_t yPos;
-  
+
   /**
    * Constructs a page element at the specified position.
    * * @param xPos X coordinate on the page
@@ -42,13 +44,13 @@ class PageElement {
    */
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
   virtual ~PageElement() = default;
-  
+
   /**
    * Returns the element type tag for identification.
    * * @return The element type tag
    */
   virtual PageElementTag getTag() const = 0;
-  
+
   /**
    * Renders the element on the screen.
    * * @param renderer The graphics renderer
@@ -59,7 +61,7 @@ class PageElement {
    */
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                       ImageRenderMode imageMode = ImageRenderMode::OneBit) = 0;
-  
+
   /**
    * Serializes the element to a file.
    * * @param file The file to write to
@@ -139,6 +141,7 @@ class PageSmallCaps final : public PageElement {
 class PageDropCap final : public PageElement {
   std::string text;
   int dropCapFontId;
+  bool inlineFirstLine;
 
  public:
   /**
@@ -147,11 +150,13 @@ class PageDropCap final : public PageElement {
    * @param yPos Y coordinate
    * @param fontId The specific large font ID to use
    */
-  PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId)
-      : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId) {}
+  PageDropCap(std::string text, const int16_t xPos, const int16_t yPos, int fontId, bool inlineFirstLine = false)
+      : PageElement(xPos, yPos), text(std::move(text)), dropCapFontId(fontId), inlineFirstLine(inlineFirstLine) {}
 
   const std::string& getDropCapText() const { return text; }
   int getDropCapFontId() const { return dropCapFontId; }
+  bool isInlineFirstLine() const { return inlineFirstLine; }
+  static constexpr int16_t VERTICAL_ADJUSTMENT = 0;
 
   PageElementTag getTag() const override { return TAG_PageDropCap; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
@@ -169,6 +174,18 @@ class PageImage final : public PageElement {
   int16_t width;
   int16_t height;
   bool grayscale;  // true = image has continuous-tone content worth grayscale; false = ~1-bit (comic/line art)
+
+  // Two-pass grayscale rendering (LSB plane then MSB plane) would otherwise decode this image's JPEG
+  // twice. renderImage() captures the LSB pass's per-pixel dither level here (packed 2 bits/pixel) and
+  // replays it for MSB instead of re-decoding. Scoped to this PageImage's lifetime (one page's worth),
+  // bounded by pixel count in renderImage() - see kMaxGrayscaleCapturePixels there.
+  std::unique_ptr<uint8_t[]> grayscaleCaptureBuffer_;
+  size_t grayscaleCaptureCapacity_ = 0;
+  int grayscaleCaptureWidth_ = 0;
+  int grayscaleCaptureHeight_ = 0;
+  int grayscaleCaptureOffsetX_ = 0;
+  int grayscaleCaptureOffsetY_ = 0;
+  bool grayscaleCaptureValid_ = false;
 
  public:
   PageImage(std::string path, const int16_t w, const int16_t h, const int16_t xPos, const int16_t yPos,
@@ -276,24 +293,16 @@ class PageCssBorderLine final : public PageElement {
 class Page {
  public:
   std::vector<std::shared_ptr<PageElement>> elements;
-  
+
   bool hasImages() const {
     return std::any_of(elements.begin(), elements.end(),
-                       [](const std::shared_ptr<PageElement>& element) {
-                         return element->getTag() == TAG_PageImage;
-                       });
+                       [](const std::shared_ptr<PageElement>& element) { return element->getTag() == TAG_PageImage; });
   }
 
   // True if at least one image on the page has continuous-tone content worth rendering in grayscale. Pages whose
   // images are all essentially 1-bit (comics / line art / mostly black-and-white) return false, so they can be
   // rendered as fast 1-bit instead of paying for the grayscale passes.
-  bool anyImageNeedsGrayscale() const {
-    return std::any_of(elements.begin(), elements.end(),
-                       [](const std::shared_ptr<PageElement>& element) {
-                         return element->getTag() == TAG_PageImage &&
-                                static_cast<const PageImage*>(element.get())->needsGrayscale();
-                       });
-  }
+  bool anyImageNeedsGrayscale() const;
 
   /**
    * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap

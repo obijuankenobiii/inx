@@ -5,18 +5,22 @@
 
 #include "state/SystemSetting.h"
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#endif
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
+#ifndef INX_SIMULATOR_WEB_ONLY
 #include "system/FontManager.h"
 #include "system/Fonts.h"
+#endif
 
 SystemSetting SystemSetting::instance;
 
@@ -36,8 +40,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 24;
-constexpr uint8_t SETTINGS_COUNT = 60;
+constexpr uint8_t SETTINGS_FILE_VERSION = 29;
+constexpr uint8_t SETTINGS_COUNT = 67;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -61,7 +65,11 @@ void sanitizeSleepCustomBmp(char* buf) {
     }
   }
 }
-}  
+
+bool validRefreshFrequency(const uint8_t value) {
+  return value == 1 || value == 5 || value == 10 || value == 15 || value == 30;
+}
+}  // namespace
 
 void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
   if (s == nullptr || s[0] == '\0') {
@@ -87,24 +95,33 @@ bool SystemSetting::saveToFile() const {
   }
 
   uint8_t fontFamilyToSave = fontFamily;
+#ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamilyToSave);
   if (fontFamilyToSave != fontFamily) {
     const_cast<SystemSetting*>(this)->fontFamily = fontFamilyToSave;
   }
+#endif
 
   {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
-    if (mut->fixSunlightFade > 1) mut->fixSunlightFade = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
     if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
+    if (mut->sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT)
+      mut->sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
     if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
+    if (mut->xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) mut->xtcImageQuality = READER_IMAGE_LOW;
+    if (mut->xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) mut->xtcShortPwrBtn = XTC_POWER_NEXT;
+    if (mut->xtcPageAutoTurnSeconds > 60 || mut->xtcPageAutoTurnSeconds % 10 != 0) mut->xtcPageAutoTurnSeconds = 0;
+    if (!validRefreshFrequency(mut->xtcRefreshFrequency)) mut->xtcRefreshFrequency = 15;
     if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
+    if (mut->shakePageTurn > 2) mut->shakePageTurn = 0;
+    if (mut->shakePageTurnSensitivity > 2) mut->shakePageTurnSensitivity = 1;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -160,7 +177,6 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
-  serialization::writePod(outputFile, fixSunlightFade);
   serialization::writePod(outputFile, libraryMode);
   serialization::writePod(outputFile, libraryViewMode);
   serialization::writePod(outputFile, bionicReadingEnabled);
@@ -169,6 +185,13 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, timeZoneQuarterOffset);
   serialization::writePod(outputFile, textSpace);
   serialization::writePod(outputFile, mainMenuNav);
+  serialization::writePod(outputFile, xtcImageQuality);
+  serialization::writePod(outputFile, xtcShortPwrBtn);
+  serialization::writePod(outputFile, xtcPageAutoTurnSeconds);
+  serialization::writePod(outputFile, xtcRefreshFrequency);
+  serialization::writePod(outputFile, sleepClockRefreshInterval);
+  serialization::writePod(outputFile, shakePageTurn);
+  serialization::writePod(outputFile, shakePageTurnSensitivity);
 
   outputFile.close();
 
@@ -180,6 +203,7 @@ bool SystemSetting::saveToFile() const {
  * @brief Loads all settings from file
  * @return true if load successful, false otherwise
  */
+// cppcheck-suppress checkLevelNormal ; large versioned-field function, exhaustive level not worth the CI runtime cost
 bool SystemSetting::loadFromFile() {
   FsFile inputFile;
 
@@ -194,12 +218,9 @@ bool SystemSetting::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  if (version != SETTINGS_FILE_VERSION && version != 3 && version != 6 && version != 7 && version != 8 &&
-      version != 9 && version != 10 && version != 11 && version != 12 && version != 13 && version != 14 &&
-      version != 15 && version != 16 && version != 17 && version != 18 && version != 19 && version != 20 &&
-      version != 22 && version != 23) {
-    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected %u, %u, … %u, %u, or %u)\n", millis(),
-                  version, SETTINGS_FILE_VERSION, 3u, 14u, 15u, SETTINGS_FILE_VERSION);
+  if (version > SETTINGS_FILE_VERSION) {
+    Serial.printf("[%lu] [CPS] Deserialization failed: Unknown version %u (expected <= %u)\n", millis(), version,
+                  SETTINGS_FILE_VERSION);
     inputFile.close();
     statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
     statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
@@ -236,13 +257,10 @@ bool SystemSetting::loadFromFile() {
     {
       uint8_t rawFontFamily = 0;
       serialization::readPod(inputFile, rawFontFamily);
-      if (version >= 15) {
-        fontFamily = rawFontFamily;
-        FontManager::clampReaderFontFamilySlot(fontFamily);
-      } else {
-        /** Legacy v14 and older: 0 Bookerly, 1 Atkinson, 2 Literata → Atkinson=1, else Literata (0). */
-        fontFamily = (rawFontFamily == ATKINSON_HYPERLEGIBLE) ? ATKINSON_HYPERLEGIBLE : LITERATA;
-      }
+      fontFamily = rawFontFamily;
+#ifndef INX_SIMULATOR_WEB_ONLY
+      FontManager::clampReaderFontFamilySlot(fontFamily);
+#endif
     }
     if (++settingsRead >= fileSettingsCount) break;
 
@@ -330,70 +348,20 @@ bool SystemSetting::loadFromFile() {
     readAndValidate(inputFile, bootSetting, BOOT_SETTING_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
 
-    if (version >= 4) {
-      readAndValidate(inputFile, statusBarLeft, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
+    readAndValidate(inputFile, statusBarLeft, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-      readAndValidate(inputFile, statusBarMiddle, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
+    readAndValidate(inputFile, statusBarMiddle, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-      readAndValidate(inputFile, statusBarRight, STATUS_BAR_ITEM_COUNT);
-      if (++settingsRead >= fileSettingsCount) break;
-    } else {
-      switch (statusBar) {
-        case NONE:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_NONE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case NO_PROGRESS:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case FULL:
-        default:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;
-          statusBarRight = STATUS_ITEM_PAGE_NUMBERS;
-          break;
-        case FULL_WITH_PROGRESS_BAR:
-          statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;
-          statusBarMiddle = STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT;
-          statusBarRight = STATUS_ITEM_CHAPTER_TITLE;
-          break;
-        case ONLY_PROGRESS_BAR:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PROGRESS_BAR;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case BATTERY_PERCENTAGE:
-          statusBarLeft = STATUS_ITEM_BATTERY_PERCENTAGE;
-          statusBarMiddle = STATUS_ITEM_NONE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case PERCENTAGE:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PERCENTAGE;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-        case PAGE_BARS:
-          statusBarLeft = STATUS_ITEM_NONE;
-          statusBarMiddle = STATUS_ITEM_PAGE_BARS;
-          statusBarRight = STATUS_ITEM_NONE;
-          break;
-      }
-    }
+    readAndValidate(inputFile, statusBarRight, STATUS_BAR_ITEM_COUNT);
+    if (++settingsRead >= fileSettingsCount) break;
 
-    if (version >= 6) {
-      serialization::readPod(inputFile, pageAutoTurnSeconds);
-      if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
-        pageAutoTurnSeconds = 0;
-      }
-      if (++settingsRead >= fileSettingsCount) break;
-    } else {
+    serialization::readPod(inputFile, pageAutoTurnSeconds);
+    if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
       pageAutoTurnSeconds = 0;
     }
+    if (++settingsRead >= fileSettingsCount) break;
 
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, readerImageGrayscale);
@@ -446,46 +414,33 @@ bool SystemSetting::loadFromFile() {
       ++settingsRead;
     }
     if (settingsRead < fileSettingsCount) {
-      if (version >= 16) {
-        serialization::readPod(inputFile, refreshOnLoadRecent);
-        if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+      serialization::readPod(inputFile, refreshOnLoadRecent);
+      if (refreshOnLoadRecent > 1) refreshOnLoadRecent = 0;
+      ++settingsRead;
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadLibrary);
+        if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
         ++settingsRead;
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadLibrary);
-          if (refreshOnLoadLibrary > 1) refreshOnLoadLibrary = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadSettings);
-          if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadSync);
-          if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
-          ++settingsRead;
-        }
-        if (settingsRead < fileSettingsCount) {
-          serialization::readPod(inputFile, refreshOnLoadStatistics);
-          if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
-          ++settingsRead;
-        }
-      } else {
-        uint8_t legacyRefresh = 0;
-        serialization::readPod(inputFile, legacyRefresh);
-        if (legacyRefresh > 1) legacyRefresh = 0;
-        const uint8_t on = legacyRefresh ? 1u : 0u;
-        refreshOnLoadRecent = on;
-        refreshOnLoadLibrary = on;
-        refreshOnLoadSettings = on;
-        refreshOnLoadSync = on;
-        refreshOnLoadStatistics = on;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadSettings);
+        if (refreshOnLoadSettings > 1) refreshOnLoadSettings = 0;
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadSync);
+        if (refreshOnLoadSync > 1) refreshOnLoadSync = 0;
+        ++settingsRead;
+      }
+      if (settingsRead < fileSettingsCount) {
+        serialization::readPod(inputFile, refreshOnLoadStatistics);
+        if (refreshOnLoadStatistics > 1) refreshOnLoadStatistics = 0;
         ++settingsRead;
       }
     }
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, bitmapRoundedCorners);
-      if (bitmapRoundedCorners > 1) {
+      if (bitmapRoundedCorners > 2) {
         bitmapRoundedCorners = 0;
       }
       ++settingsRead;
@@ -508,13 +463,6 @@ bool SystemSetting::loadFromFile() {
       serialization::readPod(inputFile, librarySortMode);
       if (librarySortMode > 7) {
         librarySortMode = 0;
-      }
-      ++settingsRead;
-    }
-    if (settingsRead < fileSettingsCount) {
-      serialization::readPod(inputFile, fixSunlightFade);
-      if (fixSunlightFade > 1) {
-        fixSunlightFade = 0;
       }
       ++settingsRead;
     }
@@ -557,12 +505,72 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, mainMenuNav, MAIN_MENU_NAV_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, xtcImageQuality, READER_IMAGE_QUALITY_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, xtcShortPwrBtn, XTC_SHORT_PWRBTN_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, xtcPageAutoTurnSeconds);
+      if (xtcPageAutoTurnSeconds > 60 || xtcPageAutoTurnSeconds % 10 != 0) {
+        xtcPageAutoTurnSeconds = 0;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, xtcRefreshFrequency);
+      if (!validRefreshFrequency(xtcRefreshFrequency)) {
+        xtcRefreshFrequency = 15;
+      }
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, sleepClockRefreshInterval, CLOCK_REFRESH_INTERVAL_COUNT);
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, shakePageTurn);
+      if (shakePageTurn > 2) shakePageTurn = 0;
+      ++settingsRead;
+    }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, shakePageTurnSensitivity);
+      if (shakePageTurnSensitivity > 2) shakePageTurnSensitivity = 1;
+      ++settingsRead;
+    }
 
   } while (false);
 
   inputFile.close();
 
+#ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamily);
+#endif
+
+  if (settingsRead < 60) {
+    xtcImageQuality = readerImageGrayscale;
+  }
+  if (settingsRead < 61) {
+    xtcShortPwrBtn = readerShortPwrBtn == READER_PAGE_REFRESH ? XTC_POWER_PAGE_REFRESH : XTC_POWER_NEXT;
+  }
+  if (settingsRead < 62) {
+    xtcPageAutoTurnSeconds = pageAutoTurnSeconds;
+  }
+  if (settingsRead < 63) {
+    xtcRefreshFrequency = getRefreshFrequency();
+  }
+  if (settingsRead < 65) {
+    sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
+  }
+  if (settingsRead < 66) {
+    shakePageTurn = 0;
+  }
+  if (settingsRead < 67) {
+    shakePageTurnSensitivity = 1;
+  }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 8) {
     recentVisibleCount = 8;
@@ -573,17 +581,29 @@ bool SystemSetting::loadFromFile() {
   if (librarySortMode > 7) {
     librarySortMode = 0;
   }
-  if (fixSunlightFade > 1) {
-    fixSunlightFade = 0;
-  }
   if (sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) {
     sleepClockStyle = CLOCK_CENTERED_DATE;
   }
   if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) {
     sleepClockTimeFormat = CLOCK_24_HOUR;
   }
+  if (sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT) {
+    sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
+  }
   if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
     sleepImageQuality = SLEEP_IMAGE_LOW;
+  }
+  if (xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) {
+    xtcImageQuality = READER_IMAGE_LOW;
+  }
+  if (xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) {
+    xtcShortPwrBtn = XTC_POWER_NEXT;
+  }
+  if (xtcPageAutoTurnSeconds > 60 || xtcPageAutoTurnSeconds % 10 != 0) {
+    xtcPageAutoTurnSeconds = 0;
+  }
+  if (!validRefreshFrequency(xtcRefreshFrequency)) {
+    xtcRefreshFrequency = 15;
   }
   if (timeZoneQuarterOffset > 104) {
     timeZoneQuarterOffset = 80;
@@ -606,31 +626,6 @@ bool SystemSetting::loadFromFile() {
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
-
-  
-  if (version == 10) {
-    if (legacyReaderImagePresentation == 1u) {
-      legacyReaderImagePresentation = 0u;
-    }
-    if (legacyDisplayImagePresentation == 1u) {
-      legacyDisplayImagePresentation = 0u;
-    }
-  }
-
-  
-  if (version == 10 || version == 11) {
-    auto mapLegacyPresentation = [](uint8_t& p) {
-      if (p == 0u) {
-        p = 1u;
-      } else if (p == 1u) {
-        p = 2u;
-      } else if (p >= LEGACY_IMAGE_PRESENTATION_COUNT) {
-        p = 1u;
-      }
-    };
-    mapLegacyPresentation(legacyReaderImagePresentation);
-    mapLegacyPresentation(legacyDisplayImagePresentation);
-  }
 
   return true;
 }
@@ -709,13 +704,24 @@ void SystemSetting::formatTimeZone(char* out, size_t outSize) const {
 }
 
 int SystemSetting::getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)familySlot;
+  (void)sizeIndex;
+  return 0;
+#else
   if (familySlot < FONT_FAMILY_BUILTIN_COUNT) {
     return getReaderFontIdForFamilyAndSize(familySlot, sizeIndex);
   }
   return getReaderFontIdForFamilyAndSize(ATKINSON_HYPERLEGIBLE, sizeIndex);
+#endif
 }
 
 int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)family;
+  (void)size;
+  return 0;
+#else
   if (size >= FONT_SIZE_COUNT) {
     size = MEDIUM;
   }
@@ -762,6 +768,7 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
           return LITERATA_18_FONT_ID;
       }
   }
+#endif
 }
 
 /**
@@ -769,10 +776,18 @@ int SystemSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
  * @return Font identifier for rendering
  */
 int SystemSetting::getReaderFontId() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  return 0;
+#else
   return getReaderFontIdForFamilyAndSize(fontFamily, fontSize);
+#endif
 }
 
 void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, const RefreshOnLoadPage page) const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  (void)renderer;
+  (void)page;
+#else
   uint8_t on = 0;
   switch (page) {
     case RefreshOnLoadPage::Recent:
@@ -794,4 +809,5 @@ void SystemSetting::runHalfRefreshOnLoadIfEnabled(const GfxRenderer& renderer, c
   if (on) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
+#endif
 }

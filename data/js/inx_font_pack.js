@@ -13,8 +13,12 @@
    */
   var SIZES = [10, 12, 14, 16, 18];
   var RASTER_CALIBRATION = 0.74;
-  /** Lower → bolder; higher → thinner (only used with binary grayToStored). */
-  var PACK_EDGE_LUM_THRESHOLD = 178;
+  var PACK_LIGHT_GRAY_LUM_THRESHOLD = 238;
+  var PACK_DARK_GRAY_LUM_THRESHOLD = 168;
+  var PACK_BLACK_LUM_THRESHOLD = 72;
+  var RASTER_SUPERSAMPLE = 2;
+  var GLYPH_YIELD_INTERVAL = 64;
+  var GLYPH_YIELD_BUDGET_MS = 60;
 
   function readerStepToCanvasPx(step) {
     var base;
@@ -100,12 +104,11 @@
     return t;
   }
 
-  /**
-   * BW renderer treats stored 1 and 2 as full ink (same as 3). Only 0 is paper.
-   * Use binary 0|3 and a luminance cutoff so anti-alias grays do not become fat black.
-   */
   function grayToStored(L) {
-    return L >= PACK_EDGE_LUM_THRESHOLD ? 0 : 3;
+    if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 0;
+    if (L >= PACK_DARK_GRAY_LUM_THRESHOLD) return 1;
+    if (L >= PACK_BLACK_LUM_THRESHOLD) return 2;
+    return 3;
   }
 
   function pack2bitLinear(padW, h, getLum) {
@@ -127,6 +130,29 @@
     return canvasPx + 'px "' + family + '"';
   }
 
+  function nowMs() {
+    return global.performance && typeof global.performance.now === 'function' ? global.performance.now() : Date.now();
+  }
+
+  function yieldToBrowser() {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  function createRasterScratch() {
+    var sample = RASTER_SUPERSAMPLE;
+    var c = document.createElement('canvas');
+    c.width = 512 * sample;
+    c.height = 512 * sample;
+    return {
+      canvas: c,
+      ctx: c.getContext('2d'),
+      width: c.width,
+      height: c.height,
+    };
+  }
+
   function measureRef(ctx, family, readerStep) {
     var px = readerStepToCanvasPx(readerStep);
     ctx.textBaseline = 'alphabetic';
@@ -144,43 +170,58 @@
     };
   }
 
-  function rasterizeChar(family, readerStep, cp) {
+  function rasterizeChar(family, readerStep, cp, scratch) {
     var px = readerStepToCanvasPx(readerStep);
-    var W = 512;
-    var H = 512;
+    var sample = RASTER_SUPERSAMPLE;
+    var W = scratch ? scratch.width : 512 * sample;
+    var H = scratch ? scratch.height : 512 * sample;
     var ox = 200;
     var by = 300;
-    var c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    var ctx = c.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, H);
+    var c = scratch ? scratch.canvas : document.createElement('canvas');
+    if (!scratch) {
+      c.width = W;
+      c.height = H;
+    }
+    var ctx = scratch ? scratch.ctx : c.getContext('2d');
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#000000';
-    ctx.font = fontSpecPx(family, px);
+    ctx.font = fontSpecPx(family, px * sample);
     var ch = String.fromCodePoint(cp);
     var m = ctx.measureText(ch);
-    var adv = Math.round(m.width);
+    var adv = Math.round(m.width / sample);
     if (adv < 1) adv = 1;
     if (adv > MAX_ADVANCE) adv = MAX_ADVANCE;
-    var topRef = Math.round(m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : px * 0.72);
+    var topRef = Math.round((m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : px * sample * 0.72) / sample);
 
     if (cp === 0x20 || cp === 0xa0 || ch === '\t') {
       if (cp === 0x20 || cp === 0xa0) adv = Math.max(adv, Math.round(px * 0.35));
       return { w: 0, h: 0, left: 0, top: topRef, adv: adv, bits: new Uint8Array(0) };
     }
 
-    ctx.fillText(ch, ox, by);
-    var id = ctx.getImageData(0, 0, W, H).data;
-    var minX = W,
-      minY = H,
+    var metricLeft = isFinite(m.actualBoundingBoxLeft) && m.actualBoundingBoxLeft > 0 ? m.actualBoundingBoxLeft : 0;
+    var metricRight = isFinite(m.actualBoundingBoxRight) && m.actualBoundingBoxRight > 0 ? m.actualBoundingBoxRight : Math.max(adv * sample, px * sample * 0.5);
+    var metricAsc = isFinite(m.actualBoundingBoxAscent) && m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : px * sample * 0.9;
+    var metricDesc = isFinite(m.actualBoundingBoxDescent) && m.actualBoundingBoxDescent > 0 ? m.actualBoundingBoxDescent : px * sample * 0.35;
+    var cropPad = 6 * sample;
+    var cropX = Math.max(0, Math.floor(ox * sample - metricLeft - cropPad));
+    var cropY = Math.max(0, Math.floor(by * sample - metricAsc - cropPad));
+    var cropRight = Math.min(W, Math.ceil(ox * sample + metricRight + cropPad));
+    var cropBottom = Math.min(H, Math.ceil(by * sample + metricDesc + cropPad));
+    var cropW = Math.max(1, cropRight - cropX);
+    var cropH = Math.max(1, cropBottom - cropY);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cropX, cropY, cropW, cropH);
+    ctx.fillStyle = '#000000';
+    ctx.fillText(ch, ox * sample, by * sample);
+    var id = ctx.getImageData(cropX, cropY, cropW, cropH).data;
+    var minX = cropW,
+      minY = cropH,
       maxX = -1,
       maxY = -1;
     var thr = 248;
-    for (var y = 0; y < H; y++) {
-      for (var x = 0; x < W; x++) {
-        var j = (y * W + x) * 4;
+    for (var y = 0; y < cropH; y++) {
+      for (var x = 0; x < cropW; x++) {
+        var j = (y * cropW + x) * 4;
         var L = 0.299 * id[j] + 0.587 * id[j + 1] + 0.114 * id[j + 2];
         if (L < thr) {
           if (x < minX) minX = x;
@@ -193,23 +234,41 @@
     if (maxX < minX) {
       return { w: 0, h: 0, left: 0, top: topRef, adv: adv, bits: new Uint8Array(0) };
     }
-    var bw = maxX - minX + 1;
-    var bh = maxY - minY + 1;
+    var minOutX = Math.floor((cropX + minX) / sample);
+    var minOutY = Math.floor((cropY + minY) / sample);
+    var maxOutX = Math.ceil((cropX + maxX + 1) / sample) - 1;
+    var maxOutY = Math.ceil((cropY + maxY + 1) / sample) - 1;
+    var bw = maxOutX - minOutX + 1;
+    var bh = maxOutY - minOutY + 1;
     if (bw > MAX_SIDE || bh > MAX_SIDE) {
       return null;
     }
     var padW = (bw + 3) & ~3;
     var getLum = function (gy, gx) {
       if (gx >= bw) return 255;
-      var j = ((minY + gy) * W + (minX + gx)) * 4;
-      return 0.299 * id[j] + 0.587 * id[j + 1] + 0.114 * id[j + 2];
+      var sx0 = (minOutX + gx) * sample - cropX;
+      var sy0 = (minOutY + gy) * sample - cropY;
+      var ink = 0;
+      var count = 0;
+      for (var yy = 0; yy < sample; yy++) {
+        for (var xx = 0; xx < sample; xx++) {
+          var sx = sx0 + xx;
+          var sy = sy0 + yy;
+          if (sx < 0 || sy < 0 || sx >= cropW || sy >= cropH) continue;
+          var j = (sy * cropW + sx) * 4;
+          var L = 0.299 * id[j] + 0.587 * id[j + 1] + 0.114 * id[j + 2];
+          ink += 255 - L;
+          count++;
+        }
+      }
+      return count > 0 ? 255 - ink / count : 255;
     };
     var bits = pack2bitLinear(padW, bh, getLum);
     return {
       w: padW,
       h: bh,
-      left: minX - ox,
-      top: by - minY,
+      left: minOutX - ox,
+      top: by - minOutY,
       adv: adv,
       bits: bits,
     };
@@ -231,7 +290,9 @@
    * @param {number} readerStep — 10|12|14|16|18 (filename suffix; canvas px from readerStepToCanvasPx)
    * @param {number[]} codepoints sorted ascending
    */
-  function buildBin(styleName, familyCss, readerStep, codepoints) {
+  async function buildBin(styleName, familyCss, readerStep, codepoints, callbacks) {
+    callbacks = callbacks || {};
+    var onGlyphProgress = callbacks.onGlyphProgress || function () {};
     var refC = document.createElement('canvas');
     refC.width = 256;
     refC.height = 128;
@@ -241,10 +302,12 @@
     var rows = [];
     var bitmapChunks = [];
     var cum = 0;
+    var scratch = createRasterScratch();
+    var lastYieldAt = nowMs();
 
     for (var i = 0; i < codepoints.length; i++) {
       var cp = codepoints[i];
-      var g = rasterizeChar(familyCss, readerStep, cp);
+      var g = rasterizeChar(familyCss, readerStep, cp, scratch);
       if (g === null) continue;
       var dlen = g.bits.length;
       if (g.w > MAX_SIDE || g.h > MAX_SIDE) continue;
@@ -264,7 +327,14 @@
       rows.push(new Uint8Array(row));
       if (dlen) bitmapChunks.push(g.bits);
       cum += dlen;
+
+      if (((i + 1) % GLYPH_YIELD_INTERVAL) === 0 || nowMs() - lastYieldAt >= GLYPH_YIELD_BUDGET_MS) {
+        onGlyphProgress(i + 1, codepoints.length);
+        await yieldToBrowser();
+        lastYieldAt = nowMs();
+      }
     }
+    onGlyphProgress(codepoints.length, codepoints.length);
 
     if (!rows.length) {
       throw new Error('No glyphs generated for ' + styleName + ' at reader step ' + readerStep);
@@ -361,7 +431,11 @@
           onProgress(step, totalSteps, job.key, sz);
           var loadPx = readerStepToCanvasPx(sz);
           await document.fonts.load(loadPx + 'px "' + fam + '"');
-          var bytes = buildBin(job.key, fam, sz, cps);
+          var bytes = await buildBin(job.key, fam, sz, cps, {
+            onGlyphProgress: function (done, total) {
+              onProgress(step - 1 + done / Math.max(1, total), totalSteps, job.key, sz);
+            },
+          });
           var fn = job.key + '_' + sz + '.bin';
           outBins.push({ filename: fn, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
           onLog('Packed ' + fn + ' (' + bytes.length + ' bytes)', 'success');

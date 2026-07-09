@@ -1,7 +1,5 @@
 #pragma once
 
-#include "EpubAnnotations.h"
-
 #include <Epub/PageWordIndex.h>
 
 #include <climits>
@@ -11,6 +9,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "EpubAnnotations.h"
 
 class EpubActivity;
 
@@ -56,7 +56,7 @@ class EpubAnnotationUi {
   void repaint(EpubActivity& act);
 
   void ensureDiskListLoaded(EpubActivity& act);
-  void updateStoredRangesForPage(EpubActivity& act);
+  void updateStoredRangesForPage(const EpubActivity& act);
 
   void drawStoredOverlay(EpubActivity& act);
   void drawUiOverlay(EpubActivity& act);

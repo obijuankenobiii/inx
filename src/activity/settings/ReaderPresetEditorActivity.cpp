@@ -54,6 +54,8 @@ const char* statusPlaceholder(StatusBarItem item) {
       return "The Example Book";
     case StatusBarItem::AUTHOR_NAME:
       return "Jane Author";
+    case StatusBarItem::PAGE_NUMBERS_WITH_PERCENT:
+      return "12/340 45%";
     case StatusBarItem::NONE:
     default:
       return "";
@@ -129,12 +131,6 @@ void ReaderPresetEditorActivity::onExit() {
   drawer_.reset();
 }
 
-void ReaderPresetEditorActivity::renderAll() {
-  renderer.clearScreen(0xFF);
-  renderPreview();
-  if (drawer_) drawer_->render();  // embedded => draws region then invalidate pushes the screen
-}
-
 void ReaderPresetEditorActivity::renderPreview() {
   const int screenW = renderer.getScreenWidth();
   const int margin = std::max<int>(6, working_.screenMargin);
@@ -147,9 +143,8 @@ void ReaderPresetEditorActivity::renderPreview() {
   const int bodyTop = 16;
   const int bodyBottom = previewHeight_ - statusBarHeight - 6;
   const int maxWidth = std::max(40, screenW - 2 * margin);
-  const int spaceWidth =
-      std::max(1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) *
-                                               working_.getReaderWordSpacingFactor())));
+  const int spaceWidth = std::max(
+      1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) * working_.getReaderWordSpacingFactor())));
   int lineHeight = static_cast<int>(renderer.text.getLineHeight(fontId) * working_.getReaderLineCompression());
   if (lineHeight < 8) lineHeight = renderer.text.getLineHeight(fontId);
 

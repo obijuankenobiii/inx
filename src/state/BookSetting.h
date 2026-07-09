@@ -29,6 +29,7 @@ enum class StatusBarItem {
   PAGE_BARS,                  ///< Vertical bars representing pages
   BOOK_TITLE,                 ///< Book title
   AUTHOR_NAME,                ///< Author name
+  PAGE_NUMBERS_WITH_PERCENT,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
   STATUS_BAR_ITEM_COUNT
 };
 
@@ -80,35 +81,28 @@ struct StatusBarLayout {
  * @brief Per-book reading settings
  */
 struct BookSettings {
-  
   uint8_t fontFamily = SystemSetting::LITERATA;           ///< Font family
   uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
-  uint8_t lineHeight = 100;                              ///< Line height, % of natural (10-200)
-  uint8_t textSpace = 100;                               ///< Word spacing, % of natural (10-200)
+  uint8_t lineHeight = 100;                               ///< Line height, % of natural (10-200)
+  uint8_t textSpace = 100;                                ///< Word spacing, % of natural (10-200)
   uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
   /** Honor CSS `text-indent` when on (mirrors global "Indent" when unset in per-book file). */
   uint8_t paragraphCssIndentEnabled = 0;
 
-  
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
   uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;   ///< Bionic Reading enabled
 
-  
   uint8_t screenMargin = 20;  ///< Screen margin in pixels
 
-  
   uint8_t orientation = SystemSetting::PORTRAIT;  ///< Screen orientation
 
-  
   /** Same values as SystemSetting::LONG_PRESS_* (0=off, 1=chapter skip, 2=skip 5 pages). */
   uint8_t longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
 
-  
   uint8_t refreshFrequency = 15;  ///< Screen refresh frequency in pages
 
-  
   StatusBarSectionConfig statusBarLeft;    ///< Left status bar section
   StatusBarSectionConfig statusBarMiddle;  ///< Middle status bar section
   StatusBarSectionConfig statusBarRight;   ///< Right status bar section
@@ -198,7 +192,7 @@ struct BookSettings {
 
     fontFamily = data[offset++];
     if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
-      /** Legacy enum had Bookerly=0, Atkinson=1, Literata=2; map non-Atkinson to Literata (0). */
+      /** Legacy enum had a removed first slot; map non-Atkinson values to Literata (0). */
       if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
         fontFamily = SystemSetting::LITERATA;
       }
@@ -473,12 +467,10 @@ struct BookSettings {
    */
   bool operator==(const BookSettings& other) const {
     return fontFamily == other.fontFamily && fontSize == other.fontSize && lineHeight == other.lineHeight &&
-           textSpace == other.textSpace &&
-           paragraphAlignment == other.paragraphAlignment &&
+           textSpace == other.textSpace && paragraphAlignment == other.paragraphAlignment &&
            paragraphCssIndentEnabled == other.paragraphCssIndentEnabled &&
-           extraParagraphSpacing == other.extraParagraphSpacing &&
-           textAntiAliasing == other.textAntiAliasing && hyphenationEnabled == other.hyphenationEnabled &&
-           bionicReadingEnabled == other.bionicReadingEnabled &&
+           extraParagraphSpacing == other.extraParagraphSpacing && textAntiAliasing == other.textAntiAliasing &&
+           hyphenationEnabled == other.hyphenationEnabled && bionicReadingEnabled == other.bionicReadingEnabled &&
            screenMargin == other.screenMargin && orientation == other.orientation &&
            longPressChapterSkip == other.longPressChapterSkip && refreshFrequency == other.refreshFrequency &&
            pageAutoTurnSeconds == other.pageAutoTurnSeconds && statusBarLeft == other.statusBarLeft &&

@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../Activity.h"
@@ -48,10 +49,10 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Display mode for the library
    */
   enum class ViewMode {
-    FOLDER_VIEW,    ///< Hierarchical folder navigation
-    BOOK_LIST_VIEW, ///< Flat list of all books
-    TAG_VIEW,       ///< Indexed books grouped into user tag collections
-    SHELF_VIEW      ///< Cover-first shelf view
+    FOLDER_VIEW,     ///< Hierarchical folder navigation
+    BOOK_LIST_VIEW,  ///< Flat list of all books
+    TAG_VIEW,        ///< Indexed books grouped into user tag collections
+    SHELF_VIEW       ///< Cover-first shelf view
   };
 
   /**
@@ -74,7 +75,7 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view
   static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
   static constexpr int GRID_ITEMS_PER_PAGE = 12;    ///< Items per page for grid folder view
-  static constexpr int SHELF_ITEMS_PER_PAGE = 4;    ///< Items per page for shelf view
+  static constexpr int SHELF_ITEMS_PER_PAGE = 9;    ///< Items per page for shelf view (3x3 grid)
   static constexpr int GRID_ICON_SIZE = 150;        ///< Icon frame size for grid folders
 
   /**
@@ -93,6 +94,15 @@ class LibraryActivity final : public Activity, public Menu {
                            const std::function<void(const std::string& path)>& onSelectBook,
                            const std::function<void()>& onRecentOpen, const std::function<void()>& onSettingsOpen,
                            const std::string& initialPath = "/");
+  ~LibraryActivity() override;
+
+  /**
+   * @brief Pixel size of a shelf-mode cover slot for the current screen (matches renderShelfCard's
+   * geometry). Lets ThumbnailGeneratorActivity pre-populate the on-disk display cache for a book's
+   * thumbnail at the exact size the shelf grid will request, so the first shelf render after
+   * "Generate Thumbnails" is a cache hit instead of a fresh decode+dither.
+   */
+  static void getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH);
 
   /**
    * @brief Called when entering the activity
@@ -132,6 +142,9 @@ class LibraryActivity final : public Activity, public Menu {
   volatile bool libraryIndexReloadRequested_ = false;
   volatile int indexingProgress_ = 0;
   volatile int indexingTotal_ = 0;
+  /** True from onEnter() until the initial book scan/index load finishes; render() shows a lightweight
+   * "Loading library" placeholder instead of blocking with a blank screen while that load runs. */
+  volatile bool isInitialLoading_ = false;
 
   std::string savedFolderPath;  ///< Saved path when switching views
   std::string basepath;         ///< Current browsing path
@@ -151,22 +164,40 @@ class LibraryActivity final : public Activity, public Menu {
   /** Millis deadline for next Up repeat while held (0 = not repeating). */
   unsigned long libraryListUpNextMs = 0;
 
-  
   int itemsPerPage;                           ///< Dynamic items per page based on view mode
   int currentPage;                            ///< Current page index (0-based)
   int totalPages;                             ///< Total number of pages
   std::vector<LibraryItem> currentPageItems;  ///< Items for current page
+  std::vector<LibraryItem> cachedLibraryItems_;
+  bool cachedLibraryItemsValid_ = false;
+  mutable std::unordered_map<std::string, uint8_t> bookStateCache_;
+  std::unordered_map<std::string, bool> directoryHasBooksCache_;
+  mutable std::unordered_map<std::string, std::string> shelfImagePathCache_;
+
+  // Shelf mode decodes up to SHELF_ITEMS_PER_PAGE real cover thumbnails, each a full JPEG/PNG decode
+  // costing well over a second - re-decoding all of them on every selection move (just moving the
+  // cursor, not changing page/folder) would make the screen feel frozen. Same fix as
+  // RecentActivity's recentPageBuffer_: snapshot the fully-rendered (unselected) framebuffer once,
+  // then on a plain selection change, restore that snapshot (a memcpy, no decoding) and redraw only
+  // the newly-selected card on top instead of the whole page.
+  mutable uint8_t* libraryShelfPageBuffer_ = nullptr;
+  mutable bool libraryShelfPageBufferStored_ = false;
+  mutable int libraryShelfPageBufferPage_ = -1;
+  mutable int libraryShelfPageBufferItemCount_ = -1;
+  mutable std::string libraryShelfPageBufferKey_;  ///< basepath or selectedTagKey_, whichever is active
+  mutable bool suppressShelfSelectionHighlight_ = false;
+  /** Set when leaving shelf mode; render() follows its next normal refresh with a half refresh to
+   * clear ghosting left behind by the dithered cover thumbnails. */
+  mutable bool pendingShelfExitHalfRefresh_ = false;
 
   std::vector<BookTags::Entry> cachedTagEntries_;
   bool cachedTagEntriesLoaded_ = false;
 
-  
   const std::function<void()> onGoToRecent;                         ///< Callback to go to recent books
   const std::function<void(const std::string& path)> onSelectBook;  ///< Callback to open a book
   const std::function<void()> onRecentOpen;                         ///< Callback to open recent tab
   const std::function<void()> onSettingsOpen;                       ///< Callback to open settings tab
 
-  
   ViewMode currentViewMode;  ///< Current display mode
   SortMode currentSortMode;  ///< Current sorting mode
 
@@ -190,6 +221,9 @@ class LibraryActivity final : public Activity, public Menu {
   void switchToFolderView();
   void switchToTagView();
   void switchToShelfView();
+  /** Frees the shelf page buffer and flags a cleanup half refresh if currently in shelf mode; call
+   * before reassigning currentViewMode away from SHELF_VIEW. */
+  void leaveShelfViewIfNeeded();
   void startLibraryIndexing();
   bool shouldShowIndexButton() const;
   void showIndexingPopup() const;
@@ -346,6 +380,17 @@ class LibraryActivity final : public Activity, public Menu {
    */
   void loadAllBooksRecursive();
   void loadAllBooksRecursiveLocked();
+  /**
+   * @brief Show a "Loading library" placeholder, then run loadAllBooksRecursive() on a background
+   * task instead of blocking the caller - used by onEnter() and switchToShelfView() so a full
+   * folder/index scan (and shelf's cover thumbnail decodes right after) doesn't leave the screen
+   * frozen with no feedback.
+   */
+  void beginLibraryLoadWithLoadingScreen();
+  void applyPaginationToCachedItems();
+  void invalidateLibraryCache();
+  uint8_t getBookStateFlags(const std::string& path) const;
+  std::string getShelfImagePath(const std::string& bookPath) const;
 
   /**
    * @brief Load books using recursive scan for book list view
@@ -511,6 +556,16 @@ class LibraryActivity final : public Activity, public Menu {
    */
   void renderLibraryList(int startY) const;
   void renderLibraryShelf(int startY) const;
+  /**
+   * @brief Render a single shelf card (cover thumbnail + selection state), no other cards touched.
+   * Shared by the full renderLibraryShelf() pass and the fast selection-only overlay redraw.
+   */
+  void renderShelfCard(int index, int startY, bool selected) const;
+  bool canUseLibraryShelfBuffer() const;
+  bool storeLibraryShelfBuffer() const;
+  bool restoreLibraryShelfBuffer() const;
+  void freeLibraryShelfBuffer() const;
+  void drawShelfSelectionOverlay(int startY) const;
 
   /**
    * @brief Render the folder browser as a 3x4 icon grid

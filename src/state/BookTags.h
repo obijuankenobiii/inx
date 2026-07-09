@@ -191,8 +191,7 @@ class BookTags {
     std::vector<std::string> tags;
     loadTagList(tags);
 
-    entries.erase(std::remove_if(entries.begin(), entries.end(),
-                                 [&](const Entry& entry) { return entry.tag == tag; }),
+    entries.erase(std::remove_if(entries.begin(), entries.end(), [&](const Entry& entry) { return entry.tag == tag; }),
                   entries.end());
     tags.erase(std::remove(tags.begin(), tags.end(), tag), tags.end());
     return writeAll(entries, tags);

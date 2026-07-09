@@ -7,13 +7,13 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <new>
-
-#include <algorithm>
-
+#include <SDCardManager.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
+
+#include <algorithm>
+#include <new>
 
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
@@ -21,7 +21,6 @@
 #include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
-#include <SDCardManager.h>
 
 namespace {
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/obijuankenobiii/inx/releases/latest";
@@ -31,11 +30,9 @@ constexpr size_t kMaxReleaseJsonBytes = 12288;
 constexpr int kGithubCheckTaskStack = 16384;
 constexpr int kGithubCheckTaskPrio = 3;
 
-
 char* local_buf = nullptr;
 int output_len = 0;
 size_t local_buf_cap = 0;
-
 
 extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
@@ -94,8 +91,7 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
     char* nb = static_cast<char*>(realloc(local_buf, ncap));
     if (nb == nullptr) {
       Serial.printf("[%lu] [OTA] HTTP body buffer realloc failed (cap %u need %u free %u largest %u)\n", millis(),
-                    static_cast<unsigned>(ncap), static_cast<unsigned>(need),
-                    static_cast<unsigned>(ESP.getFreeHeap()),
+                    static_cast<unsigned>(ncap), static_cast<unsigned>(need), static_cast<unsigned>(ESP.getFreeHeap()),
                     static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
       return ESP_ERR_NO_MEM;
     }
@@ -112,8 +108,8 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   }
 
   return ESP_OK;
-} 
-} 
+}
+}  // namespace
 
 struct OtaGithubCheckCtx {
   OtaUpdater* updater;
@@ -163,7 +159,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   esp_err_t esp_err;
   JsonDocument doc;
 
-  
   esp_http_client_config_t client_config = {};
   client_config.url = latestReleaseUrl;
   client_config.event_handler = event_handler;
@@ -174,7 +169,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   client_config.crt_bundle_attach = esp_crt_bundle_attach;
   client_config.keep_alive_enable = false;
 
-  
   if (local_buf != nullptr) {
     free(local_buf);
     local_buf = nullptr;
@@ -182,7 +176,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   output_len = 0;
   local_buf_cap = 0;
 
-  
   struct localBufCleaner {
     char** bufPtr;
     ~localBufCleaner() {
@@ -220,7 +213,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
     return HTTP_ERROR;
   }
 
-  
   esp_err = esp_http_client_cleanup(client_handle);
   if (esp_err != ESP_OK) {
     Serial.printf("[%lu] [OTA] esp_http_client_cleanupp Failed : %s\n", millis(), esp_err_to_name(esp_err));
@@ -283,17 +275,13 @@ bool OtaUpdater::isUpdateNewer() const {
 
   const auto currentVersion = INX_VERSION;
 
-  
   sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
   sscanf(currentVersion, "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch);
 
-  
   if (latestMajor != currentMajor) return latestMajor > currentMajor;
 
-  
   if (latestMinor != currentMinor) return latestMinor > currentMinor;
 
-  
   return latestPatch > currentPatch;
 }
 
@@ -306,7 +294,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
 
   esp_https_ota_handle_t ota_handle = NULL;
   esp_err_t esp_err;
-  
+
   render = false;
 
   esp_http_client_config_t client_config = {};
@@ -322,7 +310,6 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   ota_config.http_config = &client_config;
   ota_config.http_client_init_cb = http_client_set_header_cb;
 
-  
   esp_wifi_set_ps(WIFI_PS_NONE);
 
   esp_err = esp_https_ota_begin(&ota_config, &ota_handle);
@@ -334,12 +321,11 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   do {
     esp_err = esp_https_ota_perform(ota_handle);
     processedSize = esp_https_ota_get_image_len_read(ota_handle);
-    
+
     render = true;
     vTaskDelay(10 / portTICK_PERIOD_MS);
   } while (esp_err == ESP_ERR_HTTPS_OTA_IN_PROGRESS);
 
-  
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
 
   if (esp_err != ESP_OK) {

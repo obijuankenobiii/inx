@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "activity/ActivityWithSubactivity.h"
 #include "../Menu.h"
+#include "activity/ActivityWithSubactivity.h"
 #include "network/OtaUpdater.h"
 
 class OtaUpdateActivity : public ActivityWithSubactivity, public Menu {

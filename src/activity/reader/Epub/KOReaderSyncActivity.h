@@ -80,15 +80,12 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
   std::string statusMessage;
   std::string documentHash;
 
-  
   bool hasRemoteProgress = false;
   KOReaderProgress remoteProgress;
   CrossPointPosition remotePosition;
 
-  
   KOReaderPosition localProgress;
 
-  
   int selectedOption = 0;
 
   OnCancelCallback onCancel;

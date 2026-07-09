@@ -15,8 +15,9 @@
 #include <new>
 #include <string>
 
-#include "activity/network/CalibreConnectActivity.h"
+#include "activity/OpdsServerListActivity.h"
 #include "activity/browser/OpdsBookBrowserActivity.h"
+#include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/LibraryActivity.h"
@@ -29,15 +30,20 @@
 #include "activity/system/SleepActivity.h"
 #include "activity/util/FullScreenMessageActivity.h"
 #include "state/SystemSetting.h"
-#include "system/Battery.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
+#ifdef SIMULATOR
+extern HalDisplay display;
+extern HalGPIO gpio;
+#else
 HalDisplay display;
 HalGPIO gpio;
+#endif
 MappedInputManager input(gpio);
-GfxRenderer render(display);
+GfxRenderer renderer(display);
+GfxRenderer& render = renderer;
 
 Activity* currentActivity = nullptr;
 
@@ -46,6 +52,7 @@ unsigned long t2 = 0;
 
 void verifyPowerButtonDuration();
 void waitForPowerRelease();
+void normalizeUnavailableClockSettings();
 void enterDeepSleep();
 void onGoToReader(const std::string& path);
 void onSelectBook(const std::string& path);
@@ -70,8 +77,11 @@ void switchTo(Args&&... args) {
     delete currentActivity;
     currentActivity = nullptr;
   }
-  
+
   currentActivity = new T(std::forward<Args>(args)...);
+#ifdef SIMULATOR
+  Serial.printf("[%lu] [SIM] Activity: %s\n", millis(), currentActivity->getName());
+#endif
   currentActivity->onEnter();
 }
 
@@ -141,8 +151,8 @@ void onGoToFileTransfer() {
  * @brief Navigates to the settings activity.
  */
 void onGoToSettings() {
-  switchTo<SettingsActivity>(render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer,
-                             onGoToStatistics);
+  switchTo<SettingsActivity>(
+      render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer, onGoToStatistics);
 }
 
 /**
@@ -186,7 +196,27 @@ void waitForPowerRelease() {
   }
 }
 
+void normalizeUnavailableClockSettings() {
+  if (gpio.deviceIsX3()) {
+    return;
+  }
+
+  bool changed = false;
+  if (SETTINGS.sleepScreen == SystemSetting::DATETIME) {
+    SETTINGS.sleepScreen = SystemSetting::LIGHT;
+    changed = true;
+  }
+  if (SETTINGS.sleepClockRefreshInterval != SystemSetting::CLOCK_REFRESH_OFF) {
+    SETTINGS.sleepClockRefreshInterval = SystemSetting::CLOCK_REFRESH_OFF;
+    changed = true;
+  }
+  if (changed) {
+    SETTINGS.saveToFile();
+  }
+}
+
 void enterDeepSleep() {
+  normalizeUnavailableClockSettings();
   switchTo<SleepActivity>(render, input);
   display.deepSleep();
   gpio.startDeepSleep();
@@ -218,7 +248,7 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
-  display.setSunlightFadeFixEnabled(SETTINGS.fixSunlightFade != 0);
+  normalizeUnavailableClockSettings();
 
   switch (gpio.getWakeupReason()) {
     case HalGPIO::WakeupReason::PowerButton:

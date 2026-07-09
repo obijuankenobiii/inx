@@ -11,19 +11,19 @@
 #include <OpdsStream.h>
 #include <WiFi.h>
 
+#include "activity/network/WifiSelectionActivity.h"
+#include "network/HttpDownloader.h"
 #include "state/SystemSetting.h"
+#include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
-#include "activity/network/WifiSelectionActivity.h"
-#include "system/Fonts.h"
-#include "network/HttpDownloader.h"
 #include "util/StringUtils.h"
 #include "util/UrlUtils.h"
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
-}  
+}  // namespace
 
 void OpdsBookBrowserActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OpdsBookBrowserActivity*>(param);
@@ -37,27 +37,20 @@ void OpdsBookBrowserActivity::onEnter() {
   state = BrowserState::CHECK_WIFI;
   entries.clear();
   navigationHistory.clear();
-  currentPath = "";  
+  currentPath = "";
   selectorIndex = 0;
   errorMessage.clear();
   statusMessage = "Checking WiFi...";
   updateRequired = true;
 
-  xTaskCreate(&OpdsBookBrowserActivity::taskTrampoline, "OpdsBookBrowserTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&OpdsBookBrowserActivity::taskTrampoline, "OpdsBookBrowserTask", 4096, this, 1, &displayTaskHandle);
 
-  
   checkAndConnectWifi();
 }
 
 void OpdsBookBrowserActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
   WiFi.mode(WIFI_OFF);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -72,25 +65,20 @@ void OpdsBookBrowserActivity::onExit() {
 }
 
 void OpdsBookBrowserActivity::loop() {
-  
   if (state == BrowserState::WIFI_SELECTION) {
     ActivityWithSubactivity::loop();
     return;
   }
 
-  
   if (state == BrowserState::ERROR) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      
       if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
-        
         Serial.printf("[%lu] [OPDS] Retry: WiFi connected, retrying fetch\n", millis());
         state = BrowserState::LOADING;
         statusMessage = "Loading...";
         updateRequired = true;
         fetchFeed(currentPath);
       } else {
-        
         Serial.printf("[%lu] [OPDS] Retry: WiFi not connected, launching selection\n", millis());
         launchWifiSelection();
       }
@@ -100,7 +88,6 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  
   if (state == BrowserState::CHECK_WIFI) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onGoToRecent();
@@ -108,7 +95,6 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  
   if (state == BrowserState::LOADING) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       navigateBack();
@@ -116,12 +102,10 @@ void OpdsBookBrowserActivity::loop() {
     return;
   }
 
-  
   if (state == BrowserState::DOWNLOADING) {
     return;
   }
 
-  
   if (state == BrowserState::BROWSING) {
     const bool prevReleased = mappedInput.wasReleased(MappedInputManager::Button::Up) ||
                               mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -217,8 +201,6 @@ void OpdsBookBrowserActivity::render() const {
     return;
   }
 
-  
-  
   const char* confirmLabel = "Open";
   if (!entries.empty() && entries[selectorIndex].type == OpdsEntryType::BOOK) {
     confirmLabel = "Download";
@@ -233,50 +215,57 @@ void OpdsBookBrowserActivity::render() const {
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-  renderer.rectangle.fill(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30, static_cast<int>(GfxRenderer::FillTone::Ink));
+  renderer.rectangle.fill(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30,
+                          static_cast<int>(GfxRenderer::FillTone::Ink));
 
   for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + PAGE_ITEMS); i++) {
     const auto& entry = entries[i];
 
-    
     std::string displayText;
     if (entry.type == OpdsEntryType::NAVIGATION) {
-      displayText = "> " + entry.title;  
+      displayText = "> " + entry.title;
     } else {
-      
       displayText = entry.title;
       if (!entry.author.empty()) {
         displayText += " - " + entry.author;
       }
     }
 
-    auto item = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
+    auto item =
+        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
-                      i != static_cast<size_t>(selectorIndex));
+                         i != static_cast<size_t>(selectorIndex));
   }
 
   renderer.displayBuffer();
 }
 
 void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
-  const char* serverUrl = SETTINGS.opdsServerUrl;
-  if (strlen(serverUrl) == 0) {
+  const char* activeUrl = serverUrl.c_str();
+  if (activeUrl[0] == '\0') {
+    activeUrl = SETTINGS.opdsServerUrl;
+  }
+  if (strlen(activeUrl) == 0) {
     state = BrowserState::ERROR;
     errorMessage = "No server URL configured";
     updateRequired = true;
     return;
   }
 
-  std::string url = UrlUtils::buildUrl(serverUrl, path);
-  Serial.printf("[%lu] [OPDS] Fetching: %s\n", millis(), url.c_str());
+  std::string fullUrl = UrlUtils::buildUrl(activeUrl, path);
+  Serial.printf("[%lu] [OPDS] Fetching: %s\n", millis(), fullUrl.c_str());
+
+  std::string user = serverUsername.empty() ? SETTINGS.opdsUsername : serverUsername;
+  std::string pass = serverPassword.empty() ? SETTINGS.opdsPassword : serverPassword;
 
   OpdsParser parser;
 
   {
     OpdsParserStream stream{parser};
-    if (!HttpDownloader::fetchUrl(url, stream)) {
+    if (!HttpDownloader::fetchUrl(fullUrl, stream, user, pass)) {
       state = BrowserState::ERROR;
       errorMessage = "Failed to fetch feed";
+      Serial.printf("[%lu] [OPDS] Fetch failed for URL: %s\n", millis(), fullUrl.c_str());
       updateRequired = true;
       return;
     }
@@ -305,7 +294,6 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
 }
 
 void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
-  
   navigationHistory.push_back(currentPath);
   currentPath = entry.href;
 
@@ -320,10 +308,8 @@ void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
 
 void OpdsBookBrowserActivity::navigateBack() {
   if (navigationHistory.empty()) {
-    
     onGoToRecent();
   } else {
-    
     currentPath = navigationHistory.back();
     navigationHistory.pop_back();
 
@@ -344,10 +330,12 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   downloadTotal = 0;
   updateRequired = true;
 
-  
-  std::string downloadUrl = UrlUtils::buildUrl(SETTINGS.opdsServerUrl, book.href);
+  const char* activeUrl = serverUrl.c_str();
+  if (activeUrl[0] == '\0') {
+    activeUrl = SETTINGS.opdsServerUrl;
+  }
+  std::string downloadUrl = UrlUtils::buildUrl(activeUrl, book.href);
 
-  
   std::string baseName = book.title;
   if (!book.author.empty()) {
     baseName += " - " + book.author;
@@ -356,17 +344,19 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
 
   Serial.printf("[%lu] [OPDS] Downloading: %s -> %s\n", millis(), downloadUrl.c_str(), filename.c_str());
 
-  const auto result =
-      HttpDownloader::downloadToFile(downloadUrl, filename, [this](const size_t downloaded, const size_t total) {
-        downloadProgress = downloaded;
-        downloadTotal = total;
-        updateRequired = true;
-      });
+  std::string user = serverUsername.empty() ? SETTINGS.opdsUsername : serverUsername;
+  std::string pass = serverPassword.empty() ? SETTINGS.opdsPassword : serverPassword;
+
+  const auto result = HttpDownloader::downloadToFile(downloadUrl, filename, user, pass,
+                                                     [this](const size_t downloaded, const size_t total) {
+                                                       downloadProgress = downloaded;
+                                                       downloadTotal = total;
+                                                       updateRequired = true;
+                                                     });
 
   if (result == HttpDownloader::OK) {
     Serial.printf("[%lu] [OPDS] Download complete: %s\n", millis(), filename.c_str());
 
-    
     Epub epub(filename, "/.system");
     epub.clearCache();
     Serial.printf("[%lu] [OPDS] Cleared cache for: %s\n", millis(), filename.c_str());
@@ -381,7 +371,6 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
 }
 
 void OpdsBookBrowserActivity::checkAndConnectWifi() {
-  
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
     state = BrowserState::LOADING;
     statusMessage = "Loading...";
@@ -390,7 +379,6 @@ void OpdsBookBrowserActivity::checkAndConnectWifi() {
     return;
   }
 
-  
   launchWifiSelection();
 }
 
@@ -413,8 +401,7 @@ void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
     fetchFeed(currentPath);
   } else {
     Serial.printf("[%lu] [OPDS] WiFi selection cancelled/failed\n", millis());
-    
-    
+
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     state = BrowserState::ERROR;

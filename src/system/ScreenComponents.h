@@ -51,15 +51,12 @@ class ScreenComponents {
    */
   struct LoadingProgress {
     static LoadingProgressLayout show(const GfxRenderer& renderer, const char* message, int progressPercent0to100);
-    static void setProgress(const GfxRenderer& renderer, const LoadingProgressLayout& layout, int progressPercent0to100);
+    static void setProgress(const GfxRenderer& renderer, const LoadingProgressLayout& layout,
+                            int progressPercent0to100);
   };
 
-  
-  
   static int drawTabBar(const GfxRenderer& renderer, int y, const std::vector<TabInfo>& tabs);
 
-  
-  
   static void drawScrollIndicator(const GfxRenderer& renderer, int currentPage, int totalPages, int contentTop,
                                   int contentHeight);
 

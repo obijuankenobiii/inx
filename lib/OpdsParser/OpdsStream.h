@@ -13,7 +13,6 @@ class OpdsParserStream : public Stream {
  public:
   explicit OpdsParserStream(OpdsParser& parser);
 
-  
   int available() override;
   int peek() override;
   int read() override;

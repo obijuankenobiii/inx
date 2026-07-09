@@ -18,9 +18,15 @@
 #include "state/RecentBooks.h"
 #include "state/Session.h"
 #include "state/SystemSetting.h"
+#include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
-#include "system/Fonts.h"
+
+namespace {
+constexpr int kTitleFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+constexpr int kMetaFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+}  // namespace
 
 void ClearCacheActivity::taskTrampoline(void* param) {
   auto* self = static_cast<ClearCacheActivity*>(param);
@@ -35,18 +41,12 @@ void ClearCacheActivity::onEnter() {
   selectedGroup = 0;
   updateRequired = true;
 
-  xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask",
-              4096,               
-              this,               
-              1,                  
-              &displayTaskHandle  
-  );
+  xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 void ClearCacheActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -73,10 +73,10 @@ void ClearCacheActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Clear cache", true, EpdFontFamily::BOLD);
+  renderer.text.centered(kTitleFont, 18, "Clear cache", true, EpdFontFamily::BOLD);
 
   if (state == WARNING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 54, "Select cache groups to remove");
+    renderer.text.centered(kBodyFont, 56, "Select cache groups to remove");
 
     constexpr const char* names[GROUP_COUNT] = {"Display", "Book", "Recent", "Network"};
     constexpr const char* descriptions[GROUP_COUNT] = {
@@ -85,7 +85,7 @@ void ClearCacheActivity::render() {
         "Recent list and library index",
         "Saved Wi-Fi credentials",
     };
-    constexpr int rowH = 62;
+    constexpr int rowH = 64;
     const int listTop = 100;
     const int left = 38;
     const int right = pageWidth - 38;
@@ -99,11 +99,11 @@ void ClearCacheActivity::render() {
       }
       renderer.rectangle.render(left, y, boxSize, boxSize, !focused);
       if (selectedGroups[i]) {
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + 5, y - 3, "x", !focused);
+        renderer.text.render(kBodyFont, left + 5, y - 3, "x", !focused);
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left + boxSize + 14, y - 2, names[i], !focused,
+      renderer.text.render(kBodyFont, left + boxSize + 14, y - 2, names[i], !focused,
                            focused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + boxSize + 14, y + 24, descriptions[i], !focused);
+      renderer.text.render(kMetaFont, left + boxSize + 14, y + 25, descriptions[i], !focused);
     }
 
     const int actionY = listTop + GROUP_COUNT * rowH + 8;
@@ -112,46 +112,45 @@ void ClearCacheActivity::render() {
       renderer.rectangle.fill(left - 8, actionY - 8, right - left + 16, 44,
                               static_cast<int>(GfxRenderer::FillTone::Ink), false);
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, left, actionY, "Clear selected",
-                         actionFocused ? false : anyGroupSelected(),
+    renderer.text.render(kBodyFont, left, actionY, "Clear selected", actionFocused ? false : anyGroupSelected(),
                          actionFocused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     if (!anyGroupSelected()) {
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageHeight - 74, "Select at least one group");
+      renderer.text.centered(kMetaFont, pageHeight - 74, "Select at least one group");
     }
 
     const auto labels = mappedInput.mapLabels("\xC2\xAB Cancel", actionFocused ? "Clear" : "Toggle", "Up", "Down");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == CLEARING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "Clearing...", true, EpdFontFamily::BOLD);
+    renderer.text.centered(kBodyFont, pageHeight / 2, "Clearing...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Cache cleared", true, EpdFontFamily::BOLD);
+    renderer.text.centered(kBodyFont, pageHeight / 2 - 20, "Cache cleared", true, EpdFontFamily::BOLD);
     String resultText = String(clearedCount) + " items removed";
     if (failedCount > 0) {
       resultText += ", " + String(failedCount) + " failed";
     }
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, resultText.c_str());
+    renderer.text.centered(kBodyFont, pageHeight / 2 + 10, resultText.c_str());
 
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Clear failed", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, "Check serial output for details");
+    renderer.text.centered(kBodyFont, pageHeight / 2 - 20, "Clear failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(kBodyFont, pageHeight / 2 + 10, "Check serial output for details");
 
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }

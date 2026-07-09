@@ -15,7 +15,7 @@ namespace {
 constexpr uint8_t RECENT_BOOKS_FILE_VERSION = 4;
 constexpr char RECENT_BOOKS_FILE[] = "/.metadata/recent.bin";
 constexpr int MAX_RECENT_BOOKS = 8;
-}  
+}  // namespace
 
 RecentBooks RecentBooks::instance;
 
@@ -88,7 +88,6 @@ bool RecentBooks::loadFromFile() {
   uint8_t version;
   serialization::readPod(inputFile, version);
 
-  
   if (version < 1 || version > 4) {
     inputFile.close();
     return false;
@@ -98,7 +97,6 @@ bool RecentBooks::loadFromFile() {
     uint8_t count;
     serialization::readPod(inputFile, count);
 
-    
     if (count > MAX_RECENT_BOOKS * 2) {
       inputFile.close();
       return false;
@@ -113,7 +111,6 @@ bool RecentBooks::loadFromFile() {
       serialization::readString(inputFile, title);
       serialization::readString(inputFile, author);
 
-      
       if (path.empty()) {
         recentBooks.clear();
         inputFile.close();
@@ -199,6 +196,17 @@ void RecentBooks::removeBook(const std::string& path) {
 
   if (it != recentBooks.end()) {
     recentBooks.erase(it);
+    saveToFile();
+  }
+}
+
+void RecentBooks::renamePath(const std::string& oldPath, const std::string& newPath, const std::string& newCachePath) {
+  auto it = std::find_if(recentBooks.begin(), recentBooks.end(),
+                         [&](const RecentBook& book) { return book.path == oldPath; });
+
+  if (it != recentBooks.end()) {
+    it->path = newPath;
+    it->cachePath = newCachePath;
     saveToFile();
   }
 }

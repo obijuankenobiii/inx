@@ -48,8 +48,7 @@ class CssParser {
    * Parse a single CSS length (e.g. HTML width="50%" or style value).
    * @param percentOfWidth When true, % uses viewportWidth; when false, % uses viewportHeight.
    */
-  int parseCssLength(const std::string& value, int viewportWidth, int viewportHeight,
-                     bool percentOfWidth = true) const;
+  int parseCssLength(const std::string& value, int viewportWidth, int viewportHeight, bool percentOfWidth = true) const;
 
   /**
    * Resolves paragraph alignment from inline style, class/id/type rules, then body/html defaults in CSS.
@@ -158,16 +157,16 @@ class CssParser {
                                         bool ignoreContextual = false) const;
 
   void noteBodyHtmlTextAlign(const std::string& selectorRaw, const std::map<std::string, std::string>& properties);
-  std::string getCascadedPropertyValue(const std::string& propName, const std::string& className,
-                                       const std::string& id, const std::string& styleAttr,
-                                       const std::string& elementTagLower = "") const;
+  std::string getCascadedPropertyValue(const std::string& propName, const std::string& className, const std::string& id,
+                                       const std::string& styleAttr, const std::string& elementTagLower = "") const;
   bool getCascadedPropertyValueAndSource(const std::string& propName, const std::string& className,
                                          const std::string& id, const std::string& styleAttr,
                                          const std::string& elementTagLower, std::string* outValue,
                                          std::string* outSourcePath) const;
   int mapTextAlignToStyleIndex(const std::string& rawValue) const;
 
-  void parsePropertiesForDimensions(const std::string& propertiesStr, std::map<std::string, std::string>& properties) const;
+  void parsePropertiesForDimensions(const std::string& propertiesStr,
+                                    std::map<std::string, std::string>& properties) const;
   enum class PercentRefersTo { Width, Height };
   int parseDimensionValue(const std::string& value, int viewportWidth, int viewportHeight,
                           PercentRefersTo percentAxis) const;
@@ -175,8 +174,8 @@ class CssParser {
   int getInlineOrSheetLength(const std::string& propName, const std::string& className, const std::string& id,
                              const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getSpacingEdgePx(const std::string& propName, const std::string& shorthandName, const std::string& className,
-                       const std::string& id, const std::string& styleAttr, int viewportWidth,
-                       int viewportHeight, const std::string& elementTagLower = "") const;
+                       const std::string& id, const std::string& styleAttr, int viewportWidth, int viewportHeight,
+                       const std::string& elementTagLower = "") const;
   int getBorderEdgePx(const std::string& edgePropName, const std::string& className, const std::string& id,
                       const std::string& styleAttr, int viewportWidth, int viewportHeight,
                       const std::string& elementTagLower = "") const;

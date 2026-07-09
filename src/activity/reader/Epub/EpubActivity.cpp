@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "EpubAnnotations.h"
-#include "EpubPercentSelectionActivity.h"
 #include "EpubReadingStats.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
@@ -49,7 +48,7 @@ namespace {
 /** Encodes spine and page for MenuDrawer::BookmarkNavItem::storageIndex (page < 100000). */
 constexpr int kAnnotationNavPack = 100000;
 
-static std::string chapterTitleForSpine(Epub* epub, int spineIndex) {
+static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
   if (!epub) {
     return "";
   }
@@ -294,21 +293,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       info.fontId, FontManager::getNextFont(info.fontId), FontManager::getMaxFontId(info.fontId), info.lineCompression,
       info.wordSpacing, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width, info.height,
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
-      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages);
-
-  if (success && !skipImages && tempSection->imagePageCount > 0) {
-    int warmPage = 0;
-    if (spineIndex == currentSpineIndex) {
-      if (section && section->pageCount > 0) {
-        warmPage = section->currentPage;
-      } else if (nextPageNumber == static_cast<int>(UINT16_MAX)) {
-        warmPage = tempSection->pageCount > 0 ? tempSection->pageCount - 1 : 0;
-      } else {
-        warmPage = nextPageNumber;
-      }
-    }
-    prebuildImageDisplayCache(*tempSection, info, warmPage);
-  }
+      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr);
 
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
@@ -317,68 +302,6 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   }
 
   return success;
-}
-
-void EpubActivity::prebuildImageDisplayCache(Section& builtSection, const ViewportInfo& info, const int targetPage) {
-  // Grayscale passes for the current quality mode — used only for pages whose images actually have continuous
-  // tone (anyImageNeedsGrayscale). Pages with 1-bit-style images (comic/line art) and LOW mode prebuild the
-  // plain BW/OneBit plane instead, matching the on-screen page->render path. Each renderImages reuses the exact
-  // fontId + margins + render mode + quality the display path uses, so ImageRender::render() stores cache keyed
-  // identically (and no-ops on a later hit). Only the offscreen framebuffer is touched (no displayBuffer).
-  struct Pass {
-    GfxRenderer::RenderMode mode;
-    bool quality;
-  };
-  Pass grayPasses[2];
-  int grayPassCount = 0;
-  uint8_t grayClear = 0xFF;
-  switch (bookSettings.readerImageGrayscale) {
-    case SystemSetting::READER_IMAGE_HIGH:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_LSB, true};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAY2_MSB, true};
-      grayClear = 0xFF;
-      break;
-    case SystemSetting::READER_IMAGE_MEDIUM:
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_LSB, false};
-      grayPasses[grayPassCount++] = {GfxRenderer::GRAYSCALE_MSB, false};
-      grayClear = 0x00;
-      break;
-    default:
-      break;  // LOW: no grayscale passes; all image pages prebuild as 1-bit below
-  }
-  const bool grayEnabled = grayPassCount > 0;
-
-  if (builtSection.pageCount <= 0) {
-    return;
-  }
-
-  const int centerPage = std::max(0, std::min(targetPage, static_cast<int>(builtSection.pageCount) - 1));
-  const int firstPage = std::max(0, centerPage - 1);
-  const int lastPage = std::min(static_cast<int>(builtSection.pageCount) - 1, centerPage + 1);
-  const int fontId = bookSettings.getReaderFontId();
-  for (int i = firstPage; i <= lastPage; i++) {
-    builtSection.currentPage = i;
-    std::unique_ptr<Page> page = builtSection.loadPageFromSectionFile();
-    if (!page || !page->hasImages()) {
-      continue;
-    }
-    if (grayEnabled && page->anyImageNeedsGrayscale()) {
-      for (int p = 0; p < grayPassCount; p++) {
-        renderer.clearScreen(grayClear);  // same base the display path uses, so the cached rect matches exactly
-        renderer.setRenderMode(grayPasses[p].mode);
-        page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::TwoBit,
-                           grayPasses[p].quality, /*onlyGrayscale=*/true);
-      }
-    } else {
-      // 1-bit page (comic/line art content, or LOW mode): prebuild the BW/OneBit plane page->render will request.
-      renderer.clearScreen(0xFF);
-      renderer.setRenderMode(GfxRenderer::BW);
-      page->renderImages(renderer, fontId, info.totalMarginLeft, info.totalMarginTop, ImageRenderMode::OneBit, false);
-    }
-  }
-
-  renderer.setRenderMode(GfxRenderer::BW);
-  renderer.clearScreen(0xFF);  // leave the framebuffer in the canonical clean state for the next page render
 }
 
 /**
@@ -647,7 +570,8 @@ bool EpubActivity::slowPath() {
   vTaskDelay(pdMS_TO_TICKS(50));
 
   ensureThumbnailExists();
-  currentSpineIndex = epub->getSpineIndexForInitialOpen() != 0 ? epub->getSpineIndexForInitialOpen() : 1;
+  const int initialSpine = epub->getSpineIndexForInitialOpen();
+  currentSpineIndex = (initialSpine == 0 && epub->getSpineItemsCount() > 1) ? 1 : initialSpine;
   nextPageNumber = 0;
 
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
@@ -956,6 +880,16 @@ void EpubActivity::loop() {
     return;
   }
 
+  const HalGPIO::MotionGesture motionGesture =
+      mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
+                                    SETTINGS.shakePageTurnSensitivity);
+  if (motionGesture != HalGPIO::MotionGesture::None) {
+    endPageTimer();
+    pageTurn(motionGesture == HalGPIO::MotionGesture::Next);
+    lastAutoPageTurnTime = millis();
+    return;
+  }
+
   if (prev) {
     endPageTimer();
     pageTurn(false);
@@ -1037,6 +971,13 @@ void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
   startPageTimer();
 }
 
+void EpubActivity::onPercentDrawerSelected(int percent) {
+  toggleMenuDrawer();
+  jumpToPercent(percent);
+  updateRequired = true;
+  startPageTimer();
+}
+
 void EpubActivity::goToAnnotationPage(int spine, int page) {
   if (currentSpineIndex != spine) {
     currentSpineIndex = spine;
@@ -1066,7 +1007,8 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
             case MenuDrawer::MenuAction::GO_TO_PERCENT:
-              openPercentSelectionFromMenu();
+              // Handled inside MenuDrawer itself (percentProvider/percentSelectedCallback below), same
+              // as SELECT_CHAPTER/SHOW_BOOKMARKS/SHOW_ANNOTATIONS - never reaches this callback.
               break;
             case MenuDrawer::MenuAction::GO_HOME:
               goHome();
@@ -1169,6 +1111,19 @@ void EpubActivity::toggleMenuDrawer() {
       });
       menuDrawer->setAnnotationSelectCallback(
           [this](const int storageIndex) { onAnnotationDrawerSelected(storageIndex); });
+      menuDrawer->setPercentProvider([this]() -> int {
+        float bookProgressPercent = 0.0f;
+        if (epub && epub->getBookSize() > 0 && section && section->pageCount > 0) {
+          const float chapterProgress =
+              static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+          bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
+        }
+        int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
+        if (initialPercent < 0) initialPercent = 0;
+        if (initialPercent > 100) initialPercent = 100;
+        return initialPercent;
+      });
+      menuDrawer->setPercentSelectedCallback([this](const int percent) { onPercentDrawerSelected(percent); });
     }
   }
 
@@ -1272,7 +1227,7 @@ void EpubActivity::deleteProgress() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  int newSpineIndex = 1;
+  const int newSpineIndex = epub->getSpineItemsCount() > 1 ? 1 : 0;
 
   if (currentSpine != newSpineIndex || currentPage != 0) {
     currentSpineIndex = newSpineIndex;
@@ -1432,35 +1387,6 @@ void EpubActivity::openKOReaderSyncFromMenu() {
         currentSpineIndex = newSpineIndex;
         nextPageNumber = newPageNumber;
         section.reset();
-        updateRequired = true;
-        startPageTimer();
-      }));
-}
-
-void EpubActivity::openPercentSelectionFromMenu() {
-  if (!epub) {
-    return;
-  }
-  dismissMenuDrawerForBlockingWork();
-  float bookProgress = 0.0f;
-  if (epub->getBookSize() > 0 && section && section->pageCount > 0) {
-    const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
-    bookProgress = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
-  }
-  int initialPercent = static_cast<int>(bookProgress + 0.5f);
-  if (initialPercent < 0) initialPercent = 0;
-  if (initialPercent > 100) initialPercent = 100;
-
-  enterNewActivity(new EpubPercentSelectionActivity(
-      renderer, mappedInput, initialPercent,
-      [this]() {
-        exitActivity();
-        updateRequired = true;
-        startPageTimer();
-      },
-      [this](const int percent) {
-        exitActivity();
-        jumpToPercent(percent);
         updateRequired = true;
         startPageTimer();
       }));
@@ -1683,6 +1609,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                                   const int orientedMarginLeft) {
   if (!page) return;
   const int fontId = bookSettings.getReaderFontId();
+  FontManager::ensureReaderLayoutFonts(fontId, renderer);
   const int headerFontId = FontManager::getNextFont(fontId);
   const bool pageHasImages = page->hasImages();
 
@@ -1690,12 +1617,11 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   bool needAnnotationGeometry = annUi_.isActive();
   if (!annUi_.isActive() && !annUi_.annotations().records().empty()) {
-    for (const EpubAnnotationRecord& rec : annUi_.annotations().records()) {
-      if (section && EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage)) {
-        needAnnotationGeometry = true;
-        break;
-      }
-    }
+    needAnnotationGeometry = std::any_of(annUi_.annotations().records().begin(), annUi_.annotations().records().end(),
+                                         [this](const EpubAnnotationRecord& rec) {
+                                           return section && EpubAnnotations::recordTouchesPage(rec, currentSpineIndex,
+                                                                                                section->currentPage);
+                                         });
   }
 
   bool omitStoredWordStrings = false;
@@ -1749,28 +1675,29 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   }
 
-  if (bookSettings.readerSmartRefreshOnImages && !pageHasImages && lastPageHadImages && lastPageHadLargeImage &&
-      !isBookmarking && !annUi_.isActive()) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-  }
-
   // Only pay for grayscale if the setting is on AND at least one image on the page actually has continuous-tone
   // content. Comic/line-art/mostly-black-and-white pages are detected at build time and render as fast 1-bit.
   const bool needsImageGrayscale =
       bookSettings.readerImageGrayscale != 0 && pageHasImages && page->anyImageNeedsGrayscale();
   const ImageRenderMode imageMode = needsImageGrayscale ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  const bool textAa = bookSettings.textAntiAliasing != 0;
+  const bool textAa = bookSettings.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
   const bool pageHasLargeImage =
       pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
 
   const bool imagePageWithAA = pageHasImages && textAa;
 
-  const bool highQuality =
-      needsImageGrayscale && bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+  const bool highQuality = needsImageGrayscale && bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+  const bool mediumImageGrayscale = needsImageGrayscale && !highQuality;
+  const bool needsTextAntiAliasPass = textAa;
+
+  const bool smartRefreshAfterLargeImage = !pageHasImages && lastPageHadImages && lastPageHadLargeImage;
+  if (bookSettings.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive() && smartRefreshAfterLargeImage) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
 
   const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
-  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender,
-               imageMode, /*skipOnlyGrayscaleImages=*/highQuality);
+  page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender, imageMode,
+               /*skipOnlyGrayscaleImages=*/highQuality);
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
@@ -1781,9 +1708,15 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
   }
 
-  const bool bwStored = skipImagesInPageRender && renderer.storeBwBuffer();
+  // Medium uses the same BW restore/rebase lifecycle as text AA. Without a
+  // snapshot when AA is disabled, the non-preserving grayscale cleanup leaves
+  // visible differential ghosting on the following page.
+  const bool bwStored =
+      (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
+      renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
-  if (!displayWithQualityPass) {
+  const bool displayImagePlaceholder = displayWithQualityPass;
+  auto displayPageBuffer = [this]() {
     if (pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       pagesUntilFullRefresh = bookSettings.refreshFrequency;
@@ -1791,24 +1724,52 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       renderer.displayBuffer();
       pagesUntilFullRefresh--;
     }
-  } else if (pagesUntilFullRefresh <= 1) {
-    pagesUntilFullRefresh = bookSettings.refreshFrequency;
-  } else {
-    pagesUntilFullRefresh--;
+  };
+
+  if (displayImagePlaceholder) {
+    page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true, /*onlyGrayscale=*/true);
   }
+  displayPageBuffer();
 
   if (highQuality && bwStored) {
-    ImageRender::displayGrayscale(renderer, /*quality=*/true, /*preserveText=*/true, [&] {
-      renderer.copyStoredBwToFramebuffer();
-      renderer.invertScreen();
-      page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false, /*onlyGrayscale=*/true);
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true,
-                         /*onlyGrayscale=*/true);
-    }, true);
-  } else if (needsImageGrayscale) {
-    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    ImageRender::displayGrayscale(
+        renderer, /*quality=*/true, /*preserveText=*/true,
+        [&] {
+          renderer.copyStoredBwToFramebuffer();
+          renderer.invertScreen();
+          page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, false, /*onlyGrayscale=*/true);
+          page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true,
+                             /*onlyGrayscale=*/true);
+        },
+        true);
+    if (needsTextAntiAliasPass) {
+      const bool textBwStored = renderer.storeBwBuffer();
+      if (textBwStored) {
+        renderer.renderGrayscalePasses(/*quality=*/false, /*preserveText=*/true, [&] {
+          renderer.clearScreen(0x00);
+          page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                       ImageRenderMode::OneBit);
+        });
+      }
+    }
+  } else if (needsTextAntiAliasPass && bwStored && !mediumImageGrayscale) {
+    renderer.renderGrayscalePasses(/*quality=*/false, /*preserveText=*/true, [&] {
+      renderer.clearScreen(0x00);
+      page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                   ImageRenderMode::OneBit);
     });
+  } else if (mediumImageGrayscale || (needsTextAntiAliasPass && bwStored)) {
+    ImageRender::displayGrayscale(
+        renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
+          renderer.clearScreen(0x00);
+          if (needsTextAntiAliasPass && bwStored) {
+            page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                         ImageRenderMode::OneBit);
+          }
+          if (mediumImageGrayscale) {
+            page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+          }
+        });
 
   } else if (bwStored) {
     renderer.restoreBwBuffer();
@@ -1821,6 +1782,23 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     annUi_.drawUiOverlay(*this);
   } else if (!annUi_.storedRanges().empty()) {
     annUi_.drawStoredOverlay(*this);
+  } else if (highQuality && bwStored) {
+    renderer.clearScreen();
+    page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                 ImageRenderMode::OneBit, /*skipOnlyGrayscaleImages=*/true);
+    renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+    if (isCurrentPageBookmarked()) {
+      drawBookmarkIndicator();
+    }
+
+    int16_t imageX = 0;
+    int16_t imageY = 0;
+    int16_t imageW = 0;
+    int16_t imageH = 0;
+    if (page->getImageBoundingBox(renderer, orientedMarginLeft, orientedMarginTop, imageX, imageY, imageW, imageH)) {
+      renderer.rectangle.fill(imageX, imageY, imageW, imageH, true);
+    }
+    renderer.cleanupGrayscaleWithFrameBuffer();
   }
 }
 
@@ -2068,7 +2046,7 @@ void EpubActivity::applyBookSettings() {
   setupOrientation();
 
   ViewportInfo info = calculateViewport();
-  FontManager::ensureFontReady(info.fontId, renderer);
+  FontManager::ensureReaderLayoutFonts(info.fontId, renderer);
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {

@@ -14,12 +14,11 @@ class Print;
 
 struct BmpHeader;
 
-
 uint8_t quantize(int gray, int x, int y);
 uint8_t quantizeSimple(int gray);
 ImageToneSample quantizeTwoBitImage(int gray);
 uint8_t adjustTwoBitImageLevelForDisplay(uint8_t level);
-uint8_t mapQualityGray2Level(uint8_t level, bool deviceIsX3);
+uint8_t mapQualityGray2Level(uint8_t level);
 
 // Image grayscale-content analysis. While active, every 2-bit image level that passes through
 // adjustTwoBitImageLevelForDisplay() (i.e. every rendered image pixel, for JPEG/PNG/BMP alike) is tallied.
@@ -43,9 +42,9 @@ void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder ro
 class Atkinson1BitDitherer {
  public:
   explicit Atkinson1BitDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();  
-    errorRow1 = new int16_t[width + 4]();  
-    errorRow2 = new int16_t[width + 4]();  
+    errorRow0 = new int16_t[width + 4]();
+    errorRow1 = new int16_t[width + 4]();
+    errorRow2 = new int16_t[width + 4]();
   }
 
   ~Atkinson1BitDitherer() {
@@ -54,22 +53,17 @@ class Atkinson1BitDitherer {
     delete[] errorRow2;
   }
 
-  
   Atkinson1BitDitherer(const Atkinson1BitDitherer& other) = delete;
 
-  
   Atkinson1BitDitherer& operator=(const Atkinson1BitDitherer& other) = delete;
 
   uint8_t processPixel(int gray, int x) {
-    
     gray = adjustOneBitPixel(gray);
 
-    
     int adjusted = gray + errorRow0[x + 2];
     if (adjusted < 0) adjusted = 0;
     if (adjusted > 255) adjusted = 255;
 
-    
     uint8_t quantized;
     int quantizedValue;
     if (adjusted < 128) {
@@ -80,16 +74,14 @@ class Atkinson1BitDitherer {
       quantizedValue = 255;
     }
 
-    
-    int error = (adjusted - quantizedValue) >> 3;  
+    int error = (adjusted - quantizedValue) >> 3;
 
-    
-    errorRow0[x + 3] += error;  
-    errorRow0[x + 4] += error;  
-    errorRow1[x + 1] += error;  
-    errorRow1[x + 2] += error;  
-    errorRow1[x + 3] += error;  
-    errorRow2[x + 2] += error;  
+    errorRow0[x + 3] += error;
+    errorRow0[x + 4] += error;
+    errorRow1[x + 1] += error;
+    errorRow1[x + 2] += error;
+    errorRow1[x + 3] += error;
+    errorRow2[x + 2] += error;
 
     return quantized;
   }
@@ -114,12 +106,6 @@ class Atkinson1BitDitherer {
   int16_t* errorRow1;
   int16_t* errorRow2;
 };
-
-
-
-
-
-
 
 uint8_t epubWebRgb565ToGray8Rounded(uint16_t rgb565LittleEndian);
 void epubWebContainDimensionsFloor(int srcW, int srcH, int maxW, int maxH, int* outW, int* outH);

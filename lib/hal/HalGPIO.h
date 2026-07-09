@@ -9,19 +9,18 @@
 #include <BatteryMonitor.h>
 #include <InputManager.h>
 
+#define EPD_SCLK 8
+#define EPD_MOSI 10
+#define EPD_CS 21
+#define EPD_DC 4
+#define EPD_RST 5
+#define EPD_BUSY 6
 
-#define EPD_SCLK 8   
-#define EPD_MOSI 10  
-#define EPD_CS 21    
-#define EPD_DC 4     
-#define EPD_RST 5    
-#define EPD_BUSY 6   
+#define SPI_MISO 7
 
-#define SPI_MISO 7  
+#define BAT_GPIO0 0
 
-#define BAT_GPIO0 0  
-
-#define UART0_RXD 20  
+#define UART0_RXD 20
 
 #define X3_I2C_SDA 20
 #define X3_I2C_SCL 0
@@ -39,6 +38,10 @@
 #define I2C_ADDR_QMI8658_ALT 0x6A
 #define QMI8658_WHO_AM_I_REG 0x00
 #define QMI8658_WHO_AM_I_VALUE 0x05
+#define QMI8658_CTRL1_REG 0x02
+#define QMI8658_CTRL3_REG 0x04
+#define QMI8658_CTRL7_REG 0x08
+#define QMI8658_GYRO_X_L_REG 0x3B
 
 class HalGPIO {
 #if CROSSPOINT_EMULATED == 0
@@ -60,17 +63,26 @@ class HalGPIO {
 
  private:
   DeviceType deviceType = DeviceType::X4;
+  mutable int batteryCachedPercent = 0;
+  mutable unsigned long batteryLastPollMs = 0;
+  uint8_t motionSensorAddress = 0;
+  bool motionSensorInitialized = false;
+  bool motionGestureInProgress = false;
+  unsigned long motionLastPollMs = 0;
+  unsigned long motionSensorStartedMs = 0;
+  unsigned long motionLastGestureMs = 0;
 
  public:
+  static constexpr unsigned long BATTERY_POLL_MS = 1500;
+  enum class MotionGesture : uint8_t { None, Previous, Next };
+
   HalGPIO() = default;
 
   bool deviceIsX3() const { return deviceType == DeviceType::X3; }
   bool deviceIsX4() const { return deviceType == DeviceType::X4; }
 
-  
   void begin();
 
-  
   void update();
   void injectOneShotPress(uint8_t buttonIndex) {
 #if CROSSPOINT_EMULATED == 0
@@ -85,14 +97,12 @@ class HalGPIO {
   bool wasReleased(uint8_t buttonIndex) const;
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
+  MotionGesture readMotionGesture(uint8_t orientation, uint8_t mode, uint8_t sensitivity);
 
-  
   void startDeepSleep();
 
-  
   int getBatteryPercentage() const;
 
-  
   bool isUsbConnected() const;
 
   bool readDateTime(DateTime& outDateTime) const;
@@ -103,7 +113,6 @@ class HalGPIO {
 
   WakeupReason getWakeupReason() const;
 
-  
   static constexpr uint8_t BTN_BACK = 0;
   static constexpr uint8_t BTN_CONFIRM = 1;
   static constexpr uint8_t BTN_LEFT = 2;

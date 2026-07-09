@@ -7,7 +7,6 @@
 
 #include "LiangHyphenation.h"
 
-
 class LanguageHyphenator {
  public:
   LanguageHyphenator(const SerializedHyphenationPatterns& patterns, bool (*isLetterFn)(uint32_t),
