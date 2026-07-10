@@ -519,6 +519,31 @@ static bool pngDecodeBegin(FsFile& pngFile, PngDecodeContext& ctx) {
     return false;
   }
 
+  // Validate bitDepth is legal for the given colorType per PNG spec (ISO 15948 §11.2.2)
+  {
+    bool validDepth = false;
+    switch (colorType) {
+      case PNG_COLOR_GRAYSCALE:
+        validDepth = (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8 || bitDepth == 16);
+        break;
+      case PNG_COLOR_RGB:
+      case PNG_COLOR_GRAYSCALE_ALPHA:
+      case PNG_COLOR_RGBA:
+        validDepth = (bitDepth == 8 || bitDepth == 16);
+        break;
+      case PNG_COLOR_PALETTE:
+        validDepth = (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8);
+        break;
+      default:
+        validDepth = false;
+        break;
+    }
+    if (!validDepth) {
+      LOG_ERR("PNG", "Invalid bit depth %u for color type %u", bitDepth, colorType);
+      return false;
+    }
+  }
+
   // Calculate bytes per pixel and raw row bytes
   uint8_t bytesPerPixel;
   uint32_t rawRowBytes;
