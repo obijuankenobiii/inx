@@ -13,7 +13,6 @@
 
 #include "activity/network/WifiSelectionActivity.h"
 #include "network/HttpDownloader.h"
-#include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -241,28 +240,21 @@ void OpdsBookBrowserActivity::render() const {
 }
 
 void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
-  const char* activeUrl = serverUrl.c_str();
-  if (activeUrl[0] == '\0') {
-    activeUrl = SETTINGS.opdsServerUrl;
-  }
-  if (strlen(activeUrl) == 0) {
+  if (serverUrl.empty()) {
     state = BrowserState::ERROR;
     errorMessage = "No server URL configured";
     updateRequired = true;
     return;
   }
 
-  std::string fullUrl = UrlUtils::buildUrl(activeUrl, path);
+  std::string fullUrl = UrlUtils::buildUrl(serverUrl, path);
   Serial.printf("[%lu] [OPDS] Fetching: %s\n", millis(), fullUrl.c_str());
-
-  std::string user = serverUsername.empty() ? SETTINGS.opdsUsername : serverUsername;
-  std::string pass = serverPassword.empty() ? SETTINGS.opdsPassword : serverPassword;
 
   OpdsParser parser;
 
   {
     OpdsParserStream stream{parser};
-    if (!HttpDownloader::fetchUrl(fullUrl, stream, user, pass)) {
+    if (!HttpDownloader::fetchUrl(fullUrl, stream, serverUsername, serverPassword)) {
       state = BrowserState::ERROR;
       errorMessage = "Failed to fetch feed";
       Serial.printf("[%lu] [OPDS] Fetch failed for URL: %s\n", millis(), fullUrl.c_str());
@@ -330,11 +322,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   downloadTotal = 0;
   updateRequired = true;
 
-  const char* activeUrl = serverUrl.c_str();
-  if (activeUrl[0] == '\0') {
-    activeUrl = SETTINGS.opdsServerUrl;
-  }
-  std::string downloadUrl = UrlUtils::buildUrl(activeUrl, book.href);
+  std::string downloadUrl = UrlUtils::buildUrl(serverUrl, book.href);
 
   std::string baseName = book.title;
   if (!book.author.empty()) {
@@ -344,10 +332,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
 
   Serial.printf("[%lu] [OPDS] Downloading: %s -> %s\n", millis(), downloadUrl.c_str(), filename.c_str());
 
-  std::string user = serverUsername.empty() ? SETTINGS.opdsUsername : serverUsername;
-  std::string pass = serverPassword.empty() ? SETTINGS.opdsPassword : serverPassword;
-
-  const auto result = HttpDownloader::downloadToFile(downloadUrl, filename, user, pass,
+  const auto result = HttpDownloader::downloadToFile(downloadUrl, filename, serverUsername, serverPassword,
                                                      [this](const size_t downloaded, const size_t total) {
                                                        downloadProgress = downloaded;
                                                        downloadTotal = total;

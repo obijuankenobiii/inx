@@ -26,9 +26,6 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
   enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR };
 
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                   const std::function<void()>& onGoToRecent)
-      : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
-  explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                    const std::function<void()>& onGoToRecent, const std::string& serverUrl,
                                    const std::string& serverUsername, const std::string& serverPassword)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput),
