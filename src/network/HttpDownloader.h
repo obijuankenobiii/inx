@@ -34,11 +34,14 @@ class HttpDownloader {
    */
   static bool fetchUrl(const std::string& url, std::string& outContent);
 
+  /** Fetch content from a URL into a stream, using the configured OPDS credentials. */
   static bool fetchUrl(const std::string& url, Stream& stream);
 
+  /** Fetch text content from a URL using the given basic-auth credentials. */
   static bool fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
                        const std::string& password);
 
+  /** Fetch content from a URL into a stream using the given basic-auth credentials. */
   static bool fetchUrl(const std::string& url, Stream& stream, const std::string& username,
                        const std::string& password);
 
@@ -52,6 +55,15 @@ class HttpDownloader {
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr);
 
+  /**
+   * Download a file to the SD card using the given basic-auth credentials.
+   * @param url The URL to download
+   * @param destPath The destination path on SD card
+   * @param username Basic-auth username
+   * @param password Basic-auth password
+   * @param progress Optional progress callback
+   * @return DownloadError indicating success or failure type
+   */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath, const std::string& username,
                                       const std::string& password, ProgressCallback progress = nullptr);
 

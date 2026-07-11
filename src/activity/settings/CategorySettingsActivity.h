@@ -42,7 +42,9 @@ struct ValueRange {
   uint8_t max;
   uint8_t step;
 
+  /** Constructs a zeroed value range. */
   ValueRange() : min(0), max(0), step(0) {}
+  /** Constructs a value range with the given min, max, and step. */
   ValueRange(uint8_t minVal, uint8_t maxVal, uint8_t stepVal) : min(minVal), max(maxVal), step(stepVal) {}
 };
 
@@ -54,19 +56,24 @@ struct SettingInfo {
   ValueRange valueRange;
   GroupType group;
 
+  /** Constructs an empty separator-typed setting info. */
   SettingInfo()
       : name(nullptr), type(SettingType::SEPARATOR), valuePtr(nullptr), valueRange(), group(GroupType::NONE) {}
 
+  /** Constructs a setting info with a name, type, backing member pointer, and group. */
   SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, GroupType g)
       : name(n), type(t), valuePtr(ptr), valueRange(), group(g) {}
 
+  /** Constructs a setting info with enum option values. */
   SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values,
               GroupType g)
       : name(n), type(t), valuePtr(ptr), enumValues(values), valueRange(), group(g) {}
 
+  /** Constructs a setting info with a numeric value range. */
   SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const ValueRange& range, GroupType g)
       : name(n), type(t), valuePtr(ptr), valueRange(range), group(g) {}
 
+  /** Creates a toggle-type setting info bound to a boolean member. */
   static SettingInfo Toggle(const char* name, uint8_t SystemSetting::* ptr, GroupType group = GroupType::NONE) {
     SettingInfo info;
     info.name = name;
@@ -77,6 +84,7 @@ struct SettingInfo {
     return info;
   }
 
+  /** Creates an enum-type setting info bound to a member with a list of option labels. */
   static SettingInfo Enum(const char* name, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values,
                           GroupType group = GroupType::NONE) {
     SettingInfo info;
@@ -89,6 +97,7 @@ struct SettingInfo {
     return info;
   }
 
+  /** Creates an action-type setting info that triggers a handler when selected. */
   static SettingInfo Action(const char* name, GroupType group = GroupType::NONE) {
     SettingInfo info;
     info.name = name;
@@ -99,6 +108,7 @@ struct SettingInfo {
     return info;
   }
 
+  /** Creates a numeric value-type setting info bound to a member with a min/max/step range. */
   static SettingInfo Value(const char* name, uint8_t SystemSetting::* ptr, const ValueRange& valueRange,
                            GroupType group = GroupType::NONE) {
     SettingInfo info;
@@ -110,6 +120,7 @@ struct SettingInfo {
     return info;
   }
 
+  /** Creates a separator row used to divide and expand/collapse a group. */
   static SettingInfo Separator(const char* name, GroupType group) {
     SettingInfo info;
     info.name = name;
@@ -174,24 +185,42 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   std::vector<std::string> selectorValues;
   std::map<GroupType, bool> groupExpanded;
 
+  /** FreeRTOS task entry point that forwards to displayTaskLoop. */
   static void taskTrampoline(void* param);
+  /** Background task loop that redraws the menu when required. */
   void displayTaskLoop();
+  /** Draws the category settings screen, including any open selector overlay. */
   void render();
+  /** Rebuilds the flattened menu item list based on current group expansion state. */
   void setupMenu();
+  /** Applies a delta change to the currently selected menu item. */
   void applyChange(int delta);
+  /** Opens the value/enum picker overlay for the currently selected item. */
   void openSelectorForSelected();
+  /** Opens the sleep image picker overlay populated from the sleep image index. */
   void openSleepImageSelector();
+  /** Rebuilds the on-disk sleep image index from files under /sleep. */
   bool rebuildSleepImageIndex();
+  /** Loads the sleep image index rows into the selector option lists. */
   void loadSleepImageIndexRows();
+  /** Applies the currently selected sleep image option to settings. */
   void applySleepImageSelection();
+  /** Moves the selector highlight by delta rows, wrapping and scrolling as needed. */
   void moveSelector(int delta);
+  /** Moves the selector highlight by whole pages. */
   void selectorPage(int delta);
+  /** Closes the selector overlay, optionally saving the chosen option. */
   void closeSelector(bool save);
+  /** Draws the value/enum/sleep-image selector overlay. */
   void renderSelectorOverlay();
+  /** Returns the option index corresponding to the entry's current value. */
   int selectedOptionIndex(const MenuEntry& entry) const;
+  /** Applies the chosen option index to the entry's backing setting. */
   void applySelectedOption(MenuEntry& entry, int optionIndex);
+  /** Toggles expansion state of a settings group. */
   void toggleGroup(GroupType group);
 
+  /** Handles tab-bar navigation to another top-level activity. */
   void navigateToSelectedMenu() override;
 
  public:

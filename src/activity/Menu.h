@@ -28,13 +28,31 @@ class Menu {
   static constexpr int SELECTED_BORDER_HEIGHT = 5;
   int tabSelectorIndex = 0;
 
+  /**
+   * @brief Default constructor
+   */
   Menu() = default;
+  /**
+   * @brief Default destructor
+   */
   virtual ~Menu() = default;
 
   // Main-menu navigation axis (see MenuNav). Front: Left/Right tabs, Up/Down items; side: swapped.
+  /**
+   * @brief Returns the button mapped to the previous tab
+   */
   MappedInputManager::Button tabPrevButton() const { return MenuNav::tabPrev(); }
+  /**
+   * @brief Returns the button mapped to the next tab
+   */
   MappedInputManager::Button tabNextButton() const { return MenuNav::tabNext(); }
+  /**
+   * @brief Returns the button mapped to the previous item
+   */
   MappedInputManager::Button itemPrevButton() const { return MenuNav::itemPrev(); }
+  /**
+   * @brief Returns the button mapped to the next item
+   */
   MappedInputManager::Button itemNextButton() const { return MenuNav::itemNext(); }
 
   /**

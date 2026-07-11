@@ -21,11 +21,13 @@ constexpr int MENU_ITEMS = 3;
 const char* menuNames[MENU_ITEMS] = {"OPDS Server URL", "Username", "Password"};
 }  // namespace
 
+/** FreeRTOS task entry point that forwards to displayTaskLoop. */
 void CalibreSettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CalibreSettingsActivity*>(param);
   self->displayTaskLoop();
 }
 
+/** Starts the display task and initializes selection state. */
 void CalibreSettingsActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
@@ -36,6 +38,7 @@ void CalibreSettingsActivity::onEnter() {
   xTaskCreate(&CalibreSettingsActivity::taskTrampoline, "CalibreSettingsTask", 4096, this, 1, &displayTaskHandle);
 }
 
+/** Stops the display task and releases synchronization resources. */
 void CalibreSettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
@@ -48,6 +51,7 @@ void CalibreSettingsActivity::onExit() {
   renderingMutex = nullptr;
 }
 
+/** Handles one iteration of input processing for the menu. */
 void CalibreSettingsActivity::loop() {
   if (subActivity) {
     subActivity->loop();
@@ -73,6 +77,7 @@ void CalibreSettingsActivity::loop() {
   }
 }
 
+/** Opens the keyboard entry activity for the currently selected setting. */
 void CalibreSettingsActivity::handleSelection() {
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
@@ -126,6 +131,7 @@ void CalibreSettingsActivity::handleSelection() {
   xSemaphoreGive(renderingMutex);
 }
 
+/** Background task loop that redraws the menu when required. */
 void CalibreSettingsActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired && !subActivity) {
@@ -138,6 +144,7 @@ void CalibreSettingsActivity::displayTaskLoop() {
   }
 }
 
+/** Draws the OPDS settings menu. */
 void CalibreSettingsActivity::render() {
 #ifdef SIMULATOR
   Serial.printf("[%lu] [SIM] OPDS settings UI: urlSet=%d usernameSet=%d passwordSet=%d\n", millis(),

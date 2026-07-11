@@ -54,8 +54,10 @@ using SortMode = LibraryActivity::SortMode;
 
 namespace {
 
+/** Converts a SortMode to its persisted storage value. */
 uint8_t sortModeToStorage(SortMode m) { return static_cast<uint8_t>(m); }
 
+/** Converts a persisted storage value back to a SortMode, defaulting to TITLE_AZ if out of range. */
 SortMode storageToSortMode(uint8_t v) {
   if (v > static_cast<uint8_t>(SortMode::TAG_ZA)) {
     return SortMode::TITLE_AZ;
@@ -63,6 +65,7 @@ SortMode storageToSortMode(uint8_t v) {
   return static_cast<SortMode>(v);
 }
 
+/** Converts a ViewMode to its persisted storage value. */
 uint8_t viewModeToStorage(ViewMode m) {
   switch (m) {
     case ViewMode::BOOK_LIST_VIEW:
@@ -77,6 +80,7 @@ uint8_t viewModeToStorage(ViewMode m) {
   }
 }
 
+/** Converts a persisted storage value back to a ViewMode, honoring whether the tag index is enabled. */
 ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
   if (v == SystemSetting::LIBRARY_VIEW_BOOKS) {
     return ViewMode::BOOK_LIST_VIEW;
@@ -90,6 +94,7 @@ ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
   return ViewMode::FOLDER_VIEW;
 }
 
+/** Strips trailing slashes from a path, returning "/" if the result would be empty. */
 std::string normalizeLibraryPath(std::string path) {
   while (path.length() > 1 && path.back() == '/') {
     path.pop_back();
@@ -106,18 +111,21 @@ class MutexGuard {
   bool acquired;
 
  public:
+  /** Attempts to take the mutex, waiting up to timeout ticks. */
   explicit MutexGuard(SemaphoreHandle_t& m, TickType_t timeout = pdMS_TO_TICKS(100)) : mutex(m), acquired(false) {
     if (mutex) {
       acquired = (xSemaphoreTake(mutex, timeout) == pdTRUE);
     }
   }
 
+  /** Releases the mutex if it was successfully acquired. */
   ~MutexGuard() {
     if (acquired && mutex) {
       xSemaphoreGive(mutex);
     }
   }
 
+  /** Returns whether the mutex was successfully acquired. */
   bool isAcquired() const { return acquired; }
 };
 
@@ -149,6 +157,7 @@ constexpr uint8_t BOOK_STATE_FAVORITE = 0x01;
 constexpr uint8_t BOOK_STATE_READING = 0x02;
 constexpr uint8_t BOOK_STATE_FINISHED = 0x04;
 
+/** Returns whether value ends with suffix, ignoring case. */
 bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
   const size_t suffixLen = strlen(suffix);
   if (value.size() < suffixLen) {
@@ -163,10 +172,12 @@ bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
   return true;
 }
 
+/** Builds the metadata cache directory path for a book path under the given root. */
 std::string metadataCachePathForBookPath(const std::string& bookPath, const char* root) {
   return std::string(root) + "/" + std::to_string(std::hash<std::string>{}(bookPath));
 }
 
+/** Resolves the on-disk thumbnail path for a book's shelf cover, if one has been cached. */
 std::string resolveShelfImagePath(const std::string& bookPath) {
   const bool isXtc = endsWithIgnoreCase(bookPath, ".xtc");
   const char* primaryRoot = isXtc ? "/.metadata/xtc" : "/.metadata/epub";
@@ -200,6 +211,7 @@ std::string resolveShelfImagePath(const std::string& bookPath) {
   return "";
 }
 
+/** Draws the "currently opened" checkmark badge on a shelf card. */
 void drawShelfCheckBadge(const GfxRenderer& renderer, int x, int y) {
   renderer.rectangle.fill(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, false);
   renderer.rectangle.render(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, true);
@@ -209,6 +221,7 @@ void drawShelfCheckBadge(const GfxRenderer& renderer, int x, int y) {
   renderer.line.render(x + 9, y + 17, x + 17, y + 7);
 }
 
+/** Draws the favorite star badge on a shelf card. */
 void drawShelfFavoriteBadge(const GfxRenderer& renderer, int x, int y) {
   renderer.rectangle.fill(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, false);
   renderer.rectangle.render(x, y, LIB_SHELF_BADGE_SIZE, LIB_SHELF_BADGE_SIZE, true);
@@ -297,6 +310,9 @@ LibraryActivity::LibraryActivity(GfxRenderer& renderer, MappedInputManager& mapp
   tabSelectorIndex = 1;
 }
 
+/**
+ * @brief Destroy the Library Activity, releasing the shelf page buffer
+ */
 LibraryActivity::~LibraryActivity() { freeLibraryShelfBuffer(); }
 
 /**
@@ -469,6 +485,14 @@ int LibraryActivity::drawSortButton(int headerY, int headerHeight, int rightX) c
   return drawHeaderButton(buttonText, headerY, headerHeight, rightX, isSelected);
 }
 
+/**
+ * @brief Draw the library index refresh button
+ * @param headerY Y position of header
+ * @param headerHeight Height of header
+ * @param x Right X boundary
+ * @param isSelected Whether button is selected
+ * @return Next button X position
+ */
 int LibraryActivity::drawIndexButton(int headerY, int headerHeight, int x, bool isSelected) const {
   constexpr int BUTTON_WIDTH = 64;
 
@@ -614,6 +638,7 @@ LibraryItem LibraryActivity::createFolderItem(const std::string& name, const std
   return folderItem;
 }
 
+/** Returns the cached reading/favorite state flags for a book path. */
 uint8_t LibraryActivity::getBookStateFlags(const std::string& path) const {
   auto cached = bookStateCache_.find(path);
   if (cached != bookStateCache_.end()) {
@@ -631,6 +656,7 @@ uint8_t LibraryActivity::getBookStateFlags(const std::string& path) const {
   return flags;
 }
 
+/** Returns the on-disk display cache path for a book's shelf thumbnail. */
 std::string LibraryActivity::getShelfImagePath(const std::string& bookPath) const {
   auto cached = shelfImagePathCache_.find(bookPath);
   if (cached != shelfImagePathCache_.end()) {
@@ -642,6 +668,7 @@ std::string LibraryActivity::getShelfImagePath(const std::string& bookPath) cons
   return imagePath;
 }
 
+/** Clears the cached library items so they are reloaded on next access. */
 void LibraryActivity::invalidateLibraryCache() {
   cachedLibraryItemsValid_ = false;
   std::vector<LibraryItem>().swap(cachedLibraryItems_);
@@ -766,6 +793,7 @@ void LibraryActivity::loadAllBooksRecursive() {
   loadAllBooksRecursiveLocked();
 }
 
+/** Loads all books recursively; assumes the caller already holds renderingMutex. */
 void LibraryActivity::loadAllBooksRecursiveLocked() {
   invalidateLibraryCache();
   if (SETTINGS.useLibraryIndex) {
@@ -1037,6 +1065,7 @@ std::function<bool(const TempBookEntry&, const TempBookEntry&)> LibraryActivity:
   };
 }
 
+/** Reapplies pagination bounds and refreshes currentPageItems from cachedLibraryItems_. */
 void LibraryActivity::applyPaginationToCachedItems() {
   if (currentViewMode == ViewMode::SHELF_VIEW) {
     // Shelf is cover-first; .txt/.md never get a generated cover thumbnail (only EPUB/XTC do), so
@@ -1175,6 +1204,7 @@ void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& te
   applyPaginationToCachedItems();
 }
 
+/** Restores the current selection to the item matching the given path, if present. */
 bool LibraryActivity::restoreSelectionToPath(const std::string& path) {
   const std::string targetPath = normalizeLibraryPath(path);
   if (targetPath.empty()) {
@@ -1203,6 +1233,7 @@ bool LibraryActivity::restoreSelectionToPath(const std::string& path) {
   return false;
 }
 
+/** Restores the current selection to the item matching the given tag key, if present. */
 bool LibraryActivity::restoreSelectionToTag(const std::string& tagKey) {
   if (tagKey.empty()) {
     return false;
@@ -1385,6 +1416,7 @@ void LibraryActivity::toggleViewMode() {
   switchToFolderView();
 }
 
+/** Frees the shelf page buffer and flags a cleanup half refresh if currently in shelf mode. */
 void LibraryActivity::leaveShelfViewIfNeeded() {
   if (currentViewMode != ViewMode::SHELF_VIEW) {
     return;
@@ -1393,6 +1425,7 @@ void LibraryActivity::leaveShelfViewIfNeeded() {
   pendingShelfExitHalfRefresh_ = true;
 }
 
+/** Switches the current view mode to the flat book list view. */
 void LibraryActivity::switchToBookListView() {
   leaveShelfViewIfNeeded();
   if (currentViewMode == ViewMode::FOLDER_VIEW) {
@@ -1406,6 +1439,7 @@ void LibraryActivity::switchToBookListView() {
   updateRequired = true;
 }
 
+/** Switches the current view mode to the tag collection view. */
 void LibraryActivity::switchToTagView() {
   if (!SETTINGS.useLibraryIndex) {
     switchToFolderView();
@@ -1425,6 +1459,7 @@ void LibraryActivity::switchToTagView() {
   updateRequired = true;
 }
 
+/** Switches the current view mode to the cover shelf view. */
 void LibraryActivity::switchToShelfView() {
   if (currentViewMode == ViewMode::FOLDER_VIEW) {
     savedFolderPath = basepath;
@@ -1468,8 +1503,10 @@ void LibraryActivity::resetNavigation() {
   libraryListUpNextMs = 0;
 }
 
+/** Returns whether the index refresh button should be shown for the current view. */
 bool LibraryActivity::shouldShowIndexButton() const { return SETTINGS.useLibraryIndex != 0; }
 
+/** Starts a background library indexing pass. */
 void LibraryActivity::startLibraryIndexing() {
   if (isIndexing_) {
     return;
@@ -1561,6 +1598,7 @@ void LibraryActivity::onEnter() {
   }
 }
 
+/** Shows a "Loading library" placeholder, then runs loadAllBooksRecursive() on a background task. */
 void LibraryActivity::beginLibraryLoadWithLoadingScreen() {
   // Render a lightweight "Loading library" placeholder right now, before the load starts, so the
   // screen doesn't sit frozen while shelf mode's flat all-books scan (and cover thumbnail decodes
@@ -2215,6 +2253,7 @@ int LibraryActivity::getItemHeight(const LibraryItem& item) const {
   return 70;
 }
 
+/** Whether the current folder browser should use the 3x4 grid layout. */
 bool LibraryActivity::isLibraryGridMode() const {
   if (SETTINGS.libraryMode != SystemSetting::LIBRARY_GRID) {
     return false;
@@ -2228,6 +2267,7 @@ bool LibraryActivity::isLibraryGridMode() const {
   return false;
 }
 
+/** Returns whether the current view mode is the tag collection view. */
 bool LibraryActivity::isTagViewMode() const {
   return currentViewMode == ViewMode::TAG_VIEW && SETTINGS.useLibraryIndex;
 }
@@ -2293,6 +2333,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
   }
 }
 
+/** Computes the pixel size of a shelf-mode cover slot for the current screen. */
 void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH) {
   const int startY = TAB_BAR_HEIGHT * 2 - 3;
   const int screenW = renderer.getScreenWidth();
@@ -2309,6 +2350,7 @@ void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, i
   outCoverH = std::max(130, static_cast<int>(rawH * 0.96f));
 }
 
+/** Renders a single shelf card (cover thumbnail and selection state) at the given grid index. */
 void LibraryActivity::renderShelfCard(const int index, const int startY, const bool selected) const {
   if (index < 0 || index >= static_cast<int>(currentPageItems.size()) || index >= SHELF_ITEMS_PER_PAGE) {
     return;
@@ -2383,6 +2425,7 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   }
 }
 
+/** Renders the cover shelf grid view. */
 void LibraryActivity::renderLibraryShelf(int startY) const {
   const int count = std::min(static_cast<int>(currentPageItems.size()), SHELF_ITEMS_PER_PAGE);
   for (int i = 0; i < count; ++i) {
@@ -2392,10 +2435,12 @@ void LibraryActivity::renderLibraryShelf(int startY) const {
   }
 }
 
+/** Returns whether the stored shelf page buffer can be reused for the current page/selection. */
 bool LibraryActivity::canUseLibraryShelfBuffer() const {
   return currentViewMode == ViewMode::SHELF_VIEW && !currentPageItems.empty();
 }
 
+/** Snapshots the current framebuffer into the shelf page buffer. */
 bool LibraryActivity::storeLibraryShelfBuffer() const {
   uint8_t* frameBuffer = renderer.getFrameBuffer();
   if (!frameBuffer) {
@@ -2417,6 +2462,7 @@ bool LibraryActivity::storeLibraryShelfBuffer() const {
   return true;
 }
 
+/** Restores the framebuffer from the stored shelf page buffer. */
 bool LibraryActivity::restoreLibraryShelfBuffer() const {
   if (!libraryShelfPageBufferStored_ || !libraryShelfPageBuffer_ || libraryShelfPageBufferPage_ != currentPage ||
       libraryShelfPageBufferItemCount_ != static_cast<int>(currentPageItems.size()) ||
@@ -2431,6 +2477,7 @@ bool LibraryActivity::restoreLibraryShelfBuffer() const {
   return true;
 }
 
+/** Frees the stored shelf page buffer, if any. */
 void LibraryActivity::freeLibraryShelfBuffer() const {
   uint8_t* buffer = libraryShelfPageBuffer_;
   libraryShelfPageBuffer_ = nullptr;
@@ -2443,6 +2490,7 @@ void LibraryActivity::freeLibraryShelfBuffer() const {
   libraryShelfPageBufferKey_.clear();
 }
 
+/** Draws the selection highlight overlay on top of the restored shelf buffer. */
 void LibraryActivity::drawShelfSelectionOverlay(int startY) const {
   if (selectorIndex < 0 || selectorIndex >= static_cast<int>(currentPageItems.size()) ||
       selectorIndex >= SHELF_ITEMS_PER_PAGE) {
@@ -2454,6 +2502,7 @@ void LibraryActivity::drawShelfSelectionOverlay(int startY) const {
   renderShelfCard(selectorIndex, startY, true);
 }
 
+/** Renders a large built-in folder or book icon for a grid item. */
 void LibraryActivity::renderGridItemIcon(const LibraryItem& item, int x, int y, int w, int h, bool isSelected,
                                          bool isLarge) const {
   const int iconSize = std::min(72, std::max(32, std::min(w, h) - 12));
@@ -2473,6 +2522,7 @@ void LibraryActivity::renderGridItemIcon(const LibraryItem& item, int x, int y, 
   }
 }
 
+/** Renders the folder browser as a 3x4 icon grid. */
 void LibraryActivity::renderLibraryGrid(int startY) const {
   const std::vector<LibraryItem>& items = currentPageItems;
   const int screenW = renderer.getScreenWidth();
@@ -2612,6 +2662,7 @@ void LibraryActivity::loadLibraryFromIndex() {
   idxFile.close();
 }
 
+/** Loads cached tag entries into cachedTagEntries_ if not already loaded. */
 void LibraryActivity::ensureTagEntriesLoaded() {
   if (cachedTagEntriesLoaded_) {
     return;
@@ -2621,6 +2672,7 @@ void LibraryActivity::ensureTagEntriesLoaded() {
   cachedTagEntriesLoaded_ = true;
 }
 
+/** Returns the cached tag key for a book path, or an empty string if none is cached. */
 std::string LibraryActivity::findCachedTag(const std::string& path) const {
   return BookTags::find(cachedTagEntries_, path);
 }

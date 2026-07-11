@@ -94,6 +94,9 @@ class LibraryActivity final : public Activity, public Menu {
                            const std::function<void(const std::string& path)>& onSelectBook,
                            const std::function<void()>& onRecentOpen, const std::function<void()>& onSettingsOpen,
                            const std::string& initialPath = "/");
+  /**
+   * @brief Destroy the Library Activity, stopping the display task and releasing resources
+   */
   ~LibraryActivity() override;
 
   /**
@@ -123,7 +126,9 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load library items from index file (optimized mode)
    */
   void loadLibraryFromIndex();
+  /** Loads cached tag entries into cachedTagEntries_ if not already loaded. */
   void ensureTagEntriesLoaded();
+  /** Returns the cached tag key for a book path, or an empty string if none is cached. */
   std::string findCachedTag(const std::string& path) const;
 
   /**
@@ -213,21 +218,27 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Toggle between folder view and book list view
    */
   void toggleViewMode();
+  /** Switches the current view mode to the flat book list view. */
   void switchToBookListView();
 
   /**
    * @brief Switch to folder view mode
    */
   void switchToFolderView();
+  /** Switches the current view mode to the tag collection view. */
   void switchToTagView();
+  /** Switches the current view mode to the cover shelf view. */
   void switchToShelfView();
   /** Frees the shelf page buffer and flags a cleanup half refresh if currently in shelf mode; call
    * before reassigning currentViewMode away from SHELF_VIEW. */
   void leaveShelfViewIfNeeded();
+  /** Starts a background library indexing pass. */
   void startLibraryIndexing();
+  /** Returns whether the index refresh button should be shown for the current view. */
   bool shouldShowIndexButton() const;
-  void showIndexingPopup() const;
+  /** Restores the current selection to the item matching the given path, if present. */
   bool restoreSelectionToPath(const std::string& path);
+  /** Restores the current selection to the item matching the given tag key, if present. */
   bool restoreSelectionToTag(const std::string& tagKey);
 
   /**
@@ -379,6 +390,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load all books recursively with pagination
    */
   void loadAllBooksRecursive();
+  /** Loads all books recursively; assumes the caller already holds renderingMutex. */
   void loadAllBooksRecursiveLocked();
   /**
    * @brief Show a "Loading library" placeholder, then run loadAllBooksRecursive() on a background
@@ -387,9 +399,13 @@ class LibraryActivity final : public Activity, public Menu {
    * frozen with no feedback.
    */
   void beginLibraryLoadWithLoadingScreen();
+  /** Reapplies pagination bounds and refreshes currentPageItems from cachedLibraryItems_. */
   void applyPaginationToCachedItems();
+  /** Clears the cached library items so they are reloaded on next access. */
   void invalidateLibraryCache();
+  /** Returns the cached reading/favorite state flags for a book path. */
   uint8_t getBookStateFlags(const std::string& path) const;
+  /** Returns the on-disk display cache path for a book's shelf thumbnail. */
   std::string getShelfImagePath(const std::string& bookPath) const;
 
   /**
@@ -555,16 +571,22 @@ class LibraryActivity final : public Activity, public Menu {
    * @param startY Starting Y position for the list
    */
   void renderLibraryList(int startY) const;
+  /** Renders the cover shelf grid view. */
   void renderLibraryShelf(int startY) const;
   /**
    * @brief Render a single shelf card (cover thumbnail + selection state), no other cards touched.
    * Shared by the full renderLibraryShelf() pass and the fast selection-only overlay redraw.
    */
   void renderShelfCard(int index, int startY, bool selected) const;
+  /** Returns whether the stored shelf page buffer can be reused for the current page/selection. */
   bool canUseLibraryShelfBuffer() const;
+  /** Snapshots the current framebuffer into the shelf page buffer. */
   bool storeLibraryShelfBuffer() const;
+  /** Restores the framebuffer from the stored shelf page buffer. */
   bool restoreLibraryShelfBuffer() const;
+  /** Frees the stored shelf page buffer, if any. */
   void freeLibraryShelfBuffer() const;
+  /** Draws the selection highlight overlay on top of the restored shelf buffer. */
   void drawShelfSelectionOverlay(int startY) const;
 
   /**
@@ -577,6 +599,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Whether the current folder browser should use the 3x4 grid layout
    */
   bool isLibraryGridMode() const;
+  /** Returns whether the current view mode is the tag collection view. */
   bool isTagViewMode() const;
 
   /**
@@ -613,6 +636,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @return Next button X position
    */
   int drawHeaderButton(const std::string& text, int headerY, int headerHeight, int rightX, bool isSelected) const;
+  /** Draws the library index refresh button and returns the next available X position. */
   int drawIndexButton(int headerY, int headerHeight, int x, bool isSelected) const;
 
   /**

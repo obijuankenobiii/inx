@@ -183,4 +183,7 @@ void SyncActivity::render() const {
   renderer.displayBuffer();
 }
 
+/**
+ * Lifecycle hook called when exiting the activity.
+ */
 void SyncActivity::onExit() { Activity::onExit(); }

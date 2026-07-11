@@ -25,11 +25,13 @@ constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
 }  // namespace
 
+/** Static trampoline that dispatches to the instance's displayTaskLoop. */
 void OpdsBookBrowserActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OpdsBookBrowserActivity*>(param);
   self->displayTaskLoop();
 }
 
+/** Starts the display task and checks WiFi connectivity before loading the feed. */
 void OpdsBookBrowserActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
@@ -48,6 +50,7 @@ void OpdsBookBrowserActivity::onEnter() {
   checkAndConnectWifi();
 }
 
+/** Stops the display task and clears loaded catalog data. */
 void OpdsBookBrowserActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
@@ -64,6 +67,7 @@ void OpdsBookBrowserActivity::onExit() {
   navigationHistory.clear();
 }
 
+/** Handles input for browsing the catalog and downloading books. */
 void OpdsBookBrowserActivity::loop() {
   if (state == BrowserState::WIFI_SELECTION) {
     ActivityWithSubactivity::loop();
@@ -142,6 +146,7 @@ void OpdsBookBrowserActivity::loop() {
   }
 }
 
+/** Background task loop that renders the screen when an update is required. */
 void OpdsBookBrowserActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
@@ -154,6 +159,7 @@ void OpdsBookBrowserActivity::displayTaskLoop() {
   }
 }
 
+/** Renders the current browser state (loading, error, catalog list, etc). */
 void OpdsBookBrowserActivity::render() const {
   renderer.clearScreen();
 
@@ -240,6 +246,7 @@ void OpdsBookBrowserActivity::render() const {
   renderer.displayBuffer();
 }
 
+/** Fetches and parses the OPDS feed at the given path. */
 void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   const char* activeUrl = serverUrl.c_str();
   if (activeUrl[0] == '\0') {
@@ -293,6 +300,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   updateRequired = true;
 }
 
+/** Navigates into a catalog or book entry. */
 void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
   navigationHistory.push_back(currentPath);
   currentPath = entry.href;
@@ -306,6 +314,7 @@ void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
   fetchFeed(currentPath);
 }
 
+/** Navigates back to the previous catalog entry, or exits if at the root. */
 void OpdsBookBrowserActivity::navigateBack() {
   if (navigationHistory.empty()) {
     onGoToRecent();
@@ -323,6 +332,7 @@ void OpdsBookBrowserActivity::navigateBack() {
   }
 }
 
+/** Downloads the given book entry to the SD card. */
 void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   state = BrowserState::DOWNLOADING;
   statusMessage = book.title;
@@ -370,6 +380,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   }
 }
 
+/** Checks WiFi status and either fetches the feed or launches WiFi selection. */
 void OpdsBookBrowserActivity::checkAndConnectWifi() {
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
     state = BrowserState::LOADING;
@@ -382,6 +393,7 @@ void OpdsBookBrowserActivity::checkAndConnectWifi() {
   launchWifiSelection();
 }
 
+/** Enters the WiFi selection subactivity. */
 void OpdsBookBrowserActivity::launchWifiSelection() {
   state = BrowserState::WIFI_SELECTION;
   updateRequired = true;
@@ -390,6 +402,7 @@ void OpdsBookBrowserActivity::launchWifiSelection() {
                                              [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
 
+/** Handles completion of the WiFi selection subactivity. */
 void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
   exitActivity();
 
