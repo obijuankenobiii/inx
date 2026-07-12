@@ -153,6 +153,19 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   return hit;
 }
 
+bool ImageRender::hasCachedTwoBit(int x, int y, int width, int height, const Options& options,
+                                  const bool quality) const {
+  if (!options.useDisplayCache) {
+    return false;
+  }
+  ImageDisplayCacheOptions cacheOptions;
+  cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.mode = ImageRenderMode::TwoBit;
+  cacheOptions.roundedOutside = options.roundedOutside;
+  cacheOptions.quality = quality;
+  return ImageDisplayCache::hasCachedTwoBit(renderer_, path_, x, y, width, height, cacheOptions, quality);
+}
+
 bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,
                                    const bool quality) const {
   Options opt = options;

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 
 #include "GfxRenderer.h"
 
@@ -18,7 +19,8 @@ namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
 constexpr uint16_t kVersion = 39;        // bump: regenerate GRAY2 planes after quality gray-level swap
 constexpr const char* kCacheDir = "/.system/cache";
-constexpr size_t kIoBufferSize = 512;
+constexpr size_t kIoBufferSize = 2048;
+constexpr size_t kSourceSizeCacheMax = 64;
 
 struct CacheHeader {
   uint32_t magic;
@@ -52,12 +54,23 @@ uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
 }
 
 uint32_t sourceSize(const std::string& path) {
+  static std::vector<std::pair<std::string, uint32_t>> cache;
+  for (const auto& entry : cache) {
+    if (entry.first == path) {
+      return entry.second;
+    }
+  }
+
   FsFile file;
   if (!SdMan.openFileForRead("IDC", path, file)) {
     return 0;
   }
   const uint32_t size = static_cast<uint32_t>(file.size());
   file.close();
+  if (cache.size() >= kSourceSizeCacheMax) {
+    cache.erase(cache.begin());
+  }
+  cache.push_back({path, size});
   return size;
 }
 
@@ -183,32 +196,6 @@ std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string&
   return std::string(kCacheDir) + name;
 }
 
-bool ImageDisplayCache::exists(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
-                               const int width, const int height, const ImageDisplayCacheOptions& options) {
-  VisibleRect visible;
-  if (!visibleBounds(renderer, x, y, width, height, visible)) {
-    return false;
-  }
-
-  const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
-  if (cachePath.empty() || !SdMan.exists(cachePath.c_str())) {
-    return false;
-  }
-
-  FsFile file;
-  if (!SdMan.openFileForRead("IDC", cachePath, file)) {
-    return false;
-  }
-
-  CacheHeader header;
-  const bool headerOk = file.read(&header, sizeof(header)) == sizeof(header) && header.magic == kMagic &&
-                        header.version == kVersion && header.headerSize == sizeof(CacheHeader) &&
-                        header.width == visible.width && header.height == visible.height &&
-                        header.rowBytes == static_cast<uint16_t>((visible.width + 7) / 8);
-  file.close();
-  return headerOk;
-}
-
 bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
                                           const int y, const int width, const int height,
                                           const ImageDisplayCacheOptions& options) {
@@ -293,9 +280,9 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   msbOptions.quality = quality;
 
-  const bool lsbExists = exists(renderer, sourcePath, x, y, width, height, lsbOptions);
-  const bool msbExists = exists(renderer, sourcePath, x, y, width, height, msbOptions);
-  if (!lsbExists || !msbExists) {
+  const std::string lsbPath = pathFor(renderer, sourcePath, x, y, width, height, lsbOptions);
+  const std::string msbPath = pathFor(renderer, sourcePath, x, y, width, height, msbOptions);
+  if (lsbPath.empty() || msbPath.empty() || !SdMan.exists(lsbPath.c_str()) || !SdMan.exists(msbPath.c_str())) {
     return false;
   }
 
@@ -331,6 +318,24 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   renderer.cleanupGrayscaleWithFrameBuffer();
 
   return true;
+}
+
+bool ImageDisplayCache::hasCachedTwoBit(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
+                                        const int width, const int height,
+                                        const ImageDisplayCacheOptions& options, const bool quality) {
+  ImageDisplayCacheOptions lsbOptions = options;
+  lsbOptions.mode = ImageRenderMode::TwoBit;
+  lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.quality = quality;
+
+  ImageDisplayCacheOptions msbOptions = options;
+  msbOptions.mode = ImageRenderMode::TwoBit;
+  msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.quality = quality;
+
+  const std::string lsbPath = pathFor(renderer, sourcePath, x, y, width, height, lsbOptions);
+  const std::string msbPath = pathFor(renderer, sourcePath, x, y, width, height, msbOptions);
+  return !lsbPath.empty() && !msbPath.empty() && SdMan.exists(lsbPath.c_str()) && SdMan.exists(msbPath.c_str());
 }
 
 bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,

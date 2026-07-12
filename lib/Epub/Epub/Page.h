@@ -198,6 +198,7 @@ class PageImage final : public PageElement {
   // Same as render() but lets the caller select the quality render path (options.quality).
   void renderImage(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, ImageRenderMode imageMode,
                    bool quality);
+  bool hasCachedTwoBitImage(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
 
@@ -324,6 +325,7 @@ class Page {
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                     ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false,
                     bool onlyGrayscale = false) const;
+  bool allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };
