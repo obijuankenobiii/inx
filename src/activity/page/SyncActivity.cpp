@@ -173,7 +173,8 @@ void SyncActivity::render() const {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
-        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
+                             LineRender::Style::Dotted);
       }
     }
   }

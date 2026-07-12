@@ -2324,7 +2324,8 @@ void LibraryActivity::renderLibraryList(int startY) const {
     renderItemText(item, drawY, itemHeight, isSelected, screenWidth);
 
     if (i < static_cast<int>(items.size()) - 1) {
-      renderer.line.render(0, drawY + itemHeight - 1, screenWidth, drawY + itemHeight - 1);
+      renderer.line.render(0, drawY + itemHeight - 1, screenWidth, drawY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
     }
 
     drawY += itemHeight;

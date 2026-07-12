@@ -173,7 +173,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -185,7 +186,8 @@ void ReaderPresetsActivity::render() {
       const char* tag = xtcExpanded_ ? "-" : "+";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -208,7 +210,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -223,7 +226,8 @@ void ReaderPresetsActivity::render() {
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
     }
-    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
 
   renderButtonHints(renderer, "\xC2\xAB System", "Open", "", "");

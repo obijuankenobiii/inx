@@ -4,13 +4,15 @@
 
 #include "GfxRenderer.h"
 
-void LineRender::render(const int x1, const int y1, const int x2, const int y2, const bool state) const {
+void LineRender::render(const int x1, const int y1, const int x2, const int y2, const bool state,
+                        const Style style) const {
   int sx1 = x1;
   int sy1 = y1;
   int sx2 = x2;
   int sy2 = y2;
   const int maxX = gfx.getScreenWidth() - 1;
   const int maxY = gfx.getScreenHeight() - 1;
+  constexpr int dottedStep = 3;
 
   if (sx1 == sx2) {
     if (sy2 < sy1) {
@@ -20,7 +22,7 @@ void LineRender::render(const int x1, const int y1, const int x2, const int y2, 
     sy1 = std::max(0, sy1);
     sy2 = std::min(sy2, maxY);
     if (sy1 > sy2) return;
-    for (int y = sy1; y <= sy2; y++) {
+    for (int y = sy1; y <= sy2; y += style == Style::Dotted ? dottedStep : 1) {
       gfx.drawPixel(sx1, y, state);
     }
   } else if (sy1 == sy2) {
@@ -31,7 +33,7 @@ void LineRender::render(const int x1, const int y1, const int x2, const int y2, 
     sx1 = std::max(0, sx1);
     sx2 = std::min(sx2, maxX);
     if (sx1 > sx2) return;
-    for (int x = sx1; x <= sx2; x++) {
+    for (int x = sx1; x <= sx2; x += style == Style::Dotted ? dottedStep : 1) {
       gfx.drawPixel(x, sy1, state);
     }
   } else {

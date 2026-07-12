@@ -280,7 +280,8 @@ void OtaUpdateActivity::render() {
       }
       const int textY = itemY + (kSourceItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, items[i], !selected, EpdFontFamily::REGULAR);
-      renderer.line.render(0, itemY + kSourceItemHeight - 1, pageWidth, itemY + kSourceItemHeight - 1);
+      renderer.line.render(0, itemY + kSourceItemHeight - 1, pageWidth, itemY + kSourceItemHeight - 1, true,
+                           LineRender::Style::Dotted);
     }
     const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
     renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -336,7 +337,8 @@ void OtaUpdateActivity::render() {
             itemY + (kFirmwareItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
         renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label.c_str(), !selected,
                              EpdFontFamily::REGULAR);
-        renderer.line.render(0, itemY + kFirmwareItemHeight - 1, pageWidth, itemY + kFirmwareItemHeight - 1);
+        renderer.line.render(0, itemY + kFirmwareItemHeight - 1, pageWidth, itemY + kFirmwareItemHeight - 1, true,
+                             LineRender::Style::Dotted);
       }
       const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
       renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

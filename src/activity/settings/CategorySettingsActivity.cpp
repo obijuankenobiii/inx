@@ -877,7 +877,8 @@ void CategorySettingsActivity::render() {
                              !isSelected);
       }
 
-      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
       visibleCount++;
       continue;
     }
@@ -914,7 +915,8 @@ void CategorySettingsActivity::render() {
       }
     }
 
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                         LineRender::Style::Dotted);
     visibleCount++;
   }
 
