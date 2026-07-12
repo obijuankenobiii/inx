@@ -528,7 +528,7 @@ void LibraryActivity::drawButtonHints() const {
   std::string select = "Select";
 
   const auto labels = Activity::mappedInput.mapLabels(back.c_str(), select.c_str(), "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 /**
@@ -1321,7 +1321,9 @@ bool LibraryActivity::isBookFinished(const std::string& path) const {
  * @brief Render the library screen
  */
 void LibraryActivity::render() const {
-  const int gridStartY = TAB_BAR_HEIGHT * 2 - 3;
+  const int headerY = mainContentTop();
+  const int dividerY = mainHeaderDividerY();
+  const int gridStartY = dividerY - 3;
 
   // Shelf mode decodes real cover thumbnails - expensive. If only the selection moved (same page,
   // same folder/tag, same item count as last render), skip the whole repaint: restore the framebuffer
@@ -1341,8 +1343,7 @@ void LibraryActivity::render() const {
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY =
-      TAB_BAR_HEIGHT + (TAB_BAR_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = headerY + (TAB_BAR_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   const bool showIndexButton = shouldShowIndexButton();
   int containerWidth = screenWidth - 110;
   if (showIndexButton) {
@@ -1351,18 +1352,16 @@ void LibraryActivity::render() const {
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
   if (headerSelected)
-    renderer.rectangle.fill(0, TAB_BAR_HEIGHT, containerWidth, TAB_BAR_HEIGHT,
-                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    renderer.rectangle.fill(0, headerY, containerWidth, TAB_BAR_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                        EpdFontFamily::BOLD);
-  int headerButtonRightX = drawSortButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, screenWidth);
+  int headerButtonRightX = drawSortButton(headerY, TAB_BAR_HEIGHT, screenWidth);
   if (showIndexButton) {
-    drawIndexButton(TAB_BAR_HEIGHT, TAB_BAR_HEIGHT, headerButtonRightX + 10,
-                    isIndexButtonSelected && tabSelectorIndex == 1);
+    drawIndexButton(headerY, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
   }
 
-  renderer.line.render(0, TAB_BAR_HEIGHT + TAB_BAR_HEIGHT, screenWidth, TAB_BAR_HEIGHT * 2);
+  renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   if (isInitialLoading_) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Loading library");
@@ -2335,9 +2334,9 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
 /** Computes the pixel size of a shelf-mode cover slot for the current screen. */
 void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH) {
-  const int startY = TAB_BAR_HEIGHT * 2 - 3;
+  const int startY = INX_THEME.mainContentTop() + TAB_BAR_HEIGHT - 3;
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight() - 10;
+  const int screenH = INX_THEME.mainContentBottom(renderer) - 10;
   const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;
   const int availableH = screenH - startY - LIB_SHELF_OUTER_PAD_Y * 2;
   // Card size must account for (COLS-1)/(ROWS-1) inter-card gaps, not a single flat gap - otherwise a
@@ -2357,7 +2356,7 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   }
   const LibraryItem& item = currentPageItems[static_cast<size_t>(index)];
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight() - 30;
+  const int screenH = mainContentBottom(renderer) - 30;
   const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;
   const int availableH = screenH - startY - LIB_SHELF_OUTER_PAD_Y * 2;
   int cardW = 0;

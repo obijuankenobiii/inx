@@ -246,7 +246,10 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
         onTabSync(std::move(tabNavigateSync)),
         onTabStatistics(std::move(tabNavigateStatistics)) {
     tabSelectorIndex = 2;
-    itemsPerPage = (renderer.getScreenHeight() - TAB_BAR_HEIGHT * 2 - 80) / LIST_ITEM_HEIGHT;
+    const int contentTop = mainContentTop() + TAB_BAR_HEIGHT;
+    const int contentBottom =
+        INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 80;
+    itemsPerPage = (contentBottom - contentTop) / LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
 
     groupExpanded[GroupType::FONT] = false;

@@ -230,11 +230,11 @@ struct SimpleUiMetrics {
 
 /** Matches `renderSimpleUi` geometry for input clamping. */
 inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
-  constexpr int kTabBarH = 65;
   SimpleUiMetrics m;
-  m.bodyTop = kTabBarH - 6 + 8;
+  m.bodyTop = INX_THEME.mainContentTop() - 6 + 8;
   constexpr int kHintReserve = 52;
-  m.bodyBottom = renderer.getScreenHeight() - kHintReserve;
+  m.bodyBottom = INX_THEME.mainTabsAtBottom() ? INX_THEME.mainContentBottom(renderer)
+                                              : renderer.getScreenHeight() - kHintReserve;
   m.marginL = RecentActivity::GRID_SPACING;
 
   constexpr int kThumbPadV = 28;
@@ -611,8 +611,7 @@ int RecentActivity::getVisibleRows() const {
     return 3;  // 2×3 icon grid (scroll for more)
   }
   if (currentViewMode == ViewMode::Grid) {
-    int screenHeight = renderer.getScreenHeight();
-    int availableHeight = screenHeight - TAB_BAR_HEIGHT - 20;
+    int availableHeight = INX_THEME.mainContentBottom(renderer) - recentGridPaintStartY() - 20;
     return (availableHeight > 0) ? availableHeight / GRID_ITEM_HEIGHT : 1;
   }
   if (currentViewMode == ViewMode::List) {
@@ -1250,8 +1249,8 @@ void RecentActivity::FlowViewLayout::paint(RecentActivity& self) { self.renderFl
 void RecentActivity::renderCoverMode() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int bodyTop = TAB_BAR_HEIGHT + 16;
-  const int bodyBottom = screenH - 44;
+  const int bodyTop = mainContentTop() + 16;
+  const int bodyBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 44;
   const int bodyH = std::max(1, bodyBottom - bodyTop);
 
   if (recentBooks.empty()) {
@@ -1414,7 +1413,7 @@ void RecentActivity::pumpDisplayFromLoop() {
   suppressBufferedSelection_ = false;
 
   const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (canUseBuffer) {
     storeRecentPageBuffer();
@@ -1463,9 +1462,9 @@ void RecentActivity::renderDefault() {
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int startY = TAB_BAR_HEIGHT - 6;
+  const int startY = mainContentTop() - 6;
   const int bodyTop = startY + 8;
-  const int bodyBottom = screenH - 28;
+  const int bodyBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 28;
   constexpr int kCarouselH = 340;
   const int carouselH = std::min(kCarouselH, std::max(120, bodyBottom - bodyTop));
 
@@ -1782,7 +1781,7 @@ void RecentActivity::renderFlow() {
   }
 
   const int screenW = renderer.getScreenWidth();
-  const int startY = TAB_BAR_HEIGHT + 5;
+  const int startY = mainContentTop() + 5;
 
   int currentIndex = selectorIndex;
   int totalBooks = (int)recentBooks.size();

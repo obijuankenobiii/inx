@@ -179,6 +179,15 @@ class SystemSetting {
   };
 
   /**
+   * @brief UI chrome theme.
+   */
+  enum UI_THEME {
+    UI_THEME_CLASSIC = 0,      ///< Current Inx layout: tab bar at the top
+    UI_THEME_BOTTOM_TABS = 1,  ///< Main menu tab bar at the bottom
+    UI_THEME_COUNT
+  };
+
+  /**
    * @brief Reader menu button assignment
    */
   enum READER_MENU_BUTTON {
@@ -381,6 +390,7 @@ class SystemSetting {
   uint8_t readerDirectionMapping = MAP_NONE;  ///< Reader direction mapping
   uint8_t readerMenuButton = MENU_UP;         ///< Reader menu button assignment
   uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
+  uint8_t uiTheme = UI_THEME_CLASSIC;         ///< UI chrome theme
 
   uint8_t fontFamily = LITERATA;           ///< Font family
   uint8_t fontSize = SMALL;                ///< Font size

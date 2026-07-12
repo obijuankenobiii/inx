@@ -123,10 +123,11 @@ void SyncActivity::render() const {
   renderer.clearScreen();
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
+  const int contentBottom = mainContentBottom(renderer);
 
   renderTabBar(renderer);
 
-  const int headerY = TAB_BAR_HEIGHT;
+  const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
@@ -135,7 +136,7 @@ void SyncActivity::render() const {
   renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
-  const int visibleAreaHeight = screenHeight - listStartY - 80;
+  const int visibleAreaHeight = (INX_THEME.mainTabsAtBottom() ? contentBottom : screenHeight - 80) - listStartY;
 
   for (int i = 0; i < MENU_ITEM_COUNT; i++) {
     const int itemY = listStartY + i * LIST_ITEM_HEIGHT;
@@ -178,7 +179,7 @@ void SyncActivity::render() const {
   }
 
   const auto labels = mappedInput.mapLabels("« Recent", "Select", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

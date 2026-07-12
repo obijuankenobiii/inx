@@ -8,24 +8,17 @@
 
 #include <GfxRenderer.h>
 
-#include "images/Library.h"
-#include "images/Recent.h"
-#include "images/Setting.h"
-#include "images/Stats.h"
-#include "images/Sync.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
 #include "system/ScreenComponents.h"
+#include "system/UiTheme.h"
 
 class Menu {
  protected:
   static constexpr int TAB_BAR_HEIGHT = 65;
   static constexpr int TAB_COUNT = 5;
-  static constexpr int ICON_SIZE = 40;
-  static constexpr int BATTERY_Y = 30;
-  static constexpr int SELECTED_BORDER_HEIGHT = 5;
   int tabSelectorIndex = 0;
 
   /**
@@ -60,42 +53,21 @@ class Menu {
    * @param renderer Reference to the graphics renderer (const)
    */
   void renderTabBar(const GfxRenderer& renderer) const {
-    const int screenWidth = renderer.getScreenWidth();
-    const int tabButtonWidth = (screenWidth / TAB_COUNT) - 1;
-
-    for (int i = 0; i < TAB_COUNT; ++i) {
-      int buttonX = i * tabButtonWidth;
-      bool isSelected = (tabSelectorIndex == i);
-      int iconX = buttonX + (tabButtonWidth - ICON_SIZE) / 2;
-      int iconY = (TAB_BAR_HEIGHT - ICON_SIZE) / 2 + 5;
-
-      switch (i) {
-        case 0:
-          renderer.bitmap.icon(Recent, iconX, iconY, ICON_SIZE, ICON_SIZE);
-          break;
-        case 1:
-          renderer.bitmap.icon(Library, iconX, iconY, ICON_SIZE, ICON_SIZE);
-          break;
-        case 2:
-          renderer.bitmap.icon(Setting, iconX, iconY, ICON_SIZE, ICON_SIZE);
-          break;
-        case 3:
-          renderer.bitmap.icon(Sync, iconX, iconY, ICON_SIZE, ICON_SIZE);
-          break;
-        case 4:
-          renderer.bitmap.icon(Stats, iconX, iconY, ICON_SIZE, ICON_SIZE);
-          break;
-      }
-
-      if (isSelected) {
-        renderer.rectangle.fill(iconX - 10, TAB_BAR_HEIGHT - 2, 60, SELECTED_BORDER_HEIGHT,
-                                static_cast<int>(GfxRenderer::FillTone::Ink));
-      }
-
-      renderer.line.render(buttonX, TAB_BAR_HEIGHT, buttonX + tabButtonWidth, TAB_BAR_HEIGHT);
-    }
-    drawBattery(renderer);
+    INX_THEME.drawMainTabBar(renderer, tabSelectorIndex,
+                             SETTINGS.hideBatteryPercentage != SystemSetting::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS);
   }
+
+  void renderButtonHints(const GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
+                         const char* btn4) const {
+    INX_THEME.drawButtonHints(renderer, ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
+    if (INX_THEME.mainTabsAtBottom()) {
+      renderTabBar(renderer);
+    }
+  }
+
+  int mainContentTop() const { return INX_THEME.mainContentTop(); }
+  int mainContentBottom(const GfxRenderer& renderer) const { return INX_THEME.mainContentBottom(renderer); }
+  int mainHeaderDividerY() const { return mainContentTop() + TAB_BAR_HEIGHT; }
 
   /**
    * @brief Draws the battery icon and percentage on the screen
