@@ -51,7 +51,6 @@ int doRequest(const std::string& url, const std::string& method, const std::stri
   cfg.event_handler = koreaderEventHandler;
   cfg.user_data = &ctx;
   cfg.timeout_ms = 15000;
-  cfg.skip_cert_common_name_check = true;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;

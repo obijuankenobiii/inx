@@ -27,10 +27,6 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
 
   /** Constructs an OpdsBookBrowserActivity that uses the globally configured OPDS server settings. */
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                   const std::function<void()>& onGoToRecent)
-      : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
-  /** Constructs an OpdsBookBrowserActivity targeting a specific OPDS server. */
-  explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                    const std::function<void()>& onGoToRecent, const std::string& serverUrl,
                                    const std::string& serverUsername, const std::string& serverPassword)
       : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput),

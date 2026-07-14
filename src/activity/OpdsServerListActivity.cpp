@@ -20,7 +20,6 @@ void OpdsServerListActivity::onEnter() {
 
   renderingMutex = xSemaphoreCreateMutex();
 
-  OPDS_STORE.loadFromFile();
   updateRequired = true;
 
   xTaskCreate(&OpdsServerListActivity::taskTrampoline, "OpdsServerListTask", 4096, this, 1, &displayTaskHandle);

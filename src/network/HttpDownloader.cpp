@@ -93,7 +93,6 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::strin
   cfg.event_handler = fetchEventHandler;
   cfg.user_data = fetchCtx;
   cfg.timeout_ms = 15000;
-  cfg.skip_cert_common_name_check = true;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;
@@ -206,7 +205,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   cfg.event_handler = downloadEventHandler;
   cfg.user_data = &dctx;
   cfg.timeout_ms = 15000;
-  cfg.skip_cert_common_name_check = true;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;

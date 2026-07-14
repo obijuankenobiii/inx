@@ -39,6 +39,7 @@ class OpdsServerStore {
 
   bool saveToFile() const;
   bool loadFromFile();
+  bool loadOrMigrate(const OpdsServerEntry& legacyServer);
 
   bool addServer(const std::string& name, const std::string& url, const std::string& username,
                  const std::string& password);

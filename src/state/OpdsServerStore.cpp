@@ -89,6 +89,21 @@ bool OpdsServerStore::loadFromFile() {
   return true;
 }
 
+bool OpdsServerStore::loadOrMigrate(const OpdsServerEntry& legacyServer) {
+  if (SdMan.exists(OPDS_FILE)) {
+    return loadFromFile();
+  }
+
+  servers.clear();
+  if (legacyServer.url.empty()) {
+    return true;
+  }
+
+  servers.push_back(legacyServer);
+  Serial.printf("[%lu] [OSS] Migrating legacy OPDS server\n", millis());
+  return saveToFile();
+}
+
 bool OpdsServerStore::addServer(const std::string& name, const std::string& url, const std::string& username,
                                 const std::string& password) {
   auto existing = find_if(servers.begin(), servers.end(), [&name](const OpdsServerEntry& s) { return s.name == name; });

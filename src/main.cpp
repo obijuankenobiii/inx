@@ -16,7 +16,6 @@
 #include <string>
 
 #include "activity/OpdsServerListActivity.h"
-#include "activity/browser/OpdsBookBrowserActivity.h"
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
@@ -29,6 +28,7 @@
 #include "activity/system/BootActivity.h"
 #include "activity/system/SleepActivity.h"
 #include "activity/util/FullScreenMessageActivity.h"
+#include "state/OpdsServerStore.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -135,7 +135,7 @@ void onNetworkModeSelected(NetworkMode mode) {
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
       break;
     case NetworkMode::OPDS_BROWSER:
-      switchTo<OpdsBookBrowserActivity>(render, input, onGoToFileTransfer);
+      switchTo<OpdsServerListActivity>(render, input, onGoToFileTransfer);
       break;
   }
 }
@@ -248,6 +248,7 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  OPDS_STORE.loadOrMigrate({"Default", SETTINGS.opdsServerUrl, SETTINGS.opdsUsername, SETTINGS.opdsPassword});
   normalizeUnavailableClockSettings();
 
   switch (gpio.getWakeupReason()) {
