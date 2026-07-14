@@ -729,41 +729,51 @@ int CssParser::getSpacingEdgePx(const std::string& propName, const std::string& 
   std::map<std::string, std::string> inlineMap;
   parseInlineStyle(styleAttr, inlineMap);
 
-  auto resolveEdge = [&](const std::string& raw, bool topEdge) -> int {
+  auto resolveEdge = [&](const std::string& raw) -> int {
     const auto tokens = splitCssWhitespaceList(trimCssWs(raw));
     if (tokens.empty()) {
       return 0;
+    }
+    int edgeIndex = 0;
+    if (propName.find("-right") != std::string::npos) {
+      edgeIndex = 1;
+    } else if (propName.find("-bottom") != std::string::npos) {
+      edgeIndex = 2;
+    } else if (propName.find("-left") != std::string::npos) {
+      edgeIndex = 3;
     }
     if (tokens.size() == 1) {
       return parseCssLength(tokens[0], viewportWidth, viewportHeight, true);
     }
     if (tokens.size() == 2) {
-      return parseCssLength(topEdge ? tokens[0] : tokens[0], viewportWidth, viewportHeight, true);
+      return parseCssLength((edgeIndex == 1 || edgeIndex == 3) ? tokens[1] : tokens[0], viewportWidth, viewportHeight,
+                            true);
     }
     if (tokens.size() == 3) {
-      return parseCssLength(topEdge ? tokens[0] : tokens[2], viewportWidth, viewportHeight, true);
+      return parseCssLength(edgeIndex == 0 ? tokens[0] : (edgeIndex == 2 ? tokens[2] : tokens[1]), viewportWidth,
+                            viewportHeight, true);
     }
-    return parseCssLength(topEdge ? tokens[0] : tokens[2], viewportWidth, viewportHeight, true);
+    return parseCssLength(tokens[edgeIndex], viewportWidth, viewportHeight, true);
   };
 
   const auto itIn = inlineMap.find(propName);
   if (itIn != inlineMap.end()) {
-    return std::max(0, resolveEdge(itIn->second, propName.find("-top") != std::string::npos));
+    return std::max(0, resolveEdge(itIn->second));
   }
 
   const auto shorthandIn = inlineMap.find(shorthandName);
   if (shorthandIn != inlineMap.end()) {
-    return std::max(0, resolveEdge(shorthandIn->second, propName.find("-top") != std::string::npos));
+    return std::max(0, resolveEdge(shorthandIn->second));
   }
 
   const std::string direct = getCascadedPropertyValue(propName, className, id, styleAttr, elementTagLower);
   if (!direct.empty()) {
-    return std::max(0, resolveEdge(direct, propName.find("-top") != std::string::npos));
+    return std::max(0, resolveEdge(direct));
   }
 
   const std::string shorthand = getCascadedPropertyValue(shorthandName, className, id, styleAttr, elementTagLower);
   if (!shorthand.empty()) {
-    return std::max(0, resolveEdge(shorthand, propName.find("-top") != std::string::npos));
+    return std::max(0, resolveEdge(shorthand));
   }
 
   return 0;
@@ -1535,6 +1545,19 @@ int CssParser::getMarginBottomPx(const std::string& elementTagLower, const std::
                           elementTagLower);
 }
 
+int CssParser::getMarginLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
+  return getSpacingEdgePx("margin-left", "margin", className, id, styleAttr, viewportWidth, viewportHeight,
+                          elementTagLower);
+}
+
+int CssParser::getMarginRightPx(const std::string& elementTagLower, const std::string& className,
+                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
+                                const int viewportHeight) const {
+  return getSpacingEdgePx("margin-right", "margin", className, id, styleAttr, viewportWidth, viewportHeight,
+                          elementTagLower);
+}
+
 int CssParser::getPaddingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                                const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getSpacingEdgePx("padding-top", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
@@ -1545,6 +1568,20 @@ int CssParser::getPaddingBottomPx(const std::string& elementTagLower, const std:
                                   const std::string& id, const std::string& styleAttr, const int viewportWidth,
                                   const int viewportHeight) const {
   return getSpacingEdgePx("padding-bottom", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
+                          elementTagLower);
+}
+
+int CssParser::getPaddingLeftPx(const std::string& elementTagLower, const std::string& className,
+                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
+                                const int viewportHeight) const {
+  return getSpacingEdgePx("padding-left", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
+                          elementTagLower);
+}
+
+int CssParser::getPaddingRightPx(const std::string& elementTagLower, const std::string& className,
+                                 const std::string& id, const std::string& styleAttr, const int viewportWidth,
+                                 const int viewportHeight) const {
+  return getSpacingEdgePx("padding-right", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
                           elementTagLower);
 }
 

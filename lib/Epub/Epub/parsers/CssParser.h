@@ -96,10 +96,18 @@ class CssParser {
                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getMarginBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                         const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getMarginLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getMarginRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getPaddingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getPaddingBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                          const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getBorderBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,

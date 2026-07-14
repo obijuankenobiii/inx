@@ -67,9 +67,12 @@ class ChapterHtmlSlimParser {
 
   char partWordBuffer[MAX_WORD_SIZE + 1] = {};
   int partWordBufferIndex = 0;
+  bool nextWordJoinsPrevious = false;
   std::unique_ptr<ParsedText> currentTextBlock = nullptr;
   std::unique_ptr<Page> currentPage = nullptr;
   int16_t currentPageNextY = 0;
+  int currentTextBlockContentX = 0;
+  int currentTextBlockContentWidth = 1;
 
   float lineCompression;
   float wordSpacingFactor;
@@ -101,6 +104,15 @@ class ChapterHtmlSlimParser {
   std::vector<int> cssAlignmentDepths;
   std::vector<bool> smallCapsStack;
   std::vector<int> smallCapsDepths;
+  struct CssHorizontalInsetScope {
+    int depth = 0;
+    int left = 0;
+    int right = 0;
+    std::string classAttr;
+  };
+  std::vector<CssHorizontalInsetScope> cssHorizontalInsetStack;
+  int currentCssInsetLeftPx = 0;
+  int currentCssInsetRightPx = 0;
   int currentBlockBottomSpacingPx = 0;
   bool currentBlockSpacingFromCss = false;
   int currentBlockMarginBottomPx = 0;
@@ -197,6 +209,12 @@ class ChapterHtmlSlimParser {
    *  the header, block, and custom-display-block element branches in startElement(). */
   void beginCssBlockBox(const std::string& tagLower, const std::string& classAttr, const std::string& idAttr,
                         const std::string& styleAttr);
+  /** Current text layout width after inherited CSS margin/padding-left/right. */
+  int activeBlockContentWidth() const;
+  /** Current text x offset after inherited CSS margin/padding-left. */
+  int activeBlockContentX() const;
+  /** Captures the current CSS horizontal inset for the active text block. */
+  void captureCurrentTextBlockBox();
   /** Pads the current block's content down to its CSS min-height (if the content was shorter). Call after the
    *  block's lines are laid out and before the bottom padding/border/margin. */
   void applyMinHeightPadding();
