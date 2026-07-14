@@ -198,6 +198,7 @@ class PageImage final : public PageElement {
   // Same as render() but lets the caller select the quality render path (options.quality).
   void renderImage(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, ImageRenderMode imageMode,
                    bool quality);
+  bool warmDisplayCache(GfxRenderer& renderer, int xOffset, int yOffset, ImageRenderMode imageMode, bool quality) const;
   bool hasCachedTwoBitImage(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);

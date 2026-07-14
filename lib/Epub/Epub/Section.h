@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+#include <ImageRenderMode.h>
+
 #include "Epub.h"
 
 class Page;
@@ -113,7 +115,10 @@ class Section {
                          bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
                          bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,
-                         bool skipImages = false, const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr);
+                         bool skipImages = false, const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr,
+                         bool warmImageDisplayCache = false,
+                         ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit, bool warmImageQuality = false,
+                         int warmImageYOffset = 0);
 
   /**
    * Loads a specific page from the section file.

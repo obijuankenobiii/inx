@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include <ImageRenderMode.h>
+
 #include "../../Epub.h"
 #include "../ParsedText.h"
 #include "../blocks/TextBlock.h"
@@ -81,6 +83,10 @@ class ChapterHtmlSlimParser {
   bool respectCssParagraphIndent = false;
 
   bool skipImages = false;
+  bool warmImageDisplayCache = false;
+  ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit;
+  bool warmImageQuality = false;
+  int warmImageYOffset = 0;
 
   /** After cold image extract, yield occasionally so heap can consolidate (ZIP + converters). */
   unsigned imageExtractCountForYield_ = 0;
@@ -260,6 +266,9 @@ class ChapterHtmlSlimParser {
                                  const uint16_t viewportHeight, const bool hyphenationEnabled,
                                  const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
+                                 const bool warmImageDisplayCache = false,
+                                 const ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit,
+                                 const bool warmImageQuality = false, const int warmImageYOffset = 0,
                                  const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
         epub(epub),
@@ -278,6 +287,10 @@ class ChapterHtmlSlimParser {
         hyphenationEnabled(hyphenationEnabled),
         bionicReadingEnabled(bionicReadingEnabled),
         respectCssParagraphIndent(respectCssParagraphIndent),
+        warmImageDisplayCache(warmImageDisplayCache),
+        warmImageRenderMode(warmImageRenderMode),
+        warmImageQuality(warmImageQuality),
+        warmImageYOffset(warmImageYOffset),
         completePageFn(completePageFn),
         popupFn(popupFn),
         cssLoaded(false) {}

@@ -207,7 +207,9 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
                                 const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
                                 const std::function<void()>& popupFn, bool skipImages,
-                                const std::function<void(Page&, uint16_t)>& pageBuiltFn) {
+                                const std::function<void(Page&, uint16_t)>& pageBuiltFn,
+                                const bool warmImageDisplayCache, const ImageRenderMode warmImageRenderMode,
+                                const bool warmImageQuality, const int warmImageYOffset) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -248,7 +250,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       [this, &lut, &pageBuiltFn](std::unique_ptr<Page> page) {
         lut.emplace_back(this->onPageComplete(std::move(page), pageBuiltFn));
       },
-      popupFn);
+      warmImageDisplayCache, warmImageRenderMode, warmImageQuality, warmImageYOffset, popupFn);
 
   visitor.internalPath = localPath;
 

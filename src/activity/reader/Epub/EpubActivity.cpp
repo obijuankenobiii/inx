@@ -290,11 +290,17 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 12);
   }
 
+  const bool warmImageDisplayCache = !skipImages;
+  const ImageRenderMode warmImageMode =
+      bookSettings.readerImageGrayscale != 0 ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
+  const bool warmImageQuality = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+
   bool success = tempSection->createSectionFile(
       info.fontId, FontManager::getNextFont(info.fontId), FontManager::getMaxFontId(info.fontId), info.lineCompression,
       info.wordSpacing, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width, info.height,
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
-      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr);
+      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr, warmImageDisplayCache, warmImageMode,
+      warmImageQuality, info.totalMarginTop);
 
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);

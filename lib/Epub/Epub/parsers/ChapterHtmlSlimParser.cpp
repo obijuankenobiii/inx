@@ -1926,6 +1926,15 @@ bool imageHasGrayscaleContent(GfxRenderer& renderer, const std::string& path, in
   opt.mode = ImageRenderMode::TwoBit;  // 2-bit path -> adjustTwoBitImageLevelForDisplay runs per pixel (histogram)
   opt.useDisplayCache = false;         // detection only; don't read/write the display cache
 
+  const int rowBytes = (aw + 7) / 8;
+  std::vector<uint8_t> savedPixels(static_cast<size_t>(rowBytes) * static_cast<size_t>(ah));
+  const bool restorePixels = !savedPixels.empty();
+  if (restorePixels) {
+    for (int y = 0; y < ah; ++y) {
+      renderer.readPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
+    }
+  }
+
   const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
   renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
   beginImageLevelAnalysis();
@@ -1933,6 +1942,11 @@ bool imageHasGrayscaleContent(GfxRenderer& renderer, const std::string& path, in
   const uint32_t midPct = imageLevelAnalysisMidPercent();
   endImageLevelAnalysis();
   renderer.setRenderMode(savedMode);
+  if (restorePixels) {
+    for (int y = 0; y < ah; ++y) {
+      renderer.drawPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
+    }
+  }
 
   if (!ok) {
     return true;  // default to grayscale if we couldn't decode it
@@ -1946,6 +1960,20 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
   const bool grayscale = imageHasGrayscaleContent(renderer, bmpPath, imgW, imgH);
 
+  const auto addPlacedImage = [this, &bmpPath, imgW, imgH, grayscale](const int16_t x, const int16_t y) {
+    auto image = std::make_shared<PageImage>(bmpPath, imgW, imgH, x, y, grayscale);
+    currentPage->elements.push_back(image);
+    if (warmImageDisplayCache) {
+      ImageRenderMode mode = warmImageRenderMode;
+      bool quality = warmImageQuality;
+      if (mode == ImageRenderMode::TwoBit && !grayscale) {
+        mode = ImageRenderMode::OneBit;
+        quality = false;
+      }
+      image->warmDisplayCache(renderer, 0, warmImageYOffset, mode, quality);
+    }
+  };
+
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
     makePages();
   }
@@ -1958,7 +1986,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
 
     currentPage.reset(new Page());
     currentPageNextY = 0;
-    currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, 0, 0, grayscale));
+    addPlacedImage(0, 0);
 
     currentPageNextY = imgH + (renderer.text.getLineHeight(fontId) / 2);
     int remainingSpace = viewportHeight - currentPageNextY;
@@ -1986,7 +2014,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
   }
 
   int xPos = (imgW < viewportWidth) ? (viewportWidth - imgW) / 2 : 0;
-  currentPage->elements.push_back(std::make_shared<PageImage>(bmpPath, imgW, imgH, xPos, currentPageNextY, grayscale));
+  addPlacedImage(xPos, currentPageNextY);
 
   currentPageNextY += imgH + (renderer.text.getLineHeight(fontId) / 2);
 }

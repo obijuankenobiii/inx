@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <new>
 
 #include "../../../src/images/Hr.h"
 
@@ -26,6 +27,66 @@ constexpr int16_t kSmallImageGrayscaleLimit = 100;
 bool needsGrayscalePass(const PageImage& image) {
   return image.needsGrayscale() && image.getWidth() > kSmallImageGrayscaleLimit &&
          image.getHeight() > kSmallImageGrayscaleLimit;
+}
+
+struct PackedRectSnapshot {
+  int x = 0;
+  int y = 0;
+  int width = 0;
+  int height = 0;
+  int rowBytes = 0;
+  std::unique_ptr<uint8_t[]> rows;
+
+  bool capture(GfxRenderer& renderer, const int rectX, const int rectY, const int rectW, const int rectH) {
+    const int x1 = std::max(0, rectX);
+    const int y1 = std::max(0, rectY);
+    const int x2 = std::min(renderer.getScreenWidth(), rectX + rectW);
+    const int y2 = std::min(renderer.getScreenHeight(), rectY + rectH);
+    if (x2 <= x1 || y2 <= y1) {
+      return false;
+    }
+
+    x = x1;
+    y = y1;
+    width = x2 - x1;
+    height = y2 - y1;
+    rowBytes = (width + 7) / 8;
+    rows.reset(new (std::nothrow) uint8_t[static_cast<size_t>(rowBytes) * static_cast<size_t>(height)]);
+    if (!rows) {
+      return false;
+    }
+
+    for (int row = 0; row < height; ++row) {
+      renderer.readPackedRow1bpp(x, y + row, width, rows.get() + static_cast<size_t>(row) * rowBytes);
+    }
+    return true;
+  }
+
+  void restore(GfxRenderer& renderer) const {
+    if (!rows) {
+      return;
+    }
+    for (int row = 0; row < height; ++row) {
+      renderer.drawPackedRow1bpp(x, y + row, width, rows.get() + static_cast<size_t>(row) * rowBytes);
+    }
+  }
+};
+
+bool warmImagePlane(GfxRenderer& renderer, const std::string& path, const int x, const int y, const int width,
+                    const int height, const ImageRender::Options& options, const GfxRenderer::RenderMode renderMode,
+                    const bool baseInk) {
+  PackedRectSnapshot snapshot;
+  if (!snapshot.capture(renderer, x, y, width, height)) {
+    return false;
+  }
+
+  const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
+  renderer.setRenderMode(renderMode);
+  renderer.rectangle.fill(x, y, width, height, baseInk);
+  const bool ok = ImageRender::create(renderer, path).render(x, y, width, height, options);
+  renderer.setRenderMode(savedMode);
+  snapshot.restore(renderer);
+  return ok;
 }
 
 }  // namespace
@@ -306,6 +367,40 @@ bool PageImage::hasCachedTwoBitImage(GfxRenderer& renderer, const int xOffset, c
   options.quality = quality;
   options.fastQuality = quality;
   return ImageRender::create(renderer, cachePath).hasCachedTwoBit(renderX, renderY, width, height, options, quality);
+}
+
+bool PageImage::warmDisplayCache(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                 const ImageRenderMode imageMode, const bool quality) const {
+  (void)xOffset;
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  ImageRender::Options options;
+  options.mode = imageMode;
+  options.quality = quality;
+  options.fastQuality = quality;
+  options.useDisplayCache = true;
+
+  if (imageMode == ImageRenderMode::TwoBit) {
+    if (hasCachedTwoBitImage(renderer, xOffset, yOffset, quality)) {
+      return true;
+    }
+    const bool baseInk = !quality;
+    const bool lsbOk = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options,
+                                      quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB, baseInk);
+    yield();
+    const bool msbOk = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options,
+                                      quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB, baseInk);
+    yield();
+    return lsbOk && msbOk;
+  }
+
+  const bool ok = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options, GfxRenderer::BW, false);
+  yield();
+  return ok;
 }
 
 void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
