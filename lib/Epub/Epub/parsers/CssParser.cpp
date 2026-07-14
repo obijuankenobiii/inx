@@ -23,7 +23,7 @@ namespace {
 
 // Hard ceiling on stored rules (each holds only tracked properties, so it's small). The real bound at runtime
 // is the heap-reserve guard in parse(); this just caps worst-case memory if heap is plentiful.
-constexpr size_t kMaxCssRules = 500;
+constexpr size_t kMaxCssRules = 2048;
 
 bool isIdentCont(unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c == '-'; }
 

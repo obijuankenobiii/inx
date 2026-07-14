@@ -85,7 +85,8 @@ class ChapterHtmlSlimParser {
   /** After cold image extract, yield occasionally so heap can consolidate (ZIP + converters). */
   unsigned imageExtractCountForYield_ = 0;
 
-  CssParser cssParser;
+  CssParser cssParser_;
+  const CssParser* sharedCssParser = nullptr;
   bool cssLoaded;
   std::vector<TextBlock::Style> cssAlignmentStack;
   // Element depth that pushed each cssAlignmentStack entry, so endElement only pops the level it pushed.
@@ -221,6 +222,7 @@ class ChapterHtmlSlimParser {
    * Loads all CSS rules from the EPUB cache using CssParser.
    */
   void loadCssRules();
+  const CssParser& css() const { return sharedCssParser ? *sharedCssParser : cssParser_; }
 
   /** Resolves text-align for the current block element when paragraph alignment is FOLLOW_CSS. */
   TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,

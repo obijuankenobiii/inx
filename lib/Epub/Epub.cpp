@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <new>
 
 #include "../../src/util/StringUtils.h"
 #include "Epub/parsers/ContainerParser.h"
@@ -541,6 +542,8 @@ bool Epub::parseTocNavFile() const {
 bool Epub::load(const bool buildIfMissing) {
   setupCacheDir();
 
+  parsedCssParser_.reset();
+  parsedCssLoaded_ = false;
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
   if (bookMetadataCache->load()) {
@@ -607,6 +610,8 @@ bool Epub::isLoaded() const { return bookMetadataCache && bookMetadataCache->isL
  * @return true if the cache was successfully cleared, false otherwise
  */
 bool Epub::clearCache() {
+  parsedCssParser_.reset();
+  parsedCssLoaded_ = false;
   if (bookMetadataCache) {
     bookMetadataCache.reset();
   }
@@ -830,6 +835,64 @@ std::string Epub::getCombinedCss() const {
   }
 
   return combined;
+}
+
+const CssParser* Epub::getParsedCssParser() const {
+  if (parsedCssLoaded_) {
+    return parsedCssParser_.get();
+  }
+  parsedCssLoaded_ = true;
+
+  constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
+  if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
+    Serial.printf("[EBP] Low heap (%u bytes), skipping EPUB stylesheet CSS\n",
+                  static_cast<unsigned>(ESP.getFreeHeap()));
+    return nullptr;
+  }
+
+  parsedCssParser_.reset(new (std::nothrow) CssParser());
+  if (!parsedCssParser_) {
+    Serial.printf("[EBP] Failed to allocate parsed CSS dictionary\n");
+    return nullptr;
+  }
+
+  const int cssCount = getCssItemsCount();
+  if (cssCount <= 0) {
+    return parsedCssParser_.get();
+  }
+
+  Serial.printf("[EBP] Building shared CSS dictionary from %d CSS files\n", cssCount);
+
+  constexpr size_t kMaxTotalCssSize = 192 * 1024;
+  constexpr uint32_t kCssReserveHeapBytes = 80 * 1024;
+  size_t totalCssSize = 0;
+
+  for (int i = 0; i < cssCount && totalCssSize < kMaxTotalCssSize; ++i) {
+    try {
+      const auto cssEntry = getCssItem(i);
+      if (cssEntry.content.empty()) {
+        continue;
+      }
+      if (cssEntry.content.size() > 64 * 1024) {
+        Serial.printf("[EBP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
+                      static_cast<int>(cssEntry.content.size()));
+        continue;
+      }
+      totalCssSize += cssEntry.content.size();
+      parsedCssParser_->parse(cssEntry.content, cssEntry.path, kCssReserveHeapBytes);
+    } catch (const std::exception& e) {
+      Serial.printf("[EBP] Shared CSS load aborted at file %d (%s); keeping %zu rules\n", i, e.what(),
+                    parsedCssParser_->getRuleCount());
+      break;
+    } catch (...) {
+      Serial.printf("[EBP] Shared CSS load aborted at file %d; keeping %zu rules\n", i, parsedCssParser_->getRuleCount());
+      break;
+    }
+  }
+
+  Serial.printf("[EBP] Shared CSS dictionary: %zu rules from %d bytes\n", parsedCssParser_->getRuleCount(),
+                static_cast<int>(totalCssSize));
+  return parsedCssParser_.get();
 }
 
 /**
