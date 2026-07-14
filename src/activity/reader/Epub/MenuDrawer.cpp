@@ -300,7 +300,8 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
-  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                       LineRender::Style::Dotted);
 }
 
 /**
@@ -422,7 +423,7 @@ void MenuDrawer::renderToc() {
                            isSelected ? 0 : 1);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
       renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                           true);
+                           true, LineRender::Style::Dotted);
     }
   }
 
@@ -496,7 +497,7 @@ void MenuDrawer::renderBookmarks() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                         true);
+                         true, LineRender::Style::Dotted);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
@@ -571,7 +572,7 @@ void MenuDrawer::renderAnnotations() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                         true);
+                         true, LineRender::Style::Dotted);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
