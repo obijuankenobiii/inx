@@ -184,7 +184,6 @@ void CalibreConnectActivity::onEnter() {
   state = CalibreConnectState::WIFI_SELECTION;
   connectedIP.clear();
   connectedSSID.clear();
-  lastHandleClientTime = 0;
   lastProgressReceived = 0;
   lastProgressTotal = 0;
   currentUploadName.clear();
@@ -458,8 +457,6 @@ void CalibreConnectActivity::loop() {
       serverCtx->clientSocket = -1;
       serverCtx->uploadInProgress = false;
     }
-
-    lastHandleClientTime = millis();
   }
 
   if (exitRequested) {

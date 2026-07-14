@@ -40,12 +40,13 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 29;
-constexpr uint8_t SETTINGS_COUNT = 67;
+constexpr uint8_t SETTINGS_FILE_VERSION = 30;
+constexpr uint8_t SETTINGS_COUNT = 68;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
+constexpr char UI_THEME_FILE[] = "/.system/ui_theme.bin";
 
 void sanitizeSleepCustomBmp(char* buf) {
   if (buf == nullptr || buf[0] == '\0') {
@@ -68,6 +69,32 @@ void sanitizeSleepCustomBmp(char* buf) {
 
 bool validRefreshFrequency(const uint8_t value) {
   return value == 1 || value == 5 || value == 10 || value == 15 || value == 30;
+}
+
+void saveUiThemeSetting(const uint8_t value) {
+  FsFile file;
+  if (!SdMan.openFileForWrite("CPS", UI_THEME_FILE, file)) {
+    return;
+  }
+  serialization::writePod(file, value);
+  file.close();
+}
+
+bool loadUiThemeSetting(uint8_t& value) {
+  FsFile file;
+  if (!SdMan.openFileForRead("CPS", UI_THEME_FILE, file)) {
+    return false;
+  }
+
+  uint8_t saved = SystemSetting::UI_THEME_CLASSIC;
+  serialization::readPod(file, saved);
+  file.close();
+
+  if (saved >= SystemSetting::UI_THEME_COUNT) {
+    return false;
+  }
+  value = saved;
+  return true;
 }
 }  // namespace
 
@@ -122,6 +149,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->timeZoneQuarterOffset > 104) mut->timeZoneQuarterOffset = 80;
     if (mut->shakePageTurn > 2) mut->shakePageTurn = 0;
     if (mut->shakePageTurnSensitivity > 2) mut->shakePageTurnSensitivity = 1;
+    if (mut->uiTheme >= UI_THEME_COUNT) mut->uiTheme = UI_THEME_CLASSIC;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
@@ -192,8 +220,10 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, sleepClockRefreshInterval);
   serialization::writePod(outputFile, shakePageTurn);
   serialization::writePod(outputFile, shakePageTurnSensitivity);
+  serialization::writePod(outputFile, uiTheme);
 
   outputFile.close();
+  saveUiThemeSetting(uiTheme);
 
   Serial.printf("[%lu] [CPS] Settings saved to file (version %u)\n", millis(), SETTINGS_FILE_VERSION);
   return true;
@@ -230,6 +260,7 @@ bool SystemSetting::loadFromFile() {
 
   uint8_t fileSettingsCount = 0;
   serialization::readPod(inputFile, fileSettingsCount);
+  const bool shouldRewriteSettings = version < SETTINGS_FILE_VERSION || fileSettingsCount < SETTINGS_COUNT;
   uint8_t settingsRead = 0;
 
   do {
@@ -541,6 +572,10 @@ bool SystemSetting::loadFromFile() {
       if (shakePageTurnSensitivity > 2) shakePageTurnSensitivity = 1;
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, uiTheme, UI_THEME_COUNT);
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -570,6 +605,9 @@ bool SystemSetting::loadFromFile() {
   }
   if (settingsRead < 67) {
     shakePageTurnSensitivity = 1;
+  }
+  if (settingsRead < 68) {
+    uiTheme = UI_THEME_CLASSIC;
   }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 8) {
@@ -617,6 +655,10 @@ bool SystemSetting::loadFromFile() {
   if (bionicReadingEnabled > 1) {
     bionicReadingEnabled = 0;
   }
+  if (uiTheme >= UI_THEME_COUNT) {
+    uiTheme = UI_THEME_CLASSIC;
+  }
+  loadUiThemeSetting(uiTheme);
 
   if (settingsRead < SETTINGS_COUNT) {
     if (settingsRead < SETTINGS_COUNT_V9) {
@@ -626,6 +668,10 @@ bool SystemSetting::loadFromFile() {
   }
 
   Serial.printf("[%lu] [CPS] Settings loaded (version %u, %u items)\n", millis(), version, settingsRead);
+
+  if (shouldRewriteSettings) {
+    saveToFile();
+  }
 
   return true;
 }

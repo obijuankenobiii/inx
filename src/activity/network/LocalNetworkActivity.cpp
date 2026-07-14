@@ -211,7 +211,6 @@ void LocalNetworkActivity::loop() {
         }
       }
     }
-    lastHandleClientTime = millis();
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {

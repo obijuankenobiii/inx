@@ -51,7 +51,6 @@ class LocalNetworkActivity final : public ActivityWithSubactivity, public Menu {
         renderingMutex(nullptr),
         updateRequired(false),
         state(LocalNetworkState::WIFI_SELECTION),
-        lastHandleClientTime(0),
         onGoBack(onGoBack) {
     tabSelectorIndex = 3;
   }
@@ -125,7 +124,6 @@ class LocalNetworkActivity final : public ActivityWithSubactivity, public Menu {
   std::string connectedIP;                /**< IP address of connected WiFi */
   std::string connectedSSID;              /**< SSID of connected WiFi network */
   std::unique_ptr<LocalServer> webServer; /**< Web server instance */
-  unsigned long lastHandleClientTime;     /**< Timestamp of last client handling */
 
   const std::function<void()> onGoBack; /**< Callback invoked when going back */
 };

@@ -65,6 +65,10 @@ class Activity {
    */
   virtual void loop() {}
 
+  /**
+   * @brief Gets the activity's name identifier
+   * @return The name as a C-string
+   */
   const char* getName() const { return name.c_str(); }
 
   /**

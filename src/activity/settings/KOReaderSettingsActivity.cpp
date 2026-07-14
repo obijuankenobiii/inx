@@ -210,7 +210,8 @@ void KOReaderSettingsActivity::render() {
         renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 25, textY, "›", !isSelected);
       }
 
-      renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+      renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
+                           LineRender::Style::Dotted);
     }
   }
 

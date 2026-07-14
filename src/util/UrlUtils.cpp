@@ -7,8 +7,7 @@
 
 namespace UrlUtils {
 
-bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
-
+/** Prepend http:// to a URL if no protocol is specified. */
 std::string ensureProtocol(const std::string& url) {
   if (url.find("://") == std::string::npos) {
     return "http://" + url;
@@ -16,6 +15,7 @@ std::string ensureProtocol(const std::string& url) {
   return url;
 }
 
+/** Extract the host (with protocol) from a URL, dropping any path. */
 std::string extractHost(const std::string& url) {
   const size_t protocolEnd = url.find("://");
   if (protocolEnd == std::string::npos) {
@@ -28,6 +28,7 @@ std::string extractHost(const std::string& url) {
   return pathStart == std::string::npos ? url : url.substr(0, pathStart);
 }
 
+/** Build a full URL from a server URL and a path, absolute or relative. */
 std::string buildUrl(const std::string& serverUrl, const std::string& path) {
   const std::string urlWithProtocol = ensureProtocol(serverUrl);
   if (path.empty()) {

@@ -66,6 +66,7 @@ constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
+constexpr bool kReaderHighQualityFastLut = true;
 
 /**
  * MAP_NONE adds L/R to Up/Down for paging. In landscape CCW, physical left = next page and right = previous;
@@ -1715,7 +1716,6 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
       renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
-  const bool displayImagePlaceholder = displayWithQualityPass;
   auto displayPageBuffer = [this]() {
     if (pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1726,10 +1726,20 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   };
 
+  const bool highQualityCacheReady =
+      displayWithQualityPass &&
+      page->allGrayscaleImagesCachedTwoBit(renderer, orientedMarginLeft, orientedMarginTop, /*quality=*/true);
+  const bool displayImagePlaceholder = displayWithQualityPass && !highQualityCacheReady;
   if (displayImagePlaceholder) {
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true, /*onlyGrayscale=*/true);
   }
-  displayPageBuffer();
+  if (!displayWithQualityPass || !highQualityCacheReady) {
+    displayPageBuffer();
+  } else if (pagesUntilFullRefresh <= 1) {
+    pagesUntilFullRefresh = bookSettings.refreshFrequency;
+  } else {
+    pagesUntilFullRefresh--;
+  }
 
   if (highQuality && bwStored) {
     ImageRender::displayGrayscale(
@@ -1741,7 +1751,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
           page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode, /*quality=*/true,
                              /*onlyGrayscale=*/true);
         },
-        true);
+        kReaderHighQualityFastLut);
     if (needsTextAntiAliasPass) {
       const bool textBwStored = renderer.storeBwBuffer();
       if (textBwStored) {

@@ -49,7 +49,6 @@ class HotspotActivity final : public Activity, public Menu {
         renderingMutex(nullptr),
         updateRequired(false),
         state(HotspotState::STARTING),
-        lastHandleClientTime(0),
         onGoBack(onGoBack) {
     tabSelectorIndex = 3;
   }
@@ -128,7 +127,6 @@ class HotspotActivity final : public Activity, public Menu {
   std::unique_ptr<LocalServer> webServer; /**< Web server instance */
   std::string connectedIP;                /**< IP address of the access point */
   std::string connectedSSID;              /**< SSID of the access point */
-  unsigned long lastHandleClientTime;     /**< Timestamp of last client handling */
 
   const std::function<void()> onGoBack; /**< Callback invoked when going back */
 };

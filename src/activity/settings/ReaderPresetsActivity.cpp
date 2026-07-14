@@ -75,7 +75,9 @@ ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputM
 void ReaderPresetsActivity::onEnter() {
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
-  itemsPerPage_ = std::max(1, (screenH - kListTop - 60) / kListItemHeight);
+  const int listTop = mainHeaderDividerY() + 8;
+  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 60;
+  itemsPerPage_ = std::max(1, (contentBottom - listTop) / kListItemHeight);
   selectedRow_ = 0;
   scrollOffset_ = 0;
   enteredHalfRefresh_ = false;
@@ -142,9 +144,7 @@ void ReaderPresetsActivity::render() {
   renderer.clearScreen(0xFF);
   renderTabBar(renderer);
 
-  // Header band matches the System settings screen: title vertically centered in a TAB_BAR_HEIGHT-tall
-  // band below the tab bar, with the divider at TAB_BAR_HEIGHT * 2.
-  const int headerY = TAB_BAR_HEIGHT;
+  const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
@@ -153,12 +153,14 @@ void ReaderPresetsActivity::render() {
   const int backW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, back);
   const int backY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
-  renderer.line.render(0, kHeaderDividerY, screenW, kHeaderDividerY, true);
+  const int headerDividerY = mainHeaderDividerY();
+  const int listTop = headerDividerY + 8;
+  renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
   const int rows = rowCount();
   for (int i = 0; i < itemsPerPage_ && (i + scrollOffset_) < rows; i++) {
     const int rowIndex = i + scrollOffset_;
-    const int itemY = kListTop + i * kListItemHeight - 6;
+    const int itemY = listTop + i * kListItemHeight - 6;
     const bool isSelected = (rowIndex == selectedRow_);
     const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
@@ -171,7 +173,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -183,7 +186,8 @@ void ReaderPresetsActivity::render() {
       const char* tag = xtcExpanded_ ? "-" : "+";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -206,7 +210,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -221,10 +226,11 @@ void ReaderPresetsActivity::render() {
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
     }
-    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
 
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "");
+  renderButtonHints(renderer, "\xC2\xAB System", "Open", "", "");
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   enteredHalfRefresh_ = true;

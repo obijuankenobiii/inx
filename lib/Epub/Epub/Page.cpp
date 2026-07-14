@@ -226,7 +226,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   ImageRender::Options options;
   options.mode = imageMode;
   options.quality = quality;
-  options.fastQuality = false;
+  options.fastQuality = quality;
   const ImageRender image = ImageRender::create(renderer, cachePath);
 
   // Two-pass grayscale composites (renderGrayscalePasses) call this twice per image: once with the
@@ -290,6 +290,22 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   }
   Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) plain-path: %lums\n", millis(), cachePath.c_str(),
                 static_cast<unsigned long>(millis() - tImageStart));
+}
+
+bool PageImage::hasCachedTwoBitImage(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                     const bool quality) const {
+  (void)xOffset;
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  ImageRender::Options options;
+  options.mode = ImageRenderMode::TwoBit;
+  options.quality = quality;
+  options.fastQuality = quality;
+  return ImageRender::create(renderer, cachePath).hasCachedTwoBit(renderX, renderY, width, height, options, quality);
 }
 
 void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
@@ -656,6 +672,25 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
     }
     image->renderImage(renderer, fontId, xOffset, yOffset, imageMode, quality);
   }
+}
+
+bool Page::allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                          const bool quality) const {
+  bool sawGrayscaleImage = false;
+  for (auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto* image = static_cast<const PageImage*>(element.get());
+    if (!needsGrayscalePass(*image)) {
+      continue;
+    }
+    sawGrayscaleImage = true;
+    if (!image->hasCachedTwoBitImage(renderer, xOffset, yOffset, quality)) {
+      return false;
+    }
+  }
+  return sawGrayscaleImage;
 }
 
 /**

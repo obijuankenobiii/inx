@@ -887,10 +887,9 @@ void StatisticActivity::render() {
   renderer.clearScreen();
   renderTabBar(renderer);
 
-  constexpr int kHintReserve = 54;
   const int screenH = renderer.getScreenHeight();
-  const int contentBottom = screenH - kHintReserve;
-  const int contentTopSingle = TAB_BAR_HEIGHT;
+  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 54;
+  const int contentTopSingle = mainContentTop();
 
   const int totalViews = 1 + static_cast<int>(allBooksStats.size());
   int v = viewIndex;
@@ -908,7 +907,7 @@ void StatisticActivity::render() {
     const int innerW = innerRight - innerLeft;
 
     int GAP = 0;
-    GAP = TAB_BAR_HEIGHT + GAP;
+    GAP = mainContentTop() + GAP;
     GAP = renderHeader(GAP, innerLeft, innerRight, innerW, Margin);
     GAP = renderRecent(GAP, innerLeft, innerRight, innerW, Margin);
     constexpr int kMainStatsLiftPx = 10;
@@ -921,7 +920,7 @@ void StatisticActivity::render() {
   }
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

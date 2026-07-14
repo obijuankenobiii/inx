@@ -768,7 +768,7 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   const int panelW = std::min(pageWidth - 24, 360);
   const int panelH = headerHeight + rows * rowHeight + 18;
   const int panelX = (pageWidth - panelW) / 2;
-  const int panelY = std::max(TAB_BAR_HEIGHT + 8, (pageHeight - panelH) / 2);
+  const int panelY = std::max(mainContentTop() + 8, (pageHeight - panelH) / 2);
 
   renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
   renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
@@ -823,7 +823,7 @@ void CategorySettingsActivity::render() {
 
   renderTabBar(renderer);
 
-  const int headerY = TAB_BAR_HEIGHT;
+  const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
@@ -877,7 +877,8 @@ void CategorySettingsActivity::render() {
                              !isSelected);
       }
 
-      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
       visibleCount++;
       continue;
     }
@@ -914,7 +915,8 @@ void CategorySettingsActivity::render() {
       }
     }
 
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                         LineRender::Style::Dotted);
     visibleCount++;
   }
 
@@ -934,7 +936,7 @@ void CategorySettingsActivity::render() {
   const char* prevLbl = selectorOpen ? "Page -" : "";
   const char* nextLbl = selectorOpen ? "Page +" : "";
   const auto labels = mappedInput.mapLabels(backLbl, confirmLbl, prevLbl, nextLbl);
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

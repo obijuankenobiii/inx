@@ -51,8 +51,6 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   const std::function<void()> onTabStatistics_;
 
   static constexpr int kListItemHeight = 60;
-  static constexpr int kHeaderDividerY = TAB_BAR_HEIGHT * 2;
-  static constexpr int kListTop = TAB_BAR_HEIGHT * 2 + 8;  // gap keeps the header divider visible
 
   int selectedRow_ = 0;
   int scrollOffset_ = 0;

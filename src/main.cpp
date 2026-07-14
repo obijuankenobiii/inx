@@ -294,6 +294,6 @@ void loop() {
   if (currentActivity && currentActivity->skipLoopDelay()) {
     yield();
   } else {
-    delay(20);
+    delay(10);
   }
 }

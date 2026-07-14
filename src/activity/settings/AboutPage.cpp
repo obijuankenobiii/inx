@@ -13,6 +13,7 @@
 #include "system/Fonts.h"
 
 namespace {
+/** Formats a byte count as a human-readable "X.Y MB" or "X KB" string. */
 void formatHeapSize(const size_t bytes, char* out, const size_t outSize) {
   if (bytes >= 1024 * 1024) {
     const size_t wholeMb = bytes / (1024 * 1024);
@@ -25,11 +26,14 @@ void formatHeapSize(const size_t bytes, char* out, const size_t outSize) {
 }
 }  // namespace
 
+/** Constructs the about page bound to a renderer and input manager. */
 AboutPage::AboutPage(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : renderer(renderer), mappedInput(mappedInput), visible(false), dismissed(false), lastInputTime(0) {}
 
+/** Destroys the about page. */
 AboutPage::~AboutPage() = default;
 
+/** Makes the about popup visible and draws it. */
 void AboutPage::show() {
   if (visible) return;
   visible = true;
@@ -37,11 +41,13 @@ void AboutPage::show() {
   renderWithRefresh();
 }
 
+/** Hides the about popup and marks it dismissed. */
 void AboutPage::hide() {
   visible = false;
   dismissed = true;
 }
 
+/** Processes input while the popup is visible, closing it on Back. */
 void AboutPage::handleInput() {
   if (!visible) return;
 
@@ -57,11 +63,13 @@ void AboutPage::handleInput() {
   }
 }
 
+/** Redraws the popup if it is currently visible. */
 void AboutPage::render() {
   if (!visible) return;
   renderWithRefresh();
 }
 
+/** Draws the popup contents and pushes a display refresh. */
 void AboutPage::renderWithRefresh() {
   if (!visible) return;
 

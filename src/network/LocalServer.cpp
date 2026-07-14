@@ -1453,6 +1453,7 @@ void LocalServer::handleSettingsGet() const {
     doc["timeZoneQuarterOffset"] = SETTINGS.timeZoneQuarterOffset;
   }
   doc["hideBatteryPercentage"] = SETTINGS.hideBatteryPercentage;
+  doc["uiTheme"] = SETTINGS.uiTheme;
   doc["recentLibraryMode"] = SETTINGS.recentLibraryMode;
   doc["libraryMode"] = SETTINGS.libraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
@@ -1584,6 +1585,10 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "hideBatteryPercentage") == 0) {
       SETTINGS.hideBatteryPercentage = (uint8_t)value;
+      changed = true;
+    } else if (strcmp(key, "uiTheme") == 0) {
+      const uint8_t v = static_cast<uint8_t>(value);
+      SETTINGS.uiTheme = v < SystemSetting::UI_THEME_COUNT ? v : SystemSetting::UI_THEME_CLASSIC;
       changed = true;
     } else if (strcmp(key, "recentLibraryMode") == 0) {
       SETTINGS.recentLibraryMode = (uint8_t)value;

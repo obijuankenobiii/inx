@@ -8,11 +8,13 @@
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
 
+/** Static trampoline that dispatches to the instance's displayTaskLoop. */
 void OpdsServerListActivity::taskTrampoline(void* param) {
   auto* self = static_cast<OpdsServerListActivity*>(param);
   self->displayTaskLoop();
 }
 
+/** Loads the OPDS server list and starts the display task. */
 void OpdsServerListActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
@@ -23,6 +25,7 @@ void OpdsServerListActivity::onEnter() {
   xTaskCreate(&OpdsServerListActivity::taskTrampoline, "OpdsServerListTask", 4096, this, 1, &displayTaskHandle);
 }
 
+/** Stops the display task and cleans up rendering resources. */
 void OpdsServerListActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
@@ -35,6 +38,7 @@ void OpdsServerListActivity::onExit() {
   renderingMutex = nullptr;
 }
 
+/** Handles input for navigating and selecting an OPDS server. */
 void OpdsServerListActivity::loop() {
   if (subActivity) {
     subActivity->loop();
@@ -67,6 +71,7 @@ void OpdsServerListActivity::loop() {
   }
 }
 
+/** Enters the book browser subactivity for the currently selected server. */
 void OpdsServerListActivity::handleSelection() {
   const auto& servers = OPDS_STORE.getAllServers();
   if (servers.empty()) return;
@@ -86,6 +91,7 @@ void OpdsServerListActivity::handleSelection() {
   xSemaphoreGive(renderingMutex);
 }
 
+/** Background task loop that renders the screen when an update is required. */
 void OpdsServerListActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired && !subActivity) {
@@ -98,6 +104,7 @@ void OpdsServerListActivity::displayTaskLoop() {
   }
 }
 
+/** Renders the list of OPDS servers. */
 void OpdsServerListActivity::render() {
   renderer.clearScreen();
 

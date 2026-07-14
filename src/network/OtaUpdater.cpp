@@ -38,10 +38,12 @@ extern "C" {
 extern esp_err_t esp_crt_bundle_attach(void* conf);
 }
 
+/** Set the User-Agent header on the OTA HTTPS client during esp_https_ota init. */
 esp_err_t http_client_set_header_cb(esp_http_client_handle_t http_client) {
   return esp_http_client_set_header(http_client, "User-Agent", "Inx-ESP32-" INX_VERSION);
 }
 
+/** esp_http_client event handler that accumulates the GitHub release JSON response into local_buf. */
 esp_err_t event_handler(esp_http_client_event_t* event) {
   if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;
   if (event->data == nullptr || event->data_len <= 0) return ESP_OK;
@@ -117,6 +119,7 @@ struct OtaGithubCheckCtx {
   SemaphoreHandle_t done;
 };
 
+/** FreeRTOS task entry point that runs the GitHub update check and signals completion via a semaphore. */
 void otaGithubCheckTask(void* param) {
   auto* ctx = static_cast<OtaGithubCheckCtx*>(param);
   ctx->result = ctx->updater->checkForUpdateWorker();
@@ -124,6 +127,7 @@ void otaGithubCheckTask(void* param) {
   vTaskDelete(nullptr);
 }
 
+/** Spawn a background task to check GitHub for updates and block until it completes. */
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   SemaphoreHandle_t done = xSemaphoreCreateBinary();
   if (done == nullptr) {
@@ -154,6 +158,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   return out;
 }
 
+/** Fetch and parse the latest GitHub release JSON to find a firmware.bin asset. */
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   JsonDocument filter;
   esp_err_t esp_err;
@@ -265,6 +270,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdateWorker() {
   return OK;
 }
 
+/** Check whether the latest known release version is newer than the running firmware. */
 bool OtaUpdater::isUpdateNewer() const {
   if (!updateAvailable || latestVersion.empty() || latestVersion == INX_VERSION) {
     return false;
@@ -285,8 +291,10 @@ bool OtaUpdater::isUpdateNewer() const {
   return latestPatch > currentPatch;
 }
 
+/** Return the version string of the latest release found. */
 const std::string& OtaUpdater::getLatestVersion() const { return latestVersion; }
 
+/** Download and install the latest update over HTTPS. */
 OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   if (!isUpdateNewer()) {
     return UPDATE_OLDER_ERROR;
@@ -351,6 +359,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   return OK;
 }
 
+/** Install a firmware image read from the SD card. */
 OtaUpdater::OtaUpdaterError OtaUpdater::installUpdateFromSd(const char* firmwarePath) {
   if (firmwarePath == nullptr || firmwarePath[0] == '\0') {
     return INTERNAL_UPDATE_ERROR;

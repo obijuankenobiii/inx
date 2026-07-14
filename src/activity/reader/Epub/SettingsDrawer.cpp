@@ -755,7 +755,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
                            isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
-    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                         LineRender::Style::Dotted);
     return;
   }
 
@@ -819,7 +820,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     }
   }
 
-  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                       LineRender::Style::Dotted);
 }
 
 /**
