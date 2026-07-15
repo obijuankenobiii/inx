@@ -1585,6 +1585,16 @@ int CssParser::getPaddingRightPx(const std::string& elementTagLower, const std::
                           elementTagLower);
 }
 
+bool CssParser::hasHorizontalSpacingSpecified(const std::string& elementTagLower, const std::string& className,
+                                              const std::string& id, const std::string& styleAttr) const {
+  return hasPropertySpecified("margin-left", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("margin-right", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("margin", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("padding-left", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("padding-right", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("padding", className, id, styleAttr, elementTagLower);
+}
+
 int CssParser::getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                               const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getBorderEdgePx("border-top", className, id, styleAttr, viewportWidth, viewportHeight, elementTagLower);

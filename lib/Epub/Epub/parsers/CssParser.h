@@ -108,6 +108,8 @@ class CssParser {
                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getPaddingRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                         const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  bool hasHorizontalSpacingSpecified(const std::string& elementTagLower, const std::string& className,
+                                     const std::string& id, const std::string& styleAttr) const;
   int getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getBorderBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,

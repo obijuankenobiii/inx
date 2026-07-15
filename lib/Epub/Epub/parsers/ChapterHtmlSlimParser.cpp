@@ -332,7 +332,7 @@ std::string uppercaseSingleLetterDropCap(const char* s, const int byteLen) {
 
 }  // namespace
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "section", "nav", "br", "blockquote", "tr", "table"};
+const char* BLOCK_TAGS[] = {"p", "li", "ol", "ul", "div", "section", "nav", "br", "blockquote", "tr", "table"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 // <a> links render bold (and underlined, see underlineUntilDepth).
@@ -1280,7 +1280,8 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   int horizontalRight =
       css().getMarginRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight) +
       css().getPaddingRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-  if (horizontalLeft == 0 && horizontalRight == 0 && !classAttr.empty()) {
+  const bool horizontalSpacingSpecified = css().hasHorizontalSpacingSpecified(tagLower, classAttr, idAttr, styleAttr);
+  if (horizontalLeft == 0 && horizontalRight == 0 && !classAttr.empty() && !horizontalSpacingSpecified) {
     const CssHorizontalInsetScope* sameClassAncestor = nullptr;
     for (auto it = cssHorizontalInsetStack.rbegin(); it != cssHorizontalInsetStack.rend(); ++it) {
       if ((it->left > 0 || it->right > 0) && classAttrsShareToken(classAttr, it->classAttr)) {
@@ -1294,7 +1295,7 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
         horizontalRight = sameClassAncestor->right;
       }
     } else {
-      const char* FALLBACK_CLASS_TAGS[] = {"div", "section", "nav", "li"};
+      const char* FALLBACK_CLASS_TAGS[] = {"div", "section", "nav", "ol", "ul", "li"};
       constexpr int NUM_FALLBACK_CLASS_TAGS = sizeof(FALLBACK_CLASS_TAGS) / sizeof(FALLBACK_CLASS_TAGS[0]);
       for (int i = 0; i < NUM_FALLBACK_CLASS_TAGS; ++i) {
         if (tagLower == FALLBACK_CLASS_TAGS[i]) {
