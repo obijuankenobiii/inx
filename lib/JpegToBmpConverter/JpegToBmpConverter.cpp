@@ -33,6 +33,8 @@ constexpr int TARGET_MAX_HEIGHT = 800;
 
 static Print* gJpegThumbnailOut = nullptr;
 
+static inline uint8_t darkenOneBitJpegGray(const uint8_t gray) { return gray > 22 ? static_cast<uint8_t>(gray - 22) : 0; }
+
 static void jpegThumbnailWriteByte(unsigned char byte) {
   if (gJpegThumbnailOut) {
     gJpegThumbnailOut->write(static_cast<uint8_t>(byte));
@@ -337,9 +339,9 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
             uint8_t bit;
 
             if (ditherer1bit) {
-              bit = ditherer1bit->processPixel(gray, x);
+              bit = ditherer1bit->processPixel(darkenOneBitJpegGray(gray), x);
             } else {
-              bit = (gray > 127);
+              bit = (darkenOneBitJpegGray(gray) > 127);
             }
 
             if (bit) {
@@ -530,9 +532,9 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, P
           if (oneBit) {
             uint8_t bit;
             if (ditherer1bit) {
-              bit = ditherer1bit->processPixel(gray, x);
+              bit = ditherer1bit->processPixel(darkenOneBitJpegGray(gray), x);
             } else {
-              bit = (gray > 127);
+              bit = (darkenOneBitJpegGray(gray) > 127);
             }
             rowBuffer[x / 8] |= (bit << (7 - (x % 8)));
           } else {

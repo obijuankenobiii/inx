@@ -288,6 +288,8 @@ constexpr uint8_t kX3GrayscaleCodeForLevel[4] = {
     0b01,  // level 3  black
 };
 
+int darkenOneBitJpegGray(const int gray) { return std::max(0, gray - 22); }
+
 int quantizeGray(const int corrected, const ImageRenderMode mode) {
   if (mode == ImageRenderMode::TwoBit) {
     return quantizeTwoBitImage(corrected).value;
@@ -496,9 +498,9 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
           const int tone = jpegTone(gray, leftGray, rightGray, drawOffsetX + ox, screenY, qualityTone);
           q = (qualityTone ? twoBitDitherer->processQuality(tone, step) : twoBitDitherer->process(tone, step)).value;
         } else if (oneBitDitherer) {
-          q = oneBitDitherer->processPixel(gray, step) ? 255 : 0;
+          q = oneBitDitherer->processPixel(darkenOneBitJpegGray(gray), step) ? 255 : 0;
         } else {
-          q = quantizeGray(gray, mode);
+          q = quantizeGray(darkenOneBitJpegGray(gray), mode);
         }
       }
       if (mode == ImageRenderMode::TwoBit) {
