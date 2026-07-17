@@ -105,6 +105,12 @@ class ChapterHtmlSlimParser {
   // Tags that early-return in startElement (img, hr, table cells, skipped tags) never push; without this an
   // unconditional pop would drop an ancestor's alignment and break inheritance for later siblings.
   std::vector<int> cssAlignmentDepths;
+  struct CssFontStyleScope {
+    int depth = 0;
+    bool bold = false;
+    bool italic = false;
+  };
+  std::vector<CssFontStyleScope> cssFontStyleStack;
   std::vector<bool> smallCapsStack;
   std::vector<int> smallCapsDepths;
   struct CssHorizontalInsetScope {

@@ -450,6 +450,7 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   currentTextBlockContentWidth = std::max(1, static_cast<int>(viewportWidth));
   cssAlignmentStack.clear();
   cssAlignmentDepths.clear();
+  cssFontStyleStack.clear();
   smallCapsStack.clear();
   smallCapsDepths.clear();
   cssHorizontalInsetStack.clear();
@@ -848,12 +849,14 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     return;
   }
 
+  const bool cssBoldActive = !cssFontStyleStack.empty() && cssFontStyleStack.back().bold;
+  const bool cssItalicActive = !cssFontStyleStack.empty() && cssFontStyleStack.back().italic;
   EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
-  if (boldUntilDepth < depth && italicUntilDepth < depth) {
+  if ((boldUntilDepth < depth || cssBoldActive) && (italicUntilDepth < depth || cssItalicActive)) {
     fontStyle = EpdFontFamily::BOLD_ITALIC;
-  } else if (boldUntilDepth < depth) {
+  } else if (boldUntilDepth < depth || cssBoldActive) {
     fontStyle = EpdFontFamily::BOLD;
-  } else if (italicUntilDepth < depth) {
+  } else if (italicUntilDepth < depth || cssItalicActive) {
     fontStyle = EpdFontFamily::ITALIC;
   }
 
@@ -1564,6 +1567,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
 
+  const bool inheritedCssBold = !self->cssFontStyleStack.empty() && self->cssFontStyleStack.back().bold;
+  const bool inheritedCssItalic = !self->cssFontStyleStack.empty() && self->cssFontStyleStack.back().italic;
+  const bool resolvedCssBold = self->css().resolveFontBold(tagLower, classAttr, idAttr, styleAttr, inheritedCssBold);
+  const bool resolvedCssItalic =
+      self->css().resolveFontItalic(tagLower, classAttr, idAttr, styleAttr, inheritedCssItalic);
+  if ((resolvedCssBold != inheritedCssBold || resolvedCssItalic != inheritedCssItalic) &&
+      self->partWordBufferIndex > 0) {
+    self->flushPartWordBuffer();
+    self->nextWordJoinsPrevious = true;
+  }
+  CssFontStyleScope fontScope;
+  fontScope.depth = self->depth;
+  fontScope.bold = resolvedCssBold;
+  fontScope.italic = resolvedCssItalic;
+  self->cssFontStyleStack.push_back(fontScope);
+
   uint8_t elementVerticalAlign = TextBlock::BASELINE;
   if (tagLower == "sup") {
     elementVerticalAlign = TextBlock::SUPERSCRIPT;
@@ -1790,6 +1809,21 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     }
   }
   const int closingDepth = self->depth - 1;
+  if (self->partWordBufferIndex > 0 && !self->cssFontStyleStack.empty() &&
+      self->cssFontStyleStack.back().depth == closingDepth) {
+    const bool closingBold = self->cssFontStyleStack.back().bold;
+    const bool closingItalic = self->cssFontStyleStack.back().italic;
+    const bool parentBold = self->cssFontStyleStack.size() >= 2
+                                ? self->cssFontStyleStack[self->cssFontStyleStack.size() - 2].bold
+                                : false;
+    const bool parentItalic = self->cssFontStyleStack.size() >= 2
+                                  ? self->cssFontStyleStack[self->cssFontStyleStack.size() - 2].italic
+                                  : false;
+    if (closingBold != parentBold || closingItalic != parentItalic) {
+      self->flushPartWordBuffer();
+      self->nextWordJoinsPrevious = true;
+    }
+  }
   if (self->partWordBufferIndex > 0 &&
       (self->superscriptUntilDepth == closingDepth || self->subscriptUntilDepth == closingDepth)) {
     self->flushPartWordBuffer();
@@ -1873,6 +1907,9 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->cssAlignmentDepths.back() == self->depth) {
     self->cssAlignmentStack.pop_back();
     self->cssAlignmentDepths.pop_back();
+  }
+  if (!self->cssFontStyleStack.empty() && self->cssFontStyleStack.back().depth == self->depth) {
+    self->cssFontStyleStack.pop_back();
   }
   if (!self->smallCapsDepths.empty() && self->smallCapsDepths.back() == self->depth) {
     const bool wasSmallCaps = self->smallCapsStack.back();
