@@ -24,6 +24,7 @@
 class Page;
 class GfxRenderer;
 class PageCssBorderLine;
+class PageCssBorderBox;
 
 #define MAX_WORD_SIZE 200
 
@@ -110,16 +111,39 @@ class ChapterHtmlSlimParser {
     int right = 0;
     std::string classAttr;
   };
+  struct CssBorderBoxScope {
+    int depth = 0;
+    std::shared_ptr<PageCssBorderBox> elem;
+    int16_t x = 0;
+    int16_t y = 0;
+    int16_t width = 0;
+    int paddingBottom = 0;
+    int borderBottom = 0;
+    int marginBottom = 0;
+    uint8_t borderBottomStyle = 0;
+    bool finalized = false;
+  };
   std::vector<CssHorizontalInsetScope> cssHorizontalInsetStack;
+  std::vector<CssBorderBoxScope> cssBorderBoxStack;
   int currentCssInsetLeftPx = 0;
   int currentCssInsetRightPx = 0;
   int currentBlockBottomSpacingPx = 0;
   bool currentBlockSpacingFromCss = false;
   int currentBlockMarginBottomPx = 0;
   int currentBlockPaddingBottomPx = 0;
+  int currentBlockBorderTopPx = 0;
   int currentBlockBorderBottomPx = 0;
+  int currentBlockBorderLeftPx = 0;
+  int currentBlockBorderRightPx = 0;
   /** CSS border-style code (PageCssBorderLine::Style) for the pending bottom border. */
+  uint8_t currentBlockBorderTopStyle = 0;
   uint8_t currentBlockBorderBottomStyle = 0;
+  uint8_t currentBlockBorderLeftStyle = 0;
+  uint8_t currentBlockBorderRightStyle = 0;
+  bool currentBlockUsesBorderBox = false;
+  int16_t currentBlockBorderBoxX = 0;
+  int16_t currentBlockBorderBoxY = 0;
+  int16_t currentBlockBorderBoxW = 0;
   /** CSS min-height for the current block (px); content is padded out to this if shorter. 0 = none. */
   int currentBlockMinHeightPx = 0;
   /** Font id override for the current block when its CSS font-size is large (e.g. a big centered title <p>).
@@ -129,6 +153,8 @@ class ChapterHtmlSlimParser {
   int16_t currentBlockContentStartY = 0;
   /** Top border rule of the current block, deferred so its width can be set to the text width after layout. */
   std::shared_ptr<PageCssBorderLine> pendingTopBorderElem_;
+  /** Full CSS border box for blocks that have left/right borders; height is finalized after text layout. */
+  std::shared_ptr<PageCssBorderBox> pendingBorderBoxElem_;
 
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;

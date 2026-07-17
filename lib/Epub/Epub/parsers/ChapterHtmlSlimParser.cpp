@@ -451,13 +451,27 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   smallCapsStack.clear();
   smallCapsDepths.clear();
   cssHorizontalInsetStack.clear();
+  cssBorderBoxStack.clear();
   currentCssInsetLeftPx = 0;
   currentCssInsetRightPx = 0;
   currentBlockBottomSpacingPx = 0;
   currentBlockSpacingFromCss = false;
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;
+  currentBlockBorderTopPx = 0;
   currentBlockBorderBottomPx = 0;
+  currentBlockBorderLeftPx = 0;
+  currentBlockBorderRightPx = 0;
+  currentBlockBorderTopStyle = 0;
+  currentBlockBorderBottomStyle = 0;
+  currentBlockBorderLeftStyle = 0;
+  currentBlockBorderRightStyle = 0;
+  currentBlockUsesBorderBox = false;
+  currentBlockBorderBoxX = 0;
+  currentBlockBorderBoxY = 0;
+  currentBlockBorderBoxW = 0;
+  pendingTopBorderElem_.reset();
+  pendingBorderBoxElem_.reset();
   inTable_ = false;
   tableShowBorders_ = false;
   tableDepth_ = INT_MAX;
@@ -1264,6 +1278,11 @@ static uint8_t borderStyleCodeFromKeyword(const std::string& kw) {
   return PageCssBorderLine::SOLID;
 }
 
+static int reservedBorderThickness(const int thicknessPx, const uint8_t style) {
+  if (thicknessPx <= 0) return 0;
+  return style == PageCssBorderLine::DOUBLE ? std::max(3, thicknessPx) : thicknessPx;
+}
+
 int ChapterHtmlSlimParser::cssBorderInnerGapPx() const {
   return std::max(2, renderer.text.getLineHeight(headerFontId) / 4);
 }
@@ -1300,12 +1319,19 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   const int marginTop = css().getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int paddingTop =
       css().getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-  int horizontalLeft =
-      css().getMarginLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight) +
-      css().getPaddingLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-  int horizontalRight =
-      css().getMarginRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight) +
+  const int marginLeft = css().getMarginLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int marginRight = css().getMarginRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int paddingLeft = css().getPaddingLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int paddingRight =
       css().getPaddingRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int borderTop = css().getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int borderRight =
+      css().getBorderRightPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int borderBottom =
+      css().getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int borderLeft = css().getBorderLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  int horizontalLeft = marginLeft + borderLeft + paddingLeft;
+  int horizontalRight = marginRight + borderRight + paddingRight;
   const bool horizontalSpacingSpecified = css().hasHorizontalSpacingSpecified(tagLower, classAttr, idAttr, styleAttr);
   if (horizontalLeft == 0 && horizontalRight == 0 && !classAttr.empty() && !horizontalSpacingSpecified) {
     const CssHorizontalInsetScope* sameClassAncestor = nullptr;
@@ -1343,7 +1369,6 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
       }
     }
   }
-  const int borderTop = css().getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int minHeight = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   CssHorizontalInsetScope insetScope;
   insetScope.depth = depth;
@@ -1360,20 +1385,37 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
       css().getMarginBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   currentBlockPaddingBottomPx =
       css().getPaddingBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-  currentBlockBorderBottomPx =
-      css().getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  currentBlockBorderTopPx = borderTop;
+  currentBlockBorderBottomPx = borderBottom;
+  currentBlockBorderLeftPx = borderLeft;
+  currentBlockBorderRightPx = borderRight;
+  currentBlockBorderTopStyle =
+      borderStyleCodeFromKeyword(css().getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
   currentBlockBorderBottomStyle =
       borderStyleCodeFromKeyword(css().getBorderStyleKeyword("bottom", classAttr, idAttr, styleAttr, tagLower));
+  currentBlockBorderLeftStyle =
+      borderStyleCodeFromKeyword(css().getBorderStyleKeyword("left", classAttr, idAttr, styleAttr, tagLower));
+  currentBlockBorderRightStyle =
+      borderStyleCodeFromKeyword(css().getBorderStyleKeyword("right", classAttr, idAttr, styleAttr, tagLower));
+  currentBlockUsesBorderBox = borderLeft > 0 || borderRight > 0;
   currentBlockSpacingFromCss = marginTop > 0 || paddingTop > 0 || borderTop > 0 || currentBlockMarginBottomPx > 0 ||
-                               currentBlockPaddingBottomPx > 0 || currentBlockBorderBottomPx > 0 || minHeight > 0;
+                               currentBlockPaddingBottomPx > 0 || currentBlockBorderBottomPx > 0 ||
+                               currentBlockUsesBorderBox || minHeight > 0;
   currentBlockBottomSpacingPx = 0;
   currentBlockMinHeightPx = currentBlockSpacingFromCss ? minHeight : 0;
 
   if (!currentBlockSpacingFromCss) {
     currentBlockMarginBottomPx = 0;
     currentBlockPaddingBottomPx = 0;
+    currentBlockBorderTopPx = 0;
     currentBlockBorderBottomPx = 0;
+    currentBlockBorderLeftPx = 0;
+    currentBlockBorderRightPx = 0;
+    currentBlockBorderTopStyle = 0;
     currentBlockBorderBottomStyle = 0;
+    currentBlockBorderLeftStyle = 0;
+    currentBlockBorderRightStyle = 0;
+    currentBlockUsesBorderBox = false;
     currentBlockContentStartY = currentPageNextY;
     pendingTopBorderElem_.reset();
     return;
@@ -1382,10 +1424,37 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   if (currentPageNextY > 0 && marginTop > 0) {
     applyVerticalSpacing(marginTop);
   }
-  if (borderTop > 0) {
-    const uint8_t borderTopStyle =
-        borderStyleCodeFromKeyword(css().getBorderStyleKeyword("top", classAttr, idAttr, styleAttr, tagLower));
-    pendingTopBorderElem_ = addCssBorderLine(borderTop, borderTopStyle);
+  if (currentBlockUsesBorderBox) {
+    if (!currentPage) {
+      currentPage.reset(new Page());
+    }
+    const int inheritedLeft = std::max(0, currentCssInsetLeftPx - horizontalLeft);
+    const int inheritedRight = std::max(0, currentCssInsetRightPx - horizontalRight);
+    currentBlockBorderBoxX = static_cast<int16_t>(std::max(0, inheritedLeft + marginLeft));
+    currentBlockBorderBoxY = currentPageNextY;
+    currentBlockBorderBoxW = static_cast<int16_t>(
+        std::max(1, static_cast<int>(viewportWidth) - inheritedLeft - inheritedRight - marginLeft - marginRight));
+    pendingBorderBoxElem_ = std::make_shared<PageCssBorderBox>(
+        currentBlockBorderBoxX, currentBlockBorderBoxY, currentBlockBorderBoxW, 1,
+        static_cast<int16_t>(currentBlockBorderTopPx), static_cast<int16_t>(currentBlockBorderRightPx),
+        static_cast<int16_t>(currentBlockBorderBottomPx), static_cast<int16_t>(currentBlockBorderLeftPx),
+        currentBlockBorderTopStyle, currentBlockBorderRightStyle, currentBlockBorderBottomStyle,
+        currentBlockBorderLeftStyle);
+    currentPage->elements.push_back(pendingBorderBoxElem_);
+    CssBorderBoxScope boxScope;
+    boxScope.depth = depth;
+    boxScope.elem = pendingBorderBoxElem_;
+    boxScope.x = currentBlockBorderBoxX;
+    boxScope.y = currentBlockBorderBoxY;
+    boxScope.width = currentBlockBorderBoxW;
+    boxScope.paddingBottom = currentBlockPaddingBottomPx;
+    boxScope.borderBottom = currentBlockBorderBottomPx;
+    boxScope.marginBottom = currentBlockMarginBottomPx;
+    boxScope.borderBottomStyle = currentBlockBorderBottomStyle;
+    cssBorderBoxStack.push_back(boxScope);
+    applyVerticalSpacing(reservedBorderThickness(currentBlockBorderTopPx, currentBlockBorderTopStyle));
+  } else if (borderTop > 0) {
+    pendingTopBorderElem_ = addCssBorderLine(borderTop, currentBlockBorderTopStyle);
   }
   if (paddingTop > 0) {
     applyVerticalSpacing(paddingTop);
@@ -1453,7 +1522,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
        self->css().getBorderTopPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
                                       self->viewportHeight) > 0 ||
        self->css().getBorderBottomPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
-                                         self->viewportHeight) > 0);
+                                         self->viewportHeight) > 0 ||
+       self->css().getBorderLeftPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                      self->viewportHeight) > 0 ||
+       self->css().getBorderRightPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
+                                       self->viewportHeight) > 0);
   const bool isBlockLikeElement = isHeaderTag || isBlockTag || isCustomDisplayBlock;
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && isBlockLikeElement) {
     elementHasExplicitTextAlign = self->css().hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
@@ -1691,19 +1764,28 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->makePages();
     } else if (self->currentBlockSpacingFromCss) {
       self->applyMinHeightPadding();  // empty block still honors its min-height
-      if (self->currentBlockPaddingBottomPx > 0) {
-        self->applyVerticalSpacing(self->currentBlockPaddingBottomPx);
-      }
-      if (self->currentBlockBorderBottomPx > 0) {
-        self->addCssBorderLine(self->currentBlockBorderBottomPx, self->currentBlockBorderBottomStyle);
-      }
-      if (self->currentBlockMarginBottomPx > 0) {
-        self->applyVerticalSpacing(self->currentBlockMarginBottomPx);
+      if (!self->currentBlockUsesBorderBox) {
+        if (self->currentBlockPaddingBottomPx > 0) {
+          self->applyVerticalSpacing(self->currentBlockPaddingBottomPx);
+        }
+        if (self->currentBlockBorderBottomPx > 0) {
+          self->addCssBorderLine(self->currentBlockBorderBottomPx, self->currentBlockBorderBottomStyle);
+        }
+        if (self->currentBlockMarginBottomPx > 0) {
+          self->applyVerticalSpacing(self->currentBlockMarginBottomPx);
+        }
       }
       self->currentBlockMarginBottomPx = 0;
       self->currentBlockPaddingBottomPx = 0;
+      self->currentBlockBorderTopPx = 0;
       self->currentBlockBorderBottomPx = 0;
+      self->currentBlockBorderLeftPx = 0;
+      self->currentBlockBorderRightPx = 0;
+      self->currentBlockBorderTopStyle = 0;
       self->currentBlockBorderBottomStyle = 0;
+      self->currentBlockBorderLeftStyle = 0;
+      self->currentBlockBorderRightStyle = 0;
+      self->currentBlockUsesBorderBox = false;
       self->currentBlockMinHeightPx = 0;
       self->currentBlockFontId = -1;
       self->currentBlockBottomSpacingPx = 0;
@@ -1715,6 +1797,31 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   }
 
   self->depth -= 1;
+
+  if (!self->cssBorderBoxStack.empty() && self->cssBorderBoxStack.back().depth == self->depth) {
+    if (!self->cssBorderBoxStack.back().finalized && self->currentBlockUsesBorderBox && self->currentTextBlock &&
+        !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
+    auto scope = self->cssBorderBoxStack.back();
+    if (!scope.finalized) {
+      if (scope.paddingBottom > 0) {
+        self->applyVerticalSpacing(scope.paddingBottom);
+      } else if (scope.borderBottom > 0) {
+        self->applyVerticalSpacing(self->cssBorderInnerGapPx());
+      }
+      self->applyVerticalSpacing(reservedBorderThickness(scope.borderBottom, scope.borderBottomStyle));
+      if (scope.elem && self->currentPageNextY >= scope.y) {
+        scope.elem->setGeometry(scope.x, scope.y, scope.width,
+                                static_cast<int16_t>(std::max<int>(
+                                    1, static_cast<int>(self->currentPageNextY) - static_cast<int>(scope.y))));
+      }
+      if (scope.marginBottom > 0) {
+        self->applyVerticalSpacing(scope.marginBottom);
+      }
+    }
+    self->cssBorderBoxStack.pop_back();
+  }
 
   if (!self->cssHorizontalInsetStack.empty() && self->cssHorizontalInsetStack.back().depth == self->depth) {
     const auto scope = self->cssHorizontalInsetStack.back();
@@ -1955,7 +2062,21 @@ void ChapterHtmlSlimParser::makePages() {
       // No explicit padding: keep the text off the bottom rule (mirrors the top border gap).
       applyVerticalSpacing(cssBorderInnerGapPx());
     }
-    if (currentBlockBorderBottomPx > 0) {
+    if (currentBlockUsesBorderBox) {
+      applyVerticalSpacing(reservedBorderThickness(currentBlockBorderBottomPx, currentBlockBorderBottomStyle));
+      if (pendingBorderBoxElem_ && currentPageNextY >= currentBlockBorderBoxY) {
+        pendingBorderBoxElem_->setGeometry(currentBlockBorderBoxX, currentBlockBorderBoxY, currentBlockBorderBoxW,
+                                           static_cast<int16_t>(std::max<int>(
+                                               1, static_cast<int>(currentPageNextY) - currentBlockBorderBoxY)));
+        for (auto it = cssBorderBoxStack.rbegin(); it != cssBorderBoxStack.rend(); ++it) {
+          if (it->elem == pendingBorderBoxElem_) {
+            it->finalized = true;
+            break;
+          }
+        }
+      }
+      pendingBorderBoxElem_.reset();
+    } else if (currentBlockBorderBottomPx > 0) {
       auto bottomElem = addCssBorderLine(currentBlockBorderBottomPx, currentBlockBorderBottomStyle);
       finalizeBorderWidth(bottomElem, contentBorderWidth, centerBorder);
     }
@@ -1976,8 +2097,19 @@ void ChapterHtmlSlimParser::makePages() {
   }
   currentBlockMarginBottomPx = 0;
   currentBlockPaddingBottomPx = 0;
+  currentBlockBorderTopPx = 0;
   currentBlockBorderBottomPx = 0;
+  currentBlockBorderLeftPx = 0;
+  currentBlockBorderRightPx = 0;
+  currentBlockBorderTopStyle = 0;
   currentBlockBorderBottomStyle = 0;
+  currentBlockBorderLeftStyle = 0;
+  currentBlockBorderRightStyle = 0;
+  currentBlockUsesBorderBox = false;
+  currentBlockBorderBoxX = 0;
+  currentBlockBorderBoxY = 0;
+  currentBlockBorderBoxW = 0;
+  pendingBorderBoxElem_.reset();
   currentBlockMinHeightPx = 0;
   currentBlockFontId = -1;
 }

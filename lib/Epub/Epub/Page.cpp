@@ -89,6 +89,76 @@ bool warmImagePlane(GfxRenderer& renderer, const std::string& path, const int x,
   return ok;
 }
 
+void drawStyledHorizontal(GfxRenderer& renderer, const int left, const int right, const int y, const uint8_t style) {
+  if (right < left) {
+    return;
+  }
+  if (style == PageCssBorderLine::DOTTED) {
+    for (int xx = left; xx <= right; xx += 3) {
+      renderer.drawPixel(xx, y, true);
+    }
+  } else if (style == PageCssBorderLine::DASHED) {
+    for (int xx = left; xx <= right; xx += 9) {
+      renderer.line.render(xx, y, std::min(right, xx + 5), y, true);
+    }
+  } else {
+    renderer.line.render(left, y, right, y, true);
+  }
+}
+
+void drawStyledVertical(GfxRenderer& renderer, const int x, const int top, const int bottom, const uint8_t style) {
+  if (bottom < top) {
+    return;
+  }
+  if (style == PageCssBorderLine::DOTTED) {
+    for (int yy = top; yy <= bottom; yy += 3) {
+      renderer.drawPixel(x, yy, true);
+    }
+  } else if (style == PageCssBorderLine::DASHED) {
+    for (int yy = top; yy <= bottom; yy += 9) {
+      renderer.line.render(x, yy, x, std::min(bottom, yy + 5), true);
+    }
+  } else {
+    renderer.line.render(x, top, x, bottom, true);
+  }
+}
+
+void drawHorizontalBorder(GfxRenderer& renderer, const int left, const int right, const int top, const int thickness,
+                          const uint8_t style) {
+  if (thickness <= 0) {
+    return;
+  }
+  const int drawThickness = std::max(1, thickness);
+  if (style == PageCssBorderLine::DOUBLE) {
+    const int total = std::max(3, drawThickness);
+    const int lineW = std::max(1, total / 3);
+    for (int i = 0; i < lineW; ++i) drawStyledHorizontal(renderer, left, right, top + i, style);
+    for (int i = 0; i < lineW; ++i) drawStyledHorizontal(renderer, left, right, top + total - 1 - i, style);
+  } else {
+    for (int i = 0; i < drawThickness; ++i) {
+      drawStyledHorizontal(renderer, left, right, top + i, style);
+    }
+  }
+}
+
+void drawVerticalBorder(GfxRenderer& renderer, const int left, const int top, const int bottom, const int thickness,
+                        const uint8_t style) {
+  if (thickness <= 0) {
+    return;
+  }
+  const int drawThickness = std::max(1, thickness);
+  if (style == PageCssBorderLine::DOUBLE) {
+    const int total = std::max(3, drawThickness);
+    const int lineW = std::max(1, total / 3);
+    for (int i = 0; i < lineW; ++i) drawStyledVertical(renderer, left + i, top, bottom, style);
+    for (int i = 0; i < lineW; ++i) drawStyledVertical(renderer, left + total - 1 - i, top, bottom, style);
+  } else {
+    for (int i = 0; i < drawThickness; ++i) {
+      drawStyledVertical(renderer, left + i, top, bottom, style);
+    }
+  }
+}
+
 }  // namespace
 
 /**
@@ -655,6 +725,62 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
   return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness, style));
 }
 
+void PageCssBorderBox::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                              ImageRenderMode) {
+  (void)fontId;
+  const int left = xPos + xOffset;
+  const int top = yPos + yOffset;
+  const int boxWidth = std::max<int>(1, width);
+  const int boxHeight = std::max<int>(1, height);
+  const int right = left + boxWidth - 1;
+  const int bottom = top + boxHeight - 1;
+
+  drawHorizontalBorder(renderer, left, right, top, borderTop, styleTop);
+  drawHorizontalBorder(renderer, left, right, bottom - std::max<int>(1, borderBottom) + 1, borderBottom, styleBottom);
+  drawVerticalBorder(renderer, left, top, bottom, borderLeft, styleLeft);
+  drawVerticalBorder(renderer, right - std::max<int>(1, borderRight) + 1, top, bottom, borderRight, styleRight);
+}
+
+bool PageCssBorderBox::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, width);
+  serialization::writePod(file, height);
+  serialization::writePod(file, borderTop);
+  serialization::writePod(file, borderRight);
+  serialization::writePod(file, borderBottom);
+  serialization::writePod(file, borderLeft);
+  serialization::writePod(file, styleTop);
+  serialization::writePod(file, styleRight);
+  serialization::writePod(file, styleBottom);
+  serialization::writePod(file, styleLeft);
+  return true;
+}
+
+std::unique_ptr<PageCssBorderBox> PageCssBorderBox::deserialize(FsFile& file) {
+  int16_t x = 0, y = 0, width = 0, height = 0;
+  int16_t top = 0, right = 0, bottom = 0, left = 0;
+  uint8_t styleTop = PageCssBorderLine::SOLID;
+  uint8_t styleRight = PageCssBorderLine::SOLID;
+  uint8_t styleBottom = PageCssBorderLine::SOLID;
+  uint8_t styleLeft = PageCssBorderLine::SOLID;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, width);
+  serialization::readPod(file, height);
+  serialization::readPod(file, top);
+  serialization::readPod(file, right);
+  serialization::readPod(file, bottom);
+  serialization::readPod(file, left);
+  serialization::readPod(file, styleTop);
+  serialization::readPod(file, styleRight);
+  serialization::readPod(file, styleBottom);
+  serialization::readPod(file, styleLeft);
+  return std::unique_ptr<PageCssBorderBox>(
+      new PageCssBorderBox(x, y, width, height, top, right, bottom, left, styleTop, styleRight, styleBottom,
+                           styleLeft));
+}
+
 bool Page::anyImageNeedsGrayscale() const {
   return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
     return element->getTag() == TAG_PageImage && needsGrayscalePass(static_cast<const PageImage&>(*element));
@@ -833,6 +959,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageHorizontalRule::deserialize(file));
     } else if (tag == TAG_PageCssBorderLine) {
       page->elements.push_back(PageCssBorderLine::deserialize(file));
+    } else if (tag == TAG_PageCssBorderBox) {
+      page->elements.push_back(PageCssBorderBox::deserialize(file));
     }
   }
   return page;

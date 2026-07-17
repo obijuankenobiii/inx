@@ -26,6 +26,7 @@ enum PageElementTag : uint8_t {
   TAG_PageHorizontalRule = 6,
   TAG_PageSmallCaps = 7,
   TAG_PageCssBorderLine = 8,
+  TAG_PageCssBorderBox = 9,
 };
 
 /**
@@ -287,6 +288,51 @@ class PageCssBorderLine final : public PageElement {
               ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageCssBorderLine> deserialize(FsFile& file);
+};
+
+class PageCssBorderBox final : public PageElement {
+ private:
+  int16_t width;
+  int16_t height;
+  int16_t borderTop;
+  int16_t borderRight;
+  int16_t borderBottom;
+  int16_t borderLeft;
+  uint8_t styleTop;
+  uint8_t styleRight;
+  uint8_t styleBottom;
+  uint8_t styleLeft;
+
+ public:
+  PageCssBorderBox(const int16_t xPos, const int16_t yPos, const int16_t width, const int16_t height,
+                   const int16_t borderTop, const int16_t borderRight, const int16_t borderBottom,
+                   const int16_t borderLeft, const uint8_t styleTop = PageCssBorderLine::SOLID,
+                   const uint8_t styleRight = PageCssBorderLine::SOLID,
+                   const uint8_t styleBottom = PageCssBorderLine::SOLID,
+                   const uint8_t styleLeft = PageCssBorderLine::SOLID)
+      : PageElement(xPos, yPos),
+        width(width),
+        height(height),
+        borderTop(borderTop),
+        borderRight(borderRight),
+        borderBottom(borderBottom),
+        borderLeft(borderLeft),
+        styleTop(styleTop),
+        styleRight(styleRight),
+        styleBottom(styleBottom),
+        styleLeft(styleLeft) {}
+
+  PageElementTag getTag() const override { return TAG_PageCssBorderBox; }
+  void setGeometry(const int16_t x, const int16_t y, const int16_t w, const int16_t h) {
+    xPos = x;
+    yPos = y;
+    width = w;
+    height = h;
+  }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageCssBorderBox> deserialize(FsFile& file);
 };
 
 /**
