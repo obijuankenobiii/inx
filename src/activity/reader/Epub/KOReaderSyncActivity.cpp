@@ -130,12 +130,6 @@ void KOReaderSyncActivity::performSync() {
   KOReaderPosition koPos = {remoteProgress.progress, remoteProgress.percentage};
   remotePosition = ProgressMapper::toCrossPoint(epub, koPos, currentSpineIndex, totalPagesInSpine);
 
-  CrossPointPosition localPos{};
-  localPos.spineIndex = currentSpineIndex;
-  localPos.pageNumber = currentPage;
-  localPos.totalPages = totalPagesInSpine;
-  localProgress = ProgressMapper::toKOReader(epub, localPos);
-
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   state = SHOWING_RESULT;
 
@@ -156,16 +150,10 @@ void KOReaderSyncActivity::performUpload() {
   updateRequired = true;
   vTaskDelay(10 / portTICK_PERIOD_MS);
 
-  CrossPointPosition localPos{};
-  localPos.spineIndex = currentSpineIndex;
-  localPos.pageNumber = currentPage;
-  localPos.totalPages = totalPagesInSpine;
-  KOReaderPosition koPos = ProgressMapper::toKOReader(epub, localPos);
-
   KOReaderProgress progress;
   progress.document = documentHash;
-  progress.progress = koPos.xpath;
-  progress.percentage = koPos.percentage;
+  progress.progress = localProgress.xpath;
+  progress.percentage = localProgress.percentage;
 
   const auto result = KOReaderSyncClient::updateProgress(progress);
 
@@ -286,12 +274,11 @@ void KOReaderSyncActivity::render() {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 120, "Progress found!", true, EpdFontFamily::BOLD);
 
     const int remoteTocIndex = epub->getTocIndexForSpineIndex(remotePosition.spineIndex);
-    const int localTocIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
     const std::string remoteChapter = (remoteTocIndex >= 0)
                                           ? epub->getTocItem(remoteTocIndex).title
                                           : ("Section " + std::to_string(remotePosition.spineIndex + 1));
-    const std::string localChapter = (localTocIndex >= 0) ? epub->getTocItem(localTocIndex).title
-                                                          : ("Section " + std::to_string(currentSpineIndex + 1));
+    const std::string localChapter =
+        !localChapterName.empty() ? localChapterName : ("Section " + std::to_string(currentSpineIndex + 1));
 
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 160, "Remote:", true);
     char remoteChapterStr[128];

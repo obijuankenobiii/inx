@@ -1412,9 +1412,22 @@ void EpubActivity::openKOReaderSyncFromMenu() {
   dismissMenuDrawerForBlockingWork();
   const int curPage = section ? section->currentPage : nextPageNumber;
   const int totalInSpine = section && section->pageCount > 0 ? section->pageCount : 1;
+  PagePosition localPos{};
+  localPos.spineIndex = currentSpineIndex;
+  localPos.pageNumber = curPage;
+  localPos.totalPages = totalInSpine;
+  KOReaderPosition localProgress =
+      ProgressMapper::toKOReader(std::shared_ptr<Epub>(epub.get(), [](Epub*) {}), localPos);
+  const std::string localChapterName = getCurrentChapterTitle();
+
+  saveProgress(currentSpineIndex, curPage, totalInSpine, false);
+  section.reset();
+  FontManager::unloadAllSDFonts();
+
   std::shared_ptr<Epub> epubView(epub.get(), [](Epub*) {});
   enterNewActivity(new KOReaderSyncActivity(
       renderer, mappedInput, epubView, epub->getPath(), currentSpineIndex, curPage, totalInSpine,
+      std::move(localProgress), localChapterName,
       [this]() {
         exitActivity();
         updateRequired = true;

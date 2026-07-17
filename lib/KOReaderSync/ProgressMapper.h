@@ -11,14 +11,17 @@
 #include <string>
 
 /**
- * CrossPoint position representation.
+ * Reader page position representation.
  */
-struct CrossPointPosition {
+struct PagePosition {
   int spineIndex;
   int pageNumber;
   int totalPages;
   uint16_t paragraphIndex = 0;
   bool hasParagraphIndex = false;
+  uint16_t liIndex = 0;
+  bool hasLiIndex = false;
+  char xpathAnchorId[64] = {};
 };
 
 /**
@@ -32,7 +35,7 @@ struct KOReaderPosition {
 /**
  * Maps between CrossPoint and KOReader position formats.
  *
- * CrossPoint tracks position as (spineIndex, pageNumber).
+ * The reader tracks position as (spineIndex, pageNumber).
  * KOReader uses XPath-like strings + percentage.
  *
  * Since CrossPoint discards HTML structure during parsing, we generate
@@ -42,16 +45,16 @@ struct KOReaderPosition {
 class ProgressMapper {
  public:
   /**
-   * Convert CrossPoint position to KOReader format.
+   * Convert reader page position to KOReader format.
    *
    * @param epub The EPUB book
-   * @param pos CrossPoint position
+   * @param pos Reader page position
    * @return KOReader position
    */
-  static KOReaderPosition toKOReader(const std::shared_ptr<Epub>& epub, const CrossPointPosition& pos);
+  static KOReaderPosition toKOReader(const std::shared_ptr<Epub>& epub, const PagePosition& pos);
 
   /**
-   * Convert KOReader position to CrossPoint format.
+   * Convert KOReader position to reader page format.
    *
    * Note: The returned pageNumber may be approximate since different
    * rendering settings produce different page counts.
@@ -60,10 +63,10 @@ class ProgressMapper {
    * @param koPos KOReader position
    * @param currentSpineIndex Index of the currently open spine item (for density estimation)
    * @param totalPagesInCurrentSpine Total pages in the current spine item (for density estimation)
-   * @return CrossPoint position
+   * @return Reader page position
    */
-  static CrossPointPosition toCrossPoint(const std::shared_ptr<Epub>& epub, const KOReaderPosition& koPos,
-                                         int currentSpineIndex = -1, int totalPagesInCurrentSpine = 0);
+  static PagePosition toCrossPoint(const std::shared_ptr<Epub>& epub, const KOReaderPosition& koPos,
+                                   int currentSpineIndex = -1, int totalPagesInCurrentSpine = 0);
 
  private:
   /**

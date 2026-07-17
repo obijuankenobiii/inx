@@ -5,10 +5,9 @@
 
 #include "KOReaderSyncClient.h"
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HardwareSerial.h>
-#include <WiFi.h>
-#include <base64.h>
 
 #include <ctime>
 
@@ -21,14 +20,16 @@ extern esp_err_t esp_crt_bundle_attach(void* conf);
 }
 #endif
 
+int KOReaderSyncClient::lastHttpCode = 0;
+
 namespace {
 
 constexpr char DEVICE_NAME[] = "CrossPoint";
 constexpr char DEVICE_ID[] = "crosspoint-reader";
+constexpr int HTTP_BUF_SIZE = 2048;
+constexpr uint32_t MIN_HEAP_FOR_TLS = 55000;
 
 #ifndef SIMULATOR
-
-bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
 
 struct KoreaderCtx {
   std::string* responseBody;
@@ -53,9 +54,12 @@ int doRequest(const std::string& url, const std::string& method, const std::stri
   cfg.timeout_ms = 15000;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
-  cfg.buffer_size = 2048;
-  cfg.buffer_size_tx = 1024;
+  cfg.buffer_size = HTTP_BUF_SIZE;
+  cfg.buffer_size_tx = HTTP_BUF_SIZE;
   cfg.disable_auto_redirect = false;
+  cfg.username = KOREADER_STORE.getUsername().c_str();
+  cfg.password = KOREADER_STORE.getPassword().c_str();
+  cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
 
   esp_http_client_handle_t client = esp_http_client_init(&cfg);
   if (!client) {
@@ -66,10 +70,6 @@ int doRequest(const std::string& url, const std::string& method, const std::stri
   esp_http_client_set_header(client, "Accept", "application/vnd.koreader.v1+json");
   esp_http_client_set_header(client, "x-auth-user", KOREADER_STORE.getUsername().c_str());
   esp_http_client_set_header(client, "x-auth-key", KOREADER_STORE.getMd5Password().c_str());
-
-  std::string credentials = KOREADER_STORE.getUsername() + ":" + KOREADER_STORE.getPassword();
-  String encoded = base64::encode(credentials.c_str());
-  esp_http_client_set_header(client, "Authorization", ("Basic " + encoded).c_str());
 
   if (method == "POST") {
     esp_http_client_set_method(client, HTTP_METHOD_POST);
@@ -85,13 +85,14 @@ int doRequest(const std::string& url, const std::string& method, const std::stri
   }
 
   esp_err_t err = esp_http_client_perform(client);
+  const int status = esp_http_client_get_status_code(client);
+  KOReaderSyncClient::lastHttpCode = status;
   if (err != ESP_OK) {
-    Serial.printf("[%lu] [KOSync] perform failed: %s\n", millis(), esp_err_to_name(err));
+    Serial.printf("[%lu] [KOSync] perform failed: %s status=%d\n", millis(), esp_err_to_name(err), status);
     esp_http_client_cleanup(client);
     return -1;
   }
 
-  int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
   return status;
 }
@@ -112,13 +113,19 @@ int doRequest(const std::string& url, const std::string& method, const std::stri
 }  // namespace
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
+  lastHttpCode = 0;
   if (!KOREADER_STORE.hasCredentials()) {
     Serial.printf("[%lu] [KOSync] No credentials configured\n", millis());
     return NO_CREDENTIALS;
   }
 
   std::string url = KOREADER_STORE.getBaseUrl() + "/users/auth";
-  Serial.printf("[%lu] [KOSync] Authenticating: %s\n", millis(), url.c_str());
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("[%lu] [KOSync] Authenticating: %s heap=%u\n", millis(), url.c_str(), (unsigned)freeHeap);
+  if (freeHeap < MIN_HEAP_FOR_TLS) {
+    Serial.printf("[%lu] [KOSync] Insufficient heap for TLS: %u bytes free\n", millis(), (unsigned)freeHeap);
+    return LOW_MEMORY;
+  }
 
   const int httpCode = doRequest(url, "GET", nullptr, nullptr);
   Serial.printf("[%lu] [KOSync] Auth response: %d\n", millis(), httpCode);
@@ -137,13 +144,19 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
 
 KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& documentHash,
                                                           KOReaderProgress& outProgress) {
+  lastHttpCode = 0;
   if (!KOREADER_STORE.hasCredentials()) {
     Serial.printf("[%lu] [KOSync] No credentials configured\n", millis());
     return NO_CREDENTIALS;
   }
 
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress/" + documentHash;
-  Serial.printf("[%lu] [KOSync] Getting progress: %s\n", millis(), url.c_str());
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("[%lu] [KOSync] Getting progress: %s heap=%u\n", millis(), url.c_str(), (unsigned)freeHeap);
+  if (freeHeap < MIN_HEAP_FOR_TLS) {
+    Serial.printf("[%lu] [KOSync] Insufficient heap for TLS: %u bytes free\n", millis(), (unsigned)freeHeap);
+    return LOW_MEMORY;
+  }
 
   std::string responseBody;
   const int httpCode = doRequest(url, "GET", nullptr, &responseBody);
@@ -182,13 +195,19 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
 }
 
 KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgress& progress) {
+  lastHttpCode = 0;
   if (!KOREADER_STORE.hasCredentials()) {
     Serial.printf("[%lu] [KOSync] No credentials configured\n", millis());
     return NO_CREDENTIALS;
   }
 
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress";
-  Serial.printf("[%lu] [KOSync] Updating progress: %s\n", millis(), url.c_str());
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  Serial.printf("[%lu] [KOSync] Updating progress: %s heap=%u\n", millis(), url.c_str(), (unsigned)freeHeap);
+  if (freeHeap < MIN_HEAP_FOR_TLS) {
+    Serial.printf("[%lu] [KOSync] Insufficient heap for TLS: %u bytes free\n", millis(), (unsigned)freeHeap);
+    return LOW_MEMORY;
+  }
 
   JsonDocument doc;
   doc["document"] = progress.document;
@@ -233,6 +252,8 @@ const char* KOReaderSyncClient::errorString(Error error) {
       return "JSON parse error";
     case NOT_FOUND:
       return "No progress found (first time reading this book?)";
+    case LOW_MEMORY:
+      return "Not enough memory for sync - please retry";
     default:
       return "Unknown error";
   }

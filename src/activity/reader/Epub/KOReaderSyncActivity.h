@@ -34,7 +34,8 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
 
   explicit KOReaderSyncActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                 const std::shared_ptr<Epub>& epub, const std::string& epubPath, int currentSpineIndex,
-                                int currentPage, int totalPagesInSpine, OnCancelCallback onCancel,
+                                int currentPage, int totalPagesInSpine, KOReaderPosition localProgress,
+                                std::string localChapterName, OnCancelCallback onCancel,
                                 OnSyncCompleteCallback onSyncComplete)
       : ActivityWithSubactivity("KOReaderSync", renderer, mappedInput),
         epub(epub),
@@ -42,9 +43,10 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
         currentSpineIndex(currentSpineIndex),
         currentPage(currentPage),
         totalPagesInSpine(totalPagesInSpine),
+        localChapterName(std::move(localChapterName)),
         remoteProgress{},
         remotePosition{},
-        localProgress{},
+        localProgress(std::move(localProgress)),
         onCancel(std::move(onCancel)),
         onSyncComplete(std::move(onSyncComplete)) {}
 
@@ -68,6 +70,7 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
 
   std::shared_ptr<Epub> epub;
   std::string epubPath;
+  std::string localChapterName;
   int currentSpineIndex;
   int currentPage;
   int totalPagesInSpine;
@@ -82,7 +85,7 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
 
   bool hasRemoteProgress = false;
   KOReaderProgress remoteProgress;
-  CrossPointPosition remotePosition;
+  PagePosition remotePosition;
 
   KOReaderPosition localProgress;
 
