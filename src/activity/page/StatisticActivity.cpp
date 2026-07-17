@@ -67,7 +67,7 @@ void drawThinProgressBar(const GfxRenderer& renderer, int x, int y, int w, int h
   if (fillW > 0) {
     renderer.rectangle.fill(x, y, fillW, h, static_cast<int>(GfxRenderer::FillTone::Ink), false);
   }
-  renderer.rectangle.render(x, y, w, h, true);
+  renderer.rectangle.dotted(x, y, w, h, true);
 }
 
 /** Circle outline via pixels (GfxRenderer::drawLine does not draw diagonals). */
@@ -235,7 +235,7 @@ void drawFullDonutGauge(const GfxRenderer& renderer, int cx, int cy, int rOut, i
 
 void drawVertRule(const GfxRenderer& renderer, int x, int y, int h) {
   if (h > 0) {
-    renderer.line.render(x, y, x, y + h, true);
+    renderer.line.render(x, y, x, y + h, true, LineRender::Style::Dotted);
   }
 }
 
@@ -300,7 +300,7 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
   const int capPref = std::min(yRulePreferred, yMaxRule);
   // Lift the whole finished/opened band so it clears the button hints below.
   int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) - 10;
-  renderer.line.render(innerLeft, yRule, innerRight, yRule, true);
+  renderer.line.render(innerLeft, yRule, innerRight, yRule, true, LineRender::Style::Dotted);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);
 
@@ -358,7 +358,7 @@ int drawFourColumnStatsNx2(const GfxRenderer& renderer, int innerLeft, int y, in
   drawVertRule(renderer, midX, y, blockH);
   for (int r = 1; r < numRows; ++r) {
     renderer.line.render(innerLeft, yBound[static_cast<size_t>(r)], innerLeft + innerW, yBound[static_cast<size_t>(r)],
-                         true);
+                         true, LineRender::Style::Dotted);
   }
 
   const int lhVal = renderer.text.getLineHeight(FONT_SERIF_LG);
@@ -540,7 +540,7 @@ void StatisticActivity::renderCover(const std::string& bookPath, int x, int y, i
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
   renderer.rectangle.fill(x, y, width, height, false, rr);
   if (!rr) {
-    renderer.rectangle.render(x, y, width, height, true, false);
+    renderer.rectangle.dotted(x, y, width, height, true);
   }
 
   if (!title.empty()) {
@@ -618,7 +618,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
     renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
     if (!rr) {
-      renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
+      renderer.rectangle.dotted(boxX, yTop, frameW, frameH, true);
     }
     ImageRender::Options imageOptions;
     imageOptions.cropToFill = true;
@@ -637,7 +637,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
     const bool rr = SETTINGS.bitmapRoundedCorners != 0;
     renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
     if (!rr) {
-      renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
+      renderer.rectangle.dotted(boxX, yTop, frameW, frameH, true);
     }
     ImageRender::Options imageOptions;
     imageOptions.cropToFill = true;
@@ -657,7 +657,7 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
   renderer.rectangle.fill(boxX, yTop, frameW, frameH, false, rr);
   if (!rr) {
-    renderer.rectangle.render(boxX, yTop, frameW, frameH, true, false);
+    renderer.rectangle.dotted(boxX, yTop, frameW, frameH, true);
   }
   renderCover(bookPath, boxX + kOuterPad, yTop + kOuterPad, coverW, coverH, title, "");
   return {frameW, frameH};
@@ -839,7 +839,7 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const bool rr = SETTINGS.bitmapRoundedCorners != 0;
   renderer.rectangle.fill(boxX, yCoverTop, coverW, coverH, false, rr);
   if (!rr) {
-    renderer.rectangle.render(boxX, yCoverTop, coverW, coverH, true, false);
+    renderer.rectangle.dotted(boxX, yCoverTop, coverW, coverH, true);
   }
   renderCover(b.path, boxX + 1, yCoverTop + 1, coverW - 2, coverH - 2, b.title, "");
 

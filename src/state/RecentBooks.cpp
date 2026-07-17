@@ -14,7 +14,7 @@
 namespace {
 constexpr uint8_t RECENT_BOOKS_FILE_VERSION = 4;
 constexpr char RECENT_BOOKS_FILE[] = "/.metadata/recent.bin";
-constexpr int MAX_RECENT_BOOKS = 8;
+constexpr int MAX_RECENT_BOOKS = 9;
 }  // namespace
 
 RecentBooks RecentBooks::instance;

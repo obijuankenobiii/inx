@@ -421,7 +421,7 @@ const options = {
   sleepClockTimeFormat: ["12 hour", "24 hour"],
   hideBatteryPercentage: ["Never", "In Reader", "Always"],
   uiTheme: ["Classic", "Bottom Tabs"],
-  recentLibraryMode: ["Grid", "Current | Previous", "Flow", "Simple", "List", "Icons", "Cover"],
+  recentLibraryMode: ["Grid", "Flow", "Simple", "List", "Icons", "Cover"],
   libraryMode: ["List", "Grid"],
   frontButtonLayout: ["Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right", "Back, Confirm, Right, Left"],
   shortPwrBtn: ["Ignore", "Sleep", "Page Refresh"],
@@ -443,6 +443,9 @@ const options = {
   statusBarLeft: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"],
   statusBarMiddle: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"],
   statusBarRight: ["None", "Page Numbers", "Percentage", "Chapter Title", "Battery Icon", "Battery %", "Battery Icon+%", "Progress Bar", "Progress Bar+%", "Page Bars", "Book Title", "Author Name"]
+};
+const optionValues = {
+  recentLibraryMode: [0, 2, 3, 4, 5, 6]
 };
 const boolSettings = [
   "useLibraryIndex", "librarySortEnabled",
@@ -732,7 +735,7 @@ function populateRecentVisibleCount() {
   const sel = document.getElementById("recentVisibleCount");
   if (!sel || settingsData.recentVisibleCount === undefined) return;
   sel.innerHTML = "";
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 1; i <= 9; i++) {
     const opt = document.createElement("option");
     opt.value = i;
     opt.textContent = String(i);
@@ -779,12 +782,17 @@ function populateSettings() {
     const el = document.getElementById(key);
     if (!el || settingsData[key] === undefined) continue;
     const labels = key === "sleepScreen" && !clockAvailable() ? options[key].slice(0, 6) : options[key];
+    const values = optionValues[key] || labels.map(function (_, idx) { return idx; });
     el.innerHTML = "";
     labels.forEach(function (label, idx) {
       const opt = document.createElement("option");
-      opt.value = idx;
+      const optionValue = values[idx];
+      opt.value = optionValue;
       opt.textContent = label;
-      if (Number(settingsData[key]) === idx) opt.selected = true;
+      if (Number(settingsData[key]) === optionValue ||
+          (key === "recentLibraryMode" && Number(settingsData[key]) === 1 && optionValue === 2)) {
+        opt.selected = true;
+      }
       el.appendChild(opt);
     });
     el.onchange = function () {

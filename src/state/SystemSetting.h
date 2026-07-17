@@ -300,13 +300,13 @@ class SystemSetting {
    * @brief Recent library display modes
    */
   enum RECENT_LIBRARY_MODE {
-    RECENT_GRID = 0,       ///< Grid view
-    RECENT_LIST = 1,       ///< Current / previous (stats + carousel strip)
-    RECENT_FLOW = 2,       ///< Flow carousel
-    RECENT_SIMPLE = 3,     ///< Simple: recent cover on top, favorites list below
-    RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
-    RECENT_ICONS = 5,      ///< 2×3 icon grid (200×200); scroll for more books
-    RECENT_COVER = 6,      ///< Latest recent book cover with title, author, and progress
+    RECENT_GRID = 0,             ///< Grid view
+    RECENT_LIST_DEPRECATED = 1,  ///< Removed mode; kept as a saved-settings alias for Flow
+    RECENT_FLOW = 2,             ///< Flow carousel
+    RECENT_SIMPLE = 3,           ///< Simple: recent cover on top, favorites list below
+    RECENT_BOOK_LIST = 4,        ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
+    RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
+    RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress
     RECENT_LIBRARY_MODE_COUNT
   };
 
@@ -431,7 +431,7 @@ class SystemSetting {
   uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
   uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
   /** How many recent books to show on the Recent hub (1–8). */
-  uint8_t recentVisibleCount = 8;
+  uint8_t recentVisibleCount = 9;
   /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
   uint8_t librarySortEnabled = 1;
   /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */

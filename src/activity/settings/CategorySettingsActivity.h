@@ -53,6 +53,7 @@ struct SettingInfo {
   SettingType type;
   uint8_t SystemSetting::* valuePtr;
   std::vector<std::string> enumValues;
+  std::vector<uint8_t> enumOptionValues;
   ValueRange valueRange;
   GroupType group;
 
@@ -68,6 +69,11 @@ struct SettingInfo {
   SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values,
               GroupType g)
       : name(n), type(t), valuePtr(ptr), enumValues(values), valueRange(), group(g) {}
+
+  /** Constructs a setting info with enum labels and explicit stored values. */
+  SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values,
+              const std::vector<uint8_t>& optionValues, GroupType g)
+      : name(n), type(t), valuePtr(ptr), enumValues(values), enumOptionValues(optionValues), valueRange(), group(g) {}
 
   /** Constructs a setting info with a numeric value range. */
   SettingInfo(const char* n, SettingType t, uint8_t SystemSetting::* ptr, const ValueRange& range, GroupType g)
@@ -92,6 +98,20 @@ struct SettingInfo {
     info.type = SettingType::ENUM;
     info.valuePtr = ptr;
     info.enumValues = values;
+    info.valueRange = ValueRange();
+    info.group = group;
+    return info;
+  }
+
+  /** Creates an enum setting whose option indexes map to explicit stored values. */
+  static SettingInfo Enum(const char* name, uint8_t SystemSetting::* ptr, const std::vector<std::string>& values,
+                          const std::vector<uint8_t>& optionValues, GroupType group = GroupType::NONE) {
+    SettingInfo info;
+    info.name = name;
+    info.type = SettingType::ENUM;
+    info.valuePtr = ptr;
+    info.enumValues = values;
+    info.enumOptionValues = optionValues;
     info.valueRange = ValueRange();
     info.group = group;
     return info;
@@ -174,6 +194,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     SettingType type;
     uint8_t SystemSetting::* valuePtr;
     std::vector<std::string> enumValues;
+    std::vector<uint8_t> enumOptionValues;
     ValueRange valueRange;
     GroupType group;
     std::function<const char*()> getValueText;

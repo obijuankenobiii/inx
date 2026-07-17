@@ -127,7 +127,7 @@ constexpr int kJpegDitherSolidBlackMax = 20;
 constexpr int kJpegDitherSolidWhiteMin = 255;    // Changed from 255 - more light grays
 constexpr int kJpegTwoBitSolidBlackMax = 10;     // Snap dark tones to clean black instead of dithering them to gray
 constexpr int kJpegTwoBitSolidWhiteMin = 224;    // Keep upper mids from blowing out to white too early
-constexpr int kJpegTwoBitContrastPercent = 128;  // Restore midtone separation closer to the quality render
+constexpr int kJpegTwoBitContrastPercent = 120;  // Keep medium shadows from collapsing into one dark-gray slab
 constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
 constexpr int kJpegTwoBitSharpenMax = 130;
@@ -137,12 +137,13 @@ constexpr int kJpegTwoBitHighlightThreshold = 5;  // Reduced from 8 - detect mor
 constexpr int kJpegTwoBitHighlightMaxLift = 50;   // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;         // Increased from 10
 constexpr int kJpegTwoBitShadowMaxDarken = 0;     // Keep at 0 (already is)
-constexpr int kJpegTwoBitShadowTextureLiftMin = 52;
+constexpr int kJpegTwoBitShadowTextureLiftMin = 42;
 constexpr int kJpegTwoBitShadowTextureLiftMax = 126;
-constexpr int kJpegTwoBitShadowTextureLift = 6;
-constexpr int kJpegTwoBitMidtoneLiftMin = 104;
-constexpr int kJpegTwoBitMidtoneLiftMax = 188;
+constexpr int kJpegTwoBitShadowTextureLift = 10;
+constexpr int kJpegTwoBitMidtoneLiftMin = 96;
+constexpr int kJpegTwoBitMidtoneLiftMax = 184;
 constexpr int kJpegTwoBitMidtoneLift = 8;
+constexpr int kJpegTwoBitFlatShadowTextureLift = 4;
 constexpr int kJpegTwoBitMediumMixStart = 96;
 constexpr int kJpegTwoBitMediumMixFull = 148;
 constexpr int kJpegTwoBitMediumMixDetailMin = 2;
@@ -190,6 +191,13 @@ int jpegTwoBitDetailTone(const int gray, const int leftGray, const int rightGray
   }
   if (gray >= kJpegTwoBitShadowTextureLiftMin && gray <= kJpegTwoBitShadowTextureLiftMax) {
     tone = std::min(255, tone + kJpegTwoBitShadowTextureLift);
+    if (std::abs(detail) <= kJpegTwoBitMediumMixDetailFull) {
+      const int lattice = (x * 37 + y * 17 + ((x ^ y) * 11)) & 15;
+      const int flatness = kJpegTwoBitMediumMixDetailFull - std::max(std::abs(detail), kJpegTwoBitMediumMixDetailMin);
+      const int lift = (lattice * kJpegTwoBitFlatShadowTextureLift * flatness) /
+                       (15 * (kJpegTwoBitMediumMixDetailFull - kJpegTwoBitMediumMixDetailMin));
+      tone = std::min(255, tone + lift);
+    }
   }
   if (gray >= kJpegTwoBitMidtoneLiftMin && gray <= kJpegTwoBitMidtoneLiftMax) {
     tone = std::min(255, tone + kJpegTwoBitMidtoneLift);

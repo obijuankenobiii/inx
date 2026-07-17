@@ -131,7 +131,7 @@ bool SystemSetting::saveToFile() const {
 
   {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
-    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 8) mut->recentVisibleCount = 8;
+    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 9) mut->recentVisibleCount = 9;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
@@ -478,8 +478,8 @@ bool SystemSetting::loadFromFile() {
     }
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, recentVisibleCount);
-      if (recentVisibleCount < 1 || recentVisibleCount > 8) {
-        recentVisibleCount = 8;
+      if (recentVisibleCount < 1 || recentVisibleCount > 9) {
+        recentVisibleCount = 9;
       }
       ++settingsRead;
     }
@@ -610,8 +610,8 @@ bool SystemSetting::loadFromFile() {
     uiTheme = UI_THEME_CLASSIC;
   }
 
-  if (recentVisibleCount < 1 || recentVisibleCount > 8) {
-    recentVisibleCount = 8;
+  if (recentVisibleCount < 1 || recentVisibleCount > 9) {
+    recentVisibleCount = 9;
   }
   if (librarySortEnabled > 1) {
     librarySortEnabled = 1;

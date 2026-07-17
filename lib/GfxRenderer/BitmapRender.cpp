@@ -518,6 +518,61 @@ void BitmapRender::icon(const uint8_t bitmap[], int x, int y, int width, int hei
   }
 }
 
+void BitmapRender::iconScaled(const uint8_t bitmap[], const int x, const int y, const int sourceWidth,
+                              const int sourceHeight, const int targetWidth, const int targetHeight,
+                              const Orientation orientation, const bool invert) const {
+  if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) {
+    return;
+  }
+
+  int orientedSourceW = sourceWidth;
+  int orientedSourceH = sourceHeight;
+  switch (orientation) {
+    case BitmapRender::Orientation::None:
+    case BitmapRender::Orientation::Rotate180:
+      orientedSourceW = sourceWidth;
+      orientedSourceH = sourceHeight;
+      break;
+    case BitmapRender::Orientation::Rotate90CW:
+    case BitmapRender::Orientation::Rotate270CW:
+      orientedSourceW = sourceHeight;
+      orientedSourceH = sourceWidth;
+      break;
+  }
+
+  for (int dy = 0; dy < targetHeight; ++dy) {
+    for (int dx = 0; dx < targetWidth; ++dx) {
+      const int ox = std::min(orientedSourceW - 1, (dx * orientedSourceW + targetWidth / 2) / targetWidth);
+      const int oy = std::min(orientedSourceH - 1, (dy * orientedSourceH + targetHeight / 2) / targetHeight);
+      int sx = 0;
+      int sy = 0;
+      switch (orientation) {
+        case BitmapRender::Orientation::None:
+          sx = ox;
+          sy = oy;
+          break;
+        case BitmapRender::Orientation::Rotate180:
+          sx = sourceWidth - 1 - ox;
+          sy = sourceHeight - 1 - oy;
+          break;
+        case BitmapRender::Orientation::Rotate90CW:
+          sx = sourceHeight - 1 - ox;
+          sy = oy;
+          break;
+        case BitmapRender::Orientation::Rotate270CW:
+          sx = ox;
+          sy = sourceWidth - 1 - oy;
+          break;
+      }
+
+      const bool ink = !readIconBitMsbFirst(bitmap, sourceWidth, sourceHeight, sx, sy);
+      if (ink) {
+        gfx.drawPixel(x + dx, y + dy, !invert);
+      }
+    }
+  }
+}
+
 void BitmapRender::maskRoundedOutside(const int x, const int y, const int width, const int height,
                                       const RoundedOutside roundedOutside) const {
   maskBitmapCornersOutsideRounded(gfx, x, y, width, height, roundedOutside);
