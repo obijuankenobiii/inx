@@ -169,6 +169,15 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   pageCount = storedPageCount;
   lutOffset = storedLutOffset;
 
+  if (pageCount == 0 || lutOffset == 0) {
+    Serial.printf("[%lu] [SCT] loadSectionFile: invalid empty section cache spine=%d pages=%u lut=%lu file=%s\n",
+                  millis(), spineIndex, static_cast<unsigned>(pageCount), static_cast<unsigned long>(lutOffset),
+                  filePath.c_str());
+    file.close();
+    clearCache();
+    return false;
+  }
+
   if (pageCount > 0 && pageCount <= MAX_CACHED_PAGE_OFFSETS && lutOffset > 0) {
     try {
       pageOffsets.resize(pageCount);
@@ -231,15 +240,32 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
     }
     FsFile tmpHtml;
     if (!SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+      Serial.printf(
+          "[%lu] [SCT] createSectionFile: failed to open temp HTML for write attempt=%d spine=%d href=%s tmp=%s "
+          "book=%s heap=%u\n",
+          millis(), attempt + 1, spineIndex, localPath.c_str(), tmpHtmlPath.c_str(), epub->getPath().c_str(),
+          static_cast<unsigned>(ESP.getFreeHeap()));
       continue;
     }
     success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    const uint32_t tmpSize = tmpHtml.position();
     tmpHtml.close();
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: temp HTML extract attempt=%d ok=%d bytes=%lu spine=%d href=%s tmp=%s "
+        "book=%s title=%s heap=%u\n",
+        millis(), attempt + 1, success ? 1 : 0, static_cast<unsigned long>(tmpSize), spineIndex, localPath.c_str(),
+        tmpHtmlPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
     if (!success && SdMan.exists(tmpHtmlPath.c_str())) {
       SdMan.remove(tmpHtmlPath.c_str());
     }
   }
-  if (!success) return false;
+  if (!success) {
+    Serial.printf("[%lu] [SCT] createSectionFile: failed to extract chapter after retries spine=%d href=%s book=%s "
+                  "title=%s heap=%u\n",
+                  millis(), spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+                  static_cast<unsigned>(ESP.getFreeHeap()));
+    return false;
+  }
 
   std::vector<uint32_t> lut;
 
@@ -280,6 +306,19 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   SdMan.remove(tmpHtmlPath.c_str());
 
   if (!success) {
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: parser returned false spine=%d href=%s file=%s book=%s title=%s pages=%u "
+        "heap=%u\n",
+        millis(), spineIndex, localPath.c_str(), filePath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(pageCount), static_cast<unsigned>(ESP.getFreeHeap()));
+    file.close();
+    SdMan.remove(filePath.c_str());
+    return false;
+  }
+
+  if (pageCount == 0) {
+    Serial.printf("[%lu] [SCT] createSectionFile: zero-page section spine=%d href=%s book=%s title=%s\n", millis(),
+                  spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str());
     file.close();
     SdMan.remove(filePath.c_str());
     return false;

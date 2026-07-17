@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 #include <vector>
 
 #include "GfxRenderer.h"
@@ -239,17 +240,21 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
   }
 
   const int rowBytes = header.rowBytes;
-  uint8_t rows[kIoBufferSize];
-  if (rowBytes > static_cast<int>(sizeof(rows))) {
+  if (rowBytes > static_cast<int>(kIoBufferSize)) {
+    file.close();
+    return false;
+  }
+  std::unique_ptr<uint8_t[]> rows(new (std::nothrow) uint8_t[kIoBufferSize]);
+  if (!rows) {
     file.close();
     return false;
   }
 
-  const int rowsPerRead = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  const int rowsPerRead = std::max(1, static_cast<int>(kIoBufferSize) / rowBytes);
   for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerRead) {
     const int rowsThisRead = std::min(rowsPerRead, visible.height - rowBase);
     const int bytesThisRead = rowsThisRead * rowBytes;
-    if (file.read(rows, bytesThisRead) != bytesThisRead) {
+    if (file.read(rows.get(), bytesThisRead) != bytesThisRead) {
       if (options.quality) {
         Serial.printf("[%lu] [IDC-Q] cache row read failed plane=%s path=%s row=%d/%d\n", millis(), planeName(options),
                       cachePath.c_str(), rowBase, visible.height);
@@ -258,7 +263,8 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
       return false;
     }
     for (int row = 0; row < rowsThisRead; row++) {
-      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width,
+                                 rows.get() + row * rowBytes);
     }
   }
 
@@ -367,8 +373,13 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
   }
 
   const int rowBytes = (visible.width + 7) / 8;
-  uint8_t rows[kIoBufferSize];
-  if (rowBytes > static_cast<int>(sizeof(rows))) {
+  if (rowBytes > static_cast<int>(kIoBufferSize)) {
+    file.close();
+    SdMan.remove(cachePath.c_str());
+    return false;
+  }
+  std::unique_ptr<uint8_t[]> rows(new (std::nothrow) uint8_t[kIoBufferSize]);
+  if (!rows) {
     file.close();
     SdMan.remove(cachePath.c_str());
     return false;
@@ -387,14 +398,14 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
     return false;
   }
 
-  const int rowsPerWrite = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  const int rowsPerWrite = std::max(1, static_cast<int>(kIoBufferSize) / rowBytes);
   for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerWrite) {
     const int rowsThisWrite = std::min(rowsPerWrite, visible.height - rowBase);
     const int bytesThisWrite = rowsThisWrite * rowBytes;
     for (int row = 0; row < rowsThisWrite; row++) {
-      renderer.readPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+      renderer.readPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows.get() + row * rowBytes);
     }
-    if (file.write(rows, bytesThisWrite) != static_cast<size_t>(bytesThisWrite)) {
+    if (file.write(rows.get(), bytesThisWrite) != static_cast<size_t>(bytesThisWrite)) {
       if (options.quality) {
         Serial.printf("[%lu] [IDC-Q] store row write failed plane=%s path=%s row=%d/%d\n", millis(), planeName(options),
                       cachePath.c_str(), rowBase, visible.height);

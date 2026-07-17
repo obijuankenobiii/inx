@@ -268,6 +268,11 @@ ScreenComponents::LoadingProgressLayout EpubActivity::loadingProgressShow(const 
  */
 bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool showProgress, bool skipImages) {
   if (!epub) return false;
+  const int totalSpines = epub->getSpineItemsCount();
+  if (spineIndex < 0 || spineIndex >= totalSpines) {
+    Serial.printf("[%lu] [EPA] buildSection: invalid spine=%d total=%d\n", millis(), spineIndex, totalSpines);
+    return false;
+  }
   const std::string cachePath = epub->getCachePath();
   // Section files live under sections/*.bin (see Section ctor). Legacy .sec at cache root was never used here.
   const std::string sectionBinPath = cachePath + "/sections/" + std::to_string(spineIndex) + ".bin";
@@ -317,8 +322,13 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
  * @param info Viewport information for rendering
  * @return Unique pointer to the loaded section
  */
-std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const ViewportInfo& info) {
+std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const ViewportInfo& info, const bool showProgress) {
   if (!epub) return nullptr;
+  const int totalSpines = epub->getSpineItemsCount();
+  if (spineIndex < 0 || spineIndex >= totalSpines) {
+    Serial.printf("[%lu] [EPA] loadSection: invalid spine=%d total=%d\n", millis(), spineIndex, totalSpines);
+    return nullptr;
+  }
 
   std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
   auto loadedSection = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
@@ -329,18 +339,22 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
       bookSettings.paragraphCssIndentEnabled != 0, bookSettings.bionicReadingEnabled != 0);
 
   if (!isCached) {
-    if (!buildSection(spineIndex, info, true, false)) {
+    if (!buildSection(spineIndex, info, showProgress, false)) {
+      Serial.printf("[%lu] [EPA] loadSection: build failed spine=%d total=%d\n", millis(), spineIndex, totalSpines);
       return nullptr;
     }
     if (!loadedSection->loadSectionFile(
             info.fontId, info.lineCompression, info.wordSpacing, bookSettings.extraParagraphSpacing,
             bookSettings.paragraphAlignment, info.width, info.height, bookSettings.hyphenationEnabled,
             bookSettings.paragraphCssIndentEnabled != 0, bookSettings.bionicReadingEnabled != 0)) {
+      Serial.printf("[%lu] [EPA] loadSection: load after build failed spine=%d total=%d\n", millis(), spineIndex,
+                    totalSpines);
       return nullptr;
     }
   }
 
   if (loadedSection->pageCount == 0) {
+    Serial.printf("[%lu] [EPA] loadSection: zero page section spine=%d total=%d\n", millis(), spineIndex, totalSpines);
     return nullptr;
   }
 
@@ -500,11 +514,32 @@ void EpubActivity::displayCoverOrTitle() {
 /**
  * @brief Loads and sets up the current section
  */
-void EpubActivity::loadCurrentSection() {
-  ViewportInfo info = calculateViewport();
-  auto newSection = loadSection(currentSpineIndex, info);
+void EpubActivity::loadCurrentSection(const bool showProgress) {
+  section.reset();
+  if (!epub) {
+    return;
+  }
 
-  if (newSection) {
+  ViewportInfo info = calculateViewport();
+  const int totalSpines = epub->getSpineItemsCount();
+  const int direction = nextPageNumber == static_cast<int>(UINT16_MAX) ? -1 : 1;
+  const int requestedSpine = currentSpineIndex;
+  int spineIndex = currentSpineIndex;
+
+  while (spineIndex >= 0 && spineIndex < totalSpines) {
+    auto newSection = loadSection(spineIndex, info, showProgress);
+    if (!newSection) {
+      Serial.printf("[%lu] [EPA] loadCurrentSection: skipping non-renderable spine=%d direction=%d\n", millis(),
+                    spineIndex, direction);
+      spineIndex += direction;
+      continue;
+    }
+
+    if (spineIndex != requestedSpine) {
+      currentSpineIndex = spineIndex;
+      nextPageNumber = direction < 0 ? static_cast<int>(UINT16_MAX) : 0;
+      pendingPercentJump = false;
+    }
     section = std::move(newSection);
     if (nextPageNumber == static_cast<int>(UINT16_MAX)) {
       section->currentPage = (section->pageCount > 0) ? (section->pageCount - 1) : 0;
@@ -519,16 +554,13 @@ void EpubActivity::loadCurrentSection() {
       section->currentPage = std::min(newPage, section->pageCount - 1);
       cachedChapterTotalPageCount = 0;
     }
+    return;
   }
-}
 
-/**
- * @brief Preloads next few chapters
- */
-void EpubActivity::preloadChapters() {
-  ViewportInfo info = calculateViewport();
-  buildSection(currentSpineIndex, info, false, false);
-  buildSection(currentSpineIndex + 1, info, false, false);
+  if (direction > 0) {
+    currentSpineIndex = totalSpines;
+    nextPageNumber = 0;
+  }
 }
 
 /**
@@ -584,14 +616,13 @@ bool EpubActivity::slowPath() {
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   BOOK_STATE.addOrUpdateBook(epub->getPath(), epub->getTitle(), epub->getAuthor());
 
-  preloadChapters();
+  loadCurrentSection(false);
   loadingProgress = 100;
   drawLoadingScreen();
 
   statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
   renderer.clearScreen(0xff);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-  loadCurrentSection();
   if (!section) {
     readerPopup("Error loading chapter");
     onGoBack();
@@ -1542,21 +1573,18 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
   ViewportInfo info = calculateViewport();
 
   if (!section) {
-    section = loadSection(currentSpineIndex, info);
+    loadCurrentSection();
     if (!section) {
+      Serial.printf("[%lu] [EPA] renderScreen: loadCurrentSection failed spine=%d total=%d\n", millis(),
+                    currentSpineIndex, totalSpine);
+      if (currentSpineIndex >= totalSpine) {
+        renderer.clearScreen(0xFF);
+        displayBookStats();
+        BOOK_STATE.setFinished(epub->getPath(), true);
+        return;
+      }
       handleChapterLoadFailure();
       return;
-    }
-
-    section->currentPage = (nextPageNumber == UINT16_MAX)          ? section->pageCount - 1
-                           : (nextPageNumber < section->pageCount) ? nextPageNumber
-                                                                   : 0;
-
-    if (cachedChapterTotalPageCount > 0 && currentSpineIndex == cachedSpineIndex &&
-        section->pageCount != cachedChapterTotalPageCount) {
-      const float progress = static_cast<float>(section->currentPage) / static_cast<float>(cachedChapterTotalPageCount);
-      section->currentPage = std::min(static_cast<int>(progress * section->pageCount), section->pageCount - 1);
-      cachedChapterTotalPageCount = 0;
     }
 
     if (pendingPercentJump && section->pageCount > 0) {
@@ -1574,6 +1602,8 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
   }
 
   if (section->pageCount == 0) {
+    Serial.printf("[%lu] [EPA] renderScreen: zero page section spine=%d total=%d\n", millis(), currentSpineIndex,
+                  totalSpine);
     section.reset();
     handleChapterLoadFailure();
     return;
@@ -1585,6 +1615,8 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
 
   auto page = section->loadPageFromSectionFile();
   if (!page) {
+    Serial.printf("[%lu] [EPA] renderScreen: page deserialize failed spine=%d page=%d count=%u\n", millis(),
+                  currentSpineIndex, section->currentPage, static_cast<unsigned>(section->pageCount));
     section->clearCache();
     section.reset();
     handleChapterLoadFailure();

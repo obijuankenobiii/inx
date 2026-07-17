@@ -513,16 +513,21 @@ void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts
 bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) {
   const XML_Parser parser = XML_ParserCreate(nullptr);
   if (!parser) {
+    Serial.printf("[%lu] [SCT] Expat parser allocation failed chapter=%s internal=%s heap=%u\n", millis(),
+                  filepath.c_str(), internalPath.c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
     return false;
   }
 
   FsFile file;
   if (!SdMan.openFileForRead("EHP", filepath, file)) {
+    Serial.printf("[%lu] [SCT] Failed to open chapter temp HTML path=%s internal=%s heap=%u\n", millis(),
+                  filepath.c_str(), internalPath.c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
     XML_ParserFree(parser);
     return false;
   }
 
-  if (callProgressPopup && popupFn && file.size() >= MIN_SIZE_FOR_POPUP) {
+  const uint32_t fileSize = file.size();
+  if (callProgressPopup && popupFn && fileSize >= MIN_SIZE_FOR_POPUP) {
     popupFn();
   }
 
@@ -532,17 +537,31 @@ bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) 
   XML_SetDefaultHandlerExpand(parser, defaultHandlerExpand);
 
   bool parseOk = true;
+  const char* failReason = nullptr;
+  enum XML_Error xmlError = XML_ERROR_NONE;
+  XML_Size failLine = 0;
+  XML_Size failColumn = 0;
+  XML_Index failByte = 0;
   int done = 0;
   do {
     void* const buf = XML_GetBuffer(parser, 1024);
     if (!buf) {
       parseOk = false;
+      failReason = "buffer";
+      failLine = XML_GetCurrentLineNumber(parser);
+      failColumn = XML_GetCurrentColumnNumber(parser);
+      failByte = XML_GetCurrentByteIndex(parser);
       break;
     }
     const size_t len = file.read(buf, 1024);
     done = (len == 0);
     if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
       parseOk = false;
+      failReason = "xml";
+      xmlError = XML_GetErrorCode(parser);
+      failLine = XML_GetCurrentLineNumber(parser);
+      failColumn = XML_GetCurrentColumnNumber(parser);
+      failByte = XML_GetCurrentByteIndex(parser);
       break;
     }
   } while (!done);
@@ -550,7 +569,14 @@ bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) 
   XML_ParserFree(parser);
   file.close();
   if (!parseOk) {
-    Serial.printf("[%lu] [SCT] parseHtmlThroughExpat failed chapter=%s\n", millis(), filepath.c_str());
+    const char* pass = imagePrefetchPassOnly_ ? "image-prefetch" : "layout";
+    const char* errorText = xmlError == XML_ERROR_NONE ? "" : XML_ErrorString(xmlError);
+    Serial.printf(
+        "[%lu] [SCT] parseHtmlThroughExpat failed pass=%s reason=%s xml=%d %s line=%lu col=%lu byte=%ld size=%lu "
+        "chapter=%s internal=%s heap=%u\n",
+        millis(), pass, failReason ? failReason : "unknown", static_cast<int>(xmlError), errorText ? errorText : "",
+        static_cast<unsigned long>(failLine), static_cast<unsigned long>(failColumn), static_cast<long>(failByte),
+        static_cast<unsigned long>(fileSize), filepath.c_str(), internalPath.c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
   }
   return parseOk;
 }
@@ -2146,6 +2172,12 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
  * @return true if parsing was successful, false otherwise
  */
 bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
+  Serial.printf(
+      "[%lu] [SCT] parseAndBuildPages start internal=%s tmp=%s skipImages=%d viewport=%ux%u font=%d headerFont=%d "
+      "heap=%u\n",
+      millis(), internalPath.c_str(), filepath.c_str(), skipImageProcessing ? 1 : 0, viewportWidth, viewportHeight,
+      fontId, headerFontId, static_cast<unsigned>(ESP.getFreeHeap()));
+
   skipImages = skipImageProcessing;
   imageExtractCountForYield_ = 0;
 
@@ -2154,6 +2186,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
     resetStructuralStateForParsePass();
     if (!parseHtmlThroughExpat(false)) {
       imagePrefetchPassOnly_ = false;
+      Serial.printf("[%lu] [SCT] parseAndBuildPages failed during image-prefetch internal=%s tmp=%s heap=%u\n",
+                    millis(), internalPath.c_str(), filepath.c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
       return false;
     }
     imagePrefetchPassOnly_ = false;
@@ -2199,6 +2233,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   startNewTextBlock(initialBlockStyle);
 
   if (!parseHtmlThroughExpat(true)) {
+    Serial.printf("[%lu] [SCT] parseAndBuildPages failed during layout internal=%s tmp=%s y=%d heap=%u\n", millis(),
+                  internalPath.c_str(), filepath.c_str(), currentPageNextY, static_cast<unsigned>(ESP.getFreeHeap()));
     return false;
   }
 
@@ -2212,5 +2248,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
     completePageFn(std::move(currentPage));
   }
 
+  Serial.printf("[%lu] [SCT] parseAndBuildPages success internal=%s finalY=%d heap=%u\n", millis(),
+                internalPath.c_str(), currentPageNextY, static_cast<unsigned>(ESP.getFreeHeap()));
   return true;
 }

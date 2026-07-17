@@ -77,6 +77,10 @@ static bool isJpegFile(const std::string& path) {
  */
 static bool isBmpFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
 
+static bool isSupportedInBodyImageFile(const std::string& path) {
+  return isBmpFile(path) || isPngFile(path) || isJpegFile(path);
+}
+
 /**
  * @brief Creates the cache directory structure for this EPUB.
  *
@@ -165,6 +169,12 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
   Serial.printf("[%lu] [EBP-IMG] extract start href=%s out=%s\n", static_cast<unsigned long>(millis()),
                 itemHref.c_str(), outBmpPath.c_str());
 
+  if (!isSupportedInBodyImageFile(itemHref)) {
+    Serial.printf("[%lu] [EBP-IMG] unsupported in-body image format: %s\n", static_cast<unsigned long>(millis()),
+                  itemHref.c_str());
+    return false;
+  }
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -219,7 +229,7 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
       Serial.printf("[%lu] [EBP-IMG] PNG pipeline failed: %s\n", static_cast<unsigned long>(millis()),
                     itemHref.c_str());
     }
-  } else {
+  } else if (isJpegFile(itemHref)) {
     (void)targetW;
     (void)targetH;
     Serial.printf("[%lu] [EBP-IMG] JPEG convert: %s\n", static_cast<unsigned long>(millis()), itemHref.c_str());

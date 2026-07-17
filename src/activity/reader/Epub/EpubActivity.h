@@ -303,7 +303,7 @@ class EpubActivity final : public ActivityWithSubactivity {
    * @param info Viewport information for rendering
    * @return Unique pointer to the loaded section
    */
-  std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info);
+  std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info, bool showProgress = true);
 
   void setupOrientation();
   /** Copies device reading orientation into book settings when the book follows global defaults. */
@@ -312,8 +312,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void onBookSettingsLiveLayoutSync();
   void ensureThumbnailExists();
   void displayCoverOrTitle();
-  void loadCurrentSection();
-  void preloadChapters();
+  void loadCurrentSection(bool showProgress = true);
   void updateExternalState();
   void fastPath();
   bool slowPath();
