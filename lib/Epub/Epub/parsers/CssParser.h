@@ -127,6 +127,9 @@ class CssParser {
   /** CSS font-size as an em multiplier (1.0 = default). Handles em/rem/%/px/pt and size keywords; 1.0 if unset. */
   float getFontSizeEm(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr) const;
+  /** Returns TextBlock::VerticalAlign values for CSS vertical-align: super/sub/baseline. */
+  uint8_t getVerticalAlign(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                           const std::string& styleAttr) const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,

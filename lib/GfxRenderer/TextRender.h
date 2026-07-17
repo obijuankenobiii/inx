@@ -2,6 +2,7 @@
 
 #include <EpdFontFamily.h>
 
+#include <cstdint>
 #include <string>
 
 class GfxRenderer;
@@ -25,6 +26,10 @@ class TextRender {
                    EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void render(int fontId, int x, int y, const char* text, bool black = true,
               EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int getScaledWidth(int fontId, const char* text, uint8_t scalePct,
+                     EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int renderScaled(int fontId, int x, int y, const char* text, uint8_t scalePct, bool black = true,
+                   EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getSmallCapsWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   /** Renders small caps and returns the x position after the text (its advance), so callers don't re-measure. */
   int renderSmallCaps(int fontId, int x, int y, const char* text, bool black = true,

@@ -434,6 +434,8 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   boldUntilDepth = INT_MAX;
   italicUntilDepth = INT_MAX;
   underlineUntilDepth = INT_MAX;
+  superscriptUntilDepth = INT_MAX;
+  subscriptUntilDepth = INT_MAX;
   inHeader = false;
   inDropCap = false;
   dropCapDepth = INT_MAX;
@@ -865,12 +867,21 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
 
   const bool smallCapsActive = !smallCapsStack.empty() && smallCapsStack.back();
   const bool underlineActive = underlineUntilDepth < depth;
+  uint8_t verticalAlign = TextBlock::BASELINE;
+  const bool superscriptActive = superscriptUntilDepth < depth;
+  const bool subscriptActive = subscriptUntilDepth < depth;
+  if (superscriptActive || subscriptActive) {
+    verticalAlign = superscriptActive && (!subscriptActive || superscriptUntilDepth >= subscriptUntilDepth)
+                        ? TextBlock::SUPERSCRIPT
+                        : TextBlock::SUBSCRIPT;
+  }
   if (currentTextBlock && currentTextBlock->size() >= STREAMING_TEXTBLOCK_WORD_LIMIT) {
     currentTextBlock->layoutAndExtractLines(
         renderer, activeBlockFontId(), static_cast<uint16_t>(std::max(1, currentTextBlockContentWidth)),
         [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
   }
-  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive, nextWordJoinsPrevious);
+  currentTextBlock->addWord(partWordBuffer, fontStyle, smallCapsActive, underlineActive, nextWordJoinsPrevious,
+                            verticalAlign);
   nextWordJoinsPrevious = false;
   partWordBufferIndex = 0;
 }
@@ -1553,6 +1564,26 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
 
+  uint8_t elementVerticalAlign = TextBlock::BASELINE;
+  if (tagLower == "sup") {
+    elementVerticalAlign = TextBlock::SUPERSCRIPT;
+  } else if (tagLower == "sub") {
+    elementVerticalAlign = TextBlock::SUBSCRIPT;
+  } else {
+    elementVerticalAlign = self->css().getVerticalAlign(tagLower, classAttr, idAttr, styleAttr);
+  }
+  if (elementVerticalAlign != TextBlock::BASELINE) {
+    if (self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+      self->nextWordJoinsPrevious = true;
+    }
+    if (elementVerticalAlign == TextBlock::SUPERSCRIPT) {
+      self->superscriptUntilDepth = self->depth;
+    } else {
+      self->subscriptUntilDepth = self->depth;
+    }
+  }
+
   if (isCustomDisplayBlock) {
     self->flushPartWordBuffer();
     // Lay out the previous block (applying ITS bottom margin/padding) before this block overwrites the
@@ -1758,6 +1789,12 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->flushPartWordBuffer();
     }
   }
+  const int closingDepth = self->depth - 1;
+  if (self->partWordBufferIndex > 0 &&
+      (self->superscriptUntilDepth == closingDepth || self->subscriptUntilDepth == closingDepth)) {
+    self->flushPartWordBuffer();
+    self->nextWordJoinsPrevious = true;
+  }
 
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
@@ -1855,6 +1892,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->boldUntilDepth == self->depth) self->boldUntilDepth = INT_MAX;
   if (self->italicUntilDepth == self->depth) self->italicUntilDepth = INT_MAX;
   if (self->underlineUntilDepth == self->depth) self->underlineUntilDepth = INT_MAX;
+  if (self->superscriptUntilDepth == self->depth) self->superscriptUntilDepth = INT_MAX;
+  if (self->subscriptUntilDepth == self->depth) self->subscriptUntilDepth = INT_MAX;
 
   if (self->dropCapDepth == self->depth) {
     if (self->inDropCap && self->partWordBufferIndex > 0) {

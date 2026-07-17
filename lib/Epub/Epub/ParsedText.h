@@ -24,6 +24,7 @@ class ParsedText {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
+  std::list<uint8_t> wordVerticalAlign;
   /** True when this token was split only by an inline style boundary and should not get an inter-word gap. */
   std::list<uint8_t> wordJoinPrevious;
   // Inline images flow as atomic "words": for an image slot the `words` entry is empty and these hold the
@@ -75,7 +76,7 @@ class ParsedText {
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool smallCaps = false, bool underline = false,
-               bool joinPrevious = false);
+               bool joinPrevious = false, uint8_t verticalAlign = TextBlock::BASELINE);
   /** Appends an inline image that flows on the line as an atomic word of the given on-screen size. */
   void addImage(std::string cachePath, uint16_t displayW, uint16_t displayH);
   void setStyle(const TextBlock::Style style) { this->style = style; }

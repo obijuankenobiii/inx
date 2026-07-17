@@ -24,6 +24,7 @@ namespace {
 
 constexpr char SOFT_HYPHEN_UTF8[] = "\xC2\xAD";
 constexpr size_t SOFT_HYPHEN_BYTES = 2;
+constexpr uint8_t kScriptScalePct = 70;
 
 bool containsSoftHyphen(const std::string& word) { return word.find(SOFT_HYPHEN_UTF8) != std::string::npos; }
 
@@ -124,6 +125,15 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
          measureWordWidth(renderer, fontId, suffix, style, smallCaps);
 }
 
+uint16_t measureWordWidthForAlign(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                                  const EpdFontFamily::Style style, const uint8_t bionicPrefixBytes,
+                                  const bool smallCaps, const uint8_t verticalAlign) {
+  if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
+    return static_cast<uint16_t>(std::max(0, renderer.text.getScaledWidth(fontId, word.c_str(), kScriptScalePct, style)));
+  }
+  return measureWordWidth(renderer, fontId, word, style, bionicPrefixBytes, smallCaps);
+}
+
 /**
  * When a drop cap / left indent is active, the optimal layout uses O(n^2) DP tables (~12 bytes per cell).
  * Long paragraphs (common in fixed-layout / image-heavy EPUBs) exhaust heap and abort(); greedy packing
@@ -173,7 +183,7 @@ std::vector<size_t> computeGreedyLineBreaksWithDropIndent(const int pageWidth, c
 }  // namespace
 
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle, const bool smallCaps,
-                         const bool underline, const bool joinPrevious) {
+                         const bool underline, const bool joinPrevious, const uint8_t verticalAlign) {
   if (word.empty()) return;
 
   const uint8_t bionicPrefixBytesValue = bionicReadingEnabled ? bionicPrefixLengthBytes(word) : 0;
@@ -182,6 +192,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   bionicPrefixBytes.push_back(bionicPrefixBytesValue);
   wordSmallCaps.push_back(smallCaps ? 1 : 0);
   wordUnderline.push_back(underline ? 1 : 0);
+  wordVerticalAlign.push_back(verticalAlign);
   wordJoinPrevious.push_back(joinPrevious && words.size() > 1 ? 1 : 0);
   // Only carry image-list entries once this block has an inline image (keeps plain text blocks lean).
   if (hasInlineImages_) {
@@ -207,6 +218,7 @@ void ParsedText::addImage(std::string cachePath, const uint16_t displayW, const 
   bionicPrefixBytes.push_back(0);
   wordSmallCaps.push_back(0);
   wordUnderline.push_back(0);
+  wordVerticalAlign.push_back(TextBlock::BASELINE);
   wordJoinPrevious.push_back(0);
   wordImagePaths.push_back(std::move(cachePath));
   wordImageW.push_back(displayW);
@@ -253,16 +265,19 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
   auto wordStylesIt = wordStyles.begin();
   auto bionicIt = bionicPrefixBytes.begin();
   auto smallCapsIt = wordSmallCaps.begin();
+  auto verticalAlignIt = wordVerticalAlign.begin();
   auto imgPathIt = wordImagePaths.begin();
   auto imgWIt = wordImageW.begin();
 
   while (wordsIt != words.end()) {
     const bool smallCaps = smallCapsIt != wordSmallCaps.end() && (*smallCapsIt != 0);
+    const uint8_t verticalAlign = verticalAlignIt != wordVerticalAlign.end() ? *verticalAlignIt : TextBlock::BASELINE;
     if (imgPathIt != wordImagePaths.end() && !imgPathIt->empty()) {
       // Inline image: its on-line footprint is the image display width (no text measuring).
       wordWidths.push_back(imgWIt != wordImageW.end() ? *imgWIt : 0);
     } else {
-      wordWidths.push_back(measureWordWidth(renderer, fontId, *wordsIt, *wordStylesIt, *bionicIt, smallCaps));
+      wordWidths.push_back(
+          measureWordWidthForAlign(renderer, fontId, *wordsIt, *wordStylesIt, *bionicIt, smallCaps, verticalAlign));
     }
 
     std::advance(wordsIt, 1);
@@ -270,6 +285,9 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
     std::advance(bionicIt, 1);
     if (smallCapsIt != wordSmallCaps.end()) {
       std::advance(smallCapsIt, 1);
+    }
+    if (verticalAlignIt != wordVerticalAlign.end()) {
+      std::advance(verticalAlignIt, 1);
     }
     if (imgPathIt != wordImagePaths.end()) std::advance(imgPathIt, 1);
     if (imgWIt != wordImageW.end()) std::advance(imgWIt, 1);
@@ -558,12 +576,14 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   auto bionicIt = bionicPrefixBytes.begin();
   auto smallCapsIt = wordSmallCaps.begin();
   auto underlineIt = wordUnderline.begin();
+  auto verticalAlignIt = wordVerticalAlign.begin();
   auto joinPreviousIt = wordJoinPrevious.begin();
   std::advance(wordIt, wordIndex);
   std::advance(styleIt, wordIndex);
   std::advance(bionicIt, wordIndex);
   std::advance(smallCapsIt, wordIndex);
   std::advance(underlineIt, wordIndex);
+  std::advance(verticalAlignIt, wordIndex);
   std::advance(joinPreviousIt, wordIndex);
 
   const bool blockHasImages = !wordImagePaths.empty();
@@ -584,6 +604,10 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   const auto style = *styleIt;
   const bool smallCaps = *smallCapsIt != 0;
   const bool underline = *underlineIt != 0;
+  const uint8_t verticalAlign = *verticalAlignIt;
+  if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
+    return false;
+  }
 
   auto breakInfos = Hyphenator::breakOffsets(word, allowFallbackBreaks);
   if (breakInfos.empty()) {
@@ -628,6 +652,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   auto insertBionicIt = std::next(bionicIt);
   auto insertSmallCapsIt = std::next(smallCapsIt);
   auto insertUnderlineIt = std::next(underlineIt);
+  auto insertVerticalAlignIt = std::next(verticalAlignIt);
   auto insertJoinPreviousIt = std::next(joinPreviousIt);
   words.insert(insertWordIt, remainder);
   wordStyles.insert(insertStyleIt, style);
@@ -637,6 +662,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   bionicPrefixBytes.insert(insertBionicIt, remainderBionic);
   wordSmallCaps.insert(insertSmallCapsIt, smallCaps ? 1 : 0);
   wordUnderline.insert(insertUnderlineIt, underline ? 1 : 0);
+  wordVerticalAlign.insert(insertVerticalAlignIt, verticalAlign);
   wordJoinPrevious.insert(insertJoinPreviousIt, 0);
   // The split halves are plain text — keep the parallel image lists aligned (only when this block has any).
   if (blockHasImages) {
@@ -743,12 +769,14 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   auto bionicEndIt = bionicPrefixBytes.begin();
   auto smallCapsEndIt = wordSmallCaps.begin();
   auto underlineEndIt = wordUnderline.begin();
+  auto verticalAlignEndIt = wordVerticalAlign.begin();
   auto joinPreviousEndIt = wordJoinPrevious.begin();
   std::advance(wordEndIt, lineWordCount);
   std::advance(wordStyleEndIt, lineWordCount);
   std::advance(bionicEndIt, lineWordCount);
   std::advance(smallCapsEndIt, lineWordCount);
   std::advance(underlineEndIt, lineWordCount);
+  std::advance(verticalAlignEndIt, lineWordCount);
   std::advance(joinPreviousEndIt, lineWordCount);
 
   std::list<std::string> lineWords;
@@ -762,6 +790,9 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   lineWordSmallCaps.splice(lineWordSmallCaps.begin(), wordSmallCaps, wordSmallCaps.begin(), smallCapsEndIt);
   std::list<uint8_t> lineWordUnderline;
   lineWordUnderline.splice(lineWordUnderline.begin(), wordUnderline, wordUnderline.begin(), underlineEndIt);
+  std::list<uint8_t> lineWordVerticalAlign;
+  lineWordVerticalAlign.splice(lineWordVerticalAlign.begin(), wordVerticalAlign, wordVerticalAlign.begin(),
+                               verticalAlignEndIt);
   std::list<uint8_t> lineWordJoinPrevious;
   lineWordJoinPrevious.splice(lineWordJoinPrevious.begin(), wordJoinPrevious, wordJoinPrevious.begin(),
                               joinPreviousEndIt);
@@ -797,6 +828,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
 
   processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
                                           std::move(lineBionicPrefixBytes), std::move(lineWordSmallCaps), style,
-                                          std::move(lineWordUnderline), std::move(lineWordImagePaths),
-                                          std::move(lineWordImageW), std::move(lineWordImageH)));
+                                          std::move(lineWordUnderline), std::move(lineWordVerticalAlign),
+                                          std::move(lineWordImagePaths), std::move(lineWordImageW),
+                                          std::move(lineWordImageH)));
 }

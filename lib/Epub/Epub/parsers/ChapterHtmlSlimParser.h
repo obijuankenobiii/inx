@@ -54,6 +54,8 @@ class ChapterHtmlSlimParser {
   int boldUntilDepth = INT_MAX;
   int italicUntilDepth = INT_MAX;
   int underlineUntilDepth = INT_MAX;
+  int superscriptUntilDepth = INT_MAX;
+  int subscriptUntilDepth = INT_MAX;
 
   int fontId;
   int headerFontId;

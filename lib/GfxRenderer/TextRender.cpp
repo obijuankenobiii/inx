@@ -270,6 +270,43 @@ int TextRender::getSmallCapsWidth(const int fontId, const char* text, const EpdF
   return totalWidth;
 }
 
+int TextRender::getScaledWidth(const int fontId, const char* text, const uint8_t scalePct,
+                               const EpdFontFamily::Style style) const {
+  if (!text || *text == '\0' || gfx.fontMap.count(fontId) == 0) {
+    return 0;
+  }
+
+  const auto& family = gfx.fontMap.at(fontId);
+  const EpdFontData* fontData = family.getData(style);
+  if (!fontData) {
+    return 0;
+  }
+
+  const auto streamIt = gfx.streamingFonts.find(fontData);
+  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(text);
+  int totalWidth = 0;
+  while (const uint32_t cp = utf8NextCodepoint(&ptr)) {
+    EpdGlyph glyphStorage;
+    const EpdGlyph* glyph = nullptr;
+    if (streamIt != gfx.streamingFonts.end()) {
+      if (!streamIt->second->getGlyphMetadata(cp, glyphStorage)) {
+        streamIt->second->getGlyphMetadata(REPLACEMENT_GLYPH, glyphStorage);
+      }
+      glyph = &glyphStorage;
+    } else {
+      glyph = family.getGlyph(cp, style);
+      if (!glyph) {
+        glyph = family.getGlyph(REPLACEMENT_GLYPH, style);
+      }
+    }
+    if (!glyph) {
+      continue;
+    }
+    totalWidth += scaleMetricRound(glyph->advanceX, scalePct);
+  }
+  return totalWidth;
+}
+
 std::string TextRender::truncate(const int fontId, const char* text, const int maxWidth,
                                  const EpdFontFamily::Style style) const {
   if (!text || maxWidth <= 0) return "";
@@ -391,6 +428,28 @@ void TextRender::render(const int fontId, const int x, const int y, const char* 
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
     renderChar(font, cp, &xpos, &yCursor, black, style);
   }
+}
+
+int TextRender::renderScaled(const int fontId, const int x, const int y, const char* text, const uint8_t scalePct,
+                             const bool black, const EpdFontFamily::Style style) const {
+  if (text == nullptr || *text == '\0') {
+    return x;
+  }
+  if (gfx.fontMap.count(fontId) == 0) {
+    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
+    return x;
+  }
+
+  const auto font = gfx.fontMap.at(fontId);
+  const int yPos = y + getFontAscenderSize(fontId);
+  int xpos = x;
+  int yCursor = yPos;
+
+  uint32_t cp;
+  while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
+    renderScaledChar(font, cp, &xpos, &yCursor, black, style, scalePct);
+  }
+  return xpos;
 }
 
 int TextRender::renderSmallCaps(const int fontId, const int x, const int y, const char* text, const bool black,

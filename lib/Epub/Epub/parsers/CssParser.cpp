@@ -959,6 +959,19 @@ float CssParser::getFontSizeEm(const std::string& elementTagLower, const std::st
   return num;  // unitless — treat like em
 }
 
+uint8_t CssParser::getVerticalAlign(const std::string& elementTagLower, const std::string& className,
+                                    const std::string& id, const std::string& styleAttr) const {
+  std::string raw = getCascadedPropertyValue("vertical-align", className, id, styleAttr, elementTagLower);
+  raw = toLower(trim(raw));
+  if (raw == "super") {
+    return 1;
+  }
+  if (raw == "sub") {
+    return 2;
+  }
+  return 0;
+}
+
 int CssParser::getWidth(const std::string& className, const std::string& id, const std::string& styleAttr,
                         int viewportWidth, int viewportHeight) const {
   return getInlineOrSheetLength("width", className, id, styleAttr, viewportWidth, viewportHeight);
