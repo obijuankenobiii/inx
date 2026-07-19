@@ -546,10 +546,11 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
   return true;
 }
 
-void FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
-  ensureFontReady(bodyFontId, renderer);
-  ensureFontReady(getMaxFontId(bodyFontId), renderer);
-  ensureFontReady(getNextFont(bodyFontId), renderer);
+bool FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
+  const bool bodyReady = ensureFontReady(bodyFontId, renderer);
+  const bool maxReady = ensureFontReady(getMaxFontId(bodyFontId), renderer);
+  const bool headerReady = ensureFontReady(getNextFont(bodyFontId), renderer);
+  return bodyReady && maxReady && headerReady;
 }
 
 /**

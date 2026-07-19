@@ -2315,10 +2315,7 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW,
     if (warmImageDisplayCache) {
       ImageRenderMode mode = warmImageRenderMode;
       bool quality = warmImageQuality;
-      if (mode == ImageRenderMode::TwoBit && !grayscale) {
-        mode = ImageRenderMode::OneBit;
-        quality = false;
-      }
+      if (mode != ImageRenderMode::TwoBit) quality = false;
       image->warmDisplayCache(renderer, 0, warmImageYOffset, mode, quality);
     }
   };

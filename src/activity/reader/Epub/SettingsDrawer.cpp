@@ -20,7 +20,7 @@
 constexpr int LIST_ITEM_HEIGHT = 66;
 
 namespace {
-constexpr int kDrawerListTop = 74;
+constexpr int kDrawerListTop = 78;
 constexpr int kDrawerListBottomPadding = 12;
 constexpr int kDrawerHeaderTitleY = 14;
 constexpr int kDrawerHeaderTagGap = 24;
@@ -955,7 +955,7 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
     }
   }
 
-  if (input.isPressed(MappedInputManager::Button::Back)) {
+  if (input.wasReleased(MappedInputManager::Button::Back)) {
     hide();
     needRedraw = true;
   }
@@ -976,6 +976,7 @@ void SettingsDrawer::applyChange(int delta) {
   menuItems[selectedIndex].change(settings, delta);
 
   if (selectedItem == MenuItem::PresetPicker) {
+    settingsUpdated = true;
     setupMenu();
     if (selectedIndex >= static_cast<int>(menuItems.size())) {
       selectedIndex = std::max(0, static_cast<int>(menuItems.size()) - 1);

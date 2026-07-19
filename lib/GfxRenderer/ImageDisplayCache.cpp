@@ -18,7 +18,7 @@
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 39;        // bump: regenerate GRAY2 planes after quality gray-level swap
+constexpr uint16_t kVersion = 40;        // bump: discard high-quality image planes built with a bad GRAY2 base
 constexpr const char* kCacheDir = "/.system/cache";
 constexpr size_t kIoBufferSize = 2048;
 constexpr size_t kSourceSizeCacheMax = 64;

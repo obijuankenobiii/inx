@@ -95,6 +95,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   int pagesUntilFullRefresh = 0;
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
+  bool suppressNextSectionLoadProgress_ = false;
+  bool suppressBackUntilReleased_ = false;
   int cachedSpineIndex = 0;
   int cachedChapterTotalPageCount = 0;
   bool updateRequired = false;
@@ -125,6 +127,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   MenuDrawer* menuDrawer = nullptr;
   bool menuDrawerVisible = false;
   BookSettings bookSettings;
+  BookSettings settingsDrawerSnapshot_;
+  bool hasSettingsDrawerSnapshot_ = false;
   /** Last orientation value used for a full layout/section rebuild; used to detect drift after global sync. */
   uint8_t bookLayoutAppliedOrientation_ = 0xFF;
   bool leftButtonLongPressProcessed = false;
