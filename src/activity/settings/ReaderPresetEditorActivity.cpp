@@ -218,7 +218,7 @@ void ReaderPresetEditorActivity::renderPreview() {
       // Greedily pack words for this line.
       const int lineStart = i;
       int naturalWidth = 0;
-      int widths[kPreviewMaxWords];
+      int widths[kPreviewMaxWords] = {};
       int widthCount = 0;
       while (i < wordCount && widthCount < kPreviewMaxWords) {
         char wordBuf[kPreviewWordBufferSize];
