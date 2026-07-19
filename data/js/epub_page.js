@@ -131,28 +131,35 @@ function showEpubFolderImportResults(okCount, failNames, files) {
   for (const f of files) {
     const bad = failNames.indexOf(f.name) >= 0;
     html +=
-      "<li><span>" + escapeHtml(f.name) + '</span><span style="flex-shrink:0;font-weight:600;color:' +
-      (bad ? "#ff3b30" : "#34c759") + '">' + (bad ? "Failed" : "OK") + "</span></li>";
+      "<li><span>" + escapeHtml(f.name) + '</span><span class="import-result-icon ' +
+      (bad ? 'bad" aria-label="Failed">&#215;' : 'ok" aria-label="OK">&#10003;') + "</span></li>";
   }
+  const total = okCount + failNames.length;
   box.className = "import-summary " + (hasFailures ? "warn" : "ok");
   box.innerHTML =
     '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
     (hasFailures
       ? '<path d="M10 3 2.5 17h15L10 3Z"/><path d="M10 8v4M10 15h.01"/>'
       : '<path d="M16.5 5.5 8 14l-4.5-4.5"/>') +
-    '</svg><div class="import-summary-body"><div class="import-summary-title">Last import: ' +
-    okCount + " succeeded, " + failNames.length + " failed</div>" +
+    '</svg><div class="import-summary-body"><div class="import-summary-title">' +
+    (hasFailures ? "Import finished with issues" : "Import complete") + '</div><div class="import-summary-meta">' +
+    okCount + " of " + total + " book" + (total === 1 ? "" : "s") + " imported" +
+    (failNames.length ? ", " + failNames.length + " failed" : "") + "</div>" +
     (html ? "<ul>" + html + "</ul>" : "") +
     "</div>";
   box.style.display = "block";
 }
 
-function setUploadStatus(text, count, percent, visible) {
+function setUploadStatus(text, count, percent, visible, state) {
   const box = document.getElementById("upload-status");
   const label = document.getElementById("upload-status-text");
   const counter = document.getElementById("upload-status-count");
   const fill = document.getElementById("progress-fill");
-  if (box && visible !== undefined) box.style.display = visible ? "block" : "none";
+  if (box) {
+    if (visible !== undefined) box.style.display = visible ? "block" : "none";
+    box.classList.toggle("complete", state === "complete");
+    box.classList.toggle("warn", state === "warn");
+  }
   if (label && text !== undefined) label.textContent = text;
   if (counter && count !== undefined) counter.textContent = count;
   if (fill && percent !== undefined) fill.style.width = Math.max(0, Math.min(100, percent)) + "%";
@@ -204,7 +211,7 @@ async function uploadEpubFiles(files, destPath) {
     }
   }
 
-  setUploadStatus("Import complete", succeeded + "/" + files.length, 100, true);
+  setUploadStatus(failed.length ? "Import finished with issues" : "Import complete", succeeded + "/" + files.length, 100, true, failed.length ? "warn" : "complete");
   addModalLog("modalLog", "Import finished. Succeeded: " + succeeded + ". Failed: " + failed.length + ".", "success");
   showEpubFolderImportResults(succeeded, failed, files);
   await hydrate();
@@ -309,7 +316,7 @@ async function deleteSelectedItems() {
     }
   }
 
-  setUploadStatus("Delete complete", deleted + "/" + selected.length, 100, true);
+  setUploadStatus(failed.length ? "Delete finished with issues" : "Delete complete", deleted + "/" + selected.length, 100, true, failed.length ? "warn" : "complete");
   showEpubFolderImportResults(deleted, failed, selected.map((item) => ({ name: item.name })));
   if (button) button.disabled = false;
   await hydrate();
