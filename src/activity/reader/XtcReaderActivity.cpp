@@ -262,11 +262,11 @@ void XtcReaderActivity::loop() {
   }
 
   const bool usePressForPageTurn = SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
-  const HalGPIO::MotionGesture motionGesture =
+  const MappedInputManager::MotionGesture motionGesture =
       mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
                                     SETTINGS.shakePageTurnSensitivity);
   const bool prevTriggered =
-      motionGesture == HalGPIO::MotionGesture::Previous ||
+      motionGesture == MappedInputManager::MotionGesture::Previous ||
       (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
                               mappedInput.wasPressed(MappedInputManager::Button::Left))
                            : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
@@ -280,7 +280,7 @@ void XtcReaderActivity::loop() {
   const bool powerPageTurn = SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_NEXT &&
                              mappedInput.wasReleased(MappedInputManager::Button::Power);
   const bool nextTriggered =
-      motionGesture == HalGPIO::MotionGesture::Next ||
+      motionGesture == MappedInputManager::MotionGesture::Next ||
       (usePressForPageTurn
            ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
               mappedInput.wasPressed(MappedInputManager::Button::Right))

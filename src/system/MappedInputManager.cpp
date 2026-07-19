@@ -98,12 +98,20 @@ bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
 
 bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); }
 
-HalGPIO::MotionGesture MappedInputManager::readMotionGesture(const uint8_t orientation, const uint8_t mode,
-                                                            const uint8_t sensitivity) const {
+MappedInputManager::MotionGesture MappedInputManager::readMotionGesture(const uint8_t orientation, const uint8_t mode,
+                                                                        const uint8_t sensitivity) const {
 #ifdef SIMULATOR
-  return HalGPIO::MotionGesture::None;
+  return MotionGesture::None;
 #else
-  return gpio.readMotionGesture(orientation, mode, sensitivity);
+  switch (gpio.readMotionGesture(orientation, mode, sensitivity)) {
+    case HalGPIO::MotionGesture::Previous:
+      return MotionGesture::Previous;
+    case HalGPIO::MotionGesture::Next:
+      return MotionGesture::Next;
+    case HalGPIO::MotionGesture::None:
+    default:
+      return MotionGesture::None;
+  }
 #endif
 }
 

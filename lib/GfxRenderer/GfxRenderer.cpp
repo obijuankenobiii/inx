@@ -255,7 +255,12 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(display.getFrameBuffer()); }
 
 void GfxRenderer::displayGrayBuffer(const bool quality, const bool trackForRevert) const {
+#ifdef SIMULATOR
+  (void)trackForRevert;
+  display.displayGrayBuffer(quality);
+#else
   display.displayGrayBuffer(quality, trackForRevert);
+#endif
 }
 
 void GfxRenderer::displayGrayBufferFastQuality() const {

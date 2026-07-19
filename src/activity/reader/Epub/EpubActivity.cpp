@@ -917,12 +917,12 @@ void EpubActivity::loop() {
     return;
   }
 
-  const HalGPIO::MotionGesture motionGesture =
+  const MappedInputManager::MotionGesture motionGesture =
       mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
                                     SETTINGS.shakePageTurnSensitivity);
-  if (motionGesture != HalGPIO::MotionGesture::None) {
+  if (motionGesture != MappedInputManager::MotionGesture::None) {
     endPageTimer();
-    pageTurn(motionGesture == HalGPIO::MotionGesture::Next);
+    pageTurn(motionGesture == MappedInputManager::MotionGesture::Next);
     lastAutoPageTurnTime = millis();
     return;
   }

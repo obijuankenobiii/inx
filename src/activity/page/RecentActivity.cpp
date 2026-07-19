@@ -1131,7 +1131,7 @@ void RecentActivity::renderCoverMode() {
       const int innerW = std::max(0, barW - 2);
       const int innerH = std::max(0, kProgressH - 2);
       const int fillW = static_cast<int>(static_cast<float>(innerW) * b.progress + 0.5f);
-      if (fillW > 0 && innerH > 0) {
+      if (fillW > 0) {
         renderer.rectangle.fill(barX + 1, barY + 1, fillW, innerH);
       }
     }
