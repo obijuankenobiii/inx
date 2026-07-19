@@ -229,7 +229,7 @@ void ReaderPresetEditorActivity::renderPreview() {
         naturalWidth = withWord;
         ++i;
       }
-      const int count = i - lineStart;
+      const int count = widthCount;
       const bool lastLine = (i >= wordCount);
 
       int x = margin + lineIndent;
