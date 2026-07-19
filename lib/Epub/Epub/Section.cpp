@@ -254,16 +254,18 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
         "[%lu] [SCT] createSectionFile: temp HTML extract attempt=%d ok=%d bytes=%lu spine=%d href=%s tmp=%s "
         "book=%s title=%s heap=%u\n",
         millis(), attempt + 1, success ? 1 : 0, static_cast<unsigned long>(tmpSize), spineIndex, localPath.c_str(),
-        tmpHtmlPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(), static_cast<unsigned>(ESP.getFreeHeap()));
+        tmpHtmlPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(ESP.getFreeHeap()));
     if (!success && SdMan.exists(tmpHtmlPath.c_str())) {
       SdMan.remove(tmpHtmlPath.c_str());
     }
   }
   if (!success) {
-    Serial.printf("[%lu] [SCT] createSectionFile: failed to extract chapter after retries spine=%d href=%s book=%s "
-                  "title=%s heap=%u\n",
-                  millis(), spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
-                  static_cast<unsigned>(ESP.getFreeHeap()));
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: failed to extract chapter after retries spine=%d href=%s book=%s "
+        "title=%s heap=%u\n",
+        millis(), spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(ESP.getFreeHeap()));
     return false;
   }
 

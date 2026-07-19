@@ -40,16 +40,15 @@ int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const 
   return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
 }
 
-int renderWordSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y,
-                      const std::string& text, const EpdFontFamily::Style style, const bool smallCaps,
-                      const uint8_t verticalAlign) {
+int renderWordSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y, const std::string& text,
+                      const EpdFontFamily::Style style, const bool smallCaps, const uint8_t verticalAlign) {
   if (text.empty()) {
     return x;
   }
   if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
     const int lineHeight = renderer.text.getLineHeight(fontId);
-    const int scriptY = verticalAlign == TextBlock::SUPERSCRIPT ? y - std::max(1, lineHeight / 3)
-                                                                : y + std::max(1, lineHeight / 5);
+    const int scriptY =
+        verticalAlign == TextBlock::SUPERSCRIPT ? y - std::max(1, lineHeight / 3) : y + std::max(1, lineHeight / 5);
     if (smallCaps) {
       return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, true, style);
     }
@@ -100,10 +99,10 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
       (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size()) ||
       (!wordVerticalAlign.empty() && wordVerticalAlign.size() != words.size()) ||
       (!wordImagePaths.empty() && wordImagePaths.size() != words.size())) {
-    Serial.printf(
-        "[%lu] [TXB] Render skipped: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u, va=%u)\n",
+    Serial.printf("[%lu] [TXB] Render skipped: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u, va=%u)\n",
                   millis(), (uint32_t)words.size(), (uint32_t)wordXpos.size(), (uint32_t)wordStyles.size(),
-        (uint32_t)bionicPrefixBytes.size(), (uint32_t)wordSmallCaps.size(), (uint32_t)wordVerticalAlign.size());
+                  (uint32_t)bionicPrefixBytes.size(), (uint32_t)wordSmallCaps.size(),
+                  (uint32_t)wordVerticalAlign.size());
     return;
   }
 
@@ -191,8 +190,8 @@ bool TextBlock::serialize(FsFile& file) const {
       (!wordVerticalAlign.empty() && wordVerticalAlign.size() != words.size())) {
     Serial.printf(
         "[%lu] [TXB] Serialization failed: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u, va=%u)\n",
-                  millis(), words.size(), wordXpos.size(), wordStyles.size(), bionicPrefixBytes.size(),
-        wordSmallCaps.size(), wordVerticalAlign.size());
+        millis(), words.size(), wordXpos.size(), wordStyles.size(), bionicPrefixBytes.size(), wordSmallCaps.size(),
+        wordVerticalAlign.size());
     return false;
   }
 
@@ -281,9 +280,8 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   }
   serialization::readPod(file, style);
 
-  return std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles),
-                                                  std::move(bionicPrefixBytes), std::move(wordSmallCaps), style,
-                                                  std::move(wordUnderline), std::move(wordVerticalAlign),
-                                                  std::move(wordImagePaths), std::move(wordImageW),
-                                                  std::move(wordImageH)));
+  return std::unique_ptr<TextBlock>(
+      new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), std::move(bionicPrefixBytes),
+                    std::move(wordSmallCaps), style, std::move(wordUnderline), std::move(wordVerticalAlign),
+                    std::move(wordImagePaths), std::move(wordImageW), std::move(wordImageH)));
 }

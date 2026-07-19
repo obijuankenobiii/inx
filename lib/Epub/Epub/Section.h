@@ -5,11 +5,11 @@
  * @brief Public interface and types for Section.
  */
 
+#include <ImageRenderMode.h>
+
 #include <functional>
 #include <memory>
 #include <vector>
-
-#include <ImageRenderMode.h>
 
 #include "Epub.h"
 

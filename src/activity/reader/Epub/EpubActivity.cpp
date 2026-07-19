@@ -917,9 +917,8 @@ void EpubActivity::loop() {
     return;
   }
 
-  const MappedInputManager::MotionGesture motionGesture =
-      mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
-                                    SETTINGS.shakePageTurnSensitivity);
+  const MappedInputManager::MotionGesture motionGesture = mappedInput.readMotionGesture(
+      static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn, SETTINGS.shakePageTurnSensitivity);
   if (motionGesture != MappedInputManager::MotionGesture::None) {
     endPageTimer();
     pageTurn(motionGesture == MappedInputManager::MotionGesture::Next);
@@ -1759,9 +1758,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // Medium uses the same BW restore/rebase lifecycle as text AA. Without a
   // snapshot when AA is disabled, the non-preserving grayscale cleanup leaves
   // visible differential ghosting on the following page.
-  const bool bwStored =
-      (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
-      renderer.storeBwBuffer();
+  const bool bwStored = (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
+                        renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
   auto displayPageBuffer = [this]() {
     if (pagesUntilFullRefresh <= 1) {
@@ -1816,17 +1814,16 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                    ImageRenderMode::OneBit);
     });
   } else if (mediumImageGrayscale || (needsTextAntiAliasPass && bwStored)) {
-    ImageRender::displayGrayscale(
-        renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
-          renderer.clearScreen(0x00);
-          if (needsTextAntiAliasPass && bwStored) {
-            page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
-                         ImageRenderMode::OneBit);
-          }
-          if (mediumImageGrayscale) {
-            page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
-          }
-        });
+    ImageRender::displayGrayscale(renderer, /*quality=*/false, /*preserveText=*/bwStored, [&] {
+      renderer.clearScreen(0x00);
+      if (needsTextAntiAliasPass && bwStored) {
+        page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
+                     ImageRenderMode::OneBit);
+      }
+      if (mediumImageGrayscale) {
+        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+      }
+    });
 
   } else if (bwStored) {
     renderer.restoreBwBuffer();

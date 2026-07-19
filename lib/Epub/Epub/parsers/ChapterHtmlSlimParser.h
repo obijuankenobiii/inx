@@ -5,6 +5,7 @@
  * @brief Public interface and types for ChapterHtmlSlimParser.
  */
 
+#include <ImageRenderMode.h>
 #include <expat.h>
 
 #include <climits>
@@ -13,8 +14,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <ImageRenderMode.h>
 
 #include "../../Epub.h"
 #include "../ParsedText.h"
@@ -310,18 +309,15 @@ class ChapterHtmlSlimParser {
    * Constructs a new HTML parser for a chapter.
    * Note: headerFontId is used for both <h> tags and drop cap <span> tags.
    */
-  explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
-                                 const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId, const int maxFontId, const float lineCompression,
-                                 const float wordSpacingFactor, const bool extraParagraphSpacing,
-                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
-                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
-                                 const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
-                                 const std::function<void(std::unique_ptr<Page>)>& completePageFn,
-                                 const bool warmImageDisplayCache = false,
-                                 const ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit,
-                                 const bool warmImageQuality = false, const int warmImageYOffset = 0,
-                                 const std::function<void()>& popupFn = nullptr)
+  explicit ChapterHtmlSlimParser(
+      const std::string& filepath, const Epub& epub, const std::string& cachePath, const std::string& contentBasePath,
+      GfxRenderer& renderer, const int fontId, const int headerFontId, const int maxFontId, const float lineCompression,
+      const float wordSpacingFactor, const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
+      const uint16_t viewportWidth, const uint16_t viewportHeight, const bool hyphenationEnabled,
+      const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
+      const std::function<void(std::unique_ptr<Page>)>& completePageFn, const bool warmImageDisplayCache = false,
+      const ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit, const bool warmImageQuality = false,
+      const int warmImageYOffset = 0, const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
         epub(epub),
         cachePath(cachePath),

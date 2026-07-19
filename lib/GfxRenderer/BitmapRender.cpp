@@ -73,8 +73,8 @@ void maskBitmapCornersOutsideRounded(const GfxRenderer& gfx, const int x, const 
   }
   const bool subtle = style == BitmapRender::RoundedOutside::SubtlePaperOutside ||
                       style == BitmapRender::RoundedOutside::SubtleSparseInkAlignedOutside;
-  const int r = subtle ? std::max(2, roundedRectCornerRadius(drawnW, drawnH) / 2)
-                       : roundedRectCornerRadius(drawnW, drawnH);
+  const int r =
+      subtle ? std::max(2, roundedRectCornerRadius(drawnW, drawnH) / 2) : roundedRectCornerRadius(drawnW, drawnH);
   if (r < 1) {
     return;
   }

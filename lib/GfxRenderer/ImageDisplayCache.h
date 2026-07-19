@@ -28,8 +28,8 @@ class ImageDisplayCache {
   static bool displayTwoBitIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width,
                                        int height, const ImageDisplayCacheOptions& options, bool quality = false,
                                        bool fastQuality = false);
-  static bool hasCachedTwoBit(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width,
-                              int height, const ImageDisplayCacheOptions& options, bool quality = false);
+  static bool hasCachedTwoBit(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
+                              const ImageDisplayCacheOptions& options, bool quality = false);
   static bool store(GfxRenderer& renderer, const std::string& sourcePath, int x, int y, int width, int height,
                     const ImageDisplayCacheOptions& options);
 

@@ -452,8 +452,9 @@ void CategorySettingsActivity::applySelectedOption(MenuEntry& entry, const int o
     const int value = static_cast<int>(entry.valueRange.min) + optionIndex * step;
     SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(
         std::max(static_cast<int>(entry.valueRange.min), std::min(static_cast<int>(entry.valueRange.max), value)));
-  } else if (setting && !setting->enumOptionValues.empty() && setting->enumOptionValues.size() == setting->enumValues.size() &&
-             optionIndex >= 0 && optionIndex < static_cast<int>(setting->enumOptionValues.size())) {
+  } else if (setting && !setting->enumOptionValues.empty() &&
+             setting->enumOptionValues.size() == setting->enumValues.size() && optionIndex >= 0 &&
+             optionIndex < static_cast<int>(setting->enumOptionValues.size())) {
     SETTINGS.*(entry.valuePtr) = setting->enumOptionValues[static_cast<size_t>(optionIndex)];
   } else {
     SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(optionIndex);
@@ -981,8 +982,7 @@ void CategorySettingsActivity::render() {
       }
     }
 
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
-                         LineRender::Style::Dotted);
+    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true, LineRender::Style::Dotted);
     visibleCount++;
   }
 

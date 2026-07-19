@@ -33,7 +33,9 @@ constexpr int TARGET_MAX_HEIGHT = 800;
 
 static Print* gJpegThumbnailOut = nullptr;
 
-static inline uint8_t darkenOneBitJpegGray(const uint8_t gray) { return gray > 22 ? static_cast<uint8_t>(gray - 22) : 0; }
+static inline uint8_t darkenOneBitJpegGray(const uint8_t gray) {
+  return gray > 22 ? static_cast<uint8_t>(gray - 22) : 0;
+}
 
 static void jpegThumbnailWriteByte(unsigned char byte) {
   if (gJpegThumbnailOut) {

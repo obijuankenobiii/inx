@@ -121,13 +121,9 @@ bool read1BitRowPixel(const uint8_t* row, const int width, const int x) {
   return ((row[x / 8] >> (7 - (x % 8))) & 1u) != 0;
 }
 
-const EpdFontFamily* findFontFamily(const GfxRenderer& gfx, const int fontId) {
-  return gfx.findFontFamily(fontId);
-}
+const EpdFontFamily* findFontFamily(const GfxRenderer& gfx, const int fontId) { return gfx.findFontFamily(fontId); }
 
-ExternalFont* findStreamingFont(const GfxRenderer& gfx, const EpdFontData* data) {
-  return gfx.findStreamingFont(data);
-}
+ExternalFont* findStreamingFont(const GfxRenderer& gfx, const EpdFontData* data) { return gfx.findStreamingFont(data); }
 
 }  // namespace
 

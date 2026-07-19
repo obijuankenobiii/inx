@@ -2393,10 +2393,9 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
     ImageRender::Options options;
     options.cropToFill = true;
     options.useDisplayCache = true;
-    options.roundedOutside = !rounded
-                                 ? BitmapRender::RoundedOutside::None
-                                 : subtle ? BitmapRender::RoundedOutside::SubtlePaperOutside
-                                          : BitmapRender::RoundedOutside::PaperOutside;
+    options.roundedOutside = !rounded ? BitmapRender::RoundedOutside::None
+                             : subtle ? BitmapRender::RoundedOutside::SubtlePaperOutside
+                                      : BitmapRender::RoundedOutside::PaperOutside;
     drewCover =
         ImageRender::create(renderer, imagePath).render(coverX + 1, coverY + 1, coverW - 2, coverH - 2, options);
   }

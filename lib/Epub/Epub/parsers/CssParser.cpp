@@ -1566,9 +1566,8 @@ int CssParser::getMarginLeftPx(const std::string& elementTagLower, const std::st
                           elementTagLower);
 }
 
-int CssParser::getMarginRightPx(const std::string& elementTagLower, const std::string& className,
-                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                                const int viewportHeight) const {
+int CssParser::getMarginRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                                const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getSpacingEdgePx("margin-right", "margin", className, id, styleAttr, viewportWidth, viewportHeight,
                           elementTagLower);
 }
@@ -1586,9 +1585,8 @@ int CssParser::getPaddingBottomPx(const std::string& elementTagLower, const std:
                           elementTagLower);
 }
 
-int CssParser::getPaddingLeftPx(const std::string& elementTagLower, const std::string& className,
-                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                                const int viewportHeight) const {
+int CssParser::getPaddingLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                                const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getSpacingEdgePx("padding-left", "padding", className, id, styleAttr, viewportWidth, viewportHeight,
                           elementTagLower);
 }
@@ -1615,9 +1613,8 @@ int CssParser::getBorderTopPx(const std::string& elementTagLower, const std::str
   return getBorderEdgePx("border-top", className, id, styleAttr, viewportWidth, viewportHeight, elementTagLower);
 }
 
-int CssParser::getBorderRightPx(const std::string& elementTagLower, const std::string& className,
-                                const std::string& id, const std::string& styleAttr, const int viewportWidth,
-                                const int viewportHeight) const {
+int CssParser::getBorderRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                                const std::string& styleAttr, const int viewportWidth, const int viewportHeight) const {
   return getBorderEdgePx("border-right", className, id, styleAttr, viewportWidth, viewportHeight, elementTagLower);
 }
 

@@ -895,7 +895,8 @@ const CssParser* Epub::getParsedCssParser() const {
                     parsedCssParser_->getRuleCount());
       break;
     } catch (...) {
-      Serial.printf("[EBP] Shared CSS load aborted at file %d; keeping %zu rules\n", i, parsedCssParser_->getRuleCount());
+      Serial.printf("[EBP] Shared CSS load aborted at file %d; keeping %zu rules\n", i,
+                    parsedCssParser_->getRuleCount());
       break;
     }
   }

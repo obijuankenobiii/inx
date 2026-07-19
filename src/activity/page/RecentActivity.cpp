@@ -272,8 +272,8 @@ inline SimpleUiMetrics computeSimpleUiMetrics(const GfxRenderer& renderer) {
   SimpleUiMetrics m;
   m.bodyTop = INX_THEME.mainContentTop() - 6 + 8;
   constexpr int kHintReserve = 52;
-  m.bodyBottom = INX_THEME.mainTabsAtBottom() ? INX_THEME.mainContentBottom(renderer)
-                                              : renderer.getScreenHeight() - kHintReserve;
+  m.bodyBottom =
+      INX_THEME.mainTabsAtBottom() ? INX_THEME.mainContentBottom(renderer) : renderer.getScreenHeight() - kHintReserve;
   m.marginL = RecentActivity::GRID_SPACING;
 
   constexpr int kThumbPadV = 28;
@@ -339,9 +339,8 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
                                    ? BitmapRender::RoundedOutside::SubtleSparseInkAlignedOutside
                                    : BitmapRender::RoundedOutside::SubtlePaperOutside;
     } else {
-      options.roundedOutside = roundedCornerBackdropIsDither
-                                   ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
-                                   : BitmapRender::RoundedOutside::PaperOutside;
+      options.roundedOutside = roundedCornerBackdropIsDither ? BitmapRender::RoundedOutside::SparseInkAlignedOutside
+                                                             : BitmapRender::RoundedOutside::PaperOutside;
     }
 
     renderer.rectangle.fill(x, y, w, h, false);
@@ -748,7 +747,8 @@ void RecentActivity::renderIcons(int startY) {
   constexpr int kMarginY = 8;
   constexpr int kInnerPad = 4;
   const int screenW = renderer.getScreenWidth();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
+  const int contentBottom =
+      INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
   const int availW = std::max(1, screenW - kMarginX * 2);
   const int availH = std::max(1, contentBottom - startY - kMarginY * 2);
   const int frameW = std::max(40, (availW - (kCols - 1) * kGap) / kCols);
@@ -842,7 +842,8 @@ void RecentActivity::drawBufferedSelectionOverlay() {
 
   const int startY = recentIconsPaintStartY();
   const int screenW = renderer.getScreenWidth();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
+  const int contentBottom =
+      INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
   const int availW = std::max(1, screenW - kMarginX * 2);
   const int availH = std::max(1, contentBottom - startY - kMarginY * 2);
   const int frameW = std::max(40, (availW - (kCols - 1) * kGap) / kCols);

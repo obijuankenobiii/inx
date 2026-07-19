@@ -24,8 +24,8 @@
 #include "../state/SystemSetting.h"
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
-#include "html/FilesPageJs.generated.h"
 #include "html/FilesPageHtml.generated.h"
+#include "html/FilesPageJs.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
@@ -1676,8 +1676,7 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "shakePageTurnSensitivity") == 0) {
       const int sensitivity = static_cast<int>(value);
-      SETTINGS.shakePageTurnSensitivity =
-          static_cast<uint8_t>(sensitivity < 0 ? 0 : sensitivity > 2 ? 2 : sensitivity);
+      SETTINGS.shakePageTurnSensitivity = static_cast<uint8_t>(sensitivity < 0 ? 0 : sensitivity > 2 ? 2 : sensitivity);
       changed = true;
     } else if (strcmp(key, "textAntiAliasing") == 0) {
       SETTINGS.textAntiAliasing = (uint8_t)value;

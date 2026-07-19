@@ -776,9 +776,8 @@ std::unique_ptr<PageCssBorderBox> PageCssBorderBox::deserialize(FsFile& file) {
   serialization::readPod(file, styleRight);
   serialization::readPod(file, styleBottom);
   serialization::readPod(file, styleLeft);
-  return std::unique_ptr<PageCssBorderBox>(
-      new PageCssBorderBox(x, y, width, height, top, right, bottom, left, styleTop, styleRight, styleBottom,
-                           styleLeft));
+  return std::unique_ptr<PageCssBorderBox>(new PageCssBorderBox(x, y, width, height, top, right, bottom, left, styleTop,
+                                                                styleRight, styleBottom, styleLeft));
 }
 
 bool Page::anyImageNeedsGrayscale() const {

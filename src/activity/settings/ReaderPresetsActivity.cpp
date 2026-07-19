@@ -27,9 +27,7 @@ const char* overlayOptionFor(const int presetIndex, const int optionIndex) {
   return (optionIndex >= 0 && optionIndex < 4) ? kPresetOptions[optionIndex] : "";
 }
 
-int overlayOptionCountFor(const int presetIndex) {
-  return presetIndex == 0 ? 2 : 4;
-}
+int overlayOptionCountFor(const int presetIndex) { return presetIndex == 0 ? 2 : 4; }
 
 const char* readerQualityLabel(const uint8_t quality) {
   switch (quality) {
@@ -269,8 +267,8 @@ void ReaderPresetsActivity::renderOverlay() {
         boxX + 1, rowY, boxW - 2, rowH,
         sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY,
-                         overlayOptionFor(overlayPresetIndex_, i), sel ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
+                         sel ? 0 : 1);
   }
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);

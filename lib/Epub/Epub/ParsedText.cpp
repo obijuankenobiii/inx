@@ -129,7 +129,8 @@ uint16_t measureWordWidthForAlign(const GfxRenderer& renderer, const int fontId,
                                   const EpdFontFamily::Style style, const uint8_t bionicPrefixBytes,
                                   const bool smallCaps, const uint8_t verticalAlign) {
   if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
-    return static_cast<uint16_t>(std::max(0, renderer.text.getScaledWidth(fontId, word.c_str(), kScriptScalePct, style)));
+    return static_cast<uint16_t>(
+        std::max(0, renderer.text.getScaledWidth(fontId, word.c_str(), kScriptScalePct, style)));
   }
   return measureWordWidth(renderer, fontId, word, style, bionicPrefixBytes, smallCaps);
 }
@@ -826,9 +827,8 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     }
   }
 
-  processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
-                                          std::move(lineBionicPrefixBytes), std::move(lineWordSmallCaps), style,
-                                          std::move(lineWordUnderline), std::move(lineWordVerticalAlign),
-                                          std::move(lineWordImagePaths), std::move(lineWordImageW),
-                                          std::move(lineWordImageH)));
+  processLine(std::make_shared<TextBlock>(
+      std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), std::move(lineBionicPrefixBytes),
+      std::move(lineWordSmallCaps), style, std::move(lineWordUnderline), std::move(lineWordVerticalAlign),
+      std::move(lineWordImagePaths), std::move(lineWordImageW), std::move(lineWordImageH)));
 }

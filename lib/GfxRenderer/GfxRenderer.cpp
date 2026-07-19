@@ -40,9 +40,8 @@ void GfxRenderer::begin() {
 }
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
-  auto it = std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) {
-    return slot.id == fontId;
-  });
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
   if (it != fontSlots.end()) {
     it->family = std::move(font);
     return;
@@ -51,9 +50,8 @@ void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
 }
 
 const EpdFontFamily* GfxRenderer::findFontFamily(const int fontId) const {
-  const auto it = std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) {
-    return slot.id == fontId;
-  });
+  const auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
   return it == fontSlots.end() ? nullptr : &it->family;
 }
 
@@ -481,9 +479,8 @@ void GfxRenderer::insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> 
 }
 
 void GfxRenderer::removeFont(int fontId) {
-  auto it = std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) {
-    return slot.id == fontId;
-  });
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
   if (it == fontSlots.end()) {
     return;
   }
@@ -529,9 +526,8 @@ void GfxRenderer::removeAllStreamingFonts() {
 
 void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
                                         std::unique_ptr<ExternalFont> streamingFont) {
-  auto it = std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) {
-    return slot.id == fontId;
-  });
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
   if (it == fontSlots.end()) {
     Serial.printf("[GFX] Can't add style to unknown font ID %d\n", fontId);
     return;

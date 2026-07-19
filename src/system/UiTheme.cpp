@@ -73,8 +73,7 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
     const int iconY = tabY + (tabH - iconSize) / 2 + (mainTabsAtBottom() ? 2 - kBottomTabIconLift : 5);
 
     if (mainTabsAtBottom() && isSelected) {
-      fillCircle(renderer, iconX + iconSize / 2, iconY + iconSize / 2, kBottomSelectedCircleSize / 2,
-                 true);
+      fillCircle(renderer, iconX + iconSize / 2, iconY + iconSize / 2, kBottomSelectedCircleSize / 2, true);
     }
 
     const bool invertIcon = mainTabsAtBottom() && isSelected;

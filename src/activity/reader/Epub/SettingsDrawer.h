@@ -190,7 +190,7 @@ class SettingsDrawer {
   bool settingsUpdated = false;  ///< Flag indicating settings were changed
 
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
-  std::vector<MenuEntry> menuItems;         ///< Current menu items
+  std::vector<MenuEntry> menuItems;                ///< Current menu items
 
   /**
    * @brief Renders the drawer with specified refresh mode

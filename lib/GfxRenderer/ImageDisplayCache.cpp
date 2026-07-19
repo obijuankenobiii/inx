@@ -263,8 +263,7 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
       return false;
     }
     for (int row = 0; row < rowsThisRead; row++) {
-      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width,
-                                 rows.get() + row * rowBytes);
+      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows.get() + row * rowBytes);
     }
   }
 
@@ -327,8 +326,8 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
 }
 
 bool ImageDisplayCache::hasCachedTwoBit(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
-                                        const int width, const int height,
-                                        const ImageDisplayCacheOptions& options, const bool quality) {
+                                        const int width, const int height, const ImageDisplayCacheOptions& options,
+                                        const bool quality) {
   ImageDisplayCacheOptions lsbOptions = options;
   lsbOptions.mode = ImageRenderMode::TwoBit;
   lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
