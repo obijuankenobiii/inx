@@ -616,7 +616,6 @@ bool TxtReaderActivity::loadPageIndexCache() {
   serialization::readPod(f, numPages);
 
   pageOffsets.clear();
-  pageOffsets.reserve(numPages);
 
   for (uint32_t i = 0; i < numPages; i++) {
     uint32_t offset;

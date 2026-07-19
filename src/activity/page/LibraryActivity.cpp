@@ -1092,7 +1092,6 @@ void LibraryActivity::applyPaginationToCachedItems() {
   if (currentPage < 0) currentPage = 0;
 
   currentPageItems.clear();
-  currentPageItems.reserve(static_cast<size_t>(itemsPerPage));
   const int startIdx = currentPage * itemsPerPage;
   const int endIdx = std::min(startIdx + itemsPerPage, totalItems);
   for (int i = startIdx; i < endIdx; ++i) {
@@ -1107,7 +1106,6 @@ void LibraryActivity::applyPaginationToCachedItems() {
  */
 void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
   cachedLibraryItems_.clear();
-  cachedLibraryItems_.reserve(tempBooks.size());
   for (const auto& temp : tempBooks) {
     LibraryItem item;
     item.type = LibraryItem::Type::BOOK;
@@ -1187,7 +1185,6 @@ std::function<bool(const LibraryItem&, const LibraryItem&)> LibraryActivity::get
 void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& tempFolders,
                                               const std::vector<TempBookEntry>& tempBooks) {
   cachedLibraryItems_.clear();
-  cachedLibraryItems_.reserve(tempFolders.size() + tempBooks.size());
   for (const auto& folder : tempFolders) {
     cachedLibraryItems_.push_back(folder);
   }

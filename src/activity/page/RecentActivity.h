@@ -7,9 +7,9 @@
 
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../Activity.h"
@@ -80,8 +80,8 @@ class RecentActivity final : public Activity, public Menu {
     BookReadingStats stats;
   };
   mutable std::vector<CachedRecentStats> recentStats_;
-  mutable std::map<std::string, std::string> thumbnailPathCache_;
-  mutable std::map<std::string, std::string> coverPathCache_;
+  mutable std::unordered_map<std::string, std::string> thumbnailPathCache_;
+  mutable std::unordered_map<std::string, std::string> coverPathCache_;
   bool removeConfirmOpen_ = false;
   int removeConfirmIndex_ = -1;
 

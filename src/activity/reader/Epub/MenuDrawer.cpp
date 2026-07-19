@@ -103,17 +103,17 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   itemHeight = LIST_ITEM_HEIGHT;
   syncLayoutFromRenderer();
 
-  menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
-               {"Go To Percent", MenuAction::GO_TO_PERCENT},
-               {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
-               {"Annotations", MenuAction::SHOW_ANNOTATIONS},
-               {"KOReader Sync", MenuAction::KOREADER_SYNC},
-               {"Delete Cache", MenuAction::DELETE_CACHE},
-               {"Delete Progress", MenuAction::DELETE_PROGRESS},
-               {"Delete Book", MenuAction::DELETE_BOOK},
-               {"Generate Full Data", MenuAction::GENERATE_FULL_DATA},
-               {"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL},
-               {"Go Home", MenuAction::GO_HOME}};
+  menuItems.push_back({"Table of Contents", MenuAction::SELECT_CHAPTER});
+  menuItems.push_back({"Go To Percent", MenuAction::GO_TO_PERCENT});
+  menuItems.push_back({"Show Bookmarks", MenuAction::SHOW_BOOKMARKS});
+  menuItems.push_back({"Annotations", MenuAction::SHOW_ANNOTATIONS});
+  menuItems.push_back({"KOReader Sync", MenuAction::KOREADER_SYNC});
+  menuItems.push_back({"Delete Cache", MenuAction::DELETE_CACHE});
+  menuItems.push_back({"Delete Progress", MenuAction::DELETE_PROGRESS});
+  menuItems.push_back({"Delete Book", MenuAction::DELETE_BOOK});
+  menuItems.push_back({"Generate Full Data", MenuAction::GENERATE_FULL_DATA});
+  menuItems.push_back({"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL});
+  menuItems.push_back({"Go Home", MenuAction::GO_HOME});
 }
 
 /**
@@ -805,10 +805,10 @@ void MenuDrawer::exitAnnotations() {
 }
 
 void MenuDrawer::refreshBookmarkEntriesFromProvider() {
+  bookmarkEntries.clear();
   if (bookmarkListProvider) {
-    bookmarkEntries = bookmarkListProvider();
-  } else {
-    bookmarkEntries.clear();
+    const auto provided = bookmarkListProvider();
+    bookmarkEntries.insert(bookmarkEntries.end(), provided.begin(), provided.end());
   }
   if (bookmarkSelectedIndex >= static_cast<int>(bookmarkEntries.size())) {
     bookmarkSelectedIndex = std::max(0, static_cast<int>(bookmarkEntries.size()) - 1);
@@ -992,11 +992,7 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {
-        if (bookmarkListProvider) {
-          bookmarkEntries = bookmarkListProvider();
-        } else {
-          bookmarkEntries.clear();
-        }
+        refreshBookmarkEntriesFromProvider();
         bookmarkSelectedIndex = 0;
         for (int i = 0; i < static_cast<int>(bookmarkEntries.size()); ++i) {
           if (bookmarkEntries[static_cast<size_t>(i)].isCurrentPosition) {
@@ -1008,10 +1004,10 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_ANNOTATIONS) {
+        annotationEntries.clear();
         if (annotationListProvider) {
-          annotationEntries = annotationListProvider();
-        } else {
-          annotationEntries.clear();
+          const auto provided = annotationListProvider();
+          annotationEntries.insert(annotationEntries.end(), provided.begin(), provided.end());
         }
         annotationSelectedIndex = 0;
         for (int i = 0; i < static_cast<int>(annotationEntries.size()); ++i) {

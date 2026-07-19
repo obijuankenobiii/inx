@@ -17,14 +17,14 @@
 
 #define SETTINGS SystemSetting::getInstance()
 
-constexpr int LIST_ITEM_HEIGHT = 60;
+constexpr int LIST_ITEM_HEIGHT = 66;
 
 namespace {
-constexpr int kDrawerListTop = 64;
-constexpr int kDrawerListBottomPadding = 8;
-constexpr int kDrawerHeaderTitleY = 10;
-constexpr int kDrawerHeaderTagGap = 20;
-constexpr int kDrawerHeaderDividerGap = 28;
+constexpr int kDrawerListTop = 74;
+constexpr int kDrawerListBottomPadding = 12;
+constexpr int kDrawerHeaderTitleY = 14;
+constexpr int kDrawerHeaderTagGap = 24;
+constexpr int kDrawerHeaderDividerGap = 32;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -83,11 +83,7 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
   visible = false;
   dismissed = false;
 
-  groupExpanded[GroupType::FONT] = false;
-  groupExpanded[GroupType::LAYOUT] = false;
-  groupExpanded[GroupType::IMAGE] = false;
-  groupExpanded[GroupType::CONTROLS] = false;
-  groupExpanded[GroupType::STATUS_BAR] = false;
+  groupExpanded_.fill(false);
 
   setupMenu();
 }
@@ -169,13 +165,13 @@ void SettingsDrawer::setupMenu() {
   fontSeparator.name = "═══ Font ═══";
   fontSeparator.getValueText = [this](const BookSettings&) -> const char* {
     static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::FONT] ? "-" : "+");
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::FONT) ? "-" : "+");
     return indicator;
   };
   fontSeparator.change = [](BookSettings&, int) {};
   menuItems.push_back(fontSeparator);
 
-  if (groupExpanded[GroupType::FONT]) {
+  if (isGroupExpanded(GroupType::FONT)) {
     MenuEntry fontFamEntry;
     fontFamEntry.item = MenuItem::FontFamily;
     fontFamEntry.group = GroupType::FONT;
@@ -229,13 +225,13 @@ void SettingsDrawer::setupMenu() {
   layoutSeparator.name = "═══ Layout ═══";
   layoutSeparator.getValueText = [this](const BookSettings&) -> const char* {
     static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::LAYOUT] ? "-" : "+");
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::LAYOUT) ? "-" : "+");
     return indicator;
   };
   layoutSeparator.change = [](BookSettings&, int) {};
   menuItems.push_back(layoutSeparator);
 
-  if (groupExpanded[GroupType::LAYOUT]) {
+  if (isGroupExpanded(GroupType::LAYOUT)) {
     MenuEntry lineHeightEntry;
     lineHeightEntry.item = MenuItem::LineHeight;
     lineHeightEntry.group = GroupType::LAYOUT;
@@ -385,13 +381,13 @@ void SettingsDrawer::setupMenu() {
   imageSeparator.name = "═══ Image ═══";
   imageSeparator.getValueText = [this](const BookSettings&) -> const char* {
     static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::IMAGE] ? "-" : "+");
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::IMAGE) ? "-" : "+");
     return indicator;
   };
   imageSeparator.change = [](BookSettings&, int) {};
   menuItems.push_back(imageSeparator);
 
-  if (groupExpanded[GroupType::IMAGE]) {
+  if (isGroupExpanded(GroupType::IMAGE)) {
     MenuEntry imgGrayEntry;
     imgGrayEntry.item = MenuItem::ReaderImageGrayscale;
     imgGrayEntry.group = GroupType::IMAGE;
@@ -434,13 +430,13 @@ void SettingsDrawer::setupMenu() {
   controlsSeparator.name = "═══ System ═══";
   controlsSeparator.getValueText = [this](const BookSettings&) -> const char* {
     static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::CONTROLS] ? "-" : "+");
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::CONTROLS) ? "-" : "+");
     return indicator;
   };
   controlsSeparator.change = [](BookSettings&, int) {};
   menuItems.push_back(controlsSeparator);
 
-  if (groupExpanded[GroupType::CONTROLS]) {
+  if (isGroupExpanded(GroupType::CONTROLS)) {
     MenuEntry aaEntry;
     aaEntry.item = MenuItem::AntiAliasing;
     aaEntry.group = GroupType::CONTROLS;
@@ -566,13 +562,13 @@ void SettingsDrawer::setupMenu() {
   statusBarSeparator.name = "═══ Status Bar ═══";
   statusBarSeparator.getValueText = [this](const BookSettings&) -> const char* {
     static char indicator[4];
-    snprintf(indicator, sizeof(indicator), "%s", groupExpanded[GroupType::STATUS_BAR] ? "-" : "+");
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::STATUS_BAR) ? "-" : "+");
     return indicator;
   };
   statusBarSeparator.change = [](BookSettings&, int) {};
   menuItems.push_back(statusBarSeparator);
 
-  if (groupExpanded[GroupType::STATUS_BAR]) {
+  if (isGroupExpanded(GroupType::STATUS_BAR)) {
     MenuEntry statusLeftEntry;
     statusLeftEntry.item = MenuItem::StatusBarLeft;
     statusLeftEntry.group = GroupType::STATUS_BAR;
@@ -875,7 +871,7 @@ void SettingsDrawer::refreshSelectionRows(int previousIndex, bool redrawScrollIn
  * @param group The group to toggle
  */
 void SettingsDrawer::toggleGroup(GroupType group) {
-  groupExpanded[group] = !groupExpanded[group];
+  groupExpanded_[groupIndex(group)] = !groupExpanded_[groupIndex(group)];
   setupMenu();
 
   for (size_t i = 0; i < menuItems.size(); i++) {

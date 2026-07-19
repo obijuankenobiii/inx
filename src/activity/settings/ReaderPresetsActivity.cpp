@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 #include <algorithm>
-#include <vector>
+#include <cstring>
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
@@ -18,11 +18,17 @@
 #include "system/MenuNav.h"
 
 namespace {
-std::vector<std::string> overlayOptionsFor(int presetIndex) {
+const char* overlayOptionFor(const int presetIndex, const int optionIndex) {
   if (presetIndex == 0) {
-    return {"Edit", "Cancel"};
+    static constexpr const char* kDefaultOptions[] = {"Edit", "Cancel"};
+    return (optionIndex >= 0 && optionIndex < 2) ? kDefaultOptions[optionIndex] : "";
   }
-  return {"Edit", "Rename", "Delete", "Cancel"};
+  static constexpr const char* kPresetOptions[] = {"Edit", "Rename", "Delete", "Cancel"};
+  return (optionIndex >= 0 && optionIndex < 4) ? kPresetOptions[optionIndex] : "";
+}
+
+int overlayOptionCountFor(const int presetIndex) {
+  return presetIndex == 0 ? 2 : 4;
 }
 
 const char* readerQualityLabel(const uint8_t quality) {
@@ -239,11 +245,11 @@ void ReaderPresetsActivity::render() {
 void ReaderPresetsActivity::renderOverlay() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const std::vector<std::string> options = overlayOptionsFor(overlayPresetIndex_);
+  const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
 
   const int boxW = std::min(screenW - 60, 320);
   const int rowH = 50;
-  const int boxH = 50 + static_cast<int>(options.size()) * rowH;
+  const int boxH = 50 + optionCount * rowH;
   const int boxX = (screenW - boxW) / 2;
   const int boxY = (screenH - boxH) / 2;
 
@@ -256,14 +262,15 @@ void ReaderPresetsActivity::renderOverlay() {
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
   renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
-  for (size_t i = 0; i < options.size(); i++) {
-    const int rowY = boxY + 42 + static_cast<int>(i) * rowH;
-    const bool sel = (static_cast<int>(i) == overlaySel_);
+  for (int i = 0; i < optionCount; i++) {
+    const int rowY = boxY + 42 + i * rowH;
+    const bool sel = (i == overlaySel_);
     renderer.rectangle.fill(
         boxX + 1, rowY, boxW - 2, rowH,
         sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, options[i].c_str(), sel ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY,
+                         overlayOptionFor(overlayPresetIndex_, i), sel ? 0 : 1);
   }
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
@@ -310,8 +317,7 @@ void ReaderPresetsActivity::activateSelectedRow() {
 }
 
 void ReaderPresetsActivity::handleOverlayInput() {
-  const std::vector<std::string> options = overlayOptionsFor(overlayPresetIndex_);
-  const int n = static_cast<int>(options.size());
+  const int n = overlayOptionCountFor(overlayPresetIndex_);
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     overlayOpen_ = false;
@@ -329,14 +335,14 @@ void ReaderPresetsActivity::handleOverlayInput() {
     return;
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-    const std::string choice = options[overlaySel_];
+    const char* choice = overlayOptionFor(overlayPresetIndex_, overlaySel_);
     const int presetIndex = overlayPresetIndex_;
     overlayOpen_ = false;
-    if (choice == "Edit") {
+    if (strcmp(choice, "Edit") == 0) {
       openEditor(presetIndex);
-    } else if (choice == "Rename") {
+    } else if (strcmp(choice, "Rename") == 0) {
       openRenameKeyboard(presetIndex);
-    } else if (choice == "Delete") {
+    } else if (strcmp(choice, "Delete") == 0) {
       READER_PRESETS.remove(presetIndex);
       const int rows = rowCount();
       if (selectedRow_ >= rows) selectedRow_ = std::max(0, rows - 1);

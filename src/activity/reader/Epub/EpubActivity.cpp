@@ -135,7 +135,6 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       menuDrawer(nullptr),
       menuDrawerVisible(false),
       bookProgress(nullptr) {
-  bookmarks.reserve(MAX_BOOKMARKS);
   loadBookSettings();
 }
 
@@ -1088,7 +1087,6 @@ void EpubActivity::toggleMenuDrawer() {
       menuDrawer->setTocSelectionCallback([this](int spineIndex) { onTocChapterSelected(spineIndex); });
       menuDrawer->setBookmarkListProvider([this]() {
         std::vector<MenuDrawer::BookmarkNavItem> rows;
-        rows.reserve(bookmarks.size());
         for (size_t i = 0; i < bookmarks.size(); ++i) {
           const auto& b = bookmarks[i];
           char line[160];
@@ -1117,7 +1115,6 @@ void EpubActivity::toggleMenuDrawer() {
         }
         std::vector<String> files = SdMan.listFiles(annDir.c_str());
         std::vector<std::pair<int, int>> pairs;
-        pairs.reserve(files.size());
         for (const String& f : files) {
           int s = 0;
           int p = 0;
@@ -1128,7 +1125,6 @@ void EpubActivity::toggleMenuDrawer() {
         }
         std::sort(pairs.begin(), pairs.end());
         pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-        rows.reserve(pairs.size());
         for (const auto& pr : pairs) {
           const int spine = pr.first;
           const int page = pr.second;

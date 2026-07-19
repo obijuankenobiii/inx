@@ -9,8 +9,8 @@
 #include <HalDisplay.h>
 
 #include <functional>
-#include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "../../src/system/ExternalFont.h"
@@ -42,8 +42,19 @@ class GfxRenderer {
   uint16_t panelWidthBytes = HalDisplay::DISPLAY_WIDTH_BYTES;
   uint32_t frameBufferSize = HalDisplay::BUFFER_SIZE;
   std::vector<uint8_t*> bwBufferChunks;
-  std::map<int, EpdFontFamily> fontMap;
-  std::map<const EpdFontData*, std::unique_ptr<ExternalFont>> streamingFonts;
+  struct FontSlot {
+    int id;
+    EpdFontFamily family;
+    FontSlot(int fontId, EpdFontFamily font) : id(fontId), family(std::move(font)) {}
+  };
+  struct StreamingFontSlot {
+    const EpdFontData* data = nullptr;
+    std::unique_ptr<ExternalFont> stream;
+    StreamingFontSlot(const EpdFontData* fontData, std::unique_ptr<ExternalFont> fontStream)
+        : data(fontData), stream(std::move(fontStream)) {}
+  };
+  std::vector<FontSlot> fontSlots;
+  std::vector<StreamingFontSlot> streamingFontSlots;
 
   friend class BitmapRender;
   friend class TextRender;
@@ -65,6 +76,8 @@ class GfxRenderer {
   void removeFont(int fontId);
   void removeAllStreamingFonts();
   void addStreamingFontStyle(int fontId, EpdFontFamily::Style style, std::unique_ptr<ExternalFont> streamingFont);
+  const EpdFontFamily* findFontFamily(int fontId) const;
+  ExternalFont* findStreamingFont(const EpdFontData* data) const;
 
   void setOrientation(const Orientation o) { orientation = o; }
   Orientation getOrientation() const { return orientation; }

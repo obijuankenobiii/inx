@@ -677,9 +677,7 @@ void StatisticActivity::onExit() {
   Activity::onExit();
 
   allBooksStats.clear();
-  allBooksStats.shrink_to_fit();
   loadedBookStatsFlags_.clear();
-  loadedBookStatsFlags_.shrink_to_fit();
 }
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {

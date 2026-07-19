@@ -9,8 +9,8 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <array>
 #include <functional>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -193,18 +193,21 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     const char* name;
     SettingType type;
     uint8_t SystemSetting::* valuePtr;
-    std::vector<std::string> enumValues;
-    std::vector<uint8_t> enumOptionValues;
     ValueRange valueRange;
     GroupType group;
+    const SettingInfo* setting;
     std::function<const char*()> getValueText;
     std::function<void(int)> change;
   };
 
+  static constexpr size_t kGroupCount = static_cast<size_t>(GroupType::IMAGE) + 1;
+  static constexpr size_t groupIndex(const GroupType group) { return static_cast<size_t>(group); }
+  bool isGroupExpanded(GroupType group) const { return groupExpanded_[groupIndex(group)]; }
+
   std::vector<MenuEntry> menuItems;
   std::vector<std::string> selectorOptions;
   std::vector<std::string> selectorValues;
-  std::map<GroupType, bool> groupExpanded;
+  std::array<bool, kGroupCount> groupExpanded_{};
 
   /** FreeRTOS task entry point that forwards to displayTaskLoop. */
   static void taskTrampoline(void* param);
@@ -273,17 +276,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     itemsPerPage = (contentBottom - contentTop) / LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
 
-    groupExpanded[GroupType::FONT] = false;
-    groupExpanded[GroupType::LAYOUT] = false;
-    groupExpanded[GroupType::SYSTEM] = false;
-    groupExpanded[GroupType::STATUS_BAR] = false;
-    groupExpanded[GroupType::READER_CONTROLS] = false;
-    groupExpanded[GroupType::DEVICE_DISPLAY] = false;
-    groupExpanded[GroupType::CLOCK] = false;
-    groupExpanded[GroupType::DEVICE_BUTTONS] = false;
-    groupExpanded[GroupType::DEVICE_ADVANCED] = false;
-    groupExpanded[GroupType::DEVICE_ACTIONS] = false;
-    groupExpanded[GroupType::IMAGE] = false;
+    groupExpanded_.fill(false);
   }
   void onEnter() override;
   void onExit() override;

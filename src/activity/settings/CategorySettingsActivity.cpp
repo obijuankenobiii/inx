@@ -129,7 +129,7 @@ void CategorySettingsActivity::navigateToSelectedMenu() {
  * @brief Toggles expansion state of a group
  */
 void CategorySettingsActivity::toggleGroup(GroupType group) {
-  groupExpanded[group] = !groupExpanded[group];
+  groupExpanded_[groupIndex(group)] = !groupExpanded_[groupIndex(group)];
   setupMenu();
 
   for (size_t i = 0; i < menuItems.size(); i++) {
@@ -154,6 +154,7 @@ void CategorySettingsActivity::setupMenu() {
 
   for (int i = 0; i < settingsCount; i++) {
     const auto& setting = settingsList[i];
+    const SettingInfo* const settingPtr = &setting;
 
     if (setting.type == SettingType::SEPARATOR) {
       MenuEntry entry;
@@ -161,55 +162,51 @@ void CategorySettingsActivity::setupMenu() {
       entry.type = SettingType::SEPARATOR;
       entry.group = setting.group;
       entry.valuePtr = nullptr;
-      entry.enumValues.clear();
-      entry.enumOptionValues.clear();
       entry.valueRange = {0, 0, 0};
+      entry.setting = settingPtr;
       const GroupType sepGroup = setting.group;
       entry.getValueText = [this, sepGroup]() -> const char* {
         static char indicator[4];
-        snprintf(indicator, sizeof(indicator), "%s", groupExpanded[sepGroup] ? "-" : "+");
+        snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(sepGroup) ? "-" : "+");
         return indicator;
       };
       entry.change = [](int) {};
       menuItems.push_back(entry);
     } else {
-      if (setting.group == GroupType::NONE || groupExpanded[setting.group]) {
+      if (setting.group == GroupType::NONE || isGroupExpanded(setting.group)) {
         MenuEntry entry;
         entry.name = setting.name;
         entry.type = setting.type;
         entry.valuePtr = setting.valuePtr;
-        entry.enumValues = setting.enumValues;
-        entry.enumOptionValues = setting.enumOptionValues;
         entry.valueRange = setting.valueRange;
         entry.group = setting.group;
+        entry.setting = settingPtr;
 
         if (setting.type == SettingType::INFO) {
-          const SettingInfo infoRow = setting;
-          entry.getValueText = [infoRow]() -> const char* {
-            return infoRow.enumValues.empty() ? "" : infoRow.enumValues[0].c_str();
+          entry.getValueText = [settingPtr]() -> const char* {
+            return settingPtr->enumValues.empty() ? "" : settingPtr->enumValues[0].c_str();
           };
           entry.change = [](int) {};
         }
         if (setting.type == SettingType::TOGGLE) {
-          entry.getValueText = [this, setting]() -> const char* {
-            return (SETTINGS.*(setting.valuePtr)) ? "ON" : "OFF";
+          entry.getValueText = [settingPtr]() -> const char* {
+            return (SETTINGS.*(settingPtr->valuePtr)) ? "ON" : "OFF";
           };
-          entry.change = [this, setting](int) {
-            SETTINGS.*(setting.valuePtr) = !(SETTINGS.*(setting.valuePtr));
+          entry.change = [this, settingPtr](int) {
+            SETTINGS.*(settingPtr->valuePtr) = !(SETTINGS.*(settingPtr->valuePtr));
             SETTINGS.saveToFile();
             updateRequired = true;
           };
         }
         if (setting.type == SettingType::ENUM) {
           if (setting.name != nullptr && strcmp(setting.name, "Font Family") == 0) {
-            entry.enumValues = FontManager::readerFontFamilyEnumLabels();
-            entry.getValueText = [this, setting]() -> const char* {
+            entry.getValueText = [settingPtr]() -> const char* {
               thread_local std::string tls;
-              tls = FontManager::readerFontFamilyLabel(SETTINGS.*(setting.valuePtr));
+              tls = FontManager::readerFontFamilyLabel(SETTINGS.*(settingPtr->valuePtr));
               return tls.c_str();
             };
-            entry.change = [this, setting](int delta) {
-              int current = SETTINGS.*(setting.valuePtr);
+            entry.change = [this, settingPtr](int delta) {
+              int current = SETTINGS.*(settingPtr->valuePtr);
               const int n = static_cast<int>(FontManager::readerFontFamilyOptionCount());
               if (n <= 0) {
                 return;
@@ -221,63 +218,65 @@ void CategorySettingsActivity::setupMenu() {
               if (newVal >= n) {
                 newVal = 0;
               }
-              SETTINGS.*(setting.valuePtr) = static_cast<uint8_t>(newVal);
+              SETTINGS.*(settingPtr->valuePtr) = static_cast<uint8_t>(newVal);
               SETTINGS.saveToFile();
               updateRequired = true;
             };
           } else {
-            entry.getValueText = [this, setting]() -> const char* {
-              const int current = SETTINGS.*(setting.valuePtr);
-              if (!setting.enumOptionValues.empty() && setting.enumOptionValues.size() == setting.enumValues.size()) {
-                for (size_t i = 0; i < setting.enumOptionValues.size(); ++i) {
-                  if (setting.enumOptionValues[i] == current) {
-                    return setting.enumValues[i].c_str();
+            entry.getValueText = [settingPtr]() -> const char* {
+              const int current = SETTINGS.*(settingPtr->valuePtr);
+              if (!settingPtr->enumOptionValues.empty() &&
+                  settingPtr->enumOptionValues.size() == settingPtr->enumValues.size()) {
+                for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
+                  if (settingPtr->enumOptionValues[i] == current) {
+                    return settingPtr->enumValues[i].c_str();
                   }
                 }
-                if (setting.valuePtr == &SystemSetting::recentLibraryMode &&
+                if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
                     current == SystemSetting::RECENT_LIST_DEPRECATED) {
-                  for (size_t i = 0; i < setting.enumOptionValues.size(); ++i) {
-                    if (setting.enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
-                      return setting.enumValues[i].c_str();
+                  for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
+                    if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
+                      return settingPtr->enumValues[i].c_str();
                     }
                   }
                 }
                 return "Unknown";
               }
-              if (current >= 0 && current < (int)setting.enumValues.size()) {
-                return setting.enumValues[current].c_str();
+              if (current >= 0 && current < (int)settingPtr->enumValues.size()) {
+                return settingPtr->enumValues[current].c_str();
               }
               return "Unknown";
             };
-            entry.change = [this, setting](int delta) {
-              if (!setting.enumOptionValues.empty() && setting.enumOptionValues.size() == setting.enumValues.size()) {
+            entry.change = [this, settingPtr](int delta) {
+              if (!settingPtr->enumOptionValues.empty() &&
+                  settingPtr->enumOptionValues.size() == settingPtr->enumValues.size()) {
                 int currentIndex = 0;
-                const int current = SETTINGS.*(setting.valuePtr);
-                for (size_t i = 0; i < setting.enumOptionValues.size(); ++i) {
-                  if (setting.enumOptionValues[i] == current) {
+                const int current = SETTINGS.*(settingPtr->valuePtr);
+                for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
+                  if (settingPtr->enumOptionValues[i] == current) {
                     currentIndex = static_cast<int>(i);
                     break;
                   }
                 }
-                if (setting.valuePtr == &SystemSetting::recentLibraryMode &&
+                if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
                     current == SystemSetting::RECENT_LIST_DEPRECATED) {
-                  for (size_t i = 0; i < setting.enumOptionValues.size(); ++i) {
-                    if (setting.enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
+                  for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
+                    if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
                       currentIndex = static_cast<int>(i);
                       break;
                     }
                   }
                 }
                 int newIndex = currentIndex + delta;
-                if (newIndex < 0) newIndex = static_cast<int>(setting.enumOptionValues.size()) - 1;
-                if (newIndex >= static_cast<int>(setting.enumOptionValues.size())) newIndex = 0;
-                SETTINGS.*(setting.valuePtr) = setting.enumOptionValues[static_cast<size_t>(newIndex)];
+                if (newIndex < 0) newIndex = static_cast<int>(settingPtr->enumOptionValues.size()) - 1;
+                if (newIndex >= static_cast<int>(settingPtr->enumOptionValues.size())) newIndex = 0;
+                SETTINGS.*(settingPtr->valuePtr) = settingPtr->enumOptionValues[static_cast<size_t>(newIndex)];
               } else {
-                int current = SETTINGS.*(setting.valuePtr);
+                int current = SETTINGS.*(settingPtr->valuePtr);
                 int newVal = current + delta;
-                if (newVal < 0) newVal = setting.enumValues.size() - 1;
-                if (newVal >= (int)setting.enumValues.size()) newVal = 0;
-                SETTINGS.*(setting.valuePtr) = newVal;
+                if (newVal < 0) newVal = settingPtr->enumValues.size() - 1;
+                if (newVal >= (int)settingPtr->enumValues.size()) newVal = 0;
+                SETTINGS.*(settingPtr->valuePtr) = newVal;
               }
               SETTINGS.saveToFile();
               updateRequired = true;
@@ -292,32 +291,32 @@ void CategorySettingsActivity::setupMenu() {
               return buffer;
             };
           } else {
-            entry.getValueText = [this, setting]() -> const char* {
+            entry.getValueText = [settingPtr]() -> const char* {
               static char buffer[32];
-              snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(setting.valuePtr));
+              snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(settingPtr->valuePtr));
               return buffer;
             };
           }
-          entry.change = [this, setting](int delta) {
-            int current = SETTINGS.*(setting.valuePtr);
-            int newVal = current + (delta * setting.valueRange.step);
-            if (newVal < setting.valueRange.min) newVal = setting.valueRange.max;
-            if (newVal > setting.valueRange.max) newVal = setting.valueRange.min;
-            SETTINGS.*(setting.valuePtr) = newVal;
+          entry.change = [this, settingPtr](int delta) {
+            int current = SETTINGS.*(settingPtr->valuePtr);
+            int newVal = current + (delta * settingPtr->valueRange.step);
+            if (newVal < settingPtr->valueRange.min) newVal = settingPtr->valueRange.max;
+            if (newVal > settingPtr->valueRange.max) newVal = settingPtr->valueRange.min;
+            SETTINGS.*(settingPtr->valuePtr) = newVal;
             SETTINGS.saveToFile();
             updateRequired = true;
           };
         }
         if (setting.type == SettingType::ACTION) {
           entry.getValueText = []() -> const char* { return ""; };
-          entry.change = [this, setting](int) {
-            if (strcmp(setting.name, "Index your library") == 0) {
+          entry.change = [this, settingPtr](int) {
+            if (strcmp(settingPtr->name, "Index your library") == 0) {
               if (onIndexLibrary) {
                 onIndexLibrary();
               }
               return;
             }
-            if (strcmp(setting.name, "Generate thumbnails") == 0) {
+            if (strcmp(settingPtr->name, "Generate thumbnails") == 0) {
               exitActivity();
               enterNewActivity(new ThumbnailGeneratorActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -325,34 +324,34 @@ void CategorySettingsActivity::setupMenu() {
               }));
               return;
             }
-            if (strcmp(setting.name, "About") == 0) {
+            if (strcmp(settingPtr->name, "About") == 0) {
               if (onAboutPanel) {
                 onAboutPanel();
               }
               return;
             }
-            if (strcmp(setting.name, "KOReader Sync") == 0) {
+            if (strcmp(settingPtr->name, "KOReader Sync") == 0) {
               exitActivity();
               enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "OPDS Browser") == 0) {
+            if (strcmp(settingPtr->name, "OPDS Browser") == 0) {
               exitActivity();
               enterNewActivity(new OpdsServerListActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Delete Cache") == 0) {
+            if (strcmp(settingPtr->name, "Delete Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Choose sleep image") == 0) {
+            if (strcmp(settingPtr->name, "Choose sleep image") == 0) {
               exitActivity();
               enterNewActivity(new SleepImagePickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -360,21 +359,21 @@ void CategorySettingsActivity::setupMenu() {
               }));
               return;
             }
-            if (strcmp(setting.name, "Choose clock") == 0 || strcmp(setting.name, "Face") == 0) {
+            if (strcmp(settingPtr->name, "Choose clock") == 0 || strcmp(settingPtr->name, "Face") == 0) {
               exitActivity();
               enterNewActivity(new ClockStylePickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Sync time via WiFi") == 0 || strcmp(setting.name, "Sync") == 0) {
+            if (strcmp(settingPtr->name, "Sync time via WiFi") == 0 || strcmp(settingPtr->name, "Sync") == 0) {
               exitActivity();
               enterNewActivity(new TimeSyncActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));
             }
-            if (strcmp(setting.name, "Check for updates") == 0) {
+            if (strcmp(settingPtr->name, "Check for updates") == 0) {
               exitActivity();
               enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
                 exitActivity();
@@ -418,21 +417,22 @@ int CategorySettingsActivity::selectedOptionIndex(const MenuEntry& entry) const 
   if (!entry.valuePtr) {
     return 0;
   }
+  const auto* setting = entry.setting;
   const int current = SETTINGS.*(entry.valuePtr);
   if (entry.type == SettingType::VALUE) {
     const int step = std::max(1, static_cast<int>(entry.valueRange.step));
     return std::max(0, (current - static_cast<int>(entry.valueRange.min)) / step);
   }
-  if (entry.type == SettingType::ENUM && !entry.enumOptionValues.empty() &&
-      entry.enumOptionValues.size() == entry.enumValues.size()) {
-    for (size_t i = 0; i < entry.enumOptionValues.size(); ++i) {
-      if (entry.enumOptionValues[i] == current) {
+  if (entry.type == SettingType::ENUM && setting && !setting->enumOptionValues.empty() &&
+      setting->enumOptionValues.size() == setting->enumValues.size()) {
+    for (size_t i = 0; i < setting->enumOptionValues.size(); ++i) {
+      if (setting->enumOptionValues[i] == current) {
         return static_cast<int>(i);
       }
     }
     if (entry.valuePtr == &SystemSetting::recentLibraryMode && current == SystemSetting::RECENT_LIST_DEPRECATED) {
-      for (size_t i = 0; i < entry.enumOptionValues.size(); ++i) {
-        if (entry.enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
+      for (size_t i = 0; i < setting->enumOptionValues.size(); ++i) {
+        if (setting->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
           return static_cast<int>(i);
         }
       }
@@ -446,14 +446,15 @@ void CategorySettingsActivity::applySelectedOption(MenuEntry& entry, const int o
   if (!entry.valuePtr) {
     return;
   }
+  const auto* setting = entry.setting;
   if (entry.type == SettingType::VALUE) {
     const int step = std::max(1, static_cast<int>(entry.valueRange.step));
     const int value = static_cast<int>(entry.valueRange.min) + optionIndex * step;
     SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(
         std::max(static_cast<int>(entry.valueRange.min), std::min(static_cast<int>(entry.valueRange.max), value)));
-  } else if (!entry.enumOptionValues.empty() && entry.enumOptionValues.size() == entry.enumValues.size() &&
-             optionIndex >= 0 && optionIndex < static_cast<int>(entry.enumOptionValues.size())) {
-    SETTINGS.*(entry.valuePtr) = entry.enumOptionValues[static_cast<size_t>(optionIndex)];
+  } else if (setting && !setting->enumOptionValues.empty() && setting->enumOptionValues.size() == setting->enumValues.size() &&
+             optionIndex >= 0 && optionIndex < static_cast<int>(setting->enumOptionValues.size())) {
+    SETTINGS.*(entry.valuePtr) = setting->enumOptionValues[static_cast<size_t>(optionIndex)];
   } else {
     SETTINGS.*(entry.valuePtr) = static_cast<uint8_t>(optionIndex);
   }
@@ -472,7 +473,11 @@ void CategorySettingsActivity::openSelectorForSelected() {
   selectorOptions.clear();
   selectorValues.clear();
   if (entry.type == SettingType::ENUM) {
-    selectorOptions = entry.enumValues;
+    if (entry.name != nullptr && strcmp(entry.name, "Font Family") == 0) {
+      selectorOptions = FontManager::readerFontFamilyEnumLabels();
+    } else if (entry.setting) {
+      selectorOptions = entry.setting->enumValues;
+    }
   } else {
     const int step = std::max(1, static_cast<int>(entry.valueRange.step));
     for (int value = entry.valueRange.min; value <= entry.valueRange.max; value += step) {

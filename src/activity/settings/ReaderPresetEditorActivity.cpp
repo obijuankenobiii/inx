@@ -9,8 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <string>
-#include <vector>
 
 #include "../reader/Epub/SettingsDrawer.h"
 #include "../util/KeyboardEntryActivity.h"
@@ -28,6 +28,13 @@ const char* kLoremParagraph1 =
 const char* kLoremParagraph2 =
     "Good typography is invisible: it carries the words to the reader without ever calling attention "
     "to itself, balancing rhythm, spacing, and contrast on every page.";
+constexpr int kPreviewMaxWords = 64;
+constexpr size_t kPreviewWordBufferSize = 48;
+
+struct WordSlice {
+  const char* start = nullptr;
+  size_t len = 0;
+};
 
 /** Placeholder text for a status-bar item, used purely to illustrate the layout in the preview. */
 const char* statusPlaceholder(StatusBarItem item) {
@@ -62,21 +69,44 @@ const char* statusPlaceholder(StatusBarItem item) {
   }
 }
 
-std::vector<std::string> splitWords(const char* text) {
-  std::vector<std::string> words;
-  std::string cur;
+int splitWords(const char* text, WordSlice* words, const int maxWords) {
+  if (!text || !words || maxWords <= 0) {
+    return 0;
+  }
+  int count = 0;
+  const char* wordStart = nullptr;
   for (const char* p = text; *p; ++p) {
     if (*p == ' ') {
-      if (!cur.empty()) {
-        words.push_back(cur);
-        cur.clear();
+      if (wordStart && count < maxWords) {
+        words[count].start = wordStart;
+        words[count].len = static_cast<size_t>(p - wordStart);
+        ++count;
       }
+      wordStart = nullptr;
     } else {
-      cur.push_back(*p);
+      if (!wordStart) {
+        wordStart = p;
+      }
     }
   }
-  if (!cur.empty()) words.push_back(cur);
-  return words;
+  if (wordStart && count < maxWords) {
+    words[count].start = wordStart;
+    words[count].len = std::strlen(wordStart);
+    ++count;
+  }
+  return count;
+}
+
+const char* wordToBuffer(const WordSlice& word, char* buffer, const size_t bufferSize) {
+  if (!buffer || bufferSize == 0) {
+    return "";
+  }
+  const size_t n = std::min(word.len, bufferSize - 1);
+  if (word.start && n > 0) {
+    std::memcpy(buffer, word.start, n);
+  }
+  buffer[n] = '\0';
+  return buffer;
 }
 
 }  // namespace
@@ -152,17 +182,24 @@ void ReaderPresetEditorActivity::renderPreview() {
   const int indentPx = working_.paragraphCssIndentEnabled ? (2 * spaceWidth + 8) : 0;
   const uint8_t align = working_.paragraphAlignment;
 
-  auto renderWord = [&](int x, int y, const std::string& w) {
-    if (!bionic || w.size() < 2) {
-      renderer.text.render(fontId, x, y, w.c_str(), true, EpdFontFamily::REGULAR);
+  auto renderWord = [&](int x, int y, const WordSlice& word) {
+    char wordBuf[kPreviewWordBufferSize];
+    const char* text = wordToBuffer(word, wordBuf, sizeof(wordBuf));
+    const size_t len = std::strlen(text);
+    if (!bionic || len < 2) {
+      renderer.text.render(fontId, x, y, text, true, EpdFontFamily::REGULAR);
       return;
     }
-    const size_t boldLen = (w.size() + 1) / 2;
-    const std::string head = w.substr(0, boldLen);
-    const std::string tail = w.substr(boldLen);
-    renderer.text.render(fontId, x, y, head.c_str(), true, EpdFontFamily::BOLD);
-    const int headW = renderer.text.getWidth(fontId, head.c_str(), EpdFontFamily::BOLD);
-    renderer.text.render(fontId, x + headW, y, tail.c_str(), true, EpdFontFamily::REGULAR);
+    const size_t boldLen = (len + 1) / 2;
+    char head[kPreviewWordBufferSize];
+    char tail[kPreviewWordBufferSize];
+    std::memcpy(head, text, boldLen);
+    head[boldLen] = '\0';
+    std::strncpy(tail, text + boldLen, sizeof(tail) - 1);
+    tail[sizeof(tail) - 1] = '\0';
+    renderer.text.render(fontId, x, y, head, true, EpdFontFamily::BOLD);
+    const int headW = renderer.text.getWidth(fontId, head, EpdFontFamily::BOLD);
+    renderer.text.render(fontId, x + headW, y, tail, true, EpdFontFamily::REGULAR);
   };
 
   int y = bodyTop;
@@ -170,27 +207,30 @@ void ReaderPresetEditorActivity::renderPreview() {
   const int paragraphGap = working_.extraParagraphSpacing ? (lineHeight / 2 + 4) : 2;
 
   for (int p = 0; p < 2 && y + lineHeight <= bodyBottom; ++p) {
-    const std::vector<std::string> words = splitWords(paragraphs[p]);
-    size_t i = 0;
+    WordSlice words[kPreviewMaxWords];
+    const int wordCount = splitWords(paragraphs[p], words, kPreviewMaxWords);
+    int i = 0;
     bool firstLine = true;
-    while (i < words.size() && y + lineHeight <= bodyBottom) {
+    while (i < wordCount && y + lineHeight <= bodyBottom) {
       const int lineIndent = firstLine ? indentPx : 0;
       const int lineMaxWidth = maxWidth - lineIndent;
 
       // Greedily pack words for this line.
-      size_t lineStart = i;
+      const int lineStart = i;
       int naturalWidth = 0;
-      std::vector<int> widths;
-      while (i < words.size()) {
-        const int ww = renderer.text.getWidth(fontId, words[i].c_str());
+      int widths[kPreviewMaxWords];
+      int widthCount = 0;
+      while (i < wordCount && widthCount < kPreviewMaxWords) {
+        char wordBuf[kPreviewWordBufferSize];
+        const int ww = renderer.text.getWidth(fontId, wordToBuffer(words[i], wordBuf, sizeof(wordBuf)));
         const int withWord = naturalWidth + (i > lineStart ? spaceWidth : 0) + ww;
         if (withWord > lineMaxWidth && i > lineStart) break;
-        widths.push_back(ww);
+        widths[widthCount++] = ww;
         naturalWidth = withWord;
         ++i;
       }
-      const int count = static_cast<int>(i - lineStart);
-      const bool lastLine = (i >= words.size());
+      const int count = i - lineStart;
+      const bool lastLine = (i >= wordCount);
 
       int x = margin + lineIndent;
       int gap = spaceWidth;
@@ -204,8 +244,7 @@ void ReaderPresetEditorActivity::renderPreview() {
       }
 
       for (int k = 0; k < count; ++k) {
-        const std::string& w = words[lineStart + k];
-        renderWord(x, y, w);
+        renderWord(x, y, words[lineStart + k]);
         x += widths[k] + gap;
       }
 

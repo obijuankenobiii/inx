@@ -91,8 +91,6 @@ void FontManager::initialize(GfxRenderer& renderer) {
 
   g_fontFamilyStorage.clear();
   g_fontStorage.clear();
-  g_fontFamilyStorage.shrink_to_fit();
-  g_fontStorage.shrink_to_fit();
 
   g_loadedFontCount = 0;
   g_scannedForFonts = false;
@@ -260,7 +258,6 @@ bool FontManager::scanSDFonts(const char* sdPath, bool forceRescan) {
   }
 
   g_sdFonts.clear();
-  g_sdFonts.shrink_to_fit();
   g_nextSDFontId = FontManager::SD_FONT_START_ID;
 
   if (!SdMan.exists(sdPath)) {
@@ -642,10 +639,6 @@ void FontManager::unloadAllSDFonts() {
   g_fontFamilyStorage.clear();
   g_fontStorage.clear();
 
-  // Force vector memory deallocation
-  g_fontFamilyStorage.shrink_to_fit();
-  g_fontStorage.shrink_to_fit();
-
   // Mark all SD fonts as unloaded
   for (auto& entry : g_sdFonts) {
     cleanupFontData(&entry);
@@ -933,7 +926,6 @@ void FontManager::rebuildSdReaderFamilyList() {
     uniq.insert(e.family);
   }
   g_sdFamiliesSorted.assign(uniq.begin(), uniq.end());
-  g_sdFamiliesSorted.shrink_to_fit();
 }
 
 uint32_t FontManager::readerFontFamilyOptionCount() {
@@ -948,7 +940,6 @@ std::vector<std::string> FontManager::readerFontFamilyEnumLabels() {
     (void)scanSDFonts("/fonts", false);
   }
   std::vector<std::string> out;
-  out.reserve(2u + g_sdFamiliesSorted.size());
   out.push_back("Literata");
   out.push_back("Atkinson Hyperlegible");
   out.insert(out.end(), g_sdFamiliesSorted.begin(), g_sdFamiliesSorted.end());

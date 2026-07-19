@@ -467,8 +467,6 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
   freeRecentPageBuffer();
   recentBooks.clear();
   recentStats_.clear();
-  recentBooks.reserve(MAX_RECENT_BOOKS);
-  recentStats_.reserve(MAX_RECENT_BOOKS);
   const int requestedCount = std::max(1, static_cast<int>(SETTINGS.recentVisibleCount));
   const int iconGridCount = ICON_COLS * ICON_ROWS;
   const bool iconMode = viewModeForLibrarySetting(SETTINGS.recentLibraryMode) == ViewMode::Icons;
@@ -631,7 +629,6 @@ const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(con
 
 void RecentActivity::rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites) {
   simpleUiFavorites_.clear();
-  simpleUiFavorites_.reserve(std::min<int>(kSimpleUiFavoritesMaxCount, static_cast<int>(favorites.size())));
   int added = 0;
   for (const auto& fb : favorites) {
     if (!SdMan.exists(fb.path.c_str())) {
