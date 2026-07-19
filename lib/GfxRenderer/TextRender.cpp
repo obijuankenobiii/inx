@@ -91,28 +91,9 @@ bool mediumTextPlaneShouldClear(const GfxRenderer& gfx, const uint8_t level) {
   return false;
 }
 
-bool qualityTextPlaneShouldClear(const GfxRenderer& gfx, const uint8_t level) {
-  static constexpr uint8_t kQualityTextCodes[4] = {
-      0b00,  // white
-      0b11,  // dark edge coverage: keep the stroke core black
-      0b01,  // light edge coverage: only the outer antialias edge should be gray
-      0b11,  // solid black
-  };
-  const uint8_t code = kQualityTextCodes[level & 3u];
-  if (gfx.getRenderMode() == GfxRenderer::GRAY2_LSB) {
-    return (code & 0b01u) == 0u;
-  }
-  if (gfx.getRenderMode() == GfxRenderer::GRAY2_MSB) {
-    return (code & 0b10u) == 0u;
-  }
-  return false;
-}
-
-void renderTextPlanePixel(const GfxRenderer& gfx, const int x, const int y, const uint8_t level) {
+void renderMediumTextPlanePixel(const GfxRenderer& gfx, const int x, const int y, const uint8_t level) {
   if (mediumTextPlaneShouldClear(gfx, level)) {
     gfx.drawPixel(x, y, false);
-  } else if (qualityTextPlaneShouldClear(gfx, level)) {
-    gfx.drawPixel(x, y, true);
   }
 }
 
@@ -121,7 +102,7 @@ void renderSolidTextPixel(const GfxRenderer& gfx, const int x, const int y, cons
     gfx.drawPixel(x, y, pixelState);
     return;
   }
-  renderTextPlanePixel(gfx, x, y, pixelState ? 3 : 0);
+  renderMediumTextPlanePixel(gfx, x, y, pixelState ? 3 : 0);
 }
 
 bool read1BitGlyphPixel(const uint8_t* bitmap, const int width, const int height, const int x, const int y) {
@@ -409,7 +390,7 @@ void TextRender::rotated90CW(const int fontId, const int x, const int y, const c
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, black);
             } else {
-              renderTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
             const bool ink = read1BitGlyphPixel(bitmap, glyph->width, glyph->height, glyphX, glyphY);
@@ -572,7 +553,7 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, pixelState);
             } else {
-              renderTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
             const bool ink = read1BitRowPixel(rowBuf, width, glyphX);
@@ -602,7 +583,7 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
           if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
             gfx.drawPixel(screenX, screenY, pixelState);
           } else {
-            renderTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
+            renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
           }
         } else {
           const bool ink = read1BitGlyphPixel(bitmap, width, height, glyphX, glyphY);
@@ -698,7 +679,7 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
             if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
               gfx.drawPixel(screenX, screenY, pixelState);
             } else {
-              renderTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
+              renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
             }
           } else {
             bool ink = false;
@@ -746,7 +727,7 @@ void TextRender::renderScaledChar(const EpdFontFamily& fontFamily, const uint32_
           if (gfx.renderMode == GfxRenderer::BW && bmpVal < 3) {
             gfx.drawPixel(screenX, screenY, pixelState);
           } else {
-            renderTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
+            renderMediumTextPlanePixel(gfx, screenX, screenY, imageLevelFromFontBmpVal(bmpVal));
           }
         } else {
           bool ink = false;
