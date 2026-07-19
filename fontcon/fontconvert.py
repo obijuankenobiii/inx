@@ -350,11 +350,9 @@ for i_start, i_end in intervals:
             # Quantize FreeType coverage directly for e-paper text.
             #
             # The old equal 4-bit buckets (64/128/192) made too much of the
-            # antialias fringe grey. In high-quality text rendering the dark
-            # grey bucket is driven very close to black, so italic and slanted
-            # strokes picked up chunky dark stair-steps. Keep faint coverage
-            # white and reserve dark/black for stronger coverage so 2-bit
-            # fonts have a cleaner edge.
+            # antialias fringe grey. Keep faint coverage white, use only a
+            # narrow light-grey fringe, and send stronger coverage to the
+            # dark/ink buckets so high-quality text stays crisp.
             pixels2b = []
             px = 0
             pitch = abs(bitmap.pitch)
@@ -363,11 +361,11 @@ for i_start, i_end in intervals:
                     px = px << 2
                     coverage = bitmap.buffer[y * pitch + x]
 
-                    if coverage >= 224:
+                    if coverage >= 208:
                         px += 3
-                    elif coverage >= 176:
+                    elif coverage >= 128:
                         px += 2
-                    elif coverage >= 96:
+                    elif coverage >= 112:
                         px += 1
 
                     if (y * bitmap.width + x) % 4 == 3:

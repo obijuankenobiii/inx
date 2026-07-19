@@ -13,9 +13,12 @@
    */
   var SIZES = [10, 12, 14, 16, 18];
   var RASTER_CALIBRATION = 0.74;
-  var PACK_LIGHT_GRAY_LUM_THRESHOLD = 238;
-  var PACK_DARK_GRAY_LUM_THRESHOLD = 168;
-  var PACK_BLACK_LUM_THRESHOLD = 72;
+  // Match fontcon/fontconvert.py 2-bit coverage buckets:
+  // coverage 0-111 white, 112-127 light gray, 128-207 dark gray, 208-255 black.
+  // This browser path stores from luminance, so the thresholds are inverted.
+  var PACK_WHITE_LUM_THRESHOLD = 144;
+  var PACK_LIGHT_GRAY_LUM_THRESHOLD = 128;
+  var PACK_DARK_GRAY_LUM_THRESHOLD = 48;
   var RASTER_SUPERSAMPLE = 2;
   var GLYPH_YIELD_INTERVAL = 64;
   var GLYPH_YIELD_BUDGET_MS = 60;
@@ -105,9 +108,9 @@
   }
 
   function grayToStored(L) {
-    if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 0;
-    if (L >= PACK_DARK_GRAY_LUM_THRESHOLD) return 1;
-    if (L >= PACK_BLACK_LUM_THRESHOLD) return 2;
+    if (L >= PACK_WHITE_LUM_THRESHOLD) return 0;
+    if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 1;
+    if (L >= PACK_DARK_GRAY_LUM_THRESHOLD) return 2;
     return 3;
   }
 
