@@ -112,6 +112,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   menuItems.push_back({"Delete Progress", MenuAction::DELETE_PROGRESS});
   menuItems.push_back({"Delete Book", MenuAction::DELETE_BOOK});
   menuItems.push_back({"Generate Full Data", MenuAction::GENERATE_FULL_DATA});
+  menuItems.push_back({"Prewarm Images", MenuAction::PREWARM_IMAGES});
   menuItems.push_back({"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL});
   menuItems.push_back({"Go Home", MenuAction::GO_HOME});
 }

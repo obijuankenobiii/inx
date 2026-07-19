@@ -372,6 +372,8 @@ class Page {
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                     ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false,
                     bool onlyGrayscale = false) const;
+  int warmImageDisplayCache(GfxRenderer& renderer, int xOffset, int yOffset,
+                            ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false) const;
   bool allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);

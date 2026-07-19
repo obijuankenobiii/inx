@@ -894,6 +894,21 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
   }
 }
 
+int Page::warmImageDisplayCache(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                const ImageRenderMode imageMode, const bool quality) const {
+  int warmed = 0;
+  for (const auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto* image = static_cast<const PageImage*>(element.get());
+    if (image->warmDisplayCache(renderer, xOffset, yOffset, imageMode, quality)) {
+      ++warmed;
+    }
+  }
+  return warmed;
+}
+
 bool Page::allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, const int xOffset, const int yOffset,
                                           const bool quality) const {
   bool sawGrayscaleImage = false;

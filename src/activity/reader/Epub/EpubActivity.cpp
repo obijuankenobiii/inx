@@ -294,17 +294,12 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 12);
   }
 
-  const bool warmImageDisplayCache = !skipImages;
-  const ImageRenderMode warmImageMode =
-      bookSettings.readerImageGrayscale != 0 ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  const bool warmImageQuality = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
-
   bool success = tempSection->createSectionFile(
       info.fontId, FontManager::getNextFont(info.fontId), FontManager::getMaxFontId(info.fontId), info.lineCompression,
       info.wordSpacing, bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width, info.height,
       bookSettings.hyphenationEnabled, bookSettings.paragraphCssIndentEnabled != 0,
-      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr, warmImageDisplayCache, warmImageMode,
-      warmImageQuality, info.totalMarginTop);
+      bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr, false, ImageRenderMode::OneBit, false,
+      info.totalMarginTop);
 
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
@@ -1061,6 +1056,9 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::GENERATE_FULL_DATA:
               generateFullData();
               break;
+            case MenuDrawer::MenuAction::PREWARM_IMAGES:
+              prewarmCurrentSectionImages();
+              break;
             case MenuDrawer::MenuAction::REGENERATE_THUMBNAIL:
               regenerateThumbnail();
               break;
@@ -1371,6 +1369,60 @@ void EpubActivity::generateFullData() {
   if (haveLayout) {
     loadingProgressShow("Book data ready", 100);
   }
+}
+
+void EpubActivity::prewarmCurrentSectionImages() {
+  if (!epub) {
+    return;
+  }
+
+  dismissMenuDrawerForBlockingWork();
+  if (!section) {
+    loadCurrentSection(false);
+  }
+  if (!section || section->pageCount == 0) {
+    readerPopup("No chapter loaded");
+    vTaskDelay(pdMS_TO_TICKS(900));
+    updateRequired = true;
+    startPageTimer();
+    return;
+  }
+
+  const ViewportInfo info = calculateViewport();
+  const ImageRenderMode imageMode =
+      bookSettings.readerImageGrayscale != 0 ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
+  const bool imageQuality = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+
+  const int savedPage = section->currentPage;
+  int warmedImages = 0;
+  int pagesWithImages = 0;
+  ScreenComponents::LoadingProgressLayout layout = loadingProgressShow("Prewarming images", 0);
+
+  for (int pageIndex = 0; pageIndex < section->pageCount; ++pageIndex) {
+    esp_task_wdt_reset();
+    section->currentPage = pageIndex;
+    std::unique_ptr<Page> page = section->loadPageFromSectionFile();
+    if (page && page->hasImages()) {
+      ++pagesWithImages;
+      warmedImages +=
+          page->warmImageDisplayCache(renderer, info.totalMarginLeft, info.totalMarginTop, imageMode, imageQuality);
+    }
+
+    const int pct = section->pageCount > 0 ? ((pageIndex + 1) * 100) / section->pageCount : 100;
+    ScreenComponents::LoadingProgress::setProgress(renderer, layout, pct);
+    yield();
+  }
+
+  section->currentPage = savedPage;
+
+  if (pagesWithImages == 0) {
+    readerPopup("No images in chapter");
+  } else {
+    loadingProgressShow(warmedImages > 0 ? "Image cache ready" : "Image cache unchanged", 100);
+  }
+  vTaskDelay(pdMS_TO_TICKS(900));
+  updateRequired = true;
+  startPageTimer();
 }
 
 void EpubActivity::regenerateThumbnail() {

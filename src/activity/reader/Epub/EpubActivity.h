@@ -227,6 +227,7 @@ class EpubActivity final : public ActivityWithSubactivity {
    * Generates full book data.
    */
   void generateFullData();
+  void prewarmCurrentSectionImages();
   void regenerateThumbnail();
 
   /** Opens KOReader sync as a sub-activity (from menu). */
