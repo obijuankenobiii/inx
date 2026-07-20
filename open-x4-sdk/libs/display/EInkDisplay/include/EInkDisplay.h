@@ -8,7 +8,7 @@ class EInkDisplay {
   EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t rst, int8_t busy);
 
   // Destructor
-  ~EInkDisplay() = default;
+  ~EInkDisplay();
 
   // Refresh modes (guarded to avoid redefinition in test builds)
   enum RefreshMode {
@@ -111,13 +111,14 @@ class EInkDisplay {
   X3GrayState _x3GrayState;
   uint8_t _x3InitialFullSyncsRemaining = 0;
   bool _x3ForceFullSyncNext = false;
-  // Frame buffer (statically allocated)
-  uint8_t frameBuffer0[MAX_BUFFER_SIZE];
+  // Frame buffer storage is allocated exactly for the active device during begin().
+  uint8_t* frameBuffer0 = nullptr;
   uint8_t* frameBuffer;
 #ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
-  uint8_t frameBuffer1[MAX_BUFFER_SIZE];
+  uint8_t* frameBuffer1 = nullptr;
   uint8_t* frameBufferActive;
 #endif
+  uint32_t allocatedBufferSize = 0;
 
   // SPI settings
   SPISettings spiSettings;
