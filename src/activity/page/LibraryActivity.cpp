@@ -2246,6 +2246,9 @@ int LibraryActivity::getItemHeight(const LibraryItem& item) const {
   if (currentViewMode == ViewMode::FOLDER_VIEW && item.type == LibraryItem::Type::FOLDER) {
     return LIST_ITEM_HEIGHT;
   }
+  if (currentViewMode != ViewMode::BOOK_LIST_VIEW) {
+    return LIST_ITEM_HEIGHT;
+  }
   return 70;
 }
 
@@ -2602,21 +2605,26 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
   int textX = iconX + 24 + 10;
   int textWidth = screenWidth - textX - (isBookMarked(item.path) ? 50 : 15);
 
-  bool useTwoLineFormat = (currentViewMode == ViewMode::BOOK_LIST_VIEW) || (item.type == LibraryItem::Type::BOOK);
+  const bool useTwoLineFormat = currentViewMode == ViewMode::BOOK_LIST_VIEW;
 
   if (useTwoLineFormat) {
     std::string titleText =
         renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 8, titleText.c_str(), !isSelected);
 
-    std::string secondLineText =
-        !item.folderPath.empty()
-            ? renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.folderPath.c_str(), textWidth - 5)
-            : "Library";
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 40, secondLineText.c_str(), !isSelected);
+    std::string secondLineText;
+    if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+      secondLineText = !item.folderPath.empty() ? renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                                         item.folderPath.c_str(), textWidth - 5)
+                                                : "Library";
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 40, secondLineText.c_str(), !isSelected);
+    }
 
-    bool isDone = isBookFinished(item.path);
-    int markerSpace = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
+    const bool isDone = isBookFinished(item.path);
+    const int markerSpace =
+        secondLineText.empty()
+            ? textX
+            : renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
     if (isDone) {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 40, "(completed)", !isSelected,
                            EpdFontFamily::BOLD);
