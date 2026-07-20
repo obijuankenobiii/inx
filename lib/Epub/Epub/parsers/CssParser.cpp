@@ -8,6 +8,7 @@
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+#include <Serialization.h>
 
 #include "CssTrackedProperties.h"
 #ifdef ARDUINO
@@ -24,6 +25,29 @@ namespace {
 // Hard ceiling on stored rules (each holds only tracked properties, so it's small). The real bound at runtime
 // is the heap-reserve guard in parse(); this just caps worst-case memory if heap is plentiful.
 constexpr size_t kMaxCssRules = 1024;
+constexpr uint32_t kCssParserCacheMagic = 0x43535042;  // "CSPB"
+constexpr uint16_t kCssParserCacheVersion = 1;
+constexpr uint16_t kMaxCssSourcePaths = 512;
+constexpr uint16_t kMaxCssPropertiesPerRule = 64;
+constexpr uint32_t kMaxCssCacheStringLen = 4096;
+
+bool readBoundedString(FsFile& file, std::string& out) {
+  uint32_t len = 0;
+  serialization::readPod(file, len);
+  if (len > kMaxCssCacheStringLen || len > file.available()) {
+    return false;
+  }
+  out.resize(len);
+  return len == 0 || file.read(&out[0], len) == static_cast<int>(len);
+}
+
+bool writeStringChecked(FsFile& file, const std::string& value) {
+  if (value.size() > kMaxCssCacheStringLen) {
+    return false;
+  }
+  serialization::writeString(file, value);
+  return true;
+}
 
 bool isIdentCont(unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c == '-'; }
 
@@ -313,6 +337,125 @@ uint16_t CssParser::internSourcePath(const std::string& path) {
   }
   sourcePaths_.push_back(path);
   return static_cast<uint16_t>(sourcePaths_.size() - 1);
+}
+
+bool CssParser::saveBinary(FsFile& file) const {
+  if (!file) {
+    return false;
+  }
+  if (sourcePaths_.size() > kMaxCssSourcePaths || rules.size() > kMaxCssRules) {
+    return false;
+  }
+
+  serialization::writePod(file, kCssParserCacheMagic);
+  serialization::writePod(file, kCssParserCacheVersion);
+
+  const uint16_t sourceCount = static_cast<uint16_t>(sourcePaths_.size());
+  serialization::writePod(file, sourceCount);
+  for (const auto& source : sourcePaths_) {
+    if (!writeStringChecked(file, source)) return false;
+  }
+
+  if (!writeStringChecked(file, bodyTextAlignRaw)) return false;
+
+  const uint16_t ruleCount = static_cast<uint16_t>(rules.size());
+  serialization::writePod(file, ruleCount);
+  for (const auto& rule : rules) {
+    if (!writeStringChecked(file, rule.selectorLower)) return false;
+    serialization::writePod(file, rule.sourcePathIndex);
+    const uint8_t flags = (rule.isPseudoElement ? 0x01 : 0x00) | (rule.isFirstLetterPseudo ? 0x02 : 0x00);
+    serialization::writePod(file, flags);
+    if (rule.properties.size() > kMaxCssPropertiesPerRule) return false;
+    const uint16_t propertyCount = static_cast<uint16_t>(rule.properties.size());
+    serialization::writePod(file, propertyCount);
+    for (const auto& prop : rule.properties) {
+      if (!writeStringChecked(file, prop.first) || !writeStringChecked(file, prop.second)) return false;
+    }
+  }
+
+  return true;
+}
+
+bool CssParser::loadBinary(FsFile& file) {
+  clear();
+  if (!file) {
+    return false;
+  }
+
+  uint32_t magic = 0;
+  uint16_t version = 0;
+  serialization::readPod(file, magic);
+  serialization::readPod(file, version);
+  if (magic != kCssParserCacheMagic || version != kCssParserCacheVersion) {
+    clear();
+    return false;
+  }
+
+  uint16_t sourceCount = 0;
+  serialization::readPod(file, sourceCount);
+  if (sourceCount > kMaxCssSourcePaths) {
+    clear();
+    return false;
+  }
+  sourcePaths_.reserve(sourceCount);
+  for (uint16_t i = 0; i < sourceCount; ++i) {
+    std::string source;
+    if (!readBoundedString(file, source)) {
+      clear();
+      return false;
+    }
+    sourcePaths_.push_back(std::move(source));
+  }
+
+  if (!readBoundedString(file, bodyTextAlignRaw)) {
+    clear();
+    return false;
+  }
+
+  uint16_t ruleCount = 0;
+  serialization::readPod(file, ruleCount);
+  if (ruleCount > kMaxCssRules) {
+    clear();
+    return false;
+  }
+  rules.reserve(ruleCount);
+  for (uint16_t i = 0; i < ruleCount; ++i) {
+    CssRule rule;
+    if (!readBoundedString(file, rule.selectorLower)) {
+      clear();
+      return false;
+    }
+    serialization::readPod(file, rule.sourcePathIndex);
+    if (rule.sourcePathIndex >= sourcePaths_.size() && !sourcePaths_.empty()) {
+      clear();
+      return false;
+    }
+    uint8_t flags = 0;
+    serialization::readPod(file, flags);
+    rule.isPseudoElement = (flags & 0x01) != 0;
+    rule.isFirstLetterPseudo = (flags & 0x02) != 0;
+
+    uint16_t propertyCount = 0;
+    serialization::readPod(file, propertyCount);
+    if (propertyCount > kMaxCssPropertiesPerRule) {
+      clear();
+      return false;
+    }
+    for (uint16_t j = 0; j < propertyCount; ++j) {
+      std::string name;
+      std::string value;
+      if (!readBoundedString(file, name) || !readBoundedString(file, value) || !isTrackedCssProperty(name)) {
+        clear();
+        return false;
+      }
+      rule.properties.emplace(std::move(name), std::move(value));
+    }
+    rules.push_back(std::move(rule));
+  }
+
+  mcValid_ = false;
+  mcMatched_.clear();
+  return true;
 }
 
 void CssParser::parse(const std::string& cssContent, const std::string& sourcePath, uint32_t minFreeHeapBytes) {

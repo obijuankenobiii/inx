@@ -5,6 +5,8 @@
  * @brief Public interface and types for CssParser.
  */
 
+#include <SdFat.h>
+
 #include <cstdint>
 #include <map>
 #include <string>
@@ -30,6 +32,8 @@ class CssParser {
   // (image decode etc.) so a large stylesheet can't exhaust memory and abort.
   void parse(const std::string& cssContent, const std::string& sourcePath = "", uint32_t minFreeHeapBytes = 0);
   void clear();
+  bool saveBinary(FsFile& file) const;
+  bool loadBinary(FsFile& file);
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                int viewportHeight) const;

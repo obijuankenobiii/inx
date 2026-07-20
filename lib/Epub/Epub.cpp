@@ -847,11 +847,68 @@ std::string Epub::getCombinedCss() const {
   return combined;
 }
 
+std::string Epub::parsedCssCachePath() const { return cachePath + "/parsed_css.bin"; }
+
+bool Epub::loadParsedCssCache() const {
+  if (!SdMan.exists(parsedCssCachePath().c_str())) {
+    return false;
+  }
+  FsFile file;
+  if (!SdMan.openFileForRead("EBP", parsedCssCachePath(), file)) {
+    return false;
+  }
+  parsedCssParser_.reset(new (std::nothrow) CssParser());
+  if (!parsedCssParser_) {
+    file.close();
+    return false;
+  }
+  const bool ok = parsedCssParser_->loadBinary(file);
+  file.close();
+  if (!ok) {
+    parsedCssParser_.reset();
+    SdMan.remove(parsedCssCachePath().c_str());
+    Serial.printf("[EBP] Removed invalid parsed CSS cache\n");
+    return false;
+  }
+  Serial.printf("[EBP] Loaded parsed CSS cache: %zu rules\n", parsedCssParser_->getRuleCount());
+  return true;
+}
+
+bool Epub::saveParsedCssCache() const {
+  if (!parsedCssParser_) {
+    return false;
+  }
+  const std::string tempPath = cachePath + "/parsed_css.bin.tmp";
+  FsFile file;
+  if (!SdMan.openFileForWrite("EBP", tempPath, file)) {
+    return false;
+  }
+  const bool ok = parsedCssParser_->saveBinary(file);
+  file.close();
+  if (!ok) {
+    SdMan.remove(tempPath.c_str());
+    Serial.printf("[EBP] Failed to write parsed CSS cache\n");
+    return false;
+  }
+  if (SdMan.exists(parsedCssCachePath().c_str())) {
+    SdMan.remove(parsedCssCachePath().c_str());
+  }
+  const bool renamed = SdMan.rename(tempPath.c_str(), parsedCssCachePath().c_str());
+  if (!renamed) {
+    SdMan.remove(tempPath.c_str());
+  }
+  return renamed;
+}
+
 const CssParser* Epub::getParsedCssParser() const {
   if (parsedCssLoaded_) {
     return parsedCssParser_.get();
   }
   parsedCssLoaded_ = true;
+
+  if (loadParsedCssCache()) {
+    return parsedCssParser_.get();
+  }
 
   constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
   if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
@@ -903,6 +960,9 @@ const CssParser* Epub::getParsedCssParser() const {
 
   Serial.printf("[EBP] Shared CSS dictionary: %zu rules from %d bytes\n", parsedCssParser_->getRuleCount(),
                 static_cast<int>(totalCssSize));
+  if (!saveParsedCssCache()) {
+    Serial.printf("[EBP] Parsed CSS cache was not saved\n");
+  }
   return parsedCssParser_.get();
 }
 

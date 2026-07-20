@@ -106,7 +106,7 @@ class MenuDrawer {
    * @brief Sets the EPUB reader for TOC access
    * @param epub Pointer to the EPUB reader
    */
-  void setEpub(Epub* epub) { this->epub = epub; }
+  void setEpub(Epub* epub);
 
   /** Current spine while reading; used to pre-select the TOC row when opening the chapter list. */
   void setReaderSpineIndex(int spineIndex) { readerSpineIndex_ = spineIndex; }
@@ -196,6 +196,15 @@ class MenuDrawer {
 
   void handlePercentInput(const MappedInputManager& input);
 
+  void prepareTocForOpen(int preferredTocIndex);
+  void ensureTocState();
+  void loadTocStructure();
+  void rebuildVisibleTocItems();
+  bool tocItemHasChildren(int tocIndex) const;
+  bool tocItemExpanded(int tocIndex) const;
+  int visibleIndexForTocIndex(int tocIndex) const;
+  void expandTocAncestors(int tocIndex);
+
   /**
    * @brief Exits TOC view and returns to main menu
    */
@@ -264,6 +273,10 @@ class MenuDrawer {
   int tocScrollOffset = 0;
   int tocDrawerHeight = 0;
   int tocDrawerY = 0;
+  std::vector<int> visibleTocIndexes;
+  std::vector<uint8_t> tocExpanded;
+  std::vector<uint8_t> tocLevels;
+  std::vector<uint8_t> tocHasChildren;
 
   void syncLayoutFromRenderer();
   void drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4);

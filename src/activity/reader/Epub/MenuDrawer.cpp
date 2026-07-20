@@ -117,6 +117,16 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   menuItems.push_back({"Go Home", MenuAction::GO_HOME});
 }
 
+void MenuDrawer::setEpub(Epub* epub) {
+  this->epub = epub;
+  visibleTocIndexes.clear();
+  tocExpanded.clear();
+  tocLevels.clear();
+  tocHasChildren.clear();
+  tocSelectedIndex = 0;
+  tocScrollOffset = 0;
+}
+
 /**
  * @brief Destructor
  */
@@ -365,14 +375,133 @@ void MenuDrawer::drawTocBackground() {
   renderer.rectangle.render(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, true);
 }
 
+void MenuDrawer::prepareTocForOpen(int preferredTocIndex) {
+  ensureTocState();
+  std::fill(tocExpanded.begin(), tocExpanded.end(), 0);
+
+  if (preferredTocIndex >= 0) {
+    expandTocAncestors(preferredTocIndex);
+  }
+
+  rebuildVisibleTocItems();
+  const int visibleIndex = visibleIndexForTocIndex(preferredTocIndex);
+  tocSelectedIndex = (visibleIndex >= 0) ? visibleIndex : 0;
+}
+
+void MenuDrawer::ensureTocState() {
+  const int totalItems = epub ? epub->getTocItemsCount() : 0;
+  if (static_cast<int>(tocLevels.size()) != totalItems || static_cast<int>(tocExpanded.size()) != totalItems) {
+    loadTocStructure();
+  }
+}
+
+void MenuDrawer::loadTocStructure() {
+  const int totalItems = epub ? epub->getTocItemsCount() : 0;
+  tocExpanded.assign(std::max(0, totalItems), 0);
+  tocLevels.assign(std::max(0, totalItems), 1);
+  tocHasChildren.assign(std::max(0, totalItems), 0);
+
+  if (!epub || totalItems <= 0) {
+    visibleTocIndexes.clear();
+    return;
+  }
+
+  for (int i = 0; i < totalItems; ++i) {
+    tocLevels[static_cast<size_t>(i)] = static_cast<uint8_t>(std::max(1, static_cast<int>(epub->getTocItem(i).level)));
+  }
+  for (int i = 0; i + 1 < totalItems; ++i) {
+    tocHasChildren[static_cast<size_t>(i)] = tocLevels[static_cast<size_t>(i + 1)] > tocLevels[static_cast<size_t>(i)];
+  }
+
+  rebuildVisibleTocItems();
+}
+
+void MenuDrawer::rebuildVisibleTocItems() {
+  visibleTocIndexes.clear();
+  if (!epub) return;
+
+  const int totalItems = static_cast<int>(tocLevels.size());
+  if (totalItems <= 0) return;
+
+  int rootLevel = std::max(1, static_cast<int>(tocLevels[0]));
+  for (int i = 1; i < totalItems; ++i) {
+    rootLevel = std::min(rootLevel, std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)])));
+  }
+
+  std::vector<uint8_t> hiddenAtLevel;
+  hiddenAtLevel.assign(16, 0);
+  for (int i = 0; i < totalItems; ++i) {
+    const int level = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)]));
+    if (level >= static_cast<int>(hiddenAtLevel.size())) {
+      hiddenAtLevel.resize(static_cast<size_t>(level + 1), 0);
+    }
+
+    bool hidden = false;
+    for (int parentLevel = rootLevel; parentLevel < level; ++parentLevel) {
+      if (parentLevel >= 0 && parentLevel < static_cast<int>(hiddenAtLevel.size()) && hiddenAtLevel[parentLevel]) {
+        hidden = true;
+        break;
+      }
+    }
+
+    if (!hidden) {
+      visibleTocIndexes.push_back(i);
+    }
+
+    for (int childLevel = level + 1; childLevel < static_cast<int>(hiddenAtLevel.size()); ++childLevel) {
+      hiddenAtLevel[childLevel] = 0;
+    }
+    hiddenAtLevel[level] = tocItemHasChildren(i) && !tocItemExpanded(i);
+  }
+
+  if (tocSelectedIndex >= static_cast<int>(visibleTocIndexes.size())) {
+    tocSelectedIndex = std::max(0, static_cast<int>(visibleTocIndexes.size()) - 1);
+  }
+}
+
+bool MenuDrawer::tocItemHasChildren(int tocIndex) const {
+  return tocIndex >= 0 && tocIndex < static_cast<int>(tocHasChildren.size()) &&
+         tocHasChildren[static_cast<size_t>(tocIndex)];
+}
+
+bool MenuDrawer::tocItemExpanded(int tocIndex) const {
+  return tocIndex >= 0 && tocIndex < static_cast<int>(tocExpanded.size()) && tocExpanded[static_cast<size_t>(tocIndex)];
+}
+
+int MenuDrawer::visibleIndexForTocIndex(int tocIndex) const {
+  if (tocIndex < 0) return -1;
+  for (int i = 0; i < static_cast<int>(visibleTocIndexes.size()); ++i) {
+    if (visibleTocIndexes[static_cast<size_t>(i)] == tocIndex) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void MenuDrawer::expandTocAncestors(int tocIndex) {
+  if (!epub || tocIndex <= 0 || tocIndex >= static_cast<int>(tocLevels.size())) return;
+
+  int childLevel = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(tocIndex)]));
+  for (int i = tocIndex - 1; i >= 0 && childLevel > 1; --i) {
+    const int level = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)]));
+    if (level < childLevel) {
+      if (i < static_cast<int>(tocExpanded.size())) {
+        tocExpanded[static_cast<size_t>(i)] = 1;
+      }
+      childLevel = level;
+    }
+  }
+}
+
 /**
  * @brief Renders the Table of Contents view as a drawer
  */
 void MenuDrawer::renderToc() {
   if (!epub) return;
 
+  ensureTocState();
   const int panelW = tocDrawerWidth;
-  const int totalItems = epub->getTocItemsCount();
+  const int totalItems = static_cast<int>(visibleTocIndexes.size());
   const int pageItems = getTocPageItems();
 
   drawTocBackground();
@@ -410,7 +539,10 @@ void MenuDrawer::renderToc() {
 
       int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-      auto item = epub->getTocItem(itemIndex);
+      const int rawTocIndex = visibleTocIndexes[static_cast<size_t>(itemIndex)];
+      auto item = epub->getTocItem(rawTocIndex);
+      const bool hasChildren = tocItemHasChildren(rawTocIndex);
+      const char* rowIndicator = hasChildren ? (tocItemExpanded(rawTocIndex) ? "-" : "+") : "\xE2\x80\xBA";
       const int level = std::max(1, static_cast<int>(item.level));
       const int depthPx = (level - 1) * 20;
       const int maxDepthPx = std::max(0, panelW - 120);
@@ -422,7 +554,8 @@ void MenuDrawer::renderToc() {
 
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(),
                            isSelected ? 0 : 1);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, rowIndicator,
+                           isSelected ? 0 : 1);
       renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                            true, LineRender::Style::Dotted);
     }
@@ -701,7 +834,8 @@ void MenuDrawer::exitPercent() {
 void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   if (!epub) return;
 
-  const int totalItems = epub->getTocItemsCount();
+  ensureTocState();
+  const int totalItems = static_cast<int>(visibleTocIndexes.size());
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
 
@@ -716,7 +850,18 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
 
   if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
-      const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
+      const int rawTocIndex = visibleTocIndexes[static_cast<size_t>(tocSelectedIndex)];
+
+      if (tocItemHasChildren(rawTocIndex)) {
+        tocExpanded[static_cast<size_t>(rawTocIndex)] = tocItemExpanded(rawTocIndex) ? 0 : 1;
+        rebuildVisibleTocItems();
+        tocSelectedIndex = std::max(0, visibleIndexForTocIndex(rawTocIndex));
+        lastInputTime = xTaskGetTickCount();
+        renderWithRefresh();
+        return;
+      }
+
+      const int newSpineIndex = epub->getSpineIndexForTocIndex(rawTocIndex);
 
       showingToc = false;
       visible = false;
@@ -982,14 +1127,14 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
-        tocScrollOffset = 0;
-        tocSelectedIndex = 0;
+        int preferredTocIndex = -1;
         if (epub && readerSpineIndex_ >= 0) {
           const int ti = epub->getTocIndexForSpineIndex(readerSpineIndex_);
           if (ti >= 0) {
-            tocSelectedIndex = ti;
+            preferredTocIndex = ti;
           }
         }
+        prepareTocForOpen(preferredTocIndex);
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {

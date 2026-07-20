@@ -29,6 +29,9 @@ class Epub {
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
   bool parseTocNcxFile() const;
   bool parseTocNavFile() const;
+  std::string parsedCssCachePath() const;
+  bool loadParsedCssCache() const;
+  bool saveParsedCssCache() const;
 
  public:
   explicit Epub(std::string filepath, const std::string& oldCacheDir = "") : filepath(std::move(filepath)) {
