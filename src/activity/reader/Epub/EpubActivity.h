@@ -280,6 +280,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void initStats();
   void maybeCommitReadingSessionCount();
   void startPageTimer();
+  void pauseReadingStats();
   void endPageTimer();
   void saveBookStats();
 

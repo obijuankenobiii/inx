@@ -16,7 +16,7 @@ constexpr uint32_t kReadingSessionCountMinMs = 45000;
 }  // namespace
 
 void EpubReadingStats::init(const Epub& epub, const Section* section, const int currentSpineIndex) {
-  readerSessionStartMs_ = millis();
+  activeSessionTimeMs_ = 0;
   readingSessionCountCommitted_ = false;
 
   if (!loadBookStats(epub.getCachePath().c_str(), stats_)) {
@@ -44,7 +44,8 @@ void EpubReadingStats::maybeCommitSession(const Epub& epub) {
     return;
   }
   const uint32_t now = millis();
-  if (now - readerSessionStartMs_ >= kReadingSessionCountMinMs) {
+  const uint32_t currentActivePageMs = pageStartTime_ > 0 ? now - pageStartTime_ : 0;
+  if (activeSessionTimeMs_ + currentActivePageMs >= kReadingSessionCountMinMs) {
     stats_.sessionCount++;
     readingSessionCountCommitted_ = true;
     save(epub);
@@ -55,6 +56,42 @@ void EpubReadingStats::startPageTimer() { pageStartTime_ = millis(); }
 
 bool EpubReadingStats::hasActivePageTimer() const { return pageStartTime_ > 0; }
 
+void EpubReadingStats::pausePageTimer(const Epub& epub, const Section* section, const int currentSpineIndex) {
+  if (pageStartTime_ == 0) {
+    return;
+  }
+
+  const uint32_t currentTime = millis();
+  const uint32_t timeSpent = currentTime - pageStartTime_;
+  pageStartTime_ = 0;
+
+  if (timeSpent < 1000) {
+    return;
+  }
+
+  activeSessionTimeMs_ += timeSpent;
+
+  if (section) {
+    stats_.totalReadingTimeMs += timeSpent;
+    stats_.lastReadTimeMs = currentTime;
+    stats_.lastSpineIndex = currentSpineIndex;
+    stats_.lastPageNumber = section->currentPage;
+
+    if (section->pageCount > 0) {
+      const float spineProgress = static_cast<float>(section->currentPage) / section->pageCount;
+      stats_.progressPercent = epub.calculateProgress(currentSpineIndex, spineProgress) * 100.0f;
+    }
+
+    const uint32_t now = millis();
+    if (now - lastSaveTime_ >= kStatsSaveIntervalMs) {
+      save(epub);
+      lastSaveTime_ = now;
+    }
+  }
+
+  maybeCommitSession(epub);
+}
+
 void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, const int currentSpineIndex) {
   if (pageStartTime_ == 0) {
     return;
@@ -62,11 +99,13 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
 
   const uint32_t currentTime = millis();
   const uint32_t timeSpent = currentTime - pageStartTime_;
+  pageStartTime_ = 0;
 
   if (timeSpent < 1000) {
-    pageStartTime_ = 0;
     return;
   }
+
+  activeSessionTimeMs_ += timeSpent;
 
   if (section) {
     stats_.totalReadingTimeMs += timeSpent;
@@ -91,7 +130,7 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
     }
   }
 
-  pageStartTime_ = 0;
+  maybeCommitSession(epub);
 }
 
 void EpubReadingStats::addChapterRead() { stats_.totalChaptersRead++; }

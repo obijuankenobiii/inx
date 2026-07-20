@@ -108,7 +108,6 @@ void EpubAnnotationUi::resetSelectionToStart(EpubActivity& act) {
   focus_ = 0;
   anchor_ = 0;
   act.updateRequired = true;
-  act.startPageTimer();
 }
 
 void EpubAnnotationUi::clearAllStoredHighlightsOnCurrentPage(EpubActivity& act) {
@@ -127,7 +126,6 @@ void EpubAnnotationUi::clearAllStoredHighlightsOnCurrentPage(EpubActivity& act) 
   act.renderScreen(true);
   captureFramebuffer(act);
   act.updateRequired = true;
-  act.startPageTimer();
 }
 
 void EpubAnnotationUi::normalizeSpans(std::vector<std::pair<size_t, size_t>>& spans) {
@@ -212,7 +210,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 0;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Right)) {
@@ -223,7 +220,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 1;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Up)) {
@@ -234,7 +230,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 2;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Down)) {
@@ -245,7 +240,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 3;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   const bool leftHeld = m.isPressed(Btn::Left);
@@ -273,7 +267,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
   }
   annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
   act.updateRequired = true;
-  act.startPageTimer();
   return true;
 }
 
@@ -629,7 +622,6 @@ void EpubAnnotationUi::handleInput(EpubActivity& act) {
       selectingStarted_ = false;
     }
     act.updateRequired = true;
-    act.startPageTimer();
     return;
   }
   if (tryNavigationHoldRepeat(act)) {

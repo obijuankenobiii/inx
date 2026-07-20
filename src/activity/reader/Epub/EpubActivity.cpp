@@ -209,6 +209,8 @@ void EpubActivity::drawLoadingScreen() {
 }
 
 void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
+  pauseReadingStats();
+
   if (menuDrawer) {
     menuDrawerVisible = false;
     menuDrawer->hide();
@@ -225,6 +227,7 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
 }
 
 void EpubActivity::readerPopup(const char* message) {
+  pauseReadingStats();
   dismissMenuDrawerForBlockingWork(false);
   ScreenComponents::drawPopup(renderer, message);
 }
@@ -811,7 +814,7 @@ void EpubActivity::loop() {
   }
 
   if (mappedInput.isPressed(menuBtn) && mappedInput.getHeldTime() >= 500) {
-    endPageTimer();
+    pauseReadingStats();
     toggleSettingsDrawer();
     return;
   }
@@ -916,7 +919,7 @@ void EpubActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
       SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE) {
-    endPageTimer();
+    pauseReadingStats();
     annUi_.enter(*this);
     return;
   }
@@ -960,17 +963,20 @@ void EpubActivity::loop() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
-    endPageTimer();
+    pauseReadingStats();
     toggleMenuDrawer();
     return;
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= bookmarkHoldMs) {
+    pauseReadingStats();
     addBookmark();
+    startPageTimer();
     return;
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    pauseReadingStats();
     vTaskDelay(pdMS_TO_TICKS(100));
     onGoBack();
     return;
@@ -1170,6 +1176,7 @@ void EpubActivity::toggleMenuDrawer() {
   menuDrawerVisible = !menuDrawerVisible;
 
   if (menuDrawerVisible) {
+    pauseReadingStats();
     menuDrawer->setReaderSpineIndex(currentSpineIndex);
     menuDrawer->setBookTitle(epub->getTitle());
     menuDrawer->show();
@@ -1191,6 +1198,7 @@ void EpubActivity::toggleSettingsDrawer() {
   settingsDrawerVisible = !settingsDrawerVisible;
 
   if (settingsDrawerVisible) {
+    pauseReadingStats();
     syncOrientationFromGlobalIfNeeded();
     settingsDrawerSnapshot_ = bookSettings;
     hasSettingsDrawerSnapshot_ = true;
@@ -2280,6 +2288,12 @@ void EpubActivity::maybeCommitReadingSessionCount() {
 }
 
 void EpubActivity::startPageTimer() { readingStats_.startPageTimer(); }
+
+void EpubActivity::pauseReadingStats() {
+  if (epub) {
+    readingStats_.pausePageTimer(*epub, section.get(), currentSpineIndex);
+  }
+}
 
 void EpubActivity::endPageTimer() {
   if (epub) {

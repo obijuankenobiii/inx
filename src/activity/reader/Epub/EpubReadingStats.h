@@ -15,6 +15,7 @@ class EpubReadingStats {
   void maybeCommitSession(const Epub& epub);
   void startPageTimer();
   bool hasActivePageTimer() const;
+  void pausePageTimer(const Epub& epub, const Section* section, int currentSpineIndex);
   void endPageTimer(const Epub& epub, const Section* section, int currentSpineIndex);
   void addChapterRead();
   void save(const Epub& epub);
@@ -26,6 +27,6 @@ class EpubReadingStats {
   BookReadingStats stats_{};
   uint32_t pageStartTime_ = 0;
   uint32_t lastSaveTime_ = 0;
-  uint32_t readerSessionStartMs_ = 0;
+  uint32_t activeSessionTimeMs_ = 0;
   bool readingSessionCountCommitted_ = false;
 };
