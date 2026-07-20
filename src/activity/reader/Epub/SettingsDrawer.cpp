@@ -14,17 +14,19 @@
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
+#include "system/UiTheme.h"
 
 #define SETTINGS SystemSetting::getInstance()
 
 constexpr int LIST_ITEM_HEIGHT = 66;
 
 namespace {
-constexpr int kDrawerListTop = 78;
+constexpr int kDrawerHeaderHeight = UiTheme::MAIN_TAB_BAR_HEIGHT;
+constexpr int kDrawerListTop = kDrawerHeaderHeight + 1;
 constexpr int kDrawerListBottomPadding = 12;
-constexpr int kDrawerHeaderTitleY = 14;
-constexpr int kDrawerHeaderTagGap = 24;
-constexpr int kDrawerHeaderDividerGap = 32;
+constexpr int kDrawerHeaderHPad = 20;
+constexpr int kDrawerHeaderPillPadX = 10;
+constexpr int kDrawerHeaderPillHeight = 24;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -59,6 +61,35 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
     return in.wasPressed(MappedInputManager::Button::Up);
   }
   return in.wasPressed(MappedInputManager::Button::Right);
+}
+
+void drawModePill(const GfxRenderer& renderer, const int right, const int centerY, const char* label,
+                  const bool filled) {
+  const int labelW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, label);
+  const int pillW = labelW + kDrawerHeaderPillPadX * 2;
+  const int pillX = right - pillW;
+  const int pillY = centerY - kDrawerHeaderPillHeight / 2;
+  renderer.rectangle.fill(pillX, pillY, pillW, kDrawerHeaderPillHeight, filled, /*rounded=*/true, /*subtle=*/true);
+  renderer.rectangle.render(pillX, pillY, pillW, kDrawerHeaderPillHeight, true, /*rounded=*/true, /*subtle=*/true);
+  const int textY =
+      pillY + (kDrawerHeaderPillHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pillX + kDrawerHeaderPillPadX, textY, label, !filled,
+                       EpdFontFamily::BOLD);
+}
+
+const char* drawerModeLabel(const BookSettings& settings) {
+  if (settings.readerPresetIndex == BookSettings::kNoReaderPreset) {
+    return "Custom";
+  }
+
+  thread_local std::string label;
+  label = ReaderPresetStore::getInstance().nameOf(settings.readerPresetIndex);
+  return label.empty() ? "Custom" : label.c_str();
+}
+
+bool hasPresetSource(const BookSettings& settings) {
+  return settings.readerPresetIndex != BookSettings::kNoReaderPreset &&
+         !ReaderPresetStore::getInstance().nameOf(settings.readerPresetIndex).empty();
 }
 
 }  // namespace
@@ -195,7 +226,7 @@ void SettingsDrawer::setupMenu() {
       }
       s.fontFamily = static_cast<uint8_t>(newVal);
       FontManager::clampReaderFontFamilySlot(s.fontFamily);
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(fontFamEntry);
 
@@ -213,7 +244,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = s.fontSize + delta;
       if (newVal >= 0 && newVal <= 4) {
         s.fontSize = newVal;
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(fontEntry);
@@ -246,7 +277,7 @@ void SettingsDrawer::setupMenu() {
       if (newVal < 10) newVal = 10;
       if (newVal > 200) newVal = 200;
       s.lineHeight = static_cast<uint8_t>(newVal);
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(lineHeightEntry);
 
@@ -264,7 +295,7 @@ void SettingsDrawer::setupMenu() {
       if (newVal < 10) newVal = 10;
       if (newVal > 200) newVal = 200;
       s.textSpace = static_cast<uint8_t>(newVal);
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(textSpaceEntry);
 
@@ -282,7 +313,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = s.paragraphAlignment + delta;
       if (newVal >= 0 && newVal <= 4) {
         s.paragraphAlignment = newVal;
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(alignEntry);
@@ -296,7 +327,7 @@ void SettingsDrawer::setupMenu() {
     };
     extraParaEntry.change = [](BookSettings& s, int) {
       s.extraParagraphSpacing = !s.extraParagraphSpacing;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(extraParaEntry);
 
@@ -309,7 +340,7 @@ void SettingsDrawer::setupMenu() {
     };
     cssIndentEntry.change = [](BookSettings& s, int) {
       s.paragraphCssIndentEnabled = s.paragraphCssIndentEnabled ? 0 : 1;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(cssIndentEntry);
 
@@ -324,9 +355,9 @@ void SettingsDrawer::setupMenu() {
     };
     marginEntry.change = [](BookSettings& s, int delta) {
       int newVal = s.screenMargin + (delta * 5);
-      if (newVal >= 5 && newVal <= 80) {
+      if (newVal >= 0 && newVal <= 80) {
         s.screenMargin = newVal;
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(marginEntry);
@@ -345,7 +376,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = s.orientation + delta;
       if (newVal >= 0 && newVal <= 3) {
         s.orientation = newVal;
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(orientationEntry);
@@ -357,7 +388,7 @@ void SettingsDrawer::setupMenu() {
     hypenEntry.getValueText = [](const BookSettings& s) -> const char* { return s.hyphenationEnabled ? "On" : "Off"; };
     hypenEntry.change = [](BookSettings& s, int) {
       s.hyphenationEnabled = !s.hyphenationEnabled;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(hypenEntry);
 
@@ -370,7 +401,7 @@ void SettingsDrawer::setupMenu() {
     };
     bionicEntry.change = [](BookSettings& s, int) {
       s.bionicReadingEnabled = s.bionicReadingEnabled ? 0 : 1;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(bionicEntry);
   }
@@ -406,7 +437,7 @@ void SettingsDrawer::setupMenu() {
       const int step = delta >= 0 ? 1 : (SystemSetting::READER_IMAGE_QUALITY_COUNT - 1);
       s.readerImageGrayscale =
           static_cast<uint8_t>((s.readerImageGrayscale + step) % SystemSetting::READER_IMAGE_QUALITY_COUNT);
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(imgGrayEntry);
 
@@ -419,7 +450,7 @@ void SettingsDrawer::setupMenu() {
     };
     smartRefreshEntry.change = [](BookSettings& s, int) {
       s.readerSmartRefreshOnImages = s.readerSmartRefreshOnImages ? 0 : 1;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(smartRefreshEntry);
   }
@@ -444,7 +475,7 @@ void SettingsDrawer::setupMenu() {
     aaEntry.getValueText = [](const BookSettings& s) -> const char* { return s.textAntiAliasing ? "On" : "Off"; };
     aaEntry.change = [](BookSettings& s, int) {
       s.textAntiAliasing = !s.textAntiAliasing;
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(aaEntry);
 
@@ -478,7 +509,7 @@ void SettingsDrawer::setupMenu() {
       if (newIdx >= 0 && newIdx <= 4) {
         static const uint8_t actualValues[] = {1, 5, 10, 15, 30};
         s.refreshFrequency = actualValues[newIdx];
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(refreshEntry);
@@ -530,7 +561,7 @@ void SettingsDrawer::setupMenu() {
         v = SystemSetting::LONG_PRESS_OFF;
       }
       s.longPressChapterSkip = static_cast<uint8_t>(v);
-      s.useCustomSettings = true;
+      s.markCustomSettings();
     };
     menuItems.push_back(chapterEntry);
 
@@ -550,7 +581,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = s.pageAutoTurnSeconds + (delta * 10);
       if (newVal >= 0 && newVal <= 180) {
         s.pageAutoTurnSeconds = newVal;
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(pageAutoTurnEntry);
@@ -580,7 +611,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = static_cast<int>(s.statusBarLeft.item) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarLeft.item = static_cast<StatusBarItem>(newVal);
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(statusLeftEntry);
@@ -596,7 +627,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = static_cast<int>(s.statusBarMiddle.item) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarMiddle.item = static_cast<StatusBarItem>(newVal);
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(statusMiddleEntry);
@@ -612,7 +643,7 @@ void SettingsDrawer::setupMenu() {
       int newVal = static_cast<int>(s.statusBarRight.item) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
         s.statusBarRight.item = static_cast<StatusBarItem>(newVal);
-        s.useCustomSettings = true;
+        s.markCustomSettings();
       }
     };
     menuItems.push_back(statusRightEntry);
@@ -641,6 +672,12 @@ const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
 void SettingsDrawer::show() {
   if (visible) return;
   syncLayoutFromRenderer();
+  if (!embedded_ && settings.readerPresetIndex != BookSettings::kNoReaderPreset) {
+    const int n = ReaderPresetStore::getInstance().count();
+    if (settings.readerPresetIndex < n) {
+      presetPickIndex_ = settings.readerPresetIndex;
+    }
+  }
   visible = true;
   dismissed = false;
   selectedIndex = 0;
@@ -704,15 +741,14 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
-  int currentY = drawerY + kDrawerHeaderTitleY;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, currentY, "Book Settings", true,
+  const int headerCenterY = drawerY + kDrawerHeaderHeight / 2;
+  const int titleY = headerCenterY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) / 2;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + kDrawerHeaderHPad, titleY, "Book Settings", true,
                        EpdFontFamily::BOLD);
 
-  const char* tag = settings.useCustomSettings ? "[Custom]" : "[Global]";
-  currentY += kDrawerHeaderTagGap + 5;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + 20, currentY, tag, true);
-
-  int dividerY = currentY + kDrawerHeaderDividerGap;
+  drawModePill(renderer, drawerX + drawerWidth - kDrawerHeaderHPad, headerCenterY, drawerModeLabel(settings),
+               hasPresetSource(settings));
+  const int dividerY = drawerY + kDrawerHeaderHeight;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 

@@ -30,6 +30,7 @@ const char* kLoremParagraph2 =
     "to itself, balancing rhythm, spacing, and contrast on every page.";
 constexpr int kPreviewMaxWords = 64;
 constexpr size_t kPreviewWordBufferSize = 48;
+constexpr size_t kPresetNameMaxLen = 40;
 
 struct WordSlice {
   const char* start = nullptr;
@@ -109,6 +110,18 @@ const char* wordToBuffer(const WordSlice& word, char* buffer, const size_t buffe
   return buffer;
 }
 
+std::string truncatePresetName(const std::string& name) {
+  return name.size() > kPresetNameMaxLen ? name.substr(0, kPresetNameMaxLen) : name;
+}
+
+std::string defaultPresetNameFor(const BookSettings& settings) {
+  const FontManager::FontInfo* info = FontManager::getFontInfo(settings.getReaderFontId());
+  if (info != nullptr && !info->name.empty()) {
+    return truncatePresetName(info->name);
+  }
+  return "Preset";
+}
+
 }  // namespace
 
 ReaderPresetEditorActivity::ReaderPresetEditorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
@@ -125,7 +138,7 @@ void ReaderPresetEditorActivity::onEnter() {
 
   if (isNew_) {
     working_ = READER_PRESETS.settingsOf(0);  // seed from Default
-    name_ = "New Preset";
+    name_ = defaultPresetNameFor(working_);
   } else {
     working_ = READER_PRESETS.settingsOf(presetIndex_);
     name_ = READER_PRESETS.nameOf(presetIndex_);
@@ -282,6 +295,9 @@ void ReaderPresetEditorActivity::renderPreviewStatusBar(int barTop, int barHeigh
 }
 
 void ReaderPresetEditorActivity::promptName() {
+  if (isNew_) {
+    name_ = defaultPresetNameFor(working_);
+  }
   auto* keyboard = new KeyboardEntryActivity(
       renderer, mappedInput, "Name this preset", name_, 10, 40, false,
       [this](const std::string& entered) {

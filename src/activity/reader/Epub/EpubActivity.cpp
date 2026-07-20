@@ -1791,16 +1791,19 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   }
 
+  const bool textAa = bookSettings.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
+
   // Medium is the explicit grayscale mode: run its grayscale refresh for image pages. High stays selective so
-  // line-art/comic images can use the sharper 2-bit quantizer without paying for the quality grayscale pass.
+  // line-art/comic images can use the sharper 2-bit quantizer without paying for the quality grayscale pass. If
+  // text AA already needs a medium grayscale pass, include those non-quality High images in the same pass.
   const bool readerImageTwoBit = bookSettings.readerImageGrayscale != 0 && pageHasImages;
+  const bool highImageMode = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH && pageHasImages;
+  const bool highQuality = highImageMode && page->anyImageNeedsGrayscale();
   const bool mediumImageGrayscale =
-      bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages;
-  const bool highQuality = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH && pageHasImages &&
-                           page->anyImageNeedsGrayscale();
+      (bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages) ||
+      (highImageMode && !highQuality && textAa);
   const bool needsImageGrayscale = mediumImageGrayscale || highQuality;
   const ImageRenderMode imageMode = readerImageTwoBit ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  const bool textAa = bookSettings.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
   const bool pageHasLargeImage =
       pageHasImages && pageImageFootprintAtLeastHalfScreen(*page, renderer, orientedMarginLeft, orientedMarginTop);
 

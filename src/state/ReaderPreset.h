@@ -8,7 +8,7 @@
  * maps to the global SystemSetting reader fields (so un-customized books keep using the globals).
  * User presets (index >= 1) are persisted to /.system/reader_presets.bin.
  *
- * Applying a preset to a book is a one-time SNAPSHOT copy (see applyToBook).
+ * Applying a preset to a book records the preset source for display while copying the setting snapshot.
  */
 
 #include <string>
@@ -52,8 +52,9 @@ class ReaderPresetStore {
   bool remove(int index);
 
   /**
-   * Snapshot-applies a preset onto a book's settings. Default => revert book to globals
-   * (useCustomSettings=false); a named preset => copy its values (useCustomSettings=true).
+   * Snapshot-applies a preset onto a book's settings and records the source preset index for display.
+   * Default => revert book to globals (useCustomSettings=false); a named preset => copy its values
+   * (useCustomSettings=true).
    */
   void applyToBook(int index, BookSettings& book);
 
@@ -66,7 +67,7 @@ class ReaderPresetStore {
   static constexpr const char* kDir = "/.system";
   static constexpr const char* kPath = "/.system/reader_presets.bin";
   static constexpr uint32_t kMagic = 0x52505253;  // "RPRS"
-  static constexpr uint8_t kVersion = 2;
+  static constexpr uint8_t kVersion = 3;
 };
 
 #define READER_PRESETS ReaderPresetStore::getInstance()
