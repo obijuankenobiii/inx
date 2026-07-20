@@ -135,7 +135,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->libraryShelfEnabled > 1) mut->libraryShelfEnabled = 0;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
-    if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
+    if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_GRID;
     if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT ||
         (mut->libraryViewMode == LIBRARY_VIEW_SHELF && mut->libraryShelfEnabled == 0))
       mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
@@ -144,7 +144,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
     if (mut->sleepClockRefreshInterval >= CLOCK_REFRESH_INTERVAL_COUNT)
       mut->sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
-    if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_LOW;
+    if (mut->sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) mut->sleepImageQuality = SLEEP_IMAGE_HIGH;
     if (mut->xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) mut->xtcImageQuality = READER_IMAGE_LOW;
     if (mut->xtcShortPwrBtn >= XTC_SHORT_PWRBTN_COUNT) mut->xtcShortPwrBtn = XTC_POWER_NEXT;
     if (mut->xtcPageAutoTurnSeconds > 60 || mut->xtcPageAutoTurnSeconds % 10 != 0) mut->xtcPageAutoTurnSeconds = 0;
@@ -415,7 +415,7 @@ bool SystemSetting::loadFromFile() {
     if (settingsRead < fileSettingsCount) {
       serialization::readPod(inputFile, sleepImageQuality);
       if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
-        sleepImageQuality = SLEEP_IMAGE_LOW;
+        sleepImageQuality = SLEEP_IMAGE_HIGH;
       }
       ++settingsRead;
     }
@@ -644,7 +644,7 @@ bool SystemSetting::loadFromFile() {
     sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
   }
   if (sleepImageQuality >= SLEEP_IMAGE_QUALITY_COUNT) {
-    sleepImageQuality = SLEEP_IMAGE_LOW;
+    sleepImageQuality = SLEEP_IMAGE_HIGH;
   }
   if (xtcImageQuality >= READER_IMAGE_QUALITY_COUNT) {
     xtcImageQuality = READER_IMAGE_LOW;
@@ -662,7 +662,7 @@ bool SystemSetting::loadFromFile() {
     timeZoneQuarterOffset = 80;
   }
   if (libraryMode >= LIBRARY_MODE_COUNT) {
-    libraryMode = LIBRARY_LIST;
+    libraryMode = LIBRARY_GRID;
   }
   if (libraryViewMode >= LIBRARY_VIEW_MODE_COUNT ||
       (libraryViewMode == LIBRARY_VIEW_SHELF && libraryShelfEnabled == 0)) {

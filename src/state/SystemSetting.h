@@ -353,7 +353,7 @@ class SystemSetting {
   uint8_t sleepScreenCoverMode = FIT;          ///< Sleep screen cover scaling mode
   uint8_t sleepScreenCoverFilter = NO_FILTER;  ///< Sleep screen cover filter
   /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
-  uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
+  uint8_t sleepImageQuality = SLEEP_IMAGE_HIGH;
   /**
    * Fixed custom/transparent sleep image when multiple images exist.
    * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
@@ -376,7 +376,7 @@ class SystemSetting {
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
   uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
 
-  uint8_t shortPwrBtn = IGNORE;  ///< Short power button behavior
+  uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
 
   uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
   uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
@@ -428,7 +428,7 @@ class SystemSetting {
   uint8_t disableNavigation = NAV_NONE;  ///< Navigation disable mode
 
   uint8_t recentLibraryMode = RECENT_FLOW;         ///< Recent library display mode
-  uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
+  uint8_t libraryMode = LIBRARY_GRID;              ///< Library browser display mode
   uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
   uint8_t libraryShelfEnabled = 0;                 ///< Allow cover shelf view in Library
   /** How many recent books to show on the Recent hub (1–8). */
