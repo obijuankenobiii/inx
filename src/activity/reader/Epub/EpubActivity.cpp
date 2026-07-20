@@ -2178,9 +2178,11 @@ void EpubActivity::applyBookSettings() {
   syncOrientationFromGlobalIfNeeded();
   setupOrientation();
 
-  ViewportInfo info = calculateViewport();
-  if (!FontManager::ensureReaderLayoutFonts(info.fontId, renderer)) {
+  bookSettings.normalize();
+  const int targetFontId = bookSettings.getReaderFontId();
+  if (!FontManager::ensureReaderLayoutFonts(targetFontId, renderer)) {
     bookSettings = rollbackSettings;
+    bookSettings.normalize();
     setupOrientation();
     bookLayoutAppliedOrientation_ = bookSettings.orientation;
     saveBookSettings();
@@ -2189,6 +2191,7 @@ void EpubActivity::applyBookSettings() {
     updateRequired = true;
     return;
   }
+  ViewportInfo info = calculateViewport();
 
   int totalSpineItems = epub->getSpineItemsCount();
   if (totalSpineItems <= 0) {
@@ -2230,9 +2233,11 @@ void EpubActivity::applyBookSettings() {
 
   if (!layoutBuildOk) {
     bookSettings = rollbackSettings;
+    bookSettings.normalize();
     setupOrientation();
+    const int rollbackFontId = bookSettings.getReaderFontId();
+    (void)FontManager::ensureReaderLayoutFonts(rollbackFontId, renderer);
     ViewportInfo rollbackInfo = calculateViewport();
-    (void)FontManager::ensureReaderLayoutFonts(rollbackInfo.fontId, renderer);
     buildSection(currentSpine, rollbackInfo, false, true);
 
     currentSpineIndex = currentSpine;

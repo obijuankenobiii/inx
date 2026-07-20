@@ -1017,38 +1017,37 @@ void SettingsDrawer::applyChange(int delta) {
     if (selectedIndex >= static_cast<int>(menuItems.size())) {
       selectedIndex = std::max(0, static_cast<int>(menuItems.size()) - 1);
     }
-    return;
-  }
-
-  switch (selectedItem) {
-    case MenuItem::FontSize:
-    case MenuItem::LineHeight:
-    case MenuItem::TextSpace:
-    case MenuItem::ScreenMargin:
-    case MenuItem::Alignment:
-    case MenuItem::ExtraParagraphSpacing:
-    case MenuItem::ParagraphCssIndent:
-    case MenuItem::BionicReading:
-    case MenuItem::FontFamily:
-      settingsUpdated = true;
-      break;
-    case MenuItem::ReadingOrientation:
-    case MenuItem::PageAutoTurn:
-    case MenuItem::ReaderImageGrayscale:
-    case MenuItem::ReaderSmartImageRefresh:
-    case MenuItem::ReaderPowerButton:
-    case MenuItem::StatusBarLeft:
-    case MenuItem::StatusBarMiddle:
-    case MenuItem::StatusBarRight:
-    case MenuItem::Hyphenation:
-    case MenuItem::RefreshRate:
-    case MenuItem::AntiAliasing:
-    case MenuItem::ChapterSkip:
-    case MenuItem::NavigationLock:
-    case MenuItem::Separator:
-    case MenuItem::StatusBarSeparator:
-    case MenuItem::PresetPicker:
-      break;
+  } else {
+    switch (selectedItem) {
+      case MenuItem::FontSize:
+      case MenuItem::LineHeight:
+      case MenuItem::TextSpace:
+      case MenuItem::ScreenMargin:
+      case MenuItem::Alignment:
+      case MenuItem::ExtraParagraphSpacing:
+      case MenuItem::ParagraphCssIndent:
+      case MenuItem::BionicReading:
+      case MenuItem::FontFamily:
+        settingsUpdated = true;
+        break;
+      case MenuItem::ReadingOrientation:
+      case MenuItem::PageAutoTurn:
+      case MenuItem::ReaderImageGrayscale:
+      case MenuItem::ReaderSmartImageRefresh:
+      case MenuItem::ReaderPowerButton:
+      case MenuItem::StatusBarLeft:
+      case MenuItem::StatusBarMiddle:
+      case MenuItem::StatusBarRight:
+      case MenuItem::Hyphenation:
+      case MenuItem::RefreshRate:
+      case MenuItem::AntiAliasing:
+      case MenuItem::ChapterSkip:
+      case MenuItem::NavigationLock:
+      case MenuItem::Separator:
+      case MenuItem::StatusBarSeparator:
+      case MenuItem::PresetPicker:
+        break;
+    }
   }
 
   if (selectedItem != MenuItem::ReaderPowerButton && onSettingsChanged) onSettingsChanged();

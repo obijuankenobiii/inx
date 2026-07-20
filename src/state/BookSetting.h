@@ -157,6 +157,53 @@ struct BookSettings {
     readerPresetIndex = kNoReaderPreset;
   }
 
+  void normalize() {
+    FontManager::clampReaderFontFamilySlot(fontFamily);
+    if (fontSize >= SystemSetting::FONT_SIZE_COUNT) {
+      fontSize = SystemSetting::SMALL;
+    }
+    if (lineHeight < 10 || lineHeight > 200) {
+      lineHeight = 100;
+    }
+    if (textSpace < 10 || textSpace > 200) {
+      textSpace = 100;
+    }
+    if (paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
+      paragraphAlignment = SystemSetting::JUSTIFIED;
+    }
+    paragraphCssIndentEnabled = paragraphCssIndentEnabled ? 1 : 0;
+    extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;
+    textAntiAliasing = textAntiAliasing ? 1 : 0;
+    hyphenationEnabled = hyphenationEnabled ? 1 : 0;
+    bionicReadingEnabled = bionicReadingEnabled ? 1 : 0;
+    if (orientation >= SystemSetting::ORIENTATION_COUNT) {
+      orientation = SystemSetting::PORTRAIT;
+    }
+    if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+      longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
+    }
+    if (refreshFrequency != 1 && refreshFrequency != 5 && refreshFrequency != 10 && refreshFrequency != 15 &&
+        refreshFrequency != 30) {
+      refreshFrequency = 15;
+    }
+    if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
+      pageAutoTurnSeconds = 0;
+    }
+    if (readerImageGrayscale >= SystemSetting::READER_IMAGE_QUALITY_COUNT) {
+      readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
+    }
+    readerSmartRefreshOnImages = readerSmartRefreshOnImages ? 1 : 0;
+
+    auto normalizeStatus = [](StatusBarSectionConfig& section) {
+      if (static_cast<uint8_t>(section.item) >= static_cast<uint8_t>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
+        section.item = StatusBarItem::NONE;
+      }
+    };
+    normalizeStatus(statusBarLeft);
+    normalizeStatus(statusBarMiddle);
+    normalizeStatus(statusBarRight);
+  }
+
   /**
    * @brief Writes the settings fields into a byte buffer (shared by settings.bin and the preset store).
    * @param data Output buffer (needs at least kSerializedSize bytes free at offset)
