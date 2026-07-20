@@ -76,7 +76,9 @@ class LocalServer {
   void handleStatus() const;
   void handleFileList() const;
   void handleEpubPage() const;
+  void handleExportPage() const;
   void handleFileListData() const;
+  void handleExportNotesData() const;
   void handleDownload() const;
   void handleUpload() const;
   void handleUploadPost() const;

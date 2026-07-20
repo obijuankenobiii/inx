@@ -928,6 +928,48 @@ bool Page::allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, const int xOffs
   return sawGrayscaleImage;
 }
 
+std::string Page::extractPlainText(const size_t maxChars) const {
+  std::string out;
+  const auto appendText = [&](const std::string& text) {
+    if (text.empty() || out.size() >= maxChars) {
+      return;
+    }
+    if (!out.empty()) {
+      out += ' ';
+    }
+    const size_t remaining = maxChars - out.size();
+    out.append(text, 0, remaining);
+  };
+
+  for (const auto& element : elements) {
+    if (out.size() >= maxChars) {
+      break;
+    }
+    const TextBlock* block = nullptr;
+    switch (element->getTag()) {
+      case TAG_PageLine:
+        block = &static_cast<const PageLine&>(*element).getTextBlock();
+        break;
+      case TAG_PageHeader:
+        block = &static_cast<const PageHeader&>(*element).getTextBlock();
+        break;
+      case TAG_PageSmallCaps:
+        block = &static_cast<const PageSmallCaps&>(*element).getTextBlock();
+        break;
+      case TAG_PageDropCap:
+        appendText(static_cast<const PageDropCap&>(*element).getDropCapText());
+        break;
+      default:
+        break;
+    }
+    if (block == nullptr) {
+      continue;
+    }
+    block->forEachWord([&](size_t, const std::string& word, uint16_t, EpdFontFamily::Style) { appendText(word); });
+  }
+  return out;
+}
+
 /**
  * Serializes a Page to a file.
  *

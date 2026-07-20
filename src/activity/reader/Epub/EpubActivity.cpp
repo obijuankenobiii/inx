@@ -35,6 +35,7 @@
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "state/BookState.h"
+#include "state/EpubNotesIndex.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
 #include "state/Statistics.h"
@@ -2002,9 +2003,11 @@ void EpubActivity::saveBookmarks() {
     } else {
       f.close();
       SdMan.remove(bookmarksPath.c_str());
+      EpubNotesIndex::invalidate();
       return;
     }
     f.close();
+    EpubNotesIndex::invalidate();
   }
 }
 

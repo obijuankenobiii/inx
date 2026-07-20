@@ -24,6 +24,7 @@
 #include "activity/page/SettingsActivity.h"
 #include "activity/page/StatisticActivity.h"
 #include "activity/page/SyncActivity.h"
+#include "activity/reader/ImageViewerActivity.h"
 #include "activity/reader/ReaderActivity.h"
 #include "activity/system/BootActivity.h"
 #include "activity/system/SleepActivity.h"
@@ -33,6 +34,7 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "util/StringUtils.h"
 
 #ifdef SIMULATOR
 extern HalDisplay display;
@@ -92,10 +94,26 @@ void onGoToReader(const std::string& path) {
   switchTo<ReaderActivity>(render, input, path, [](const std::string&) { onGoToRecent(); });
 }
 
+bool isExportedNoteImage(const std::string& path) {
+  constexpr const char* root = "/Bookmarks & Annotations";
+  const size_t rootLen = strlen(root);
+  const bool inRoot = path.compare(0, rootLen, root) == 0 && (path.size() == rootLen || path[rootLen] == '/');
+  return inRoot && (StringUtils::checkFileExtension(path, ".bmp") || StringUtils::checkFileExtension(path, ".jpg") ||
+                    StringUtils::checkFileExtension(path, ".jpeg") || StringUtils::checkFileExtension(path, ".png"));
+}
+
 /**
  * @brief Opens the reader activity and returns to the library when closed.
  */
 void openReaderFromCallback(const std::string& path) {
+  if (isExportedNoteImage(path)) {
+    switchTo<ImageViewerActivity>(render, input, path, [path]() {
+      std::string folderPath = path.substr(0, path.find_last_of('/'));
+      if (folderPath.empty()) folderPath = "/";
+      onGoToLibrary(folderPath);
+    });
+    return;
+  }
   switchTo<ReaderActivity>(render, input, path, [path](const std::string&) {
     std::string folderPath = path.substr(0, path.find_last_of('/'));
     if (folderPath.empty()) folderPath = "/";

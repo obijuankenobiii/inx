@@ -14,6 +14,7 @@
 #include <Xtc.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -21,10 +22,16 @@
 #include <sstream>
 #include <vector>
 
+#include "../reader/Epub/EpubActivity.h"
+#include "../reader/Epub/EpubAnnotations.h"
+#include "Epub/Page.h"
+#include "Epub/Section.h"
 #include "images/Star.h"
+#include "state/BookSetting.h"
 #include "state/BookState.h"
 #include "state/Statistics.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "util/StringUtils.h"
@@ -251,6 +258,13 @@ constexpr int kFavHeaderPadBottom = 8;
 constexpr int kSimpleUiLabelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
 constexpr int kSimpleUiBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int kSimpleUiTitleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+constexpr int kHomeDrawerRowH = 60;
+constexpr int kHomeDrawerMainRowH = 54;
+constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
+constexpr int kHomeDrawerPadX = 20;
+constexpr int kHomeDrawerMainBottomPad = 100;
+
+enum class HomeDrawerMode { Main, Recents, Bookmarks, Annotations, BookmarkDetail, AnnotationDetail };
 
 struct SimpleUiMetrics {
   int bodyTop = 0;
@@ -312,9 +326,543 @@ inline void clampRecentStripHScroll(int sel, int bookCount, int& hScroll) {
   h = std::max(0, std::max(h, sel - (kRecentStripSlots - 1)));
   hScroll = h;
 }
+
+bool isHomeDrawerLandscape(const GfxRenderer& gfx) {
+  const auto o = gfx.getOrientation();
+  return o == GfxRenderer::LandscapeClockwise || o == GfxRenderer::LandscapeCounterClockwise;
+}
+
+std::string cachePathForRecentBook(const RecentBook& book) {
+  return book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+}
+
+std::string titleForCachePath(const std::string& cachePath) {
+  const auto& books = RECENT_BOOKS.getBooks();
+  for (const auto& book : books) {
+    if (cachePathForRecentBook(book) == cachePath) {
+      return bookDisplayTitle(book);
+    }
+  }
+  const size_t slash = cachePath.find_last_of('/');
+  return slash == std::string::npos ? cachePath : cachePath.substr(slash + 1);
+}
+
+std::vector<std::string> epubCacheDirs() {
+  std::vector<std::string> out;
+  FsFile root = SdMan.open("/.metadata/epub");
+  if (!root || !root.isDirectory()) {
+    if (root) {
+      root.close();
+    }
+    return out;
+  }
+  char name[96];
+  for (FsFile f = root.openNextFile(); f; f = root.openNextFile()) {
+    if (f.isDirectory()) {
+      f.getName(name, sizeof(name));
+      out.push_back(std::string("/.metadata/epub/") + name);
+    }
+    f.close();
+  }
+  root.close();
+  return out;
+}
+
+std::string trimDrawerText(std::string s) {
+  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
+    s.erase(s.begin());
+  }
+  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+    s.pop_back();
+  }
+  return s;
+}
 }  // namespace
 
-RecentActivity::~RecentActivity() { freeRecentPageBuffer(); }
+class RecentActivity::HomeMenuDrawer {
+ public:
+  explicit HomeMenuDrawer(RecentActivity& owner) : owner_(owner), renderer_(owner.renderer) { syncLayout(); }
+
+  bool visible() const { return visible_; }
+
+  void show() {
+    visible_ = true;
+    mode_ = HomeDrawerMode::Main;
+    selected_ = 0;
+    scroll_ = 0;
+    detailText_.clear();
+    syncLayout();
+    render();
+  }
+
+  void hide() {
+    visible_ = false;
+    owner_.updateRequired = true;
+  }
+
+  void handleInput(MappedInputManager& input) {
+    if (!visible_) {
+      return;
+    }
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      hide();
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+      return;
+    }
+
+    const int count = itemCount();
+    if (count == 0) {
+      return;
+    }
+
+    bool changed = false;
+    if (input.wasPressed(MappedInputManager::Button::Up)) {
+      selected_ = (selected_ + count - 1) % count;
+      changed = true;
+    } else if (input.wasPressed(MappedInputManager::Button::Down)) {
+      selected_ = (selected_ + 1) % count;
+      changed = true;
+    }
+
+    if (changed) {
+      clampScroll();
+      render();
+      return;
+    }
+
+    if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+      activateSelected();
+      return;
+    }
+
+    if ((mode_ == HomeDrawerMode::Recents) &&
+        (input.wasReleased(MappedInputManager::Button::Right) || input.wasReleased(MappedInputManager::Button::Left))) {
+      deleteSelectedRecent();
+    }
+  }
+
+  void render() {
+    if (!visible_) {
+      return;
+    }
+    syncLayout();
+    if (mode_ == HomeDrawerMode::BookmarkDetail) {
+      renderer_.clearScreen();
+      renderBookmarkPreview();
+      renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
+      return;
+    }
+
+    renderer_.rectangle.fill(drawerX_, drawerY_, drawerW_, drawerH_, false);
+    if (mode_ == HomeDrawerMode::Main) {
+      renderer_.rectangle.render(drawerX_, drawerY_, drawerW_, drawerH_, true);
+    }
+
+    const int titleY =
+        drawerY_ + (kHomeDrawerHeaderH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+    renderer_.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
+                          EpdFontFamily::BOLD);
+    renderer_.line.render(drawerX_, drawerY_ + kHomeDrawerHeaderH, drawerX_ + drawerW_, drawerY_ + kHomeDrawerHeaderH,
+                          true);
+
+    if (mode_ == HomeDrawerMode::AnnotationDetail) {
+      renderDetail();
+    } else {
+      renderRows();
+    }
+
+    drawHints();
+    renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
+  }
+
+ private:
+  struct DrawerRow {
+    std::string label;
+    std::string sublabel;
+    std::string cachePath;
+    int recentIndex = -1;
+    int spine = -1;
+    int page = -1;
+  };
+
+  RecentActivity& owner_;
+  GfxRenderer& renderer_;
+  bool visible_ = false;
+  HomeDrawerMode mode_ = HomeDrawerMode::Main;
+  int selected_ = 0;
+  int scroll_ = 0;
+  int drawerX_ = 0;
+  int drawerY_ = 0;
+  int drawerW_ = 0;
+  int drawerH_ = 0;
+  int rowsPerPage_ = 1;
+  std::vector<DrawerRow> rows_;
+  std::string detailText_;
+
+  void syncLayout() {
+    const int sw = renderer_.getScreenWidth();
+    const int sh = renderer_.getScreenHeight();
+    if (mode_ != HomeDrawerMode::Main) {
+      drawerX_ = 0;
+      drawerY_ = 0;
+      drawerW_ = sw;
+      drawerH_ = sh;
+    } else if (isHomeDrawerLandscape(renderer_)) {
+      drawerW_ = sw / 2;
+      drawerX_ = sw - drawerW_;
+      drawerH_ = kHomeDrawerHeaderH + 3 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerY_ = sh - drawerH_;
+    } else {
+      drawerX_ = 0;
+      drawerW_ = sw;
+      drawerH_ = kHomeDrawerHeaderH + 3 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerY_ = sh - drawerH_;
+    }
+    const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
+    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 3 : std::max(1, (drawerH_ - kHomeDrawerHeaderH - 12 - 46) / rowH);
+  }
+
+  const char* title() const {
+    switch (mode_) {
+      case HomeDrawerMode::Recents:
+        return "Manage Recents";
+      case HomeDrawerMode::Bookmarks:
+        return "Bookmarks";
+      case HomeDrawerMode::Annotations:
+        return "Annotations";
+      case HomeDrawerMode::BookmarkDetail:
+        return "Bookmark";
+      case HomeDrawerMode::AnnotationDetail:
+        return "Annotation";
+      case HomeDrawerMode::Main:
+      default:
+        return "Menu";
+    }
+  }
+
+  int itemCount() const {
+    if (mode_ == HomeDrawerMode::Main) {
+      return 3;
+    }
+    return static_cast<int>(rows_.size());
+  }
+
+  std::string mainLabel(const int index) const {
+    switch (index) {
+      case 0:
+        return "Manage Recents";
+      case 1:
+        return "Annotations";
+      case 2:
+      default:
+        return "Bookmarks";
+    }
+  }
+
+  void clampScroll() {
+    const int count = itemCount();
+    if (selected_ < 0) {
+      selected_ = 0;
+    }
+    if (selected_ >= count) {
+      selected_ = std::max(0, count - 1);
+    }
+    if (selected_ < scroll_) {
+      scroll_ = selected_;
+    } else if (selected_ >= scroll_ + rowsPerPage_) {
+      scroll_ = selected_ - rowsPerPage_ + 1;
+    }
+    scroll_ = std::max(0, scroll_);
+  }
+
+  void renderRows() {
+    const int count = itemCount();
+    if (count == 0) {
+      const char* empty = mode_ == HomeDrawerMode::Recents       ? "No recent books"
+                          : mode_ == HomeDrawerMode::Bookmarks   ? "No bookmarks"
+                          : mode_ == HomeDrawerMode::Annotations ? "No annotations"
+                                                                 : "";
+      const int msgY = drawerY_ + kHomeDrawerHeaderH + 42;
+      renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, empty, true);
+      return;
+    }
+
+    const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
+    for (int row = 0; row < rowsPerPage_; ++row) {
+      const int itemIndex = scroll_ + row;
+      if (itemIndex >= count) {
+        break;
+      }
+      const int itemY = drawerY_ + kHomeDrawerHeaderH + row * rowH + 1;
+      const bool selected = itemIndex == selected_;
+      renderer_.rectangle.fill(
+          drawerX_, itemY, drawerW_, rowH,
+          selected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+
+      const std::string label = mode_ == HomeDrawerMode::Main ? mainLabel(itemIndex) : rows_[itemIndex].label;
+      const int textX = drawerX_ + kHomeDrawerPadX;
+      const int textY = itemY + (rowH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      const int maxW = drawerW_ - kHomeDrawerPadX * 2 - 18;
+      const std::string clipped = renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, label.c_str(), maxW);
+      renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, clipped.c_str(), selected ? 0 : 1,
+                            EpdFontFamily::REGULAR);
+
+      renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX_ + drawerW_ - 30, textY, "›", selected ? 0 : 1);
+      renderer_.line.render(drawerX_, itemY + rowH - 1, drawerX_ + drawerW_, itemY + rowH - 1, true,
+                            LineRender::Style::Dotted);
+    }
+  }
+
+  void renderDetail() {
+    if (mode_ == HomeDrawerMode::BookmarkDetail) {
+      renderBookmarkPreview();
+      return;
+    }
+
+    int y = drawerY_ + kHomeDrawerHeaderH + 18;
+    const int textX = drawerX_ + kHomeDrawerPadX;
+    const int maxW = drawerW_ - kHomeDrawerPadX * 2;
+    std::string remaining = detailText_;
+    const int lineH = renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 4;
+    while (!remaining.empty() && y + lineH < drawerY_ + drawerH_ - 50) {
+      size_t take = remaining.size();
+      while (take > 0 &&
+             renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, remaining.substr(0, take).c_str()) > maxW) {
+        const size_t space = remaining.rfind(' ', take - 1);
+        take = (space == std::string::npos || space == 0) ? take - 1 : space;
+      }
+      if (take == 0) {
+        break;
+      }
+      std::string line = trimDrawerText(remaining.substr(0, take));
+      renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, y, line.c_str(), true);
+      remaining.erase(0, take);
+      remaining = trimDrawerText(remaining);
+      y += lineH;
+    }
+  }
+
+  void renderBookmarkPreview() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      renderPreviewUnavailable();
+      return;
+    }
+
+    const DrawerRow& row = rows_[selected_];
+    int fontId = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    Section previewSection(row.cachePath, row.spine, renderer_);
+    if (!previewSection.loadSectionFileForPreview(&fontId)) {
+      renderPreviewUnavailable();
+      return;
+    }
+    previewSection.currentPage = row.page;
+    if (!FontManager::ensureReaderLayoutFonts(fontId, renderer_)) {
+      renderPreviewUnavailable();
+      return;
+    }
+    std::unique_ptr<Page> page = previewSection.loadPageFromSectionFile();
+    if (!page) {
+      renderPreviewUnavailable();
+      return;
+    }
+
+    const BookSettings previewSettings = loadPreviewBookSettings(row.cachePath);
+    const int pageX = previewMarginLeft(previewSettings);
+    const int pageY = previewMarginTop(previewSettings, fontId);
+    page->render(renderer_, fontId, FontManager::getNextFont(fontId), pageX, pageY, false, ImageRenderMode::OneBit);
+  }
+
+  BookSettings loadPreviewBookSettings(const std::string& cachePath) const {
+    BookSettings settings;
+    settings.loadFromFile(cachePath);
+    return settings;
+  }
+
+  int previewMarginLeft(const BookSettings& settings) const {
+    int oT = 0;
+    int oR = 0;
+    int oB = 0;
+    int oL = 0;
+    renderer_.getOrientedViewableTRBL(&oT, &oR, &oB, &oL);
+    (void)oT;
+    (void)oR;
+    (void)oB;
+    return oL + settings.screenMargin;
+  }
+
+  int previewMarginTop(const BookSettings& settings, const int fontId) const {
+    int oT = 0;
+    int oR = 0;
+    int oB = 0;
+    int oL = 0;
+    renderer_.getOrientedViewableTRBL(&oT, &oR, &oB, &oL);
+    (void)oR;
+    (void)oB;
+    (void)oL;
+
+    int top = oT + settings.screenMargin;
+    top -= renderer_.text.getGlyphTopInset(fontId, 'H', EpdFontFamily::REGULAR);
+    return std::max(oT, top);
+  }
+
+  void renderPreviewUnavailable() {
+    const char* line1 = "Page preview unavailable";
+    const char* line2 = "Open the book once to rebuild cache.";
+    const int msgY = drawerY_ + 44;
+    const int w1 = renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
+    const int w2 = renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line2);
+    renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX_ + (drawerW_ - w1) / 2, msgY, line1, true);
+    renderer_.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX_ + (drawerW_ - w2) / 2,
+                          msgY + renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 8, line2, true);
+  }
+
+  void drawHints() {
+    const auto labels =
+        owner_.mappedInput.mapLabels("Back", "Select", "Up", mode_ == HomeDrawerMode::Recents ? "Del" : "");
+    owner_.renderButtonHints(renderer_, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
+
+  void activateSelected() {
+    if (mode_ == HomeDrawerMode::Main) {
+      if (selected_ == 0) {
+        loadRecents();
+        mode_ = HomeDrawerMode::Recents;
+      } else if (selected_ == 1) {
+        loadAnnotations();
+        mode_ = HomeDrawerMode::Annotations;
+      } else {
+        loadBookmarks();
+        mode_ = HomeDrawerMode::Bookmarks;
+      }
+      selected_ = 0;
+      scroll_ = 0;
+      render();
+      return;
+    }
+
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    if (mode_ == HomeDrawerMode::Recents) {
+      deleteSelectedRecent();
+      return;
+    }
+    if (mode_ == HomeDrawerMode::Bookmarks) {
+      const DrawerRow& row = rows_[selected_];
+      mode_ = HomeDrawerMode::BookmarkDetail;
+      detailText_ = row.label;
+      render();
+      return;
+    }
+    if (mode_ == HomeDrawerMode::Annotations) {
+      detailText_ = rows_[selected_].sublabel.empty() ? rows_[selected_].label : rows_[selected_].sublabel;
+      mode_ = HomeDrawerMode::AnnotationDetail;
+      render();
+    }
+  }
+
+  void loadRecents() {
+    rows_.clear();
+    const auto& books = RECENT_BOOKS.getBooks();
+    for (size_t i = 0; i < books.size(); ++i) {
+      DrawerRow row;
+      row.label = bookDisplayTitle(books[i]);
+      row.recentIndex = static_cast<int>(i);
+      rows_.push_back(std::move(row));
+    }
+  }
+
+  void deleteSelectedRecent() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    const int recentIndex = rows_[selected_].recentIndex;
+    const auto& books = RECENT_BOOKS.getBooks();
+    if (recentIndex >= 0 && recentIndex < static_cast<int>(books.size())) {
+      RECENT_BOOKS.removeBook(books[static_cast<size_t>(recentIndex)].path);
+      owner_.loadRecentBooks(false);
+    }
+    loadRecents();
+    if (selected_ >= static_cast<int>(rows_.size())) {
+      selected_ = std::max(0, static_cast<int>(rows_.size()) - 1);
+    }
+    clampScroll();
+    render();
+  }
+
+  void loadBookmarks() {
+    rows_.clear();
+    const std::vector<std::string> caches = epubCacheDirs();
+    for (const std::string& cachePath : caches) {
+      const std::string path = cachePath + "/bookmarks.bin";
+      FsFile f;
+      if (!SdMan.openFileForRead("HMB", path, f)) {
+        continue;
+      }
+      const uint32_t fileSize = f.fileSize();
+      const int count = fileSize / sizeof(EpubActivity::Bookmark);
+      const std::string bookTitle = titleForCachePath(cachePath);
+      for (int i = 0; i < count && i < 64; ++i) {
+        EpubActivity::Bookmark b{};
+        if (f.read(&b, sizeof(b)) != sizeof(b)) {
+          break;
+        }
+        if (!b.isValid()) {
+          continue;
+        }
+        DrawerRow row;
+        char pageLabel[24];
+        std::snprintf(pageLabel, sizeof(pageLabel), " p%d", static_cast<int>(b.pageNumber) + 1);
+        row.label = bookTitle + " - " + std::string(b.chapterTitle) + pageLabel;
+        row.cachePath = cachePath;
+        row.spine = b.spineIndex;
+        row.page = b.pageNumber;
+        rows_.push_back(std::move(row));
+      }
+      f.close();
+    }
+  }
+
+  void loadAnnotations() {
+    rows_.clear();
+    const std::vector<std::string> caches = epubCacheDirs();
+    for (const std::string& cachePath : caches) {
+      const std::string annDir = cachePath + "/" + EpubAnnotations::kSubdir;
+      if (!SdMan.exists(annDir.c_str())) {
+        continue;
+      }
+      const std::vector<String> files = SdMan.listFiles(annDir.c_str());
+      EpubAnnotations annotations;
+      for (const String& file : files) {
+        int spine = 0;
+        int page = 0;
+        if (std::sscanf(file.c_str(), "s_%d_p_%d.bin", &spine, &page) != 2) {
+          continue;
+        }
+        annotations.ensurePageLoaded(cachePath, spine, page);
+        for (const auto& rec : annotations.records()) {
+          DrawerRow row;
+          const std::string text = trimDrawerText(rec.text);
+          row.label = text.empty() ? titleForCachePath(cachePath) : text;
+          row.sublabel = text;
+          row.cachePath = cachePath;
+          row.spine = spine;
+          row.page = page;
+          rows_.push_back(std::move(row));
+        }
+      }
+    }
+  }
+};
+
+RecentActivity::~RecentActivity() {
+  delete homeMenuDrawer_;
+  homeMenuDrawer_ = nullptr;
+  freeRecentPageBuffer();
+}
 
 void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                                            const std::string& placeholderTitle, int placeholderFontId,
@@ -697,6 +1245,8 @@ void RecentActivity::onExit() {
   freeRecentPageBuffer();
   removeConfirmOpen_ = false;
   removeConfirmIndex_ = -1;
+  delete homeMenuDrawer_;
+  homeMenuDrawer_ = nullptr;
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
   recentBooks.clear();
@@ -706,6 +1256,20 @@ void RecentActivity::onExit() {
   simpleUiFavorites_.clear();
   renderer.resetTransientReaderState();
   Activity::onExit();
+}
+
+void RecentActivity::openHomeMenuDrawer() {
+  freeRecentPageBuffer();
+  if (!homeMenuDrawer_) {
+    homeMenuDrawer_ = new HomeMenuDrawer(*this);
+  }
+  homeMenuDrawer_->show();
+}
+
+void RecentActivity::closeHomeMenuDrawer() {
+  if (homeMenuDrawer_) {
+    homeMenuDrawer_->hide();
+  }
 }
 
 /**
@@ -1217,7 +1781,7 @@ void RecentActivity::pumpDisplayFromLoop() {
   layoutEngine_->paint(*this);
   suppressBufferedSelection_ = false;
 
-  const auto labels = mappedInput.mapLabels("Remove", "Open", "", "");
+  const auto labels = mappedInput.mapLabels("Menu", "Open", "", "");
   renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (canUseBuffer) {
@@ -1258,6 +1822,11 @@ void RecentActivity::loop() {
       SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
     renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     updateRequired = true;
+    return;
+  }
+
+  if (homeMenuDrawer_ && homeMenuDrawer_->visible()) {
+    homeMenuDrawer_->handleInput(mappedInput);
     return;
   }
 
@@ -1309,14 +1878,7 @@ void RecentActivity::loop() {
     if (mappedInput.getHeldTime() >= GO_HOME_MS) {
       return;
     }
-    if (tabSelectorIndex == 0) {
-      if ((isSimpleUi && totalBooks > 0 && selectorIndex == 0) ||
-          (isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks)) {
-        beginRemoveConfirmation();
-      } else if (!isSimpleUi && !isCoverView && totalBooks > 0 && selectorIndex >= 0 && selectorIndex < totalBooks) {
-        beginRemoveConfirmation();
-      }
-    }
+    openHomeMenuDrawer();
     return;
   }
 

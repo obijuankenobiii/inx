@@ -8,6 +8,8 @@
 #include <ArduinoJson.h>
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include <Epub.h>
+#include <Epub/Page.h>
+#include <Epub/Section.h>
 #include <FsHelpers.h>
 #include <HalGPIO.h>
 #endif
@@ -20,10 +22,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <set>
 
 #include "../state/SystemSetting.h"
+#ifndef INX_SIMULATOR_WEB_ONLY
+#include "activity/reader/Epub/EpubActivity.h"
+#include "activity/reader/Epub/EpubAnnotations.h"
+#endif
 #include "html/EpubPageHtml.generated.h"
 #include "html/EpubPageJs.generated.h"
+#include "html/ExportPageHtml.generated.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FilesPageJs.generated.h"
 #include "html/FontManagerPageHtml.generated.h"
@@ -36,6 +44,7 @@
 #include "activity/settings/LibraryIndexer.h"
 #include "state/BookState.h"
 #include "state/BookTags.h"
+#include "state/EpubNotesIndex.h"
 #include "state/RecentBooks.h"
 #include "system/FontManager.h"
 #include "util/StringUtils.h"
@@ -238,6 +247,234 @@ bool loadIndexedBooksWithTags(std::vector<IndexedBookInfo>& books) {
   return true;
 }
 
+std::string epubCachePathForBookPath(const std::string& bookPath) {
+  return "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(bookPath));
+}
+
+std::vector<std::string> epubCacheDirs() {
+  std::vector<std::string> out;
+  FsFile root = SdMan.open("/.metadata/epub");
+  if (!root || !root.isDirectory()) {
+    if (root) {
+      root.close();
+    }
+    return out;
+  }
+  char name[96];
+  for (FsFile f = root.openNextFile(); f; f = root.openNextFile()) {
+    if (f.isDirectory()) {
+      f.getName(name, sizeof(name));
+      out.push_back(std::string("/.metadata/epub/") + name);
+    }
+    f.close();
+  }
+  root.close();
+  return out;
+}
+
+struct ExportBookInfo {
+  std::string title;
+  std::string author;
+  std::string coverPath;
+};
+
+ExportBookInfo exportBookInfoForCachePath(const std::string& cachePath) {
+  ExportBookInfo info;
+  BookMetadataCache metadata(cachePath);
+  if (metadata.load()) {
+    info.title = metadata.coreMetadata.title;
+    info.author = metadata.coreMetadata.author;
+  }
+
+  RECENT_BOOKS.loadFromFile();
+  for (const RecentBook& book : RECENT_BOOKS.getBooks()) {
+    const std::string bookCache = book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+    if (bookCache == cachePath) {
+      if (info.title.empty()) {
+        info.title = book.title;
+      }
+      if (info.author.empty()) {
+        info.author = book.author;
+      }
+      if (!info.title.empty()) {
+        break;
+      }
+      const size_t slash = book.path.find_last_of('/');
+      info.title = slash == std::string::npos ? book.path : book.path.substr(slash + 1);
+      break;
+    }
+  }
+
+  if (info.title.empty()) {
+    const size_t slash = cachePath.find_last_of('/');
+    info.title = slash == std::string::npos ? cachePath : cachePath.substr(slash + 1);
+  }
+  const size_t dot = info.title.find_last_of('.');
+  if (dot != std::string::npos) {
+    info.title.resize(dot);
+  }
+  const std::string coverJpeg = cachePath + "/cover.jpg";
+  const std::string thumbJpeg = cachePath + "/thumb.jpg";
+  const std::string coverBmp = cachePath + "/cover.bmp";
+  if (SdMan.exists(coverJpeg.c_str())) {
+    info.coverPath = coverJpeg;
+  } else if (SdMan.exists(thumbJpeg.c_str())) {
+    info.coverPath = thumbJpeg;
+  } else if (SdMan.exists(coverBmp.c_str())) {
+    info.coverPath = coverBmp;
+  }
+  return info;
+}
+
+std::string bookmarkPreviewText(const std::string& cachePath, const int spine, const int page) {
+  std::unique_ptr<Page> cachedPage = Section::loadCachedPage(cachePath, spine, page);
+  if (!cachedPage) {
+    return "";
+  }
+  return cachedPage->extractPlainText(1600);
+}
+
+void writeFileString(FsFile& file, const String& value) {
+  file.write(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
+}
+
+void writeFileString(FsFile& file, const char* value) {
+  file.write(reinterpret_cast<const uint8_t*>(value), strlen(value));
+}
+
+void writeExportNoteItem(FsFile& file, bool& first, int& total, const char* type, const ExportBookInfo& book,
+                         const std::string& chapter, const int spine, const int page, const int pageCount,
+                         const uint32_t timestamp, const std::string& text, const std::string& pageText = "") {
+  if (!first) {
+    writeFileString(file, ",");
+  }
+  first = false;
+  String row = "{\"type\":\"";
+  row += type;
+  row += "\",\"book\":\"";
+  row += jsonEscape(book.title.c_str());
+  row += "\",\"author\":\"";
+  row += jsonEscape(book.author.c_str());
+  row += "\",\"coverUrl\":\"";
+  if (!book.coverPath.empty()) {
+    String coverUrl = "/download?path=";
+    coverUrl += book.coverPath.c_str();
+    coverUrl += "&inline=1";
+    row += jsonEscape(coverUrl.c_str());
+  }
+  row += "\",\"chapter\":\"";
+  row += jsonEscape(chapter.c_str());
+  row += "\",\"spine\":";
+  row += spine;
+  row += ",\"page\":";
+  row += page;
+  row += ",\"pageCount\":";
+  row += pageCount;
+  row += ",\"timestamp\":";
+  row += timestamp;
+  row += ",\"text\":\"";
+  row += jsonEscape(text.c_str());
+  if (!pageText.empty()) {
+    row += "\",\"pageText\":\"";
+    row += jsonEscape(pageText.c_str());
+  }
+  row += "\"}";
+  writeFileString(file, row);
+  ++total;
+}
+
+bool buildExportNotesIndex() {
+  SdMan.mkdir("/.metadata");
+  SdMan.mkdir("/.metadata/epub");
+
+  FsFile index;
+  if (!SdMan.openFileForWrite("EXP", EpubNotesIndex::kPath, index)) {
+    return false;
+  }
+
+  const std::vector<std::string> caches = epubCacheDirs();
+  std::set<std::string> annotationKeys;
+  bool first = true;
+  int total = 0;
+  String header = "{\"ok\":true,\"version\":";
+  header += EpubNotesIndex::kVersion;
+  header += ",\"items\":[";
+  writeFileString(index, header);
+
+  for (const std::string& cachePath : caches) {
+    const ExportBookInfo book = exportBookInfoForCachePath(cachePath);
+    const std::string bookmarksPath = cachePath + "/bookmarks.bin";
+    FsFile f;
+    if (SdMan.openFileForRead("EXP", bookmarksPath, f)) {
+      const uint32_t fileSize = f.fileSize();
+      const int count = fileSize / sizeof(EpubActivity::Bookmark);
+      for (int i = 0; i < count && i < 200; ++i) {
+        EpubActivity::Bookmark b{};
+        if (f.read(&b, sizeof(b)) != sizeof(b)) {
+          break;
+        }
+        if (b.isValid()) {
+          const std::string text = bookmarkPreviewText(cachePath, b.spineIndex, b.pageNumber);
+          writeExportNoteItem(index, first, total, "bookmark", book, b.chapterTitle, b.spineIndex, b.pageNumber,
+                              std::max<int>(1, b.pageCount), b.timestamp, text);
+        }
+      }
+      f.close();
+    }
+
+    const std::string annDir = cachePath + "/" + EpubAnnotations::kSubdir;
+    if (SdMan.exists(annDir.c_str())) {
+      const std::vector<String> files = SdMan.listFiles(annDir.c_str());
+      EpubAnnotations annotations;
+      for (const String& file : files) {
+        int spine = 0;
+        int page = 0;
+        if (std::sscanf(file.c_str(), "s_%d_p_%d.bin", &spine, &page) != 2) {
+          continue;
+        }
+        annotations.ensurePageLoaded(cachePath, spine, page);
+        for (const EpubAnnotationRecord& rec : annotations.records()) {
+          const std::string key = cachePath + "|" + std::to_string(rec.timestamp) + "|" +
+                                  std::to_string(rec.startSpine) + "|" + std::to_string(rec.startPage) + "|" +
+                                  std::to_string(rec.endSpine) + "|" + std::to_string(rec.endPage) + "|" + rec.text;
+          if (!annotationKeys.insert(key).second) {
+            continue;
+          }
+          const int startPage = rec.startPage == EpubAnnotations::kWildcard ? page : rec.startPage;
+          const int startSpine = rec.startSpine == EpubAnnotations::kWildcard ? spine : rec.startSpine;
+          const std::string pageText = bookmarkPreviewText(cachePath, startSpine, startPage);
+          writeExportNoteItem(index, first, total, "annotation", book, "Highlight", startSpine, startPage, 0,
+                              rec.timestamp, rec.text, pageText);
+        }
+        yield();
+      }
+    }
+    yield();
+  }
+
+  writeFileString(index, "],\"count\":");
+  writeFileString(index, String(total));
+  writeFileString(index, "}");
+  index.close();
+  return true;
+}
+
+bool exportNotesIndexIsCurrent() {
+  FsFile index;
+  if (!SdMan.openFileForRead("EXP", EpubNotesIndex::kPath, index)) {
+    return false;
+  }
+  char buf[96] = {};
+  const int n = index.read(buf, sizeof(buf) - 1);
+  index.close();
+  if (n <= 0) {
+    return false;
+  }
+  String marker = "\"version\":";
+  marker += EpubNotesIndex::kVersion;
+  return strstr(buf, marker.c_str()) != nullptr;
+}
+
 void webLibraryIndexTask(void*) {
   webLibraryIndexCurrent = 0;
   webLibraryIndexTotal = 0;
@@ -311,6 +548,7 @@ void LocalServer::begin() {
   server->on("/", HTTP_GET, [this] { handleRoot(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
   server->on("/epub", HTTP_GET, [this] { handleEpubPage(); });
+  server->on("/export", HTTP_GET, [this] { handleExportPage(); });
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
   server->on("/tags", HTTP_GET, [this] { handleTagsPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
@@ -320,6 +558,7 @@ void LocalServer::begin() {
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
+  server->on("/api/export-notes", HTTP_GET, [this] { handleExportNotesData(); });
   server->on("/api/book-tags", HTTP_GET, [this] { handleBookTagsGet(); });
   server->on("/api/book-tags", HTTP_POST, [this] { handleBookTagsPost(); });
   server->on("/api/library-index/refresh", HTTP_POST, [this] { handleLibraryIndexRefresh(); });
@@ -505,6 +744,11 @@ void LocalServer::handleStatus() const {
   doc["rssi"] = apMode ? 0 : WiFi.RSSI();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["uptime"] = millis() / 1000;
+  doc["device"] = gpio.deviceIsX3() ? "X3" : "X4";
+  doc["displayWidth"] = gpio.deviceIsX3() ? 792 : 800;
+  doc["displayHeight"] = gpio.deviceIsX3() ? 528 : 480;
+  doc["screenWidth"] = gpio.deviceIsX3() ? 528 : 480;
+  doc["screenHeight"] = gpio.deviceIsX3() ? 792 : 800;
 
   String json;
   serializeJson(doc, json);
@@ -580,6 +824,10 @@ void LocalServer::handleEpubPage() const {
   server->send_P(200, PSTR("text/html; charset=utf-8"), EpubPageHtml, sizeof(EpubPageHtml) - 1);
 }
 
+void LocalServer::handleExportPage() const {
+  server->send_P(200, PSTR("text/html; charset=utf-8"), ExportPageHtml, sizeof(ExportPageHtml) - 1);
+}
+
 void LocalServer::handleFontManagerPage() const { server->send(200, "text/html", FontManagerPageHtml); }
 
 void LocalServer::handleTagsPage() const { server->send(200, "text/html", TagsPageHtml); }
@@ -646,6 +894,47 @@ void LocalServer::handleFileListData() const {
 
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
+}
+
+void LocalServer::handleExportNotesData() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(501, "application/json", "{\"ok\":false,\"error\":\"unavailable_in_simulator\"}");
+#else
+  const bool forceRefresh = server->hasArg("refresh") && server->arg("refresh") == "1";
+  if (forceRefresh) {
+    EpubNotesIndex::invalidate();
+  }
+
+  if (!exportNotesIndexIsCurrent()) {
+    EpubNotesIndex::invalidate();
+  }
+
+  if (!SdMan.exists(EpubNotesIndex::kPath) && !buildExportNotesIndex()) {
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"index_failed\"}");
+    return;
+  }
+
+  FsFile index;
+  if (!SdMan.openFileForRead("EXP", EpubNotesIndex::kPath, index)) {
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"index_unreadable\"}");
+    return;
+  }
+
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  char buf[513];
+  while (index.available()) {
+    const int n = index.read(buf, sizeof(buf) - 1);
+    if (n <= 0) {
+      break;
+    }
+    buf[n] = '\0';
+    server->sendContent(buf);
+    yield();
+  }
+  index.close();
+  server->sendContent("");
+#endif
 }
 
 void LocalServer::handleBookTagsGet() const {
@@ -841,6 +1130,13 @@ void LocalServer::handleDownload() const {
   String contentType = "application/octet-stream";
   if (isEpubFile(itemPath)) {
     contentType = "application/epub+zip";
+  } else if (itemPath.endsWith(".jpg") || itemPath.endsWith(".jpeg") || itemPath.endsWith(".JPG") ||
+             itemPath.endsWith(".JPEG")) {
+    contentType = "image/jpeg";
+  } else if (itemPath.endsWith(".png") || itemPath.endsWith(".PNG")) {
+    contentType = "image/png";
+  } else if (itemPath.endsWith(".bmp") || itemPath.endsWith(".BMP")) {
+    contentType = "image/bmp";
   }
 
   char nameBuf[128] = {0};
@@ -850,7 +1146,9 @@ void LocalServer::handleDownload() const {
   }
 
   server->setContentLength(file.size());
-  server->sendHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+  const bool inlineView = server->hasArg("inline") && server->arg("inline") == "1";
+  server->sendHeader("Content-Disposition",
+                     String(inlineView ? "inline" : "attachment") + "; filename=\"" + filename + "\"");
   server->send(200, contentType.c_str(), "");
 
   WiFiClient client = server->client();

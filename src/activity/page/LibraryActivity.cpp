@@ -25,6 +25,8 @@
 #include "images/BookLarge.h"
 #include "images/Folder.h"
 #include "images/FolderLarge.h"
+#include "images/Image.h"
+#include "images/ImageLarge.h"
 #include "images/Refresh.h"
 #include "images/Star.h"
 #include "state/BookState.h"
@@ -156,6 +158,7 @@ constexpr const char* TAG_UNTAGGED_LABEL = "Others";
 constexpr uint8_t BOOK_STATE_FAVORITE = 0x01;
 constexpr uint8_t BOOK_STATE_READING = 0x02;
 constexpr uint8_t BOOK_STATE_FINISHED = 0x04;
+constexpr const char* EXPORTED_NOTES_ROOT = "/Bookmarks & Annotations";
 
 /** Returns whether value ends with suffix, ignoring case. */
 bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
@@ -170,6 +173,20 @@ bool endsWithIgnoreCase(const std::string& value, const char* suffix) {
     }
   }
   return true;
+}
+
+bool startsWithPath(const std::string& path, const char* root) {
+  const size_t rootLen = strlen(root);
+  return path.compare(0, rootLen, root) == 0 && (path.size() == rootLen || path[rootLen] == '/');
+}
+
+bool isSupportedImageFile(const std::string& filename) {
+  return StringUtils::checkFileExtension(filename, ".bmp") || StringUtils::checkFileExtension(filename, ".jpg") ||
+         StringUtils::checkFileExtension(filename, ".jpeg") || StringUtils::checkFileExtension(filename, ".png");
+}
+
+bool isExportedNoteImagePath(const std::string& path, const std::string& filename) {
+  return startsWithPath(path, EXPORTED_NOTES_ROOT) && isSupportedImageFile(filename);
 }
 
 /** Builds the metadata cache directory path for a book path under the given root. */
@@ -574,7 +591,7 @@ void LibraryActivity::findBooksPaginated(const std::string& path, std::vector<Li
     }
 
     std::string filename = name;
-    if (isValidBookFile(filename)) {
+    if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
       if (foundCount >= startIndex) {
         books.push_back(createBookItem(fullPath, filename, path));
       }
@@ -711,7 +728,7 @@ int LibraryActivity::countTotalBooks(const std::string& path) {
     }
 
     std::string filename = name;
-    if (isValidBookFile(filename)) {
+    if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
       count++;
     }
     file.close();
@@ -766,8 +783,12 @@ bool LibraryActivity::directoryHasBooks(const std::string& path) {
       continue;
     }
 
+    std::string fullPath = path;
+    if (!fullPath.empty() && fullPath.back() != '/') fullPath += "/";
+    fullPath += name;
+
     std::string filename = name;
-    if (isValidBookFile(filename)) {
+    if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
       file.close();
       dir.close();
       directoryHasBooksCache_[cachePath] = true;
@@ -796,7 +817,7 @@ void LibraryActivity::loadAllBooksRecursive() {
 /** Loads all books recursively; assumes the caller already holds renderingMutex. */
 void LibraryActivity::loadAllBooksRecursiveLocked() {
   invalidateLibraryCache();
-  if (SETTINGS.useLibraryIndex) {
+  if (SETTINGS.useLibraryIndex && currentViewMode != ViewMode::FOLDER_VIEW) {
     loadLibraryFromIndex();
   } else {
     if (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::SHELF_VIEW) {
@@ -844,7 +865,7 @@ void LibraryActivity::loadBooksRecursiveScan() {
       }
 
       std::string filename = name;
-      if (isValidBookFile(filename)) {
+      if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
         TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, path);
         tempBooks.push_back(tempEntry);
         if ((++booksCollected % 48u) == 0u) {
@@ -910,10 +931,11 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
 
       if (!file.isDirectory()) {
         std::string filename = name;
-        if (isValidBookFile(filename)) {
-          std::string fullPath = basepath;
-          if (fullPath.back() != '/') fullPath += "/";
-          TempBookEntry tempEntry = createTempBookEntry(fullPath + filename, filename, basepath);
+        std::string fullPath = basepath;
+        if (fullPath.back() != '/') fullPath += "/";
+        fullPath += filename;
+        if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
+          TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, basepath);
           tempBooks.push_back(tempEntry);
           if ((++scanYieldCount % 48u) == 0u) {
             yield();
@@ -2516,8 +2538,9 @@ void LibraryActivity::renderGridItemIcon(const LibraryItem& item, int x, int y, 
       renderer.bitmap.icon(Star, x + w - starSize - 10, y, starSize, starSize, BitmapRender::Orientation::None,
                            isSelected);
     }
-    renderer.bitmap.icon(isLarge ? BookLarge : Book, iconX, iconY, iconSize, iconSize, BitmapRender::Orientation::None,
-                         isSelected);
+    renderer.bitmap.icon(
+        isSupportedImageFile(item.path) ? (isLarge ? ImageLarge : Image) : (isLarge ? BookLarge : Book), iconX, iconY,
+        iconSize, iconSize, BitmapRender::Orientation::None, isSelected);
   }
 }
 
@@ -2582,7 +2605,8 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
   if (item.type == LibraryItem::Type::FOLDER) {
     renderer.bitmap.icon(Folder, iconX, iconY, 24, 24, BitmapRender::Orientation::None, isSelected);
   } else {
-    renderer.bitmap.icon(Book, iconX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
+    renderer.bitmap.icon(isSupportedImageFile(item.path) ? Image : Book, iconX, iconY + 2, 24, 24,
+                         BitmapRender::Orientation::None, isSelected);
 
     if (isBookMarked(item.path)) {
       int starX = renderer.getScreenWidth() - 1 - 45;

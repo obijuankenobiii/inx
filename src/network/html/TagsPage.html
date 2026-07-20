@@ -51,6 +51,10 @@
   .index-detail { margin-top: 4px; font-size: 12px; color: #cfcfcf; min-height: 18px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 680px) {
+    .container { padding: 28px 16px; }
+    .header h1 { font-size: 22px; }
+    .nav-links { gap: 6px; }
+    .nav-btn { padding: 6px 14px; font-size: 13px; }
     .book-row { grid-template-columns: 1fr; gap: 8px; }
     .toolbar-actions, .search { width: 100%; }
   }
@@ -63,6 +67,7 @@
     <a class="nav-btn" href="/epub">Epub</a>
     <a class="nav-btn active" href="/tags">Tags</a>
     <a class="nav-btn" href="/font-manager">Fonts</a>
+    <a class="nav-btn" href="/export">Bookmarks &amp; Annotations</a>
     <a class="nav-btn" href="/settings">Settings</a>
   </div>
   <div class="card">

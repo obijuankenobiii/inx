@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -375,6 +376,7 @@ class Page {
   int warmImageDisplayCache(GfxRenderer& renderer, int xOffset, int yOffset,
                             ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false) const;
   bool allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
+  std::string extractPlainText(size_t maxChars = 320) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

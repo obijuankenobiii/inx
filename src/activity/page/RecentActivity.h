@@ -84,6 +84,8 @@ class RecentActivity final : public Activity, public Menu {
   mutable std::unordered_map<std::string, std::string> coverPathCache_;
   bool removeConfirmOpen_ = false;
   int removeConfirmIndex_ = -1;
+  class HomeMenuDrawer;
+  HomeMenuDrawer* homeMenuDrawer_ = nullptr;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -108,6 +110,8 @@ class RecentActivity final : public Activity, public Menu {
   void cancelRemoveConfirmation();
   void confirmRemoveRecent();
   void renderRemoveConfirmation();
+  void openHomeMenuDrawer();
+  void closeHomeMenuDrawer();
   const CachedRecentStats& statsForRecentIndex(int index) const;
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
 

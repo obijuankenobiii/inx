@@ -2,14 +2,17 @@
 <html lang="en">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <title>Inx - Files</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}
+body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}
 button,input{font:inherit}
 .container{max-width:720px;margin:0 auto;padding:28px 18px}
 .header{text-align:center;margin-bottom:22px}
-.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em}
+.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}
 .nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}
 .nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
 .nav-btn:hover{background:#eee;color:#111}
@@ -91,7 +94,7 @@ button,input{font:inherit}
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);background:#1d1d1f;color:#fff;border-radius:6px;padding:9px 13px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:1200;max-width:calc(100% - 36px);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.error{background:#b42318}
-@media(max-width:768px){.container{padding:24px 14px}.header h1{font-size:22px}.page-header{flex-direction:column;align-items:stretch}.action-buttons{display:grid;grid-template-columns:1fr 1fr}.action-btn{padding:9px 10px}.action-buttons .primary-action{grid-column:1/-1}.card{padding:14px 12px}.meta{display:none}.row-actions{gap:0}.row-action{width:29px}.bulk-actions{align-items:stretch;flex-direction:column}.bulk-delete-btn{width:100%}}
+@media(max-width:768px){.container{padding:28px 16px}.header h1{font-size:22px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.page-header{flex-direction:column;align-items:stretch}.action-buttons{display:grid;grid-template-columns:1fr 1fr}.action-btn{padding:9px 10px}.action-buttons .primary-action{grid-column:1/-1}.card{padding:14px 12px}.meta{display:none}.row-actions{gap:0}.row-action{width:29px}.bulk-actions{align-items:stretch;flex-direction:column}.bulk-delete-btn{width:100%}}
 ::selection{background:#111;color:#fff}
 </style>
 <div class="container">
@@ -102,6 +105,7 @@ button,input{font:inherit}
     <a class="nav-btn" href="/epub">Epub</a>
     <a class="nav-btn" href="/tags">Tags</a>
     <a class="nav-btn" href="/font-manager">Fonts</a>
+    <a class="nav-btn" href="/export">Bookmarks &amp; Annotations</a>
     <a class="nav-btn" href="/settings">Settings</a>
   </nav>
   <div class="page-header">

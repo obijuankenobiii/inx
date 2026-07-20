@@ -193,6 +193,121 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   return true;
 }
 
+bool Section::loadSectionFileForPreview(int* outFontId) {
+  if (file) {
+    file.close();
+  }
+  lutOffset = 0;
+  pageOffsets.clear();
+  pageCount = 0;
+
+  if (!SdMan.openFileForRead("SCT", filePath, file)) return false;
+
+  uint8_t version = 0;
+  serialization::readPod(file, version);
+  if (version != SECTION_FILE_VERSION) {
+    file.close();
+    return false;
+  }
+
+  int storedFontId = 0;
+  float storedLineCompression = 1.0f;
+  float storedWordSpacing = 1.0f;
+  bool storedExtraParagraphSpacing = false;
+  uint8_t storedParagraphAlignment = 0;
+  uint16_t storedViewportWidth = 0;
+  uint16_t storedViewportHeight = 0;
+  bool storedHyphenationEnabled = false;
+  bool storedRespectCssIndent = false;
+  bool storedBionicReadingEnabled = false;
+  uint16_t storedPageCount = 0;
+  uint32_t storedLutOffset = 0;
+
+  serialization::readPod(file, storedFontId);
+  serialization::readPod(file, storedLineCompression);
+  serialization::readPod(file, storedWordSpacing);
+  serialization::readPod(file, storedExtraParagraphSpacing);
+  serialization::readPod(file, storedParagraphAlignment);
+  serialization::readPod(file, storedViewportWidth);
+  serialization::readPod(file, storedViewportHeight);
+  serialization::readPod(file, storedHyphenationEnabled);
+  serialization::readPod(file, storedRespectCssIndent);
+  serialization::readPod(file, storedBionicReadingEnabled);
+  serialization::readPod(file, storedPageCount);
+  serialization::readPod(file, storedLutOffset);
+
+  pageCount = storedPageCount;
+  lutOffset = storedLutOffset;
+  if (outFontId != nullptr) {
+    *outFontId = storedFontId;
+  }
+  return pageCount > 0 && lutOffset != 0;
+}
+
+std::unique_ptr<Page> Section::loadCachedPage(const std::string& cachePath, const int spineIndex,
+                                              const int pageNumber) {
+  if (spineIndex < 0 || pageNumber < 0) {
+    return nullptr;
+  }
+
+  FsFile sectionFile;
+  const std::string path = cachePath + "/sections/" + std::to_string(spineIndex) + ".bin";
+  if (!SdMan.openFileForRead("SCT", path, sectionFile)) {
+    return nullptr;
+  }
+
+  uint8_t version = 0;
+  serialization::readPod(sectionFile, version);
+  if (version != SECTION_FILE_VERSION) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  int storedFontId = 0;
+  float storedLineCompression = 1.0f;
+  float storedWordSpacing = 1.0f;
+  bool storedExtraParagraphSpacing = false;
+  uint8_t storedParagraphAlignment = 0;
+  uint16_t storedViewportWidth = 0;
+  uint16_t storedViewportHeight = 0;
+  bool storedHyphenationEnabled = false;
+  bool storedRespectCssIndent = false;
+  bool storedBionicReadingEnabled = false;
+  uint16_t storedPageCount = 0;
+  uint32_t storedLutOffset = 0;
+
+  serialization::readPod(sectionFile, storedFontId);
+  serialization::readPod(sectionFile, storedLineCompression);
+  serialization::readPod(sectionFile, storedWordSpacing);
+  serialization::readPod(sectionFile, storedExtraParagraphSpacing);
+  serialization::readPod(sectionFile, storedParagraphAlignment);
+  serialization::readPod(sectionFile, storedViewportWidth);
+  serialization::readPod(sectionFile, storedViewportHeight);
+  serialization::readPod(sectionFile, storedHyphenationEnabled);
+  serialization::readPod(sectionFile, storedRespectCssIndent);
+  serialization::readPod(sectionFile, storedBionicReadingEnabled);
+  serialization::readPod(sectionFile, storedPageCount);
+  serialization::readPod(sectionFile, storedLutOffset);
+
+  if (storedPageCount == 0 || storedLutOffset == 0 || pageNumber >= static_cast<int>(storedPageCount)) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  uint32_t pagePos = 0;
+  sectionFile.seek(storedLutOffset + sizeof(uint32_t) * pageNumber);
+  serialization::readPod(sectionFile, pagePos);
+  if (pagePos == 0) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  sectionFile.seek(pagePos);
+  auto page = Page::deserialize(sectionFile);
+  sectionFile.close();
+  return page;
+}
+
 /**
  * Creates a new section file by parsing the HTML content and building pages.
  * Streams chapter HTML from the EPUB to a temp file (same retry/chunk pattern as Crosspoint),

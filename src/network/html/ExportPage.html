@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<title>Inx - Bookmarks &amp; Annotations</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}
+button,select,input{font:inherit}
+button,input,select{-webkit-tap-highlight-color:transparent}
+.container{max-width:920px;margin:0 auto;padding:28px 18px}
+.header{text-align:center;margin:0 auto 22px;max-width:720px}
+.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}
+.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}
+.nav-links{max-width:720px;margin-left:auto;margin-right:auto}
+.nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
+.nav-btn:hover{background:#eee;color:#111}
+.nav-btn.active{background:#111;color:#fff}
+.layout{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:18px;align-items:start}
+.panel{background:#fff;border:1px solid #ececef;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.panel-title{font-size:15px;font-weight:650;color:#111;margin-bottom:4px}
+.panel-sub{font-size:12.5px;color:#7a7a80;margin-bottom:14px}
+.controls{display:grid;gap:10px;margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:650;color:#555;margin-bottom:6px}
+.select{width:100%;border:1px solid #d9d9dd;border-radius:8px;background:#fff;padding:10px 11px;color:#111}
+.select:focus{outline:0;border-color:#777;box-shadow:0 0 0 2px rgba(0,0,0,.06)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.btn{border:0;border-radius:8px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:650;background:#eeeeef;color:#222;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px}
+.btn.primary{background:#111;color:#fff}
+.btn:hover{filter:brightness(.96)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.list{display:flex;flex-direction:column;gap:7px;max-height:430px;overflow:auto;padding-right:2px}
+.item{border:1px solid #eeeeef;border-radius:8px;background:#fff;padding:10px 11px;text-align:left;cursor:pointer;color:#222;display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start}
+.item:hover{border-color:#cfcfd4;background:#fbfbfc}
+.item.active{border-color:#111;background:#f5f5f5}
+.item-check{width:17px;height:17px;margin-top:2px;accent-color:#111}
+.item>div{min-width:0}
+.item-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:3px;min-width:0}
+.item-title{font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#666;background:#f0f0f2;border-radius:999px;padding:2px 7px;flex:0 0 auto}
+.item-meta{font-size:12px;color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{font-size:13px;color:#777;text-align:center;padding:36px 10px}
+.stage{background:#f4f4f5;border:1px solid #e7e7ea;border-radius:12px;padding:18px;display:flex;justify-content:center;overflow:auto}
+.canvas-wrap{position:relative;padding:14px;background:#fff;border-radius:14px;box-shadow:0 18px 45px rgba(0,0,0,.08)}
+canvas{display:block;width:min(100%,560px);height:auto;border-radius:10px;background:#fff}
+.status{font-size:12.5px;color:#777;margin-top:10px;text-align:center}
+@media(max-width:820px){
+body{background:#fff}
+.container{max-width:none;padding:28px 16px 22px}
+.header{margin-bottom:22px;text-align:center}
+.header h1{font-size:22px;line-height:1.15}
+.nav-links{justify-content:center;flex-wrap:wrap;gap:6px;margin:0 auto 22px;padding:0 0 8px;overflow:visible;scrollbar-width:auto}
+.nav-btn{font-size:13px;padding:6px 14px;flex:0 1 auto}
+.layout{display:flex;flex-direction:column;gap:12px}
+.stage{order:1}
+.panel{order:2}
+.panel{border-radius:10px;padding:13px;box-shadow:none}
+.panel-title{font-size:14px}
+.panel-sub{margin-bottom:11px}
+.controls{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px}
+.select{min-height:44px;padding:10px 9px;font-size:14px}
+.list{max-height:42vh;gap:6px;padding-right:0;overscroll-behavior:contain}
+.item{min-height:86px;padding:12px 10px;gap:10px;border-radius:9px}
+.item-check{width:22px;height:22px;margin-top:1px}
+.item-title{font-size:14px;line-height:20px}
+.pill{font-size:10px;padding:2px 6px}
+.item-meta{font-size:12px;line-height:17px;max-height:34px;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.actions{grid-template-columns:repeat(4,1fr);gap:8px;padding-top:10px;margin-top:10px}
+.btn{min-height:46px;padding:10px 9px}
+.status{min-height:18px;margin-top:8px}
+.stage{margin:0 -4px;padding:10px;border-radius:10px;max-height:none;overflow:visible}
+.canvas-wrap{width:100%;padding:8px;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.08)}
+canvas{width:100%;max-width:none;border-radius:8px}
+}
+@media(max-width:430px){
+.container{padding:28px 16px 18px}
+.controls{grid-template-columns:1fr}
+.actions{grid-template-columns:repeat(4,1fr)}
+.list{max-height:38vh}
+.stage{padding:8px}
+.canvas-wrap{padding:6px}
+}
+</style>
+<div class="container">
+  <div class="header"><h1>Bookmarks &amp; Annotations</h1></div>
+  <nav class="nav-links">
+    <a class="nav-btn" href="/">Dashboard</a>
+    <a class="nav-btn" href="/files">Files</a>
+    <a class="nav-btn" href="/epub">Epub</a>
+    <a class="nav-btn" href="/tags">Tags</a>
+    <a class="nav-btn" href="/font-manager">Fonts</a>
+    <a class="nav-btn active" href="/export">Bookmarks &amp; Annotations</a>
+    <a class="nav-btn" href="/settings">Settings</a>
+  </nav>
+  <div class="layout">
+    <section class="panel">
+      <div class="panel-title">Bookmarks &amp; annotations</div>
+      <div class="panel-sub" id="summary">Loading...</div>
+      <div class="controls">
+        <div class="field">
+          <label for="typeFilter">Show</label>
+          <select id="typeFilter" class="select" onchange="renderList()">
+            <option value="all">Bookmarks &amp; annotations</option>
+            <option value="annotation">Annotations only</option>
+            <option value="bookmark">Bookmarks only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="styleSelect">Card style</label>
+          <select id="styleSelect" class="select" onchange="drawCard()">
+            <option value="classic">Classic border</option>
+            <option value="ink">Ink frame</option>
+            <option value="soft">Soft paper</option>
+            <option value="magazine">Magazine cover</option>
+            <option value="bookpage">Book page highlight</option>
+          </select>
+        </div>
+      </div>
+      <div id="itemList" class="list"><div class="empty">Loading notes...</div></div>
+      <div class="actions">
+        <button class="btn" onclick="loadData(true)" aria-label="Refresh" title="Refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.2 6.5"/><path d="M3 12A9 9 0 0 1 18.2 5.5"/><path d="M18 2v4h-4"/><path d="M6 22v-4h4"/></svg>
+        </button>
+        <button class="btn primary" id="downloadBtn" onclick="downloadJpeg()" disabled aria-label="Download JPEG" title="Download JPEG">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+        <button class="btn primary" id="coverBtn" onclick="addAsCover()" disabled aria-label="Add as cover" title="Add as cover">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m8 14 2.4-2.4a1.4 1.4 0 0 1 2 0L16 15"/><circle cx="9" cy="9" r="1"/></svg>
+        </button>
+        <button class="btn primary" id="deviceBtn" onclick="exportSelectedToDevice()" disabled aria-label="Export selected to device" title="Export selected to device">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 18h6"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/></svg>
+        </button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+    <section class="stage">
+      <div class="canvas-wrap">
+        <canvas id="card" width="1200" height="1600"></canvas>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+let items = [];
+let filtered = [];
+let selectedIndex = 0;
+const selectedKeys = new Set();
+const coverImages = new Map();
+let jszipLoadPromise = null;
+
+function pageLabel(item) {
+  const page = Number(item.page || 0) + 1;
+  if (item.pageCount && item.pageCount > 0) return "Page " + page + " of " + item.pageCount;
+  return "Page " + page;
+}
+
+function itemText(item) {
+  if (item.type === "annotation" && item.text) return item.text;
+  if (item.text) return item.text;
+  return "Page preview unavailable";
+}
+
+function bookPageText(item) {
+  if (item.type === "annotation" && item.pageText) return item.pageText;
+  return itemText(item);
+}
+
+function byline(item) {
+  return item.author ? "by " + item.author : "";
+}
+
+function itemKey(item) {
+  return [item.book, item.author, item.type, item.page, item.spineIndex, item.chapter, item.text].map(v => String(v || "")).join("|");
+}
+
+function selectedItemsOrCurrent() {
+  const selected = filtered.filter(item => selectedKeys.has(itemKey(item)));
+  if (selected.length) return selected;
+  return filtered.length ? [filtered[selectedIndex]] : [];
+}
+
+function noteFilename(item, index = 0) {
+  const page = String(Number(item.page || 0) + 1).padStart(4, "0");
+  const base = (item.type + "-" + (item.book || "note") + "-page-" + page)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 72) || "inx-export";
+  return base + (index > 0 ? "-" + String(index + 1).padStart(3, "0") : "") + ".jpg";
+}
+
+function loadJsZip() {
+  if (typeof JSZip !== "undefined") return Promise.resolve();
+  if (!jszipLoadPromise) {
+    jszipLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/js/jszip.min.js";
+      script.async = true;
+      script.onload = () => typeof JSZip !== "undefined" ? resolve() : reject(new Error("ZIP library unavailable"));
+      script.onerror = () => {
+        jszipLoadPromise = null;
+        reject(new Error("Could not load ZIP library"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return jszipLoadPromise;
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"]/g, c => {
+    if (c === "&") return "&amp;";
+    if (c === "<") return "&lt;";
+    if (c === ">") return "&gt;";
+    return "&quot;";
+  });
+}
+
+function visibleItems() {
+  const type = document.getElementById("typeFilter").value;
+  return items.filter(item => type === "all" || item.type === type);
+}
+
+async function loadData(refresh) {
+  const list = document.getElementById("itemList");
+  list.innerHTML = '<div class="empty">Loading notes...</div>';
+  document.getElementById("downloadBtn").disabled = true;
+  document.getElementById("coverBtn").disabled = true;
+  document.getElementById("deviceBtn").disabled = true;
+  try {
+    const res = await fetch(refresh ? "/api/export-notes?refresh=1" : "/api/export-notes");
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "Load failed");
+    items = data.items || [];
+    selectedIndex = 0;
+    selectedKeys.clear();
+    renderList();
+  } catch (err) {
+    items = [];
+    list.innerHTML = '<div class="empty">Could not load export data.</div>';
+    document.getElementById("summary").textContent = "Unavailable";
+    document.getElementById("coverBtn").disabled = true;
+    document.getElementById("deviceBtn").disabled = true;
+    drawEmpty("No export data");
+  }
+}
+
+function renderList() {
+  filtered = visibleItems();
+  const list = document.getElementById("itemList");
+  document.getElementById("summary").textContent = filtered.length + " item" + (filtered.length === 1 ? "" : "s");
+  const visibleKeys = new Set(filtered.map(itemKey));
+  for (const key of Array.from(selectedKeys)) {
+    if (!visibleKeys.has(key)) selectedKeys.delete(key);
+  }
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty">No matching bookmarks or annotations.</div>';
+    document.getElementById("downloadBtn").disabled = true;
+    document.getElementById("coverBtn").disabled = true;
+    document.getElementById("deviceBtn").disabled = true;
+    drawEmpty("No items");
+    return;
+  }
+  selectedIndex = Math.min(selectedIndex, filtered.length - 1);
+  list.innerHTML = filtered.map((item, index) => `
+    <div class="item ${index === selectedIndex ? "active" : ""}" onclick="selectItem(${index})">
+      <input class="item-check" type="checkbox" ${selectedKeys.has(itemKey(item)) ? "checked" : ""} onclick="toggleSelected(event, ${index})" aria-label="Select export">
+      <div>
+        <div class="item-top">
+          <div class="item-title">${escapeHtml(item.book)}</div>
+          <span class="pill">${escapeHtml(item.type)}</span>
+        </div>
+        <div class="item-meta">${escapeHtml([byline(item), pageLabel(item), itemText(item)].filter(Boolean).join(" - "))}</div>
+      </div>
+    </div>
+  `).join("");
+  document.getElementById("downloadBtn").disabled = false;
+  document.getElementById("coverBtn").disabled = false;
+  document.getElementById("deviceBtn").disabled = selectedKeys.size === 0;
+  drawCard();
+}
+
+function selectItem(index) {
+  selectedIndex = index;
+  renderList();
+}
+
+function toggleSelected(event, index) {
+  event.stopPropagation();
+  const key = itemKey(filtered[index]);
+  if (event.target.checked) selectedKeys.add(key);
+  else selectedKeys.delete(key);
+  document.getElementById("deviceBtn").disabled = selectedKeys.size === 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  let line = "";
+  let lines = 0;
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      lines++;
+      line = words[i];
+      if (lines >= maxLines - 1) break;
+    } else {
+      line = test;
+    }
+  }
+  if (line && lines < maxLines) ctx.fillText(line, x, y);
+}
+
+function wrappedLines(ctx, text, maxWidth, maxLines = Number.MAX_SAFE_INTEGER) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = words[i];
+      if (lines.length >= maxLines - 1) break;
+    } else {
+      line = test;
+    }
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  return lines;
+}
+
+function drawTextLines(ctx, lines, x, y, lineHeight) {
+  for (const line of lines) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+function fittedTextLayout(ctx, text, maxWidth, maxHeight, maxFontSize, minFontSize, family, weight = "") {
+  let fontSize = maxFontSize;
+  let lineHeight = 0;
+  let lines = [];
+  while (fontSize >= minFontSize) {
+    lineHeight = Math.round(fontSize * 1.28);
+    ctx.font = (weight ? weight + " " : "") + fontSize + "px " + family;
+    lines = wrappedLines(ctx, text, maxWidth);
+    if (lines.length * lineHeight <= maxHeight) break;
+    fontSize--;
+  }
+  return {fontSize, lineHeight, lines};
+}
+
+function drawFrame(ctx, style) {
+  ctx.fillStyle = style === "soft" ? "#fbf7ef" : "#ffffff";
+  ctx.fillRect(0, 0, 1200, 1600);
+  ctx.fillStyle = style === "ink" ? "#111111" : "#f4efe6";
+  roundRect(ctx, 70, 70, 1060, 1460, 34);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, 92, 92, 1016, 1416, 26);
+  ctx.fill();
+  ctx.strokeStyle = style === "ink" ? "#111111" : "#bcae91";
+  ctx.lineWidth = style === "ink" ? 12 : 8;
+  roundRect(ctx, 124, 124, 952, 1352, 18);
+  ctx.stroke();
+  ctx.strokeStyle = style === "soft" ? "#cbbd9f" : "#111111";
+  ctx.lineWidth = 4;
+  roundRect(ctx, 154, 154, 892, 1292, 10);
+  ctx.stroke();
+}
+
+function drawEmpty(text) {
+  const ctx = document.getElementById("card").getContext("2d");
+  drawFrame(ctx, "classic");
+  ctx.fillStyle = "#777";
+  ctx.font = "42px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(text, 600, 800);
+}
+
+function coverEntry(item) {
+  if (!item.coverUrl) return null;
+  if (coverImages.has(item.coverUrl)) return coverImages.get(item.coverUrl);
+  const entry = {img: new Image(), loaded: false, failed: false, promise: null};
+  entry.promise = new Promise(resolve => {
+    entry.img.onload = () => {
+      entry.loaded = true;
+      resolve(entry);
+    };
+    entry.img.onerror = () => {
+      entry.failed = true;
+      resolve(entry);
+    };
+  });
+  entry.img.src = item.coverUrl;
+  coverImages.set(item.coverUrl, entry);
+  return entry;
+}
+
+function drawImageCover(ctx, img, x, y, w, h) {
+  const ir = img.width / img.height;
+  const tr = w / h;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (ir > tr) {
+    sw = Math.round(img.height * tr);
+    sx = Math.round((img.width - sw) / 2);
+  } else {
+    sh = Math.round(img.width / tr);
+    sy = Math.round((img.height - sh) / 2);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+function drawImageContain(ctx, img, x, y, w, h) {
+  const scale = Math.min(w / img.width, h / img.height);
+  const dw = Math.round(img.width * scale);
+  const dh = Math.round(img.height * scale);
+  const dx = x + Math.round((w - dw) / 2);
+  const dy = y + Math.round((h - dh) / 2);
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+
+async function drawMagazineCard(ctx, item, awaitCover) {
+  const entry = coverEntry(item);
+  if (awaitCover && entry && !entry.loaded && !entry.failed) await entry.promise;
+  ctx.fillStyle = "#f2eee7";
+  ctx.fillRect(0, 0, 1200, 1600);
+  if (entry && entry.loaded) {
+    drawImageCover(ctx, entry.img, 0, 0, 1200, 1600);
+    ctx.fillStyle = "rgba(255,255,255,.30)";
+    ctx.fillRect(0, 0, 1200, 1600);
+    drawImageContain(ctx, entry.img, 40, 40, 1120, 1520);
+    ctx.fillStyle = "rgba(0,0,0,.28)";
+    ctx.fillRect(0, 0, 1200, 1600);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 1200, 1600);
+    g.addColorStop(0, "#ded6c8");
+    g.addColorStop(1, "#777f78");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1200, 1600);
+    if (entry && !entry.failed) entry.promise.then(() => drawCard());
+  }
+  drawMagazinePanel(ctx, item, 1200, 1600, false);
+  ctx.fillStyle = "#fff";
+  ctx.font = "700 24px system-ui, sans-serif";
+  ctx.fillText("INX", 96, 1480);
+}
+
+function magazinePanelLayout(ctx, item, w, h, sleep) {
+  const quote = itemText(item);
+  const panelW = Math.round(w * (sleep ? 0.86 : 0.84));
+  const panelX = Math.round((w - panelW) / 2);
+  const padX = Math.round(panelW * 0.07);
+  const textW = panelW - padX * 2;
+  const maxPanelH = Math.round(h * (sleep ? 0.86 : 0.78));
+  const minPanelH = Math.round(h * 0.20);
+  const titleFontSize = Math.round(h * (sleep ? 0.032 : 0.036));
+  const authorFontSize = Math.round(h * (sleep ? 0.017 : 0.019));
+  const maxQuoteFont = Math.round(h * (quote.length < 120 ? 0.036 : quote.length < 260 ? 0.030 : 0.026));
+  const minQuoteFont = Math.max(6, Math.round(h * 0.008));
+  const titleLineH = Math.round(titleFontSize * 1.18);
+  const authorLineH = Math.round(authorFontSize * 1.35);
+  const edgePad = Math.round(h * (sleep ? 0.035 : 0.040));
+  const topPad = edgePad + Math.round(titleFontSize * 0.82);
+  const bottomPad = edgePad;
+  const titleAuthorGap = Math.round(h * 0.010);
+  const dividerTopGap = Math.round(h * (sleep ? 0.002 : 0.006));
+  const dividerBottomGap = Math.round(h * (sleep ? 0.052 : 0.048));
+  ctx.font = "700 " + titleFontSize + "px Georgia, serif";
+  const titleLines = wrappedLines(ctx, item.book || "Untitled book", textW, 2);
+  ctx.font = authorFontSize + "px system-ui, sans-serif";
+  const authorLines = item.author ? wrappedLines(ctx, "by " + item.author, textW, 1) : [];
+  const fixedH = topPad + titleLines.length * titleLineH + (authorLines.length ? titleAuthorGap + authorLines.length * authorLineH : 0) + dividerTopGap + dividerBottomGap + bottomPad;
+  const quoteLayout = fittedTextLayout(ctx, quote, textW, maxPanelH - fixedH, maxQuoteFont, minQuoteFont, "Georgia, serif");
+  const quoteFontSize = quoteLayout.fontSize;
+  const quoteLineH = quoteLayout.lineHeight;
+  const quoteLines = quoteLayout.lines;
+  const panelH = Math.max(minPanelH, Math.min(maxPanelH, fixedH + quoteLines.length * quoteLineH));
+  const panelY = Math.round(h * (sleep ? 0.94 : 0.92) - panelH);
+  return {panelX, panelY, panelW, panelH, padX, textW, topPad, titleFontSize, authorFontSize, quoteFontSize, titleLineH, authorLineH, quoteLineH, titleAuthorGap, dividerTopGap, dividerBottomGap, titleLines, authorLines, quoteLines};
+}
+
+function drawMagazinePanel(ctx, item, w, h, sleep) {
+  const layout = magazinePanelLayout(ctx, item, w, h, sleep);
+  const radius = Math.max(6, Math.round(Math.min(w, h) * 0.018));
+  ctx.fillStyle = "rgba(255,255,255,.94)";
+  roundRect(ctx, layout.panelX, layout.panelY, layout.panelW, layout.panelH, radius);
+  ctx.fill();
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * (sleep ? 0.006 : 0.005)));
+  roundRect(ctx, layout.panelX, layout.panelY, layout.panelW, layout.panelH, radius);
+  ctx.stroke();
+
+  const x = layout.panelX + layout.padX;
+  let y = layout.panelY + layout.topPad;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#111";
+  ctx.font = "700 " + layout.titleFontSize + "px Georgia, serif";
+  y = drawTextLines(ctx, layout.titleLines, x, y, layout.titleLineH);
+  if (layout.authorLines.length) {
+    y += layout.titleAuthorGap;
+    ctx.fillStyle = "#666";
+    ctx.font = layout.authorFontSize + "px system-ui, sans-serif";
+    y = drawTextLines(ctx, layout.authorLines, x, y, layout.authorLineH);
+  }
+  y += layout.dividerTopGap;
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = Math.max(1, Math.round(Math.min(w, h) * 0.004));
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(layout.panelX + layout.panelW - layout.padX, y);
+  ctx.stroke();
+  y += layout.dividerBottomGap;
+  ctx.fillStyle = "#1d1d1d";
+  ctx.font = layout.quoteFontSize + "px Georgia, serif";
+  drawTextLines(ctx, layout.quoteLines, x, y, layout.quoteLineH);
+}
+
+async function drawMagazineSleepCover(ctx, item, w, h) {
+  const entry = coverEntry(item);
+  if (entry && !entry.loaded && !entry.failed) await entry.promise;
+  ctx.fillStyle = "#ded6c8";
+  ctx.fillRect(0, 0, w, h);
+  if (entry && entry.loaded) {
+    drawImageCover(ctx, entry.img, 0, 0, w, h);
+    ctx.fillStyle = "rgba(0,0,0,.22)";
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  drawMagazinePanel(ctx, item, w, h, true);
+}
+
+function drawFittedBodyText(ctx, text, x, y, maxWidth, maxHeight, maxFontSize, minFontSize) {
+  const layout = fittedTextLayout(ctx, text, maxWidth, maxHeight, maxFontSize, minFontSize, "Georgia, serif");
+  ctx.font = layout.fontSize + "px Georgia, serif";
+  drawTextLines(ctx, layout.lines, x, y, layout.lineHeight);
+}
+
+function drawBookPageBackground(ctx) {
+  ctx.fillStyle = "#f8f3e9";
+  ctx.fillRect(0, 0, 1200, 1600);
+  ctx.fillStyle = "#fffdf8";
+  ctx.fillRect(86, 62, 1028, 1476);
+  ctx.strokeStyle = "#d7c8a8";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(86, 62, 1028, 1476);
+  ctx.strokeStyle = "rgba(175,70,60,.28)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(178, 112);
+  ctx.lineTo(178, 1488);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(190,178,150,.25)";
+  ctx.lineWidth = 1;
+  for (let y = 330; y < 1420; y += 58) {
+    ctx.beginPath();
+    ctx.moveTo(212, y);
+    ctx.lineTo(1046, y);
+    ctx.stroke();
+  }
+}
+
+function drawHighlighterStroke(ctx, x, y, w, h, seed, eink = false) {
+  const padX = 18;
+  const top = y - Math.round(h * 0.78);
+  const height = Math.round(h * 0.86);
+  ctx.save();
+  ctx.globalAlpha = eink ? 0.54 : 0.74;
+  ctx.fillStyle = eink ? "#777777" : "#f1c84a";
+  ctx.beginPath();
+  ctx.moveTo(x - padX, top + 8 + (seed % 5));
+  ctx.lineTo(x + w + padX, top + 1 + (seed % 7));
+  ctx.lineTo(x + w + padX - 8, top + height - 4 + (seed % 4));
+  ctx.lineTo(x - padX + 6, top + height + (seed % 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = eink ? 0.40 : 0.46;
+  ctx.fillStyle = eink ? "#4f4f4f" : "#eaa21c";
+  ctx.fillRect(x - padX + 10, top + Math.round(height * 0.48), w + padX * 2 - 18, Math.max(6, Math.round(height * 0.42)));
+  ctx.restore();
+}
+
+function normalizedSearchText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function significantWords(text) {
+  return normalizedSearchText(text).split(/[^a-z0-9]+/).filter(word => word.length > 2);
+}
+
+function fallbackHighlightLines(lines, highlightText) {
+  const words = significantWords(highlightText);
+  if (!words.length) return new Set();
+  const wanted = new Set(words);
+  const hits = lines.map(line => significantWords(line).filter(word => wanted.has(word)).length);
+  const best = Math.max(0, ...hits);
+  const threshold = Math.max(2, Math.min(5, Math.ceil(words.length * 0.18)));
+  const out = new Set();
+  for (let i = 0; i < hits.length; i++) {
+    if (hits[i] >= threshold || (best > 0 && hits[i] === best && words.length <= 8)) out.add(i);
+  }
+  return out;
+}
+
+function drawBookPageTextLines(ctx, layout, x, y, lineHeight, highlightText, einkHighlight = false) {
+  const highlight = normalizedSearchText(highlightText);
+  const fullText = normalizedSearchText(layout.lines.join(" "));
+  const highlightStart = highlight ? fullText.indexOf(highlight) : -1;
+  const highlightEnd = highlightStart >= 0 ? highlightStart + highlight.length : -1;
+  const fallbackLines = highlightStart < 0 ? fallbackHighlightLines(layout.lines, highlightText) : new Set();
+  let cursor = 0;
+  for (let i = 0; i < layout.lines.length; i++) {
+    const line = layout.lines[i];
+    const lineStart = cursor;
+    const lineEnd = lineStart + line.length;
+    if (highlightStart >= 0 && highlightStart < lineEnd && highlightEnd > lineStart) {
+      const startInLine = Math.max(0, highlightStart - lineStart);
+      const endInLine = Math.min(line.length, highlightEnd - lineStart);
+      const before = line.slice(0, startInLine);
+      const marked = line.slice(startInLine, endInLine);
+      const markX = x + Math.floor(ctx.measureText(before).width);
+      drawHighlighterStroke(ctx, markX, y, Math.ceil(ctx.measureText(marked).width), lineHeight, i * 11 + line.length, einkHighlight);
+    } else if (fallbackLines.has(i)) {
+      drawHighlighterStroke(ctx, x, y, Math.ceil(ctx.measureText(line).width), lineHeight, i * 11 + line.length, einkHighlight);
+    }
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+    cursor = lineEnd + 1;
+  }
+}
+
+function drawBookPageCard(ctx, item, options = {}) {
+  drawBookPageBackground(ctx);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#1b1b1b";
+  ctx.font = "700 58px Georgia, serif";
+  wrapText(ctx, item.book || "Untitled book", 218, 184, 830, 66, 2);
+  ctx.fillStyle = "#686868";
+  ctx.font = "28px system-ui, sans-serif";
+  if (item.author) wrapText(ctx, "by " + item.author, 218, 292, 830, 36, 1);
+  ctx.fillStyle = "#8a8170";
+  ctx.font = "22px system-ui, sans-serif";
+  ctx.fillText(item.type === "annotation" ? "Annotated passage" : "Bookmarked page", 218, 368);
+
+  ctx.strokeStyle = "#2a2a2a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(218, 414);
+  ctx.lineTo(1036, 414);
+  ctx.stroke();
+
+  const text = bookPageText(item);
+  const layout = fittedTextLayout(ctx, text, 818, 780, item.type === "annotation" ? 44 : 44, 11, "Georgia, serif");
+  ctx.font = layout.fontSize + "px Georgia, serif";
+  ctx.fillStyle = "#222";
+  drawBookPageTextLines(ctx, layout, 218, 518, layout.lineHeight, item.type === "annotation" ? item.text : "", Boolean(options.einkHighlight));
+
+  ctx.fillStyle = "#777";
+  ctx.font = "24px system-ui, sans-serif";
+  const footer = [pageLabel(item), item.chapter || ""].filter(Boolean).join(" - ");
+  wrapText(ctx, footer, 218, 1372, 818, 34, 2);
+  ctx.fillStyle = "#111";
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillText("INX", 218, 1462);
+}
+
+async function drawCardContent(ctx, item, style, awaitCover = false, options = {}) {
+  if (style === "magazine") {
+    await drawMagazineCard(ctx, item, awaitCover);
+    return;
+  }
+  if (style === "bookpage") {
+    drawBookPageCard(ctx, item, options);
+    return;
+  }
+  drawFrame(ctx, style);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#111";
+  ctx.font = "700 34px system-ui, sans-serif";
+  ctx.fillText(item.type === "annotation" ? "Annotation" : "Bookmark", 190, 235);
+  ctx.fillStyle = "#777";
+  ctx.font = "24px system-ui, sans-serif";
+  ctx.fillText(pageLabel(item), 190, 278);
+  ctx.fillStyle = "#111";
+  ctx.font = "700 56px Georgia, serif";
+  wrapText(ctx, item.book || "Untitled book", 190, 390, 820, 66, 3);
+  if (item.author) {
+    ctx.fillStyle = "#666";
+    ctx.font = "28px system-ui, sans-serif";
+    wrapText(ctx, "by " + item.author, 190, 520, 820, 34, 1);
+  }
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(190, 590);
+  ctx.lineTo(1010, 590);
+  ctx.stroke();
+  ctx.fillStyle = "#242424";
+  drawFittedBodyText(ctx, itemText(item), 190, 700, 820, 560, item.type === "annotation" ? 42 : 46, 8);
+  ctx.fillStyle = "#777";
+  ctx.font = "24px system-ui, sans-serif";
+  const chapter = item.chapter || "Reading note";
+  wrapText(ctx, chapter, 190, 1310, 820, 34, 2);
+  ctx.fillStyle = "#111";
+  ctx.font = "700 22px system-ui, sans-serif";
+  ctx.fillText("INX", 190, 1404);
+}
+
+function drawCard() {
+  if (!filtered.length) return;
+  const item = filtered[selectedIndex];
+  const canvas = document.getElementById("card");
+  const ctx = canvas.getContext("2d");
+  const style = document.getElementById("styleSelect").value;
+  drawCardContent(ctx, item, style);
+  document.getElementById("status").textContent = "JPEG preview ready";
+}
+
+async function downloadJpeg() {
+  const selected = selectedItemsOrCurrent();
+  if (!selected.length) return;
+  const style = document.getElementById("styleSelect").value;
+  if (selected.length === 1) {
+    await drawCardContent(document.getElementById("card").getContext("2d"), selected[0], style, true);
+    const link = document.createElement("a");
+    link.download = noteFilename(selected[0]);
+    link.href = document.getElementById("card").toDataURL("image/jpeg", 0.92);
+    link.click();
+    return;
+  }
+
+  const downloadBtn = document.getElementById("downloadBtn");
+  const coverBtn = document.getElementById("coverBtn");
+  const deviceBtn = document.getElementById("deviceBtn");
+  downloadBtn.disabled = true;
+  coverBtn.disabled = true;
+  deviceBtn.disabled = true;
+  try {
+    await loadJsZip();
+    const zip = new JSZip();
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 1600;
+    for (let i = 0; i < selected.length; i++) {
+      document.getElementById("status").textContent = "Preparing download " + (i + 1) + " of " + selected.length + "...";
+      await drawCardContent(canvas.getContext("2d"), selected[i], style, true);
+      zip.file(noteFilename(selected[i], i), await canvasBlob(canvas));
+    }
+    const blob = await zip.generateAsync({type: "blob", compression: "DEFLATE", compressionOptions: {level: 6}});
+    const link = document.createElement("a");
+    link.download = "bookmarks-annotations.zip";
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    document.getElementById("status").textContent = "Downloaded " + selected.length + " JPEGs";
+  } catch (err) {
+    document.getElementById("status").textContent = "Could not download: " + err.message;
+  } finally {
+    downloadBtn.disabled = !filtered.length;
+    coverBtn.disabled = !filtered.length;
+    deviceBtn.disabled = selectedKeys.size === 0;
+  }
+}
+
+async function drawSleepCover(canvas, item, style) {
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+
+  if (style === "magazine") {
+    await drawMagazineSleepCover(ctx, item, w, h);
+    return;
+  }
+
+  const source = document.createElement("canvas");
+  source.width = 1200;
+  source.height = 1600;
+  await drawCardContent(source.getContext("2d"), item, style, true, {einkHighlight: true});
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  const pad = Math.round(Math.min(w, h) * 0.01);
+  let sx = 0;
+  let sy = 0;
+  let sw = source.width;
+  let sh = source.height;
+  const targetRatio = (w - pad * 2) / (h - pad * 2);
+  const sourceRatio = source.width / source.height;
+  if (sourceRatio > targetRatio) {
+    sw = Math.round(source.height * targetRatio);
+    sx = Math.round((source.width - sw) / 2);
+  } else if (sourceRatio < targetRatio) {
+    sh = Math.round(source.width / targetRatio);
+    sy = Math.round((source.height - sh) / 2);
+  }
+  const scale = Math.min((w - pad * 2) / sw, (h - pad * 2) / sh);
+  const drawW = Math.round(sw * scale);
+  const drawH = Math.round(sh * scale);
+  const x = Math.round((w - drawW) / 2);
+  const y = Math.round((h - drawH) / 2);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, sx, sy, sw, sh, x, y, drawW, drawH);
+}
+
+function slugName(text) {
+  return String(text || "note").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 34) || "note";
+}
+
+function folderName(text) {
+  const name = String(text || "Untitled book").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  return name.slice(0, 64) || "Untitled book";
+}
+
+function canvasBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not create JPEG")), "image/jpeg", 0.92);
+  });
+}
+
+async function targetScreenSize() {
+  let info = {};
+  try {
+    const res = await fetch("/api/status");
+    if (res.ok) info = await res.json();
+  } catch (err) {}
+  return {
+    w: Number(info.screenWidth || 0) || (info.device === "X3" ? 528 : 480),
+    h: Number(info.screenHeight || 0) || (info.device === "X3" ? 792 : 800)
+  };
+}
+
+async function mkdirQuiet(path, name) {
+  const form = new FormData();
+  form.append("path", path);
+  form.append("name", name);
+  const res = await fetch("/mkdir", {method: "POST", body: form});
+  const text = await res.text();
+  if (res.ok || (res.status === 400 && text.includes("already"))) return;
+  throw new Error(text || "Could not create folder");
+}
+
+async function uploadJpeg(path, blob, filename) {
+  const upload = new FormData();
+  upload.append("file", blob, filename);
+  const uploadRes = await fetch("/upload?path=" + encodeURIComponent(path), {method: "POST", body: upload});
+  if (!uploadRes.ok) throw new Error(await uploadRes.text());
+}
+
+async function exportSelectedToDevice() {
+  const selected = filtered.filter(item => selectedKeys.has(itemKey(item)));
+  if (!selected.length) return;
+  const deviceBtn = document.getElementById("deviceBtn");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const coverBtn = document.getElementById("coverBtn");
+  deviceBtn.disabled = true;
+  downloadBtn.disabled = true;
+  coverBtn.disabled = true;
+  try {
+    await mkdirQuiet("/", "Bookmarks & Annotations");
+    const size = await targetScreenSize();
+    const canvas = document.createElement("canvas");
+    canvas.width = size.w;
+    canvas.height = size.h;
+    const style = document.getElementById("styleSelect").value;
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+    for (let i = 0; i < selected.length; i++) {
+      const item = selected[i];
+      const bookFolder = folderName(item.book);
+      const targetFolder = "/Bookmarks & Annotations/" + bookFolder;
+      document.getElementById("status").textContent = "Exporting " + (i + 1) + " of " + selected.length + "...";
+      await mkdirQuiet("/Bookmarks & Annotations", bookFolder);
+      await drawSleepCover(canvas, item, style);
+      const blob = await canvasBlob(canvas);
+      const page = String(Number(item.page || 0) + 1).padStart(4, "0");
+      const filename = item.type + "-page-" + page + "-" + stamp + "-" + String(i + 1).padStart(3, "0") + ".jpg";
+      await uploadJpeg(targetFolder, blob, filename);
+    }
+    document.getElementById("status").textContent = "Exported " + selected.length + " image" + (selected.length === 1 ? "" : "s") + " to /Bookmarks & Annotations";
+  } catch (err) {
+    document.getElementById("status").textContent = "Could not export: " + err.message;
+  } finally {
+    deviceBtn.disabled = selectedKeys.size === 0;
+    downloadBtn.disabled = !filtered.length;
+    coverBtn.disabled = !filtered.length;
+  }
+}
+
+async function addAsCover() {
+  if (!filtered.length) return;
+  const coverBtn = document.getElementById("coverBtn");
+  const downloadBtn = document.getElementById("downloadBtn");
+  coverBtn.disabled = true;
+  downloadBtn.disabled = true;
+  document.getElementById("status").textContent = "Preparing cover...";
+  try {
+    const size = await targetScreenSize();
+    const coverCanvas = document.createElement("canvas");
+    coverCanvas.width = size.w;
+    coverCanvas.height = size.h;
+    await drawSleepCover(coverCanvas, filtered[selectedIndex], document.getElementById("styleSelect").value);
+    const blob = await canvasBlob(coverCanvas);
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+    const filename = "inx-" + filtered[selectedIndex].type + "-" + slugName(filtered[selectedIndex].book) + "-" + stamp + ".jpg";
+    await mkdirQuiet("/", "sleep");
+    await uploadJpeg("/sleep", blob, filename);
+    const settingsRes = await fetch("/api/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        sleepScreen: 2,
+        sleepCustomBmp: filename,
+        sleepScreenCoverMode: 1,
+        sleepScreenCoverFilter: 0,
+        sleepImageQuality: 2
+      })
+    });
+    if (!settingsRes.ok) throw new Error(await settingsRes.text());
+    document.getElementById("status").textContent = "Saved as /sleep/" + filename + " for " + size.w + "x" + size.h;
+  } catch (err) {
+    document.getElementById("status").textContent = "Could not save cover: " + err.message;
+  } finally {
+    coverBtn.disabled = !filtered.length;
+    downloadBtn.disabled = !filtered.length;
+  }
+}
+
+loadData();
+</script>
+</html>

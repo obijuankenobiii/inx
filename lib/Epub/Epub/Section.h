@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "Epub.h"
@@ -68,6 +69,11 @@ class Section {
         spineIndex(spineIndex),
         renderer(renderer),
         filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
+  explicit Section(const std::string& cachePath, const int spineIndex, GfxRenderer& renderer)
+      : epub(nullptr),
+        spineIndex(spineIndex),
+        renderer(renderer),
+        filePath(cachePath + "/sections/" + std::to_string(spineIndex) + ".bin") {}
 
   ~Section();
 
@@ -86,6 +92,8 @@ class Section {
   bool loadSectionFile(int fontId, float lineCompression, float wordSpacing, bool extraParagraphSpacing,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                        bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled);
+  bool loadSectionFileForPreview(int* outFontId = nullptr);
+  static std::unique_ptr<Page> loadCachedPage(const std::string& cachePath, int spineIndex, int pageNumber);
 
   /**
    * Removes the section file from the filesystem.
