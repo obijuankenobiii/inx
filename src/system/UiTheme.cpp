@@ -14,7 +14,7 @@ namespace {
 constexpr int kMainTabCount = 5;
 constexpr int kMainTabIconSize = 38;
 constexpr int kBottomTabIconSize = 30;
-constexpr int kSelectedBorderWidth = 34;
+constexpr int kSelectedBorderWidth = 38;
 constexpr int kSelectedBorderHeight = 5;
 constexpr int kBottomTabIconLift = 5;
 constexpr int kBottomSelectedCircleSize = 49;
