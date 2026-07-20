@@ -430,6 +430,7 @@ class SystemSetting {
   uint8_t recentLibraryMode = RECENT_FLOW;         ///< Recent library display mode
   uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
   uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
+  uint8_t libraryShelfEnabled = 0;                 ///< Allow cover shelf view in Library
   /** How many recent books to show on the Recent hub (1–8). */
   uint8_t recentVisibleCount = 9;
   /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */

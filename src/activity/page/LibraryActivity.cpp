@@ -82,15 +82,15 @@ uint8_t viewModeToStorage(ViewMode m) {
   }
 }
 
-/** Converts a persisted storage value back to a ViewMode, honoring whether the tag index is enabled. */
-ViewMode storageToViewMode(uint8_t v, bool indexEnabled) {
+/** Converts a persisted storage value back to a ViewMode, honoring whether optional views are enabled. */
+ViewMode storageToViewMode(uint8_t v, bool indexEnabled, bool shelfEnabled) {
   if (v == SystemSetting::LIBRARY_VIEW_BOOKS) {
     return ViewMode::BOOK_LIST_VIEW;
   }
   if (v == SystemSetting::LIBRARY_VIEW_TAGS && indexEnabled) {
     return ViewMode::TAG_VIEW;
   }
-  if (v == SystemSetting::LIBRARY_VIEW_SHELF) {
+  if (v == SystemSetting::LIBRARY_VIEW_SHELF && shelfEnabled) {
     return ViewMode::SHELF_VIEW;
   }
   return ViewMode::FOLDER_VIEW;
@@ -534,9 +534,9 @@ int LibraryActivity::drawIndexButton(int headerY, int headerHeight, int x, bool 
 void LibraryActivity::drawButtonHints() const {
   std::string back;
   if (currentViewMode == ViewMode::TAG_VIEW) {
-    back = selectedTagKey_.empty() ? "Shelf »" : "« Tags";
+    back = selectedTagKey_.empty() ? (SETTINGS.libraryShelfEnabled ? "Shelf »" : "Groups »") : "« Tags";
   } else if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-    back = SETTINGS.useLibraryIndex ? "Tags »" : "Shelf »";
+    back = SETTINGS.useLibraryIndex ? "Tags »" : (SETTINGS.libraryShelfEnabled ? "Shelf »" : "Groups »");
   } else if (currentViewMode == ViewMode::SHELF_VIEW) {
     back = "« Groups";
   } else {
@@ -1422,13 +1422,19 @@ void LibraryActivity::toggleViewMode() {
   if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
     if (SETTINGS.useLibraryIndex) {
       switchToTagView();
-    } else {
+    } else if (SETTINGS.libraryShelfEnabled) {
       switchToShelfView();
+    } else {
+      switchToFolderView();
     }
     return;
   }
   if (currentViewMode == ViewMode::TAG_VIEW) {
-    switchToShelfView();
+    if (SETTINGS.libraryShelfEnabled) {
+      switchToShelfView();
+    } else {
+      switchToFolderView();
+    }
     return;
   }
   switchToFolderView();
@@ -1479,6 +1485,10 @@ void LibraryActivity::switchToTagView() {
 
 /** Switches the current view mode to the cover shelf view. */
 void LibraryActivity::switchToShelfView() {
+  if (!SETTINGS.libraryShelfEnabled) {
+    switchToFolderView();
+    return;
+  }
   if (currentViewMode == ViewMode::FOLDER_VIEW) {
     savedFolderPath = basepath;
   }
@@ -1587,7 +1597,8 @@ void LibraryActivity::onEnter() {
   shelfImagePathCache_.clear();
   renderer.clearScreen(0xff);
 
-  currentViewMode = storageToViewMode(SETTINGS.libraryViewMode, SETTINGS.useLibraryIndex != 0);
+  currentViewMode =
+      storageToViewMode(SETTINGS.libraryViewMode, SETTINGS.useLibraryIndex != 0, SETTINGS.libraryShelfEnabled != 0);
   selectedTagKey_.clear();
   cachedTagEntries_.clear();
   cachedTagEntriesLoaded_ = false;

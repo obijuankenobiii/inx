@@ -120,6 +120,10 @@
         <div class="setting-control"><select id="libraryMode"></select></div>
       </div>
       <div class="setting-item">
+        <div><div class="setting-label">Shelf mode</div></div>
+        <div class="setting-control"><label class="toggle-switch"><input id="libraryShelfEnabled" type="checkbox"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="setting-item">
         <div><div class="setting-label">Recent books shown</div></div>
         <div class="setting-control"><select id="recentVisibleCount"></select></div>
       </div>
@@ -446,7 +450,7 @@ const optionValues = {
   recentLibraryMode: [0, 2, 3, 4, 5, 6]
 };
 const boolSettings = [
-  "useLibraryIndex", "librarySortEnabled",
+  "useLibraryIndex", "librarySortEnabled", "libraryShelfEnabled",
   "refreshOnLoadRecent", "refreshOnLoadLibrary", "refreshOnLoadSettings", "refreshOnLoadSync", "refreshOnLoadStatistics",
   "extraParagraphSpacing", "paragraphCssIndentEnabled", "hyphenationEnabled", "bionicReadingEnabled",
   "textAntiAliasing", "readerSmartRefreshOnImages"

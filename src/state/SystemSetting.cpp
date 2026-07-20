@@ -40,8 +40,8 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 30;
-constexpr uint8_t SETTINGS_COUNT = 68;
+constexpr uint8_t SETTINGS_FILE_VERSION = 31;
+constexpr uint8_t SETTINGS_COUNT = 69;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -133,9 +133,12 @@ bool SystemSetting::saveToFile() const {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
     if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 9) mut->recentVisibleCount = 9;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
+    if (mut->libraryShelfEnabled > 1) mut->libraryShelfEnabled = 0;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
     if (mut->libraryMode >= LIBRARY_MODE_COUNT) mut->libraryMode = LIBRARY_LIST;
-    if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
+    if (mut->libraryViewMode >= LIBRARY_VIEW_MODE_COUNT ||
+        (mut->libraryViewMode == LIBRARY_VIEW_SHELF && mut->libraryShelfEnabled == 0))
+      mut->libraryViewMode = LIBRARY_VIEW_FOLDERS;
     if (mut->bionicReadingEnabled > 1) mut->bionicReadingEnabled = 0;
     if (mut->sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) mut->sleepClockStyle = CLOCK_CENTERED_DATE;
     if (mut->sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) mut->sleepClockTimeFormat = CLOCK_24_HOUR;
@@ -221,6 +224,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, shakePageTurn);
   serialization::writePod(outputFile, shakePageTurnSensitivity);
   serialization::writePod(outputFile, uiTheme);
+  serialization::writePod(outputFile, libraryShelfEnabled);
 
   outputFile.close();
   saveUiThemeSetting(uiTheme);
@@ -576,6 +580,11 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, uiTheme, UI_THEME_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      serialization::readPod(inputFile, libraryShelfEnabled);
+      if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -609,12 +618,18 @@ bool SystemSetting::loadFromFile() {
   if (settingsRead < 68) {
     uiTheme = UI_THEME_CLASSIC;
   }
+  if (settingsRead < 69) {
+    libraryShelfEnabled = 0;
+  }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 9) {
     recentVisibleCount = 9;
   }
   if (librarySortEnabled > 1) {
     librarySortEnabled = 1;
+  }
+  if (libraryShelfEnabled > 1) {
+    libraryShelfEnabled = 0;
   }
   if (librarySortMode > 7) {
     librarySortMode = 0;
@@ -649,7 +664,8 @@ bool SystemSetting::loadFromFile() {
   if (libraryMode >= LIBRARY_MODE_COUNT) {
     libraryMode = LIBRARY_LIST;
   }
-  if (libraryViewMode >= LIBRARY_VIEW_MODE_COUNT) {
+  if (libraryViewMode >= LIBRARY_VIEW_MODE_COUNT ||
+      (libraryViewMode == LIBRARY_VIEW_SHELF && libraryShelfEnabled == 0)) {
     libraryViewMode = LIBRARY_VIEW_FOLDERS;
   }
   if (bionicReadingEnabled > 1) {

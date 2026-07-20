@@ -36,6 +36,7 @@ const SettingInfo systemPageSettingsX3[] = {
                        SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY),
     SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1}, GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Clock", GroupType::CLOCK),
@@ -105,6 +106,7 @@ const SettingInfo systemPageSettingsX4[] = {
                        SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
                       GroupType::DEVICE_DISPLAY),
     SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY),
+    SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY),
     SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1}, GroupType::DEVICE_DISPLAY),
 
     SettingInfo::Separator("Image", GroupType::IMAGE),

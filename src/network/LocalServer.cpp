@@ -1756,6 +1756,7 @@ void LocalServer::handleSettingsGet() const {
   doc["libraryMode"] = SETTINGS.libraryMode;
   doc["recentVisibleCount"] = SETTINGS.recentVisibleCount;
   doc["librarySortEnabled"] = SETTINGS.librarySortEnabled;
+  doc["libraryShelfEnabled"] = SETTINGS.libraryShelfEnabled;
   doc["librarySortMode"] = SETTINGS.librarySortMode;
 
   doc["fontFamily"] = SETTINGS.fontFamily;
@@ -2013,6 +2014,12 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "useLibraryIndex") == 0) {
       SETTINGS.useLibraryIndex = (uint8_t)value;
+      changed = true;
+    } else if (strcmp(key, "libraryShelfEnabled") == 0) {
+      SETTINGS.libraryShelfEnabled = (uint8_t)value ? 1 : 0;
+      if (!SETTINGS.libraryShelfEnabled && SETTINGS.libraryViewMode == SystemSetting::LIBRARY_VIEW_SHELF) {
+        SETTINGS.libraryViewMode = SystemSetting::LIBRARY_VIEW_FOLDERS;
+      }
       changed = true;
     } else if (strcmp(key, "bootSetting") == 0) {
       SETTINGS.bootSetting = (uint8_t)value;
