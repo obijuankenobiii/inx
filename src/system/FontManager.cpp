@@ -200,23 +200,29 @@ void FontManager::initialize(GfxRenderer& renderer) {
  * @brief Gets the next font ID in sequence
  */
 int FontManager::getNextFont(int currentFontId) {
-  static const std::unordered_map<int, int> NEXT_FONT = {
-      {LITERATA_10_FONT_ID, LITERATA_12_FONT_ID},
-      {LITERATA_12_FONT_ID, LITERATA_14_FONT_ID},
-      {LITERATA_14_FONT_ID, LITERATA_16_FONT_ID},
-      {LITERATA_16_FONT_ID, LITERATA_18_FONT_ID},
-      {LITERATA_18_FONT_ID, LITERATA_18_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_8_FONT_ID, ATKINSON_HYPERLEGIBLE_10_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_10_FONT_ID, ATKINSON_HYPERLEGIBLE_12_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_12_FONT_ID, ATKINSON_HYPERLEGIBLE_14_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_14_FONT_ID, ATKINSON_HYPERLEGIBLE_16_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_16_FONT_ID, ATKINSON_HYPERLEGIBLE_18_FONT_ID},
-      {ATKINSON_HYPERLEGIBLE_18_FONT_ID, ATKINSON_HYPERLEGIBLE_18_FONT_ID},
-  };
-
-  auto it = NEXT_FONT.find(currentFontId);
-  if (it != NEXT_FONT.end()) {
-    return it->second;
+  switch (currentFontId) {
+    case LITERATA_10_FONT_ID:
+      return LITERATA_12_FONT_ID;
+    case LITERATA_12_FONT_ID:
+      return LITERATA_14_FONT_ID;
+    case LITERATA_14_FONT_ID:
+      return LITERATA_16_FONT_ID;
+    case LITERATA_16_FONT_ID:
+    case LITERATA_18_FONT_ID:
+      return LITERATA_18_FONT_ID;
+    case ATKINSON_HYPERLEGIBLE_8_FONT_ID:
+      return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    case ATKINSON_HYPERLEGIBLE_10_FONT_ID:
+      return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    case ATKINSON_HYPERLEGIBLE_12_FONT_ID:
+      return ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    case ATKINSON_HYPERLEGIBLE_14_FONT_ID:
+      return ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+    case ATKINSON_HYPERLEGIBLE_16_FONT_ID:
+    case ATKINSON_HYPERLEGIBLE_18_FONT_ID:
+      return ATKINSON_HYPERLEGIBLE_18_FONT_ID;
+    default:
+      break;
   }
 
   for (const auto& entry : g_sdFonts) {
@@ -547,10 +553,43 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
 }
 
 bool FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer) {
-  const bool bodyReady = ensureFontReady(bodyFontId, renderer);
-  const bool maxReady = ensureFontReady(getMaxFontId(bodyFontId), renderer);
-  const bool headerReady = ensureFontReady(getNextFont(bodyFontId), renderer);
-  return bodyReady && maxReady && headerReady;
+  const int maxFontId = getMaxFontId(bodyFontId);
+  const int headerFontId = getNextFont(bodyFontId);
+  int requiredIds[3] = {bodyFontId, maxFontId, headerFontId};
+  int requiredCount = 0;
+
+  for (int i = 0; i < 3; ++i) {
+    bool seen = false;
+    for (int j = 0; j < requiredCount; ++j) {
+      if (requiredIds[j] == requiredIds[i]) {
+        seen = true;
+        break;
+      }
+    }
+    if (!seen) {
+      requiredIds[requiredCount++] = requiredIds[i];
+    }
+  }
+
+  bool needsSdLoad = false;
+  for (int i = 0; i < requiredCount; ++i) {
+    const int id = requiredIds[i];
+    if (id >= SD_FONT_START_ID && !isFontLoaded(id)) {
+      needsSdLoad = true;
+      break;
+    }
+  }
+
+  if (needsSdLoad && g_loadedFontCount > 0) {
+    unloadAllSDFonts();
+  }
+
+  for (int i = 0; i < requiredCount; ++i) {
+    if (!ensureFontReady(requiredIds[i], renderer)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
