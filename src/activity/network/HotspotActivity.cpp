@@ -15,6 +15,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/WifiPower.h"
 
 namespace {
 constexpr const char* AP_SSID = "Xteink-X4";
@@ -115,8 +116,7 @@ void HotspotActivity::onExit() {
   }
 
   WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(30);
+  WifiPower::off();
 
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);

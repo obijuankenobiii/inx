@@ -17,6 +17,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/WifiPower.h"
 
 namespace {
 constexpr int NTP_TIMEOUT_MS = 8000;
@@ -178,8 +179,5 @@ void TimeSyncActivity::wifiOff() {
   if (esp_sntp_enabled()) {
     esp_sntp_stop();
   }
-  WiFi.disconnect(false);
-  delay(100);
-  WiFi.mode(WIFI_OFF);
-  delay(100);
+  WifiPower::off();
 }

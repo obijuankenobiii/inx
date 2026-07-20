@@ -14,10 +14,18 @@
 #include "state/NetworkCredential.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/WifiPower.h"
 
 namespace {
 constexpr int LIST_ITEM_HEIGHT = 60;
+
+template <typename T>
+void releaseVector(std::vector<T>& v) {
+  std::vector<T>().swap(v);
 }
+
+void releaseString(std::string& s) { std::string().swap(s); }
+}  // namespace
 
 /**
  * @brief Static trampoline function for the display task
@@ -41,7 +49,7 @@ void WifiSelectionActivity::onEnter() {
   xSemaphoreGive(renderingMutex);
 
   selectedNetworkIndex = 0;
-  networks.clear();
+  releaseVector(networks);
   state = WifiSelectionState::SCANNING;
   selectedSSID.clear();
   connectedIP.clear();
@@ -73,17 +81,16 @@ void WifiSelectionActivity::onExit() {
 
   WiFi.scanDelete();
 
-  networks.clear();
-  selectedSSID.clear();
-  connectedIP.clear();
-  connectionError.clear();
-  enteredPassword.clear();
-  cachedMacAddress.clear();
+  releaseVector(networks);
+  releaseString(selectedSSID);
+  releaseString(connectedIP);
+  releaseString(connectionError);
+  releaseString(enteredPassword);
+  releaseString(cachedMacAddress);
 
   const bool keepStaForParent = (WiFi.status() == WL_CONNECTED) && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
   if (!keepStaForParent) {
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
+    WifiPower::off();
   }
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);

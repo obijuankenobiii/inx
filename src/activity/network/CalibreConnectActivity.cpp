@@ -19,6 +19,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/WifiPower.h"
 
 namespace {
 
@@ -212,10 +213,7 @@ void CalibreConnectActivity::onExit() {
   stopWebServer();
   MDNS.end();
 
-  delay(50);
-  WiFi.disconnect(false);
-  delay(30);
-  WiFi.mode(WIFI_OFF);
+  WifiPower::off();
 
   if (renderingMutex) {
     xSemaphoreTake(renderingMutex, portMAX_DELAY);

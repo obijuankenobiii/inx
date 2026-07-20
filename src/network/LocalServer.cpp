@@ -80,6 +80,21 @@ String wsLastCompleteName;
 size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
 
+void clearWebSocketUploadState() {
+  if (wsUploadFile) {
+    wsUploadFile.close();
+  }
+  wsUploadFileName = String();
+  wsUploadPath = String();
+  wsUploadSize = 0;
+  wsUploadReceived = 0;
+  wsUploadStartTime = 0;
+  wsUploadInProgress = false;
+  wsLastCompleteName = String();
+  wsLastCompleteSize = 0;
+  wsLastCompleteAt = 0;
+}
+
 void copySettingString(char* dest, size_t destSize, const char* value) {
   if (destSize == 0) {
     return;
@@ -634,10 +649,7 @@ void LocalServer::stop() {
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap before stop: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  if (wsUploadInProgress && wsUploadFile) {
-    wsUploadFile.close();
-    wsUploadInProgress = false;
-  }
+  clearWebSocketUploadState();
 
   if (wsServer) {
     Serial.printf("[%lu] [WEB] Stopping WebSocket server...\n", millis());
