@@ -38,6 +38,10 @@ struct JpegReadContext {
   size_t bufferFilled;
 };
 
+struct PicoJpegDecodeGuard {
+  ~PicoJpegDecodeGuard() { pjpeg_decode_deinit(); }
+};
+
 unsigned char jpegReadCallback(unsigned char* pBuf, unsigned char bufSize, unsigned char* pBytesActRead,
                                void* pCallbackData) {
   auto* context = static_cast<JpegReadContext*>(pCallbackData);
@@ -354,6 +358,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
   }
   JpegReadContext context = {jpegFile, readBuffer.get(), kJpegDecodeBufferSize, 0, 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) {
     return false;
   }
@@ -682,6 +687,7 @@ bool JpegRender::getDimensions(FsFile& jpegFile, int* outW, int* outH) {
   uint8_t headerBuf[512];
   JpegReadContext context = {jpegFile, headerBuf, sizeof(headerBuf), 0, 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
   const bool ok = pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) == 0;
   if (ok) {
     *outW = imageInfo.m_width;

@@ -1540,10 +1540,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
        self->css().getBorderRightPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth, self->viewportHeight) >
            0);
   const bool isBlockLikeElement = isHeaderTag || isBlockTag || isCustomDisplayBlock;
-  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && isBlockLikeElement) {
+  if (isBlockLikeElement) {
     elementHasExplicitTextAlign = self->css().hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr);
   }
-  if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && elementHasExplicitTextAlign) {
+  if (elementHasExplicitTextAlign) {
     elementCssStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
   }
   if (self->imagePrefetchPassOnly_) {
