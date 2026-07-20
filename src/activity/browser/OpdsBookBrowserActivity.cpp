@@ -16,7 +16,6 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
-#include "system/WifiPower.h"
 #include "util/StringUtils.h"
 #include "util/UrlUtils.h"
 
@@ -54,7 +53,7 @@ void OpdsBookBrowserActivity::onEnter() {
 void OpdsBookBrowserActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  WifiPower::off();
+  WiFi.mode(WIFI_OFF);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -401,7 +400,8 @@ void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
   } else {
     Serial.printf("[%lu] [OPDS] WiFi selection cancelled/failed\n", millis());
 
-    WifiPower::off();
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
     state = BrowserState::ERROR;
     errorMessage = "WiFi connection failed";
     updateRequired = true;

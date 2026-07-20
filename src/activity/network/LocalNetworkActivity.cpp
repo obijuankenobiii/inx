@@ -14,7 +14,6 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
-#include "system/WifiPower.h"
 
 namespace {
 constexpr const char* AP_HOSTNAME = "xteink";
@@ -99,11 +98,6 @@ void LocalNetworkActivity::onExit() {
 
   stopWebServer();
   MDNS.end();
-  WifiPower::off();
-  connectedIP.clear();
-  connectedIP.shrink_to_fit();
-  connectedSSID.clear();
-  connectedSSID.shrink_to_fit();
 
   if (renderingMutex) {
     xSemaphoreTake(renderingMutex, portMAX_DELAY);

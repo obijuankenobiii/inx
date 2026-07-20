@@ -19,7 +19,6 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
-#include "system/WifiPower.h"
 
 // cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
@@ -217,7 +216,10 @@ const std::string& OtaUpdateActivity::selectedSdFirmwarePath() const {
 void OtaUpdateActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  WifiPower::off();
+  WiFi.disconnect(false);
+  delay(100);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {

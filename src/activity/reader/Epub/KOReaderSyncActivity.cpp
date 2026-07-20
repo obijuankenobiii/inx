@@ -14,7 +14,6 @@
 #include "activity/network/WifiSelectionActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/WifiPower.h"
 
 namespace {
 
@@ -22,7 +21,10 @@ void wifiOff() {
   if (esp_sntp_enabled()) {
     esp_sntp_stop();
   }
-  WifiPower::off();
+  WiFi.disconnect(false);
+  delay(100);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
 }
 
 void syncTimeWithNTP() {

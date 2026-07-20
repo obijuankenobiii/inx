@@ -13,7 +13,6 @@
 #include "activity/network/WifiSelectionActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/WifiPower.h"
 
 void KOReaderAuthActivity::taskTrampoline(void* param) {
   auto* self = static_cast<KOReaderAuthActivity*>(param);
@@ -87,7 +86,10 @@ void KOReaderAuthActivity::onEnter() {
 void KOReaderAuthActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  WifiPower::off();
+  WiFi.disconnect(false);
+  delay(100);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
