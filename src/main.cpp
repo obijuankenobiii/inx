@@ -66,6 +66,7 @@ void onGoToLibrary(const std::string& path = "/");
 void setupDisplayAndFonts();
 void onNetworkModeSelected(NetworkMode mode);
 void openReaderFromCallback(const std::string& path);
+bool handleGlobalPowerRefresh();
 
 /**
  * @brief Switches the current activity using standard heap allocation.
@@ -246,6 +247,21 @@ void setupDisplayAndFonts() {
   FontManager::initialize(render);
 }
 
+bool handleGlobalPowerRefresh() {
+  if (!currentActivity || !currentActivity->allowGlobalPowerRefresh()) {
+    return false;
+  }
+  if (SETTINGS.shortPwrBtn != SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    return false;
+  }
+  if (!input.wasReleased(MappedInputManager::Button::Power)) {
+    return false;
+  }
+
+  renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
+  return true;
+}
+
 /**
  * @brief Set up application.
  */
@@ -302,6 +318,11 @@ void loop() {
 
   if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() > SETTINGS.getPowerButtonDuration()) {
     enterDeepSleep();
+    return;
+  }
+
+  if (handleGlobalPowerRefresh()) {
+    delay(10);
     return;
   }
 

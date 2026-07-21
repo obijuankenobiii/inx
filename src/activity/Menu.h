@@ -17,7 +17,7 @@
 
 class Menu {
  protected:
-  static constexpr int TAB_BAR_HEIGHT = 60;
+  static constexpr int TAB_BAR_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
   static constexpr int TAB_COUNT = 5;
   int tabSelectorIndex = 0;
 

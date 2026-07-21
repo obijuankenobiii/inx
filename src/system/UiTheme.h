@@ -8,13 +8,13 @@ class UiTheme {
  public:
   enum class MainTabPlacement : uint8_t { Top, Bottom };
 
-  static constexpr int MAIN_TAB_BAR_HEIGHT = 65;
-  static constexpr int BOTTOM_TAB_BAR_HEIGHT = 62;
+  static constexpr int DRAWER_LIST_ITEM_HEIGHT = 66;
+  static constexpr int MAIN_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
+  static constexpr int BOTTOM_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
   static constexpr int BOTTOM_CONTENT_PADDING = 5;
   static constexpr int TOP_STATUS_HEIGHT = 36;
-  static constexpr int DRAWER_HEADER_HEIGHT = MAIN_TAB_BAR_HEIGHT;
-  static constexpr int DRAWER_PAGE_HEADER_HEIGHT = MAIN_TAB_BAR_HEIGHT + 14;
-  static constexpr int DRAWER_LIST_ITEM_HEIGHT = 66;
+  static constexpr int DRAWER_HEADER_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
+  static constexpr int DRAWER_PAGE_HEADER_HEIGHT = 79;
   static constexpr int DRAWER_LIST_BOTTOM_PADDING = 12;
 
   static UiTheme& getInstance();

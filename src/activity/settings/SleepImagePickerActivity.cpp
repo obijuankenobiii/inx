@@ -29,7 +29,7 @@ constexpr int GRID_ITEMS = GRID_COLS * GRID_ROWS;
 constexpr int GRID_MARGIN_X = 18;
 constexpr int GRID_GAP_X = 12;
 constexpr int GRID_GAP_Y = 12;
-constexpr int GRID_TOP = UiTheme::DRAWER_PAGE_HEADER_HEIGHT + 12;
+constexpr int GRID_TOP = 12;
 constexpr int THUMB_INSET_X = 18;
 constexpr int THUMB_INSET_Y = 12;
 constexpr int RANDOM_BUTTON_W = 178;
@@ -125,8 +125,6 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
   const int gridHeight = std::max(1, gridBottom - GRID_TOP);
   const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
   const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
-
-  INX_THEME.drawPageHeader(renderer, "Sleep cover");
 
   if (hasImages && drawCells) {
     for (int slot = 0; slot < GRID_ITEMS; ++slot) {
@@ -378,12 +376,6 @@ void SleepImagePickerActivity::loop() {
   if (updateRequired) {
     updateRequired = false;
     render();
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {

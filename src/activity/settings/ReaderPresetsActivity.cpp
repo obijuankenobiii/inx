@@ -161,7 +161,6 @@ void ReaderPresetsActivity::render() {
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
   const int headerDividerY = mainHeaderDividerY();
   const int listTop = headerDividerY;
-  renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
   const int rows = rowCount();
   for (int i = 0; i < itemsPerPage_ && (i + scrollOffset_) < rows; i++) {
@@ -235,6 +234,7 @@ void ReaderPresetsActivity::render() {
     renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                          LineRender::Style::Dotted);
   }
+  renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
   renderButtonHints(renderer, "\xC2\xAB System", "Open", "", "");
 
@@ -248,8 +248,8 @@ void ReaderPresetsActivity::renderOverlay() {
   const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
 
   const int boxW = std::min(screenW - 60, 320);
-  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-  constexpr int overlayHeaderH = UiTheme::DRAWER_HEADER_HEIGHT;
+  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
+  constexpr int overlayHeaderH = UiTheme::DRAWER_HEADER_HEIGHT - 4;
   const int boxH = overlayHeaderH + optionCount * rowH;
   const int boxX = (screenW - boxW) / 2;
   const int boxY = (screenH - boxH) / 2;
@@ -259,7 +259,6 @@ void ReaderPresetsActivity::renderOverlay() {
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
   const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
-  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
   for (int i = 0; i < optionCount; i++) {
     const int rowY = boxY + overlayHeaderH + i * rowH;
@@ -274,6 +273,8 @@ void ReaderPresetsActivity::renderOverlay() {
       renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
     }
   }
+
+  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
   renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
   renderer.rectangle.render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, true);
@@ -437,12 +438,6 @@ void ReaderPresetsActivity::loop() {
       subFinished_ = false;
       finishSubActivity();
     }
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     return;
   }
 

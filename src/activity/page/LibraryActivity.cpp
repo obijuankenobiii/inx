@@ -1807,13 +1807,6 @@ void LibraryActivity::loop() {
     updateRequired = true;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
   std::vector<LibraryItem>& currentList = currentPageItems;
   const int itemCount = static_cast<int>(currentList.size());
 

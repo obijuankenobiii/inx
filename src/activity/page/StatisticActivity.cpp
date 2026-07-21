@@ -929,13 +929,6 @@ void StatisticActivity::loop() {
     render();
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
   if (Activity::mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (Activity::mappedInput.getHeldTime() >= GO_HOME_MS) return;
     onGoToRecent();

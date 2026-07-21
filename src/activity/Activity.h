@@ -88,4 +88,11 @@ class Activity {
    * the device awake, such as during reading or when user interaction is expected.
    */
   virtual bool preventAutoSleep() { return false; }
+
+  /**
+   * @brief Allows the global system short-power page refresh handler to run before this activity's loop.
+   *
+   * ReaderActivity opts out because book readers have their own short-power behavior setting.
+   */
+  virtual bool allowGlobalPowerRefresh() { return true; }
 };

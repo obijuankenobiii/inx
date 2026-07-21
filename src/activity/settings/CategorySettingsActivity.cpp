@@ -681,13 +681,6 @@ void CategorySettingsActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
   if (selectorOpen) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       closeSelector(false);
@@ -828,8 +821,8 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   const int pageHeight = renderer.getScreenHeight();
   constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-  constexpr int headerHeight = UiTheme::DRAWER_HEADER_HEIGHT;
+  constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
+  constexpr int headerHeight = UiTheme::DRAWER_HEADER_HEIGHT - 4;
   constexpr int visibleRows = 5;
 
   const int rows = std::min(visibleRows, static_cast<int>(selectorOptions.size()));

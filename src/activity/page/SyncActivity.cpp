@@ -41,12 +41,6 @@ void SyncActivity::loop() {
     render();
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool upPressed = mappedInput.wasPressed(MenuNav::itemPrev());
   const bool downPressed = mappedInput.wasPressed(MenuNav::itemNext());

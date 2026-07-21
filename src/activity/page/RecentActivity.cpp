@@ -1881,13 +1881,6 @@ std::string RecentActivity::formatTime(uint32_t milliseconds) const {
  * Main loop for handling user input and updating state.
  */
 void RecentActivity::loop() {
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
   if (homeMenuDrawer_ && homeMenuDrawer_->visible()) {
     homeMenuDrawer_->handleInput(mappedInput);
     return;
