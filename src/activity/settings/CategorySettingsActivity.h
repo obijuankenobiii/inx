@@ -18,6 +18,7 @@
 #include "../Menu.h"
 #include "activity/ActivityWithSubactivity.h"
 #include "state/SystemSetting.h"
+#include "system/UiTheme.h"
 
 class SystemSetting;
 
@@ -276,7 +277,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     const int contentTop = mainContentTop() + TAB_BAR_HEIGHT;
     const int contentBottom =
         INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 80;
-    itemsPerPage = (contentBottom - contentTop) / LIST_ITEM_HEIGHT;
+    itemsPerPage = (contentBottom - contentTop) / UiTheme::DRAWER_LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
 
     groupExpanded_.fill(false);

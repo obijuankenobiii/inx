@@ -15,9 +15,11 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr int MENU_ITEMS = 3;
+constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 const char* menuNames[MENU_ITEMS] = {"OPDS Server URL", "Username", "Password"};
 }  // namespace
 
@@ -155,16 +157,15 @@ void CalibreSettingsActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
-
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
-
-  renderer.rectangle.fill(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30,
-                          static_cast<int>(GfxRenderer::FillTone::Ink));
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
 
   for (int i = 0; i < MENU_ITEMS; i++) {
-    const int settingY = 70 + i * 30;
+    const int itemY = dividerY + i * kListItemHeight;
     const bool isSelected = (i == selectedIndex);
+    if (isSelected) {
+      renderer.rectangle.fill(0, itemY, pageWidth, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
+    const int settingY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
@@ -178,6 +179,8 @@ void CalibreSettingsActivity::render() {
     }
     const auto width = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
+    renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");

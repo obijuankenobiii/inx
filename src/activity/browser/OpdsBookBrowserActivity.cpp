@@ -16,12 +16,14 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 #include "util/UrlUtils.h"
 
 namespace {
-constexpr int PAGE_ITEMS = 23;
+constexpr int PAGE_ITEMS = 8;
 constexpr int SKIP_PAGE_MS = 700;
+constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
 /** Static trampoline that dispatches to the instance's displayTaskLoop. */
@@ -165,7 +167,7 @@ void OpdsBookBrowserActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
+  const int bodyTop = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
 
   if (state == BrowserState::CHECK_WIFI) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
@@ -214,17 +216,22 @@ void OpdsBookBrowserActivity::render() const {
   renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (entries.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, "No entries found");
+    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + (pageHeight - bodyTop - 80) / 2,
+                           "No entries found");
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-  renderer.rectangle.fill(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30,
-                          static_cast<int>(GfxRenderer::FillTone::Ink));
 
   for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + PAGE_ITEMS); i++) {
     const auto& entry = entries[i];
+    const int visibleIndex = static_cast<int>(i - pageStartIndex);
+    const int itemY = bodyTop + visibleIndex * kListItemHeight;
+    const bool isSelected = i == static_cast<size_t>(selectorIndex);
+    if (isSelected) {
+      renderer.rectangle.fill(0, itemY, pageWidth, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
 
     std::string displayText;
     if (entry.type == OpdsEntryType::NAVIGATION) {
@@ -238,8 +245,10 @@ void OpdsBookBrowserActivity::render() const {
 
     auto item =
         renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
-                         i != static_cast<size_t>(selectorIndex));
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, item.c_str(), !isSelected);
+    renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
 
   renderer.displayBuffer();

@@ -14,6 +14,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr const char* AP_HOSTNAME = "xteink";
@@ -22,10 +23,6 @@ constexpr int CONTENT_MARGIN = 25;
 constexpr int LINE_SPACING = 28;
 constexpr int SMALL_SPACING = 25;
 constexpr int SECTION_SPACING = 40;
-constexpr int TAB_BAR_HEIGHT = 40;
-constexpr int HEADER_TITLE_Y_OFFSET = 10;
-constexpr int SUBTITLE_Y_OFFSET = 40;
-constexpr int DIVIDER_PADDING = 10;
 constexpr int BOTTOM_AREA_HEIGHT = 80;
 
 /**
@@ -35,16 +32,8 @@ constexpr int BOTTOM_AREA_HEIGHT = 80;
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
-  const int headerHeight = TAB_BAR_HEIGHT;
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                       startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 +
-                           HEADER_TITLE_Y_OFFSET,
-                       title, true, EpdFontFamily::BOLD);
-
-  const int dividerY = startY + headerHeight + 18;
-  renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
+int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
+  return INX_THEME.drawPageHeader(renderer, title, startY, nullptr, CONTENT_MARGIN);
 }
 
 /**
@@ -239,24 +228,21 @@ void LocalNetworkActivity::displayTaskLoop() {
  */
 void LocalNetworkActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer);
 
   int screenHeight = renderer.getScreenHeight();
-  int startY = TAB_BAR_HEIGHT;
+  int startY = 0;
 
   if (state == LocalNetworkState::SERVER_RUNNING) {
     renderServerRunning();
   } else if (state == LocalNetworkState::SERVER_STARTING) {
-    renderActivityHeader(renderer, startY, "Local Network");
+    const int contentStart = renderActivityHeader(renderer, startY, "Local Network");
 
-    int contentStart = startY + SUBTITLE_Y_OFFSET;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
   } else if (state == LocalNetworkState::ERROR) {
-    renderActivityHeader(renderer, startY, "Local Network");
+    const int contentStart = renderActivityHeader(renderer, startY, "Local Network");
 
-    int contentStart = startY + SUBTITLE_Y_OFFSET;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
@@ -273,14 +259,14 @@ void LocalNetworkActivity::render() const {
  * @brief Renders the server running state UI with connection information
  */
 void LocalNetworkActivity::renderServerRunning() const {
-  int startY = TAB_BAR_HEIGHT;
+  int startY = 0;
 
-  renderActivityHeader(renderer, startY, "Local Network");
+  const int contentStart = renderActivityHeader(renderer, startY, "Local Network");
 
   std::string ipUrl = "http://" + connectedIP + "/";
   std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
 
-  const int bodyTop = startY + SUBTITLE_Y_OFFSET + 95;
+  const int bodyTop = contentStart + 56;
   const int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
   const int titleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
   const int bodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;

@@ -917,10 +917,10 @@ void CategorySettingsActivity::render() {
   renderer.text.render(verFont, verTagX + verPadX, versionY, INX_VERSION, false, EpdFontFamily::REGULAR);  // white text
 
   const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, pageWidth, dividerY);
+  renderer.line.render(0, dividerY, pageWidth, dividerY, true);
 
   const int startY = dividerY;
-  const int itemHeight = LIST_ITEM_HEIGHT;
+  constexpr int itemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
   int visibleCount = 0;
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < (int)menuItems.size(); i++) {

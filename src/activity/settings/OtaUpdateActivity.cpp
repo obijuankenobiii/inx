@@ -19,13 +19,14 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 // cppcheck-suppress missingInclude
 #include "esp_task_wdt.h"
 
 namespace {
-constexpr int kSourceItemHeight = 56;
-constexpr int kFirmwareItemHeight = 46;
+constexpr int kSourceItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+constexpr int kFirmwareItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 const std::string kEmptyPath;
 
 bool hasBinExtension(const std::string& path) {
@@ -253,20 +254,11 @@ void OtaUpdateActivity::render() {
   }
 
   renderer.clearScreen();
-  renderTabBar(renderer);
 
   const int pageWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
-  const int startY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "Update";
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, headerText, true, EpdFontFamily::BOLD);
-
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, pageWidth, dividerY);
+  const int startY = 0;
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "Update", startY);
 
   const int bodyTop = dividerY;
 

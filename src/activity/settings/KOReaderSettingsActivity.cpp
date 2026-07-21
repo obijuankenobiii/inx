@@ -15,9 +15,9 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
-constexpr int LIST_ITEM_HEIGHT = 60;
-constexpr int HEADER_HEIGHT = 60;
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
 namespace {
 constexpr int MENU_ITEMS = 5;
@@ -163,13 +163,7 @@ void KOReaderSettingsActivity::render() {
   const auto screenHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, 25, "KOReader Sync", true, EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Configure sync settings.";
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 55, subtitleText);
-
-  const int dividerY = HEADER_HEIGHT + 30;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "KOReader Sync");
 
   int startY = dividerY;
   int visibleAreaHeight = screenHeight - startY - 60;

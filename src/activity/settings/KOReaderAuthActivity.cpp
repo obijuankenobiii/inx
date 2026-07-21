@@ -13,6 +13,7 @@
 #include "activity/network/WifiSelectionActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/UiTheme.h"
 
 void KOReaderAuthActivity::taskTrampoline(void* param) {
   auto* self = static_cast<KOReaderAuthActivity*>(param);
@@ -118,7 +119,7 @@ void KOReaderAuthActivity::render() {
   }
 
   renderer.clearScreen();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "KOReader Auth", true, EpdFontFamily::BOLD);
+  INX_THEME.drawPageHeader(renderer, "KOReader Auth");
 
   if (state == AUTHENTICATING) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);

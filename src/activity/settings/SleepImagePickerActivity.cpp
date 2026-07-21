@@ -19,6 +19,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -28,7 +29,7 @@ constexpr int GRID_ITEMS = GRID_COLS * GRID_ROWS;
 constexpr int GRID_MARGIN_X = 18;
 constexpr int GRID_GAP_X = 12;
 constexpr int GRID_GAP_Y = 12;
-constexpr int GRID_TOP = 32;
+constexpr int GRID_TOP = UiTheme::DRAWER_PAGE_HEADER_HEIGHT + 12;
 constexpr int THUMB_INSET_X = 18;
 constexpr int THUMB_INSET_Y = 12;
 constexpr int RANDOM_BUTTON_W = 178;
@@ -125,7 +126,7 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
   const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
   const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
 
-  renderer.rectangle.fill(0, 0, pageWidth, 26, false);
+  INX_THEME.drawPageHeader(renderer, "Sleep cover");
 
   if (hasImages && drawCells) {
     for (int slot = 0; slot < GRID_ITEMS; ++slot) {

@@ -128,6 +128,7 @@ void SettingsActivity::onEnter() {
 
   tabSelectorIndex = 2;
   currentPanel = SettingsPanel::System;
+  panelSwapPending = false;
 
   isIndexing = false;
   showingAbout = false;
@@ -171,6 +172,7 @@ void SettingsActivity::loop() {
 
   if (subActivity) {
     subActivity->loop();
+    processPendingPanelSwap();
     return;
   }
 
@@ -225,11 +227,21 @@ void SettingsActivity::swapPanelAndReopen() {
   openCurrentPanel();
 }
 
+void SettingsActivity::requestPanelSwap() { panelSwapPending = true; }
+
+void SettingsActivity::processPendingPanelSwap() {
+  if (!panelSwapPending) {
+    return;
+  }
+  panelSwapPending = false;
+  swapPanelAndReopen();
+}
+
 void SettingsActivity::openCurrentPanel() {
   if (currentPanel == SettingsPanel::Reader) {
     // The Reader panel is now a list of named presets (with a live-preview editor) instead of a flat list.
     enterNewActivity(new ReaderPresetsActivity(
-        renderer, mappedInput, [this] { swapPanelAndReopen(); },
+        renderer, mappedInput, [this] { requestPanelSwap(); },
         [this] {
           if (onRecentOpen) onRecentOpen();
         },
@@ -248,7 +260,7 @@ void SettingsActivity::openCurrentPanel() {
   const char* title = "System settings";
 
   enterNewActivity(new CategorySettingsActivity(
-      renderer, mappedInput, title, buildSystemPageSettings(renderer.deviceIsX3()), [this] { swapPanelAndReopen(); },
+      renderer, mappedInput, title, buildSystemPageSettings(renderer.deviceIsX3()), [this] { requestPanelSwap(); },
       [this] {
         exitActivity();
         startLibraryIndexing();

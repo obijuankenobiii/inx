@@ -1,5 +1,6 @@
 #include "system/UiTheme.h"
 
+#include <EpdFontFamily.h>
 #include <GfxRenderer.h>
 
 #include "images/Library.h"
@@ -8,6 +9,7 @@
 #include "images/Stats.h"
 #include "images/Sync.h"
 #include "state/SystemSetting.h"
+#include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 
 namespace {
@@ -18,6 +20,9 @@ constexpr int kSelectedBorderWidth = 38;
 constexpr int kSelectedBorderHeight = 5;
 constexpr int kBottomTabIconLift = 5;
 constexpr int kBottomSelectedCircleSize = 49;
+constexpr int kPageHeaderTopPadding = 5;
+constexpr int kPageHeaderBottomPadding = 5;
+constexpr int kPageHeaderDividerThickness = 2;
 
 void fillCircle(const GfxRenderer& renderer, const int cx, const int cy, const int radius, const bool state) {
   const int r2 = radius * radius;
@@ -122,6 +127,30 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
     ScreenComponents::drawBattery(renderer, renderer.getScreenWidth() - 80, renderer.getScreenHeight() - 30,
                                   showBatteryPercentage);
   }
+}
+
+int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, const int startY, const char* trailingText,
+                            const int titleX) const {
+  const int pageWidth = renderer.getScreenWidth();
+  const int headerH = DRAWER_PAGE_HEADER_HEIGHT;
+  renderer.rectangle.fill(0, startY, pageWidth, headerH, false);
+  const int dividerY = startY + headerH;
+  renderer.rectangle.fill(0, dividerY, pageWidth, kPageHeaderDividerThickness, true);
+
+  const int paddedHeaderH = headerH - kPageHeaderTopPadding - kPageHeaderBottomPadding;
+  const int titleY = startY + kPageHeaderTopPadding +
+                     (paddedHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_14_FONT_ID)) / 2 + 4;
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_14_FONT_ID, titleX, titleY, title, true, EpdFontFamily::BOLD);
+
+  if (trailingText && trailingText[0] != '\0') {
+    const int trailingFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int trailingW = renderer.text.getWidth(trailingFont, trailingText);
+    const int trailingY =
+        startY + kPageHeaderTopPadding + (paddedHeaderH - renderer.text.getLineHeight(trailingFont)) / 2;
+    renderer.text.render(trailingFont, pageWidth - titleX - trailingW, trailingY, trailingText, true);
+  }
+
+  return dividerY;
 }
 
 void UiTheme::drawButtonHints(const GfxRenderer& renderer, const int fontId, const char* btn1, const char* btn2,

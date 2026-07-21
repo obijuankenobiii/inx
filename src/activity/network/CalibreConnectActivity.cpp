@@ -19,6 +19,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/UiTheme.h"
 
 namespace {
 
@@ -51,26 +52,6 @@ constexpr int SMALL_SPACING = 25;
  * @brief Large vertical spacing between sections
  */
 constexpr int SECTION_SPACING = 40;
-
-/**
- * @brief Height of the tab bar at top of screen
- */
-constexpr int TAB_BAR_HEIGHT = 40;
-
-/**
- * @brief Y offset for header title positioning
- */
-constexpr int HEADER_TITLE_Y_OFFSET = 10;
-
-/**
- * @brief Y offset for subtitle positioning
- */
-constexpr int SUBTITLE_Y_OFFSET = 40;
-
-/**
- * @brief Padding above/below divider lines
- */
-constexpr int DIVIDER_PADDING = 10;
 
 /**
  * @brief Height of bottom area for button hints
@@ -109,21 +90,8 @@ const char* CDP_RESPONSE =
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
-  const int headerHeight = TAB_BAR_HEIGHT;
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                       startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 +
-                           HEADER_TITLE_Y_OFFSET,
-                       title, true, EpdFontFamily::BOLD);
-
-  if (subtitle) {
-    int subtitleY = startY + SUBTITLE_Y_OFFSET;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, subtitleY, subtitle, true);
-
-    int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
-    renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
-  }
+int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
+  return INX_THEME.drawPageHeader(renderer, title, startY, subtitle, CONTENT_MARGIN);
 }
 
 /**
@@ -485,19 +453,16 @@ void CalibreConnectActivity::displayTaskLoop() {
  */
 void CalibreConnectActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer);
 
   int screenWidth = renderer.getScreenWidth();
   int screenHeight = renderer.getScreenHeight();
-  int startY = TAB_BAR_HEIGHT;
+  int startY = 0;
 
   if (state == CalibreConnectState::SERVER_RUNNING) {
     renderServerRunning(screenWidth, screenHeight, startY);
   } else if (state == CalibreConnectState::SERVER_STARTING) {
-    renderActivityHeader(renderer, startY, "Connect to Calibre", "Starting server...");
+    const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Starting server...");
 
-    int contentStart =
-        startY + SUBTITLE_Y_OFFSET + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
@@ -505,10 +470,8 @@ void CalibreConnectActivity::render() const {
     auto labels = mappedInput.mapLabels("« Exit", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == CalibreConnectState::ERROR) {
-    renderActivityHeader(renderer, startY, "Connect to Calibre", "Setup Failed");
+    const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Setup Failed");
 
-    int contentStart =
-        startY + SUBTITLE_Y_OFFSET + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + DIVIDER_PADDING;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
@@ -528,10 +491,9 @@ void CalibreConnectActivity::render() const {
  * @param startY Starting Y coordinate for content
  */
 void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeight, int startY) const {
-  renderActivityHeader(renderer, startY, "Connect to Calibre", "Server Running");
+  const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Server Running");
 
-  int currentY = startY + SUBTITLE_Y_OFFSET + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) +
-                 DIVIDER_PADDING + SECTION_SPACING - 10;
+  int currentY = contentStart + SECTION_SPACING - 10;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true,
                        EpdFontFamily::BOLD);

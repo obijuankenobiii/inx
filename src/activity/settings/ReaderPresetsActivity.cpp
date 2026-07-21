@@ -80,7 +80,7 @@ ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputM
 void ReaderPresetsActivity::onEnter() {
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
-  const int listTop = mainHeaderDividerY() + 8;
+  const int listTop = mainHeaderDividerY();
   const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 60;
   itemsPerPage_ = std::max(1, (contentBottom - listTop) / kListItemHeight);
   selectedRow_ = 0;
@@ -147,6 +147,7 @@ void ReaderPresetsActivity::navigateToSelectedMenu() {
 void ReaderPresetsActivity::render() {
   const int screenW = renderer.getScreenWidth();
   renderer.clearScreen(0xFF);
+
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
@@ -159,13 +160,13 @@ void ReaderPresetsActivity::render() {
   const int backY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
   const int headerDividerY = mainHeaderDividerY();
-  const int listTop = headerDividerY + 8;
+  const int listTop = headerDividerY;
   renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
   const int rows = rowCount();
   for (int i = 0; i < itemsPerPage_ && (i + scrollOffset_) < rows; i++) {
     const int rowIndex = i + scrollOffset_;
-    const int itemY = listTop + i * kListItemHeight - 6;
+    const int itemY = listTop + i * kListItemHeight;
     const bool isSelected = (rowIndex == selectedRow_);
     const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 

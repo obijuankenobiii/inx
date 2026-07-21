@@ -17,6 +17,7 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr int NTP_TIMEOUT_MS = 8000;
@@ -44,10 +45,13 @@ void TimeSyncActivity::loop() {
 void TimeSyncActivity::render() {
   renderer.clearScreen();
   const int h = renderer.getScreenHeight();
-  const int titleY = h / 2 - 42;
-  const int bodyY = h / 2 - 6;
 
-  const char* title = "Sync time";
+  const int contentTop = INX_THEME.drawPageHeader(renderer, "Sync time");
+  const int centerY = contentTop + (h - contentTop - 80) / 2;
+  const int titleY = centerY - 36;
+  const int bodyY = centerY;
+
+  const char* title = "Select network";
   if (state == State::DONE) {
     title = "Time synced";
   } else if (state == State::FAILED) {

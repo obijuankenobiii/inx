@@ -13,6 +13,7 @@
 #include <cstring>
 #include <string>
 
+#include "ReaderFontSettingsDraw.h"
 #include "state/BookState.h"
 #include "state/NetworkCredential.h"
 #include "state/RecentBooks.h"
@@ -21,11 +22,12 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
-constexpr int kTitleFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
 constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int kMetaFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
 void ClearCacheActivity::taskTrampoline(void* param) {
@@ -73,50 +75,37 @@ void ClearCacheActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.text.centered(kTitleFont, 18, "Clear cache", true, EpdFontFamily::BOLD);
+  const int bodyTop = INX_THEME.drawPageHeader(renderer, "Clear cache");
 
   if (state == WARNING) {
-    renderer.text.centered(kBodyFont, 56, "Select cache groups to remove");
-
     constexpr const char* names[GROUP_COUNT] = {"Display", "Book", "Recent", "Network"};
-    constexpr const char* descriptions[GROUP_COUNT] = {
-        "Rendered image/display planes",
-        "EPUB, XTC, TXT book caches",
-        "Recent list and library index",
-        "Saved Wi-Fi credentials",
-    };
-    constexpr int rowH = 64;
-    const int listTop = 100;
-    const int left = 38;
-    const int right = pageWidth - 38;
-    const int boxSize = 20;
+    constexpr int rowH = kListItemHeight;
+    const int listTop = bodyTop + 1;
+    const int left = 20;
     for (int i = 0; i < GROUP_COUNT; ++i) {
       const int y = listTop + i * rowH;
       const bool focused = i == selectedGroup;
       if (focused) {
-        renderer.rectangle.fill(left - 8, y - 8, right - left + 16, rowH - 4,
-                                static_cast<int>(GfxRenderer::FillTone::Ink), false);
+        renderer.rectangle.fill(0, y, pageWidth, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
-      renderer.rectangle.render(left, y, boxSize, boxSize, !focused);
-      if (selectedGroups[i]) {
-        renderer.text.render(kBodyFont, left + 5, y - 3, "x", !focused);
-      }
-      renderer.text.render(kBodyFont, left + boxSize + 14, y - 2, names[i], !focused,
-                           focused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
-      renderer.text.render(kMetaFont, left + boxSize + 14, y + 25, descriptions[i], !focused);
+      const int textY = y + (rowH - renderer.text.getLineHeight(kBodyFont)) / 2;
+      renderer.text.render(kBodyFont, left, textY, names[i], !focused, EpdFontFamily::REGULAR);
+      ReaderFontSettingsDraw::drawToggleCheckbox(renderer, pageWidth - 24, y, rowH, focused, selectedGroups[i]);
+      renderer.line.render(0, y + rowH - 1, pageWidth, y + rowH - 1, true, LineRender::Style::Dotted);
     }
 
-    const int actionY = listTop + GROUP_COUNT * rowH + 8;
+    const int actionY = listTop + GROUP_COUNT * rowH;
     const bool actionFocused = selectedGroup == GROUP_COUNT;
     if (actionFocused) {
-      renderer.rectangle.fill(left - 8, actionY - 8, right - left + 16, 44,
-                              static_cast<int>(GfxRenderer::FillTone::Ink), false);
+      renderer.rectangle.fill(0, actionY, pageWidth, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    renderer.text.render(kBodyFont, left, actionY, "Clear selected", actionFocused ? false : anyGroupSelected(),
+    const int actionTextY = actionY + (rowH - renderer.text.getLineHeight(kBodyFont)) / 2;
+    renderer.text.render(kBodyFont, left, actionTextY, "Clear selected", actionFocused ? false : anyGroupSelected(),
                          actionFocused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+    renderer.line.render(0, actionY + rowH - 1, pageWidth, actionY + rowH - 1, true, LineRender::Style::Dotted);
 
     if (!anyGroupSelected()) {
-      renderer.text.centered(kMetaFont, pageHeight - 74, "Select at least one group");
+      renderer.text.centered(kMetaFont, pageHeight - 74, "Select a cache group");
     }
 
     const auto labels = mappedInput.mapLabels("\xC2\xAB Cancel", actionFocused ? "Clear" : "Toggle", "Up", "Down");
