@@ -153,6 +153,8 @@ constexpr int LIB_SHELF_OUTER_PAD_Y = 10;
 constexpr int LIB_SHELF_BADGE_SIZE = 22;
 constexpr uint32_t LIBRARY_TASK_STACK_SIZE = 8192;
 constexpr uint32_t LIBRARY_INDEX_TASK_STACK_SIZE = 6144;
+constexpr size_t LIBRARY_MAX_IN_MEMORY_ITEMS = 256;
+constexpr uint32_t LIBRARY_MIN_FREE_HEAP_FOR_APPEND = 28000;
 constexpr const char* TAG_UNTAGGED_KEY = "\x01";
 constexpr const char* TAG_UNTAGGED_LABEL = "Others";
 constexpr uint8_t BOOK_STATE_FAVORITE = 0x01;
@@ -187,6 +189,18 @@ bool isSupportedImageFile(const std::string& filename) {
 
 bool isExportedNoteImagePath(const std::string& path, const std::string& filename) {
   return startsWithPath(path, EXPORTED_NOTES_ROOT) && isSupportedImageFile(filename);
+}
+
+bool canAppendLibraryListItem(const size_t currentSize) {
+  if (currentSize >= LIBRARY_MAX_IN_MEMORY_ITEMS) {
+    return false;
+  }
+#ifndef SIMULATOR
+  if (ESP.getFreeHeap() < LIBRARY_MIN_FREE_HEAP_FOR_APPEND) {
+    return false;
+  }
+#endif
+  return true;
 }
 
 /** Builds the metadata cache directory path for a book path under the given root. */
@@ -866,6 +880,10 @@ void LibraryActivity::loadBooksRecursiveScan() {
 
       std::string filename = name;
       if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
+        if (!canAppendLibraryListItem(tempBooks.size())) {
+          file.close();
+          break;
+        }
         TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, path);
         tempBooks.push_back(tempEntry);
         if ((++booksCollected % 48u) == 0u) {
@@ -909,6 +927,10 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
 
       if (file.isDirectory()) {
         if (directoryHasBooks(fullPath + "/")) {
+          if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+            file.close();
+            break;
+          }
           tempFolders.push_back(createFolderItem(name, fullPath + "/"));
           if ((++scanYieldCount % 48u) == 0u) {
             yield();
@@ -935,6 +957,10 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
         if (fullPath.back() != '/') fullPath += "/";
         fullPath += filename;
         if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
+          if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+            file.close();
+            break;
+          }
           TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, basepath);
           tempBooks.push_back(tempEntry);
           if ((++scanYieldCount % 48u) == 0u) {
@@ -1129,6 +1155,9 @@ void LibraryActivity::applyPaginationToCachedItems() {
 void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
   cachedLibraryItems_.clear();
   for (const auto& temp : tempBooks) {
+    if (!canAppendLibraryListItem(cachedLibraryItems_.size())) {
+      break;
+    }
     LibraryItem item;
     item.type = LibraryItem::Type::BOOK;
     item.name = getBaseFilename(temp.path);
@@ -1208,10 +1237,16 @@ void LibraryActivity::combineAndPaginateItems(const std::vector<LibraryItem>& te
                                               const std::vector<TempBookEntry>& tempBooks) {
   cachedLibraryItems_.clear();
   for (const auto& folder : tempFolders) {
+    if (!canAppendLibraryListItem(cachedLibraryItems_.size())) {
+      break;
+    }
     cachedLibraryItems_.push_back(folder);
   }
 
   for (const auto& temp : tempBooks) {
+    if (!canAppendLibraryListItem(cachedLibraryItems_.size())) {
+      break;
+    }
     LibraryItem item;
     item.type = LibraryItem::Type::BOOK;
     item.name = getBaseFilename(temp.path);
@@ -1341,7 +1376,8 @@ bool LibraryActivity::isBookFinished(const std::string& path) const {
  */
 void LibraryActivity::render() const {
   const int headerY = mainContentTop();
-  const int dividerY = mainHeaderDividerY();
+  const int headerHeight = LIST_ITEM_HEIGHT;
+  const int dividerY = headerY + headerHeight;
   const int gridStartY = dividerY - 3;
 
   // Shelf mode decodes real cover thumbnails - expensive. If only the selection moved (same page,
@@ -1362,7 +1398,7 @@ void LibraryActivity::render() const {
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY = headerY + (TAB_BAR_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   const bool showIndexButton = shouldShowIndexButton();
   int containerWidth = screenWidth - 110;
   if (showIndexButton) {
@@ -1371,13 +1407,13 @@ void LibraryActivity::render() const {
 
   bool headerSelected = isHeaderButtonSelected && tabSelectorIndex == 1;
   if (headerSelected)
-    renderer.rectangle.fill(0, headerY, containerWidth, TAB_BAR_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
+    renderer.rectangle.fill(0, headerY, containerWidth, headerHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                        EpdFontFamily::BOLD);
-  int headerButtonRightX = drawSortButton(headerY, TAB_BAR_HEIGHT, screenWidth);
+  int headerButtonRightX = drawSortButton(headerY, headerHeight, screenWidth);
   if (showIndexButton) {
-    drawIndexButton(headerY, TAB_BAR_HEIGHT, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
+    drawIndexButton(headerY, headerHeight, headerButtonRightX + 10, isIndexButtonSelected && tabSelectorIndex == 1);
   }
 
   renderer.line.render(0, dividerY, screenWidth, dividerY);
@@ -1695,10 +1731,10 @@ void LibraryActivity::onExit() {
   std::vector<LibraryItem>().swap(cachedLibraryItems_);
   cachedLibraryItemsValid_ = false;
   std::vector<BookTags::Entry>().swap(cachedTagEntries_);
-  bookStateCache_.clear();
-  directoryHasBooksCache_.clear();
+  std::unordered_map<std::string, uint8_t>().swap(bookStateCache_);
+  std::unordered_map<std::string, bool>().swap(directoryHasBooksCache_);
   freeLibraryShelfBuffer();
-  shelfImagePathCache_.clear();
+  std::unordered_map<std::string, std::string>().swap(shelfImagePathCache_);
   cachedTagEntriesLoaded_ = false;
   std::string().swap(savedFolderPath);
   std::string().swap(selectedTagKey_);
@@ -2368,7 +2404,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
 /** Computes the pixel size of a shelf-mode cover slot for the current screen. */
 void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH) {
-  const int startY = INX_THEME.mainContentTop() + TAB_BAR_HEIGHT - 3;
+  const int startY = INX_THEME.mainContentTop() + LIST_ITEM_HEIGHT - 3;
   const int screenW = renderer.getScreenWidth();
   const int screenH = INX_THEME.mainContentBottom(renderer) - 10;
   const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;
@@ -2751,6 +2787,9 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
           }
         }
         if (!seen) {
+          if (!canAppendLibraryListItem(tagFolders.size())) {
+            break;
+          }
           LibraryItem tagItem;
           tagItem.type = LibraryItem::Type::FOLDER;
           tagItem.name = tagKey;
@@ -2769,6 +2808,9 @@ void LibraryActivity::loadBooksFromIndex(FsFile& idxFile, const std::string& cle
           ((selectedTagKey_ == TAG_UNTAGGED_KEY && tempEntry.tag.empty()) || selectedTagKey_ == tempEntry.tag);
 
       if (matchesTag && tempEntry.path.find(cleanBase) == 0) {
+        if (!canAppendLibraryListItem(tempBooks.size())) {
+          break;
+        }
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
         if ((++indexEntries % 64u) == 0u) {
@@ -2830,6 +2872,9 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
       std::string bookParent =
           (lastSlash == 0 || lastSlash == std::string::npos) ? "/" : tempEntry.path.substr(0, lastSlash);
       if (bookParent == cleanBase) {
+        if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+          break;
+        }
         tempEntry.isFavorite = isBookMarked(tempEntry.path);
         tempBooks.push_back(tempEntry);
         if ((++indexEntries % 64u) == 0u) {
@@ -2840,6 +2885,9 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
       LibraryItem folderItem = readDirectoryEntryFromIndex(idxFile);
 
       if (shouldIncludeFolder(folderItem.path, cleanBase)) {
+        if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+          break;
+        }
         tempFolders.push_back(folderItem);
         if ((++indexEntries % 64u) == 0u) {
           yield();

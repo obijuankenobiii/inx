@@ -12,6 +12,9 @@ class UiTheme {
   static constexpr int BOTTOM_TAB_BAR_HEIGHT = 62;
   static constexpr int BOTTOM_CONTENT_PADDING = 5;
   static constexpr int TOP_STATUS_HEIGHT = 36;
+  static constexpr int DRAWER_HEADER_HEIGHT = MAIN_TAB_BAR_HEIGHT;
+  static constexpr int DRAWER_LIST_ITEM_HEIGHT = 66;
+  static constexpr int DRAWER_LIST_BOTTOM_PADDING = 12;
 
   static UiTheme& getInstance();
 

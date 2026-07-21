@@ -16,6 +16,7 @@
 #include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
 const char* overlayOptionFor(const int presetIndex, const int optionIndex) {
@@ -246,22 +247,21 @@ void ReaderPresetsActivity::renderOverlay() {
   const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
 
   const int boxW = std::min(screenW - 60, 320);
-  const int rowH = 50;
-  const int boxH = 50 + optionCount * rowH;
+  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+  constexpr int overlayHeaderH = UiTheme::DRAWER_HEADER_HEIGHT;
+  const int boxH = overlayHeaderH + optionCount * rowH;
   const int boxX = (screenW - boxW) / 2;
   const int boxY = (screenH - boxH) / 2;
 
   renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
-  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
 
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
-  const int overlayHeaderH = 40;
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2 - 1;
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
   renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
   for (int i = 0; i < optionCount; i++) {
-    const int rowY = boxY + 42 + i * rowH;
+    const int rowY = boxY + overlayHeaderH + i * rowH;
     const bool sel = (i == overlaySel_);
     renderer.rectangle.fill(
         boxX + 1, rowY, boxW - 2, rowH,
@@ -269,7 +269,13 @@ void ReaderPresetsActivity::renderOverlay() {
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
                          sel ? 0 : 1);
+    if (i + 1 < optionCount) {
+      renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
+    }
   }
+
+  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
+  renderer.rectangle.render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, true);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

@@ -31,6 +31,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -827,18 +828,17 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   const int pageHeight = renderer.getScreenHeight();
   constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int rowHeight = 42;
-  constexpr int headerHeight = 44;
+  constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+  constexpr int headerHeight = UiTheme::DRAWER_HEADER_HEIGHT;
   constexpr int visibleRows = 5;
 
   const int rows = std::min(visibleRows, static_cast<int>(selectorOptions.size()));
   const int panelW = std::min(pageWidth - 24, 360);
-  const int panelH = headerHeight + rows * rowHeight + 18;
+  const int panelH = headerHeight + rows * rowHeight;
   const int panelX = (pageWidth - panelW) / 2;
   const int panelY = std::max(mainContentTop() + 8, (pageHeight - panelH) / 2);
 
   renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
-  renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
 
   const char* title = "Select";
   if (selectorSourceIndex >= 0 && selectorSourceIndex < static_cast<int>(menuItems.size()) &&
@@ -846,9 +846,9 @@ void CategorySettingsActivity::renderSelectorOverlay() {
     title = menuItems[selectorSourceIndex].name;
   }
   const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 32, EpdFontFamily::BOLD);
-  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2 - 3;
+  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2;
   renderer.text.render(titleFont, panelX + 16, titleY, shownTitle.c_str(), true, EpdFontFamily::BOLD);
-  renderer.line.render(panelX, panelY + headerHeight - 4, panelX + panelW, panelY + headerHeight - 4, true);
+  renderer.line.render(panelX, panelY + headerHeight, panelX + panelW, panelY + headerHeight, true);
 
   const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - rows);
   selectorScrollOffset = std::max(0, std::min(selectorScrollOffset, maxScroll));
@@ -860,24 +860,31 @@ void CategorySettingsActivity::renderSelectorOverlay() {
     const int rowY = panelY + headerHeight + i * rowHeight;
     const bool selected = optionIndex == selectorSelectedIndex;
     if (selected) {
-      renderer.rectangle.fill(panelX + 4, rowY + 2, panelW - 8, rowHeight - 4, true);
+      renderer.rectangle.fill(panelX + 1, rowY, panelW - 2, rowHeight, true);
     }
 
     const std::string option = renderer.text.truncate(itemFont, selectorOptions[optionIndex].c_str(), panelW - 44);
     const int textY = rowY + (rowHeight - renderer.text.getLineHeight(itemFont)) / 2;
     renderer.text.render(itemFont, panelX + 18, textY, option.c_str(), !selected,
                          selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+    if (i + 1 < rows) {
+      renderer.line.render(panelX, rowY + rowHeight, panelX + panelW, rowY + rowHeight, !selected,
+                           LineRender::Style::Dotted);
+    }
   }
 
   if (static_cast<int>(selectorOptions.size()) > rows) {
     const int trackX = panelX + panelW - 10;
-    const int trackY = panelY + headerHeight + 4;
-    const int trackH = rows * rowHeight - 8;
+    const int trackY = panelY + headerHeight;
+    const int trackH = rows * rowHeight;
     const int thumbH = std::max(8, trackH * rows / static_cast<int>(selectorOptions.size()));
     const int thumbY = trackY + selectorScrollOffset * std::max(1, trackH - thumbH) / maxScroll;
     renderer.rectangle.fill(trackX, trackY, 2, trackH, true);
     renderer.rectangle.fill(trackX - 2, thumbY, 6, thumbH, true);
   }
+
+  renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
+  renderer.rectangle.render(panelX + 1, panelY + 1, panelW - 2, panelH - 2, true);
 }
 
 /**

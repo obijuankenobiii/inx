@@ -18,15 +18,16 @@
 
 #define SETTINGS SystemSetting::getInstance()
 
-constexpr int LIST_ITEM_HEIGHT = 66;
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
 namespace {
-constexpr int kDrawerHeaderHeight = UiTheme::MAIN_TAB_BAR_HEIGHT;
+constexpr int kDrawerHeaderHeight = UiTheme::DRAWER_HEADER_HEIGHT;
 constexpr int kDrawerListTop = kDrawerHeaderHeight + 1;
-constexpr int kDrawerListBottomPadding = 12;
+constexpr int kDrawerListBottomPadding = UiTheme::DRAWER_LIST_BOTTOM_PADDING;
 constexpr int kDrawerHeaderHPad = 20;
 constexpr int kDrawerHeaderPillPadX = 10;
 constexpr int kDrawerHeaderPillHeight = 24;
+constexpr int kPortraitDrawerHeightPercent = 65;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -157,7 +158,7 @@ void SettingsDrawer::syncLayoutFromRenderer() {
   } else {
     drawerX = 0;
     drawerWidth = sw;
-    drawerHeight = sh * 60 / 100;
+    drawerHeight = sh * kPortraitDrawerHeightPercent / 100;
     drawerY = sh - drawerHeight;
   }
   itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
@@ -863,7 +864,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int totalItems = static_cast<int>(menuItems.size());
   if (totalItems <= itemsPerPage) return;
 
-  int startY = drawerY + 80;
+  int startY = drawerY + kDrawerListTop;
   int listHeight = itemsPerPage * itemHeight;
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
@@ -872,7 +873,7 @@ void SettingsDrawer::drawScrollIndicator() {
 }
 
 void SettingsDrawer::clearScrollIndicatorArea() {
-  const int startY = drawerY + 80;
+  const int startY = drawerY + kDrawerListTop;
   const int listHeight = itemsPerPage * itemHeight;
   renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
 }

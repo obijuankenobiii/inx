@@ -11,13 +11,17 @@
 #include "Epub.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
+#include "system/UiTheme.h"
 
 #define SETTINGS SystemSetting::getInstance()
 
-constexpr int LIST_ITEM_HEIGHT = 60;
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr float TOC_DRAWER_HEIGHT_PERCENT = 0.8f;
 
 namespace {
+constexpr int kDrawerHeaderHeight = UiTheme::DRAWER_HEADER_HEIGHT;
+constexpr int kDrawerListTop = kDrawerHeaderHeight + 1;
+constexpr int kDrawerListBottomPadding = UiTheme::DRAWER_LIST_BOTTOM_PADDING;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -152,7 +156,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
     tocDrawerHeight = static_cast<int>(sh * TOC_DRAWER_HEIGHT_PERCENT);
     tocDrawerY = sh - tocDrawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
 }
 
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
@@ -272,14 +276,14 @@ void MenuDrawer::drawBackground() {
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
-  const int headerH = itemHeight;
+  const int headerH = kDrawerHeaderHeight;
   const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true,
                        EpdFontFamily::BOLD);
 
   // Sit the divider on the last row of the header band; the first list item starts at drawerY+headerH and
   // its row fill would otherwise paint over a divider drawn exactly there.
-  const int dividerY = drawerY + headerH - 1;
+  const int dividerY = drawerY + headerH;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -297,7 +301,7 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + itemHeight;  // header band height == one list item
+  const int startY = drawerY + kDrawerListTop;
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& item = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -322,7 +326,7 @@ void MenuDrawer::drawScrollIndicator() {
   int totalItems = (int)menuItems.size();
   if (totalItems <= itemsPerPage) return;
 
-  int startY = drawerY + 80;
+  int startY = drawerY + kDrawerListTop;
   int listHeight = itemsPerPage * itemHeight;
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
@@ -331,7 +335,7 @@ void MenuDrawer::drawScrollIndicator() {
 }
 
 void MenuDrawer::clearScrollIndicatorArea() {
-  const int startY = drawerY + 80;
+  const int startY = drawerY + kDrawerListTop;
   const int listHeight = itemsPerPage * itemHeight;
   renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
 }
@@ -362,8 +366,7 @@ void MenuDrawer::refreshMainMenuSelection(int previousIndex, bool redrawScrollIn
  * @return Number of items per page
  */
 int MenuDrawer::getTocPageItems() const {
-  constexpr int headerReserved = 120;
-  int items = (tocDrawerHeight - headerReserved) / LIST_ITEM_HEIGHT;
+  int items = (tocDrawerHeight - kDrawerListTop - kDrawerListBottomPadding) / LIST_ITEM_HEIGHT;
   return (items < 1) ? 1 : items;
 }
 
@@ -507,7 +510,7 @@ void MenuDrawer::renderToc() {
   drawTocBackground();
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                        EpdFontFamily::BOLD);
@@ -516,7 +519,7 @@ void MenuDrawer::renderToc() {
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   if (totalItems == 0) {
     const int msgY = drawY + 24;
@@ -563,13 +566,14 @@ void MenuDrawer::renderToc() {
 
   const int totalPages = std::max(1, (totalItems + pageItems - 1) / pageItems);
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
-  char pageStr[24];
-  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  constexpr int kTocFooterAboveHints = 75;
-  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  const int previousPageNum = std::max(1, currentPageNum - 1);
+  const int nextPageNum = std::min(totalPages, currentPageNum + 1);
+  char previousPageLabel[12];
+  char nextPageLabel[12];
+  snprintf(previousPageLabel, sizeof(previousPageLabel), "\xC2\xAB %d", previousPageNum);
+  snprintf(nextPageLabel, sizeof(nextPageLabel), "%d \xC2\xBB", nextPageNum);
 
-  drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
+  drawMappedReaderNavHints("\xC2\xAB Back", "Select", previousPageLabel, nextPageLabel);
 }
 
 /**
@@ -582,7 +586,7 @@ void MenuDrawer::renderBookmarks() {
 
   drawTocBackground();
 
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
                        EpdFontFamily::BOLD);
@@ -606,7 +610,7 @@ void MenuDrawer::renderBookmarks() {
   }
 
   const int pageStartIndex = (bookmarkSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   for (int i = 0; i < pageItems; i++) {
     const int itemIndex = pageStartIndex + i;
@@ -652,7 +656,7 @@ void MenuDrawer::renderAnnotations() {
 
   drawTocBackground();
 
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
                        EpdFontFamily::BOLD);
@@ -681,7 +685,7 @@ void MenuDrawer::renderAnnotations() {
   }
 
   const int pageStartIndex = (annotationSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   for (int i = 0; i < pageItems; i++) {
     const int itemIndex = pageStartIndex + i;
@@ -729,7 +733,7 @@ void MenuDrawer::renderPercent() {
   drawTocBackground();
 
   // Header band matches TOC/Bookmarks/Annotations exactly.
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Go to Percent", true,
                        EpdFontFamily::BOLD);

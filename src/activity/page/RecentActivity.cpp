@@ -34,6 +34,7 @@
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -258,15 +259,15 @@ constexpr int kFavHeaderPadBottom = 8;
 constexpr int kSimpleUiLabelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
 constexpr int kSimpleUiBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int kSimpleUiTitleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
-constexpr int kHomeDrawerRowH = 60;
-constexpr int kHomeDrawerMainRowH = 54;
+constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
-constexpr int kHomeDrawerMainBottomPad = 100;
+constexpr int kHomeDrawerMainBottomPad = 40;
 
-enum class HomeDrawerMode { Main, Recents, Bookmarks, Annotations, BookmarkDetail, AnnotationDetail };
+enum class HomeDrawerMode { Main, Recents, Favorites, Bookmarks, Annotations, BookmarkDetail, AnnotationDetail };
 
 struct SimpleUiMetrics {
   int bodyTop = 0;
@@ -489,6 +490,9 @@ class RecentActivity::HomeMenuDrawer {
   struct DrawerRow {
     std::string label;
     std::string sublabel;
+    std::string bookPath;
+    std::string bookTitle;
+    std::string bookAuthor;
     std::string cachePath;
     int recentIndex = -1;
     int spine = -1;
@@ -520,16 +524,16 @@ class RecentActivity::HomeMenuDrawer {
     } else if (isHomeDrawerLandscape(renderer_)) {
       drawerW_ = sw / 2;
       drawerX_ = sw - drawerW_;
-      drawerH_ = kHomeDrawerHeaderH + 3 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     } else {
       drawerX_ = 0;
       drawerW_ = sw;
-      drawerH_ = kHomeDrawerHeaderH + 3 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
-    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 3 : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
+    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 4 : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
   }
 
   int headerHeight() const {
@@ -539,7 +543,9 @@ class RecentActivity::HomeMenuDrawer {
   const char* title() const {
     switch (mode_) {
       case HomeDrawerMode::Recents:
-        return "Manage Recents";
+        return "Recents";
+      case HomeDrawerMode::Favorites:
+        return "Favorites";
       case HomeDrawerMode::Bookmarks:
         return "Bookmarks";
       case HomeDrawerMode::Annotations:
@@ -556,7 +562,7 @@ class RecentActivity::HomeMenuDrawer {
 
   int itemCount() const {
     if (mode_ == HomeDrawerMode::Main) {
-      return 3;
+      return 4;
     }
     return static_cast<int>(rows_.size());
   }
@@ -564,12 +570,14 @@ class RecentActivity::HomeMenuDrawer {
   std::string mainLabel(const int index) const {
     switch (index) {
       case 0:
-        return "Manage Recents";
+        return "Recents";
       case 1:
-        return "Annotations";
-      case 2:
-      default:
         return "Bookmarks";
+      case 2:
+        return "Annotations";
+      case 3:
+      default:
+        return "Favorites";
     }
   }
 
@@ -593,6 +601,7 @@ class RecentActivity::HomeMenuDrawer {
     const int count = itemCount();
     if (count == 0) {
       const char* empty = mode_ == HomeDrawerMode::Recents       ? "No recent books"
+                          : mode_ == HomeDrawerMode::Favorites   ? "No favorites"
                           : mode_ == HomeDrawerMode::Bookmarks   ? "No bookmarks"
                           : mode_ == HomeDrawerMode::Annotations ? "No annotations"
                                                                  : "";
@@ -743,11 +752,14 @@ class RecentActivity::HomeMenuDrawer {
         loadRecents();
         mode_ = HomeDrawerMode::Recents;
       } else if (selected_ == 1) {
+        loadBookmarks();
+        mode_ = HomeDrawerMode::Bookmarks;
+      } else if (selected_ == 2) {
         loadAnnotations();
         mode_ = HomeDrawerMode::Annotations;
       } else {
-        loadBookmarks();
-        mode_ = HomeDrawerMode::Bookmarks;
+        loadFavorites();
+        mode_ = HomeDrawerMode::Favorites;
       }
       selected_ = 0;
       scroll_ = 0;
@@ -760,6 +772,10 @@ class RecentActivity::HomeMenuDrawer {
     }
     if (mode_ == HomeDrawerMode::Recents) {
       openSelectedRecent();
+      return;
+    }
+    if (mode_ == HomeDrawerMode::Favorites) {
+      openSelectedFavorite();
       return;
     }
     if (mode_ == HomeDrawerMode::Bookmarks) {
@@ -783,6 +799,20 @@ class RecentActivity::HomeMenuDrawer {
       DrawerRow row;
       row.label = bookDisplayTitle(books[i]);
       row.recentIndex = static_cast<int>(i);
+      rows_.push_back(std::move(row));
+    }
+  }
+
+  void loadFavorites() {
+    rows_.clear();
+    const std::vector<BookState::Book> favorites = BOOK_STATE.getFavoriteBooks();
+    for (const auto& book : favorites) {
+      DrawerRow row;
+      row.label = book.title.empty() ? formatTitle(getBaseFilename(book.path)) : book.title;
+      row.sublabel = book.author;
+      row.bookPath = book.path;
+      row.bookTitle = book.title;
+      row.bookAuthor = book.author;
       rows_.push_back(std::move(row));
     }
   }
@@ -816,6 +846,14 @@ class RecentActivity::HomeMenuDrawer {
     }
     const RecentBook& book = books[static_cast<size_t>(recentIndex)];
     owner_.openBookPath(book.path, book.title, book.author, true);
+  }
+
+  void openSelectedFavorite() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    const DrawerRow& row = rows_[selected_];
+    owner_.openBookPath(row.bookPath, row.bookTitle, row.bookAuthor, true);
   }
 
   void loadBookmarks() {
@@ -1274,11 +1312,11 @@ void RecentActivity::onExit() {
   homeMenuDrawer_ = nullptr;
   layoutEngine_.reset();
   layoutEngineBoundMode_ = ViewMode::Flow;
-  recentBooks.clear();
-  recentStats_.clear();
-  thumbnailPathCache_.clear();
-  coverPathCache_.clear();
-  simpleUiFavorites_.clear();
+  std::vector<RecentBook>().swap(recentBooks);
+  std::vector<CachedRecentStats>().swap(recentStats_);
+  std::unordered_map<std::string, std::string>().swap(thumbnailPathCache_);
+  std::unordered_map<std::string, std::string>().swap(coverPathCache_);
+  std::vector<BookState::Book>().swap(simpleUiFavorites_);
   renderer.resetTransientReaderState();
   Activity::onExit();
 }

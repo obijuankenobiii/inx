@@ -14,6 +14,7 @@
 
 #include "../Menu.h"
 #include "activity/ActivityWithSubactivity.h"
+#include "system/UiTheme.h"
 
 class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu {
  public:
@@ -50,7 +51,7 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   const std::function<void()> onTabSync_;
   const std::function<void()> onTabStatistics_;
 
-  static constexpr int kListItemHeight = 60;
+  static constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
   int selectedRow_ = 0;
   int scrollOffset_ = 0;

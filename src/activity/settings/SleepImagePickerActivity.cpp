@@ -93,6 +93,7 @@ void SleepImagePickerActivity::rebuildRows() {
 void SleepImagePickerActivity::onExit() {
   renderedPageStart = -1;
   freeGridBuffer();
+  std::vector<Row>().swap(rows);
   ActivityWithSubactivity::onExit();
 }
 

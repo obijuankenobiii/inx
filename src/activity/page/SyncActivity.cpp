@@ -7,10 +7,6 @@
 
 #include <GfxRenderer.h>
 
-#include "images/Calibre.h"
-#include "images/Opds.h"
-#include "images/Qr.h"
-#include "images/Wifi.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -130,7 +126,8 @@ void SyncActivity::render() const {
   const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device connections", true,
+                       EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, screenWidth, dividerY);
@@ -148,29 +145,11 @@ void SyncActivity::render() const {
         renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      constexpr int kIconSize = 30;
-      const int textX = 70;
-      const int iconX = (textX - kIconSize) / 2;
+      const int textX = 20;
       const int titleY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
-
-      switch (i) {
-        case 0:
-          renderer.bitmap.icon(Wifi, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-        case 1:
-          renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None,
-                               isSelected);
-          break;
-        case 2:
-          renderer.bitmap.icon(Qr, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-        case 3:
-          renderer.bitmap.icon(Opds, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-      }
 
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 30, titleY, "›", !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
         renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
