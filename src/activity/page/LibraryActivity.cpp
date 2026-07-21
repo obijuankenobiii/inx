@@ -23,6 +23,7 @@
 #include "../settings/LibraryIndexer.h"
 #include "images/Book.h"
 #include "images/BookLarge.h"
+#include "images/BookSmall.h"
 #include "images/Folder.h"
 #include "images/FolderLarge.h"
 #include "images/Image.h"
@@ -151,6 +152,11 @@ constexpr int LIB_SHELF_GAP_Y = 12;
 constexpr int LIB_SHELF_OUTER_PAD_X = 14;
 constexpr int LIB_SHELF_OUTER_PAD_Y = 10;
 constexpr int LIB_SHELF_BADGE_SIZE = 22;
+constexpr int LIB_BOOK_LIST_BADGE_SIZE = 32;
+constexpr int LIB_BOOK_LIST_BADGE_GAP = 8;
+constexpr int LIB_BOOK_LIST_BADGE_ICON_SIZE = 24;
+constexpr int LIB_SUBHEADING_HEIGHT = 36;
+constexpr int LIB_SUBHEADING_BOTTOM_THEME_EXTRA_HEIGHT = 8;
 constexpr uint32_t LIBRARY_TASK_STACK_SIZE = 8192;
 constexpr uint32_t LIBRARY_INDEX_TASK_STACK_SIZE = 6144;
 constexpr size_t LIBRARY_MAX_IN_MEMORY_ITEMS = 256;
@@ -605,7 +611,9 @@ void LibraryActivity::findBooksPaginated(const std::string& path, std::vector<Li
     }
 
     std::string filename = name;
-    if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
+    const bool includeFile = isValidBookFile(filename) || (currentViewMode != ViewMode::BOOK_LIST_VIEW &&
+                                                           isExportedNoteImagePath(fullPath, filename));
+    if (includeFile) {
       if (foundCount >= startIndex) {
         books.push_back(createBookItem(fullPath, filename, path));
       }
@@ -671,6 +679,10 @@ LibraryItem LibraryActivity::createFolderItem(const std::string& name, const std
 
 /** Returns the cached reading/favorite state flags for a book path. */
 uint8_t LibraryActivity::getBookStateFlags(const std::string& path) const {
+  if (isSupportedImageFile(path)) {
+    return 0;
+  }
+
   auto cached = bookStateCache_.find(path);
   if (cached != bookStateCache_.end()) {
     return cached->second;
@@ -1155,6 +1167,9 @@ void LibraryActivity::applyPaginationToCachedItems() {
 void LibraryActivity::applyPaginationToBooks(const std::vector<TempBookEntry>& tempBooks) {
   cachedLibraryItems_.clear();
   for (const auto& temp : tempBooks) {
+    if (currentViewMode == ViewMode::BOOK_LIST_VIEW && isSupportedImageFile(temp.path)) {
+      continue;
+    }
     if (!canAppendLibraryListItem(cachedLibraryItems_.size())) {
       break;
     }
@@ -1378,7 +1393,7 @@ void LibraryActivity::render() const {
   const int headerY = mainContentTop();
   const int headerHeight = HEADER_HEIGHT;
   const int dividerY = headerY + headerHeight;
-  const int gridStartY = dividerY - 3;
+  const int gridStartY = dividerY + librarySubheadingHeight() - 3;
 
   // Shelf mode decodes real cover thumbnails - expensive. If only the selection moved (same page,
   // same folder/tag, same item count as last render), skip the whole repaint: restore the framebuffer
@@ -1417,6 +1432,7 @@ void LibraryActivity::render() const {
   }
 
   renderer.line.render(0, dividerY, screenWidth, dividerY);
+  renderLibrarySubheading(dividerY);
 
   if (isInitialLoading_) {
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Loading library");
@@ -1931,7 +1947,7 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
       selectorIndex < itemCount) {
     const LibraryItem& item = currentPageItems[selectorIndex];
 
-    if (item.type == LibraryItem::Type::BOOK) {
+    if (item.type == LibraryItem::Type::BOOK && !isSupportedImageFile(item.path)) {
       auto* book = BOOK_STATE.findBookByPath(item.path);
 
       if (!book) {
@@ -2124,6 +2140,11 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
       return;
     }
 
+    if (isSupportedImageFile(item.path)) {
+      onSelectBook(item.path);
+      return;
+    }
+
     auto* book = BOOK_STATE.findBookByPath(item.path);
 
     if (!book) {
@@ -2308,10 +2329,7 @@ int LibraryActivity::getItemHeight(const LibraryItem& item) const {
   if (currentViewMode == ViewMode::FOLDER_VIEW && item.type == LibraryItem::Type::FOLDER) {
     return LIST_ITEM_HEIGHT;
   }
-  if (currentViewMode != ViewMode::BOOK_LIST_VIEW) {
-    return LIST_ITEM_HEIGHT;
-  }
-  return 70;
+  return LIST_ITEM_HEIGHT;
 }
 
 /** Whether the current folder browser should use the 3x4 grid layout. */
@@ -2331,6 +2349,44 @@ bool LibraryActivity::isLibraryGridMode() const {
 /** Returns whether the current view mode is the tag collection view. */
 bool LibraryActivity::isTagViewMode() const {
   return currentViewMode == ViewMode::TAG_VIEW && SETTINGS.useLibraryIndex;
+}
+
+int LibraryActivity::librarySubheadingHeight() const {
+  return LIB_SUBHEADING_HEIGHT + (INX_THEME.mainTabsAtBottom() ? LIB_SUBHEADING_BOTTOM_THEME_EXTRA_HEIGHT : 0);
+}
+
+int LibraryActivity::renderLibrarySubheading(int startY) const {
+  const int screenWidth = renderer.getScreenWidth() - 1;
+  const int height = librarySubheadingHeight();
+  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int textY = startY + (height - renderer.text.getLineHeight(fontId)) / 2 + 1;
+  std::string leftText;
+
+  if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+    if (selectorIndex >= 0 && selectorIndex < static_cast<int>(currentPageItems.size()) &&
+        currentPageItems[static_cast<size_t>(selectorIndex)].type == LibraryItem::Type::BOOK) {
+      leftText = currentPageItems[static_cast<size_t>(selectorIndex)].folderPath;
+    }
+    if (leftText.empty()) {
+      leftText = "Library";
+    }
+  } else {
+    const int itemCount = static_cast<int>(cachedLibraryItems_.size());
+    char buffer[24];
+    snprintf(buffer, sizeof(buffer), "%d item%s", itemCount, itemCount == 1 ? "" : "s");
+    leftText = buffer;
+  }
+
+  char pageText[24];
+  snprintf(pageText, sizeof(pageText), "Page %d - %d", currentPage + 1, std::max(1, totalPages));
+  const int pageW = renderer.text.getWidth(fontId, pageText);
+  const int leftMaxW = std::max(40, screenWidth - pageW - 50);
+  leftText = renderer.text.truncate(fontId, leftText.c_str(), leftMaxW);
+
+  renderer.text.render(fontId, 20, textY, leftText.c_str(), true);
+  renderer.text.render(fontId, screenWidth - pageW - 20, textY, pageText, true);
+  renderer.line.render(0, startY + height, screenWidth, startY + height, true, LineRender::Style::Dotted);
+  return startY + height;
 }
 
 /**
@@ -2644,14 +2700,47 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
 
   if (item.type == LibraryItem::Type::FOLDER) {
     renderer.bitmap.icon(Folder, iconX, iconY, 24, 24, BitmapRender::Orientation::None, isSelected);
+  } else if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
+    renderer.bitmap.icon(BookSmall, iconX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
   } else {
-    renderer.bitmap.icon(isSupportedImageFile(item.path) ? Image : Book, iconX, iconY + 2, 24, 24,
+    renderer.bitmap.icon(isSupportedImageFile(item.path) ? Image : BookSmall, iconX, iconY + 2, 24, 24,
                          BitmapRender::Orientation::None, isSelected);
 
     if (isBookMarked(item.path)) {
       int starX = renderer.getScreenWidth() - 1 - 45;
       renderer.bitmap.icon(Star, starX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
     }
+  }
+}
+
+void LibraryActivity::renderBookListBadges(const LibraryItem& item, int drawY, int itemHeight, bool isSelected,
+                                           int screenWidth) const {
+  if (currentViewMode != ViewMode::BOOK_LIST_VIEW || item.type != LibraryItem::Type::BOOK) {
+    return;
+  }
+
+  const bool showReadingBadge = isBookOpened(item.path) || isBookFinished(item.path);
+  const bool showFavoriteBadge = isBookMarked(item.path);
+  if (!showReadingBadge && !showFavoriteBadge) {
+    return;
+  }
+
+  int x = screenWidth - 15 - LIB_BOOK_LIST_BADGE_SIZE;
+  const int y = drawY + (itemHeight - LIB_BOOK_LIST_BADGE_SIZE) / 2;
+  const auto drawBadge = [&](const uint8_t* icon) {
+    renderer.rectangle.render(x, y, LIB_BOOK_LIST_BADGE_SIZE, LIB_BOOK_LIST_BADGE_SIZE, !isSelected, true);
+    renderer.bitmap.icon(icon, x + (LIB_BOOK_LIST_BADGE_SIZE - LIB_BOOK_LIST_BADGE_ICON_SIZE) / 2,
+                         y + (LIB_BOOK_LIST_BADGE_SIZE - LIB_BOOK_LIST_BADGE_ICON_SIZE) / 2,
+                         LIB_BOOK_LIST_BADGE_ICON_SIZE, LIB_BOOK_LIST_BADGE_ICON_SIZE, BitmapRender::Orientation::None,
+                         isSelected);
+    x -= LIB_BOOK_LIST_BADGE_SIZE + LIB_BOOK_LIST_BADGE_GAP;
+  };
+
+  if (showFavoriteBadge) {
+    drawBadge(Star);
+  }
+  if (showReadingBadge) {
+    drawBadge(Book);
   }
 }
 
@@ -2665,44 +2754,23 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
  */
 void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int itemHeight, bool isSelected,
                                      int screenWidth) const {
-  int iconX = 15;
-  int textX = iconX + 24 + 10;
-  int textWidth = screenWidth - textX - (isBookMarked(item.path) ? 50 : 15);
+  const bool bookListView = currentViewMode == ViewMode::BOOK_LIST_VIEW;
+  const int textX = 49;
+  const int badgeCount = bookListView ? (isBookMarked(item.path) ? 1 : 0) +
+                                            ((isBookOpened(item.path) || isBookFinished(item.path)) ? 1 : 0)
+                                      : 0;
+  const int badgeReserve = bookListView ? (badgeCount > 0 ? 15 + badgeCount * LIB_BOOK_LIST_BADGE_SIZE +
+                                                                (badgeCount - 1) * LIB_BOOK_LIST_BADGE_GAP + 10
+                                                          : 15)
+                                        : (isBookMarked(item.path) ? 50 : 15);
+  const int textWidth = std::max(40, screenWidth - textX - badgeReserve);
+  const int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  std::string displayText =
+      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
 
-  const bool useTwoLineFormat = currentViewMode == ViewMode::BOOK_LIST_VIEW;
-
-  if (useTwoLineFormat) {
-    std::string titleText =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 8, titleText.c_str(), !isSelected);
-
-    std::string secondLineText;
-    if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
-      secondLineText = !item.folderPath.empty() ? renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
-                                                                         item.folderPath.c_str(), textWidth - 5)
-                                                : "Library";
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, drawY + 40, secondLineText.c_str(), !isSelected);
-    }
-
-    const bool isDone = isBookFinished(item.path);
-    const int markerSpace =
-        secondLineText.empty()
-            ? textX
-            : renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, secondLineText.c_str()) + iconX + 40;
-    if (isDone) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 40, "(completed)", !isSelected,
-                           EpdFontFamily::BOLD);
-    }
-
-    if (isBookOpened(item.path) && !isDone) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, markerSpace, drawY + 40, "(reading)", !isSelected,
-                           EpdFontFamily::BOLD);
-    }
-  } else {
-    int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    std::string displayText =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
+  if (bookListView) {
+    renderBookListBadges(item, drawY, itemHeight, isSelected, screenWidth);
   }
 }
 

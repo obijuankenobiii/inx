@@ -70,15 +70,15 @@ class LibraryActivity final : public Activity, public Menu {
     TAG_ZA       ///< User tag/category Z-A, then title A-Z
   };
 
-  static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;;                             ///< Height of list items in folder view
-  static constexpr int HEADER_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of the library header row
-  static constexpr int FOLDER_ICON_WIDTH = 16;                            ///< Width of folder icon
-  static constexpr int FOLDER_ICON_SPACING = 20;                          ///< Spacing for folder icons
-  static constexpr int BOOK_ITEMS_PER_PAGE = 9;                           ///< Items per page for book view
-  static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                        ///< Items per page for folder view
-  static constexpr int GRID_ITEMS_PER_PAGE = 12;                          ///< Items per page for grid folder view
-  static constexpr int SHELF_ITEMS_PER_PAGE = 9;                          ///< Items per page for shelf view (3x3 grid)
-  static constexpr int GRID_ICON_SIZE = 150;                              ///< Icon frame size for grid folders
+  static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of list items in folder view
+  static constexpr int HEADER_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;     ///< Height of the library header row
+  static constexpr int FOLDER_ICON_WIDTH = 16;                               ///< Width of folder icon
+  static constexpr int FOLDER_ICON_SPACING = 20;                             ///< Spacing for folder icons
+  static constexpr int BOOK_ITEMS_PER_PAGE = 9;                              ///< Items per page for book view
+  static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                            ///< Items per page for folder view
+  static constexpr int GRID_ITEMS_PER_PAGE = 12;                             ///< Items per page for grid folder view
+  static constexpr int SHELF_ITEMS_PER_PAGE = 9;  ///< Items per page for shelf view (3x3 grid)
+  static constexpr int GRID_ICON_SIZE = 150;      ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
@@ -573,6 +573,8 @@ class LibraryActivity final : public Activity, public Menu {
    * @param startY Starting Y position for the list
    */
   void renderLibraryList(int startY) const;
+  int librarySubheadingHeight() const;
+  int renderLibrarySubheading(int startY) const;
   /** Renders the cover shelf grid view. */
   void renderLibraryShelf(int startY) const;
   /**
@@ -617,6 +619,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @param isSelected Whether the item is selected
    */
   void renderItemIcon(const LibraryItem& item, int drawY, int itemHeight, bool isSelected) const;
+  void renderBookListBadges(const LibraryItem& item, int drawY, int itemHeight, bool isSelected, int screenWidth) const;
 
   /**
    * @brief Render the text for a list item

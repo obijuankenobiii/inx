@@ -743,7 +743,7 @@ class RecentActivity::HomeMenuDrawer {
   void drawHints() {
     const auto labels =
         owner_.mappedInput.mapLabels("Back", "Select", "Up", mode_ == HomeDrawerMode::Recents ? "Delete" : "");
-    owner_.renderButtonHints(renderer_, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   void activateSelected() {
