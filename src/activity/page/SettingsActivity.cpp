@@ -37,6 +37,8 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage,
                                        {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
+  settings.push_back(
+      SettingInfo::Enum("Theme", &SystemSetting::uiTheme, {"Classic", "Bottom Tabs"}, GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum(
       "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
       {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,

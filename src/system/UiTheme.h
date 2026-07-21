@@ -10,7 +10,7 @@ class UiTheme {
 
   static constexpr int DRAWER_LIST_ITEM_HEIGHT = 66;
   static constexpr int MAIN_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
-  static constexpr int BOTTOM_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
+  static constexpr int BOTTOM_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT - 6;
   static constexpr int BOTTOM_CONTENT_PADDING = 5;
   static constexpr int TOP_STATUS_HEIGHT = 36;
   static constexpr int DRAWER_HEADER_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;

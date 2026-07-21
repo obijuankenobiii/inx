@@ -15,25 +15,12 @@
 namespace {
 constexpr int kMainTabCount = 5;
 constexpr int kMainTabIconSize = 38;
-constexpr int kBottomTabIconSize = 30;
 constexpr int kSelectedBorderWidth = 38;
 constexpr int kSelectedBorderHeight = 5;
-constexpr int kBottomTabIconLift = 5;
-constexpr int kBottomSelectedCircleSize = 49;
+constexpr int kBottomTabIconNudgeY = -3;
 constexpr int kPageHeaderTopPadding = 5;
 constexpr int kPageHeaderBottomPadding = 5;
 constexpr int kPageHeaderDividerThickness = 2;
-
-void fillCircle(const GfxRenderer& renderer, const int cx, const int cy, const int radius, const bool state) {
-  const int r2 = radius * radius;
-  for (int y = -radius; y <= radius; ++y) {
-    for (int x = -radius; x <= radius; ++x) {
-      if (x * x + y * y <= r2) {
-        renderer.drawPixel(cx + x, cy + y, state);
-      }
-    }
-  }
-}
 }  // namespace
 
 UiTheme& UiTheme::getInstance() {
@@ -67,28 +54,18 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 
   if (mainTabsAtBottom()) {
     renderer.rectangle.fill(0, tabY, screenWidth, tabH, static_cast<int>(GfxRenderer::FillTone::Paper));
-    renderer.line.render(0, tabY, screenWidth, tabY, true, LineRender::Style::Dotted);
+    renderer.line.render(0, tabY, screenWidth, tabY);
   }
 
   for (int i = 0; i < kMainTabCount; ++i) {
     const int buttonX = i * tabButtonWidth;
     const bool isSelected = selectedIndex == i;
-    const int iconSize = mainTabsAtBottom() ? kBottomTabIconSize : kMainTabIconSize;
-    const int iconX = buttonX + (tabButtonWidth - iconSize) / 2;
-    const int iconY = tabY + (tabH - iconSize) / 2 + (mainTabsAtBottom() ? 2 - kBottomTabIconLift : 5);
+    const int iconX = buttonX + (tabButtonWidth - kMainTabIconSize) / 2;
+    const int iconY = tabY + (tabH - kMainTabIconSize) / 2 + (mainTabsAtBottom() ? kBottomTabIconNudgeY : 5);
 
-    if (mainTabsAtBottom() && isSelected) {
-      fillCircle(renderer, iconX + iconSize / 2, iconY + iconSize / 2, kBottomSelectedCircleSize / 2, true);
-    }
-
-    const bool invertIcon = mainTabsAtBottom() && isSelected;
     auto drawTabIcon = [&](const uint8_t* icon) {
-      if (mainTabsAtBottom()) {
-        renderer.bitmap.iconScaled(icon, iconX, iconY, kMainTabIconSize, kMainTabIconSize, iconSize, iconSize,
-                                   BitmapRender::Orientation::None, invertIcon);
-      } else {
-        renderer.bitmap.icon(icon, iconX, iconY, iconSize, iconSize, BitmapRender::Orientation::None, invertIcon);
-      }
+      renderer.bitmap.icon(icon, iconX, iconY, kMainTabIconSize, kMainTabIconSize, BitmapRender::Orientation::None,
+                           false);
     };
     switch (i) {
       case 0:
@@ -108,16 +85,14 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
         break;
     }
 
-    if (isSelected && !mainTabsAtBottom()) {
-      const int selectedY = tabY + tabH - 2;
+    if (isSelected) {
+      const int selectedY = mainTabsAtBottom() ? tabY : tabY + tabH - 2;
       const int selectedX = iconX + (kMainTabIconSize - kSelectedBorderWidth) / 2;
       renderer.rectangle.fill(selectedX, selectedY, kSelectedBorderWidth, kSelectedBorderHeight,
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    if (!mainTabsAtBottom()) {
-      renderer.line.render(buttonX, tabY + tabH, buttonX + tabButtonWidth, tabY + tabH);
-    }
+    renderer.line.render(buttonX, tabY + tabH, buttonX + tabButtonWidth, tabY + tabH);
   }
 
   if (mainTabsAtBottom()) {

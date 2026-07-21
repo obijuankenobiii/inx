@@ -265,7 +265,7 @@ constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
-constexpr int kHomeDrawerMainBottomPad = 40;
+constexpr int kHomeDrawerMainBottomPad = 70;
 
 enum class HomeDrawerMode { Main, Recents, Favorites, Bookmarks, Annotations, BookmarkDetail, AnnotationDetail };
 

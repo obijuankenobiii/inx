@@ -178,9 +178,10 @@ std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string&
   if (!visibleBounds(renderer, x, y, width, height, visible)) {
     return "";
   }
-  char name[32];
-  snprintf(name, sizeof(name), "/%08lx.irdc",
-           static_cast<unsigned long>(cacheHash(sourcePath, width, height, visible, options)));
+  const uint32_t hash = cacheHash(sourcePath, width, height, visible, options);
+  char name[48];
+  snprintf(name, sizeof(name), "/%02lx/%08lx.irdc", static_cast<unsigned long>((hash >> 24) & 0xFF),
+           static_cast<unsigned long>(hash));
   return std::string(kCacheDir) + name;
 }
 
