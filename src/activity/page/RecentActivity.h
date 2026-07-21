@@ -117,6 +117,7 @@ class RecentActivity final : public Activity, public Menu {
 
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
+  void renderInitialLoadingFrame();
 
   /**
    * Renders a single grid item with cover, title, author and progress.
@@ -243,6 +244,7 @@ class RecentActivity final : public Activity, public Menu {
 
  private:
   bool firstRender = true;
+  bool pendingInitialLoadingFrame_ = false;
   bool suppressBufferedSelection_ = false;
   uint8_t* recentPageBuffer_ = nullptr;
   bool recentPageBufferStored_ = false;

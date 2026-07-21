@@ -1298,6 +1298,7 @@ void RecentActivity::onEnter() {
     scrollOffset = 0;
   }
 
+  pendingInitialLoadingFrame_ = true;
   updateRequired = true;
 }
 
@@ -1319,6 +1320,18 @@ void RecentActivity::onExit() {
   std::vector<BookState::Book>().swap(simpleUiFavorites_);
   renderer.resetTransientReaderState();
   Activity::onExit();
+}
+
+void RecentActivity::renderInitialLoadingFrame() {
+  renderer.clearScreen();
+  renderTabBar(renderer);
+
+  const int top = mainContentTop();
+  const int bottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 42;
+  const int centerY = top + std::max(1, bottom - top) / 2 - 12;
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Loading recents");
+
+  renderer.displayBuffer();
 }
 
 void RecentActivity::openHomeMenuDrawer() {
@@ -1822,6 +1835,12 @@ void RecentActivity::freeRecentPageBuffer() {
 
 void RecentActivity::pumpDisplayFromLoop() {
   if (!updateRequired) {
+    return;
+  }
+  if (pendingInitialLoadingFrame_) {
+    pendingInitialLoadingFrame_ = false;
+    renderInitialLoadingFrame();
+    updateRequired = true;
     return;
   }
   const bool canUseBuffer = canUseRecentPageBuffer();

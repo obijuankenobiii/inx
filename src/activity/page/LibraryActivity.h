@@ -18,6 +18,7 @@
 #include "../Menu.h"
 #include "state/BookTags.h"
 #include "state/RecentBooks.h"
+#include "system/UiTheme.h"
 
 /**
  * @brief Forward declaration of temporary book entry structure
@@ -69,14 +70,15 @@ class LibraryActivity final : public Activity, public Menu {
     TAG_ZA       ///< User tag/category Z-A, then title A-Z
   };
 
-  static constexpr int LIST_ITEM_HEIGHT = 60;       ///< Height of list items in folder view
-  static constexpr int FOLDER_ICON_WIDTH = 16;      ///< Width of folder icon
-  static constexpr int FOLDER_ICON_SPACING = 20;    ///< Spacing for folder icons
-  static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view
-  static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
-  static constexpr int GRID_ITEMS_PER_PAGE = 12;    ///< Items per page for grid folder view
-  static constexpr int SHELF_ITEMS_PER_PAGE = 9;    ///< Items per page for shelf view (3x3 grid)
-  static constexpr int GRID_ICON_SIZE = 150;        ///< Icon frame size for grid folders
+  static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;;                             ///< Height of list items in folder view
+  static constexpr int HEADER_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of the library header row
+  static constexpr int FOLDER_ICON_WIDTH = 16;                            ///< Width of folder icon
+  static constexpr int FOLDER_ICON_SPACING = 20;                          ///< Spacing for folder icons
+  static constexpr int BOOK_ITEMS_PER_PAGE = 9;                           ///< Items per page for book view
+  static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                        ///< Items per page for folder view
+  static constexpr int GRID_ITEMS_PER_PAGE = 12;                          ///< Items per page for grid folder view
+  static constexpr int SHELF_ITEMS_PER_PAGE = 9;                          ///< Items per page for shelf view (3x3 grid)
+  static constexpr int GRID_ICON_SIZE = 150;                              ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
