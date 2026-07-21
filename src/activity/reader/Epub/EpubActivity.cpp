@@ -1807,9 +1807,10 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // text AA already needs a medium grayscale pass, include those non-quality High images in the same pass.
   const bool readerImageTwoBit = bookSettings.readerImageGrayscale != 0 && pageHasImages;
   const bool highImageMode = bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH && pageHasImages;
-  const bool highQuality = highImageMode && page->anyImageNeedsGrayscale();
+  const bool pngMediumOnly = highImageMode && page->anyPngImage();
+  const bool highQuality = highImageMode && page->anyImageNeedsGrayscale() && !pngMediumOnly;
   const bool mediumImageGrayscale =
-      (bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages) ||
+      (bookSettings.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages) || pngMediumOnly ||
       (highImageMode && !highQuality && textAa);
   const bool needsImageGrayscale = mediumImageGrayscale || highQuality;
   const ImageRenderMode imageMode = readerImageTwoBit ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
@@ -2201,42 +2202,18 @@ void EpubActivity::applyBookSettings() {
   }
   ViewportInfo info = calculateViewport();
 
-  int totalSpineItems = epub->getSpineItemsCount();
-  if (totalSpineItems <= 0) {
+  const int totalSpineItems = epub->getSpineItemsCount();
+  if (totalSpineItems <= 0 || currentSpine < 0 || currentSpine >= totalSpineItems) {
     return;
   }
 
-  int startSpine = std::max(0, currentSpine - 1);
-  int endSpine = std::min(totalSpineItems - 1, currentSpine + 1);
-
-  int total = endSpine - startSpine + 1;
-  int rebuilt = 0;
-  ScreenComponents::LoadingProgressLayout layout{};
-  bool haveLayout = false;
   bool layoutBuildOk = true;
-
-  for (int spineIdx = startSpine; spineIdx <= endSpine; spineIdx++) {
-    rebuilt++;
-    const int pct = total > 0 ? rebuilt * 100 / total : 0;
-    if (!haveLayout || (rebuilt % 2 == 0) || rebuilt == total) {
-      layout = loadingProgressShow("Updating layout", pct);
-      haveLayout = true;
-    } else {
-      ScreenComponents::LoadingProgress::setProgress(renderer, layout, pct);
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(100));
-    if (!buildSection(spineIdx, info, false, true)) {
-      layoutBuildOk = false;
-    }
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
-
-  if (currentSpine < startSpine || currentSpine > endSpine) {
-    vTaskDelay(pdMS_TO_TICKS(10));
-    if (!buildSection(currentSpine, info, false, true)) {
-      layoutBuildOk = false;
-    }
+  auto layout = loadingProgressShow("Updating layout", 20);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  if (!buildSection(currentSpine, info, false, true)) {
+    layoutBuildOk = false;
+  } else {
+    ScreenComponents::LoadingProgress::setProgress(renderer, layout, 100);
   }
 
   if (!layoutBuildOk) {

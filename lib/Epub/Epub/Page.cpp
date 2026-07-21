@@ -19,6 +19,7 @@
 #include <new>
 
 #include "../../../src/images/Hr.h"
+#include "../../../src/util/StringUtils.h"
 
 namespace {
 
@@ -783,6 +784,16 @@ std::unique_ptr<PageCssBorderBox> PageCssBorderBox::deserialize(FsFile& file) {
 bool Page::anyImageNeedsGrayscale() const {
   return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
     return element->getTag() == TAG_PageImage && needsGrayscalePass(static_cast<const PageImage&>(*element));
+  });
+}
+
+bool Page::anyPngImage() const {
+  return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
+    if (element->getTag() != TAG_PageImage) {
+      return false;
+    }
+    const auto& image = static_cast<const PageImage&>(*element);
+    return StringUtils::checkFileExtension(image.getPath(), ".png");
   });
 }
 

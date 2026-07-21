@@ -12,16 +12,14 @@
 #include <algorithm>
 #include <cstdio>
 #include <memory>
-#include <vector>
 
 #include "GfxRenderer.h"
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 40;        // bump: discard high-quality image planes built with a bad GRAY2 base
+constexpr uint16_t kVersion = 46;        // bump: discard old PNG high-quality planes
 constexpr const char* kCacheDir = "/.system/cache";
 constexpr size_t kIoBufferSize = 2048;
-constexpr size_t kSourceSizeCacheMax = 64;
 
 struct CacheHeader {
   uint32_t magic;
@@ -55,23 +53,12 @@ uint32_t fnv1aAddUint32(uint32_t hash, const uint32_t value) {
 }
 
 uint32_t sourceSize(const std::string& path) {
-  static std::vector<std::pair<std::string, uint32_t>> cache;
-  for (const auto& entry : cache) {
-    if (entry.first == path) {
-      return entry.second;
-    }
-  }
-
   FsFile file;
   if (!SdMan.openFileForRead("IDC", path, file)) {
     return 0;
   }
   const uint32_t size = static_cast<uint32_t>(file.size());
   file.close();
-  if (cache.size() >= kSourceSizeCacheMax) {
-    cache.erase(cache.begin());
-  }
-  cache.push_back({path, size});
   return size;
 }
 

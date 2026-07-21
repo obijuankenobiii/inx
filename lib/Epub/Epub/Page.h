@@ -352,6 +352,7 @@ class Page {
   // images are all essentially 1-bit (comics / line art / mostly black-and-white) return false, so they can be
   // rendered as fast 1-bit instead of paying for the grayscale passes.
   bool anyImageNeedsGrayscale() const;
+  bool anyPngImage() const;
 
   /**
    * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap

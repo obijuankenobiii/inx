@@ -261,6 +261,8 @@ constexpr int kSimpleUiTitleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerRowH = 60;
 constexpr int kHomeDrawerMainRowH = 54;
 constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
+constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
 constexpr int kHomeDrawerMainBottomPad = 100;
 
@@ -461,12 +463,17 @@ class RecentActivity::HomeMenuDrawer {
       renderer_.rectangle.render(drawerX_, drawerY_, drawerW_, drawerH_, true);
     }
 
-    const int titleY =
-        drawerY_ + (kHomeDrawerHeaderH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-    renderer_.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
-                          EpdFontFamily::BOLD);
-    renderer_.line.render(drawerX_, drawerY_ + kHomeDrawerHeaderH, drawerX_ + drawerW_, drawerY_ + kHomeDrawerHeaderH,
-                          true);
+    const int headerH = headerHeight();
+    if (mode_ == HomeDrawerMode::Main) {
+      const int titleY = drawerY_ + (headerH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+      renderer_.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
+                            EpdFontFamily::BOLD);
+    } else {
+      const int titleY = drawerY_ + (headerH - renderer_.text.getLineHeight(kHomeDrawerHeaderFont)) / 2 + 4;
+      renderer_.text.render(kHomeDrawerHeaderFont, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
+                            EpdFontFamily::BOLD);
+    }
+    renderer_.line.render(drawerX_, drawerY_ + headerH, drawerX_ + drawerW_, drawerY_ + headerH, true);
 
     if (mode_ == HomeDrawerMode::AnnotationDetail) {
       renderDetail();
@@ -522,7 +529,11 @@ class RecentActivity::HomeMenuDrawer {
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
-    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 3 : std::max(1, (drawerH_ - kHomeDrawerHeaderH - 12 - 46) / rowH);
+    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 3 : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
+  }
+
+  int headerHeight() const {
+    return mode_ == HomeDrawerMode::Main ? kHomeDrawerHeaderH : kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
   }
 
   const char* title() const {
@@ -585,18 +596,19 @@ class RecentActivity::HomeMenuDrawer {
                           : mode_ == HomeDrawerMode::Bookmarks   ? "No bookmarks"
                           : mode_ == HomeDrawerMode::Annotations ? "No annotations"
                                                                  : "";
-      const int msgY = drawerY_ + kHomeDrawerHeaderH + 42;
+      const int msgY = drawerY_ + headerHeight() + 42;
       renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, empty, true);
       return;
     }
 
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
+    const int headerH = headerHeight();
     for (int row = 0; row < rowsPerPage_; ++row) {
       const int itemIndex = scroll_ + row;
       if (itemIndex >= count) {
         break;
       }
-      const int itemY = drawerY_ + kHomeDrawerHeaderH + row * rowH + 1;
+      const int itemY = drawerY_ + headerH + 1 + row * rowH;
       const bool selected = itemIndex == selected_;
       renderer_.rectangle.fill(
           drawerX_, itemY, drawerW_, rowH,
@@ -622,7 +634,7 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
 
-    int y = drawerY_ + kHomeDrawerHeaderH + 18;
+    int y = drawerY_ + headerHeight() + 18;
     const int textX = drawerX_ + kHomeDrawerPadX;
     const int maxW = drawerW_ - kHomeDrawerPadX * 2;
     std::string remaining = detailText_;
@@ -721,7 +733,7 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels =
-        owner_.mappedInput.mapLabels("Back", "Select", "Up", mode_ == HomeDrawerMode::Recents ? "Del" : "");
+        owner_.mappedInput.mapLabels("Back", "Select", "Up", mode_ == HomeDrawerMode::Recents ? "Delete" : "");
     owner_.renderButtonHints(renderer_, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
@@ -747,7 +759,7 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
     if (mode_ == HomeDrawerMode::Recents) {
-      deleteSelectedRecent();
+      openSelectedRecent();
       return;
     }
     if (mode_ == HomeDrawerMode::Bookmarks) {
@@ -791,6 +803,19 @@ class RecentActivity::HomeMenuDrawer {
     }
     clampScroll();
     render();
+  }
+
+  void openSelectedRecent() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    const int recentIndex = rows_[selected_].recentIndex;
+    const auto& books = RECENT_BOOKS.getBooks();
+    if (recentIndex < 0 || recentIndex >= static_cast<int>(books.size())) {
+      return;
+    }
+    const RecentBook& book = books[static_cast<size_t>(recentIndex)];
+    owner_.openBookPath(book.path, book.title, book.author, true);
   }
 
   void loadBookmarks() {

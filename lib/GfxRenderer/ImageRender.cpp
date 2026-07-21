@@ -143,13 +143,14 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   if (!options.useDisplayCache) {
     return false;
   }
+  const bool effectiveQuality = quality && format_ != Format::Png;
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = ImageRenderMode::TwoBit;
   cacheOptions.roundedOutside = options.roundedOutside;
-  cacheOptions.quality = quality;
+  cacheOptions.quality = effectiveQuality;
   const bool hit = ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions,
-                                                               quality, options.fastQuality);
+                                                               effectiveQuality, options.fastQuality);
   return hit;
 }
 
@@ -158,22 +159,24 @@ bool ImageRender::hasCachedTwoBit(int x, int y, int width, int height, const Opt
   if (!options.useDisplayCache) {
     return false;
   }
+  const bool effectiveQuality = quality && format_ != Format::Png;
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = ImageRenderMode::TwoBit;
   cacheOptions.roundedOutside = options.roundedOutside;
-  cacheOptions.quality = quality;
-  return ImageDisplayCache::hasCachedTwoBit(renderer_, path_, x, y, width, height, cacheOptions, quality);
+  cacheOptions.quality = effectiveQuality;
+  return ImageDisplayCache::hasCachedTwoBit(renderer_, path_, x, y, width, height, cacheOptions, effectiveQuality);
 }
 
 bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,
                                    const bool quality) const {
+  const bool effectiveQuality = quality && format_ != Format::Png;
   Options opt = options;
   opt.mode = ImageRenderMode::TwoBit;
-  opt.quality = quality;
+  opt.quality = effectiveQuality;
   opt.useDisplayCache = true;
 
-  if (displayCachedTwoBit(x, y, width, height, opt, quality)) {
+  if (displayCachedTwoBit(x, y, width, height, opt, effectiveQuality)) {
     return true;  // served from cache (handles both planes + refresh + cleanup)
   }
 
@@ -194,9 +197,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
       capture.capacity = neededBytes;
 
       renderer_.renderGrayscalePasses(
-          quality, /*preserveText=*/false,
+          effectiveQuality, /*preserveText=*/false,
           [&] {
-            renderer_.clearScreen(quality ? 0xFF : 0x00);
+            renderer_.clearScreen(effectiveQuality ? 0xFF : 0x00);
             render(x, y, width, height, opt, &capture);
           },
           opt.fastQuality);
@@ -205,9 +208,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
   }
 
   renderer_.renderGrayscalePasses(
-      quality, /*preserveText=*/false,
+      effectiveQuality, /*preserveText=*/false,
       [&] {
-        renderer_.clearScreen(quality ? 0xFF : 0x00);
+        renderer_.clearScreen(effectiveQuality ? 0xFF : 0x00);
         render(x, y, width, height, opt);  // renders into the current plane's render mode AND stores to cache
       },
       opt.fastQuality);
