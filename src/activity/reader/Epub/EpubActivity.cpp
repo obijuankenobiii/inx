@@ -461,10 +461,7 @@ void EpubActivity::ensureThumbnailExists() {
   const std::string thumbJpegPath = epub->getThumbJpegPath();
   const std::string thumbBmpPath = epub->getThumbBmpPath();
   if (!SdMan.exists(thumbJpegPath.c_str()) && !SdMan.exists(thumbBmpPath.c_str())) {
-    // JPEG decode/encode needs a large contiguous buffer; an SD streaming reader font holds enough heap to
-    // make it fail. Release the SD font for the duration and reload it afterward.
-    FontManager::withSdFontsReleasedForHeapIntensiveWork(bookSettings.getReaderFontId(),
-                                                         [this]() { epub->generateThumbBmp(); });
+    epub->generateThumbBmp();
   }
 }
 
@@ -475,9 +472,7 @@ void EpubActivity::displayCoverOrTitle() {
   const std::string coverJpegPath = epub->getCoverJpegPath(false);
   std::string coverPath = epub->getCoverBmpPath(false);
   if (!SdMan.exists(coverPath.c_str()) && !SdMan.exists(coverJpegPath.c_str())) {
-    // Same heap-intensive JPEG path as the thumbnail; free the SD reader font around it (then reload).
-    FontManager::withSdFontsReleasedForHeapIntensiveWork(bookSettings.getReaderFontId(),
-                                                         [this]() { epub->generateCoverBmp(false); });
+    epub->generateCoverBmp(false);
   }
 
   if (SdMan.exists(coverJpegPath.c_str())) {
@@ -487,8 +482,7 @@ void EpubActivity::displayCoverOrTitle() {
     ImageRender::Options options;
     options.cropToFill = true;
     if (ImageRender::create(renderer, coverJpegPath).render(0, 0, pageWidth, pageHeight, options)) {
-      renderer.displayBuffer();
-      renderer.displayBuffer();
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       return;
     }
   }
@@ -500,8 +494,7 @@ void EpubActivity::displayCoverOrTitle() {
     options.cropToFill = true;
     renderer.clearScreen();
     if (ImageRender::create(renderer, coverPath).render(0, 0, pageWidth, pageHeight, options)) {
-      renderer.displayBuffer();
-      renderer.displayBuffer();
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       return;
     }
   } else {

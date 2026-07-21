@@ -14,6 +14,7 @@
 #include "TxtReaderActivity.h"
 #include "Xtc.h"
 #include "XtcReaderActivity.h"
+#include "system/FontManager.h"
 #include "system/ScreenComponents.h"
 #include "util/StringUtils.h"
 
@@ -118,6 +119,7 @@ void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
   auto callback = onGoBack;
 
   exitActivity();
+  FontManager::unloadAllSDFonts();
   enterNewActivity(new EpubActivity(
       renderer, mappedInput, std::move(epub),
       [callback, bookPath] {
