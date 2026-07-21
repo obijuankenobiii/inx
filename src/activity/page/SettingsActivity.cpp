@@ -11,6 +11,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <vector>
+
 #include "../settings/CategorySettingsActivity.h"
 #include "../settings/LibraryIndexer.h"
 #include "../settings/ReaderPresetsActivity.h"
@@ -22,135 +24,97 @@
 const int LIST_ITEM_HEIGHT = 60;
 
 namespace {
-const SettingInfo systemPageSettingsX3[] = {
-    SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
-                      {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None", "Date Time"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
-                      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,
-                       SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1}, GroupType::DEVICE_DISPLAY),
+std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
+  std::vector<SettingInfo> settings;
+  settings.reserve(x3 ? 42 : 35);
 
-    SettingInfo::Separator("Clock", GroupType::CLOCK),
-    SettingInfo::Action("Face", GroupType::CLOCK),
-    SettingInfo::Enum("Format", &SystemSetting::sleepClockTimeFormat, {"12 hour", "24 hour"}, GroupType::CLOCK),
-    SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::CLOCK),
-    SettingInfo::Action("Sync", GroupType::CLOCK),
+  settings.push_back(SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Enum(
+      "Sleep Screen", &SystemSetting::sleepScreen,
+      x3 ? std::vector<std::string>{"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None", "Date Time"}
+         : std::vector<std::string>{"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"},
+      GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage,
+                                       {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Enum(
+      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
+      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,
+       SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
+      GroupType::DEVICE_DISPLAY));
+  settings.push_back(
+      SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
+                                        GroupType::DEVICE_DISPLAY));
 
-    SettingInfo::Separator("Image", GroupType::IMAGE),
-    SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fill", "Crop"}, GroupType::IMAGE),
-    SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter, {"None", "Contrast", "Inverted"},
-                      GroupType::IMAGE),
-    SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality, {"Low", "Medium", "High"},
-                      GroupType::IMAGE),
-    SettingInfo::Enum("Thumbnail corners", &SystemSetting::bitmapRoundedCorners, {"Square", "Rounded", "Subtle"},
-                      GroupType::IMAGE),
+  if (x3) {
+    settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));
+    settings.push_back(SettingInfo::Action("Face", GroupType::CLOCK));
+    settings.push_back(
+        SettingInfo::Enum("Format", &SystemSetting::sleepClockTimeFormat, {"12 hour", "24 hour"}, GroupType::CLOCK));
+    settings.push_back(
+        SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::CLOCK));
+    settings.push_back(SettingInfo::Action("Sync", GroupType::CLOCK));
+  }
 
-    SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
-                      {"Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right",
-                       "Back, Confirm, Right, Left"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Main Menu Buttons", &SystemSetting::mainMenuNav, {"Front (Left/Right)", "Side (Up/Down)"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Flick page turn", &SystemSetting::shakePageTurn, {"Off", "Normal", "Inverted"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Flick sensitivity", &SystemSetting::shakePageTurnSensitivity, {"Low", "Normal", "High"},
-                      GroupType::DEVICE_BUTTONS),
+  settings.push_back(SettingInfo::Separator("Image", GroupType::IMAGE));
+  settings.push_back(
+      SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fill", "Crop"}, GroupType::IMAGE));
+  settings.push_back(SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter,
+                                       {"None", "Contrast", "Inverted"}, GroupType::IMAGE));
+  settings.push_back(SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality,
+                                       {"Low", "Medium", "High"}, GroupType::IMAGE));
+  settings.push_back(SettingInfo::Enum("Thumbnail corners", &SystemSetting::bitmapRoundedCorners,
+                                       {"Square", "Rounded", "Subtle"}, GroupType::IMAGE));
 
-    SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
-    SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"},
-                      GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"},
-                      GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings,
-                        GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
+  settings.push_back(SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS));
+  settings.push_back(SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
+                                       {"Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm",
+                                        "Left, Back, Confirm, Right", "Back, Confirm, Right, Left"},
+                                       GroupType::DEVICE_BUTTONS));
+  settings.push_back(SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn,
+                                       {"Ignore", "Sleep", "Page Refresh"}, GroupType::DEVICE_BUTTONS));
+  settings.push_back(SettingInfo::Enum("Main Menu Buttons", &SystemSetting::mainMenuNav,
+                                       {"Front (Left/Right)", "Side (Up/Down)"}, GroupType::DEVICE_BUTTONS));
+  if (x3) {
+    settings.push_back(SettingInfo::Enum("Flick page turn", &SystemSetting::shakePageTurn,
+                                         {"Off", "Normal", "Inverted"}, GroupType::DEVICE_BUTTONS));
+    settings.push_back(SettingInfo::Enum("Flick sensitivity", &SystemSetting::shakePageTurnSensitivity,
+                                         {"Low", "Normal", "High"}, GroupType::DEVICE_BUTTONS));
+  }
 
-    SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("About", GroupType::NONE)};
-constexpr int systemPageSettingsX3Count = sizeof(systemPageSettingsX3) / sizeof(systemPageSettingsX3[0]);
+  settings.push_back(SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED));
+  settings.push_back(SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout,
+                                       {"1 min", "5 min", "10 min", "15 min", "30 min"}, GroupType::DEVICE_ADVANCED));
+  settings.push_back(
+      SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED));
+  settings.push_back(
+      SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED));
+  settings.push_back(SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"},
+                                       GroupType::DEVICE_ADVANCED));
+  settings.push_back(
+      SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED));
+  settings.push_back(SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary,
+                                         GroupType::DEVICE_ADVANCED));
+  settings.push_back(SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings,
+                                         GroupType::DEVICE_ADVANCED));
+  settings.push_back(
+      SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED));
+  settings.push_back(SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics,
+                                         GroupType::DEVICE_ADVANCED));
 
-const SettingInfo systemPageSettingsX4[] = {
-    SettingInfo::Separator("Display ", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Sleep Screen", &SystemSetting::sleepScreen,
-                      {"Dark", "Light", "Custom", "Recent Book", "Transparent Cover", "None"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage, {"Never", "In Reader", "Always"},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Recent Library Mode", &SystemSetting::recentLibraryMode,
-                      {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
-                      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,
-                       SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
-                      GroupType::DEVICE_DISPLAY),
-    SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY),
-    SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1}, GroupType::DEVICE_DISPLAY),
+  settings.push_back(SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS));
+  settings.push_back(SettingInfo::Action("About", GroupType::NONE));
 
-    SettingInfo::Separator("Image", GroupType::IMAGE),
-    SettingInfo::Enum("Cover Mode", &SystemSetting::sleepScreenCoverMode, {"Fill", "Crop"}, GroupType::IMAGE),
-    SettingInfo::Enum("Cover Filter", &SystemSetting::sleepScreenCoverFilter, {"None", "Contrast", "Inverted"},
-                      GroupType::IMAGE),
-    SettingInfo::Enum("Sleep Image Quality", &SystemSetting::sleepImageQuality, {"Low", "Medium", "High"},
-                      GroupType::IMAGE),
-    SettingInfo::Enum("Thumbnail corners", &SystemSetting::bitmapRoundedCorners, {"Square", "Rounded", "Subtle"},
-                      GroupType::IMAGE),
-
-    SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
-                      {"Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm", "Left, Back, Confirm, Right",
-                       "Back, Confirm, Right, Left"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Short Power Button Click", &SystemSetting::shortPwrBtn, {"Ignore", "Sleep", "Page Refresh"},
-                      GroupType::DEVICE_BUTTONS),
-    SettingInfo::Enum("Main Menu Buttons", &SystemSetting::mainMenuNav, {"Front (Left/Right)", "Side (Up/Down)"},
-                      GroupType::DEVICE_BUTTONS),
-
-    SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED),
-    SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"},
-                      GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"},
-                      GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings,
-                        GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED),
-    SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics, GroupType::DEVICE_ADVANCED),
-
-    SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS),
-    SettingInfo::Action("About", GroupType::NONE)};
-constexpr int systemPageSettingsX4Count = sizeof(systemPageSettingsX4) / sizeof(systemPageSettingsX4[0]);
+  return settings;
+}
 
 }  // namespace
 
@@ -282,11 +246,9 @@ void SettingsActivity::openCurrentPanel() {
   }
 
   const char* title = "System settings";
-  const SettingInfo* list = renderer.deviceIsX3() ? systemPageSettingsX3 : systemPageSettingsX4;
-  const int count = renderer.deviceIsX3() ? systemPageSettingsX3Count : systemPageSettingsX4Count;
 
   enterNewActivity(new CategorySettingsActivity(
-      renderer, mappedInput, title, list, count, [this] { swapPanelAndReopen(); },
+      renderer, mappedInput, title, buildSystemPageSettings(renderer.deviceIsX3()), [this] { swapPanelAndReopen(); },
       [this] {
         exitActivity();
         startLibraryIndexing();

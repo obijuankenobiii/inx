@@ -12,6 +12,7 @@
 #include <array>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../Menu.h"
@@ -178,6 +179,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   int selectorSelectedIndex = 0;
   int selectorScrollOffset = 0;
   const char* categoryName;
+  std::vector<SettingInfo> settingsStorage;
   const SettingInfo* settingsList;
   int settingsCount;
   const std::function<void()> onGoBack;
@@ -249,7 +251,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
 
  public:
   CategorySettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const char* categoryName,
-                           const SettingInfo* settingsList, int settingsCount, const std::function<void()>& onGoBack,
+                           std::vector<SettingInfo> settings, const std::function<void()>& onGoBack,
                            std::function<void()> indexLibraryHandler = nullptr,
                            std::function<void()> aboutPanelHandler = nullptr, const char* backLabel = nullptr,
                            std::function<void()> tabNavigateRecent = nullptr,
@@ -259,8 +261,9 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
       : ActivityWithSubactivity("CategorySettings", renderer, mappedInput),
         Menu(),
         categoryName(categoryName),
-        settingsList(settingsList),
-        settingsCount(settingsCount),
+        settingsStorage(std::move(settings)),
+        settingsList(settingsStorage.data()),
+        settingsCount(static_cast<int>(settingsStorage.size())),
         onGoBack(onGoBack),
         onIndexLibrary(std::move(indexLibraryHandler)),
         onAboutPanel(std::move(aboutPanelHandler)),
