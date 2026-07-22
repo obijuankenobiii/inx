@@ -420,6 +420,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
     success = false;
   }
 
+  epub->releaseParsedCssParser();
   SdMan.remove(tmpHtmlPath.c_str());
 
   if (!success) {

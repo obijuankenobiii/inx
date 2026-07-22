@@ -57,6 +57,7 @@ bool spineHrefLooksLikeRenderableHtml(const std::string& href) {
 
 constexpr const char* kPackagedDeviceThumbnailPath = "META-INF/thumbnail.jpg";
 constexpr const char* kBookMetadataCacheFile = "/book.bin";
+const std::string kEmptyString;
 
 }  // namespace
 
@@ -652,8 +653,7 @@ const std::string& Epub::getPath() const { return filepath; }
  * @return Book title string, empty if not loaded
  */
 const std::string& Epub::getTitle() const {
-  static std::string s;
-  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.title : s;
+  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.title : kEmptyString;
 }
 
 /**
@@ -662,8 +662,7 @@ const std::string& Epub::getTitle() const {
  * @return Author name string, empty if not loaded
  */
 const std::string& Epub::getAuthor() const {
-  static std::string s;
-  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.author : s;
+  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.author : kEmptyString;
 }
 
 /**
@@ -672,8 +671,7 @@ const std::string& Epub::getAuthor() const {
  * @return Language code string, empty if not loaded
  */
 const std::string& Epub::getLanguage() const {
-  static std::string s;
-  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.language : s;
+  return (bookMetadataCache && bookMetadataCache->isLoaded()) ? bookMetadataCache->coreMetadata.language : kEmptyString;
 }
 
 /**
@@ -964,6 +962,11 @@ const CssParser* Epub::getParsedCssParser() const {
     Serial.printf("[EBP] Parsed CSS cache was not saved\n");
   }
   return parsedCssParser_.get();
+}
+
+void Epub::releaseParsedCssParser() const {
+  parsedCssParser_.reset();
+  parsedCssLoaded_ = false;
 }
 
 /**

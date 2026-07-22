@@ -40,6 +40,8 @@ bool hasJpegExt(const std::string& path) {
 
 bool hasPngExt(const std::string& path) { return StringUtils::checkFileExtension(path, ".png"); }
 
+bool hasBmpExt(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
+
 bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
   if (needle == nullptr || *needle == '\0') {
     return true;
@@ -710,13 +712,16 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
   std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
 
-  int actualW = 0, actualH = 0;
-  if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
-    const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMaxH = css().getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMinH = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMaxH = css().getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMinH = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
 
+  int actualW = 0, actualH = 0;
+  bool imageAvailable = false;
+  if (imgWidth > 0 && imgHeight > 0) {
+    imageAvailable = ensureImageFileAvailable(fullInternalPath, cacheImgPath);
+  } else if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
     if (imgWidth == 0 && cssMaxW > 0) {
       imgWidth = std::min(actualW, cssMaxW);
       imgHeight = (actualH * imgWidth) / std::max(1, actualW);
@@ -738,7 +743,10 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgWidth = actualW;
       imgHeight = actualH;
     }
+    imageAvailable = true;
+  }
 
+  if (imageAvailable) {
     if (cssMaxW > 0 && imgWidth > cssMaxW) {
       imgHeight = (imgHeight * cssMaxW) / std::max(1, imgWidth);
       imgWidth = cssMaxW;
@@ -2216,7 +2224,7 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
   }
 
   bool result = false;
-  if (cacheIsJpeg || cacheIsPng) {
+  if (cacheIsJpeg || cacheIsPng || hasBmpExt(internalPath)) {
     result = epub.extractItemToPath(internalPath, cacheImgPath, 4096);
   } else {
     result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
@@ -2237,6 +2245,30 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
   Serial.printf("[%lu] [EBP-IMG] ensureImageCached failed href=%s\n", static_cast<unsigned long>(millis()),
                 internalPath.c_str());
   return false;
+}
+
+bool ChapterHtmlSlimParser::ensureImageFileAvailable(const std::string& internalPath, const std::string& cacheImgPath) {
+  if (SdMan.exists(cacheImgPath.c_str())) {
+    return true;
+  }
+
+  if (skipImages) {
+    Serial.printf("[%lu] [EBP-IMG] skip extract (known size) href=%s\n", static_cast<unsigned long>(millis()),
+                  internalPath.c_str());
+    return false;
+  }
+
+  const bool rawRenderable = hasJpegExt(internalPath) || hasPngExt(internalPath) || hasBmpExt(internalPath);
+  const bool result = rawRenderable ? epub.extractItemToPath(internalPath, cacheImgPath, 4096)
+                                    : epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  if (result && ++imageExtractCountForYield_ % 2u == 0u) {
+    yield();
+  }
+  if (!result) {
+    Serial.printf("[%lu] [EBP-IMG] ensureImageFileAvailable failed href=%s\n", static_cast<unsigned long>(millis()),
+                  internalPath.c_str());
+  }
+  return result;
 }
 
 /**
