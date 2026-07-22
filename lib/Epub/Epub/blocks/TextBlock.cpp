@@ -16,6 +16,8 @@
 
 namespace {
 
+constexpr uint8_t kScriptScalePct = 70;
+
 EpdFontFamily::Style bionicStyleFor(EpdFontFamily::Style style) {
   switch (style) {
     case EpdFontFamily::ITALIC:
@@ -36,6 +38,36 @@ int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const 
   }
   // renderSmallCaps returns its advance, so no separate width measurement pass is needed.
   return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
+}
+
+int renderWordSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y, const std::string& text,
+                      const EpdFontFamily::Style style, const bool smallCaps, const uint8_t verticalAlign) {
+  if (text.empty()) {
+    return x;
+  }
+  if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
+    const int lineHeight = renderer.text.getLineHeight(fontId);
+    const int scriptY =
+        verticalAlign == TextBlock::SUPERSCRIPT ? y - std::max(1, lineHeight / 3) : y + std::max(1, lineHeight / 5);
+    if (smallCaps) {
+      return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, true, style);
+    }
+    return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, true, style);
+  }
+  if (smallCaps) {
+    return renderSmallCapsSegment(renderer, fontId, x, y, text, style);
+  }
+  renderer.text.render(fontId, x, y, text.c_str(), true, style);
+  return x + renderer.text.getWidth(fontId, text.c_str(), style);
+}
+
+int measureWordSegment(const GfxRenderer& renderer, const int fontId, const std::string& text,
+                       const EpdFontFamily::Style style, const bool smallCaps, const uint8_t verticalAlign) {
+  if (verticalAlign == TextBlock::SUPERSCRIPT || verticalAlign == TextBlock::SUBSCRIPT) {
+    return renderer.text.getScaledWidth(fontId, text.c_str(), kScriptScalePct, style);
+  }
+  return smallCaps ? renderer.text.getSmallCapsWidth(fontId, text.c_str(), style)
+                   : renderer.text.getWidth(fontId, text.c_str(), style);
 }
 
 }  // namespace
@@ -65,10 +97,12 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||
       (!bionicPrefixBytes.empty() && bionicPrefixBytes.size() != words.size()) ||
       (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size()) ||
+      (!wordVerticalAlign.empty() && wordVerticalAlign.size() != words.size()) ||
       (!wordImagePaths.empty() && wordImagePaths.size() != words.size())) {
-    Serial.printf("[%lu] [TXB] Render skipped: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u)\n",
+    Serial.printf("[%lu] [TXB] Render skipped: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u, va=%u)\n",
                   millis(), (uint32_t)words.size(), (uint32_t)wordXpos.size(), (uint32_t)wordStyles.size(),
-                  (uint32_t)bionicPrefixBytes.size(), (uint32_t)wordSmallCaps.size());
+                  (uint32_t)bionicPrefixBytes.size(), (uint32_t)wordSmallCaps.size(),
+                  (uint32_t)wordVerticalAlign.size());
     return;
   }
 
@@ -78,6 +112,7 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
   auto prefixIt = bionicPrefixBytes.begin();
   auto smallCapsIt = wordSmallCaps.begin();
   auto underlineIt = wordUnderline.begin();
+  auto verticalAlignIt = wordVerticalAlign.begin();
   auto imgPathIt = wordImagePaths.begin();
   auto imgWIt = wordImageW.begin();
   auto imgHIt = wordImageH.begin();
@@ -91,6 +126,7 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
     const uint8_t prefixBytes = bionicPrefixBytes.empty() ? 0 : *prefixIt;
     const bool smallCaps = !wordSmallCaps.empty() && (*smallCapsIt != 0);
     const bool underline = !wordUnderline.empty() && (*underlineIt != 0);
+    const uint8_t verticalAlign = wordVerticalAlign.empty() ? BASELINE : *verticalAlignIt;
     const int startX = *xIt + x;
     int endX = startX;
 
@@ -105,6 +141,7 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
       if (!bionicPrefixBytes.empty()) ++prefixIt;
       if (!wordSmallCaps.empty()) ++smallCapsIt;
       if (!wordUnderline.empty()) ++underlineIt;
+      if (!wordVerticalAlign.empty()) ++verticalAlignIt;
       ++imgPathIt;
       if (imgWIt != wordImageW.end()) ++imgWIt;
       if (imgHIt != wordImageH.end()) ++imgHIt;
@@ -112,30 +149,16 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
     }
 
     if (prefixBytes == 0 || prefixBytes >= wordIt->size()) {
-      if (smallCaps) {
-        endX = renderSmallCapsSegment(renderer, fontId, startX, y, *wordIt, *styleIt);
-      } else {
-        renderer.text.render(fontId, startX, y, wordIt->c_str(), true, *styleIt);
-        // Word width is only needed to draw the underline — skip the extra measure pass otherwise.
-        if (underline) {
-          endX = startX + renderer.text.getWidth(fontId, wordIt->c_str(), *styleIt);
-        }
-      }
+      endX = renderWordSegment(renderer, fontId, startX, y, *wordIt, *styleIt, smallCaps, verticalAlign);
     } else {
       const std::string prefix = wordIt->substr(0, prefixBytes);
       const std::string suffix = wordIt->substr(prefixBytes);
       const auto prefixStyle = bionicStyleFor(*styleIt);
-      if (smallCaps) {
-        const int suffixX = renderSmallCapsSegment(renderer, fontId, startX, y, prefix, prefixStyle);
-        endX = renderSmallCapsSegment(renderer, fontId, suffixX, y, suffix, *styleIt);
-      } else {
-        renderer.text.render(fontId, startX, y, prefix.c_str(), true, prefixStyle);
-        const int suffixX = startX + renderer.text.getWidth(fontId, prefix.c_str(), prefixStyle);
-        renderer.text.render(fontId, suffixX, y, suffix.c_str(), true, *styleIt);
-        if (underline) {
-          endX = suffixX + renderer.text.getWidth(fontId, suffix.c_str(), *styleIt);
-        }
-      }
+      const int suffixX = renderWordSegment(renderer, fontId, startX, y, prefix, prefixStyle, smallCaps, verticalAlign);
+      endX = renderWordSegment(renderer, fontId, suffixX, y, suffix, *styleIt, smallCaps, verticalAlign);
+    }
+    if (underline && endX <= startX) {
+      endX = startX + measureWordSegment(renderer, fontId, *wordIt, *styleIt, smallCaps, verticalAlign);
     }
     if (underline && endX > startX) {
       renderer.line.render(startX, underlineY, endX - 1, underlineY, true);
@@ -149,6 +172,9 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
     if (!wordUnderline.empty()) {
       ++underlineIt;
     }
+    if (!wordVerticalAlign.empty()) {
+      ++verticalAlignIt;
+    }
     if (hasImages) {
       if (imgPathIt != wordImagePaths.end()) ++imgPathIt;
       if (imgWIt != wordImageW.end()) ++imgWIt;
@@ -160,10 +186,12 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
 bool TextBlock::serialize(FsFile& file) const {
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size() ||
       (!bionicPrefixBytes.empty() && bionicPrefixBytes.size() != words.size()) ||
-      (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size())) {
-    Serial.printf("[%lu] [TXB] Serialization failed: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u)\n",
-                  millis(), words.size(), wordXpos.size(), wordStyles.size(), bionicPrefixBytes.size(),
-                  wordSmallCaps.size());
+      (!wordSmallCaps.empty() && wordSmallCaps.size() != words.size()) ||
+      (!wordVerticalAlign.empty() && wordVerticalAlign.size() != words.size())) {
+    Serial.printf(
+        "[%lu] [TXB] Serialization failed: size mismatch (words=%u, xpos=%u, styles=%u, bionic=%u, sc=%u, va=%u)\n",
+        millis(), words.size(), wordXpos.size(), wordStyles.size(), bionicPrefixBytes.size(), wordSmallCaps.size(),
+        wordVerticalAlign.size());
     return false;
   }
 
@@ -185,6 +213,11 @@ bool TextBlock::serialize(FsFile& file) const {
     for (size_t i = 0; i < words.size(); ++i) serialization::writePod(file, static_cast<uint8_t>(0));
   } else {
     for (auto f : wordUnderline) serialization::writePod(file, f);
+  }
+  if (wordVerticalAlign.empty()) {
+    for (size_t i = 0; i < words.size(); ++i) serialization::writePod(file, static_cast<uint8_t>(BASELINE));
+  } else {
+    for (auto f : wordVerticalAlign) serialization::writePod(file, f);
   }
   // Inline image fields (path + display size), parallel to words. A single flag keeps text-only lines free of
   // any per-word image data on disk (and avoids allocating empty placeholders on load).
@@ -208,6 +241,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   std::list<uint8_t> bionicPrefixBytes;
   std::list<uint8_t> wordSmallCaps;
   std::list<uint8_t> wordUnderline;
+  std::list<uint8_t> wordVerticalAlign;
   std::list<std::string> wordImagePaths;
   std::list<uint16_t> wordImageW;
   std::list<uint16_t> wordImageH;
@@ -226,12 +260,14 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   bionicPrefixBytes.resize(wc);
   wordSmallCaps.resize(wc);
   wordUnderline.resize(wc);
+  wordVerticalAlign.resize(wc);
   for (auto& w : words) serialization::readString(file, w);
   for (auto& x : wordXpos) serialization::readPod(file, x);
   for (auto& s : wordStyles) serialization::readPod(file, s);
   for (auto& b : bionicPrefixBytes) serialization::readPod(file, b);
   for (auto& f : wordSmallCaps) serialization::readPod(file, f);
   for (auto& f : wordUnderline) serialization::readPod(file, f);
+  for (auto& f : wordVerticalAlign) serialization::readPod(file, f);
   uint8_t hasImages = 0;
   serialization::readPod(file, hasImages);
   if (hasImages) {
@@ -244,8 +280,8 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   }
   serialization::readPod(file, style);
 
-  return std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles),
-                                                  std::move(bionicPrefixBytes), std::move(wordSmallCaps), style,
-                                                  std::move(wordUnderline), std::move(wordImagePaths),
-                                                  std::move(wordImageW), std::move(wordImageH)));
+  return std::unique_ptr<TextBlock>(
+      new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), std::move(bionicPrefixBytes),
+                    std::move(wordSmallCaps), style, std::move(wordUnderline), std::move(wordVerticalAlign),
+                    std::move(wordImagePaths), std::move(wordImageW), std::move(wordImageH)));
 }

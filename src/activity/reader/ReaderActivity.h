@@ -123,4 +123,5 @@ class ReaderActivity final : public ActivityWithSubactivity {
    * If file loading fails, returns to the previous activity.
    */
   void onEnter() override;
+  bool allowGlobalPowerRefresh() override { return false; }
 };

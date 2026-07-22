@@ -95,6 +95,8 @@ void recordSleepImageUsed() {
   APP_STATE.saveToFile();
 }
 
+bool randomSleepImageEnabled() { return SETTINGS.sleepCustomBmp[0] == '\0'; }
+
 std::string pathForFixedSleepBmp() {
   if (SETTINGS.sleepCustomBmp[0] == '\0') {
     return "";
@@ -215,9 +217,8 @@ void beginNewSleepImageCycleIfNeeded(const size_t count) {
 }
 
 std::string pickSleepBmpPath() {
-  std::string fixed = pathForFixedSleepBmp();
-  if (!fixed.empty()) {
-    return fixed;
+  if (!randomSleepImageEnabled()) {
+    return pathForFixedSleepBmp();
   }
 
   const std::vector<std::string> sleepImages = listSleepImagePaths();
@@ -338,7 +339,9 @@ void SleepActivity::onEnter() {
 void SleepActivity::renderCustomSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
-    recordSleepImageUsed();
+    if (randomSleepImageEnabled()) {
+      recordSleepImageUsed();
+    }
 
     if (isSleepImagePathJpeg(imagePath)) {
       ImageRender::Options options = sleepImageOptions();
@@ -378,7 +381,9 @@ void SleepActivity::renderCustomSleepScreen() const {
 void SleepActivity::renderTransparentSleepScreen() const {
   const std::string imagePath = pickSleepBmpPath();
   if (!imagePath.empty()) {
-    recordSleepImageUsed();
+    if (randomSleepImageEnabled()) {
+      recordSleepImageUsed();
+    }
     // Transparent overlays only work at LOW/MEDIUM. At HIGH the quality LUT can't composite over the existing
     // screen, so remove the background (clear to white) and render the image opaque instead.
     const bool removeBackground = sleepImageQualityEnabled();

@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@ enum PageElementTag : uint8_t {
   TAG_PageHorizontalRule = 6,
   TAG_PageSmallCaps = 7,
   TAG_PageCssBorderLine = 8,
+  TAG_PageCssBorderBox = 9,
 };
 
 /**
@@ -198,6 +200,8 @@ class PageImage final : public PageElement {
   // Same as render() but lets the caller select the quality render path (options.quality).
   void renderImage(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, ImageRenderMode imageMode,
                    bool quality);
+  bool warmDisplayCache(GfxRenderer& renderer, int xOffset, int yOffset, ImageRenderMode imageMode, bool quality) const;
+  bool hasCachedTwoBitImage(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
 
@@ -287,6 +291,51 @@ class PageCssBorderLine final : public PageElement {
   static std::unique_ptr<PageCssBorderLine> deserialize(FsFile& file);
 };
 
+class PageCssBorderBox final : public PageElement {
+ private:
+  int16_t width;
+  int16_t height;
+  int16_t borderTop;
+  int16_t borderRight;
+  int16_t borderBottom;
+  int16_t borderLeft;
+  uint8_t styleTop;
+  uint8_t styleRight;
+  uint8_t styleBottom;
+  uint8_t styleLeft;
+
+ public:
+  PageCssBorderBox(const int16_t xPos, const int16_t yPos, const int16_t width, const int16_t height,
+                   const int16_t borderTop, const int16_t borderRight, const int16_t borderBottom,
+                   const int16_t borderLeft, const uint8_t styleTop = PageCssBorderLine::SOLID,
+                   const uint8_t styleRight = PageCssBorderLine::SOLID,
+                   const uint8_t styleBottom = PageCssBorderLine::SOLID,
+                   const uint8_t styleLeft = PageCssBorderLine::SOLID)
+      : PageElement(xPos, yPos),
+        width(width),
+        height(height),
+        borderTop(borderTop),
+        borderRight(borderRight),
+        borderBottom(borderBottom),
+        borderLeft(borderLeft),
+        styleTop(styleTop),
+        styleRight(styleRight),
+        styleBottom(styleBottom),
+        styleLeft(styleLeft) {}
+
+  PageElementTag getTag() const override { return TAG_PageCssBorderBox; }
+  void setGeometry(const int16_t x, const int16_t y, const int16_t w, const int16_t h) {
+    xPos = x;
+    yPos = y;
+    width = w;
+    height = h;
+  }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageCssBorderBox> deserialize(FsFile& file);
+};
+
 /**
  * Represents a complete page containing multiple elements.
  */
@@ -303,6 +352,7 @@ class Page {
   // images are all essentially 1-bit (comics / line art / mostly black-and-white) return false, so they can be
   // rendered as fast 1-bit instead of paying for the grayscale passes.
   bool anyImageNeedsGrayscale() const;
+  bool anyPngImage() const;
 
   /**
    * Union of all image paint rectangles in screen coordinates (tight fit from BMP dimensions and drawBitmap
@@ -324,6 +374,10 @@ class Page {
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
                     ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false,
                     bool onlyGrayscale = false) const;
+  int warmImageDisplayCache(GfxRenderer& renderer, int xOffset, int yOffset,
+                            ImageRenderMode imageMode = ImageRenderMode::OneBit, bool quality = false) const;
+  bool allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, int xOffset, int yOffset, bool quality) const;
+  std::string extractPlainText(size_t maxChars = 320) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 };

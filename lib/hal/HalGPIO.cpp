@@ -250,7 +250,7 @@ bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 
 HalGPIO::MotionGesture HalGPIO::readMotionGesture(const uint8_t orientation, const uint8_t mode,
-                                                 const uint8_t sensitivity) {
+                                                  const uint8_t sensitivity) {
   if (!deviceIsX3()) {
     return MotionGesture::None;
   }
@@ -267,8 +267,7 @@ HalGPIO::MotionGesture HalGPIO::readMotionGesture(const uint8_t orientation, con
   X3GPIO::beginX3I2C();
   if (!motionSensorInitialized) {
     uint8_t whoami = 0;
-    if (X3GPIO::readI2CReg8(I2C_ADDR_QMI8658, QMI8658_WHO_AM_I_REG, &whoami) &&
-        whoami == QMI8658_WHO_AM_I_VALUE) {
+    if (X3GPIO::readI2CReg8(I2C_ADDR_QMI8658, QMI8658_WHO_AM_I_REG, &whoami) && whoami == QMI8658_WHO_AM_I_VALUE) {
       motionSensorAddress = I2C_ADDR_QMI8658;
     } else if (X3GPIO::readI2CReg8(I2C_ADDR_QMI8658_ALT, QMI8658_WHO_AM_I_REG, &whoami) &&
                whoami == QMI8658_WHO_AM_I_VALUE) {
@@ -306,8 +305,8 @@ HalGPIO::MotionGesture HalGPIO::readMotionGesture(const uint8_t orientation, con
   }
 
   uint8_t raw[6] = {};
-  const bool readOk = X3GPIO::readI2CRegs(motionSensorAddress, QMI8658_GYRO_X_L_REG, raw,
-                                         static_cast<uint8_t>(sizeof(raw)));
+  const bool readOk =
+      X3GPIO::readI2CRegs(motionSensorAddress, QMI8658_GYRO_X_L_REG, raw, static_cast<uint8_t>(sizeof(raw)));
   X3GPIO::endX3I2C();
   if (!readOk) {
     return MotionGesture::None;

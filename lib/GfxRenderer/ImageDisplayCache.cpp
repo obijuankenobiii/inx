@@ -11,14 +11,15 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 
 #include "GfxRenderer.h"
 
 namespace {
 constexpr uint32_t kMagic = 0x43445249;  // IRDC, little-endian on disk
-constexpr uint16_t kVersion = 39;        // bump: regenerate GRAY2 planes after quality gray-level swap
+constexpr uint16_t kVersion = 46;        // bump: discard old PNG high-quality planes
 constexpr const char* kCacheDir = "/.system/cache";
-constexpr size_t kIoBufferSize = 512;
+constexpr size_t kIoBufferSize = 2048;
 
 struct CacheHeader {
   uint32_t magic;
@@ -177,36 +178,11 @@ std::string ImageDisplayCache::pathFor(GfxRenderer& renderer, const std::string&
   if (!visibleBounds(renderer, x, y, width, height, visible)) {
     return "";
   }
-  char name[32];
-  snprintf(name, sizeof(name), "/%08lx.irdc",
-           static_cast<unsigned long>(cacheHash(sourcePath, width, height, visible, options)));
+  const uint32_t hash = cacheHash(sourcePath, width, height, visible, options);
+  char name[48];
+  snprintf(name, sizeof(name), "/%02lx/%08lx.irdc", static_cast<unsigned long>((hash >> 24) & 0xFF),
+           static_cast<unsigned long>(hash));
   return std::string(kCacheDir) + name;
-}
-
-bool ImageDisplayCache::exists(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
-                               const int width, const int height, const ImageDisplayCacheOptions& options) {
-  VisibleRect visible;
-  if (!visibleBounds(renderer, x, y, width, height, visible)) {
-    return false;
-  }
-
-  const std::string cachePath = pathFor(renderer, sourcePath, x, y, width, height, options);
-  if (cachePath.empty() || !SdMan.exists(cachePath.c_str())) {
-    return false;
-  }
-
-  FsFile file;
-  if (!SdMan.openFileForRead("IDC", cachePath, file)) {
-    return false;
-  }
-
-  CacheHeader header;
-  const bool headerOk = file.read(&header, sizeof(header)) == sizeof(header) && header.magic == kMagic &&
-                        header.version == kVersion && header.headerSize == sizeof(CacheHeader) &&
-                        header.width == visible.width && header.height == visible.height &&
-                        header.rowBytes == static_cast<uint16_t>((visible.width + 7) / 8);
-  file.close();
-  return headerOk;
 }
 
 bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::string& sourcePath, const int x,
@@ -252,17 +228,21 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
   }
 
   const int rowBytes = header.rowBytes;
-  uint8_t rows[kIoBufferSize];
-  if (rowBytes > static_cast<int>(sizeof(rows))) {
+  if (rowBytes > static_cast<int>(kIoBufferSize)) {
+    file.close();
+    return false;
+  }
+  std::unique_ptr<uint8_t[]> rows(new (std::nothrow) uint8_t[kIoBufferSize]);
+  if (!rows) {
     file.close();
     return false;
   }
 
-  const int rowsPerRead = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  const int rowsPerRead = std::max(1, static_cast<int>(kIoBufferSize) / rowBytes);
   for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerRead) {
     const int rowsThisRead = std::min(rowsPerRead, visible.height - rowBase);
     const int bytesThisRead = rowsThisRead * rowBytes;
-    if (file.read(rows, bytesThisRead) != bytesThisRead) {
+    if (file.read(rows.get(), bytesThisRead) != bytesThisRead) {
       if (options.quality) {
         Serial.printf("[%lu] [IDC-Q] cache row read failed plane=%s path=%s row=%d/%d\n", millis(), planeName(options),
                       cachePath.c_str(), rowBase, visible.height);
@@ -271,7 +251,7 @@ bool ImageDisplayCache::renderIfAvailable(GfxRenderer& renderer, const std::stri
       return false;
     }
     for (int row = 0; row < rowsThisRead; row++) {
-      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+      renderer.drawPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows.get() + row * rowBytes);
     }
   }
 
@@ -293,9 +273,9 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
   msbOptions.quality = quality;
 
-  const bool lsbExists = exists(renderer, sourcePath, x, y, width, height, lsbOptions);
-  const bool msbExists = exists(renderer, sourcePath, x, y, width, height, msbOptions);
-  if (!lsbExists || !msbExists) {
+  const std::string lsbPath = pathFor(renderer, sourcePath, x, y, width, height, lsbOptions);
+  const std::string msbPath = pathFor(renderer, sourcePath, x, y, width, height, msbOptions);
+  if (lsbPath.empty() || msbPath.empty() || !SdMan.exists(lsbPath.c_str()) || !SdMan.exists(msbPath.c_str())) {
     return false;
   }
 
@@ -333,6 +313,24 @@ bool ImageDisplayCache::displayTwoBitIfAvailable(GfxRenderer& renderer, const st
   return true;
 }
 
+bool ImageDisplayCache::hasCachedTwoBit(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
+                                        const int width, const int height, const ImageDisplayCacheOptions& options,
+                                        const bool quality) {
+  ImageDisplayCacheOptions lsbOptions = options;
+  lsbOptions.mode = ImageRenderMode::TwoBit;
+  lsbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB);
+  lsbOptions.quality = quality;
+
+  ImageDisplayCacheOptions msbOptions = options;
+  msbOptions.mode = ImageRenderMode::TwoBit;
+  msbOptions.renderPlane = static_cast<uint8_t>(quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB);
+  msbOptions.quality = quality;
+
+  const std::string lsbPath = pathFor(renderer, sourcePath, x, y, width, height, lsbOptions);
+  const std::string msbPath = pathFor(renderer, sourcePath, x, y, width, height, msbOptions);
+  return !lsbPath.empty() && !msbPath.empty() && SdMan.exists(lsbPath.c_str()) && SdMan.exists(msbPath.c_str());
+}
+
 bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePath, const int x, const int y,
                               const int width, const int height, const ImageDisplayCacheOptions& options) {
   VisibleRect visible;
@@ -362,8 +360,13 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
   }
 
   const int rowBytes = (visible.width + 7) / 8;
-  uint8_t rows[kIoBufferSize];
-  if (rowBytes > static_cast<int>(sizeof(rows))) {
+  if (rowBytes > static_cast<int>(kIoBufferSize)) {
+    file.close();
+    SdMan.remove(cachePath.c_str());
+    return false;
+  }
+  std::unique_ptr<uint8_t[]> rows(new (std::nothrow) uint8_t[kIoBufferSize]);
+  if (!rows) {
     file.close();
     SdMan.remove(cachePath.c_str());
     return false;
@@ -382,14 +385,14 @@ bool ImageDisplayCache::store(GfxRenderer& renderer, const std::string& sourcePa
     return false;
   }
 
-  const int rowsPerWrite = std::max(1, static_cast<int>(sizeof(rows)) / rowBytes);
+  const int rowsPerWrite = std::max(1, static_cast<int>(kIoBufferSize) / rowBytes);
   for (int rowBase = 0; rowBase < visible.height; rowBase += rowsPerWrite) {
     const int rowsThisWrite = std::min(rowsPerWrite, visible.height - rowBase);
     const int bytesThisWrite = rowsThisWrite * rowBytes;
     for (int row = 0; row < rowsThisWrite; row++) {
-      renderer.readPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows + row * rowBytes);
+      renderer.readPackedRow1bpp(visible.x, visible.y + rowBase + row, visible.width, rows.get() + row * rowBytes);
     }
-    if (file.write(rows, bytesThisWrite) != static_cast<size_t>(bytesThisWrite)) {
+    if (file.write(rows.get(), bytesThisWrite) != static_cast<size_t>(bytesThisWrite)) {
       if (options.quality) {
         Serial.printf("[%lu] [IDC-Q] store row write failed plane=%s path=%s row=%d/%d\n", millis(), planeName(options),
                       cachePath.c_str(), rowBase, visible.height);

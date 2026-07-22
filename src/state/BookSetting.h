@@ -115,7 +115,10 @@ struct BookSettings {
   uint8_t readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
   uint8_t readerSmartRefreshOnImages = 1;
 
+  static constexpr uint8_t kNoReaderPreset = 0xFF;
+
   bool useCustomSettings = false;  ///< Whether custom settings are active
+  uint8_t readerPresetIndex = kNoReaderPreset;
 
   /**
    * @brief Complete layout structure
@@ -146,7 +149,60 @@ struct BookSettings {
    * @brief Number of bytes a serialized BookSettings record occupies.
    */
   static constexpr size_t kLegacySerializedSize = 18;
-  static constexpr size_t kSerializedSize = 20;
+  static constexpr size_t kSerializedSizeV2 = 20;
+  static constexpr size_t kSerializedSize = 21;
+
+  void markCustomSettings() {
+    useCustomSettings = true;
+    readerPresetIndex = kNoReaderPreset;
+  }
+
+  void normalize() {
+    FontManager::clampReaderFontFamilySlot(fontFamily);
+    if (fontSize >= SystemSetting::FONT_SIZE_COUNT) {
+      fontSize = SystemSetting::SMALL;
+    }
+    if (lineHeight < 10 || lineHeight > 200) {
+      lineHeight = 100;
+    }
+    if (textSpace < 10 || textSpace > 200) {
+      textSpace = 100;
+    }
+    if (paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
+      paragraphAlignment = SystemSetting::JUSTIFIED;
+    }
+    paragraphCssIndentEnabled = paragraphCssIndentEnabled ? 1 : 0;
+    extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;
+    textAntiAliasing = textAntiAliasing ? 1 : 0;
+    hyphenationEnabled = hyphenationEnabled ? 1 : 0;
+    bionicReadingEnabled = bionicReadingEnabled ? 1 : 0;
+    if (orientation >= SystemSetting::ORIENTATION_COUNT) {
+      orientation = SystemSetting::PORTRAIT;
+    }
+    if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
+      longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
+    }
+    if (refreshFrequency != 1 && refreshFrequency != 5 && refreshFrequency != 10 && refreshFrequency != 15 &&
+        refreshFrequency != 30) {
+      refreshFrequency = 15;
+    }
+    if (pageAutoTurnSeconds > 60 || pageAutoTurnSeconds % 10 != 0) {
+      pageAutoTurnSeconds = 0;
+    }
+    if (readerImageGrayscale >= SystemSetting::READER_IMAGE_QUALITY_COUNT) {
+      readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
+    }
+    readerSmartRefreshOnImages = readerSmartRefreshOnImages ? 1 : 0;
+
+    auto normalizeStatus = [](StatusBarSectionConfig& section) {
+      if (static_cast<uint8_t>(section.item) >= static_cast<uint8_t>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
+        section.item = StatusBarItem::NONE;
+      }
+    };
+    normalizeStatus(statusBarLeft);
+    normalizeStatus(statusBarMiddle);
+    normalizeStatus(statusBarRight);
+  }
 
   /**
    * @brief Writes the settings fields into a byte buffer (shared by settings.bin and the preset store).
@@ -176,6 +232,7 @@ struct BookSettings {
     data[offset++] = textSpace;
     data[offset++] = readerImageGrayscale;
     data[offset++] = readerSmartRefreshOnImages;
+    data[offset++] = readerPresetIndex;
   }
 
   /**
@@ -268,6 +325,12 @@ struct BookSettings {
       readerSmartRefreshOnImages = data[offset++] ? 1 : 0;
     } else {
       readerSmartRefreshOnImages = SystemSetting::getInstance().readerSmartRefreshOnImages ? 1 : 0;
+    }
+
+    if (bytesAvailable >= offset + 1) {
+      readerPresetIndex = data[offset++];
+    } else {
+      readerPresetIndex = kNoReaderPreset;
     }
 
     return true;
@@ -376,6 +439,7 @@ struct BookSettings {
     statusBarLeft.item = static_cast<StatusBarItem>(global.statusBarLeft);
     statusBarMiddle.item = static_cast<StatusBarItem>(global.statusBarMiddle);
     statusBarRight.item = static_cast<StatusBarItem>(global.statusBarRight);
+    readerPresetIndex = kNoReaderPreset;
   }
 
   /**

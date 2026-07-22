@@ -444,7 +444,12 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
   }
 
   const uint8_t level = adjustTwoBitImageLevelForDisplay(FourToneImageDitherer::levelFromValue(q));
-  const GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
+  GfxRenderer::RenderMode renderMode = ctx.renderer->getRenderMode();
+  if (renderMode == GfxRenderer::GRAY2_LSB) {
+    renderMode = GfxRenderer::GRAYSCALE_LSB;
+  } else if (renderMode == GfxRenderer::GRAY2_MSB) {
+    renderMode = GfxRenderer::GRAYSCALE_MSB;
+  }
   if (renderMode == GfxRenderer::BW) {
     if ((ctx.mode == ImageRenderMode::TwoBit && level > 0) || (ctx.mode == ImageRenderMode::OneBit && level < 3)) {
       ctx.renderer->drawPixel(x, y, true);
@@ -455,10 +460,6 @@ void drawQuantizedPixel(const RenderContext& ctx, const int x, const int y, cons
   } else if (renderMode == GfxRenderer::GRAYSCALE_LSB &&
              (ctx.renderer->deviceIsX3() ? (level == 1 || level == 3) : level == 1)) {
     ctx.renderer->drawPixel(x, y, false);
-  } else if (renderMode == GfxRenderer::GRAY2_LSB && ((mapQualityGray2Level(level) & 0b01) == 0)) {
-    ctx.renderer->drawPixel(x, y, true);
-  } else if (renderMode == GfxRenderer::GRAY2_MSB && ((mapQualityGray2Level(level) & 0b10) == 0)) {
-    ctx.renderer->drawPixel(x, y, true);
   }
 }
 

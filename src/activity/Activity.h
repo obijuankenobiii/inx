@@ -65,6 +65,10 @@ class Activity {
    */
   virtual void loop() {}
 
+  /**
+   * @brief Gets the activity's name identifier
+   * @return The name as a C-string
+   */
   const char* getName() const { return name.c_str(); }
 
   /**
@@ -84,4 +88,11 @@ class Activity {
    * the device awake, such as during reading or when user interaction is expected.
    */
   virtual bool preventAutoSleep() { return false; }
+
+  /**
+   * @brief Allows the global system short-power page refresh handler to run before this activity's loop.
+   *
+   * ReaderActivity opts out because book readers have their own short-power behavior setting.
+   */
+  virtual bool allowGlobalPowerRefresh() { return true; }
 };

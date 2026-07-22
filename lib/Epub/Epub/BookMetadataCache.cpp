@@ -101,7 +101,6 @@ bool BookMetadataCache::endTocPass() {
   spineFile.close();
 
   spineHrefIndex.clear();
-  spineHrefIndex.shrink_to_fit();
   useSpineHrefIndex = false;
 
   return true;
@@ -273,7 +272,6 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     Serial.printf("[%lu] [BMC] Batch lookup matched %d/%d spine items\n", millis(), matched, spineCount);
 
     targets.clear();
-    targets.shrink_to_fit();
 
     useBatchSizes = true;
   }

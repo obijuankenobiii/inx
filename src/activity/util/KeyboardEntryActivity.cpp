@@ -83,7 +83,7 @@ int KeyboardEntryActivity::getRowLength(const int row) const {
 }
 
 char KeyboardEntryActivity::getSelectedChar() const {
-  const char* const* layout = shiftActive ? keyboardShift : keyboard;
+  const char* const* layout = (shiftActive || capsLockActive) ? keyboardShift : keyboard;
 
   if (selectedRow < 0 || selectedRow >= NUM_ROWS) return '\0';
   if (selectedCol < 0 || selectedCol >= getRowLength(selectedRow)) return '\0';
@@ -94,7 +94,15 @@ char KeyboardEntryActivity::getSelectedChar() const {
 void KeyboardEntryActivity::handleKeyPress() {
   if (selectedRow == SPECIAL_ROW) {
     if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
-      shiftActive = !shiftActive;
+      if (capsLockActive) {
+        capsLockActive = false;
+        shiftActive = false;
+      } else if (shiftActive) {
+        capsLockActive = true;
+        shiftActive = false;
+      } else {
+        shiftActive = true;
+      }
       return;
     }
 
@@ -128,7 +136,7 @@ void KeyboardEntryActivity::handleKeyPress() {
   if (maxLength == 0 || text.length() < maxLength) {
     text += c;
 
-    if (shiftActive && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
+    if (shiftActive && !capsLockActive && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
       shiftActive = false;
     }
   }
@@ -268,7 +276,7 @@ void KeyboardEntryActivity::render() const {
   const int keyboardAreaHeight = NUM_ROWS * (KEY_HEIGHT + KEY_SPACING);
   const int keyboardStartY = pageHeight - keyboardAreaHeight - BOTTOM_MARGIN;
 
-  const char* const* layout = shiftActive ? keyboardShift : keyboard;
+  const char* const* layout = (shiftActive || capsLockActive) ? keyboardShift : keyboard;
 
   const int maxKeysInRow = 13;
   const int keyWidth = (pageWidth - PAGE_MARGIN * 2 - (maxKeysInRow - 1) * KEY_SPACING) / maxKeysInRow;
@@ -311,7 +319,8 @@ void KeyboardEntryActivity::render() const {
       int currentX = startX;
 
       const bool shiftSelected = (selectedRow == 4 && selectedCol >= SHIFT_COL && selectedCol < SPACE_COL);
-      drawKey(currentX, rowY, shiftWidth, KEY_HEIGHT, shiftActive ? "SHIFT" : "Aa", shiftSelected, shiftActive);
+      const char* shiftLabel = capsLockActive ? "CAPS" : (shiftActive ? "SHIFT" : "Aa");
+      drawKey(currentX, rowY, shiftWidth, KEY_HEIGHT, shiftLabel, shiftSelected, shiftActive || capsLockActive);
       currentX += shiftWidth + KEY_SPACING;
 
       const bool spaceSelected = (selectedRow == 4 && selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL);

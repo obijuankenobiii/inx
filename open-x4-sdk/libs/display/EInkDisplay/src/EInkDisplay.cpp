@@ -1,5 +1,6 @@
 #include "EInkDisplay.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -243,13 +244,48 @@ EInkDisplay::EInkDisplay(int8_t sclk, int8_t mosi, int8_t cs, int8_t dc, int8_t 
     Serial.printf("[%lu]   SCLK=%d, MOSI=%d, CS=%d, DC=%d, RST=%d, BUSY=%d\n", millis(), sclk, mosi, cs, dc, rst, busy);
 }
 
+EInkDisplay::~EInkDisplay() {
+  free(frameBuffer0);
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+  free(frameBuffer1);
+#endif
+}
+
 void EInkDisplay::begin() {
   if (Serial) Serial.printf("[%lu] EInkDisplay: begin() called\n", millis());
+
+  if (allocatedBufferSize != bufferSize) {
+    free(frameBuffer0);
+    frameBuffer0 = static_cast<uint8_t*>(malloc(bufferSize));
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+    free(frameBuffer1);
+    frameBuffer1 = static_cast<uint8_t*>(malloc(bufferSize));
+#endif
+    allocatedBufferSize = 0;
+  }
 
   frameBuffer = frameBuffer0;
 #ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
   frameBufferActive = frameBuffer1;
 #endif
+
+  if (!frameBuffer
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+      || !frameBufferActive
+#endif
+  ) {
+    if (Serial) Serial.printf("[%lu]   ERROR: Failed to allocate display buffer (%lu bytes)\n", millis(), bufferSize);
+    free(frameBuffer0);
+    frameBuffer0 = nullptr;
+    frameBuffer = nullptr;
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+    free(frameBuffer1);
+    frameBuffer1 = nullptr;
+    frameBufferActive = nullptr;
+#endif
+    return;
+  }
+  allocatedBufferSize = bufferSize;
 
   // Initialize to white
   memset(frameBuffer0, 0xFF, bufferSize);
@@ -1049,14 +1085,18 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen, const unsigned cha
   // displayBuffer() queued to run the medium revert on the next page/sleep render.
   inGrayscaleMode = trackForRevert && !quality;
 
+  const bool usingFastQualityLut = quality && lutData == lut_x4_quality_fast;
   const unsigned char* selectedLut = lutData ? lutData : (quality ? lut_x4_quality : lut_grayscale);
   setCustomLUT(true, selectedLut);
   if (quality) {
     // Let the panel physically settle after the preceding pre-clear/flash before firing the state-sensitive
     // quality waveform. A live-rendered image spends time decoding here (which let the panel settle); an image
     // served instantly from the display cache does not, so without this pause the 0xC7 refresh can drive from an
-    // unsettled panel and produce wrong grays (a second refresh would otherwise be needed to fix it). Tune ms.
-    delay(120);
+    // unsettled panel and produce wrong grays (a second refresh would otherwise be needed to fix it). The fast
+    // quality LUT is intentionally latency-biased and skips this extra settle delay.
+    if (!usingFastQualityLut) {
+      delay(120);
+    }
     sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
     sendData(CTRL1_NORMAL);
     sendCommand(CMD_DISPLAY_UPDATE_CTRL2);

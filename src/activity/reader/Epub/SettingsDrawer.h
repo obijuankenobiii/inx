@@ -7,8 +7,8 @@
 
 #include <GfxRenderer.h>
 
+#include <array>
 #include <functional>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -111,6 +111,9 @@ class SettingsDrawer {
     CONTROLS,   ///< System and control settings
     STATUS_BAR  ///< Status bar configuration
   };
+  static constexpr size_t kGroupCount = 5;
+  static constexpr size_t groupIndex(const GroupType group) { return static_cast<size_t>(group); }
+  bool isGroupExpanded(GroupType group) const { return groupExpanded_[groupIndex(group)]; }
 
   /**
    * @enum MenuItem
@@ -186,8 +189,8 @@ class SettingsDrawer {
 
   bool settingsUpdated = false;  ///< Flag indicating settings were changed
 
-  std::map<GroupType, bool> groupExpanded;  ///< Expansion state for each group
-  std::vector<MenuEntry> menuItems;         ///< Current menu items
+  std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
+  std::vector<MenuEntry> menuItems;                ///< Current menu items
 
   /**
    * @brief Renders the drawer with specified refresh mode

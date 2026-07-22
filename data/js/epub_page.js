@@ -1,11 +1,21 @@
 const SYSTEM_FOLDERS = ["fonts", "sleep"];
-let currentPath="/",generatePackagedThumbnail=!1,jszipLoadPromise=null;function loadJsZip(){return"undefined"!=typeof JSZip?Promise.resolve():(jszipLoadPromise||(jszipLoadPromise=new Promise(function(e,t){var o=document.createElement("script");o.src="/js/jszip.min.js";o.async=!0;o.onload=function(){"undefined"!=typeof JSZip?e():(jszipLoadPromise=null,t(new Error("JSZip init failed")))};o.onerror=function(){jszipLoadPromise=null,t(new Error("JSZip load failed"))};document.head.appendChild(o)})),jszipLoadPromise)}const epubThumbCheckbox=document.getElementById("epubGeneratePackagedThumbnailCheckbox");function isPackagedDeviceThumbnailPath(e){return typeof e=="string"&&e.replace(/\\/g,"/").toLowerCase()=="meta-inf/thumbnail.jpg"}function updateToggleUI(){epubThumbCheckbox&&(epubThumbCheckbox.checked=generatePackagedThumbnail);const e=document.getElementById("optimizerSummaryBanner");if(e){const t="Preserve formats: JPEG/JPG resized and re-encoded in place to max 480×800; PNG and others unchanged.",o=generatePackagedThumbnail?" Embeds META-INF/thumbnail.jpg from a cover-like image for fast imports.":" Omits packaged thumbnail; reader builds thumb.bmp from cover on device.";e.textContent=t+o}}function toggleEpubGeneratePackagedThumbnail(){generatePackagedThumbnail=epubThumbCheckbox?epubThumbCheckbox.checked:!generatePackagedThumbnail,localStorage.setItem("epubGeneratePackagedThumbnail",generatePackagedThumbnail),updateToggleUI(),addModalLog("modalLog",generatePackagedThumbnail?"Device thumbnail: will embed META-INF/thumbnail.jpg on import.":"Device thumbnail: will not embed (and strips it if present when re-importing).","success")}function addModalLog(e,t,o="info"){const a=document.getElementById(e);if(a){e=(new Date).toLocaleTimeString();const n=document.createElement("div");n.className=o,n.innerHTML=`[${e}] ${t}`,a.appendChild(n),n.scrollIntoView({behavior:"smooth",block:"nearest"})}}function clearModalLog(e){const t=document.getElementById(e);t&&(t.innerHTML='<div class="info">Ready</div>')}function isCoverImage(e){var t=e.toLowerCase();for(const o of[/cover/i,/titlepage/i,/front[-_]?cover/i,/thumbnail/i,/\/cover\//i,/\/images\/cover/i,/\/img\/cover/i,/\/metadata\/cover/i,/^cover\./i,/^title\./i])if(o.test(t))return!0;return!1}async function resizeJpegInPlace(blob,path,opts){
-opts=opts||{};const maxW=void 0!==opts.maxW?opts.maxW:480,maxH=void 0!==opts.maxH?opts.maxH:800,quality=void 0!==opts.quality?opts.quality:.82;const ab=await blob.arrayBuffer(),typed=new Blob([ab],{type:"image/jpeg"});let sw,sh,drawSrc;try{if(typeof createImageBitmap=="function"){drawSrc=await createImageBitmap(typed);sw=drawSrc.width;sh=drawSrc.height}else throw 0}catch(_){await new Promise((ok,err)=>{const I=new Image,u=URL.createObjectURL(typed);I.onload=()=>{URL.revokeObjectURL(u);drawSrc=I;sw=I.width;sh=I.height;ok()};I.onerror=()=>{URL.revokeObjectURL(u);err(new Error("Failed to load image: "+path))};I.src=u})}
+let currentPath="/",generatePackagedThumbnail=!1,jszipLoadPromise=null;function loadJsZip(){return"undefined"!=typeof JSZip?Promise.resolve():(jszipLoadPromise||(jszipLoadPromise=new Promise(function(e,t){var o=document.createElement("script");o.src="/js/jszip.min.js";o.async=!0;o.onload=function(){"undefined"!=typeof JSZip?e():(jszipLoadPromise=null,t(new Error("JSZip init failed")))};o.onerror=function(){jszipLoadPromise=null,t(new Error("JSZip load failed"))};document.head.appendChild(o)})),jszipLoadPromise)}const epubThumbCheckbox=document.getElementById("epubGeneratePackagedThumbnailCheckbox");function isPackagedDeviceThumbnailPath(e){return typeof e=="string"&&e.replace(/\\/g,"/").toLowerCase()=="meta-inf/thumbnail.jpg"}function updateToggleUI(){epubThumbCheckbox&&(epubThumbCheckbox.checked=generatePackagedThumbnail);const e=document.getElementById("optimizerSummaryBanner");if(e){const t="Preserve formats: JPEG/JPG resized and re-encoded in place to max 480×800 at JPEG quality 100%; PNG and others unchanged.",o=generatePackagedThumbnail?" Embeds META-INF/thumbnail.jpg from a cover-like image for fast imports.":" Omits packaged thumbnail; reader builds thumb.bmp from cover on device.";e.textContent=t+o}}function toggleEpubGeneratePackagedThumbnail(){generatePackagedThumbnail=epubThumbCheckbox?epubThumbCheckbox.checked:!generatePackagedThumbnail,localStorage.setItem("epubGeneratePackagedThumbnail",generatePackagedThumbnail),updateToggleUI(),addModalLog("modalLog",generatePackagedThumbnail?"Device thumbnail: will embed META-INF/thumbnail.jpg on import.":"Device thumbnail: will not embed (and strips it if present when re-importing).","success")}function addModalLog(e,t,o="info"){const a=document.getElementById(e);if(a){e=(new Date).toLocaleTimeString();const n=document.createElement("div");n.className=o,n.innerHTML=`[${e}] ${t}`,a.appendChild(n),n.scrollIntoView({behavior:"smooth",block:"nearest"})}}function clearModalLog(e){const t=document.getElementById(e);t&&(t.innerHTML='<div class="info">Ready</div>')}function isCoverImage(e){var t=e.toLowerCase();for(const o of[/cover/i,/titlepage/i,/front[-_]?cover/i,/thumbnail/i,/\/cover\//i,/\/images\/cover/i,/\/img\/cover/i,/\/metadata\/cover/i,/^cover\./i,/^title\./i])if(o.test(t))return!0;return!1}async function resizeJpegInPlace(blob,path,opts){
+opts=opts||{};const maxW=void 0!==opts.maxW?opts.maxW:480,maxH=void 0!==opts.maxH?opts.maxH:800,quality=void 0!==opts.quality?opts.quality:1;const ab=await blob.arrayBuffer(),typed=new Blob([ab],{type:"image/jpeg"});let sw,sh,drawSrc;try{if(typeof createImageBitmap=="function"){drawSrc=await createImageBitmap(typed);sw=drawSrc.width;sh=drawSrc.height}else throw 0}catch(_){await new Promise((ok,err)=>{const I=new Image,u=URL.createObjectURL(typed);I.onload=()=>{URL.revokeObjectURL(u);drawSrc=I;sw=I.width;sh=I.height;ok()};I.onerror=()=>{URL.revokeObjectURL(u);err(new Error("Failed to load image: "+path))};I.src=u})}
 let tw=sw,th=sh;const needsResize=maxW<sw||maxH<sh;if(needsResize){const scale=Math.min(maxW/sw,maxH/sh);tw=Math.max(1,Math.floor(sw*scale));th=Math.max(1,Math.floor(sh*scale))}
 const U=document.createElement("canvas");U.width=tw;U.height=th;const x=U.getContext("2d");x.imageSmoothingEnabled=!0;x.imageSmoothingQuality="high";x.drawImage(drawSrc,0,0,tw,th);
 const outBlob=await new Promise((ok,err)=>U.toBlob(b=>b?ok(b):err(new Error("JPEG encode failed for "+path)),"image/jpeg",quality));
 try{drawSrc.close&&drawSrc.close()}catch(_){ }
 return{blob:outBlob,oldPath:path,newPath:path,originalSize:blob.size,newSize:outBlob.size,width:tw,height:th,resized:needsResize};}
+
+function dirnameOfZipPath(path){const p=String(path||"").replace(/\\/g,"/");const i=p.lastIndexOf("/");return i>=0?p.slice(0,i):""}
+function basenameOfZipPath(path){const p=String(path||"").replace(/\\/g,"/");const i=p.lastIndexOf("/");return i>=0?p.slice(i+1):p}
+function normalizeZipPath(path){const out=[];String(path||"").replace(/\\/g,"/").split("/").forEach(part=>{if(!part||part===".")return;if(part==="..")out.pop();else out.push(part)});return out.join("/")}
+function relativeZipPath(fromFile,toFile){const from=dirnameOfZipPath(fromFile).split("/").filter(Boolean),to=String(toFile||"").replace(/\\/g,"/").split("/").filter(Boolean);while(from.length&&to.length&&from[0]===to[0])from.shift(),to.shift();return from.map(()=>"..").concat(to).join("/")||basenameOfZipPath(toFile)}
+function uniqueZipPath(zip,path){if(!zip.files[path])return path;const dot=path.lastIndexOf("."),base=dot>=0?path.slice(0,dot):path,ext=dot>=0?path.slice(dot):"";let n=1,p;do{p=base+"-"+n+ext;n++}while(zip.files[p]);return p}
+function replaceAllLiteral(text,from,to){return String(text).split(from).join(to)}
+async function rasterBlobToJpeg(blob,path,maxW,maxH,quality){maxW=void 0!==maxW?maxW:0,maxH=void 0!==maxH?maxH:0,quality=void 0!==quality?quality:1;const typed=new Blob([await blob.arrayBuffer()],{type:blob.type&&blob.type.startsWith("image/")?blob.type:"image/gif"});let sw,sh,drawSrc;try{if(typeof createImageBitmap=="function"){drawSrc=await createImageBitmap(typed),sw=drawSrc.width,sh=drawSrc.height}else throw 0}catch(_){await new Promise((ok,err)=>{const I=new Image,u=URL.createObjectURL(typed);I.onload=()=>{URL.revokeObjectURL(u),drawSrc=I,sw=I.width,sh=I.height,ok()},I.onerror=()=>{URL.revokeObjectURL(u),err(new Error("Failed to decode raster image: "+path))},I.src=u})}let tw=sw,th=sh;if(maxW>0&&maxH>0&&(maxW<sw||maxH<sh)){const sc=Math.min(maxW/sw,maxH/sh);tw=Math.max(1,Math.floor(sw*sc)),th=Math.max(1,Math.floor(sh*sc))}const U=document.createElement("canvas");U.width=tw,U.height=th;const x=U.getContext("2d");x.fillStyle="#fff",x.fillRect(0,0,tw,th),x.imageSmoothingEnabled=!0,x.imageSmoothingQuality="high",x.drawImage(drawSrc,0,0,tw,th);const outBlob=await new Promise((ok,err)=>U.toBlob(b=>b?ok(b):err(new Error("JPEG encode failed for "+path)),"image/jpeg",quality));try{drawSrc.close&&drawSrc.close()}catch(_){}return{blob:outBlob,width:tw,height:th,originalSize:blob.size,newSize:outBlob.size}}
+async function rewriteGifReferences(zip,conversions){if(!conversions.length)return 0;const textRegex=/\.(xhtml|html?|xml|opf|ncx|css|svg)$/i;let touched=0;for(const[path,entry]of Object.entries(zip.files)){if(entry.dir||!textRegex.test(path))continue;let text;try{text=await entry.async("string")}catch(_){continue}let next=text;for(const c of conversions){const oldBase=basenameOfZipPath(c.oldPath),newBase=basenameOfZipPath(c.newPath),relOld=relativeZipPath(path,c.oldPath),relNew=relativeZipPath(path,c.newPath);const variants=[[c.oldPath,c.newPath],[relOld,relNew],[oldBase,newBase],[encodeURI(c.oldPath),encodeURI(c.newPath)],[encodeURI(relOld),encodeURI(relNew)],[encodeURI(oldBase),encodeURI(newBase)]];for(const[vOld,vNew]of variants)if(vOld&&vOld!==vNew)next=replaceAllLiteral(next,vOld,vNew)}if(next!==text){zip.file(path,next);touched++}}return touched}
+async function convertGifImagesToJpeg(zip){const gifs=[];for(const[path,entry]of Object.entries(zip.files))if(!entry.dir&&/\.gif$/i.test(path))gifs.push({path,entry});if(!gifs.length)return 0;addModalLog("modalLog","GIF candidates "+gifs.length+"; converting to JPEG for device support.","info");const conversions=[];for(let i=0;i<gifs.length;i++){const{path,entry}=gifs[i];try{const jpgPath=uniqueZipPath(zip,path.replace(/\.gif$/i,".jpg"));const converted=await rasterBlobToJpeg(await entry.async("blob"),path,0,0,1);zip.file(jpgPath,converted.blob);zip.remove(path);conversions.push({oldPath:path,newPath:jpgPath});addModalLog("modalLog","Converted GIF "+basenameOfZipPath(path)+" -> "+basenameOfZipPath(jpgPath)+" ("+converted.width+"x"+converted.height+", "+(converted.originalSize/1024).toFixed(1)+" -> "+(converted.newSize/1024).toFixed(1)+" KiB).","success")}catch(e){addModalLog("modalLog","GIF conversion failed on "+path+": "+e.message,"error")}}const touched=await rewriteGifReferences(zip,conversions);if(conversions.length)addModalLog("modalLog","Updated GIF references in "+touched+" EPUB text file(s).","success");return conversions.length}
 
 async function rasterBlobToDeviceThumbnailJpeg(blob,maxW,maxH,quality){maxW=void 0!==maxW?maxW:225,maxH=void 0!==maxH?maxH:340,quality=void 0!==quality?quality:.88;const ab=await blob.arrayBuffer(),ext=(blob.type&&blob.type.startsWith("image/")?blob.type:null)||"image/jpeg",typed=new Blob([ab],{type:ext});let sw,sh,drawSrc;try{if(typeof createImageBitmap=="function"){drawSrc=await createImageBitmap(typed),sw=drawSrc.width,sh=drawSrc.height}else throw 0}catch(_){await new Promise((ok,err)=>{const I=new Image,u=URL.createObjectURL(typed);I.onload=()=>{URL.revokeObjectURL(u),drawSrc=I,sw=I.width,sh=I.height,ok()},I.onerror=()=>{URL.revokeObjectURL(u),err(new Error("thumb decode"))},I.src=u})}let tw=sw,th=sh;const nr=maxW<sw||maxH<sh;if(nr){const sc=Math.min(maxW/sw,maxH/sh);tw=Math.max(1,Math.floor(sw*sc)),th=Math.max(1,Math.floor(sh*sc))}const U=document.createElement("canvas");U.width=tw,U.height=th;const x=U.getContext("2d");x.imageSmoothingEnabled=!0,x.imageSmoothingQuality="high",x.drawImage(drawSrc,0,0,tw,th);const outBlob=await new Promise((ok,err)=>U.toBlob(e=>e?ok(e):err(new Error("JPEG encode failed")),"image/jpeg",quality));try{drawSrc.close&&drawSrc.close()}catch(_){}return outBlob}async function applyPackagedThumbnailToZip(n){const k="META-INF/thumbnail.jpg";if(!generatePackagedThumbnail)return void(n.files[k]&&(n.remove(k),addModalLog("modalLog","Stripped META-INF/thumbnail.jpg (toggle off).","info")));const raster=/\.(jpe?g|png|gif|bmp|webp|tiff?|avif|jxl)$/i;let found=null;for(const[p,f]of Object.entries(n.files))if(!f.dir&&raster.test(p)&&isCoverImage(p)&&!isPackagedDeviceThumbnailPath(p))try{found={path:p,blob:await f.async("blob")};break}catch(e){}if(!found)return n.files[k]&&n.remove(k),void addModalLog("modalLog","No cover-like raster for device thumbnail; omitted "+k+".","error");try{const j=await rasterBlobToDeviceThumbnailJpeg(found.blob,225,340,.88);n.file(k,j),addModalLog("modalLog","Embedded "+k+" from "+found.path.split("/").pop()+" ("+(j.size/1024).toFixed(1)+" KiB).","success")}catch(e){n.files[k]&&n.remove(k),addModalLog("modalLog","Device thumbnail failed: "+e.message,"error")}}
 
@@ -15,6 +25,7 @@ async function optimizeEPUB(file) {
     addModalLog("modalLog", "Starting image pass for " + file.name, "info");
     const zip = await JSZip.loadAsync(file);
     addModalLog("modalLog", "Opened EPUB archive.", "info");
+    const gifConverted = await convertGifImagesToJpeg(zip);
     await applyPackagedThumbnailToZip(zip);
 
     const keepRegex = /\.jpe?g$/i;
@@ -32,7 +43,7 @@ async function optimizeEPUB(file) {
       const pct = Math.round((100 * (idx + 1)) / Math.max(1, candidates.length));
       addModalLog("modalLog", "[JPEG " + (idx + 1) + "/" + candidates.length + "] [" + pct + "%] " + path, "info");
       try {
-        const optimized = await resizeJpegInPlace(await entry.async("blob"), path, { maxW: 480, maxH: 800, quality: 0.82 });
+        const optimized = await resizeJpegInPlace(await entry.async("blob"), path, { maxW: 480, maxH: 800, quality: 1 });
         zip.remove(path);
         zip.file(path, optimized.blob);
         done++;
@@ -48,7 +59,7 @@ async function optimizeEPUB(file) {
     }
 
     const out = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    addModalLog("modalLog", "Preserve mode complete: " + done + " JPEG(s) optimized.", "success");
+    addModalLog("modalLog", "Preserve mode complete: " + done + " JPEG(s) optimized, " + gifConverted + " GIF(s) converted.", "success");
     addModalLog("modalLog", "Repacked archive (" + (out.size / 1024).toFixed(1) + " KiB).", "success");
     return out;
   } catch (e) {
@@ -120,28 +131,35 @@ function showEpubFolderImportResults(okCount, failNames, files) {
   for (const f of files) {
     const bad = failNames.indexOf(f.name) >= 0;
     html +=
-      "<li><span>" + escapeHtml(f.name) + '</span><span style="flex-shrink:0;font-weight:600;color:' +
-      (bad ? "#ff3b30" : "#34c759") + '">' + (bad ? "Failed" : "OK") + "</span></li>";
+      "<li><span>" + escapeHtml(f.name) + '</span><span class="import-result-icon ' +
+      (bad ? 'bad" aria-label="Failed">&#215;' : 'ok" aria-label="OK">&#10003;') + "</span></li>";
   }
+  const total = okCount + failNames.length;
   box.className = "import-summary " + (hasFailures ? "warn" : "ok");
   box.innerHTML =
     '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
     (hasFailures
       ? '<path d="M10 3 2.5 17h15L10 3Z"/><path d="M10 8v4M10 15h.01"/>'
       : '<path d="M16.5 5.5 8 14l-4.5-4.5"/>') +
-    '</svg><div class="import-summary-body"><div class="import-summary-title">Last import: ' +
-    okCount + " succeeded, " + failNames.length + " failed</div>" +
+    '</svg><div class="import-summary-body"><div class="import-summary-title">' +
+    (hasFailures ? "Import finished with issues" : "Import complete") + '</div><div class="import-summary-meta">' +
+    okCount + " of " + total + " book" + (total === 1 ? "" : "s") + " imported" +
+    (failNames.length ? ", " + failNames.length + " failed" : "") + "</div>" +
     (html ? "<ul>" + html + "</ul>" : "") +
     "</div>";
   box.style.display = "block";
 }
 
-function setUploadStatus(text, count, percent, visible) {
+function setUploadStatus(text, count, percent, visible, state) {
   const box = document.getElementById("upload-status");
   const label = document.getElementById("upload-status-text");
   const counter = document.getElementById("upload-status-count");
   const fill = document.getElementById("progress-fill");
-  if (box && visible !== undefined) box.style.display = visible ? "block" : "none";
+  if (box) {
+    if (visible !== undefined) box.style.display = visible ? "block" : "none";
+    box.classList.toggle("complete", state === "complete");
+    box.classList.toggle("warn", state === "warn");
+  }
   if (label && text !== undefined) label.textContent = text;
   if (counter && count !== undefined) counter.textContent = count;
   if (fill && percent !== undefined) fill.style.width = Math.max(0, Math.min(100, percent)) + "%";
@@ -162,7 +180,7 @@ async function uploadEpubFiles(files, destPath) {
   addModalLog("modalLog", "Importing " + files.length + " file(s) into " + destPath + ".", "info");
   addModalLog(
     "modalLog",
-    "Preserve mode: JPEG in-place optimization" +
+    "Preserve mode: JPEG in-place optimization at quality 100%" +
       (generatePackagedThumbnail ? "; packaged device thumbnail on." : "; packaged device thumbnail off.") + ".",
     "info"
   );
@@ -193,7 +211,7 @@ async function uploadEpubFiles(files, destPath) {
     }
   }
 
-  setUploadStatus("Import complete", succeeded + "/" + files.length, 100, true);
+  setUploadStatus(failed.length ? "Import finished with issues" : "Import complete", succeeded + "/" + files.length, 100, true, failed.length ? "warn" : "complete");
   addModalLog("modalLog", "Import finished. Succeeded: " + succeeded + ". Failed: " + failed.length + ".", "success");
   showEpubFolderImportResults(succeeded, failed, files);
   await hydrate();
@@ -298,7 +316,7 @@ async function deleteSelectedItems() {
     }
   }
 
-  setUploadStatus("Delete complete", deleted + "/" + selected.length, 100, true);
+  setUploadStatus(failed.length ? "Delete finished with issues" : "Delete complete", deleted + "/" + selected.length, 100, true, failed.length ? "warn" : "complete");
   showEpubFolderImportResults(deleted, failed, selected.map((item) => ({ name: item.name })));
   if (button) button.disabled = false;
   await hydrate();

@@ -18,7 +18,7 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 58;  // 58: persist inline vs floated dropcap placement
+constexpr uint8_t SECTION_FILE_VERSION = 62;  // 62: honor explicit block text-align outside Follow CSS mode
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(float) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) +
                                  sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
@@ -169,6 +169,15 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   pageCount = storedPageCount;
   lutOffset = storedLutOffset;
 
+  if (pageCount == 0 || lutOffset == 0) {
+    Serial.printf("[%lu] [SCT] loadSectionFile: invalid empty section cache spine=%d pages=%u lut=%lu file=%s\n",
+                  millis(), spineIndex, static_cast<unsigned>(pageCount), static_cast<unsigned long>(lutOffset),
+                  filePath.c_str());
+    file.close();
+    clearCache();
+    return false;
+  }
+
   if (pageCount > 0 && pageCount <= MAX_CACHED_PAGE_OFFSETS && lutOffset > 0) {
     try {
       pageOffsets.resize(pageCount);
@@ -182,6 +191,121 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   }
 
   return true;
+}
+
+bool Section::loadSectionFileForPreview(int* outFontId) {
+  if (file) {
+    file.close();
+  }
+  lutOffset = 0;
+  pageOffsets.clear();
+  pageCount = 0;
+
+  if (!SdMan.openFileForRead("SCT", filePath, file)) return false;
+
+  uint8_t version = 0;
+  serialization::readPod(file, version);
+  if (version != SECTION_FILE_VERSION) {
+    file.close();
+    return false;
+  }
+
+  int storedFontId = 0;
+  float storedLineCompression = 1.0f;
+  float storedWordSpacing = 1.0f;
+  bool storedExtraParagraphSpacing = false;
+  uint8_t storedParagraphAlignment = 0;
+  uint16_t storedViewportWidth = 0;
+  uint16_t storedViewportHeight = 0;
+  bool storedHyphenationEnabled = false;
+  bool storedRespectCssIndent = false;
+  bool storedBionicReadingEnabled = false;
+  uint16_t storedPageCount = 0;
+  uint32_t storedLutOffset = 0;
+
+  serialization::readPod(file, storedFontId);
+  serialization::readPod(file, storedLineCompression);
+  serialization::readPod(file, storedWordSpacing);
+  serialization::readPod(file, storedExtraParagraphSpacing);
+  serialization::readPod(file, storedParagraphAlignment);
+  serialization::readPod(file, storedViewportWidth);
+  serialization::readPod(file, storedViewportHeight);
+  serialization::readPod(file, storedHyphenationEnabled);
+  serialization::readPod(file, storedRespectCssIndent);
+  serialization::readPod(file, storedBionicReadingEnabled);
+  serialization::readPod(file, storedPageCount);
+  serialization::readPod(file, storedLutOffset);
+
+  pageCount = storedPageCount;
+  lutOffset = storedLutOffset;
+  if (outFontId != nullptr) {
+    *outFontId = storedFontId;
+  }
+  return pageCount > 0 && lutOffset != 0;
+}
+
+std::unique_ptr<Page> Section::loadCachedPage(const std::string& cachePath, const int spineIndex,
+                                              const int pageNumber) {
+  if (spineIndex < 0 || pageNumber < 0) {
+    return nullptr;
+  }
+
+  FsFile sectionFile;
+  const std::string path = cachePath + "/sections/" + std::to_string(spineIndex) + ".bin";
+  if (!SdMan.openFileForRead("SCT", path, sectionFile)) {
+    return nullptr;
+  }
+
+  uint8_t version = 0;
+  serialization::readPod(sectionFile, version);
+  if (version != SECTION_FILE_VERSION) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  int storedFontId = 0;
+  float storedLineCompression = 1.0f;
+  float storedWordSpacing = 1.0f;
+  bool storedExtraParagraphSpacing = false;
+  uint8_t storedParagraphAlignment = 0;
+  uint16_t storedViewportWidth = 0;
+  uint16_t storedViewportHeight = 0;
+  bool storedHyphenationEnabled = false;
+  bool storedRespectCssIndent = false;
+  bool storedBionicReadingEnabled = false;
+  uint16_t storedPageCount = 0;
+  uint32_t storedLutOffset = 0;
+
+  serialization::readPod(sectionFile, storedFontId);
+  serialization::readPod(sectionFile, storedLineCompression);
+  serialization::readPod(sectionFile, storedWordSpacing);
+  serialization::readPod(sectionFile, storedExtraParagraphSpacing);
+  serialization::readPod(sectionFile, storedParagraphAlignment);
+  serialization::readPod(sectionFile, storedViewportWidth);
+  serialization::readPod(sectionFile, storedViewportHeight);
+  serialization::readPod(sectionFile, storedHyphenationEnabled);
+  serialization::readPod(sectionFile, storedRespectCssIndent);
+  serialization::readPod(sectionFile, storedBionicReadingEnabled);
+  serialization::readPod(sectionFile, storedPageCount);
+  serialization::readPod(sectionFile, storedLutOffset);
+
+  if (storedPageCount == 0 || storedLutOffset == 0 || pageNumber >= static_cast<int>(storedPageCount)) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  uint32_t pagePos = 0;
+  sectionFile.seek(storedLutOffset + sizeof(uint32_t) * pageNumber);
+  serialization::readPod(sectionFile, pagePos);
+  if (pagePos == 0) {
+    sectionFile.close();
+    return nullptr;
+  }
+
+  sectionFile.seek(pagePos);
+  auto page = Page::deserialize(sectionFile);
+  sectionFile.close();
+  return page;
 }
 
 /**
@@ -207,7 +331,9 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
                                 const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
                                 const std::function<void()>& popupFn, bool skipImages,
-                                const std::function<void(Page&, uint16_t)>& pageBuiltFn) {
+                                const std::function<void(Page&, uint16_t)>& pageBuiltFn,
+                                const bool warmImageDisplayCache, const ImageRenderMode warmImageRenderMode,
+                                const bool warmImageQuality, const int warmImageYOffset) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -229,15 +355,34 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
     }
     FsFile tmpHtml;
     if (!SdMan.openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+      Serial.printf(
+          "[%lu] [SCT] createSectionFile: failed to open temp HTML for write attempt=%d spine=%d href=%s tmp=%s "
+          "book=%s heap=%u\n",
+          millis(), attempt + 1, spineIndex, localPath.c_str(), tmpHtmlPath.c_str(), epub->getPath().c_str(),
+          static_cast<unsigned>(ESP.getFreeHeap()));
       continue;
     }
     success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    const uint32_t tmpSize = tmpHtml.position();
     tmpHtml.close();
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: temp HTML extract attempt=%d ok=%d bytes=%lu spine=%d href=%s tmp=%s "
+        "book=%s title=%s heap=%u\n",
+        millis(), attempt + 1, success ? 1 : 0, static_cast<unsigned long>(tmpSize), spineIndex, localPath.c_str(),
+        tmpHtmlPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(ESP.getFreeHeap()));
     if (!success && SdMan.exists(tmpHtmlPath.c_str())) {
       SdMan.remove(tmpHtmlPath.c_str());
     }
   }
-  if (!success) return false;
+  if (!success) {
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: failed to extract chapter after retries spine=%d href=%s book=%s "
+        "title=%s heap=%u\n",
+        millis(), spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(ESP.getFreeHeap()));
+    return false;
+  }
 
   std::vector<uint32_t> lut;
 
@@ -248,7 +393,7 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
       [this, &lut, &pageBuiltFn](std::unique_ptr<Page> page) {
         lut.emplace_back(this->onPageComplete(std::move(page), pageBuiltFn));
       },
-      popupFn);
+      warmImageDisplayCache, warmImageRenderMode, warmImageQuality, warmImageYOffset, popupFn);
 
   visitor.internalPath = localPath;
 
@@ -278,6 +423,19 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
   SdMan.remove(tmpHtmlPath.c_str());
 
   if (!success) {
+    Serial.printf(
+        "[%lu] [SCT] createSectionFile: parser returned false spine=%d href=%s file=%s book=%s title=%s pages=%u "
+        "heap=%u\n",
+        millis(), spineIndex, localPath.c_str(), filePath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str(),
+        static_cast<unsigned>(pageCount), static_cast<unsigned>(ESP.getFreeHeap()));
+    file.close();
+    SdMan.remove(filePath.c_str());
+    return false;
+  }
+
+  if (pageCount == 0) {
+    Serial.printf("[%lu] [SCT] createSectionFile: zero-page section spine=%d href=%s book=%s title=%s\n", millis(),
+                  spineIndex, localPath.c_str(), epub->getPath().c_str(), epub->getTitle().c_str());
     file.close();
     SdMan.remove(filePath.c_str());
     return false;

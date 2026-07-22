@@ -25,9 +25,7 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
  public:
   enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR };
 
-  explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                   const std::function<void()>& onGoToRecent)
-      : ActivityWithSubactivity("OpdsBookBrowser", renderer, mappedInput), onGoToRecent(onGoToRecent) {}
+  /** Constructs an OpdsBookBrowserActivity that uses the globally configured OPDS server settings. */
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                    const std::function<void()>& onGoToRecent, const std::string& serverUrl,
                                    const std::string& serverUsername, const std::string& serverPassword)
@@ -37,8 +35,11 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
         serverUsername(serverUsername),
         serverPassword(serverPassword) {}
 
+  /** Starts the display task and checks WiFi connectivity before loading the feed. */
   void onEnter() override;
+  /** Stops the display task and clears loaded catalog data. */
   void onExit() override;
+  /** Handles input for browsing the catalog and downloading books. */
   void loop() override;
 
  private:
@@ -61,15 +62,25 @@ class OpdsBookBrowserActivity final : public ActivityWithSubactivity {
   std::string serverUsername;
   std::string serverPassword;
 
+  /** Static trampoline that dispatches to the instance's displayTaskLoop. */
   static void taskTrampoline(void* param);
+  /** Background task loop that renders the screen when an update is required. */
   [[noreturn]] void displayTaskLoop();
+  /** Renders the current browser state (loading, error, catalog list, etc). */
   void render() const;
 
+  /** Checks WiFi status and either fetches the feed or launches WiFi selection. */
   void checkAndConnectWifi();
+  /** Enters the WiFi selection subactivity. */
   void launchWifiSelection();
+  /** Handles completion of the WiFi selection subactivity. */
   void onWifiSelectionComplete(bool connected);
+  /** Fetches and parses the OPDS feed at the given path. */
   void fetchFeed(const std::string& path);
+  /** Navigates into a catalog or book entry. */
   void navigateToEntry(const OpdsEntry& entry);
+  /** Navigates back to the previous catalog entry, or exits if at the root. */
   void navigateBack();
+  /** Downloads the given book entry to the SD card. */
   void downloadBook(const OpdsEntry& book);
 };

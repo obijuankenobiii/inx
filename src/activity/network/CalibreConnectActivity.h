@@ -124,8 +124,7 @@ class CalibreConnectActivity final : public ActivityWithSubactivity, public Menu
   std::string connectedIP;                                         /**< IP address of connected WiFi */
   std::string connectedSSID;                                       /**< SSID of connected WiFi network */
 
-  WebServerContext* serverCtx = nullptr;  /**< Web server context (raw pointer) */
-  unsigned long lastHandleClientTime = 0; /**< Timestamp of last client handling */
+  WebServerContext* serverCtx = nullptr; /**< Web server context (raw pointer) */
 
   size_t lastProgressReceived = 0;  /**< Last reported bytes received for upload */
   size_t lastProgressTotal = 0;     /**< Last reported total bytes for upload */

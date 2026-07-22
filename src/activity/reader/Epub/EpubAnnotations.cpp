@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <sstream>
 
+#include "state/EpubNotesIndex.h"
+
 namespace {
 
 constexpr uint32_t kAnnMagicV3 = 0x334E4E41;  // "ANN3"
@@ -258,6 +260,7 @@ void EpubAnnotations::clearPageShard(const std::string& cachePath, const int spi
   const std::string path = pageShardPath(cachePath, spine, page);
   if (SdMan.exists(path.c_str())) {
     SdMan.remove(path.c_str());
+    EpubNotesIndex::invalidate();
   }
   records_.clear();
   cacheSpine_ = -1;
@@ -286,6 +289,9 @@ bool EpubAnnotations::appendHighlight(const std::string& cachePath, const int sp
     ok = writeAnn3(pageShardPath(cachePath, pr.first, pr.second), pageRecs) || ok;
   }
   cacheSpine_ = -1;
+  if (ok) {
+    EpubNotesIndex::invalidate();
+  }
   return ok;
 }
 

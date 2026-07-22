@@ -111,24 +111,21 @@ void TxtReaderActivity::loop() {
   }
 
   const bool usePressForPageTurn = SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
-  const HalGPIO::MotionGesture motionGesture =
-      mappedInput.readMotionGesture(static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn,
-                                    SETTINGS.shakePageTurnSensitivity);
-  const bool prevTriggered =
-      motionGesture == HalGPIO::MotionGesture::Previous ||
-      (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
-                              mappedInput.wasPressed(MappedInputManager::Button::Left))
-                           : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
-                              mappedInput.wasReleased(MappedInputManager::Button::Left)));
+  const MappedInputManager::MotionGesture motionGesture = mappedInput.readMotionGesture(
+      static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn, SETTINGS.shakePageTurnSensitivity);
+  const bool prevTriggered = motionGesture == MappedInputManager::MotionGesture::Previous ||
+                             (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
+                                                     mappedInput.wasPressed(MappedInputManager::Button::Left))
+                                                  : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
+                                                     mappedInput.wasReleased(MappedInputManager::Button::Left)));
   const bool powerPageTurn = SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_TURN &&
                              mappedInput.wasReleased(MappedInputManager::Button::Power);
   const bool nextTriggered =
-      motionGesture == HalGPIO::MotionGesture::Next ||
-      (usePressForPageTurn
-           ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
-              mappedInput.wasPressed(MappedInputManager::Button::Right))
-           : (mappedInput.wasReleased(MappedInputManager::Button::PageForward) || powerPageTurn ||
-              mappedInput.wasReleased(MappedInputManager::Button::Right)));
+      motionGesture == MappedInputManager::MotionGesture::Next ||
+      (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
+                              mappedInput.wasPressed(MappedInputManager::Button::Right))
+                           : (mappedInput.wasReleased(MappedInputManager::Button::PageForward) || powerPageTurn ||
+                              mappedInput.wasReleased(MappedInputManager::Button::Right)));
 
   if (!prevTriggered && !nextTriggered) {
     return;
@@ -616,7 +613,6 @@ bool TxtReaderActivity::loadPageIndexCache() {
   serialization::readPod(f, numPages);
 
   pageOffsets.clear();
-  pageOffsets.reserve(numPages);
 
   for (uint32_t i = 0; i < numPages; i++) {
     uint32_t offset;

@@ -19,6 +19,7 @@
 #include "activity/page/LibraryActivity.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -61,7 +62,8 @@ void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth,
                                const bool running, const bool success, const bool cancelled, const int processedCount,
                                const int generatedCount, const int skippedCount, const int failedCount,
                                const char* currentPath) {
-  const int centerY = screenHeight / 2;
+  const int contentTop = INX_THEME.drawPageHeader(renderer, "Thumbnails");
+  const int centerY = contentTop + (screenHeight - contentTop - 80) / 2;
 
   const char* eyebrow = running     ? "GENERATING THUMBNAILS"
                         : success   ? "THUMBNAILS READY"
@@ -333,9 +335,10 @@ void ThumbnailGeneratorActivity::render() {
 
   const int pageWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
-  const int centerY = screenHeight / 2;
 
   if (state == READY) {
+    const int contentTop = INX_THEME.drawPageHeader(renderer, "Thumbnails");
+    const int centerY = contentTop + (screenHeight - contentTop - 80) / 2;
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "GENERATE THUMBNAILS", true,
                            EpdFontFamily::BOLD);
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Build missing covers", true,

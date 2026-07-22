@@ -18,12 +18,29 @@
 
 extern HalGPIO gpio;
 
+namespace {
+
+void drawBatteryLightningBolt(const GfxRenderer& renderer, const int boltX, const int boltY) {
+  renderer.line.render(boltX + 4, boltY + 0, boltX + 5, boltY + 0, false);
+  renderer.line.render(boltX + 3, boltY + 1, boltX + 4, boltY + 1, false);
+  renderer.line.render(boltX + 2, boltY + 2, boltX + 5, boltY + 2, false);
+  renderer.line.render(boltX + 3, boltY + 3, boltX + 4, boltY + 3, false);
+  renderer.line.render(boltX + 2, boltY + 4, boltX + 3, boltY + 4, false);
+  renderer.line.render(boltX + 1, boltY + 5, boltX + 4, boltY + 5, false);
+  renderer.line.render(boltX + 2, boltY + 6, boltX + 3, boltY + 6, false);
+  renderer.line.render(boltX + 1, boltY + 7, boltX + 2, boltY + 7, false);
+}
+
+}  // namespace
+
 void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, const int top,
                                    const bool showPercentage) {
 #ifdef SIMULATOR
   const uint16_t percentage = 100;
+  const bool charging = false;
 #else
   const uint16_t percentage = gpio.getBatteryPercentage();
+  const bool charging = gpio.isUsbConnected();
 #endif
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
   renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
@@ -48,8 +65,14 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
   if (filledWidth > batteryWidth - 5) {
     filledWidth = batteryWidth - 5;
   }
+  if (charging && filledWidth < 8) {
+    filledWidth = std::min(8, batteryWidth - 5);
+  }
 
   renderer.rectangle.fill(x + 2, y + 2, filledWidth, batteryHeight - 4);
+  if (charging) {
+    drawBatteryLightningBolt(renderer, x + 4, y + 2);
+  }
 }
 
 ScreenComponents::PopupLayout ScreenComponents::drawPopup(const GfxRenderer& renderer, const char* message) {

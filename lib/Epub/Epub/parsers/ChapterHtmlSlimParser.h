@@ -5,6 +5,7 @@
  * @brief Public interface and types for ChapterHtmlSlimParser.
  */
 
+#include <ImageRenderMode.h>
 #include <expat.h>
 
 #include <climits>
@@ -22,6 +23,7 @@
 class Page;
 class GfxRenderer;
 class PageCssBorderLine;
+class PageCssBorderBox;
 
 #define MAX_WORD_SIZE 200
 
@@ -51,6 +53,8 @@ class ChapterHtmlSlimParser {
   int boldUntilDepth = INT_MAX;
   int italicUntilDepth = INT_MAX;
   int underlineUntilDepth = INT_MAX;
+  int superscriptUntilDepth = INT_MAX;
+  int subscriptUntilDepth = INT_MAX;
 
   int fontId;
   int headerFontId;
@@ -65,9 +69,12 @@ class ChapterHtmlSlimParser {
 
   char partWordBuffer[MAX_WORD_SIZE + 1] = {};
   int partWordBufferIndex = 0;
+  bool nextWordJoinsPrevious = false;
   std::unique_ptr<ParsedText> currentTextBlock = nullptr;
   std::unique_ptr<Page> currentPage = nullptr;
   int16_t currentPageNextY = 0;
+  int currentTextBlockContentX = 0;
+  int currentTextBlockContentWidth = 1;
 
   float lineCompression;
   float wordSpacingFactor;
@@ -81,26 +88,69 @@ class ChapterHtmlSlimParser {
   bool respectCssParagraphIndent = false;
 
   bool skipImages = false;
+  bool warmImageDisplayCache = false;
+  ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit;
+  bool warmImageQuality = false;
+  int warmImageYOffset = 0;
 
   /** After cold image extract, yield occasionally so heap can consolidate (ZIP + converters). */
   unsigned imageExtractCountForYield_ = 0;
 
-  CssParser cssParser;
+  CssParser cssParser_;
+  const CssParser* sharedCssParser = nullptr;
   bool cssLoaded;
   std::vector<TextBlock::Style> cssAlignmentStack;
   // Element depth that pushed each cssAlignmentStack entry, so endElement only pops the level it pushed.
   // Tags that early-return in startElement (img, hr, table cells, skipped tags) never push; without this an
   // unconditional pop would drop an ancestor's alignment and break inheritance for later siblings.
   std::vector<int> cssAlignmentDepths;
+  struct CssFontStyleScope {
+    int depth = 0;
+    bool bold = false;
+    bool italic = false;
+  };
+  std::vector<CssFontStyleScope> cssFontStyleStack;
   std::vector<bool> smallCapsStack;
   std::vector<int> smallCapsDepths;
+  struct CssHorizontalInsetScope {
+    int depth = 0;
+    int left = 0;
+    int right = 0;
+    std::string classAttr;
+  };
+  struct CssBorderBoxScope {
+    int depth = 0;
+    std::shared_ptr<PageCssBorderBox> elem;
+    int16_t x = 0;
+    int16_t y = 0;
+    int16_t width = 0;
+    int paddingBottom = 0;
+    int borderBottom = 0;
+    int marginBottom = 0;
+    uint8_t borderBottomStyle = 0;
+    bool finalized = false;
+  };
+  std::vector<CssHorizontalInsetScope> cssHorizontalInsetStack;
+  std::vector<CssBorderBoxScope> cssBorderBoxStack;
+  int currentCssInsetLeftPx = 0;
+  int currentCssInsetRightPx = 0;
   int currentBlockBottomSpacingPx = 0;
   bool currentBlockSpacingFromCss = false;
   int currentBlockMarginBottomPx = 0;
   int currentBlockPaddingBottomPx = 0;
+  int currentBlockBorderTopPx = 0;
   int currentBlockBorderBottomPx = 0;
+  int currentBlockBorderLeftPx = 0;
+  int currentBlockBorderRightPx = 0;
   /** CSS border-style code (PageCssBorderLine::Style) for the pending bottom border. */
+  uint8_t currentBlockBorderTopStyle = 0;
   uint8_t currentBlockBorderBottomStyle = 0;
+  uint8_t currentBlockBorderLeftStyle = 0;
+  uint8_t currentBlockBorderRightStyle = 0;
+  bool currentBlockUsesBorderBox = false;
+  int16_t currentBlockBorderBoxX = 0;
+  int16_t currentBlockBorderBoxY = 0;
+  int16_t currentBlockBorderBoxW = 0;
   /** CSS min-height for the current block (px); content is padded out to this if shorter. 0 = none. */
   int currentBlockMinHeightPx = 0;
   /** Font id override for the current block when its CSS font-size is large (e.g. a big centered title <p>).
@@ -110,6 +160,8 @@ class ChapterHtmlSlimParser {
   int16_t currentBlockContentStartY = 0;
   /** Top border rule of the current block, deferred so its width can be set to the text width after layout. */
   std::shared_ptr<PageCssBorderLine> pendingTopBorderElem_;
+  /** Full CSS border box for blocks that have left/right borders; height is finalized after text layout. */
+  std::shared_ptr<PageCssBorderBox> pendingBorderBoxElem_;
 
   /** When true, Expat callbacks only walk the tree for depth/skip and prefetch images (no text layout). */
   bool imagePrefetchPassOnly_ = false;
@@ -190,6 +242,12 @@ class ChapterHtmlSlimParser {
    *  the header, block, and custom-display-block element branches in startElement(). */
   void beginCssBlockBox(const std::string& tagLower, const std::string& classAttr, const std::string& idAttr,
                         const std::string& styleAttr);
+  /** Current text layout width after inherited CSS margin/padding-left/right. */
+  int activeBlockContentWidth() const;
+  /** Current text x offset after inherited CSS margin/padding-left. */
+  int activeBlockContentX() const;
+  /** Captures the current CSS horizontal inset for the active text block. */
+  void captureCurrentTextBlockBox();
   /** Pads the current block's content down to its CSS min-height (if the content was shorter). Call after the
    *  block's lines are laid out and before the bottom padding/border/margin. */
   void applyMinHeightPadding();
@@ -221,6 +279,7 @@ class ChapterHtmlSlimParser {
    * Loads all CSS rules from the EPUB cache using CssParser.
    */
   void loadCssRules();
+  const CssParser& css() const { return sharedCssParser ? *sharedCssParser : cssParser_; }
 
   /** Resolves text-align for the current block element when paragraph alignment is FOLLOW_CSS. */
   TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,
@@ -250,15 +309,15 @@ class ChapterHtmlSlimParser {
    * Constructs a new HTML parser for a chapter.
    * Note: headerFontId is used for both <h> tags and drop cap <span> tags.
    */
-  explicit ChapterHtmlSlimParser(const std::string& filepath, const Epub& epub, const std::string& cachePath,
-                                 const std::string& contentBasePath, GfxRenderer& renderer, const int fontId,
-                                 const int headerFontId, const int maxFontId, const float lineCompression,
-                                 const float wordSpacingFactor, const bool extraParagraphSpacing,
-                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
-                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
-                                 const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
-                                 const std::function<void(std::unique_ptr<Page>)>& completePageFn,
-                                 const std::function<void()>& popupFn = nullptr)
+  explicit ChapterHtmlSlimParser(
+      const std::string& filepath, const Epub& epub, const std::string& cachePath, const std::string& contentBasePath,
+      GfxRenderer& renderer, const int fontId, const int headerFontId, const int maxFontId, const float lineCompression,
+      const float wordSpacingFactor, const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
+      const uint16_t viewportWidth, const uint16_t viewportHeight, const bool hyphenationEnabled,
+      const bool respectCssParagraphIndent, const bool bionicReadingEnabled,
+      const std::function<void(std::unique_ptr<Page>)>& completePageFn, const bool warmImageDisplayCache = false,
+      const ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit, const bool warmImageQuality = false,
+      const int warmImageYOffset = 0, const std::function<void()>& popupFn = nullptr)
       : filepath(filepath),
         epub(epub),
         cachePath(cachePath),
@@ -276,6 +335,10 @@ class ChapterHtmlSlimParser {
         hyphenationEnabled(hyphenationEnabled),
         bionicReadingEnabled(bionicReadingEnabled),
         respectCssParagraphIndent(respectCssParagraphIndent),
+        warmImageDisplayCache(warmImageDisplayCache),
+        warmImageRenderMode(warmImageRenderMode),
+        warmImageQuality(warmImageQuality),
+        warmImageYOffset(warmImageYOffset),
         completePageFn(completePageFn),
         popupFn(popupFn),
         cssLoaded(false) {}

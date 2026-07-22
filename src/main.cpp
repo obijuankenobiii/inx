@@ -16,7 +16,6 @@
 #include <string>
 
 #include "activity/OpdsServerListActivity.h"
-#include "activity/browser/OpdsBookBrowserActivity.h"
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
@@ -25,14 +24,17 @@
 #include "activity/page/SettingsActivity.h"
 #include "activity/page/StatisticActivity.h"
 #include "activity/page/SyncActivity.h"
+#include "activity/reader/ImageViewerActivity.h"
 #include "activity/reader/ReaderActivity.h"
 #include "activity/system/BootActivity.h"
 #include "activity/system/SleepActivity.h"
 #include "activity/util/FullScreenMessageActivity.h"
+#include "state/OpdsServerStore.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "util/StringUtils.h"
 
 #ifdef SIMULATOR
 extern HalDisplay display;
@@ -64,6 +66,7 @@ void onGoToLibrary(const std::string& path = "/");
 void setupDisplayAndFonts();
 void onNetworkModeSelected(NetworkMode mode);
 void openReaderFromCallback(const std::string& path);
+bool handleGlobalPowerRefresh();
 
 /**
  * @brief Switches the current activity using standard heap allocation.
@@ -92,10 +95,26 @@ void onGoToReader(const std::string& path) {
   switchTo<ReaderActivity>(render, input, path, [](const std::string&) { onGoToRecent(); });
 }
 
+bool isExportedNoteImage(const std::string& path) {
+  constexpr const char* root = "/Bookmarks & Annotations";
+  const size_t rootLen = strlen(root);
+  const bool inRoot = path.compare(0, rootLen, root) == 0 && (path.size() == rootLen || path[rootLen] == '/');
+  return inRoot && (StringUtils::checkFileExtension(path, ".bmp") || StringUtils::checkFileExtension(path, ".jpg") ||
+                    StringUtils::checkFileExtension(path, ".jpeg") || StringUtils::checkFileExtension(path, ".png"));
+}
+
 /**
  * @brief Opens the reader activity and returns to the library when closed.
  */
 void openReaderFromCallback(const std::string& path) {
+  if (isExportedNoteImage(path)) {
+    switchTo<ImageViewerActivity>(render, input, path, [path]() {
+      std::string folderPath = path.substr(0, path.find_last_of('/'));
+      if (folderPath.empty()) folderPath = "/";
+      onGoToLibrary(folderPath);
+    });
+    return;
+  }
   switchTo<ReaderActivity>(render, input, path, [path](const std::string&) {
     std::string folderPath = path.substr(0, path.find_last_of('/'));
     if (folderPath.empty()) folderPath = "/";
@@ -135,7 +154,7 @@ void onNetworkModeSelected(NetworkMode mode) {
       switchTo<HotspotActivity>(render, input, onGoToFileTransfer);
       break;
     case NetworkMode::OPDS_BROWSER:
-      switchTo<OpdsBookBrowserActivity>(render, input, onGoToFileTransfer);
+      switchTo<OpdsServerListActivity>(render, input, onGoToFileTransfer);
       break;
   }
 }
@@ -228,6 +247,21 @@ void setupDisplayAndFonts() {
   FontManager::initialize(render);
 }
 
+bool handleGlobalPowerRefresh() {
+  if (!currentActivity || !currentActivity->allowGlobalPowerRefresh()) {
+    return false;
+  }
+  if (SETTINGS.shortPwrBtn != SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
+    return false;
+  }
+  if (!input.wasReleased(MappedInputManager::Button::Power)) {
+    return false;
+  }
+
+  renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
+  return true;
+}
+
 /**
  * @brief Set up application.
  */
@@ -248,6 +282,7 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  OPDS_STORE.loadOrMigrate({"Default", SETTINGS.opdsServerUrl, SETTINGS.opdsUsername, SETTINGS.opdsPassword});
   normalizeUnavailableClockSettings();
 
   switch (gpio.getWakeupReason()) {
@@ -286,6 +321,11 @@ void loop() {
     return;
   }
 
+  if (handleGlobalPowerRefresh()) {
+    delay(10);
+    return;
+  }
+
   if (currentActivity) {
     currentActivity->loop();
   }
@@ -293,6 +333,6 @@ void loop() {
   if (currentActivity && currentActivity->skipLoopDelay()) {
     yield();
   } else {
-    delay(20);
+    delay(10);
   }
 }

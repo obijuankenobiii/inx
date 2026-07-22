@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 
+/** Exits and destroys the current subactivity, if any. */
 void ActivityWithSubactivity::exitActivity() {
   if (subActivity) {
     subActivity->onExit();
@@ -14,6 +15,7 @@ void ActivityWithSubactivity::exitActivity() {
   }
 }
 
+/** Replaces the current subactivity with the given one and enters it. */
 void ActivityWithSubactivity::enterNewActivity(Activity* activity) {
   subActivity.reset(activity);
 #ifdef SIMULATOR
@@ -22,12 +24,14 @@ void ActivityWithSubactivity::enterNewActivity(Activity* activity) {
   subActivity->onEnter();
 }
 
+/** Forwards the loop call to the active subactivity, if any. */
 void ActivityWithSubactivity::loop() {
   if (subActivity) {
     subActivity->loop();
   }
 }
 
+/** Cleans up the current subactivity on exit. */
 void ActivityWithSubactivity::onExit() {
   Activity::onExit();
   exitActivity();

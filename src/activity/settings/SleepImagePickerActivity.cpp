@@ -19,6 +19,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -28,7 +29,7 @@ constexpr int GRID_ITEMS = GRID_COLS * GRID_ROWS;
 constexpr int GRID_MARGIN_X = 18;
 constexpr int GRID_GAP_X = 12;
 constexpr int GRID_GAP_Y = 12;
-constexpr int GRID_TOP = 32;
+constexpr int GRID_TOP = 12;
 constexpr int THUMB_INSET_X = 18;
 constexpr int THUMB_INSET_Y = 12;
 constexpr int RANDOM_BUTTON_W = 178;
@@ -93,6 +94,7 @@ void SleepImagePickerActivity::rebuildRows() {
 void SleepImagePickerActivity::onExit() {
   renderedPageStart = -1;
   freeGridBuffer();
+  std::vector<Row>().swap(rows);
   ActivityWithSubactivity::onExit();
 }
 
@@ -123,8 +125,6 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
   const int gridHeight = std::max(1, gridBottom - GRID_TOP);
   const int cellW = (pageWidth - GRID_MARGIN_X * 2 - GRID_GAP_X) / GRID_COLS;
   const int cellH = (gridHeight - GRID_GAP_Y * (GRID_ROWS - 1)) / GRID_ROWS;
-
-  renderer.rectangle.fill(0, 0, pageWidth, 26, false);
 
   if (hasImages && drawCells) {
     for (int slot = 0; slot < GRID_ITEMS; ++slot) {
@@ -376,12 +376,6 @@ void SleepImagePickerActivity::loop() {
   if (updateRequired) {
     updateRequired = false;
     render();
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {

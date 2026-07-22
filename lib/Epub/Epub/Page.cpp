@@ -16,8 +16,10 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <new>
 
 #include "../../../src/images/Hr.h"
+#include "../../../src/util/StringUtils.h"
 
 namespace {
 
@@ -26,6 +28,136 @@ constexpr int16_t kSmallImageGrayscaleLimit = 100;
 bool needsGrayscalePass(const PageImage& image) {
   return image.needsGrayscale() && image.getWidth() > kSmallImageGrayscaleLimit &&
          image.getHeight() > kSmallImageGrayscaleLimit;
+}
+
+struct PackedRectSnapshot {
+  int x = 0;
+  int y = 0;
+  int width = 0;
+  int height = 0;
+  int rowBytes = 0;
+  std::unique_ptr<uint8_t[]> rows;
+
+  bool capture(GfxRenderer& renderer, const int rectX, const int rectY, const int rectW, const int rectH) {
+    const int x1 = std::max(0, rectX);
+    const int y1 = std::max(0, rectY);
+    const int x2 = std::min(renderer.getScreenWidth(), rectX + rectW);
+    const int y2 = std::min(renderer.getScreenHeight(), rectY + rectH);
+    if (x2 <= x1 || y2 <= y1) {
+      return false;
+    }
+
+    x = x1;
+    y = y1;
+    width = x2 - x1;
+    height = y2 - y1;
+    rowBytes = (width + 7) / 8;
+    rows.reset(new (std::nothrow) uint8_t[static_cast<size_t>(rowBytes) * static_cast<size_t>(height)]);
+    if (!rows) {
+      return false;
+    }
+
+    for (int row = 0; row < height; ++row) {
+      renderer.readPackedRow1bpp(x, y + row, width, rows.get() + static_cast<size_t>(row) * rowBytes);
+    }
+    return true;
+  }
+
+  void restore(GfxRenderer& renderer) const {
+    if (!rows) {
+      return;
+    }
+    for (int row = 0; row < height; ++row) {
+      renderer.drawPackedRow1bpp(x, y + row, width, rows.get() + static_cast<size_t>(row) * rowBytes);
+    }
+  }
+};
+
+bool warmImagePlane(GfxRenderer& renderer, const std::string& path, const int x, const int y, const int width,
+                    const int height, const ImageRender::Options& options, const GfxRenderer::RenderMode renderMode,
+                    const bool baseInk) {
+  PackedRectSnapshot snapshot;
+  if (!snapshot.capture(renderer, x, y, width, height)) {
+    return false;
+  }
+
+  const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
+  renderer.setRenderMode(renderMode);
+  renderer.rectangle.fill(x, y, width, height, baseInk);
+  const bool ok = ImageRender::create(renderer, path).render(x, y, width, height, options);
+  renderer.setRenderMode(savedMode);
+  snapshot.restore(renderer);
+  return ok;
+}
+
+void drawStyledHorizontal(GfxRenderer& renderer, const int left, const int right, const int y, const uint8_t style) {
+  if (right < left) {
+    return;
+  }
+  if (style == PageCssBorderLine::DOTTED) {
+    for (int xx = left; xx <= right; xx += 3) {
+      renderer.drawPixel(xx, y, true);
+    }
+  } else if (style == PageCssBorderLine::DASHED) {
+    for (int xx = left; xx <= right; xx += 9) {
+      renderer.line.render(xx, y, std::min(right, xx + 5), y, true);
+    }
+  } else {
+    renderer.line.render(left, y, right, y, true);
+  }
+}
+
+void drawStyledVertical(GfxRenderer& renderer, const int x, const int top, const int bottom, const uint8_t style) {
+  if (bottom < top) {
+    return;
+  }
+  if (style == PageCssBorderLine::DOTTED) {
+    for (int yy = top; yy <= bottom; yy += 3) {
+      renderer.drawPixel(x, yy, true);
+    }
+  } else if (style == PageCssBorderLine::DASHED) {
+    for (int yy = top; yy <= bottom; yy += 9) {
+      renderer.line.render(x, yy, x, std::min(bottom, yy + 5), true);
+    }
+  } else {
+    renderer.line.render(x, top, x, bottom, true);
+  }
+}
+
+void drawHorizontalBorder(GfxRenderer& renderer, const int left, const int right, const int top, const int thickness,
+                          const uint8_t style) {
+  if (thickness <= 0) {
+    return;
+  }
+  const int drawThickness = std::max(1, thickness);
+  if (style == PageCssBorderLine::DOUBLE) {
+    const int total = std::max(3, drawThickness);
+    const int lineW = std::max(1, total / 3);
+    for (int i = 0; i < lineW; ++i) drawStyledHorizontal(renderer, left, right, top + i, style);
+    for (int i = 0; i < lineW; ++i) drawStyledHorizontal(renderer, left, right, top + total - 1 - i, style);
+  } else {
+    for (int i = 0; i < drawThickness; ++i) {
+      drawStyledHorizontal(renderer, left, right, top + i, style);
+    }
+  }
+}
+
+void drawVerticalBorder(GfxRenderer& renderer, const int left, const int top, const int bottom, const int thickness,
+                        const uint8_t style) {
+  if (thickness <= 0) {
+    return;
+  }
+  const int drawThickness = std::max(1, thickness);
+  if (style == PageCssBorderLine::DOUBLE) {
+    const int total = std::max(3, drawThickness);
+    const int lineW = std::max(1, total / 3);
+    for (int i = 0; i < lineW; ++i) drawStyledVertical(renderer, left + i, top, bottom, style);
+    for (int i = 0; i < lineW; ++i) drawStyledVertical(renderer, left + total - 1 - i, top, bottom, style);
+  } else {
+    for (int i = 0; i < drawThickness; ++i) {
+      drawStyledVertical(renderer, left + i, top, bottom, style);
+    }
+  }
 }
 
 }  // namespace
@@ -226,7 +358,7 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   ImageRender::Options options;
   options.mode = imageMode;
   options.quality = quality;
-  options.fastQuality = false;
+  options.fastQuality = quality;
   const ImageRender image = ImageRender::create(renderer, cachePath);
 
   // Two-pass grayscale composites (renderGrayscalePasses) call this twice per image: once with the
@@ -290,6 +422,56 @@ void PageImage::renderImage(GfxRenderer& renderer, const int fontId, const int x
   }
   Serial.printf("[%lu] [IMG-TIMING] renderImage(%s) plain-path: %lums\n", millis(), cachePath.c_str(),
                 static_cast<unsigned long>(millis() - tImageStart));
+}
+
+bool PageImage::hasCachedTwoBitImage(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                     const bool quality) const {
+  (void)xOffset;
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  ImageRender::Options options;
+  options.mode = ImageRenderMode::TwoBit;
+  options.quality = quality;
+  options.fastQuality = quality;
+  return ImageRender::create(renderer, cachePath).hasCachedTwoBit(renderX, renderY, width, height, options, quality);
+}
+
+bool PageImage::warmDisplayCache(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                 const ImageRenderMode imageMode, const bool quality) const {
+  (void)xOffset;
+  const int screenW = renderer.getScreenWidth();
+  int renderX = (screenW - width) / 2;
+  int renderY = yPos + yOffset;
+  if (renderX < 0) renderX = 0;
+  if (renderY < 0) renderY = 0;
+
+  ImageRender::Options options;
+  options.mode = imageMode;
+  options.quality = quality;
+  options.fastQuality = quality;
+  options.useDisplayCache = true;
+
+  if (imageMode == ImageRenderMode::TwoBit) {
+    if (hasCachedTwoBitImage(renderer, xOffset, yOffset, quality)) {
+      return true;
+    }
+    const bool baseInk = !quality;
+    const bool lsbOk = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options,
+                                      quality ? GfxRenderer::GRAY2_LSB : GfxRenderer::GRAYSCALE_LSB, baseInk);
+    yield();
+    const bool msbOk = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options,
+                                      quality ? GfxRenderer::GRAY2_MSB : GfxRenderer::GRAYSCALE_MSB, baseInk);
+    yield();
+    return lsbOk && msbOk;
+  }
+
+  const bool ok = warmImagePlane(renderer, cachePath, renderX, renderY, width, height, options, GfxRenderer::BW, false);
+  yield();
+  return ok;
 }
 
 void PageTable::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset, ImageRenderMode) {
@@ -544,9 +726,74 @@ std::unique_ptr<PageCssBorderLine> PageCssBorderLine::deserialize(FsFile& file) 
   return std::unique_ptr<PageCssBorderLine>(new PageCssBorderLine(x, y, width, thickness, style));
 }
 
+void PageCssBorderBox::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                              ImageRenderMode) {
+  (void)fontId;
+  const int left = xPos + xOffset;
+  const int top = yPos + yOffset;
+  const int boxWidth = std::max<int>(1, width);
+  const int boxHeight = std::max<int>(1, height);
+  const int right = left + boxWidth - 1;
+  const int bottom = top + boxHeight - 1;
+
+  drawHorizontalBorder(renderer, left, right, top, borderTop, styleTop);
+  drawHorizontalBorder(renderer, left, right, bottom - std::max<int>(1, borderBottom) + 1, borderBottom, styleBottom);
+  drawVerticalBorder(renderer, left, top, bottom, borderLeft, styleLeft);
+  drawVerticalBorder(renderer, right - std::max<int>(1, borderRight) + 1, top, bottom, borderRight, styleRight);
+}
+
+bool PageCssBorderBox::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, width);
+  serialization::writePod(file, height);
+  serialization::writePod(file, borderTop);
+  serialization::writePod(file, borderRight);
+  serialization::writePod(file, borderBottom);
+  serialization::writePod(file, borderLeft);
+  serialization::writePod(file, styleTop);
+  serialization::writePod(file, styleRight);
+  serialization::writePod(file, styleBottom);
+  serialization::writePod(file, styleLeft);
+  return true;
+}
+
+std::unique_ptr<PageCssBorderBox> PageCssBorderBox::deserialize(FsFile& file) {
+  int16_t x = 0, y = 0, width = 0, height = 0;
+  int16_t top = 0, right = 0, bottom = 0, left = 0;
+  uint8_t styleTop = PageCssBorderLine::SOLID;
+  uint8_t styleRight = PageCssBorderLine::SOLID;
+  uint8_t styleBottom = PageCssBorderLine::SOLID;
+  uint8_t styleLeft = PageCssBorderLine::SOLID;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, width);
+  serialization::readPod(file, height);
+  serialization::readPod(file, top);
+  serialization::readPod(file, right);
+  serialization::readPod(file, bottom);
+  serialization::readPod(file, left);
+  serialization::readPod(file, styleTop);
+  serialization::readPod(file, styleRight);
+  serialization::readPod(file, styleBottom);
+  serialization::readPod(file, styleLeft);
+  return std::unique_ptr<PageCssBorderBox>(new PageCssBorderBox(x, y, width, height, top, right, bottom, left, styleTop,
+                                                                styleRight, styleBottom, styleLeft));
+}
+
 bool Page::anyImageNeedsGrayscale() const {
   return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
     return element->getTag() == TAG_PageImage && needsGrayscalePass(static_cast<const PageImage&>(*element));
+  });
+}
+
+bool Page::anyPngImage() const {
+  return std::any_of(elements.begin(), elements.end(), [](const std::shared_ptr<PageElement>& element) {
+    if (element->getTag() != TAG_PageImage) {
+      return false;
+    }
+    const auto& image = static_cast<const PageImage&>(*element);
+    return StringUtils::checkFileExtension(image.getPath(), ".png");
   });
 }
 
@@ -658,6 +905,82 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
   }
 }
 
+int Page::warmImageDisplayCache(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                const ImageRenderMode imageMode, const bool quality) const {
+  int warmed = 0;
+  for (const auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto* image = static_cast<const PageImage*>(element.get());
+    if (image->warmDisplayCache(renderer, xOffset, yOffset, imageMode, quality)) {
+      ++warmed;
+    }
+  }
+  return warmed;
+}
+
+bool Page::allGrayscaleImagesCachedTwoBit(GfxRenderer& renderer, const int xOffset, const int yOffset,
+                                          const bool quality) const {
+  bool sawGrayscaleImage = false;
+  for (auto& element : elements) {
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    const auto* image = static_cast<const PageImage*>(element.get());
+    if (!needsGrayscalePass(*image)) {
+      continue;
+    }
+    sawGrayscaleImage = true;
+    if (!image->hasCachedTwoBitImage(renderer, xOffset, yOffset, quality)) {
+      return false;
+    }
+  }
+  return sawGrayscaleImage;
+}
+
+std::string Page::extractPlainText(const size_t maxChars) const {
+  std::string out;
+  const auto appendText = [&](const std::string& text) {
+    if (text.empty() || out.size() >= maxChars) {
+      return;
+    }
+    if (!out.empty()) {
+      out += ' ';
+    }
+    const size_t remaining = maxChars - out.size();
+    out.append(text, 0, remaining);
+  };
+
+  for (const auto& element : elements) {
+    if (out.size() >= maxChars) {
+      break;
+    }
+    const TextBlock* block = nullptr;
+    switch (element->getTag()) {
+      case TAG_PageLine:
+        block = &static_cast<const PageLine&>(*element).getTextBlock();
+        break;
+      case TAG_PageHeader:
+        block = &static_cast<const PageHeader&>(*element).getTextBlock();
+        break;
+      case TAG_PageSmallCaps:
+        block = &static_cast<const PageSmallCaps&>(*element).getTextBlock();
+        break;
+      case TAG_PageDropCap:
+        appendText(static_cast<const PageDropCap&>(*element).getDropCapText());
+        break;
+      default:
+        break;
+    }
+    if (block == nullptr) {
+      continue;
+    }
+    block->forEachWord([&](size_t, const std::string& word, uint16_t, EpdFontFamily::Style) { appendText(word); });
+  }
+  return out;
+}
+
 /**
  * Serializes a Page to a file.
  *
@@ -703,6 +1026,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageHorizontalRule::deserialize(file));
     } else if (tag == TAG_PageCssBorderLine) {
       page->elements.push_back(PageCssBorderLine::deserialize(file));
+    } else if (tag == TAG_PageCssBorderBox) {
+      page->elements.push_back(PageCssBorderBox::deserialize(file));
     }
   }
   return page;

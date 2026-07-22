@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "Epub/BookMetadataCache.h"
+#include "Epub/parsers/CssParser.h"
 
 class Epub {
  private:
@@ -21,11 +22,16 @@ class Epub {
   std::string contentBasePath;
   std::string cachePath;
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
+  mutable std::unique_ptr<CssParser> parsedCssParser_;
+  mutable bool parsedCssLoaded_ = false;
 
   bool findContentOpfFile(std::string* contentOpfFile) const;
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
   bool parseTocNcxFile() const;
   bool parseTocNavFile() const;
+  std::string parsedCssCachePath() const;
+  bool loadParsedCssCache() const;
+  bool saveParsedCssCache() const;
 
  public:
   explicit Epub(std::string filepath, const std::string& oldCacheDir = "") : filepath(std::move(filepath)) {
@@ -87,6 +93,8 @@ class Epub {
   std::string getCssContent(const std::string& cssPath) const;
   std::vector<std::string> getAllCssPaths() const;
   std::string getCombinedCss() const;
+  /** Parsed book-level CSS dictionary shared by every chapter parser. Null when heap is too low. */
+  const CssParser* getParsedCssParser() const;
 
   size_t getCumulativeSpineItemSize(int spineIndex) const;
   size_t getBookSize() const;

@@ -25,6 +25,10 @@ struct JpegReadContext {
   size_t bufferFilled;
 };
 
+struct PicoJpegDecodeGuard {
+  ~PicoJpegDecodeGuard() { pjpeg_decode_deinit(); }
+};
+
 constexpr bool USE_8BIT_OUTPUT = false;
 constexpr bool USE_FLOYD_STEINBERG = true;
 constexpr bool USE_PRESCALE = true;
@@ -32,6 +36,10 @@ constexpr int TARGET_MAX_WIDTH = 480;
 constexpr int TARGET_MAX_HEIGHT = 800;
 
 static Print* gJpegThumbnailOut = nullptr;
+
+static inline uint8_t darkenOneBitJpegGray(const uint8_t gray) {
+  return gray > 22 ? static_cast<uint8_t>(gray - 22) : 0;
+}
 
 static void jpegThumbnailWriteByte(unsigned char byte) {
   if (gJpegThumbnailOut) {
@@ -178,6 +186,7 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
 
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
@@ -337,9 +346,9 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
             uint8_t bit;
 
             if (ditherer1bit) {
-              bit = ditherer1bit->processPixel(gray, x);
+              bit = ditherer1bit->processPixel(darkenOneBitJpegGray(gray), x);
             } else {
-              bit = (gray > 127);
+              bit = (darkenOneBitJpegGray(gray) > 127);
             }
 
             if (bit) {
@@ -409,6 +418,7 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, P
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
 
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
@@ -530,9 +540,9 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternalCentered(FsFile& jpegFile, P
           if (oneBit) {
             uint8_t bit;
             if (ditherer1bit) {
-              bit = ditherer1bit->processPixel(gray, x);
+              bit = ditherer1bit->processPixel(darkenOneBitJpegGray(gray), x);
             } else {
-              bit = (gray > 127);
+              bit = (darkenOneBitJpegGray(gray) > 127);
             }
             rowBuffer[x / 8] |= (bit << (7 - (x % 8)));
           } else {
@@ -601,6 +611,7 @@ bool JpegToBmpConverter::jpegFileToThumbnailBmp(FsFile& jpegFile, Print& bmpOut,
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
 
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
@@ -787,6 +798,7 @@ bool JpegToBmpConverter::jpegFileToThumbnailJpegPass(FsFile& jpegFile, Print& jp
                                                      int targetMaxHeight, uint8_t quality, size_t maxColorBudget) {
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
   if (imageInfo.m_width <= 0 || imageInfo.m_height <= 0 || targetMaxWidth <= 0 || targetMaxHeight <= 0) {
@@ -931,6 +943,7 @@ bool JpegToBmpConverter::jpegFileTo1BitThumbnailBmp(FsFile& jpegFile, Print& bmp
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
 
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
@@ -1095,6 +1108,7 @@ bool JpegToBmpConverter::jpegFileToTopCropBmp(FsFile& jpegFile, Print& bmpOut, i
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
 
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
@@ -1277,6 +1291,7 @@ bool JpegToBmpConverter::jpegFileToEpubWebStyle2BitBmpStream(FsFile& jpegFile, P
 
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
   pjpeg_image_info_t imageInfo;
+  PicoJpegDecodeGuard picoJpegGuard;
   if (pjpeg_decode_init(&imageInfo, jpegReadCallback, &context, 0) != 0) return false;
 
   const int sw = imageInfo.m_width;

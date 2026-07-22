@@ -15,17 +15,21 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr int MENU_ITEMS = 3;
+constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 const char* menuNames[MENU_ITEMS] = {"OPDS Server URL", "Username", "Password"};
 }  // namespace
 
+/** FreeRTOS task entry point that forwards to displayTaskLoop. */
 void CalibreSettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CalibreSettingsActivity*>(param);
   self->displayTaskLoop();
 }
 
+/** Starts the display task and initializes selection state. */
 void CalibreSettingsActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
@@ -36,6 +40,7 @@ void CalibreSettingsActivity::onEnter() {
   xTaskCreate(&CalibreSettingsActivity::taskTrampoline, "CalibreSettingsTask", 4096, this, 1, &displayTaskHandle);
 }
 
+/** Stops the display task and releases synchronization resources. */
 void CalibreSettingsActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
@@ -48,6 +53,7 @@ void CalibreSettingsActivity::onExit() {
   renderingMutex = nullptr;
 }
 
+/** Handles one iteration of input processing for the menu. */
 void CalibreSettingsActivity::loop() {
   if (subActivity) {
     subActivity->loop();
@@ -73,6 +79,7 @@ void CalibreSettingsActivity::loop() {
   }
 }
 
+/** Opens the keyboard entry activity for the currently selected setting. */
 void CalibreSettingsActivity::handleSelection() {
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
 
@@ -126,6 +133,7 @@ void CalibreSettingsActivity::handleSelection() {
   xSemaphoreGive(renderingMutex);
 }
 
+/** Background task loop that redraws the menu when required. */
 void CalibreSettingsActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired && !subActivity) {
@@ -138,6 +146,7 @@ void CalibreSettingsActivity::displayTaskLoop() {
   }
 }
 
+/** Draws the OPDS settings menu. */
 void CalibreSettingsActivity::render() {
 #ifdef SIMULATOR
   Serial.printf("[%lu] [SIM] OPDS settings UI: urlSet=%d usernameSet=%d passwordSet=%d\n", millis(),
@@ -148,16 +157,15 @@ void CalibreSettingsActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "OPDS Browser", true, EpdFontFamily::BOLD);
-
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 40, "For Calibre, add /opds to your URL");
-
-  renderer.rectangle.fill(0, 70 + selectedIndex * 30 - 2, pageWidth - 1, 30,
-                          static_cast<int>(GfxRenderer::FillTone::Ink));
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
 
   for (int i = 0; i < MENU_ITEMS; i++) {
-    const int settingY = 70 + i * 30;
+    const int itemY = dividerY + i * kListItemHeight;
     const bool isSelected = (i == selectedIndex);
+    if (isSelected) {
+      renderer.rectangle.fill(0, itemY, pageWidth, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
+    const int settingY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
@@ -171,6 +179,8 @@ void CalibreSettingsActivity::render() {
     }
     const auto width = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
+    renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");

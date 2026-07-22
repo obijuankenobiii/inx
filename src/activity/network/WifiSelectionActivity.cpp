@@ -9,16 +9,16 @@
 #include <WiFi.h>
 
 #include <algorithm>
-#include <map>
 
 #include "activity/util/KeyboardEntryActivity.h"
 #include "state/NetworkCredential.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
+#include "system/UiTheme.h"
 
 namespace {
-constexpr int LIST_ITEM_HEIGHT = 60;
-}
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+}  // namespace
 
 /**
  * @brief Static trampoline function for the display task
@@ -75,17 +75,11 @@ void WifiSelectionActivity::onExit() {
   WiFi.scanDelete();
 
   networks.clear();
-  networks.shrink_to_fit();
   selectedSSID.clear();
-  selectedSSID.shrink_to_fit();
   connectedIP.clear();
-  connectedIP.shrink_to_fit();
   connectionError.clear();
-  connectionError.shrink_to_fit();
   enteredPassword.clear();
-  enteredPassword.shrink_to_fit();
   cachedMacAddress.clear();
-  cachedMacAddress.shrink_to_fit();
 
   const bool keepStaForParent = (WiFi.status() == WL_CONNECTED) && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
   if (!keepStaForParent) {
@@ -137,7 +131,7 @@ void WifiSelectionActivity::processWifiScanResults() {
     return;
   }
 
-  std::map<std::string, WifiNetworkInfo> uniqueNetworks;
+  std::vector<WifiNetworkInfo> uniqueNetworks;
 
   for (int i = 0; i < scanResult; i++) {
     std::string ssid = WiFi.SSID(i).c_str();
@@ -147,21 +141,23 @@ void WifiSelectionActivity::processWifiScanResults() {
       continue;
     }
 
-    auto it = uniqueNetworks.find(ssid);
-    if (it == uniqueNetworks.end() || rssi > it->second.rssi) {
+    auto it = std::find_if(uniqueNetworks.begin(), uniqueNetworks.end(),
+                           [&ssid](const WifiNetworkInfo& network) { return network.ssid == ssid; });
+    if (it == uniqueNetworks.end()) {
       WifiNetworkInfo network;
       network.ssid = ssid;
       network.rssi = rssi;
       network.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
       network.hasSavedPassword = WIFI_STORE.hasSavedCredential(network.ssid);
-      uniqueNetworks[ssid] = network;
+      uniqueNetworks.push_back(std::move(network));
+    } else if (rssi > it->rssi) {
+      it->rssi = rssi;
+      it->isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
     }
   }
 
   networks.clear();
-  networks.reserve(uniqueNetworks.size());
-  std::transform(uniqueNetworks.begin(), uniqueNetworks.end(), std::back_inserter(networks),
-                 [](const std::pair<const std::string, WifiNetworkInfo>& pair) { return pair.second; });
+  networks.insert(networks.end(), uniqueNetworks.begin(), uniqueNetworks.end());
 
   std::sort(networks.begin(), networks.end(),
             [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
@@ -445,10 +441,9 @@ void WifiSelectionActivity::displayTaskLoop() {
  */
 void WifiSelectionActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer);
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
-  const int startY = TAB_BAR_HEIGHT;
+  const int startY = 0;
 
   switch (state) {
     case WifiSelectionState::SCANNING:
@@ -481,17 +476,7 @@ void WifiSelectionActivity::render() const {
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderScanning(const int screenWidth, const int screenHeight, const int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Scanning...");
@@ -507,17 +492,7 @@ void WifiSelectionActivity::renderScanning(const int screenWidth, const int scre
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight, int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
 
   const int listStartY = dividerY;
   const int visibleAreaHeight = screenHeight - listStartY - 80;
@@ -568,7 +543,8 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
       }
 
       if (i < networks.size() - 1) {
-        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
+                             LineRender::Style::Dotted);
       }
     }
 
@@ -597,17 +573,7 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderConnecting(const int screenWidth, const int screenHeight, const int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
 
@@ -631,21 +597,7 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int screenHeight, const int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Connected successfully!";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connected successfully!");
 
   const int promptY = dividerY + 30;
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Save password for next time?");
@@ -680,21 +632,7 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
  */
 void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const int screenHeight,
                                                    const int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Connection Failed";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connection Failed");
 
   const int errorY = dividerY + 40;
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, errorY - 20, connectionError.c_str());
@@ -716,21 +654,7 @@ void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const 
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int screenHeight, const int startY) const {
-  const int headerHeight = TAB_BAR_HEIGHT;
-  const int headerY = startY;
-
-  const char* headerText = "WiFi Networks";
-  int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText, true,
-                       EpdFontFamily::BOLD);
-
-  const char* subtitleText = "Connection Failed";
-  int subtitleY = headerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, subtitleY, subtitleText, true);
-
-  const int dividerY = subtitleY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 10;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connection Failed");
 
   const int promptY = dividerY + 30;
   renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, promptY, "Forget network and remove saved password?");

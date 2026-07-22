@@ -5,8 +5,11 @@
  * @brief Public interface and types for Section.
  */
 
+#include <ImageRenderMode.h>
+
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "Epub.h"
@@ -66,6 +69,11 @@ class Section {
         spineIndex(spineIndex),
         renderer(renderer),
         filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
+  explicit Section(const std::string& cachePath, const int spineIndex, GfxRenderer& renderer)
+      : epub(nullptr),
+        spineIndex(spineIndex),
+        renderer(renderer),
+        filePath(cachePath + "/sections/" + std::to_string(spineIndex) + ".bin") {}
 
   ~Section();
 
@@ -84,6 +92,8 @@ class Section {
   bool loadSectionFile(int fontId, float lineCompression, float wordSpacing, bool extraParagraphSpacing,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                        bool hyphenationEnabled, bool respectCssParagraphIndent, bool bionicReadingEnabled);
+  bool loadSectionFileForPreview(int* outFontId = nullptr);
+  static std::unique_ptr<Page> loadCachedPage(const std::string& cachePath, int spineIndex, int pageNumber);
 
   /**
    * Removes the section file from the filesystem.
@@ -113,7 +123,10 @@ class Section {
                          bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, bool respectCssParagraphIndent,
                          bool bionicReadingEnabled, const std::function<void()>& popupFn = nullptr,
-                         bool skipImages = false, const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr);
+                         bool skipImages = false, const std::function<void(Page&, uint16_t)>& pageBuiltFn = nullptr,
+                         bool warmImageDisplayCache = false,
+                         ImageRenderMode warmImageRenderMode = ImageRenderMode::OneBit, bool warmImageQuality = false,
+                         int warmImageYOffset = 0);
 
   /**
    * Loads a specific page from the section file.

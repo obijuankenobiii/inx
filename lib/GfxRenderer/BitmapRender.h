@@ -35,6 +35,8 @@ class BitmapRender {
 
   void icon(const uint8_t bitmap[], int x, int y, int width, int height, Orientation orientation = Orientation::None,
             bool invert = false) const;
+  void iconScaled(const uint8_t bitmap[], int x, int y, int sourceWidth, int sourceHeight, int targetWidth,
+                  int targetHeight, Orientation orientation = Orientation::None, bool invert = false) const;
   void maskRoundedOutside(int x, int y, int width, int height, RoundedOutside roundedOutside) const;
 
   void transparent(const Bitmap& bitmap, int x, int y, int maxWidth = 0, int maxHeight = 0,

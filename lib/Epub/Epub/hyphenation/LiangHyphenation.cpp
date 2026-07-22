@@ -118,23 +118,6 @@ EmbeddedAutomaton parseAutomaton(const SerializedHyphenationPatterns& patterns) 
   return automaton;
 }
 
-const EmbeddedAutomaton& getAutomaton(const SerializedHyphenationPatterns& patterns) {
-  struct CacheEntry {
-    const SerializedHyphenationPatterns* key;
-    EmbeddedAutomaton automaton;
-  };
-  static std::vector<CacheEntry> cache;
-
-  for (const auto& entry : cache) {
-    if (entry.key == &patterns) {
-      return entry.automaton;
-    }
-  }
-
-  cache.push_back({&patterns, parseAutomaton(patterns)});
-  return cache.back().automaton;
-}
-
 AutomatonState decodeState(const EmbeddedAutomaton& automaton, size_t addr) {
   AutomatonState state;
   if (!automaton.valid() || addr >= automaton.size) {
@@ -275,7 +258,7 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     return {};
   }
 
-  const EmbeddedAutomaton& automaton = getAutomaton(patterns);
+  const EmbeddedAutomaton automaton = parseAutomaton(patterns);
   if (!automaton.valid()) {
     return {};
   }

@@ -27,6 +27,8 @@ constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 }  // namespace
 
+EpubAnnotationUi::EpubAnnotationUi() = default;
+
 void EpubAnnotationUi::setWordIndexCache(const int spine, const int page, const int fontId, const int headerFontId,
                                          const int marginL, const int marginT) {
   wordIndexCacheSpine_ = spine;
@@ -106,7 +108,6 @@ void EpubAnnotationUi::resetSelectionToStart(EpubActivity& act) {
   focus_ = 0;
   anchor_ = 0;
   act.updateRequired = true;
-  act.startPageTimer();
 }
 
 void EpubAnnotationUi::clearAllStoredHighlightsOnCurrentPage(EpubActivity& act) {
@@ -125,7 +126,6 @@ void EpubAnnotationUi::clearAllStoredHighlightsOnCurrentPage(EpubActivity& act) 
   act.renderScreen(true);
   captureFramebuffer(act);
   act.updateRequired = true;
-  act.startPageTimer();
 }
 
 void EpubAnnotationUi::normalizeSpans(std::vector<std::pair<size_t, size_t>>& spans) {
@@ -133,18 +133,18 @@ void EpubAnnotationUi::normalizeSpans(std::vector<std::pair<size_t, size_t>>& sp
     return;
   }
   std::sort(spans.begin(), spans.end());
-  std::vector<std::pair<size_t, size_t>> out;
+  size_t write = 0;
   auto cur = spans[0];
   for (size_t i = 1; i < spans.size(); ++i) {
     if (spans[i].first <= cur.second + 1) {
       cur.second = std::max(cur.second, spans[i].second);
     } else {
-      out.push_back(cur);
+      spans[write++] = cur;
       cur = spans[i];
     }
   }
-  out.push_back(cur);
-  spans.swap(out);
+  spans[write++] = cur;
+  spans.resize(write);
 }
 
 void EpubAnnotationUi::enter(EpubActivity& act) {
@@ -166,8 +166,6 @@ void EpubAnnotationUi::enter(EpubActivity& act) {
     exit(act);
     return;
   }
-  words_.shrink_to_fit();
-  lineFirst_.shrink_to_fit();
   captureFramebuffer(act);
   if (!captureValid_) {
     act.readerPopup("Could not capture page");
@@ -183,9 +181,7 @@ void EpubAnnotationUi::exit(EpubActivity& act) {
   pendingSpans_.clear();
   storedRanges_.clear();
   words_.clear();
-  words_.shrink_to_fit();
   lineFirst_.clear();
-  lineFirst_.shrink_to_fit();
   clearWordIndexCache();
   annLastNavEdgeDir_ = -1;
   annNavRepeatDir_ = -1;
@@ -214,7 +210,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 0;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Right)) {
@@ -225,7 +220,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 1;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Up)) {
@@ -236,7 +230,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 2;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   if (m.wasPressed(Btn::Down)) {
@@ -247,7 +240,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
     annNavRepeatDir_ = 3;
     annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
     act.updateRequired = true;
-    act.startPageTimer();
     return true;
   }
   const bool leftHeld = m.isPressed(Btn::Left);
@@ -275,7 +267,6 @@ bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
   }
   annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
   act.updateRequired = true;
-  act.startPageTimer();
   return true;
 }
 
@@ -631,7 +622,6 @@ void EpubAnnotationUi::handleInput(EpubActivity& act) {
       selectingStarted_ = false;
     }
     act.updateRequired = true;
-    act.startPageTimer();
     return;
   }
   if (tryNavigationHoldRepeat(act)) {

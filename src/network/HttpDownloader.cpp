@@ -18,6 +18,7 @@
 
 #ifdef SIMULATOR
 
+/** Fetch content from a URL into a stream using the given basic-auth credentials (simulator stub, always fails). */
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
                               const std::string& password) {
   (void)url;
@@ -47,6 +48,7 @@ struct DownloadCtx {
   size_t total;
 };
 
+/** esp_http_client event handler that writes received body data to a FetchCtx's stream. */
 static esp_err_t fetchEventHandler(esp_http_client_event_t* event) {
   if (event->event_id == HTTP_EVENT_ON_DATA && event->data && event->data_len > 0) {
     auto* ctx = static_cast<FetchCtx*>(event->user_data);
@@ -57,6 +59,7 @@ static esp_err_t fetchEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
+/** esp_http_client event handler that tracks Content-Length and writes received body data to a DownloadCtx's file. */
 static esp_err_t downloadEventHandler(esp_http_client_event_t* event) {
   if (event->event_id == HTTP_EVENT_ON_HEADER && event->header_key && event->header_value) {
     if (strcmp(event->header_key, "Content-Length") == 0) {
@@ -82,6 +85,7 @@ static esp_err_t downloadEventHandler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
+/** Perform a blocking HTTPS GET of url and stream the response body through fetchCtx, using optional basic auth. */
 static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::string& username,
                     const std::string& password) {
   esp_http_client_config_t cfg = {};
@@ -89,7 +93,6 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::strin
   cfg.event_handler = fetchEventHandler;
   cfg.user_data = fetchCtx;
   cfg.timeout_ms = 15000;
-  cfg.skip_cert_common_name_check = true;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;
@@ -127,6 +130,7 @@ static bool doFetch(const std::string& url, FetchCtx* fetchCtx, const std::strin
   return true;
 }
 
+/** Fetch content from a URL into a stream using the given basic-auth credentials. */
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
                               const std::string& password) {
   Serial.printf("[%lu] [HTTP] Fetching: %s\n", millis(), url.c_str());
@@ -136,18 +140,21 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
 
 #endif
 
+/** Fetch content from a URL into a stream, using the configured OPDS credentials. */
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   std::string user = SETTINGS.opdsUsername;
   std::string pass = SETTINGS.opdsPassword;
   return fetchUrl(url, outContent, user, pass);
 }
 
+/** Fetch text content from a URL, using the configured OPDS credentials. */
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
   std::string user = SETTINGS.opdsUsername;
   std::string pass = SETTINGS.opdsPassword;
   return fetchUrl(url, outContent, user, pass);
 }
 
+/** Fetch text content from a URL using the given basic-auth credentials. */
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
                               const std::string& password) {
   StreamString stream;
@@ -158,6 +165,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, c
   return true;
 }
 
+/** Download a file to the SD card, using the configured OPDS credentials. */
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              ProgressCallback progress) {
   std::string user = SETTINGS.opdsUsername;
@@ -165,6 +173,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   return downloadToFile(url, destPath, user, pass, progress);
 }
 
+/** Download a file to the SD card using the given basic-auth credentials. */
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              const std::string& username, const std::string& password,
                                                              ProgressCallback progress) {
@@ -196,7 +205,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   cfg.event_handler = downloadEventHandler;
   cfg.user_data = &dctx;
   cfg.timeout_ms = 15000;
-  cfg.skip_cert_common_name_check = true;
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.keep_alive_enable = false;
   cfg.buffer_size = 2048;

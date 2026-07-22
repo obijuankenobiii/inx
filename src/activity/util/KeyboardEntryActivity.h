@@ -74,6 +74,7 @@ class KeyboardEntryActivity : public Activity {
   int selectedRow = 0;
   int selectedCol = 0;
   bool shiftActive = false;
+  bool capsLockActive = false;
 
   OnCompleteCallback onComplete;
   OnCancelCallback onCancel;

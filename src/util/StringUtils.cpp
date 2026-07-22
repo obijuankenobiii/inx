@@ -9,6 +9,7 @@
 
 namespace StringUtils {
 
+/** Sanitize a string for use as a filename, replacing invalid characters and trimming length. */
 std::string sanitizeFilename(const std::string& name, size_t maxLength) {
   std::string result;
   result.reserve(name.size());
@@ -35,6 +36,7 @@ std::string sanitizeFilename(const std::string& name, size_t maxLength) {
   return result.empty() ? "book" : result;
 }
 
+/** Check if fileName ends with the given extension (case-insensitive). */
 bool checkFileExtension(const std::string& fileName, const char* extension) {
   if (fileName.length() < strlen(extension)) {
     return false;
@@ -49,6 +51,7 @@ bool checkFileExtension(const std::string& fileName, const char* extension) {
   return true;
 }
 
+/** Check if fileName ends with the given extension (case-insensitive), Arduino String overload. */
 bool checkFileExtension(const String& fileName, const char* extension) {
   return checkFileExtension(std::string(fileName.c_str()), extension);
 }

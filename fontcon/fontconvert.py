@@ -19,7 +19,12 @@ parser.add_argument("--additional-intervals", dest="additional_intervals", actio
 parser.add_argument("--compress", dest="compress", action="store_true", help="Compress glyph bitmaps using DEFLATE with group-based compression.")
 parser.add_argument("--force-autohint", dest="force_autohint", action="store_true", help="Force FreeType auto-hinter instead of native font hinting. Improves stem width consistency for fonts with weak or no native TrueType hints.")
 parser.add_argument("--pnum", dest="pnum", action="store_true", help="Use proportional numerals (pnum OpenType feature) instead of default tabular figures. Reduces visual gaps between digits in running prose.")
-parser.add_argument("--reader-latin", dest="reader_latin", action="store_true", help="Use the compact built-in reader Latin glyph profile used by Atkinson.")
+parser.add_argument(
+    "--reader-latin",
+    dest="reader_latin",
+    action="store_true",
+    help="Use the compact built-in reader glyph profile (Latin and Cyrillic).",
+)
 parser.add_argument("--legacy-header", dest="legacy_header", action="store_true", help="Emit the legacy EpdFontData initializer used by this firmware.")
 args = parser.parse_args()
 
@@ -130,7 +135,7 @@ intervals = [
     (0xFFFD, 0xFFFD),
 ]
 
-reader_latin_intervals = [
+compact_reader_intervals = [
     (0x000D, 0x000D),
     (0x0020, 0x007E),
     (0x00A0, 0x00FF),
@@ -155,6 +160,10 @@ reader_latin_intervals = [
     (0x0306, 0x0308),
     (0x030A, 0x030C),
     (0x0326, 0x0328),
+    # Cyrillic and Cyrillic Supplement. Missing code points are removed after
+    # the complete font stack is checked, so a fallback face can provide this
+    # block when the primary face does not include Cyrillic glyphs.
+    (0x0400, 0x04FF),
     (0x2013, 0x2014),
     (0x2018, 0x201A),
     (0x201C, 0x201E),
@@ -178,7 +187,7 @@ reader_latin_intervals = [
 ]
 
 if args.reader_latin:
-    intervals = reader_latin_intervals
+    intervals = compact_reader_intervals
 
 add_ints = []
 if args.additional_intervals:
@@ -338,22 +347,25 @@ for i_start, i_end in intervals:
                 px = 0
 
         if is2Bit:
-            # 0-3 white, 4-7 light grey, 8-11 dark grey, 12-15 black
-            # Downsample to 2-bit bitmap
+            # Quantize FreeType coverage directly for e-paper text.
+            #
+            # The old equal 4-bit buckets (64/128/192) made too much of the
+            # antialias fringe grey. Keep faint coverage white, use only a
+            # narrow light-grey fringe, and send stronger coverage to the
+            # dark/ink buckets so high-quality text stays crisp.
             pixels2b = []
             px = 0
-            pitch = (bitmap.width // 2) + (bitmap.width % 2)
+            pitch = abs(bitmap.pitch)
             for y in range(bitmap.rows):
                 for x in range(bitmap.width):
                     px = px << 2
-                    bm = pixels4g[y * pitch + (x // 2)]
-                    bm = (bm >> ((x % 2) * 4)) & 0xF
+                    coverage = bitmap.buffer[y * pitch + x]
 
-                    if bm >= 12:
+                    if coverage >= 208:
                         px += 3
-                    elif bm >= 8:
+                    elif coverage >= 128:
                         px += 2
-                    elif bm >= 4:
+                    elif coverage >= 112:
                         px += 1
 
                     if (y * bitmap.width + x) % 4 == 3:

@@ -5,6 +5,21 @@ if [[ "$1" == "-g" ]]; then
   GIT_LS_FILES_FLAGS="--modified"
 fi
 
+CLANG_FORMAT="${CLANG_FORMAT:-clang-format}"
+if ! command -v "${CLANG_FORMAT}" >/dev/null 2>&1; then
+  for candidate in /usr/lib/llvm-21/bin/clang-format /opt/homebrew/Cellar/llvm@21/21.1.8/bin/clang-format /Library/Developer/CommandLineTools/usr/bin/clang-format; do
+    if [[ -x "${candidate}" ]]; then
+      CLANG_FORMAT="${candidate}"
+      break
+    fi
+  done
+fi
+
+if ! command -v "${CLANG_FORMAT}" >/dev/null 2>&1 && [[ ! -x "${CLANG_FORMAT}" ]]; then
+  echo "clang-format not found" >&2
+  exit 1
+fi
+
 # --- Main Logic ---
 
 # Format all files (or only modified files if -g is passed)
@@ -12,8 +27,6 @@ fi
 # Use 'git ls-files' to get a list of all files tracked by git:
 # --modified: files tracked by git that have been modified (staged or unstaged)
 # --exclude-standard: ignores files in .gitignore
-# Additionally exclude files in 'lib/EpdFont/system/font/' as they are script-generated.
 git ls-files  --exclude-standard ${GIT_LS_FILES_FLAGS} \
     | grep -E '\.(c|cpp|h|hpp)$' \
-    | grep -v -E '^lib/EpdFont/system/font/' \
-    | xargs -r clang-format -style=file -i
+    | xargs -r "${CLANG_FORMAT}" -style=file -i

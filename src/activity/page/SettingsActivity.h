@@ -31,9 +31,12 @@ class SettingsActivity final : public ActivityWithSubactivity, public Menu {
   unsigned long nextIndexingRenderMs = 0;
   bool showingAbout = false;
   int selectedAboutIndex = 0;
+  bool panelSwapPending = false;
 
   void openCurrentPanel();
   void swapPanelAndReopen();
+  void requestPanelSwap();
+  void processPendingPanelSwap();
 
   void startLibraryIndexing();
   void showIndexingProgress();

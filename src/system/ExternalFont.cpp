@@ -8,14 +8,17 @@
 #include <iterator>
 #include <new>
 
+/** Construct an ExternalFont with no font loaded. */
 ExternalFont::ExternalFont() : m_fontData(nullptr) {}
 
+/** Unload the font and release its resources. */
 ExternalFont::~ExternalFont() { unload(); }
 
 ExternalFont::GlyphBitmapCacheSlot* ExternalFont::s_bitmapCache = nullptr;
 uint32_t ExternalFont::s_bitmapCacheGen = 0;
 uint8_t ExternalFont::s_bitmapCacheUsers = 0;
 
+/** Clear the per-instance glyph metadata cache. */
 void ExternalFont::metaCacheClear() {
   for (size_t i = 0; i < kGlyphMetaCacheSlots; ++i) {
     m_metaCache[i].cp = 0xFFFFFFFFu;
@@ -25,6 +28,7 @@ void ExternalFont::metaCacheClear() {
   m_metaCacheGen = 0;
 }
 
+/** Clear this font's entries from the shared bitmap cache. */
 void ExternalFont::bitmapCacheClear() {
   if (s_bitmapCache) {
     for (size_t i = 0; i < kGlyphBitmapCacheSlots; ++i) {
@@ -38,6 +42,7 @@ void ExternalFont::bitmapCacheClear() {
   }
 }
 
+/** Enable or disable the shared glyph bitmap cache for this font instance. */
 void ExternalFont::setGlyphBitmapCacheEnabled(const bool enabled) {
   if (enabled == m_bitmapCacheEnabled) {
     return;
@@ -69,6 +74,7 @@ void ExternalFont::setGlyphBitmapCacheEnabled(const bool enabled) {
   }
 }
 
+/** Close the font file and release cached glyph data. */
 void ExternalFont::unload() {
   setGlyphBitmapCacheEnabled(false);
   if (m_file) m_file.close();
@@ -83,6 +89,7 @@ void ExternalFont::unload() {
   metaCacheClear();
 }
 
+/** Load font metadata from an on-disk font file at path, keeping glyph data on SD for on-demand reads. */
 bool ExternalFont::load(const char* path) {
   unload();
   m_filePath = path;
@@ -144,6 +151,7 @@ bool ExternalFont::load(const char* path) {
   return true;
 }
 
+/** Determine whether the loaded 2-bit font actually contains anti-aliased pixel values. */
 bool ExternalFont::detectAntiAliasData() {
   if (!m_fontData || !m_fontData->is2Bit || m_glyphCount == 0) {
     return false;
@@ -208,6 +216,7 @@ bool ExternalFont::detectAntiAliasData() {
   return false;
 }
 
+/** Read the raw 24-byte glyph table entry at index into out24. */
 bool ExternalFont::readGlyphEntryAtIndex(uint32_t index, uint8_t out24[24]) const {
   if (index >= m_glyphCount || out24 == nullptr) {
     return false;
@@ -226,6 +235,7 @@ bool ExternalFont::readGlyphEntryAtIndex(uint32_t index, uint8_t out24[24]) cons
   return useFile->read(out24, 24) == 24;
 }
 
+/** Read the code point stored in the glyph table entry at index. */
 bool ExternalFont::readCodepointAtIndex(uint32_t index, uint32_t& outCp) const {
   if (index >= m_glyphCount) {
     return false;
@@ -244,6 +254,7 @@ bool ExternalFont::readCodepointAtIndex(uint32_t index, uint32_t& outCp) const {
   return useFile->read(reinterpret_cast<uint8_t*>(&outCp), 4) == 4;
 }
 
+/** Decode a raw 24-byte glyph table row into an EpdGlyph. */
 void ExternalFont::decodeGlyphRow(const uint8_t entry[24], EpdGlyph& out) const {
   uint16_t w = 0, h = 0, ax = 0;
   int16_t lef = 0, tp = 0;
@@ -264,6 +275,7 @@ void ExternalFont::decodeGlyphRow(const uint8_t entry[24], EpdGlyph& out) const 
   out.dataOffset = m_bitmapDataStart + rel;
 }
 
+/** Look up a glyph's metadata in the per-instance metadata cache. */
 bool ExternalFont::metaCacheLookup(uint32_t cp, EpdGlyph& out) {
   for (size_t i = 0; i < kGlyphMetaCacheSlots; ++i) {
     if (m_metaCache[i].cp == cp) {

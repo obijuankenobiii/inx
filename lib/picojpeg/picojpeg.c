@@ -5,6 +5,8 @@
 // Also integrated and tested changes from Chris Phoenix <cphoenix@gmail.com>.
 //------------------------------------------------------------------------------
 #include "picojpeg.h"
+
+#include <stdlib.h>
 //------------------------------------------------------------------------------
 // Set to 1 if right shifts on signed ints are always unsigned (logical) shifts
 // When 1, arithmetic right shifts will be emulated by using a logical shift
@@ -142,87 +144,119 @@ static const int8 ZAG[] = {
     30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
 };
 //------------------------------------------------------------------------------
-// 128 bytes
-static int16 gCoeffBuf[8 * 8];
-
-// 8*8*4 bytes * 3 = 768
-static uint8 gMCUBufR[256];
-static uint8 gMCUBufG[256];
-static uint8 gMCUBufB[256];
-
-// 256 bytes
-static int16 gQuant0[8 * 8];
-static int16 gQuant1[8 * 8];
-
-// 6 bytes
-static int16 gLastDC[3];
-
 typedef struct HuffTableT {
   uint16 mMinCode[16];
   uint16 mMaxCode[16];
   uint8 mValPtr[16];
 } HuffTable;
 
-// DC - 192
-static HuffTable gHuffTab0;
-
-static uint8 gHuffVal0[16];
-
-static HuffTable gHuffTab1;
-static uint8 gHuffVal1[16];
-
-// AC - 672
-static HuffTable gHuffTab2;
-static uint8 gHuffVal2[256];
-
-static HuffTable gHuffTab3;
-static uint8 gHuffVal3[256];
-
-static uint8 gValidHuffTables;
-static uint8 gValidQuantTables;
-
-static uint8 gTemFlag;
 #define PJPG_MAX_IN_BUF_SIZE 256
-static uint8 gInBuf[PJPG_MAX_IN_BUF_SIZE];
-static uint8 gInBufOfs;
-static uint8 gInBufLeft;
 
-static uint16 gBitBuf;
-static uint8 gBitsLeft;
-//------------------------------------------------------------------------------
-static uint16 gImageXSize;
-static uint16 gImageYSize;
-static uint8 gCompsInFrame;
-static uint8 gCompIdent[3];
-static uint8 gCompHSamp[3];
-static uint8 gCompVSamp[3];
-static uint8 gCompQuant[3];
+typedef struct PjpegContextT {
+  int16 gCoeffBuf[8 * 8];
+  uint8 gMCUBufR[256];
+  uint8 gMCUBufG[256];
+  uint8 gMCUBufB[256];
+  int16 gQuant0[8 * 8];
+  int16 gQuant1[8 * 8];
+  int16 gLastDC[3];
+  HuffTable gHuffTab0;
+  uint8 gHuffVal0[16];
+  HuffTable gHuffTab1;
+  uint8 gHuffVal1[16];
+  HuffTable gHuffTab2;
+  uint8 gHuffVal2[256];
+  HuffTable gHuffTab3;
+  uint8 gHuffVal3[256];
+  uint8 gValidHuffTables;
+  uint8 gValidQuantTables;
+  uint8 gTemFlag;
+  uint8 gInBuf[PJPG_MAX_IN_BUF_SIZE];
+  uint8 gInBufOfs;
+  uint8 gInBufLeft;
+  uint16 gBitBuf;
+  uint8 gBitsLeft;
+  uint16 gImageXSize;
+  uint16 gImageYSize;
+  uint8 gCompsInFrame;
+  uint8 gCompIdent[3];
+  uint8 gCompHSamp[3];
+  uint8 gCompVSamp[3];
+  uint8 gCompQuant[3];
+  uint16 gRestartInterval;
+  uint16 gNextRestartNum;
+  uint16 gRestartsLeft;
+  uint8 gCompsInScan;
+  uint8 gCompList[3];
+  uint8 gCompDCTab[3];
+  uint8 gCompACTab[3];
+  pjpeg_scan_type_t gScanType;
+  uint8 gMaxBlocksPerMCU;
+  uint8 gMaxMCUXSize;
+  uint8 gMaxMCUYSize;
+  uint16 gMaxMCUSPerRow;
+  uint16 gMaxMCUSPerCol;
+  uint16 gNumMCUSRemainingX;
+  uint16 gNumMCUSRemainingY;
+  uint8 gMCUOrg[6];
+  pjpeg_need_bytes_callback_t g_pNeedBytesCallback;
+  void* g_pCallback_data;
+  uint8 gCallbackStatus;
+  uint8 gReduce;
+} PjpegContext;
 
-static uint16 gRestartInterval;
-static uint16 gNextRestartNum;
-static uint16 gRestartsLeft;
+static PjpegContext* gPjpegCtx;
 
-static uint8 gCompsInScan;
-static uint8 gCompList[3];
-static uint8 gCompDCTab[3];  // 0,1
-static uint8 gCompACTab[3];  // 0,1
-
-static pjpeg_scan_type_t gScanType;
-
-static uint8 gMaxBlocksPerMCU;
-static uint8 gMaxMCUXSize;
-static uint8 gMaxMCUYSize;
-static uint16 gMaxMCUSPerRow;
-static uint16 gMaxMCUSPerCol;
-
-static uint16 gNumMCUSRemainingX, gNumMCUSRemainingY;
-
-static uint8 gMCUOrg[6];
-
-static pjpeg_need_bytes_callback_t g_pNeedBytesCallback;
-static void* g_pCallback_data;
-static uint8 gCallbackStatus;
-static uint8 gReduce;
+#define gCoeffBuf (gPjpegCtx->gCoeffBuf)
+#define gMCUBufR (gPjpegCtx->gMCUBufR)
+#define gMCUBufG (gPjpegCtx->gMCUBufG)
+#define gMCUBufB (gPjpegCtx->gMCUBufB)
+#define gQuant0 (gPjpegCtx->gQuant0)
+#define gQuant1 (gPjpegCtx->gQuant1)
+#define gLastDC (gPjpegCtx->gLastDC)
+#define gHuffTab0 (gPjpegCtx->gHuffTab0)
+#define gHuffVal0 (gPjpegCtx->gHuffVal0)
+#define gHuffTab1 (gPjpegCtx->gHuffTab1)
+#define gHuffVal1 (gPjpegCtx->gHuffVal1)
+#define gHuffTab2 (gPjpegCtx->gHuffTab2)
+#define gHuffVal2 (gPjpegCtx->gHuffVal2)
+#define gHuffTab3 (gPjpegCtx->gHuffTab3)
+#define gHuffVal3 (gPjpegCtx->gHuffVal3)
+#define gValidHuffTables (gPjpegCtx->gValidHuffTables)
+#define gValidQuantTables (gPjpegCtx->gValidQuantTables)
+#define gTemFlag (gPjpegCtx->gTemFlag)
+#define gInBuf (gPjpegCtx->gInBuf)
+#define gInBufOfs (gPjpegCtx->gInBufOfs)
+#define gInBufLeft (gPjpegCtx->gInBufLeft)
+#define gBitBuf (gPjpegCtx->gBitBuf)
+#define gBitsLeft (gPjpegCtx->gBitsLeft)
+#define gImageXSize (gPjpegCtx->gImageXSize)
+#define gImageYSize (gPjpegCtx->gImageYSize)
+#define gCompsInFrame (gPjpegCtx->gCompsInFrame)
+#define gCompIdent (gPjpegCtx->gCompIdent)
+#define gCompHSamp (gPjpegCtx->gCompHSamp)
+#define gCompVSamp (gPjpegCtx->gCompVSamp)
+#define gCompQuant (gPjpegCtx->gCompQuant)
+#define gRestartInterval (gPjpegCtx->gRestartInterval)
+#define gNextRestartNum (gPjpegCtx->gNextRestartNum)
+#define gRestartsLeft (gPjpegCtx->gRestartsLeft)
+#define gCompsInScan (gPjpegCtx->gCompsInScan)
+#define gCompList (gPjpegCtx->gCompList)
+#define gCompDCTab (gPjpegCtx->gCompDCTab)
+#define gCompACTab (gPjpegCtx->gCompACTab)
+#define gScanType (gPjpegCtx->gScanType)
+#define gMaxBlocksPerMCU (gPjpegCtx->gMaxBlocksPerMCU)
+#define gMaxMCUXSize (gPjpegCtx->gMaxMCUXSize)
+#define gMaxMCUYSize (gPjpegCtx->gMaxMCUYSize)
+#define gMaxMCUSPerRow (gPjpegCtx->gMaxMCUSPerRow)
+#define gMaxMCUSPerCol (gPjpegCtx->gMaxMCUSPerCol)
+#define gNumMCUSRemainingX (gPjpegCtx->gNumMCUSRemainingX)
+#define gNumMCUSRemainingY (gPjpegCtx->gNumMCUSRemainingY)
+#define gMCUOrg (gPjpegCtx->gMCUOrg)
+#define g_pNeedBytesCallback (gPjpegCtx->g_pNeedBytesCallback)
+#define g_pCallback_data (gPjpegCtx->g_pCallback_data)
+#define gCallbackStatus (gPjpegCtx->gCallbackStatus)
+#define gReduce (gPjpegCtx->gReduce)
 //------------------------------------------------------------------------------
 static void fillInBuf(void) {
   unsigned char status;
@@ -2022,6 +2056,8 @@ static uint8 decodeNextMCU(void) {
 unsigned char pjpeg_decode_mcu(void) {
   uint8 status;
 
+  if (!gPjpegCtx) return PJPG_NOTENOUGHMEM;
+
   if (gCallbackStatus) return gCallbackStatus;
 
   if ((!gNumMCUSRemainingX) && (!gNumMCUSRemainingY)) return PJPG_NO_MORE_BLOCKS;
@@ -2038,9 +2074,17 @@ unsigned char pjpeg_decode_mcu(void) {
   return 0;
 }
 //------------------------------------------------------------------------------
+void pjpeg_decode_deinit(void) {
+  free(gPjpegCtx);
+  gPjpegCtx = (PjpegContext*)0;
+}
+//------------------------------------------------------------------------------
 unsigned char pjpeg_decode_init(pjpeg_image_info_t* pInfo, pjpeg_need_bytes_callback_t pNeed_bytes_callback,
                                 void* pCallback_data, unsigned char reduce) {
   uint8 status;
+
+  pjpeg_decode_deinit();
+  if (!pInfo) return PJPG_NOTENOUGHMEM;
 
   pInfo->m_width = 0;
   pInfo->m_height = 0;
@@ -2054,22 +2098,41 @@ unsigned char pjpeg_decode_init(pjpeg_image_info_t* pInfo, pjpeg_need_bytes_call
   pInfo->m_pMCUBufG = (unsigned char*)0;
   pInfo->m_pMCUBufB = (unsigned char*)0;
 
+  gPjpegCtx = (PjpegContext*)calloc(1, sizeof(PjpegContext));
+  if (!gPjpegCtx) return PJPG_NOTENOUGHMEM;
+
   g_pNeedBytesCallback = pNeed_bytes_callback;
   g_pCallback_data = pCallback_data;
   gCallbackStatus = 0;
   gReduce = reduce;
 
   status = init();
-  if ((status) || (gCallbackStatus)) return gCallbackStatus ? gCallbackStatus : status;
+  if ((status) || (gCallbackStatus)) {
+    status = gCallbackStatus ? gCallbackStatus : status;
+    pjpeg_decode_deinit();
+    return status;
+  }
 
   status = locateSOFMarker();
-  if ((status) || (gCallbackStatus)) return gCallbackStatus ? gCallbackStatus : status;
+  if ((status) || (gCallbackStatus)) {
+    status = gCallbackStatus ? gCallbackStatus : status;
+    pjpeg_decode_deinit();
+    return status;
+  }
 
   status = initFrame();
-  if ((status) || (gCallbackStatus)) return gCallbackStatus ? gCallbackStatus : status;
+  if ((status) || (gCallbackStatus)) {
+    status = gCallbackStatus ? gCallbackStatus : status;
+    pjpeg_decode_deinit();
+    return status;
+  }
 
   status = initScan();
-  if ((status) || (gCallbackStatus)) return gCallbackStatus ? gCallbackStatus : status;
+  if ((status) || (gCallbackStatus)) {
+    status = gCallbackStatus ? gCallbackStatus : status;
+    pjpeg_decode_deinit();
+    return status;
+  }
 
   pInfo->m_width = gImageXSize;
   pInfo->m_height = gImageYSize;

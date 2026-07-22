@@ -11,13 +11,17 @@
 #include "Epub.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
+#include "system/UiTheme.h"
 
 #define SETTINGS SystemSetting::getInstance()
 
-constexpr int LIST_ITEM_HEIGHT = 60;
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr float TOC_DRAWER_HEIGHT_PERCENT = 0.8f;
 
 namespace {
+constexpr int kDrawerHeaderHeight = UiTheme::DRAWER_HEADER_HEIGHT;
+constexpr int kDrawerListTop = kDrawerHeaderHeight + 1;
+constexpr int kDrawerListBottomPadding = UiTheme::DRAWER_LIST_BOTTOM_PADDING;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -103,17 +107,28 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   itemHeight = LIST_ITEM_HEIGHT;
   syncLayoutFromRenderer();
 
-  menuItems = {{"Table of Contents", MenuAction::SELECT_CHAPTER},
-               {"Go To Percent", MenuAction::GO_TO_PERCENT},
-               {"Show Bookmarks", MenuAction::SHOW_BOOKMARKS},
-               {"Annotations", MenuAction::SHOW_ANNOTATIONS},
-               {"KOReader Sync", MenuAction::KOREADER_SYNC},
-               {"Delete Cache", MenuAction::DELETE_CACHE},
-               {"Delete Progress", MenuAction::DELETE_PROGRESS},
-               {"Delete Book", MenuAction::DELETE_BOOK},
-               {"Generate Full Data", MenuAction::GENERATE_FULL_DATA},
-               {"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL},
-               {"Go Home", MenuAction::GO_HOME}};
+  menuItems.push_back({"Table of Contents", MenuAction::SELECT_CHAPTER});
+  menuItems.push_back({"Go To Percent", MenuAction::GO_TO_PERCENT});
+  menuItems.push_back({"Show Bookmarks", MenuAction::SHOW_BOOKMARKS});
+  menuItems.push_back({"Annotations", MenuAction::SHOW_ANNOTATIONS});
+  menuItems.push_back({"KOReader Sync", MenuAction::KOREADER_SYNC});
+  menuItems.push_back({"Delete Cache", MenuAction::DELETE_CACHE});
+  menuItems.push_back({"Delete Progress", MenuAction::DELETE_PROGRESS});
+  menuItems.push_back({"Delete Book", MenuAction::DELETE_BOOK});
+  menuItems.push_back({"Generate Full Data", MenuAction::GENERATE_FULL_DATA});
+  menuItems.push_back({"Prewarm Images", MenuAction::PREWARM_IMAGES});
+  menuItems.push_back({"Regenerate Thumbnail", MenuAction::REGENERATE_THUMBNAIL});
+  menuItems.push_back({"Go Home", MenuAction::GO_HOME});
+}
+
+void MenuDrawer::setEpub(Epub* epub) {
+  this->epub = epub;
+  visibleTocIndexes.clear();
+  tocExpanded.clear();
+  tocLevels.clear();
+  tocHasChildren.clear();
+  tocSelectedIndex = 0;
+  tocScrollOffset = 0;
 }
 
 /**
@@ -141,7 +156,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
     tocDrawerHeight = static_cast<int>(sh * TOC_DRAWER_HEIGHT_PERCENT);
     tocDrawerY = sh - tocDrawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - 100) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
 }
 
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
@@ -261,14 +276,14 @@ void MenuDrawer::drawBackground() {
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
-  const int headerH = itemHeight;
+  const int headerH = kDrawerHeaderHeight;
   const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true,
                        EpdFontFamily::BOLD);
 
   // Sit the divider on the last row of the header band; the first list item starts at drawerY+headerH and
   // its row fill would otherwise paint over a divider drawn exactly there.
-  const int dividerY = drawerY + headerH - 1;
+  const int dividerY = drawerY + headerH;
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -286,7 +301,7 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + itemHeight;  // header band height == one list item
+  const int startY = drawerY + kDrawerListTop;
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& item = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -300,7 +315,8 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
-  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true);
+  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                       LineRender::Style::Dotted);
 }
 
 /**
@@ -310,7 +326,7 @@ void MenuDrawer::drawScrollIndicator() {
   int totalItems = (int)menuItems.size();
   if (totalItems <= itemsPerPage) return;
 
-  int startY = drawerY + 80;
+  int startY = drawerY + kDrawerListTop;
   int listHeight = itemsPerPage * itemHeight;
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
@@ -319,7 +335,7 @@ void MenuDrawer::drawScrollIndicator() {
 }
 
 void MenuDrawer::clearScrollIndicatorArea() {
-  const int startY = drawerY + 80;
+  const int startY = drawerY + kDrawerListTop;
   const int listHeight = itemsPerPage * itemHeight;
   renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
 }
@@ -350,8 +366,7 @@ void MenuDrawer::refreshMainMenuSelection(int previousIndex, bool redrawScrollIn
  * @return Number of items per page
  */
 int MenuDrawer::getTocPageItems() const {
-  constexpr int headerReserved = 120;
-  int items = (tocDrawerHeight - headerReserved) / LIST_ITEM_HEIGHT;
+  int items = (tocDrawerHeight - kDrawerListTop - kDrawerListBottomPadding) / LIST_ITEM_HEIGHT;
   return (items < 1) ? 1 : items;
 }
 
@@ -363,20 +378,139 @@ void MenuDrawer::drawTocBackground() {
   renderer.rectangle.render(tocDrawerX, tocDrawerY, tocDrawerWidth, tocDrawerHeight, true);
 }
 
+void MenuDrawer::prepareTocForOpen(int preferredTocIndex) {
+  ensureTocState();
+  std::fill(tocExpanded.begin(), tocExpanded.end(), 0);
+
+  if (preferredTocIndex >= 0) {
+    expandTocAncestors(preferredTocIndex);
+  }
+
+  rebuildVisibleTocItems();
+  const int visibleIndex = visibleIndexForTocIndex(preferredTocIndex);
+  tocSelectedIndex = (visibleIndex >= 0) ? visibleIndex : 0;
+}
+
+void MenuDrawer::ensureTocState() {
+  const int totalItems = epub ? epub->getTocItemsCount() : 0;
+  if (static_cast<int>(tocLevels.size()) != totalItems || static_cast<int>(tocExpanded.size()) != totalItems) {
+    loadTocStructure();
+  }
+}
+
+void MenuDrawer::loadTocStructure() {
+  const int totalItems = epub ? epub->getTocItemsCount() : 0;
+  tocExpanded.assign(std::max(0, totalItems), 0);
+  tocLevels.assign(std::max(0, totalItems), 1);
+  tocHasChildren.assign(std::max(0, totalItems), 0);
+
+  if (!epub || totalItems <= 0) {
+    visibleTocIndexes.clear();
+    return;
+  }
+
+  for (int i = 0; i < totalItems; ++i) {
+    tocLevels[static_cast<size_t>(i)] = static_cast<uint8_t>(std::max(1, static_cast<int>(epub->getTocItem(i).level)));
+  }
+  for (int i = 0; i + 1 < totalItems; ++i) {
+    tocHasChildren[static_cast<size_t>(i)] = tocLevels[static_cast<size_t>(i + 1)] > tocLevels[static_cast<size_t>(i)];
+  }
+
+  rebuildVisibleTocItems();
+}
+
+void MenuDrawer::rebuildVisibleTocItems() {
+  visibleTocIndexes.clear();
+  if (!epub) return;
+
+  const int totalItems = static_cast<int>(tocLevels.size());
+  if (totalItems <= 0) return;
+
+  int rootLevel = std::max(1, static_cast<int>(tocLevels[0]));
+  for (int i = 1; i < totalItems; ++i) {
+    rootLevel = std::min(rootLevel, std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)])));
+  }
+
+  std::vector<uint8_t> hiddenAtLevel;
+  hiddenAtLevel.assign(16, 0);
+  for (int i = 0; i < totalItems; ++i) {
+    const int level = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)]));
+    if (level >= static_cast<int>(hiddenAtLevel.size())) {
+      hiddenAtLevel.resize(static_cast<size_t>(level + 1), 0);
+    }
+
+    bool hidden = false;
+    for (int parentLevel = rootLevel; parentLevel < level; ++parentLevel) {
+      if (parentLevel >= 0 && parentLevel < static_cast<int>(hiddenAtLevel.size()) && hiddenAtLevel[parentLevel]) {
+        hidden = true;
+        break;
+      }
+    }
+
+    if (!hidden) {
+      visibleTocIndexes.push_back(i);
+    }
+
+    for (int childLevel = level + 1; childLevel < static_cast<int>(hiddenAtLevel.size()); ++childLevel) {
+      hiddenAtLevel[childLevel] = 0;
+    }
+    hiddenAtLevel[level] = tocItemHasChildren(i) && !tocItemExpanded(i);
+  }
+
+  if (tocSelectedIndex >= static_cast<int>(visibleTocIndexes.size())) {
+    tocSelectedIndex = std::max(0, static_cast<int>(visibleTocIndexes.size()) - 1);
+  }
+}
+
+bool MenuDrawer::tocItemHasChildren(int tocIndex) const {
+  return tocIndex >= 0 && tocIndex < static_cast<int>(tocHasChildren.size()) &&
+         tocHasChildren[static_cast<size_t>(tocIndex)];
+}
+
+bool MenuDrawer::tocItemExpanded(int tocIndex) const {
+  return tocIndex >= 0 && tocIndex < static_cast<int>(tocExpanded.size()) && tocExpanded[static_cast<size_t>(tocIndex)];
+}
+
+int MenuDrawer::visibleIndexForTocIndex(int tocIndex) const {
+  if (tocIndex < 0) return -1;
+  for (int i = 0; i < static_cast<int>(visibleTocIndexes.size()); ++i) {
+    if (visibleTocIndexes[static_cast<size_t>(i)] == tocIndex) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void MenuDrawer::expandTocAncestors(int tocIndex) {
+  if (!epub || tocIndex <= 0 || tocIndex >= static_cast<int>(tocLevels.size())) return;
+
+  int childLevel = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(tocIndex)]));
+  for (int i = tocIndex - 1; i >= 0 && childLevel > 1; --i) {
+    const int level = std::max(1, static_cast<int>(tocLevels[static_cast<size_t>(i)]));
+    if (level < childLevel) {
+      if (i < static_cast<int>(tocExpanded.size())) {
+        tocExpanded[static_cast<size_t>(i)] = 1;
+      }
+      childLevel = level;
+    }
+  }
+}
+
 /**
  * @brief Renders the Table of Contents view as a drawer
  */
 void MenuDrawer::renderToc() {
   if (!epub) return;
 
+  ensureTocState();
   const int panelW = tocDrawerWidth;
-  const int totalItems = epub->getTocItemsCount();
+  const int totalItems = static_cast<int>(visibleTocIndexes.size());
   const int pageItems = getTocPageItems();
 
   drawTocBackground();
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                        EpdFontFamily::BOLD);
@@ -385,7 +519,7 @@ void MenuDrawer::renderToc() {
   renderer.line.render(tocDrawerX, dividerY, tocDrawerX + panelW, dividerY, true);
 
   const int pageStartIndex = (tocSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   if (totalItems == 0) {
     const int msgY = drawY + 24;
@@ -408,7 +542,10 @@ void MenuDrawer::renderToc() {
 
       int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
-      auto item = epub->getTocItem(itemIndex);
+      const int rawTocIndex = visibleTocIndexes[static_cast<size_t>(itemIndex)];
+      auto item = epub->getTocItem(rawTocIndex);
+      const bool hasChildren = tocItemHasChildren(rawTocIndex);
+      const char* rowIndicator = hasChildren ? (tocItemExpanded(rawTocIndex) ? "-" : "+") : "\xE2\x80\xBA";
       const int level = std::max(1, static_cast<int>(item.level));
       const int depthPx = (level - 1) * 20;
       const int maxDepthPx = std::max(0, panelW - 120);
@@ -420,21 +557,23 @@ void MenuDrawer::renderToc() {
 
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(),
                            isSelected ? 0 : 1);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, rowIndicator,
+                           isSelected ? 0 : 1);
       renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                           true);
+                           true, LineRender::Style::Dotted);
     }
   }
 
   const int totalPages = std::max(1, (totalItems + pageItems - 1) / pageItems);
   const int currentPageNum = (tocSelectedIndex / pageItems) + 1;
-  char pageStr[24];
-  snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
-  constexpr int kTocFooterAboveHints = 75;
-  const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kTocFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  const int previousPageNum = std::max(1, currentPageNum - 1);
+  const int nextPageNum = std::min(totalPages, currentPageNum + 1);
+  char previousPageLabel[12];
+  char nextPageLabel[12];
+  snprintf(previousPageLabel, sizeof(previousPageLabel), "\xC2\xAB %d", previousPageNum);
+  snprintf(nextPageLabel, sizeof(nextPageLabel), "%d \xC2\xBB", nextPageNum);
 
-  drawMappedReaderNavHints("\xC2\xAB Back", "Select", "\xC2\xAB", "\xC2\xBB");
+  drawMappedReaderNavHints("\xC2\xAB Back", "Select", previousPageLabel, nextPageLabel);
 }
 
 /**
@@ -447,7 +586,7 @@ void MenuDrawer::renderBookmarks() {
 
   drawTocBackground();
 
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
                        EpdFontFamily::BOLD);
@@ -471,7 +610,7 @@ void MenuDrawer::renderBookmarks() {
   }
 
   const int pageStartIndex = (bookmarkSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   for (int i = 0; i < pageItems; i++) {
     const int itemIndex = pageStartIndex + i;
@@ -496,7 +635,7 @@ void MenuDrawer::renderBookmarks() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                         true);
+                         true, LineRender::Style::Dotted);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
@@ -517,7 +656,7 @@ void MenuDrawer::renderAnnotations() {
 
   drawTocBackground();
 
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
                        EpdFontFamily::BOLD);
@@ -546,7 +685,7 @@ void MenuDrawer::renderAnnotations() {
   }
 
   const int pageStartIndex = (annotationSelectedIndex / pageItems) * pageItems;
-  int drawY = dividerY + 2;
+  int drawY = tocDrawerY + kDrawerListTop;
 
   for (int i = 0; i < pageItems; i++) {
     const int itemIndex = pageStartIndex + i;
@@ -571,7 +710,7 @@ void MenuDrawer::renderAnnotations() {
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
-                         true);
+                         true, LineRender::Style::Dotted);
   }
 
   const int totalPages = (totalItems + pageItems - 1) / pageItems;
@@ -594,7 +733,7 @@ void MenuDrawer::renderPercent() {
   drawTocBackground();
 
   // Header band matches TOC/Bookmarks/Annotations exactly.
-  const int headerH = LIST_ITEM_HEIGHT;
+  const int headerH = kDrawerHeaderHeight;
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Go to Percent", true,
                        EpdFontFamily::BOLD);
@@ -699,7 +838,8 @@ void MenuDrawer::exitPercent() {
 void MenuDrawer::handleTocInput(const MappedInputManager& input) {
   if (!epub) return;
 
-  const int totalItems = epub->getTocItemsCount();
+  ensureTocState();
+  const int totalItems = static_cast<int>(visibleTocIndexes.size());
   const int pageItems = getTocPageItems();
   const bool skipPage = input.getHeldTime() > 700;
 
@@ -714,7 +854,18 @@ void MenuDrawer::handleTocInput(const MappedInputManager& input) {
 
   if (input.wasReleased(MappedInputManager::Button::Confirm)) {
     if (tocSelectedIndex >= 0 && tocSelectedIndex < totalItems) {
-      const int newSpineIndex = epub->getSpineIndexForTocIndex(tocSelectedIndex);
+      const int rawTocIndex = visibleTocIndexes[static_cast<size_t>(tocSelectedIndex)];
+
+      if (tocItemHasChildren(rawTocIndex)) {
+        tocExpanded[static_cast<size_t>(rawTocIndex)] = tocItemExpanded(rawTocIndex) ? 0 : 1;
+        rebuildVisibleTocItems();
+        tocSelectedIndex = std::max(0, visibleIndexForTocIndex(rawTocIndex));
+        lastInputTime = xTaskGetTickCount();
+        renderWithRefresh();
+        return;
+      }
+
+      const int newSpineIndex = epub->getSpineIndexForTocIndex(rawTocIndex);
 
       showingToc = false;
       visible = false;
@@ -804,10 +955,10 @@ void MenuDrawer::exitAnnotations() {
 }
 
 void MenuDrawer::refreshBookmarkEntriesFromProvider() {
+  bookmarkEntries.clear();
   if (bookmarkListProvider) {
-    bookmarkEntries = bookmarkListProvider();
-  } else {
-    bookmarkEntries.clear();
+    const auto provided = bookmarkListProvider();
+    bookmarkEntries.insert(bookmarkEntries.end(), provided.begin(), provided.end());
   }
   if (bookmarkSelectedIndex >= static_cast<int>(bookmarkEntries.size())) {
     bookmarkSelectedIndex = std::max(0, static_cast<int>(bookmarkEntries.size()) - 1);
@@ -980,22 +1131,18 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       if (menuItems[selectedIndex].action == MenuAction::SELECT_CHAPTER) {
         showingToc = true;
-        tocScrollOffset = 0;
-        tocSelectedIndex = 0;
+        int preferredTocIndex = -1;
         if (epub && readerSpineIndex_ >= 0) {
           const int ti = epub->getTocIndexForSpineIndex(readerSpineIndex_);
           if (ti >= 0) {
-            tocSelectedIndex = ti;
+            preferredTocIndex = ti;
           }
         }
+        prepareTocForOpen(preferredTocIndex);
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_BOOKMARKS) {
-        if (bookmarkListProvider) {
-          bookmarkEntries = bookmarkListProvider();
-        } else {
-          bookmarkEntries.clear();
-        }
+        refreshBookmarkEntriesFromProvider();
         bookmarkSelectedIndex = 0;
         for (int i = 0; i < static_cast<int>(bookmarkEntries.size()); ++i) {
           if (bookmarkEntries[static_cast<size_t>(i)].isCurrentPosition) {
@@ -1007,10 +1154,10 @@ void MenuDrawer::handleInput(MappedInputManager& input) {
         lastInputTime = xTaskGetTickCount();
         renderWithRefresh();
       } else if (menuItems[selectedIndex].action == MenuAction::SHOW_ANNOTATIONS) {
+        annotationEntries.clear();
         if (annotationListProvider) {
-          annotationEntries = annotationListProvider();
-        } else {
-          annotationEntries.clear();
+          const auto provided = annotationListProvider();
+          annotationEntries.insert(annotationEntries.end(), provided.begin(), provided.end());
         }
         annotationSelectedIndex = 0;
         for (int i = 0; i < static_cast<int>(annotationEntries.size()); ++i) {

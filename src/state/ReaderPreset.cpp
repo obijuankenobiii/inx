@@ -36,7 +36,9 @@ void ReaderPresetStore::load() {
     return;
   }
 
-  const size_t recordSize = version >= 2 ? BookSettings::kSerializedSize : BookSettings::kLegacySerializedSize;
+  const size_t recordSize = version >= 3   ? BookSettings::kSerializedSize
+                            : version >= 2 ? BookSettings::kSerializedSizeV2
+                                           : BookSettings::kLegacySerializedSize;
 
   for (uint8_t i = 0; i < presetCount; i++) {
     uint8_t nameLen = 0;
@@ -59,7 +61,9 @@ void ReaderPresetStore::load() {
     preset.name = std::string(nameBuf);
     size_t offset = 0;
     preset.settings.deserialize(record, toRead, offset);
+    preset.settings.normalize();
     preset.settings.useCustomSettings = true;
+    preset.settings.readerPresetIndex = BookSettings::kNoReaderPreset;
     userPresets_.push_back(std::move(preset));
   }
 
@@ -120,11 +124,14 @@ BookSettings ReaderPresetStore::settingsOf(int index) {
   if (index <= 0) {
     out.loadFromGlobalSettings();
     out.useCustomSettings = false;
+    out.readerPresetIndex = BookSettings::kNoReaderPreset;
     return out;
   }
   if (index - 1 < static_cast<int>(userPresets_.size())) {
     out = userPresets_[index - 1].settings;
+    out.normalize();
     out.useCustomSettings = true;
+    out.readerPresetIndex = BookSettings::kNoReaderPreset;
   }
   return out;
 }
@@ -137,7 +144,9 @@ int ReaderPresetStore::add(const std::string& name, const BookSettings& settings
   ReaderPreset preset;
   preset.name = name.empty() ? "Preset" : name.substr(0, kMaxNameLen);
   preset.settings = settings;
+  preset.settings.normalize();
   preset.settings.useCustomSettings = true;
+  preset.settings.readerPresetIndex = BookSettings::kNoReaderPreset;
   userPresets_.push_back(std::move(preset));
   save();
   return static_cast<int>(userPresets_.size());  // store index of the new preset
@@ -156,7 +165,9 @@ bool ReaderPresetStore::update(int index, const std::string& name, const BookSet
   }
   userPresets_[index - 1].name = name.empty() ? userPresets_[index - 1].name : name.substr(0, kMaxNameLen);
   userPresets_[index - 1].settings = settings;
+  userPresets_[index - 1].settings.normalize();
   userPresets_[index - 1].settings.useCustomSettings = true;
+  userPresets_[index - 1].settings.readerPresetIndex = BookSettings::kNoReaderPreset;
   return save();
 }
 
@@ -182,11 +193,15 @@ void ReaderPresetStore::applyToBook(int index, BookSettings& book) {
   load();
   if (index <= 0) {
     book.loadFromGlobalSettings();
+    book.normalize();
     book.useCustomSettings = false;
+    book.readerPresetIndex = 0;
     return;
   }
   if (index - 1 < static_cast<int>(userPresets_.size())) {
     book = userPresets_[index - 1].settings;
+    book.normalize();
     book.useCustomSettings = true;
+    book.readerPresetIndex = static_cast<uint8_t>(index);
   }
 }

@@ -15,6 +15,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr const char* AP_SSID = "Xteink-X4";
@@ -29,10 +30,6 @@ constexpr int CONTENT_MARGIN = 25;
 constexpr int LINE_SPACING = 28;
 constexpr int SMALL_SPACING = 25;
 constexpr int SECTION_SPACING = 40;
-constexpr int TAB_BAR_HEIGHT = 40;
-constexpr int HEADER_TITLE_Y_OFFSET = 10;
-constexpr int SUBTITLE_Y_OFFSET = 40;
-constexpr int DIVIDER_PADDING = 10;
 constexpr int BOTTOM_AREA_HEIGHT = 80;
 
 constexpr int QR_VERSION = 4;
@@ -46,16 +43,8 @@ constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;
  * @param title Header title text
  * @param subtitle Optional subtitle text
  */
-void renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
-  const int headerHeight = TAB_BAR_HEIGHT;
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN,
-                       startY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2 +
-                           HEADER_TITLE_Y_OFFSET,
-                       title, true, EpdFontFamily::BOLD);
-
-  const int dividerY = startY + headerHeight + 18;
-  renderer.line.render(0, dividerY, renderer.getScreenWidth(), dividerY);
+int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
+  return INX_THEME.drawPageHeader(renderer, title, startY, nullptr, CONTENT_MARGIN);
 }
 
 /**
@@ -230,7 +219,6 @@ void HotspotActivity::loop() {
         }
       }
     }
-    lastHandleClientTime = millis();
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
@@ -279,17 +267,15 @@ void HotspotActivity::drawQRCode(int x, int y, const std::string& data) const {
  */
 void HotspotActivity::render() const {
   renderer.clearScreen();
-  renderTabBar(renderer);
 
   int screenHeight = renderer.getScreenHeight();
-  int startY = TAB_BAR_HEIGHT;
+  int startY = 0;
 
   if (state == HotspotState::RUNNING) {
     renderServerRunning();
   } else if (state == HotspotState::STARTING) {
-    renderActivityHeader(renderer, startY, "Hotspot");
+    const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
 
-    int contentStart = startY + SUBTITLE_Y_OFFSET;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
@@ -297,9 +283,8 @@ void HotspotActivity::render() const {
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
     renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == HotspotState::ERROR) {
-    renderActivityHeader(renderer, startY, "Hotspot");
+    const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
 
-    int contentStart = startY + SUBTITLE_Y_OFFSET;
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
     renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start hotspot");
@@ -320,14 +305,14 @@ void HotspotActivity::render() const {
  */
 void HotspotActivity::renderServerRunning() const {
   int screenWidth = renderer.getScreenWidth();
-  int startY = TAB_BAR_HEIGHT;
+  int startY = 0;
 
-  renderActivityHeader(renderer, startY, "Hotspot");
+  const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
 
   std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
   std::string ipUrl = "http://" + connectedIP + "/";
 
-  const int bodyTop = startY + SUBTITLE_Y_OFFSET + 50;
+  const int bodyTop = contentStart + 12;
   const int textX = CONTENT_MARGIN + 2;
   const int qrX = screenWidth - QR_SIZE - CONTENT_MARGIN;
   const int wifiY = bodyTop + 8;

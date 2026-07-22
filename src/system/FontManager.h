@@ -10,7 +10,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 class EpdFont;
@@ -51,7 +50,7 @@ class FontManager {
   static bool loadFontFromSD(int fontId, GfxRenderer& renderer);
   static bool ensureFontReady(int fontId, GfxRenderer& renderer);
   /** Preload body, next-larger, and max-in-family SD slots used together during EPUB layout. */
-  static void ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer);
+  static bool ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer);
   static bool unloadFont(int fontId);
   static void unloadAllSDFonts();
 

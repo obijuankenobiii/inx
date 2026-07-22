@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
-#include <set>
 #include <vector>
 
 #ifdef SIMULATOR
@@ -41,8 +40,28 @@ void GfxRenderer::begin() {
 }
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
-  fontMap.erase(fontId);
-  fontMap.emplace(fontId, std::move(font));
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
+  if (it != fontSlots.end()) {
+    it->family = std::move(font);
+    return;
+  }
+  fontSlots.emplace_back(fontId, std::move(font));
+}
+
+const EpdFontFamily* GfxRenderer::findFontFamily(const int fontId) const {
+  const auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
+  return it == fontSlots.end() ? nullptr : &it->family;
+}
+
+ExternalFont* GfxRenderer::findStreamingFont(const EpdFontData* data) const {
+  if (!data) {
+    return nullptr;
+  }
+  const auto it = std::find_if(streamingFontSlots.begin(), streamingFontSlots.end(),
+                               [data](const StreamingFontSlot& slot) { return slot.data == data; });
+  return it == streamingFontSlots.end() ? nullptr : it->stream.get();
 }
 
 // Called once per pixel from every image/text/shape draw; opted into -O2 (the firmware otherwise builds
@@ -234,7 +253,12 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(display.getFrameBuffer()); }
 
 void GfxRenderer::displayGrayBuffer(const bool quality, const bool trackForRevert) const {
+#ifdef SIMULATOR
+  (void)trackForRevert;
+  display.displayGrayBuffer(quality);
+#else
   display.displayGrayBuffer(quality, trackForRevert);
+#endif
 }
 
 void GfxRenderer::displayGrayBufferFastQuality() const {
@@ -444,72 +468,81 @@ void GfxRenderer::insertStreamingFont(int fontId, std::unique_ptr<ExternalFont> 
   const EpdFontData* dataPtr = streamingFont->getData();
   EpdFontFamily streamingFamily = font;
   streamingFamily.setData(EpdFontFamily::REGULAR, dataPtr);
-  streamingFonts.erase(dataPtr);
-  streamingFonts.emplace(dataPtr, std::move(streamingFont));
-  fontMap.erase(fontId);
-  fontMap.emplace(fontId, streamingFamily);
+  auto streamIt = std::find_if(streamingFontSlots.begin(), streamingFontSlots.end(),
+                               [dataPtr](const StreamingFontSlot& slot) { return slot.data == dataPtr; });
+  if (streamIt != streamingFontSlots.end()) {
+    streamIt->stream = std::move(streamingFont);
+  } else {
+    streamingFontSlots.emplace_back(dataPtr, std::move(streamingFont));
+  }
+  insertFont(fontId, streamingFamily);
 }
 
 void GfxRenderer::removeFont(int fontId) {
-  auto it = fontMap.find(fontId);
-  if (it == fontMap.end()) {
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
+  if (it == fontSlots.end()) {
     return;
   }
   for (const auto style :
        {EpdFontFamily::REGULAR, EpdFontFamily::BOLD, EpdFontFamily::ITALIC, EpdFontFamily::BOLD_ITALIC}) {
-    const EpdFontData* d = it->second.getData(style);
+    const EpdFontData* d = it->family.getData(style);
     if (d != nullptr) {
-      streamingFonts.erase(d);
+      streamingFontSlots.erase(std::remove_if(streamingFontSlots.begin(), streamingFontSlots.end(),
+                                              [d](const StreamingFontSlot& slot) { return slot.data == d; }),
+                               streamingFontSlots.end());
     }
   }
-  fontMap.erase(it);
+  fontSlots.erase(it);
 }
 
 void GfxRenderer::removeAllStreamingFonts() {
-  if (streamingFonts.empty()) {
+  if (streamingFontSlots.empty()) {
     return;
   }
 
-  std::set<const EpdFontData*> streamingData;
-  for (const auto& entry : streamingFonts) {
-    streamingData.insert(entry.first);
-  }
-
-  for (auto it = fontMap.begin(); it != fontMap.end();) {
+  for (auto it = fontSlots.begin(); it != fontSlots.end();) {
     bool usesStreamingData = false;
     for (const auto style :
          {EpdFontFamily::REGULAR, EpdFontFamily::BOLD, EpdFontFamily::ITALIC, EpdFontFamily::BOLD_ITALIC}) {
-      const EpdFontData* data = it->second.getData(style);
-      if (data != nullptr && streamingData.count(data) != 0) {
+      const EpdFontData* data = it->family.getData(style);
+      const auto streamIt = std::find_if(streamingFontSlots.begin(), streamingFontSlots.end(),
+                                         [data](const StreamingFontSlot& slot) { return slot.data == data; });
+      if (data != nullptr && streamIt != streamingFontSlots.end()) {
         usesStreamingData = true;
         break;
       }
     }
 
     if (usesStreamingData) {
-      it = fontMap.erase(it);
+      it = fontSlots.erase(it);
     } else {
       ++it;
     }
   }
 
-  streamingFonts.clear();
+  streamingFontSlots.clear();
 }
 
 void GfxRenderer::addStreamingFontStyle(int fontId, EpdFontFamily::Style style,
                                         std::unique_ptr<ExternalFont> streamingFont) {
-  auto it = fontMap.find(fontId);
-  if (it == fontMap.end()) {
+  auto it =
+      std::find_if(fontSlots.begin(), fontSlots.end(), [fontId](const FontSlot& slot) { return slot.id == fontId; });
+  if (it == fontSlots.end()) {
     Serial.printf("[GFX] Can't add style to unknown font ID %d\n", fontId);
     return;
   }
 
   const EpdFontData* dataPtr = streamingFont->getData();
-  streamingFonts.erase(dataPtr);
-  streamingFonts.emplace(dataPtr, std::move(streamingFont));
+  auto streamIt = std::find_if(streamingFontSlots.begin(), streamingFontSlots.end(),
+                               [dataPtr](const StreamingFontSlot& slot) { return slot.data == dataPtr; });
+  if (streamIt != streamingFontSlots.end()) {
+    streamIt->stream = std::move(streamingFont);
+  } else {
+    streamingFontSlots.emplace_back(dataPtr, std::move(streamingFont));
+  }
 
-  EpdFontFamily updatedFamily = it->second;
+  EpdFontFamily updatedFamily = it->family;
   updatedFamily.setData(style, dataPtr);
-  fontMap.erase(fontId);
-  fontMap.emplace(fontId, updatedFamily);
+  it->family = updatedFamily;
 }

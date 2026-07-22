@@ -95,6 +95,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   int pagesUntilFullRefresh = 0;
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
+  bool suppressNextSectionLoadProgress_ = false;
+  bool suppressBackUntilReleased_ = false;
   int cachedSpineIndex = 0;
   int cachedChapterTotalPageCount = 0;
   bool updateRequired = false;
@@ -125,6 +127,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   MenuDrawer* menuDrawer = nullptr;
   bool menuDrawerVisible = false;
   BookSettings bookSettings;
+  BookSettings settingsDrawerSnapshot_;
+  bool hasSettingsDrawerSnapshot_ = false;
   /** Last orientation value used for a full layout/section rebuild; used to detect drift after global sync. */
   uint8_t bookLayoutAppliedOrientation_ = 0xFF;
   bool leftButtonLongPressProcessed = false;
@@ -227,6 +231,7 @@ class EpubActivity final : public ActivityWithSubactivity {
    * Generates full book data.
    */
   void generateFullData();
+  void prewarmCurrentSectionImages();
   void regenerateThumbnail();
 
   /** Opens KOReader sync as a sub-activity (from menu). */
@@ -275,6 +280,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void initStats();
   void maybeCommitReadingSessionCount();
   void startPageTimer();
+  void pauseReadingStats();
   void endPageTimer();
   void saveBookStats();
 
@@ -303,7 +309,7 @@ class EpubActivity final : public ActivityWithSubactivity {
    * @param info Viewport information for rendering
    * @return Unique pointer to the loaded section
    */
-  std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info);
+  std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info, bool showProgress = true);
 
   void setupOrientation();
   /** Copies device reading orientation into book settings when the book follows global defaults. */
@@ -312,8 +318,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void onBookSettingsLiveLayoutSync();
   void ensureThumbnailExists();
   void displayCoverOrTitle();
-  void loadCurrentSection();
-  void preloadChapters();
+  void loadCurrentSection(bool showProgress = true);
   void updateExternalState();
   void fastPath();
   bool slowPath();

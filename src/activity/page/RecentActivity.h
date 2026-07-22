@@ -5,11 +5,13 @@
  * @brief Public interface and types for RecentActivity.
  */
 
+#include <BitmapRender.h>
+
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../Activity.h"
@@ -18,8 +20,17 @@
 #include "state/RecentBooks.h"
 #include "state/Statistics.h"
 
+namespace recent {
+class Cover;
+class Flow;
+class Grid;
+class Grid3x3;
+class List;
+class SimpleUi;
+}  // namespace recent
+
 /**
- * Activity that displays recently opened books in grid, flow, stats strip, simple, or book-list layouts.
+ * Activity that displays recently opened books in grid, flow, simple, cover, icon, or book-list layouts.
  * Shows book covers, titles, authors, and reading progress.
  *
  * Complexity contract:
@@ -31,8 +42,10 @@
  */
 class RecentActivity final : public Activity, public Menu {
  public:
-  static constexpr int MAX_RECENT_BOOKS = 8;
+  static constexpr int MAX_RECENT_BOOKS = 9;
   static constexpr int GRID_COLS = 2;
+  static constexpr int ICON_COLS = 3;
+  static constexpr int ICON_ROWS = 3;
 
   static constexpr int COVER_WIDTH = 170;
   static constexpr int COVER_HEIGHT = 250;
@@ -51,13 +64,12 @@ class RecentActivity final : public Activity, public Menu {
    * View mode enumeration for displaying recent books.
    */
   enum class ViewMode {
-    Default,
     Grid,     /**< Display books in a grid with covers */
     Flow,     /**< Flow carousel */
     SimpleUi, /**< Recent cover on gray band, favorites list below */
     List,     /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
-    Icons,    /**< 2×3 @ 200×200; scroll for more (same idea as stats thumb cards) */
-    Cover     /**< Latest recent cover only, with title, author, and progress below */
+    Icons,    /**< 3×3 icon grid; scroll for more books */
+    Cover     /**< Latest recent cover only, with progress below */
   };
 
  private:
@@ -68,11 +80,6 @@ class RecentActivity final : public Activity, public Menu {
   bool updateRequired = false;
   bool bookSelected = false;
   int scrollOffset = 0;
-  int scrollOffsetDefault = 0;
-  /** Horizontal window for list-stats top carousel (index of leftmost full tile). */
-  int listStatsRecentHScroll = 0;
-  int listStatsFavHScroll = 0;
-  std::vector<BookState::Book> listStatsFavoriteOnly_;
 
   std::vector<BookState::Book> simpleUiFavorites_;
   int simpleUiFavScroll_ = 0;
@@ -84,10 +91,12 @@ class RecentActivity final : public Activity, public Menu {
     BookReadingStats stats;
   };
   mutable std::vector<CachedRecentStats> recentStats_;
-  mutable std::map<std::string, std::string> thumbnailPathCache_;
-  mutable std::map<std::string, std::string> coverPathCache_;
+  mutable std::unordered_map<std::string, std::string> thumbnailPathCache_;
+  mutable std::unordered_map<std::string, std::string> coverPathCache_;
   bool removeConfirmOpen_ = false;
   int removeConfirmIndex_ = -1;
+  class HomeMenuDrawer;
+  HomeMenuDrawer* homeMenuDrawer_ = nullptr;
 
   const std::function<void()> onLibraryOpen;
   const std::function<void(const std::string& path)> onSelectBook;
@@ -112,12 +121,18 @@ class RecentActivity final : public Activity, public Menu {
   void cancelRemoveConfirmation();
   void confirmRemoveRecent();
   void renderRemoveConfirmation();
+  void openHomeMenuDrawer();
+  void closeHomeMenuDrawer();
   const CachedRecentStats& statsForRecentIndex(int index) const;
-  void rebuildListStatsFavorites(const std::vector<BookState::Book>& favorites);
   void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
 
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
+  void renderInitialLoadingFrame();
+  void resetRecentImageCacheJobs();
+  bool queueRecentImageCacheBuild(const std::string& path, int x, int y, int w, int h, bool cropToFill,
+                                  BitmapRender::RoundedOutside roundedOutside);
+  bool processNextRecentImageCacheJob();
 
   /**
    * Renders a single grid item with cover, title, author and progress.
@@ -129,12 +144,6 @@ class RecentActivity final : public Activity, public Menu {
    * @param selected Whether this item is selected
    */
   void renderGridItem(int gridX, int gridY, int startY, const RecentBook& book, bool selected);
-
-  /**
-   * Renders the default view showing the most recent book with cover and stats.
-   * Displays a single book with cover image on the left and reading statistics on the right.
-   */
-  void renderDefault();
 
   /**
    * Renders the complete grid view including all visible books.
@@ -164,13 +173,15 @@ class RecentActivity final : public Activity, public Menu {
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                              const std::string& placeholderTitle, int placeholderFontId,
                              bool roundedCornerBackdropIsDither = false);
-  /** Default list: 2×3 stats grid (vs other visible strip book when both have stats); includes Session + Progress. */
-  void renderDefaultStatsGrid(int gridStartY, int screenW);
+  void drawRecentCoverFitAt(int x, int y, int w, int h, const std::string& cacheDir,
+                            const std::string& placeholderTitle, int placeholderFontId);
 
   /** Tab-relative Y where each Recent view paints its body (keeps constants out of layout engine defs). */
-  int recentGridPaintStartY() const { return TAB_BAR_HEIGHT - 29; }
-  int recentIconsPaintStartY() const { return TAB_BAR_HEIGHT + 6; }
-  int recentListPaintStartY() const { return TAB_BAR_HEIGHT + 15; }
+  int recentGridPaintStartY() const {
+    return INX_THEME.mainTabsAtBottom() ? mainContentTop() + 6 : TAB_BAR_HEIGHT - 29;
+  }
+  int recentIconsPaintStartY() const { return mainContentTop() + 6; }
+  int recentListPaintStartY() const { return mainContentTop() + 15; }
 
   /**
    * View-mode paint strategy: one implementation per `ViewMode`, created by `makeLayoutEngine`.
@@ -179,9 +190,6 @@ class RecentActivity final : public Activity, public Menu {
   struct LayoutEngine {
     virtual ~LayoutEngine() = default;
     virtual void paint(RecentActivity& self) = 0;
-  };
-  struct DefaultViewLayout final : LayoutEngine {
-    void paint(RecentActivity& self) override;
   };
   struct GridViewLayout final : LayoutEngine {
     void paint(RecentActivity& self) override;
@@ -201,6 +209,13 @@ class RecentActivity final : public Activity, public Menu {
   struct FlowViewLayout final : LayoutEngine {
     void paint(RecentActivity& self) override;
   };
+
+  friend class recent::Cover;
+  friend class recent::Flow;
+  friend class recent::Grid;
+  friend class recent::Grid3x3;
+  friend class recent::List;
+  friend class recent::SimpleUi;
 
   static std::unique_ptr<LayoutEngine> makeLayoutEngine(ViewMode mode);
   void syncLayoutEngineForViewMode();
@@ -250,17 +265,25 @@ class RecentActivity final : public Activity, public Menu {
   ~RecentActivity() override;
 
  private:
-  void drawListStatsStrip(int bandX, int bandY, int bandW, int bandH, int hScroll, int count,
-                          const std::function<std::string(int)>& cacheDirAt,
-                          const std::function<std::string(int)>& titleAt, const std::function<bool(int)>& selectedAt);
-
   bool firstRender = true;
+  bool pendingInitialLoadingFrame_ = false;
   bool suppressBufferedSelection_ = false;
   uint8_t* recentPageBuffer_ = nullptr;
   bool recentPageBufferStored_ = false;
   ViewMode recentPageBufferMode_ = ViewMode::Flow;
   int recentPageBufferScrollOffset_ = -1;
   int recentPageBufferBookCount_ = -1;
+  struct RecentImageCacheJob {
+    std::string path;
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    bool cropToFill = false;
+    BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
+  };
+  RecentImageCacheJob recentImageCacheJob_;
+  bool recentImageCacheJobPending_ = false;
 
   void onEnter() override;
   void onExit() override;

@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 #include <algorithm>
-#include <vector>
+#include <cstring>
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
@@ -16,14 +16,19 @@
 #include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
-std::vector<std::string> overlayOptionsFor(int presetIndex) {
+const char* overlayOptionFor(const int presetIndex, const int optionIndex) {
   if (presetIndex == 0) {
-    return {"Edit", "Cancel"};
+    static constexpr const char* kDefaultOptions[] = {"Edit", "Cancel"};
+    return (optionIndex >= 0 && optionIndex < 2) ? kDefaultOptions[optionIndex] : "";
   }
-  return {"Edit", "Rename", "Delete", "Cancel"};
+  static constexpr const char* kPresetOptions[] = {"Edit", "Rename", "Delete", "Cancel"};
+  return (optionIndex >= 0 && optionIndex < 4) ? kPresetOptions[optionIndex] : "";
 }
+
+int overlayOptionCountFor(const int presetIndex) { return presetIndex == 0 ? 2 : 4; }
 
 const char* readerQualityLabel(const uint8_t quality) {
   switch (quality) {
@@ -75,7 +80,9 @@ ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputM
 void ReaderPresetsActivity::onEnter() {
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
-  itemsPerPage_ = std::max(1, (screenH - kListTop - 60) / kListItemHeight);
+  const int listTop = mainHeaderDividerY();
+  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 60;
+  itemsPerPage_ = std::max(1, (contentBottom - listTop) / kListItemHeight);
   selectedRow_ = 0;
   scrollOffset_ = 0;
   enteredHalfRefresh_ = false;
@@ -140,11 +147,10 @@ void ReaderPresetsActivity::navigateToSelectedMenu() {
 void ReaderPresetsActivity::render() {
   const int screenW = renderer.getScreenWidth();
   renderer.clearScreen(0xFF);
+
   renderTabBar(renderer);
 
-  // Header band matches the System settings screen: title vertically centered in a TAB_BAR_HEIGHT-tall
-  // band below the tab bar, with the divider at TAB_BAR_HEIGHT * 2.
-  const int headerY = TAB_BAR_HEIGHT;
+  const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
@@ -153,12 +159,13 @@ void ReaderPresetsActivity::render() {
   const int backW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, back);
   const int backY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
-  renderer.line.render(0, kHeaderDividerY, screenW, kHeaderDividerY, true);
+  const int headerDividerY = mainHeaderDividerY();
+  const int listTop = headerDividerY;
 
   const int rows = rowCount();
   for (int i = 0; i < itemsPerPage_ && (i + scrollOffset_) < rows; i++) {
     const int rowIndex = i + scrollOffset_;
-    const int itemY = kListTop + i * kListItemHeight - 6;
+    const int itemY = listTop + i * kListItemHeight;
     const bool isSelected = (rowIndex == selectedRow_);
     const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
@@ -171,7 +178,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -183,7 +191,8 @@ void ReaderPresetsActivity::render() {
       const char* tag = xtcExpanded_ ? "-" : "+";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -206,7 +215,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value, isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -221,10 +231,12 @@ void ReaderPresetsActivity::render() {
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
     }
-    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true);
+    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
   }
+  renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "");
+  renderButtonHints(renderer, "\xC2\xAB System", "Open", "", "");
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   enteredHalfRefresh_ = true;
@@ -233,32 +245,39 @@ void ReaderPresetsActivity::render() {
 void ReaderPresetsActivity::renderOverlay() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const std::vector<std::string> options = overlayOptionsFor(overlayPresetIndex_);
+  const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
 
   const int boxW = std::min(screenW - 60, 320);
-  const int rowH = 50;
-  const int boxH = 50 + static_cast<int>(options.size()) * rowH;
+  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
+  constexpr int overlayHeaderH = UiTheme::DRAWER_HEADER_HEIGHT - 4;
+  const int boxH = overlayHeaderH + optionCount * rowH;
   const int boxX = (screenW - boxW) / 2;
   const int boxY = (screenH - boxH) / 2;
 
   renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
-  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
 
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
-  const int overlayHeaderH = 40;
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2 - 1;
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
-  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
 
-  for (size_t i = 0; i < options.size(); i++) {
-    const int rowY = boxY + 42 + static_cast<int>(i) * rowH;
-    const bool sel = (static_cast<int>(i) == overlaySel_);
+  for (int i = 0; i < optionCount; i++) {
+    const int rowY = boxY + overlayHeaderH + i * rowH;
+    const bool sel = (i == overlaySel_);
     renderer.rectangle.fill(
         boxX + 1, rowY, boxW - 2, rowH,
         sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, options[i].c_str(), sel ? 0 : 1);
+    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
+                         sel ? 0 : 1);
+    if (i + 1 < optionCount) {
+      renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
+    }
   }
+
+  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
+
+  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
+  renderer.rectangle.render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, true);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
@@ -304,8 +323,7 @@ void ReaderPresetsActivity::activateSelectedRow() {
 }
 
 void ReaderPresetsActivity::handleOverlayInput() {
-  const std::vector<std::string> options = overlayOptionsFor(overlayPresetIndex_);
-  const int n = static_cast<int>(options.size());
+  const int n = overlayOptionCountFor(overlayPresetIndex_);
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     overlayOpen_ = false;
@@ -323,14 +341,14 @@ void ReaderPresetsActivity::handleOverlayInput() {
     return;
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-    const std::string choice = options[overlaySel_];
+    const char* choice = overlayOptionFor(overlayPresetIndex_, overlaySel_);
     const int presetIndex = overlayPresetIndex_;
     overlayOpen_ = false;
-    if (choice == "Edit") {
+    if (strcmp(choice, "Edit") == 0) {
       openEditor(presetIndex);
-    } else if (choice == "Rename") {
+    } else if (strcmp(choice, "Rename") == 0) {
       openRenameKeyboard(presetIndex);
-    } else if (choice == "Delete") {
+    } else if (strcmp(choice, "Delete") == 0) {
       READER_PRESETS.remove(presetIndex);
       const int rows = rowCount();
       if (selectedRow_ >= rows) selectedRow_ = std::max(0, rows - 1);
@@ -420,12 +438,6 @@ void ReaderPresetsActivity::loop() {
       subFinished_ = false;
       finishSubActivity();
     }
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
     return;
   }
 

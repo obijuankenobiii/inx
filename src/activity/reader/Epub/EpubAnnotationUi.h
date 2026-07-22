@@ -20,7 +20,7 @@ class EpubActivity;
  */
 class EpubAnnotationUi {
  public:
-  EpubAnnotationUi() = default;
+  EpubAnnotationUi();
 
   bool isActive() const { return mode_; }
 

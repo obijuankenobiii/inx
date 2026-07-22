@@ -18,6 +18,7 @@
 #include "../Menu.h"
 #include "state/BookTags.h"
 #include "state/RecentBooks.h"
+#include "system/UiTheme.h"
 
 /**
  * @brief Forward declaration of temporary book entry structure
@@ -69,14 +70,15 @@ class LibraryActivity final : public Activity, public Menu {
     TAG_ZA       ///< User tag/category Z-A, then title A-Z
   };
 
-  static constexpr int LIST_ITEM_HEIGHT = 60;       ///< Height of list items in folder view
-  static constexpr int FOLDER_ICON_WIDTH = 16;      ///< Width of folder icon
-  static constexpr int FOLDER_ICON_SPACING = 20;    ///< Spacing for folder icons
-  static constexpr int BOOK_ITEMS_PER_PAGE = 9;     ///< Items per page for book view
-  static constexpr int FOLDER_ITEMS_PER_PAGE = 10;  ///< Items per page for folder view
-  static constexpr int GRID_ITEMS_PER_PAGE = 12;    ///< Items per page for grid folder view
-  static constexpr int SHELF_ITEMS_PER_PAGE = 9;    ///< Items per page for shelf view (3x3 grid)
-  static constexpr int GRID_ICON_SIZE = 150;        ///< Icon frame size for grid folders
+  static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of list items in folder view
+  static constexpr int HEADER_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;     ///< Height of the library header row
+  static constexpr int FOLDER_ICON_WIDTH = 16;                               ///< Width of folder icon
+  static constexpr int FOLDER_ICON_SPACING = 20;                             ///< Spacing for folder icons
+  static constexpr int BOOK_ITEMS_PER_PAGE = 9;                              ///< Items per page for book view
+  static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                            ///< Items per page for folder view
+  static constexpr int GRID_ITEMS_PER_PAGE = 12;                             ///< Items per page for grid folder view
+  static constexpr int SHELF_ITEMS_PER_PAGE = 9;  ///< Items per page for shelf view (3x3 grid)
+  static constexpr int GRID_ICON_SIZE = 150;      ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
@@ -94,6 +96,9 @@ class LibraryActivity final : public Activity, public Menu {
                            const std::function<void(const std::string& path)>& onSelectBook,
                            const std::function<void()>& onRecentOpen, const std::function<void()>& onSettingsOpen,
                            const std::string& initialPath = "/");
+  /**
+   * @brief Destroy the Library Activity, stopping the display task and releasing resources
+   */
   ~LibraryActivity() override;
 
   /**
@@ -123,7 +128,9 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load library items from index file (optimized mode)
    */
   void loadLibraryFromIndex();
+  /** Loads cached tag entries into cachedTagEntries_ if not already loaded. */
   void ensureTagEntriesLoaded();
+  /** Returns the cached tag key for a book path, or an empty string if none is cached. */
   std::string findCachedTag(const std::string& path) const;
 
   /**
@@ -158,6 +165,12 @@ class LibraryActivity final : public Activity, public Menu {
   bool isIndexButtonSelected = false;       ///< Whether library index refresh button is selected
   bool isSortButtonSelected = false;        ///< Whether sort button is selected
   bool favoriteLongPressProcessed = false;  ///< Flag to prevent duplicate favorite toggles
+  bool backLongPressProcessed_ = false;     ///< Prevents Back long-press filter picker from firing twice
+  bool letterPickerVisible_ = false;        ///< Whether the library letter filter picker is open
+  bool letterPickerIgnoreBackRelease_ = false;
+  int letterPickerPage_ = 0;      ///< 0=A-I, 1=J-R, 2=S-Z
+  int letterPickerIndex_ = 0;     ///< Selected cell in the picker; 9 is centered All
+  char libraryLetterFilter_ = 0;  ///< 0 = no letter filter
 
   /** Millis deadline for next Down repeat while held (0 = not repeating). */
   unsigned long libraryListDownNextMs = 0;
@@ -213,21 +226,27 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Toggle between folder view and book list view
    */
   void toggleViewMode();
+  /** Switches the current view mode to the flat book list view. */
   void switchToBookListView();
 
   /**
    * @brief Switch to folder view mode
    */
   void switchToFolderView();
+  /** Switches the current view mode to the tag collection view. */
   void switchToTagView();
+  /** Switches the current view mode to the cover shelf view. */
   void switchToShelfView();
   /** Frees the shelf page buffer and flags a cleanup half refresh if currently in shelf mode; call
    * before reassigning currentViewMode away from SHELF_VIEW. */
   void leaveShelfViewIfNeeded();
+  /** Starts a background library indexing pass. */
   void startLibraryIndexing();
+  /** Returns whether the index refresh button should be shown for the current view. */
   bool shouldShowIndexButton() const;
-  void showIndexingPopup() const;
+  /** Restores the current selection to the item matching the given path, if present. */
   bool restoreSelectionToPath(const std::string& path);
+  /** Restores the current selection to the item matching the given tag key, if present. */
   bool restoreSelectionToTag(const std::string& tagKey);
 
   /**
@@ -285,6 +304,22 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Handle back button navigation
    */
   void handleBackNavigation();
+  /** Opens the 3x3 letter filter picker. */
+  void openLetterFilterPicker();
+  /** Closes the letter filter picker without changing the active filter. */
+  void closeLetterFilterPicker();
+  /** Handles input while the letter filter picker is visible. */
+  void handleLetterFilterPickerInput();
+  /** Applies the selected letter filter and reloads the current library mode. */
+  void applyLetterFilterSelection();
+  /** Returns the picker cell's letter; '*' means all letters/no filter. */
+  char letterForPickerCell(int page, int index) const;
+  /** First ASCII letter in a display name, or 0 when none exists. */
+  char leadingLibraryLetter(const std::string& value) const;
+  /** Whether a rendered library item passes the active letter filter. */
+  bool itemMatchesLetterFilter(const LibraryItem& item) const;
+  /** Whether a temporary book entry passes the active letter filter. */
+  bool tempBookMatchesLetterFilter(const TempBookEntry& entry) const;
 
   /**
    * @brief Check if a file is a valid book file
@@ -379,6 +414,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Load all books recursively with pagination
    */
   void loadAllBooksRecursive();
+  /** Loads all books recursively; assumes the caller already holds renderingMutex. */
   void loadAllBooksRecursiveLocked();
   /**
    * @brief Show a "Loading library" placeholder, then run loadAllBooksRecursive() on a background
@@ -387,9 +423,13 @@ class LibraryActivity final : public Activity, public Menu {
    * frozen with no feedback.
    */
   void beginLibraryLoadWithLoadingScreen();
+  /** Reapplies pagination bounds and refreshes currentPageItems from cachedLibraryItems_. */
   void applyPaginationToCachedItems();
+  /** Clears the cached library items so they are reloaded on next access. */
   void invalidateLibraryCache();
+  /** Returns the cached reading/favorite state flags for a book path. */
   uint8_t getBookStateFlags(const std::string& path) const;
+  /** Returns the on-disk display cache path for a book's shelf thumbnail. */
   std::string getShelfImagePath(const std::string& bookPath) const;
 
   /**
@@ -549,22 +589,32 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Render the library screen
    */
   void render() const;
+  /** Draws the 3x3 letter filter picker overlay. */
+  void renderLetterFilterPicker() const;
 
   /**
    * @brief Render the library list
    * @param startY Starting Y position for the list
    */
   void renderLibraryList(int startY) const;
+  int librarySubheadingHeight() const;
+  int renderLibrarySubheading(int startY) const;
+  /** Renders the cover shelf grid view. */
   void renderLibraryShelf(int startY) const;
   /**
    * @brief Render a single shelf card (cover thumbnail + selection state), no other cards touched.
    * Shared by the full renderLibraryShelf() pass and the fast selection-only overlay redraw.
    */
   void renderShelfCard(int index, int startY, bool selected) const;
+  /** Returns whether the stored shelf page buffer can be reused for the current page/selection. */
   bool canUseLibraryShelfBuffer() const;
+  /** Snapshots the current framebuffer into the shelf page buffer. */
   bool storeLibraryShelfBuffer() const;
+  /** Restores the framebuffer from the stored shelf page buffer. */
   bool restoreLibraryShelfBuffer() const;
+  /** Frees the stored shelf page buffer, if any. */
   void freeLibraryShelfBuffer() const;
+  /** Draws the selection highlight overlay on top of the restored shelf buffer. */
   void drawShelfSelectionOverlay(int startY) const;
 
   /**
@@ -577,6 +627,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Whether the current folder browser should use the 3x4 grid layout
    */
   bool isLibraryGridMode() const;
+  /** Returns whether the current view mode is the tag collection view. */
   bool isTagViewMode() const;
 
   /**
@@ -592,6 +643,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @param isSelected Whether the item is selected
    */
   void renderItemIcon(const LibraryItem& item, int drawY, int itemHeight, bool isSelected) const;
+  void renderBookListBadges(const LibraryItem& item, int drawY, int itemHeight, bool isSelected, int screenWidth) const;
 
   /**
    * @brief Render the text for a list item
@@ -613,6 +665,7 @@ class LibraryActivity final : public Activity, public Menu {
    * @return Next button X position
    */
   int drawHeaderButton(const std::string& text, int headerY, int headerHeight, int rightX, bool isSelected) const;
+  /** Draws the library index refresh button and returns the next available X position. */
   int drawIndexButton(int headerY, int headerHeight, int x, bool isSelected) const;
 
   /**

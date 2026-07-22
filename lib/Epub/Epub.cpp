@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <new>
 
 #include "../../src/util/StringUtils.h"
 #include "Epub/parsers/ContainerParser.h"
@@ -75,6 +76,10 @@ static bool isJpegFile(const std::string& path) {
  * @brief Checks file type is bmp.
  */
 static bool isBmpFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
+
+static bool isSupportedInBodyImageFile(const std::string& path) {
+  return isBmpFile(path) || isPngFile(path) || isJpegFile(path);
+}
 
 /**
  * @brief Creates the cache directory structure for this EPUB.
@@ -164,6 +169,12 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
   Serial.printf("[%lu] [EBP-IMG] extract start href=%s out=%s\n", static_cast<unsigned long>(millis()),
                 itemHref.c_str(), outBmpPath.c_str());
 
+  if (!isSupportedInBodyImageFile(itemHref)) {
+    Serial.printf("[%lu] [EBP-IMG] unsupported in-body image format: %s\n", static_cast<unsigned long>(millis()),
+                  itemHref.c_str());
+    return false;
+  }
+
   const std::string tempPath = cachePath + "/.extract.tmp";
   FsFile tempFile;
 
@@ -218,7 +229,7 @@ bool Epub::extractAndConvertImage(const std::string& itemHref, const std::string
       Serial.printf("[%lu] [EBP-IMG] PNG pipeline failed: %s\n", static_cast<unsigned long>(millis()),
                     itemHref.c_str());
     }
-  } else {
+  } else if (isJpegFile(itemHref)) {
     (void)targetW;
     (void)targetH;
     Serial.printf("[%lu] [EBP-IMG] JPEG convert: %s\n", static_cast<unsigned long>(millis()), itemHref.c_str());
@@ -541,6 +552,8 @@ bool Epub::parseTocNavFile() const {
 bool Epub::load(const bool buildIfMissing) {
   setupCacheDir();
 
+  parsedCssParser_.reset();
+  parsedCssLoaded_ = false;
   bookMetadataCache.reset(new BookMetadataCache(cachePath));
 
   if (bookMetadataCache->load()) {
@@ -607,6 +620,8 @@ bool Epub::isLoaded() const { return bookMetadataCache && bookMetadataCache->isL
  * @return true if the cache was successfully cleared, false otherwise
  */
 bool Epub::clearCache() {
+  parsedCssParser_.reset();
+  parsedCssLoaded_ = false;
   if (bookMetadataCache) {
     bookMetadataCache.reset();
   }
@@ -830,6 +845,125 @@ std::string Epub::getCombinedCss() const {
   }
 
   return combined;
+}
+
+std::string Epub::parsedCssCachePath() const { return cachePath + "/parsed_css.bin"; }
+
+bool Epub::loadParsedCssCache() const {
+  if (!SdMan.exists(parsedCssCachePath().c_str())) {
+    return false;
+  }
+  FsFile file;
+  if (!SdMan.openFileForRead("EBP", parsedCssCachePath(), file)) {
+    return false;
+  }
+  parsedCssParser_.reset(new (std::nothrow) CssParser());
+  if (!parsedCssParser_) {
+    file.close();
+    return false;
+  }
+  const bool ok = parsedCssParser_->loadBinary(file);
+  file.close();
+  if (!ok) {
+    parsedCssParser_.reset();
+    SdMan.remove(parsedCssCachePath().c_str());
+    Serial.printf("[EBP] Removed invalid parsed CSS cache\n");
+    return false;
+  }
+  Serial.printf("[EBP] Loaded parsed CSS cache: %zu rules\n", parsedCssParser_->getRuleCount());
+  return true;
+}
+
+bool Epub::saveParsedCssCache() const {
+  if (!parsedCssParser_) {
+    return false;
+  }
+  const std::string tempPath = cachePath + "/parsed_css.bin.tmp";
+  FsFile file;
+  if (!SdMan.openFileForWrite("EBP", tempPath, file)) {
+    return false;
+  }
+  const bool ok = parsedCssParser_->saveBinary(file);
+  file.close();
+  if (!ok) {
+    SdMan.remove(tempPath.c_str());
+    Serial.printf("[EBP] Failed to write parsed CSS cache\n");
+    return false;
+  }
+  if (SdMan.exists(parsedCssCachePath().c_str())) {
+    SdMan.remove(parsedCssCachePath().c_str());
+  }
+  const bool renamed = SdMan.rename(tempPath.c_str(), parsedCssCachePath().c_str());
+  if (!renamed) {
+    SdMan.remove(tempPath.c_str());
+  }
+  return renamed;
+}
+
+const CssParser* Epub::getParsedCssParser() const {
+  if (parsedCssLoaded_) {
+    return parsedCssParser_.get();
+  }
+  parsedCssLoaded_ = true;
+
+  if (loadParsedCssCache()) {
+    return parsedCssParser_.get();
+  }
+
+  constexpr uint32_t kMinFreeHeapForCss = 48 * 1024;
+  if (ESP.getFreeHeap() < kMinFreeHeapForCss) {
+    Serial.printf("[EBP] Low heap (%u bytes), skipping EPUB stylesheet CSS\n",
+                  static_cast<unsigned>(ESP.getFreeHeap()));
+    return nullptr;
+  }
+
+  parsedCssParser_.reset(new (std::nothrow) CssParser());
+  if (!parsedCssParser_) {
+    Serial.printf("[EBP] Failed to allocate parsed CSS dictionary\n");
+    return nullptr;
+  }
+
+  const int cssCount = getCssItemsCount();
+  if (cssCount <= 0) {
+    return parsedCssParser_.get();
+  }
+
+  Serial.printf("[EBP] Building shared CSS dictionary from %d CSS files\n", cssCount);
+
+  constexpr size_t kMaxTotalCssSize = 192 * 1024;
+  constexpr uint32_t kCssReserveHeapBytes = 80 * 1024;
+  size_t totalCssSize = 0;
+
+  for (int i = 0; i < cssCount && totalCssSize < kMaxTotalCssSize; ++i) {
+    try {
+      const auto cssEntry = getCssItem(i);
+      if (cssEntry.content.empty()) {
+        continue;
+      }
+      if (cssEntry.content.size() > 64 * 1024) {
+        Serial.printf("[EBP] Skipping large CSS file: %s (%d bytes)\n", cssEntry.path.c_str(),
+                      static_cast<int>(cssEntry.content.size()));
+        continue;
+      }
+      totalCssSize += cssEntry.content.size();
+      parsedCssParser_->parse(cssEntry.content, cssEntry.path, kCssReserveHeapBytes);
+    } catch (const std::exception& e) {
+      Serial.printf("[EBP] Shared CSS load aborted at file %d (%s); keeping %zu rules\n", i, e.what(),
+                    parsedCssParser_->getRuleCount());
+      break;
+    } catch (...) {
+      Serial.printf("[EBP] Shared CSS load aborted at file %d; keeping %zu rules\n", i,
+                    parsedCssParser_->getRuleCount());
+      break;
+    }
+  }
+
+  Serial.printf("[EBP] Shared CSS dictionary: %zu rules from %d bytes\n", parsedCssParser_->getRuleCount(),
+                static_cast<int>(totalCssSize));
+  if (!saveParsedCssCache()) {
+    Serial.printf("[EBP] Parsed CSS cache was not saved\n");
+  }
+  return parsedCssParser_.get();
 }
 
 /**

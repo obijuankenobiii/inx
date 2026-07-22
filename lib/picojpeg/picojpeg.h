@@ -112,6 +112,9 @@ typedef unsigned char (*pjpeg_need_bytes_callback_t)(unsigned char* pBuf, unsign
 unsigned char pjpeg_decode_init(pjpeg_image_info_t* pInfo, pjpeg_need_bytes_callback_t pNeed_bytes_callback,
                                 void* pCallback_data, unsigned char reduce);
 
+// Releases the decompressor state allocated by pjpeg_decode_init(). Safe to call even when no decode is active.
+void pjpeg_decode_deinit(void);
+
 // Decompresses the file's next MCU. Returns 0 on success, PJPG_NO_MORE_BLOCKS if no more blocks are available, or an
 // error code. Must be called a total of m_MCUSPerRow*m_MCUSPerCol times to completely decompress the image. Not thread
 // safe.

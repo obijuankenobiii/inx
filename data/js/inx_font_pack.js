@@ -1,6 +1,6 @@
 /**
  * Browser-side packer for Inx SD streaming fonts (.bin).
- * Layout must match ExternalFont::load / decodeGlyphRow (24-byte rows, 2-bit bitmaps).
+ * Layout must match ExternalFont::load / decodeGlyphRow (24-byte rows, 1-bit or 2-bit bitmaps).
  */
 (function (global) {
   'use strict';
@@ -13,9 +13,12 @@
    */
   var SIZES = [10, 12, 14, 16, 18];
   var RASTER_CALIBRATION = 0.74;
-  var PACK_LIGHT_GRAY_LUM_THRESHOLD = 238;
-  var PACK_DARK_GRAY_LUM_THRESHOLD = 168;
-  var PACK_BLACK_LUM_THRESHOLD = 72;
+  // Match fontcon/fontconvert.py 2-bit coverage buckets:
+  // coverage 0-111 white, 112-127 light gray, 128-207 dark gray, 208-255 black.
+  // This browser path stores from luminance, so the thresholds are inverted.
+  var PACK_WHITE_LUM_THRESHOLD = 144;
+  var PACK_LIGHT_GRAY_LUM_THRESHOLD = 128;
+  var PACK_DARK_GRAY_LUM_THRESHOLD = 48;
   var RASTER_SUPERSAMPLE = 2;
   var GLYPH_YIELD_INTERVAL = 64;
   var GLYPH_YIELD_BUDGET_MS = 60;
@@ -105,9 +108,9 @@
   }
 
   function grayToStored(L) {
-    if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 0;
-    if (L >= PACK_DARK_GRAY_LUM_THRESHOLD) return 1;
-    if (L >= PACK_BLACK_LUM_THRESHOLD) return 2;
+    if (L >= PACK_WHITE_LUM_THRESHOLD) return 0;
+    if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 1;
+    if (L >= PACK_DARK_GRAY_LUM_THRESHOLD) return 2;
     return 3;
   }
 
@@ -122,6 +125,23 @@
       var bi = i >> 2;
       var sh = (3 - (i & 3)) << 1;
       out[bi] |= stored << sh;
+    }
+    return out;
+  }
+
+  function pack1bitLinear(padW, h, getLum) {
+    var totalPx = padW * h;
+    var nbytes = Math.ceil(totalPx / 8);
+    var out = new Uint8Array(nbytes);
+    for (var i = 0; i < totalPx; i++) {
+      var gy = Math.floor(i / padW);
+      var gx = i % padW;
+      var ink = getLum(gy, gx) < PACK_WHITE_LUM_THRESHOLD;
+      if (ink) {
+        var bi = i >> 3;
+        var sh = 7 - (i & 7);
+        out[bi] |= 1 << sh;
+      }
     }
     return out;
   }
@@ -170,7 +190,7 @@
     };
   }
 
-  function rasterizeChar(family, readerStep, cp, scratch) {
+  function rasterizeChar(family, readerStep, cp, scratch, oneBit) {
     var px = readerStepToCanvasPx(readerStep);
     var sample = RASTER_SUPERSAMPLE;
     var W = scratch ? scratch.width : 512 * sample;
@@ -243,7 +263,7 @@
     if (bw > MAX_SIDE || bh > MAX_SIDE) {
       return null;
     }
-    var padW = (bw + 3) & ~3;
+    var padW = oneBit ? (bw + 7) & ~7 : (bw + 3) & ~3;
     var getLum = function (gy, gx) {
       if (gx >= bw) return 255;
       var sx0 = (minOutX + gx) * sample - cropX;
@@ -263,7 +283,7 @@
       }
       return count > 0 ? 255 - ink / count : 255;
     };
-    var bits = pack2bitLinear(padW, bh, getLum);
+    var bits = oneBit ? pack1bitLinear(padW, bh, getLum) : pack2bitLinear(padW, bh, getLum);
     return {
       w: padW,
       h: bh,
@@ -293,6 +313,7 @@
   async function buildBin(styleName, familyCss, readerStep, codepoints, callbacks) {
     callbacks = callbacks || {};
     var onGlyphProgress = callbacks.onGlyphProgress || function () {};
+    var oneBit = !!callbacks.oneBit;
     var refC = document.createElement('canvas');
     refC.width = 256;
     refC.height = 128;
@@ -307,7 +328,7 @@
 
     for (var i = 0; i < codepoints.length; i++) {
       var cp = codepoints[i];
-      var g = rasterizeChar(familyCss, readerStep, cp, scratch);
+      var g = rasterizeChar(familyCss, readerStep, cp, scratch, oneBit);
       if (g === null) continue;
       var dlen = g.bits.length;
       if (g.w > MAX_SIDE || g.h > MAX_SIDE) continue;
@@ -367,7 +388,7 @@
     o += 2;
     writeInt16(dv, o, ref.descender);
     o += 2;
-    out[o++] = 1;
+    out[o++] = oneBit ? 0 : 1;
     writeUint16(dv, o, 0);
     o += 2;
     writeUint32(dv, o, glyphCount);
@@ -401,6 +422,7 @@
     var boldItalic = opts.boldItalic;
     var onLog = opts.onLog || function () {};
     var onProgress = opts.onProgress || function () {};
+    var oneBit = !!opts.oneBit;
 
     if (!regular) throw new Error('Regular TTF/OTF is required');
 
@@ -432,13 +454,14 @@
           var loadPx = readerStepToCanvasPx(sz);
           await document.fonts.load(loadPx + 'px "' + fam + '"');
           var bytes = await buildBin(job.key, fam, sz, cps, {
+            oneBit: oneBit,
             onGlyphProgress: function (done, total) {
               onProgress(step - 1 + done / Math.max(1, total), totalSteps, job.key, sz);
             },
           });
           var fn = job.key + '_' + sz + '.bin';
           outBins.push({ filename: fn, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
-          onLog('Packed ' + fn + ' (' + bytes.length + ' bytes)', 'success');
+          onLog('Packed ' + fn + ' (' + bytes.length + ' bytes, ' + (oneBit ? '1-bit' : '2-bit') + ')', 'success');
           await new Promise(function (r) {
             return setTimeout(r, 0);
           });

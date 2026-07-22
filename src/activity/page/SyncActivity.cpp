@@ -7,19 +7,16 @@
 
 #include <GfxRenderer.h>
 
-#include "images/Calibre.h"
-#include "images/Opds.h"
-#include "images/Qr.h"
-#include "images/Wifi.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
+#include "system/UiTheme.h"
 
 namespace {
 constexpr int MENU_ITEM_COUNT = 4;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser"};
-constexpr int LIST_ITEM_HEIGHT = 60;
+constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
 /**
@@ -44,12 +41,6 @@ void SyncActivity::loop() {
     render();
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.shortPwrBtn == SystemSetting::SHORT_PWRBTN::PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
   const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
   const bool upPressed = mappedInput.wasPressed(MenuNav::itemPrev());
   const bool downPressed = mappedInput.wasPressed(MenuNav::itemNext());
@@ -123,19 +114,21 @@ void SyncActivity::render() const {
   renderer.clearScreen();
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
+  const int contentBottom = mainContentBottom(renderer);
 
   renderTabBar(renderer);
 
-  const int headerY = TAB_BAR_HEIGHT;
+  const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "File Transfer", true, EpdFontFamily::BOLD);
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device connections", true,
+                       EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, screenWidth, dividerY);
 
   const int listStartY = dividerY;
-  const int visibleAreaHeight = screenHeight - listStartY - 80;
+  const int visibleAreaHeight = (INX_THEME.mainTabsAtBottom() ? contentBottom : screenHeight - 80) - listStartY;
 
   for (int i = 0; i < MENU_ITEM_COUNT; i++) {
     const int itemY = listStartY + i * LIST_ITEM_HEIGHT;
@@ -147,40 +140,26 @@ void SyncActivity::render() const {
         renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      constexpr int kIconSize = 30;
-      const int textX = 70;
-      const int iconX = (textX - kIconSize) / 2;
+      const int textX = 20;
       const int titleY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      const int iconY = itemY + (LIST_ITEM_HEIGHT - kIconSize) / 2;
-
-      switch (i) {
-        case 0:
-          renderer.bitmap.icon(Wifi, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-        case 1:
-          renderer.bitmap.icon(Calibre, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None,
-                               isSelected);
-          break;
-        case 2:
-          renderer.bitmap.icon(Qr, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-        case 3:
-          renderer.bitmap.icon(Opds, iconX, iconY, kIconSize, kIconSize, BitmapRender::Orientation::None, isSelected);
-          break;
-      }
 
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 30, titleY, "›", !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
-        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1);
+        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
+                             LineRender::Style::Dotted);
       }
     }
   }
 
   const auto labels = mappedInput.mapLabels("« Recent", "Select", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }
 
+/**
+ * Lifecycle hook called when exiting the activity.
+ */
 void SyncActivity::onExit() { Activity::onExit(); }

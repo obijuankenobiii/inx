@@ -68,6 +68,23 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   return render(x, y, width, height, options, nullptr);
 }
 
+bool ImageRender::renderDisplayCacheOnly(int x, int y, int width, int height, const Options& options) const {
+  ImageDisplayCacheOptions cacheOptions;
+  cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.mode = options.mode;
+  cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
+  cacheOptions.roundedOutside = options.roundedOutside;
+  cacheOptions.quality = options.quality;
+  const bool canUseDisplayCache =
+      options.useDisplayCache &&
+      ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
+       options.mode == ImageRenderMode::TwoBit);
+  if (!canUseDisplayCache) {
+    return false;
+  }
+  return ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
+}
+
 bool ImageRender::render(int x, int y, int width, int height, const Options& options,
                          JpegLevelCapture* jpegCapture) const {
   ImageDisplayCacheOptions cacheOptions;
@@ -143,24 +160,40 @@ bool ImageRender::displayCachedTwoBit(int x, int y, int width, int height, const
   if (!options.useDisplayCache) {
     return false;
   }
+  const bool effectiveQuality = quality && format_ != Format::Png;
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
   cacheOptions.mode = ImageRenderMode::TwoBit;
   cacheOptions.roundedOutside = options.roundedOutside;
-  cacheOptions.quality = quality;
+  cacheOptions.quality = effectiveQuality;
   const bool hit = ImageDisplayCache::displayTwoBitIfAvailable(renderer_, path_, x, y, width, height, cacheOptions,
-                                                               quality, options.fastQuality);
+                                                               effectiveQuality, options.fastQuality);
   return hit;
+}
+
+bool ImageRender::hasCachedTwoBit(int x, int y, int width, int height, const Options& options,
+                                  const bool quality) const {
+  if (!options.useDisplayCache) {
+    return false;
+  }
+  const bool effectiveQuality = quality && format_ != Format::Png;
+  ImageDisplayCacheOptions cacheOptions;
+  cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.mode = ImageRenderMode::TwoBit;
+  cacheOptions.roundedOutside = options.roundedOutside;
+  cacheOptions.quality = effectiveQuality;
+  return ImageDisplayCache::hasCachedTwoBit(renderer_, path_, x, y, width, height, cacheOptions, effectiveQuality);
 }
 
 bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Options& options,
                                    const bool quality) const {
+  const bool effectiveQuality = quality && format_ != Format::Png;
   Options opt = options;
   opt.mode = ImageRenderMode::TwoBit;
-  opt.quality = quality;
+  opt.quality = effectiveQuality;
   opt.useDisplayCache = true;
 
-  if (displayCachedTwoBit(x, y, width, height, opt, quality)) {
+  if (displayCachedTwoBit(x, y, width, height, opt, effectiveQuality)) {
     return true;  // served from cache (handles both planes + refresh + cleanup)
   }
 
@@ -181,9 +214,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
       capture.capacity = neededBytes;
 
       renderer_.renderGrayscalePasses(
-          quality, /*preserveText=*/false,
+          effectiveQuality, /*preserveText=*/false,
           [&] {
-            renderer_.clearScreen(quality ? 0xFF : 0x00);
+            renderer_.clearScreen(effectiveQuality ? 0xFF : 0x00);
             render(x, y, width, height, opt, &capture);
           },
           opt.fastQuality);
@@ -192,9 +225,9 @@ bool ImageRender::displayGrayscale(int x, int y, int width, int height, const Op
   }
 
   renderer_.renderGrayscalePasses(
-      quality, /*preserveText=*/false,
+      effectiveQuality, /*preserveText=*/false,
       [&] {
-        renderer_.clearScreen(quality ? 0xFF : 0x00);
+        renderer_.clearScreen(effectiveQuality ? 0xFF : 0x00);
         render(x, y, width, height, opt);  // renders into the current plane's render mode AND stores to cache
       },
       opt.fastQuality);

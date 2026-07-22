@@ -5,6 +5,8 @@
  * @brief Public interface and types for CssParser.
  */
 
+#include <SdFat.h>
+
 #include <cstdint>
 #include <map>
 #include <string>
@@ -30,6 +32,8 @@ class CssParser {
   // (image decode etc.) so a large stylesheet can't exhaust memory and abort.
   void parse(const std::string& cssContent, const std::string& sourcePath = "", uint32_t minFreeHeapBytes = 0);
   void clear();
+  bool saveBinary(FsFile& file) const;
+  bool loadBinary(FsFile& file);
 
   int getWidth(const std::string& className, const std::string& id, const std::string& styleAttr, int viewportWidth,
                int viewportHeight) const;
@@ -96,14 +100,28 @@ class CssParser {
                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getMarginBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                         const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getMarginLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getMarginRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getPaddingTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getPaddingBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                          const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getPaddingRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                        const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  bool hasHorizontalSpacingSpecified(const std::string& elementTagLower, const std::string& className,
+                                     const std::string& id, const std::string& styleAttr) const;
   int getBorderTopPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getBorderRightPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                       const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   int getBorderBottomPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
                         const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
+  int getBorderLeftPx(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                      const std::string& styleAttr, int viewportWidth, int viewportHeight) const;
   /**
    * Returns the CSS border-style keyword for an edge ("top"/"bottom"): "solid"/"double"/"dotted"/"dashed"
    * (others collapse to "solid"). Defaults to "solid" when a border exists but no style is given.
@@ -113,6 +131,9 @@ class CssParser {
   /** CSS font-size as an em multiplier (1.0 = default). Handles em/rem/%/px/pt and size keywords; 1.0 if unset. */
   float getFontSizeEm(const std::string& elementTagLower, const std::string& className, const std::string& id,
                       const std::string& styleAttr) const;
+  /** Returns TextBlock::VerticalAlign values for CSS vertical-align: super/sub/baseline. */
+  uint8_t getVerticalAlign(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                           const std::string& styleAttr) const;
   bool hasParagraphSpacingSpecified(const std::string& elementTagLower, const std::string& className,
                                     const std::string& id, const std::string& styleAttr) const;
   bool hasBorderSpecified(const std::string& elementTagLower, const std::string& className, const std::string& id,

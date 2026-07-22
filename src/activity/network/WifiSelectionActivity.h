@@ -66,15 +66,10 @@ class WifiSelectionActivity final : public ActivityWithSubactivity, public Menu 
    * @param renderer Reference to the graphics renderer
    * @param mappedInput Reference to the input manager
    * @param onComplete Callback when connection process completes (true=connected, false=cancelled/failed)
-   * @param onTabChange Optional callback for tab navigation changes
    */
   explicit WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                 const std::function<void(bool connected)>& onComplete,
-                                 const std::function<void(int)>& onTabChange = nullptr)
-      : ActivityWithSubactivity("WifiSelection", renderer, mappedInput),
-        Menu(),
-        onComplete(onComplete),
-        onTabChange(onTabChange) {
+                                 const std::function<void(bool connected)>& onComplete)
+      : ActivityWithSubactivity("WifiSelection", renderer, mappedInput), Menu(), onComplete(onComplete) {
     tabSelectorIndex = 3;
   }
 
@@ -107,7 +102,6 @@ class WifiSelectionActivity final : public ActivityWithSubactivity, public Menu 
   int selectedNetworkIndex = 0;                             ///< Currently selected network index
   std::vector<WifiNetworkInfo> networks;                    ///< List of found networks
   const std::function<void(bool connected)> onComplete;     ///< Connection completion callback
-  std::function<void(int)> onTabChange;                     ///< Tab navigation callback
 
   std::string selectedSSID;               ///< SSID of selected network
   bool selectedRequiresPassword = false;  ///< Whether selected network requires password
@@ -123,8 +117,7 @@ class WifiSelectionActivity final : public ActivityWithSubactivity, public Menu 
   int savePromptSelection = 0;    ///< Save prompt selection (0=Yes, 1=No)
   int forgetPromptSelection = 0;  ///< Forget prompt selection (0=Cancel, 1=Forget)
 
-  static constexpr unsigned long CONNECTION_TIMEOUT_MS = 15000;  ///< Connection attempt timeout
-  unsigned long connectionStartTime = 0;                         ///< Start time of current connection attempt
+  unsigned long connectionStartTime = 0;  ///< Start time of current connection attempt
 
   /**
    * @brief Static trampoline function for the display task

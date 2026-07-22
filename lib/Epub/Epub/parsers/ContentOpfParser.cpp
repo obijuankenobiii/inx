@@ -44,7 +44,6 @@ ContentOpfParser::~ContentOpfParser() {
     SdMan.remove((cachePath + itemCacheFile).c_str());
   }
   itemIndex.clear();
-  itemIndex.shrink_to_fit();
   useItemIndex = false;
 }
 

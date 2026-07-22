@@ -179,6 +179,15 @@ class SystemSetting {
   };
 
   /**
+   * @brief UI chrome theme.
+   */
+  enum UI_THEME {
+    UI_THEME_CLASSIC = 0,      ///< Current Inx layout: tab bar at the top
+    UI_THEME_BOTTOM_TABS = 1,  ///< Main menu tab bar at the bottom
+    UI_THEME_COUNT
+  };
+
+  /**
    * @brief Reader menu button assignment
    */
   enum READER_MENU_BUTTON {
@@ -291,13 +300,13 @@ class SystemSetting {
    * @brief Recent library display modes
    */
   enum RECENT_LIBRARY_MODE {
-    RECENT_GRID = 0,       ///< Grid view
-    RECENT_LIST = 1,       ///< Current / previous (stats + carousel strip)
-    RECENT_FLOW = 2,       ///< Flow carousel
-    RECENT_SIMPLE = 3,     ///< Simple: recent cover on top, favorites list below
-    RECENT_BOOK_LIST = 4,  ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
-    RECENT_ICONS = 5,      ///< 2×3 icon grid (200×200); scroll for more books
-    RECENT_COVER = 6,      ///< Latest recent book cover with title, author, and progress
+    RECENT_GRID = 0,             ///< Grid view
+    RECENT_LIST_DEPRECATED = 1,  ///< Removed mode; kept as a saved-settings alias for Flow
+    RECENT_FLOW = 2,             ///< Flow carousel
+    RECENT_SIMPLE = 3,           ///< Simple: recent cover on top, favorites list below
+    RECENT_BOOK_LIST = 4,        ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
+    RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
+    RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress
     RECENT_LIBRARY_MODE_COUNT
   };
 
@@ -344,7 +353,7 @@ class SystemSetting {
   uint8_t sleepScreenCoverMode = FIT;          ///< Sleep screen cover scaling mode
   uint8_t sleepScreenCoverFilter = NO_FILTER;  ///< Sleep screen cover filter
   /** Sleep image quality; persisted in the old sleep 2-bit slot for settings compatibility. */
-  uint8_t sleepImageQuality = SLEEP_IMAGE_LOW;
+  uint8_t sleepImageQuality = SLEEP_IMAGE_HIGH;
   /**
    * Fixed custom/transparent sleep image when multiple images exist.
    * Empty = pick a random file from /sleep/ (and /sleep.bmp/.jpg/.jpeg) each time.
@@ -367,7 +376,7 @@ class SystemSetting {
   uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
   uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
 
-  uint8_t shortPwrBtn = IGNORE;  ///< Short power button behavior
+  uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
 
   uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
   uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
@@ -381,6 +390,7 @@ class SystemSetting {
   uint8_t readerDirectionMapping = MAP_NONE;  ///< Reader direction mapping
   uint8_t readerMenuButton = MENU_UP;         ///< Reader menu button assignment
   uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
+  uint8_t uiTheme = UI_THEME_CLASSIC;         ///< UI chrome theme
 
   uint8_t fontFamily = LITERATA;           ///< Font family
   uint8_t fontSize = SMALL;                ///< Font size
@@ -418,10 +428,11 @@ class SystemSetting {
   uint8_t disableNavigation = NAV_NONE;  ///< Navigation disable mode
 
   uint8_t recentLibraryMode = RECENT_FLOW;         ///< Recent library display mode
-  uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
+  uint8_t libraryMode = LIBRARY_GRID;              ///< Library browser display mode
   uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
+  uint8_t libraryShelfEnabled = 0;                 ///< Allow cover shelf view in Library
   /** How many recent books to show on the Recent hub (1–8). */
-  uint8_t recentVisibleCount = 8;
+  uint8_t recentVisibleCount = 9;
   /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
   uint8_t librarySortEnabled = 1;
   /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */
