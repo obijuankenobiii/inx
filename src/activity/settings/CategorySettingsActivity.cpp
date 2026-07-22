@@ -722,7 +722,6 @@ void CategorySettingsActivity::loop() {
     tabSelectorIndex = newTabIndex;
 
     if (newTabIndex != 2) {
-      SETTINGS.saveToFile();
       navigateToSelectedMenu();
       return;
     }
@@ -736,7 +735,6 @@ void CategorySettingsActivity::loop() {
     tabSelectorIndex = newTabIndex;
 
     if (newTabIndex != 2) {
-      SETTINGS.saveToFile();
       navigateToSelectedMenu();
       return;
     }
@@ -745,7 +743,6 @@ void CategorySettingsActivity::loop() {
   }
 
   if (backPressed) {
-    SETTINGS.saveToFile();
     onGoBack();
     return;
   }

@@ -47,6 +47,47 @@ constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 constexpr char UI_THEME_FILE[] = "/.system/ui_theme.bin";
+constexpr uint32_t FNV1A_OFFSET = 2166136261UL;
+constexpr uint32_t FNV1A_PRIME = 16777619UL;
+
+void hashBytes(uint32_t& hash, const void* data, const size_t len) {
+  const auto* bytes = static_cast<const uint8_t*>(data);
+  for (size_t i = 0; i < len; ++i) {
+    hash ^= bytes[i];
+    hash *= FNV1A_PRIME;
+  }
+}
+
+template <typename T>
+void hashPod(uint32_t& hash, const T& value) {
+  hashBytes(hash, &value, sizeof(T));
+}
+
+void hashString(uint32_t& hash, const char* value) {
+  const uint32_t len = value == nullptr ? 0 : static_cast<uint32_t>(strlen(value));
+  hashPod(hash, len);
+  if (len > 0) {
+    hashBytes(hash, value, len);
+  }
+}
+
+bool hashFile(const char* path, uint32_t& hash) {
+  FsFile file;
+  if (!SdMan.openFileForRead("CPS", path, file)) {
+    return false;
+  }
+  hash = FNV1A_OFFSET;
+  uint8_t buffer[64];
+  while (file.available()) {
+    const int n = file.read(buffer, sizeof(buffer));
+    if (n <= 0) {
+      break;
+    }
+    hashBytes(hash, buffer, static_cast<size_t>(n));
+  }
+  file.close();
+  return true;
+}
 
 void sanitizeSleepCustomBmp(char* buf) {
   if (buf == nullptr || buf[0] == '\0') {
@@ -96,6 +137,81 @@ bool loadUiThemeSetting(uint8_t& value) {
   value = saved;
   return true;
 }
+
+uint32_t settingsHash(const SystemSetting& settings, const uint8_t fontFamilyToSave) {
+  uint32_t hash = FNV1A_OFFSET;
+  hashPod(hash, SETTINGS_FILE_VERSION);
+  hashPod(hash, SETTINGS_COUNT);
+  hashPod(hash, settings.sleepScreen);
+  hashPod(hash, settings.extraParagraphSpacing);
+  hashPod(hash, settings.shortPwrBtn);
+  hashPod(hash, settings.statusBar);
+  hashPod(hash, settings.orientation);
+  hashPod(hash, settings.frontButtonLayout);
+  hashPod(hash, settings.sideButtonLayout);
+  hashPod(hash, fontFamilyToSave);
+  hashPod(hash, settings.fontSize);
+  hashPod(hash, settings.lineHeight);
+  hashPod(hash, settings.paragraphAlignment);
+  hashPod(hash, settings.sleepTimeout);
+  hashPod(hash, settings.refreshFrequency);
+  hashPod(hash, settings.screenMargin);
+  hashPod(hash, settings.sleepScreenCoverMode);
+  hashString(hash, settings.opdsServerUrl);
+  hashPod(hash, settings.textAntiAliasing);
+  hashPod(hash, settings.hideBatteryPercentage);
+  hashPod(hash, settings.longPressChapterSkip);
+  hashPod(hash, settings.hyphenationEnabled);
+  hashPod(hash, settings.readerShortPwrBtn);
+  hashString(hash, settings.opdsUsername);
+  hashString(hash, settings.opdsPassword);
+  hashPod(hash, settings.sleepScreenCoverFilter);
+  hashPod(hash, settings.useLibraryIndex);
+  hashPod(hash, settings.recentLibraryMode);
+  hashPod(hash, settings.readerDirectionMapping);
+  hashPod(hash, settings.readerMenuButton);
+  hashPod(hash, settings.bootSetting);
+  hashPod(hash, settings.statusBarLeft);
+  hashPod(hash, settings.statusBarMiddle);
+  hashPod(hash, settings.statusBarRight);
+  hashPod(hash, settings.pageAutoTurnSeconds);
+  hashPod(hash, settings.readerImageGrayscale);
+  hashPod(hash, settings.readerSmartRefreshOnImages);
+  hashPod(hash, settings.sleepImageQuality);
+  hashString(hash, settings.sleepCustomBmp);
+  hashPod(hash, settings.legacyReaderImagePresentation);
+  hashPod(hash, settings.readerImageDither);
+  hashPod(hash, settings.displayImageDither);
+  hashPod(hash, settings.legacyDisplayImagePresentation);
+  hashPod(hash, settings.paragraphCssIndentEnabled);
+  hashPod(hash, settings.refreshOnLoadRecent);
+  hashPod(hash, settings.refreshOnLoadLibrary);
+  hashPod(hash, settings.refreshOnLoadSettings);
+  hashPod(hash, settings.refreshOnLoadSync);
+  hashPod(hash, settings.refreshOnLoadStatistics);
+  hashPod(hash, settings.bitmapRoundedCorners);
+  hashPod(hash, settings.recentVisibleCount);
+  hashPod(hash, settings.librarySortEnabled);
+  hashPod(hash, settings.librarySortMode);
+  hashPod(hash, settings.libraryMode);
+  hashPod(hash, settings.libraryViewMode);
+  hashPod(hash, settings.bionicReadingEnabled);
+  hashPod(hash, settings.sleepClockStyle);
+  hashPod(hash, settings.sleepClockTimeFormat);
+  hashPod(hash, settings.timeZoneQuarterOffset);
+  hashPod(hash, settings.textSpace);
+  hashPod(hash, settings.mainMenuNav);
+  hashPod(hash, settings.xtcImageQuality);
+  hashPod(hash, settings.xtcShortPwrBtn);
+  hashPod(hash, settings.xtcPageAutoTurnSeconds);
+  hashPod(hash, settings.xtcRefreshFrequency);
+  hashPod(hash, settings.sleepClockRefreshInterval);
+  hashPod(hash, settings.shakePageTurn);
+  hashPod(hash, settings.shakePageTurnSensitivity);
+  hashPod(hash, settings.uiTheme);
+  hashPod(hash, settings.libraryShelfEnabled);
+  return hash;
+}
 }  // namespace
 
 void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
@@ -113,14 +229,6 @@ void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
  * @return true if save successful, false otherwise
  */
 bool SystemSetting::saveToFile() const {
-  SdMan.mkdir("/.system");
-
-  FsFile outputFile;
-
-  if (!SdMan.openFileForWrite("CPS", SETTINGS_FILE, outputFile)) {
-    return false;
-  }
-
   uint8_t fontFamilyToSave = fontFamily;
 #ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamilyToSave);
@@ -153,6 +261,20 @@ bool SystemSetting::saveToFile() const {
     if (mut->shakePageTurn > 2) mut->shakePageTurn = 0;
     if (mut->shakePageTurnSensitivity > 2) mut->shakePageTurnSensitivity = 1;
     if (mut->uiTheme >= UI_THEME_COUNT) mut->uiTheme = UI_THEME_CLASSIC;
+  }
+
+  const uint32_t currentHash = settingsHash(*this, fontFamilyToSave);
+  uint32_t storedHash = 0;
+  if (hashFile(SETTINGS_FILE, storedHash) && storedHash == currentHash) {
+    return true;
+  }
+
+  SdMan.mkdir("/.system");
+
+  FsFile outputFile;
+
+  if (!SdMan.openFileForWrite("CPS", SETTINGS_FILE, outputFile)) {
+    return false;
   }
 
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);

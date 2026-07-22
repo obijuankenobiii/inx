@@ -2728,7 +2728,6 @@ void LibraryActivity::renderBookListBadges(const LibraryItem& item, int drawY, i
   int x = screenWidth - 15 - LIB_BOOK_LIST_BADGE_SIZE;
   const int y = drawY + (itemHeight - LIB_BOOK_LIST_BADGE_SIZE) / 2;
   const auto drawBadge = [&](const uint8_t* icon) {
-    renderer.rectangle.render(x, y, LIB_BOOK_LIST_BADGE_SIZE, LIB_BOOK_LIST_BADGE_SIZE, !isSelected, true);
     renderer.bitmap.icon(icon, x + (LIB_BOOK_LIST_BADGE_SIZE - LIB_BOOK_LIST_BADGE_ICON_SIZE) / 2,
                          y + (LIB_BOOK_LIST_BADGE_SIZE - LIB_BOOK_LIST_BADGE_ICON_SIZE) / 2,
                          LIB_BOOK_LIST_BADGE_ICON_SIZE, LIB_BOOK_LIST_BADGE_ICON_SIZE, BitmapRender::Orientation::None,
