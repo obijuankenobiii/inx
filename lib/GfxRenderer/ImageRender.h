@@ -33,6 +33,7 @@ class ImageRender {
   bool render(int x, int y, int width, int height) const;
   bool render(int x, int y, int width, int height, const Options& options) const;
   bool render(int x, int y, int width, int height, ImageRenderMode mode) const;
+  bool renderDisplayCacheOnly(int x, int y, int width, int height, const Options& options) const;
   // Same as above, but for JPEGs, threads a level capture through so a caller doing a two-pass
   // grayscale render can decode once (first call fills `jpegCapture`) and replay for the second
   // pass (subsequent call, when `jpegCapture->captured` is already true, skips decoding entirely).

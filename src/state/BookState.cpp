@@ -11,6 +11,7 @@
 #include <Serialization.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 
 namespace {
@@ -135,6 +136,18 @@ void BookState::setFinished(const std::string& path, bool finished) {
     saveToFile();
     compactIdleMetadata();
   }
+}
+
+void BookState::removeBook(const std::string& path) {
+  const auto mapIt = pathIndex_.find(path);
+  if (mapIt == pathIndex_.end()) {
+    return;
+  }
+  books.erase(books.begin() + static_cast<std::ptrdiff_t>(mapIt->second));
+  rebuildPathIndex();
+  rebuildFavoriteIndices();
+  saveToFile();
+  compactIdleMetadata();
 }
 
 void BookState::clear(const bool saveNow) {

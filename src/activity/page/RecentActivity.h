@@ -5,6 +5,8 @@
  * @brief Public interface and types for RecentActivity.
  */
 
+#include <BitmapRender.h>
+
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -17,6 +19,15 @@
 #include "state/BookState.h"
 #include "state/RecentBooks.h"
 #include "state/Statistics.h"
+
+namespace recent {
+class Cover;
+class Flow;
+class Grid;
+class Grid3x3;
+class List;
+class SimpleUi;
+}  // namespace recent
 
 /**
  * Activity that displays recently opened books in grid, flow, simple, cover, icon, or book-list layouts.
@@ -118,6 +129,10 @@ class RecentActivity final : public Activity, public Menu {
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
   void renderInitialLoadingFrame();
+  void resetRecentImageCacheJobs();
+  bool queueRecentImageCacheBuild(const std::string& path, int x, int y, int w, int h, bool cropToFill,
+                                  BitmapRender::RoundedOutside roundedOutside);
+  bool processNextRecentImageCacheJob();
 
   /**
    * Renders a single grid item with cover, title, author and progress.
@@ -195,6 +210,13 @@ class RecentActivity final : public Activity, public Menu {
     void paint(RecentActivity& self) override;
   };
 
+  friend class recent::Cover;
+  friend class recent::Flow;
+  friend class recent::Grid;
+  friend class recent::Grid3x3;
+  friend class recent::List;
+  friend class recent::SimpleUi;
+
   static std::unique_ptr<LayoutEngine> makeLayoutEngine(ViewMode mode);
   void syncLayoutEngineForViewMode();
   std::unique_ptr<LayoutEngine> layoutEngine_;
@@ -251,6 +273,17 @@ class RecentActivity final : public Activity, public Menu {
   ViewMode recentPageBufferMode_ = ViewMode::Flow;
   int recentPageBufferScrollOffset_ = -1;
   int recentPageBufferBookCount_ = -1;
+  struct RecentImageCacheJob {
+    std::string path;
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    bool cropToFill = false;
+    BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
+  };
+  RecentImageCacheJob recentImageCacheJob_;
+  bool recentImageCacheJobPending_ = false;
 
   void onEnter() override;
   void onExit() override;

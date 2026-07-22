@@ -68,6 +68,23 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
   return render(x, y, width, height, options, nullptr);
 }
 
+bool ImageRender::renderDisplayCacheOnly(int x, int y, int width, int height, const Options& options) const {
+  ImageDisplayCacheOptions cacheOptions;
+  cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.mode = options.mode;
+  cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
+  cacheOptions.roundedOutside = options.roundedOutside;
+  cacheOptions.quality = options.quality;
+  const bool canUseDisplayCache =
+      options.useDisplayCache &&
+      ((options.mode == ImageRenderMode::OneBit && renderer_.getRenderMode() == GfxRenderer::BW) ||
+       options.mode == ImageRenderMode::TwoBit);
+  if (!canUseDisplayCache) {
+    return false;
+  }
+  return ImageDisplayCache::renderIfAvailable(renderer_, path_, x, y, width, height, cacheOptions);
+}
+
 bool ImageRender::render(int x, int y, int width, int height, const Options& options,
                          JpegLevelCapture* jpegCapture) const {
   ImageDisplayCacheOptions cacheOptions;

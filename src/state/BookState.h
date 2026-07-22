@@ -60,6 +60,7 @@ class BookState {
   void toggleFavorite(const std::string& path);
   void setReading(const std::string& path, bool isReading);
   void setFinished(const std::string& path, bool isFinished);
+  void removeBook(const std::string& path);
   void clear(bool saveNow = true);
   void compactForIdle();
 
