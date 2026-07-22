@@ -2247,67 +2247,18 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param imgH Original image height
  */
 namespace {
-// Decides whether an image (JPEG / PNG / BMP — whatever format the cache holds) has enough continuous-tone
-// (mid-gray) content to be worth grayscale rendering. It decodes the image through the SAME pipeline used for
-// display (so the result matches what would actually be shown) at a small size for speed, and histograms the
-// resulting 4 levels via the analysis hook in adjustTwoBitImageLevelForDisplay(). Comics / line art / mostly
-// black-and-white images have almost no mid-gray pixels and render fine (and far faster) as plain 1-bit.
-bool imageHasGrayscaleContent(GfxRenderer& renderer, const std::string& path, int imgW, int imgH) {
+bool shouldUseGrayscaleForImageDimensions(const int imgW, const int imgH) {
   if (imgW <= 0 || imgH <= 0) {
-    return true;
-  }
-  // Tiny images (HR rules, separators, small icons/ornaments) never benefit from grayscale and their
-  // anti-aliased edges easily trip the mid-gray threshold — always render them as fast 1-bit.
-  constexpr int kMinGrayscaleImageDim = 48;
-  if (imgW < kMinGrayscaleImageDim || imgH < kMinGrayscaleImageDim) {
     return false;
   }
-  // Decode at a small size; the mid-gray fraction is ~scale-invariant and this keeps build time down.
-  constexpr int kMaxAnalyzeW = 160;
-  int aw = imgW;
-  int ah = imgH;
-  if (aw > kMaxAnalyzeW) {
-    ah = std::max(1, imgH * kMaxAnalyzeW / imgW);
-    aw = kMaxAnalyzeW;
-  }
-
-  ImageRender::Options opt;
-  opt.mode = ImageRenderMode::TwoBit;  // 2-bit path -> adjustTwoBitImageLevelForDisplay runs per pixel (histogram)
-  opt.useDisplayCache = false;         // detection only; don't read/write the display cache
-
-  const int rowBytes = (aw + 7) / 8;
-  std::vector<uint8_t> savedPixels(static_cast<size_t>(rowBytes) * static_cast<size_t>(ah));
-  const bool restorePixels = !savedPixels.empty();
-  if (restorePixels) {
-    for (int y = 0; y < ah; ++y) {
-      renderer.readPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
-    }
-  }
-
-  const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-  beginImageLevelAnalysis();
-  const bool ok = ImageRender::create(renderer, path).render(0, 0, aw, ah, opt);
-  const uint32_t midPct = imageLevelAnalysisMidPercent();
-  endImageLevelAnalysis();
-  renderer.setRenderMode(savedMode);
-  if (restorePixels) {
-    for (int y = 0; y < ah; ++y) {
-      renderer.drawPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
-    }
-  }
-
-  if (!ok) {
-    return true;  // default to grayscale if we couldn't decode it
-  }
-  constexpr uint32_t kMidGrayThresholdPercent = 6;  // below this -> treat as 1-bit (comic/line art)
-  return midPct >= kMidGrayThresholdPercent;
+  constexpr int kMinGrayscaleImageDim = 100;
+  return imgW >= kMinGrayscaleImageDim && imgH >= kMinGrayscaleImageDim;
 }
 }  // namespace
 
 void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
-  const bool grayscale = imageHasGrayscaleContent(renderer, bmpPath, imgW, imgH);
+  const bool grayscale = shouldUseGrayscaleForImageDimensions(imgW, imgH);
 
   const auto addPlacedImage = [this, &bmpPath, imgW, imgH, grayscale](const int16_t x, const int16_t y) {
     auto image = std::make_shared<PageImage>(bmpPath, imgW, imgH, x, y, grayscale);

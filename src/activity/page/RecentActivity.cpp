@@ -41,6 +41,8 @@
 #include "system/UiTheme.h"
 #include "util/StringUtils.h"
 
+extern bool sdCardAvailable;
+
 namespace {
 
 /**
@@ -771,6 +773,17 @@ void RecentActivity::renderInitialLoadingFrame() {
   renderer.displayBuffer();
 }
 
+void RecentActivity::renderSdCardUnavailableMessage() {
+  const int top = mainContentTop();
+  const int bottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 42;
+  const int lineHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+  const int centerY = top + std::max(1, bottom - top) / 2;
+
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - lineHeight, "SD card not available", true,
+                         EpdFontFamily::BOLD);
+  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 8, "Storage features are disabled");
+}
+
 void RecentActivity::openHomeMenuDrawer() {
   freeRecentPageBuffer();
   if (!homeMenuDrawer_) {
@@ -1091,10 +1104,14 @@ void RecentActivity::pumpDisplayFromLoop() {
   renderTabBar(renderer);
   resetRecentImageCacheJobs();
 
-  syncLayoutEngineForViewMode();
-  suppressBufferedSelection_ = canUseBuffer;
-  layoutEngine_->paint(*this);
-  suppressBufferedSelection_ = false;
+  if (sdCardAvailable) {
+    syncLayoutEngineForViewMode();
+    suppressBufferedSelection_ = canUseBuffer;
+    layoutEngine_->paint(*this);
+    suppressBufferedSelection_ = false;
+  } else {
+    renderSdCardUnavailableMessage();
+  }
 
   const auto labels = mappedInput.mapLabels("Menu", "Open", "", "");
   renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

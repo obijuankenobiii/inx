@@ -129,6 +129,7 @@ class RecentActivity final : public Activity, public Menu {
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
   void renderInitialLoadingFrame();
+  void renderSdCardUnavailableMessage();
   void resetRecentImageCacheJobs();
   bool queueRecentImageCacheBuild(const std::string& path, int x, int y, int w, int h, bool cropToFill,
                                   BitmapRender::RoundedOutside roundedOutside);
