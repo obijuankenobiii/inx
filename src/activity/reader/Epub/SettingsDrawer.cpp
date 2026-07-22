@@ -659,7 +659,7 @@ void SettingsDrawer::setupMenu() {
 const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
   static const char* names[] = {"None",       "Page Numbers",   "Percentage",   "Chapter Title",      "Battery Icon",
                                 "Battery %",  "Battery Icon+%", "Progress Bar", "Progress Bar+%",     "Page Bars",
-                                "Book Title", "Author Name",    "Page Num+%",   "Time Left (Chapter)"};
+                                "Book Title", "Author Name",    "Page Num+%",   "Time Left (Chapter)", "Time Left (Book)"};
   int index = static_cast<int>(item);
   if (index < 0 || index >= static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
     index = 0;

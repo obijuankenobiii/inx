@@ -31,6 +31,7 @@ enum class StatusBarItem {
   AUTHOR_NAME,                ///< Author name
   PAGE_NUMBERS_WITH_PERCENT,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
   TIME_LEFT_CHAPTER,          ///< Estimated time left in the current chapter (ETA feature)
+  TIME_LEFT_BOOK,             ///< Estimated time left in the complete book (ETA feature)
   STATUS_BAR_ITEM_COUNT
 };
 

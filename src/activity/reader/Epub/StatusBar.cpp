@@ -241,6 +241,13 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
       break;
     }
 
+    case StatusBarItem::TIME_LEFT_BOOK: {
+      const std::string timeLeft = m_readingStats ? m_readingStats->bookTimeLeftString() : "-";
+      int xPos = getPositionX(timeLeft.c_str());
+      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, timeLeft.c_str());
+      break;
+    }
+
     default:
       break;
   }

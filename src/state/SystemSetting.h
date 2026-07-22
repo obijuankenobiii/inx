@@ -108,6 +108,8 @@ class SystemSetting {
     STATUS_ITEM_BOOK_TITLE = 10,                 ///< Book title
     STATUS_ITEM_AUTHOR_NAME = 11,                ///< Author name
     STATUS_ITEM_PAGE_NUMBERS_WITH_PERCENT = 12,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
+    STATUS_ITEM_TIME_LEFT_CHAPTER = 13,        ///< Estimated time left in the current chapter (ETA feature)
+    STATUS_ITEM_TIME_LEFT_BOOK = 14,          ///< Estimated time left in the complete book (ETA feature)
     STATUS_BAR_ITEM_COUNT
   };
 

@@ -163,6 +163,44 @@ std::string EpubReadingStats::chapterTimeLeftString(const Section* section) cons
   return std::string(buffer);
 }
 
+std::string EpubReadingStats::bookTimeLeftString() const {
+  if (stats_.avgPageTimeMs < kMinPageDwellMs) {
+    return "-";
+  }
+  if (stats_.progressPercent <= 0.0f || stats_.progressPercent >= 100.0f) {
+    return "-";
+  }
+
+  // Calculate remaining time based on overall book progress
+  // remainingTime = avgPageTime * (totalPages * (100 - progress) / 100)
+  // We estimate totalPages from pagesRead and progress
+  const float progressFraction = stats_.progressPercent / 100.0f;
+  if (progressFraction <= 0.0f) {
+    return "-";
+  }
+
+  const float estimatedTotalPages = static_cast<float>(stats_.totalPagesRead) / progressFraction;
+  const float remainingPages = estimatedTotalPages * (1.0f - progressFraction);
+
+  if (remainingPages <= 0.0f) {
+    return "-";
+  }
+
+  const uint32_t seconds = static_cast<uint32_t>(remainingPages) * (stats_.avgPageTimeMs / 1000);
+  const uint32_t minutes = seconds / 60;
+  const uint32_t hours = minutes / 60;
+
+  char buffer[32];
+  if (hours > 0) {
+    snprintf(buffer, sizeof(buffer), "%uh %um", hours, minutes % 60);
+  } else if (minutes > 0) {
+    snprintf(buffer, sizeof(buffer), "%um", minutes);
+  } else {
+    snprintf(buffer, sizeof(buffer), "%us", seconds);
+  }
+  return std::string(buffer);
+}
+
 void EpubReadingStats::save(const Epub& epub) {
   stats_.lastReadTimeMs = millis();
   ::saveBookStats(epub.getCachePath().c_str(), stats_);
