@@ -1814,10 +1814,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool needsTextAntiAliasPass = textAa;
 
-  const bool smartRefreshAfterLargeImage = !pageHasImages && lastPageHadImages && lastPageHadLargeImage;
-  if (bookSettings.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive() && smartRefreshAfterLargeImage) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-  }
+  const bool smartImageRefreshEnabled = bookSettings.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive();
+  const bool smartRefreshAfterLargeImage = lastPageHadImages && lastPageHadLargeImage;
 
   const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender, imageMode,
@@ -1838,8 +1836,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool bwStored = (skipImagesInPageRender || mediumImageGrayscale || (needsTextAntiAliasPass && !highQuality)) &&
                         renderer.storeBwBuffer();
   const bool displayWithQualityPass = highQuality && bwStored;
-  auto displayPageBuffer = [this]() {
-    if (pagesUntilFullRefresh <= 1) {
+  const bool smartRefreshThisPageAfterLargeImage = smartImageRefreshEnabled && smartRefreshAfterLargeImage;
+  auto displayPageBuffer = [this, smartRefreshThisPageAfterLargeImage]() {
+    if (smartRefreshThisPageAfterLargeImage || pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       pagesUntilFullRefresh = bookSettings.refreshFrequency;
     } else {

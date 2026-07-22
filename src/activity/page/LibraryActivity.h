@@ -165,6 +165,12 @@ class LibraryActivity final : public Activity, public Menu {
   bool isIndexButtonSelected = false;       ///< Whether library index refresh button is selected
   bool isSortButtonSelected = false;        ///< Whether sort button is selected
   bool favoriteLongPressProcessed = false;  ///< Flag to prevent duplicate favorite toggles
+  bool backLongPressProcessed_ = false;     ///< Prevents Back long-press filter picker from firing twice
+  bool letterPickerVisible_ = false;        ///< Whether the library letter filter picker is open
+  bool letterPickerIgnoreBackRelease_ = false;
+  int letterPickerPage_ = 0;      ///< 0=A-I, 1=J-R, 2=S-Z
+  int letterPickerIndex_ = 0;     ///< Selected cell in the picker; 9 is centered All
+  char libraryLetterFilter_ = 0;  ///< 0 = no letter filter
 
   /** Millis deadline for next Down repeat while held (0 = not repeating). */
   unsigned long libraryListDownNextMs = 0;
@@ -298,6 +304,22 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Handle back button navigation
    */
   void handleBackNavigation();
+  /** Opens the 3x3 letter filter picker. */
+  void openLetterFilterPicker();
+  /** Closes the letter filter picker without changing the active filter. */
+  void closeLetterFilterPicker();
+  /** Handles input while the letter filter picker is visible. */
+  void handleLetterFilterPickerInput();
+  /** Applies the selected letter filter and reloads the current library mode. */
+  void applyLetterFilterSelection();
+  /** Returns the picker cell's letter; '*' means all letters/no filter. */
+  char letterForPickerCell(int page, int index) const;
+  /** First ASCII letter in a display name, or 0 when none exists. */
+  char leadingLibraryLetter(const std::string& value) const;
+  /** Whether a rendered library item passes the active letter filter. */
+  bool itemMatchesLetterFilter(const LibraryItem& item) const;
+  /** Whether a temporary book entry passes the active letter filter. */
+  bool tempBookMatchesLetterFilter(const TempBookEntry& entry) const;
 
   /**
    * @brief Check if a file is a valid book file
@@ -567,6 +589,8 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Render the library screen
    */
   void render() const;
+  /** Draws the 3x3 letter filter picker overlay. */
+  void renderLetterFilterPicker() const;
 
   /**
    * @brief Render the library list
