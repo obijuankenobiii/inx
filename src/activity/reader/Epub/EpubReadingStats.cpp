@@ -65,7 +65,7 @@ void EpubReadingStats::pausePageTimer(const Epub& epub, const Section* section, 
   const uint32_t timeSpent = currentTime - pageStartTime_;
   pageStartTime_ = 0;
 
-  if (timeSpent < 1000) {
+  if (timeSpent < kMinPageDwellMs) {
     return;
   }
 
@@ -101,7 +101,7 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
   const uint32_t timeSpent = currentTime - pageStartTime_;
   pageStartTime_ = 0;
 
-  if (timeSpent < 1000) {
+  if (timeSpent < kMinPageDwellMs) {
     return;
   }
 
@@ -134,6 +134,34 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
 }
 
 void EpubReadingStats::addChapterRead() { stats_.totalChaptersRead++; }
+
+std::string EpubReadingStats::chapterTimeLeftString(const Section* section) const {
+  if (!section || section->pageCount == 0) {
+    return "-";
+  }
+  if (stats_.avgPageTimeMs < kMinPageDwellMs) {
+    return "-";
+  }
+
+  const int remainingPages = static_cast<int>(section->pageCount) - section->currentPage - 1;
+  if (remainingPages <= 0) {
+    return "-";
+  }
+
+  const uint32_t seconds = static_cast<uint32_t>(remainingPages) * (stats_.avgPageTimeMs / 1000);
+  const uint32_t minutes = seconds / 60;
+  const uint32_t hours = minutes / 60;
+
+  char buffer[32];
+  if (hours > 0) {
+    snprintf(buffer, sizeof(buffer), "%uh %um", hours, minutes % 60);
+  } else if (minutes > 0) {
+    snprintf(buffer, sizeof(buffer), "%um", minutes);
+  } else {
+    snprintf(buffer, sizeof(buffer), "%us", seconds);
+  }
+  return std::string(buffer);
+}
 
 void EpubReadingStats::save(const Epub& epub) {
   stats_.lastReadTimeMs = millis();

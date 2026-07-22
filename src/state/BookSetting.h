@@ -30,6 +30,7 @@ enum class StatusBarItem {
   BOOK_TITLE,                 ///< Book title
   AUTHOR_NAME,                ///< Author name
   PAGE_NUMBERS_WITH_PERCENT,  ///< Page numbers and percentage combined (e.g., "12/340 45%")
+  TIME_LEFT_CHAPTER,          ///< Estimated time left in the current chapter (ETA feature)
   STATUS_BAR_ITEM_COUNT
 };
 
@@ -51,7 +52,12 @@ struct StatusBarSectionConfig {
    * @param data Input buffer
    * @param offset Current offset in buffer
    */
-  void fromBytes(const uint8_t* data, size_t& offset) { item = static_cast<StatusBarItem>(data[offset++]); }
+  void fromBytes(const uint8_t* data, size_t& offset) {
+    item = static_cast<StatusBarItem>(data[offset++]);
+    if (static_cast<uint8_t>(item) >= static_cast<uint8_t>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
+      item = StatusBarItem::NONE;
+    }
+  }
 
   /**
    * @brief Equality operator

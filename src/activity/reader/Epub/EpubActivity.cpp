@@ -581,7 +581,7 @@ void EpubActivity::fastPath() {
   }
 
   loadCurrentSection();
-  statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
+  statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings, &readingStats_));
 }
 
 /**
@@ -611,7 +611,7 @@ bool EpubActivity::slowPath() {
   loadingProgress = 100;
   drawLoadingScreen();
 
-  statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings));
+  statusBar = std::unique_ptr<StatusBar>(new StatusBar(renderer, *epub, bookSettings, &readingStats_));
   renderer.clearScreen(0xff);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   if (!section) {
