@@ -2345,8 +2345,8 @@ void LibraryActivity::openLetterFilterPicker() {
     letterPickerPage_ = std::min(2, letterOffset / 9);
     letterPickerIndex_ = letterOffset % 9;
   } else {
-    letterPickerPage_ = 2;
-    letterPickerIndex_ = 9;
+    letterPickerPage_ = 0;
+    letterPickerIndex_ = 0;
   }
   updateRequired = true;
 }
