@@ -593,7 +593,15 @@ bool Epub::load(const bool buildIfMissing) {
   bookMetadataCache->endContentOpfPass();
 
   bookMetadataCache->beginCssPass();
-  if (!bookMetadataCache->extractAndCacheCssFiles(filepath)) {
+  bool cssExtracted = false;
+  try {
+    cssExtracted = bookMetadataCache->extractAndCacheCssFiles(filepath);
+  } catch (const std::bad_alloc&) {
+    Serial.printf("[EBP] Warning: Skipping CSS extraction due to low heap\n");
+  } catch (...) {
+    Serial.printf("[EBP] Warning: Skipping CSS extraction due to parser error\n");
+  }
+  if (!cssExtracted) {
     Serial.printf("[EBP] Warning: Failed to extract CSS files\n");
   }
   bookMetadataCache->endCssPass();

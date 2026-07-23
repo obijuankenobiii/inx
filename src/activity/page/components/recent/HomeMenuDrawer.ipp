@@ -113,12 +113,17 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
     if (input.wasReleased(MappedInputManager::Button::Back)) {
+      if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+        mode_ = HomeDrawerMode::Recents;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       if (mode_ == HomeDrawerMode::RecentsActions) {
         loadRecents();
         mode_ = HomeDrawerMode::Recents;
         selected_ = 0;
         scroll_ = 0;
-        render(HalDisplay::HALF_REFRESH);
+        render(HalDisplay::FAST_REFRESH);
         return;
       }
       hide();
@@ -126,6 +131,18 @@ class RecentActivity::HomeMenuDrawer {
     }
 
     if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        confirmQuickDeleteRecent();
+      }
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::Recents && input.wasPressed(MappedInputManager::Button::Left)) {
+      openQuickDeleteRecentConfirm();
       return;
     }
 
@@ -194,6 +211,8 @@ class RecentActivity::HomeMenuDrawer {
 
     if (mode_ == HomeDrawerMode::AnnotationDetail) {
       renderDetail();
+    } else if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      renderQuickDeleteConfirm();
     } else {
       renderRows();
     }
@@ -207,6 +226,7 @@ class RecentActivity::HomeMenuDrawer {
     Main,
     Recents,
     RecentsActions,
+    RecentsDeleteConfirm,
     Favorites,
     Bookmarks,
     Annotations,
@@ -282,6 +302,8 @@ class RecentActivity::HomeMenuDrawer {
         return "Recents";
       case HomeDrawerMode::RecentsActions:
         return "Book options";
+      case HomeDrawerMode::RecentsDeleteConfirm:
+        return "Remove recent";
       case HomeDrawerMode::Favorites:
         return "Favorites";
       case HomeDrawerMode::Bookmarks:
@@ -438,6 +460,30 @@ class RecentActivity::HomeMenuDrawer {
     }
   }
 
+  void renderQuickDeleteConfirm() {
+    const int contentTop = drawerY_ + headerHeight();
+    const int centerY = contentTop + (drawerH_ - headerHeight() - 46) / 2;
+    const std::string title =
+        selectedBookRow_.label.empty() ? "Selected book" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                                                    selectedBookRow_.label.c_str(),
+                                                                                    drawerW_ - kHomeDrawerPadX * 2);
+
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, "Remove from recents?", true,
+                            EpdFontFamily::BOLD);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 4, title.c_str(), true,
+                            EpdFontFamily::REGULAR);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, "Book metadata and cache will stay.", true,
+                            EpdFontFamily::REGULAR);
+  }
+
+  void renderQuickDeleteConfirmOnly() {
+    renderer_.rectangle.fill(drawerX_, drawerY_ + headerHeight() + 1, drawerW_,
+                             drawerH_ - headerHeight() - 1, false);
+    renderQuickDeleteConfirm();
+    drawHints();
+    renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
+  }
+
   void renderBookmarkPreview() {
     if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
       renderPreviewUnavailable();
@@ -514,6 +560,18 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
+    if (mode_ == HomeDrawerMode::Recents) {
+      const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
+                               recentLabels.btn3, recentLabels.btn4);
+      return;
+    }
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      const auto confirmLabels = owner_.mappedInput.mapLabels("Cancel", "Remove", "", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
+                               confirmLabels.btn3, confirmLabels.btn4);
+      return;
+    }
     renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
@@ -810,6 +868,32 @@ class RecentActivity::HomeMenuDrawer {
     render();
   }
 
+  void openQuickDeleteRecentConfirm() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    selectedBookRow_ = rows_[selected_];
+    mode_ = HomeDrawerMode::RecentsDeleteConfirm;
+    renderQuickDeleteConfirmOnly();
+  }
+
+  void confirmQuickDeleteRecent() {
+    removeSelectedRecentEntryOnly();
+    owner_.loadRecentBooks(false);
+    loadRecents();
+    mode_ = HomeDrawerMode::Recents;
+    selected_ = 0;
+    scroll_ = 0;
+    render(HalDisplay::FAST_REFRESH);
+  }
+
+  void removeSelectedRecentEntryOnly() {
+    removeSelectedFromRecentIndex();
+    if (!selectedBookRow_.bookPath.empty()) {
+      RECENT_BOOKS.removeBook(selectedBookRow_.bookPath);
+    }
+  }
+
   void applySelectedRecentAction() {
     if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
       return;
@@ -835,7 +919,7 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Recents;
     selected_ = 0;
     scroll_ = 0;
-    render(HalDisplay::HALF_REFRESH);
+    render(HalDisplay::FAST_REFRESH);
   }
 
   void markSelectedBookDone() {
