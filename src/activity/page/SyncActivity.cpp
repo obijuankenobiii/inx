@@ -7,6 +7,7 @@
 
 #include <GfxRenderer.h>
 
+#include "activity/network/BackupRestoreActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -14,8 +15,9 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 4;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser"};
+constexpr int MENU_ITEM_COUNT = 5;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser",
+                                           "Backup and restore"};
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
@@ -36,6 +38,11 @@ void SyncActivity::onEnter() {
  * Processes button presses for menu navigation and tab switching.
  */
 void SyncActivity::loop() {
+  if (subActivity) {
+    ActivityWithSubactivity::loop();
+    return;
+  }
+
   if (tabSelectorIndex == 3 && updateRequired) {
     updateRequired = false;
     render();
@@ -84,6 +91,14 @@ void SyncActivity::loop() {
       mode = NetworkMode::OPDS_BROWSER;
     }
 
+    if (selectedIndex == 4) {
+      enterNewActivity(new BackupRestoreActivity(renderer, mappedInput, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
     if (onModeSelected) {
       onModeSelected(mode);
     }
@@ -121,7 +136,7 @@ void SyncActivity::render() const {
   const int headerY = mainContentTop();
   const int headerHeight = TAB_BAR_HEIGHT;
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device connections", true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device Management", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
@@ -163,4 +178,4 @@ void SyncActivity::render() const {
 /**
  * Lifecycle hook called when exiting the activity.
  */
-void SyncActivity::onExit() { Activity::onExit(); }
+void SyncActivity::onExit() { ActivityWithSubactivity::onExit(); }

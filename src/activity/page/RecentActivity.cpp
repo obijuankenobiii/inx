@@ -882,40 +882,44 @@ void RecentActivity::drawBufferedSelectionOverlay() {
  */
 void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const RecentBook& book, bool selected) {
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight() - 20;
+  const int contentBottom =
+      INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
+  constexpr int kGridSpacing = 10;
 
-  int availableWidth = screenW - (GRID_COLS + 1) * GRID_SPACING;
+  int availableWidth = screenW - (GRID_COLS + 1) * kGridSpacing;
   int containerWidth = availableWidth / GRID_COLS;
 
   int visibleRows = getVisibleRows();
-  int availableHeight = screenH - startY - (GRID_SPACING * 2);
-  int containerHeight = (availableHeight / visibleRows) - GRID_SPACING;
+  int availableHeight = contentBottom - startY - (kGridSpacing * 2);
+  int containerHeight = std::max(1, (availableHeight / visibleRows) - kGridSpacing);
 
-  int itemX = GRID_SPACING + gridX * (containerWidth + GRID_SPACING);
-  int itemY = startY + GRID_SPACING + gridY * (containerHeight + GRID_SPACING);
+  int itemX = kGridSpacing + gridX * (containerWidth + kGridSpacing);
+  int itemY = startY + kGridSpacing + gridY * (containerHeight + kGridSpacing);
+
+  constexpr int kGridThumbnailScalePercent = 95;
+  const int drawW = std::max(1, containerWidth * kGridThumbnailScalePercent / 100);
+  const int drawH = std::max(1, static_cast<int>(containerHeight) * kGridThumbnailScalePercent / 100);
+  const int drawX = itemX + (containerWidth - drawW) / 2;
+  const int drawY = itemY + (containerHeight - drawH) / 2;
 
   if (selected) {
-    for (int y = itemY + 10; y < itemY + GRID_ITEM_HEIGHT + 63; y += 2) {
-      for (int x = itemX - 12; x < itemX + containerWidth + 12; x += 2) {
+    const int overlayX = std::max(0, drawX - 8);
+    const int overlayY = std::max(startY, drawY - 8);
+    const int overlayW = std::min(screenW - overlayX, drawW + 16);
+    const int overlayH = std::min(contentBottom - overlayY, drawH + 16);
+    for (int y = overlayY; y < overlayY + overlayH; y += 2) {
+      for (int x = overlayX; x < overlayX + overlayW; x += 2) {
         renderer.drawPixel(x, y, true);
       }
     }
   }
-
-  int coverAreaX = itemX;
-  int coverAreaY = itemY;
-
-  const int drawX = coverAreaX;
-  const int drawY = coverAreaY + GRID_SPACING;
-  const int drawW = containerWidth;
-  const int drawH = static_cast<int>(containerHeight);
   drawRecentThumbnailAt(drawX, drawY, drawW, drawH, book.cachePath, bookDisplayTitle(book),
                         ATKINSON_HYPERLEGIBLE_10_FONT_ID, selected);
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
-    int barX = coverAreaX + 15;
-    int barY = coverAreaY + containerHeight;
-    int barW = containerWidth - 30;
+    int barX = drawX + 15;
+    int barY = drawY + drawH - kGridSpacing;
+    int barW = drawW - 30;
     int barH = 10;
 
     renderer.rectangle.fill(barX, barY, barW, barH, false);
