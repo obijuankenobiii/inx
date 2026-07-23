@@ -721,16 +721,7 @@ void RecentActivity::drawBufferedSelectionOverlay() {
     if (selectorIndex < scrollOffset || selectorIndex >= scrollOffset + LIST_VISIBLE_ITEMS) {
       return;
     }
-    constexpr int kHintReserve = 54;
-    constexpr int padX = 30;
-    const int screenW = renderer.getScreenWidth();
-    const int contentBottom = renderer.getScreenHeight() - kHintReserve;
-    const int startY = recentListPaintStartY();
-    const int contentH = std::max(1, contentBottom - startY);
-    const int rowH = std::max(56, contentH / LIST_VISIBLE_ITEMS);
-    const int slot = selectorIndex - scrollOffset;
-    const int y = startY + slot * rowH;
-    renderer.rectangle.render(padX / 2, y + 1, screenW - padX, rowH, true, false);
+    renderList(recentListPaintStartY());
     return;
   }
 
@@ -780,7 +771,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   const int screenW = renderer.getScreenWidth();
   const int contentBottom =
       INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 54;
-  constexpr int kGridSpacing = 10;
+  constexpr int kGridSpacing = 8;
 
   int availableWidth = screenW - (GRID_COLS + 1) * kGridSpacing;
   int containerWidth = availableWidth / GRID_COLS;
@@ -792,9 +783,9 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
   int itemX = kGridSpacing + gridX * (containerWidth + kGridSpacing);
   int itemY = startY + kGridSpacing + gridY * (containerHeight + kGridSpacing);
 
-  constexpr int kGridThumbnailScalePercent = 95;
-  const int drawW = std::max(1, containerWidth * kGridThumbnailScalePercent / 100);
-  const int drawH = std::max(1, static_cast<int>(containerHeight) * kGridThumbnailScalePercent / 100);
+  constexpr int kGridThumbnailWidthScalePercent = 95;
+  const int drawW = std::max(1, containerWidth * kGridThumbnailWidthScalePercent / 100);
+  const int drawH = containerHeight;
   const int drawX = itemX + (containerWidth - drawW) / 2;
   const int drawY = itemY + (containerHeight - drawH) / 2;
 
@@ -814,9 +805,20 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
     int barX = drawX + 15;
-    int barY = drawY + drawH - kGridSpacing;
+    constexpr int kGridProgressBottomInset = 16;
+    int barY = drawY + drawH - kGridProgressBottomInset;
     int barW = drawW - 30;
-    int barH = 10;
+    int barH = 6;
+    char pText[8];
+    int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
+    snprintf(pText, sizeof(pText), "%d%%", percent);
+    constexpr int kPctFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int pW = renderer.text.getWidth(kPctFont, pText);
+    const int pH = renderer.text.getLineHeight(kPctFont);
+    const int pX = barX + barW - pW;
+    const int pY = barY - pH - 4;
+
+    renderer.rectangle.fill(barX - 2, barY - 2, barW + 4, barH + 4, false, true);
 
     renderer.rectangle.fill(barX, barY, barW, barH, false);
     renderer.rectangle.render(barX, barY, barW, barH, true);
@@ -824,17 +826,8 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     if (book.progress > 0.0f) {
       int fillW = static_cast<int>(barW * book.progress + 0.5f);
       renderer.rectangle.fill(barX, barY, fillW, barH);
-
-      char pText[8];
-      int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
-      snprintf(pText, sizeof(pText), "%d%%", percent);
-      int pW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pText);
-      renderer.rectangle.fill(barX + barW - pW - 5,
-                              barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 10, pW + 5, 30,
-                              false, true);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barX + barW - pW,
-                           barY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 6, pText);
     }
+    renderer.text.render(kPctFont, pX, pY, pText);
   }
 }
 

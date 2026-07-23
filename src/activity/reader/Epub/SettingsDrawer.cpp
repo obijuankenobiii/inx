@@ -305,7 +305,7 @@ void SettingsDrawer::setupMenu() {
     alignEntry.group = GroupType::LAYOUT;
     alignEntry.name = "Paragraph Alignment";
     alignEntry.getValueText = [](const BookSettings& s) -> const char* {
-      static const char* align[] = {"Justify", "Left", "Center", "Right", "Css"};
+      static const char* align[] = {"Justify", "Left", "Center", "Right", "Book's style"};
       int index = s.paragraphAlignment;
       if (index > 4) index = 0;
       return align[index];

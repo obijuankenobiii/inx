@@ -392,11 +392,11 @@ class SystemSetting {
   uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
   uint8_t uiTheme = UI_THEME_CLASSIC;         ///< UI chrome theme
 
-  uint8_t fontFamily = LITERATA;           ///< Font family
-  uint8_t fontSize = SMALL;                ///< Font size
-  uint8_t lineHeight = 100;                ///< Reader line height, % of natural (10-200)
-  uint8_t textSpace = 100;                 ///< Reader word spacing, % of natural (10-200)
-  uint8_t paragraphAlignment = JUSTIFIED;  ///< Paragraph alignment
+  uint8_t fontFamily = LITERATA;            ///< Font family
+  uint8_t fontSize = SMALL;                 ///< Font size
+  uint8_t lineHeight = 100;                 ///< Reader line height, % of natural (10-200)
+  uint8_t textSpace = 100;                  ///< Reader word spacing, % of natural (10-200)
+  uint8_t paragraphAlignment = FOLLOW_CSS;  ///< Paragraph alignment
   /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
   uint8_t paragraphCssIndentEnabled = 0;
 
@@ -406,7 +406,7 @@ class SystemSetting {
   uint8_t hyphenationEnabled = 1;         ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;       ///< Bionic Reading enabled
 
-  uint8_t screenMargin = 20;  ///< Screen margin in pixels
+  uint8_t screenMargin = 10;  ///< Screen margin in pixels
 
   char opdsServerUrl[128] = "";  ///< OPDS server URL
   char opdsUsername[64] = "";    ///< OPDS username
