@@ -3001,17 +3001,13 @@ void LibraryActivity::renderItemIcon(const LibraryItem& item, int drawY, int ite
   } else {
     const uint8_t* icon = isSupportedImageFile(item.path) ? Image : BookSmall;
     renderer.bitmap.icon(icon, iconX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
-
-    if (isBookMarked(item.path)) {
-      int starX = renderer.getScreenWidth() - 1 - 45;
-      renderer.bitmap.icon(Star, starX, iconY + 2, 24, 24, BitmapRender::Orientation::None, isSelected);
-    }
   }
 }
 
 void LibraryActivity::renderBookListBadges(const LibraryItem& item, int drawY, int itemHeight, bool isSelected,
                                            int screenWidth) const {
-  if (currentViewMode != ViewMode::BOOK_LIST_VIEW || item.type != LibraryItem::Type::BOOK) {
+  if ((currentViewMode != ViewMode::BOOK_LIST_VIEW && currentViewMode != ViewMode::FOLDER_VIEW) ||
+      item.type != LibraryItem::Type::BOOK) {
     return;
   }
 
@@ -3049,22 +3045,22 @@ void LibraryActivity::renderBookListBadges(const LibraryItem& item, int drawY, i
  */
 void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int itemHeight, bool isSelected,
                                      int screenWidth) const {
-  const bool bookListView = currentViewMode == ViewMode::BOOK_LIST_VIEW;
+  const bool showBookBadges = item.type == LibraryItem::Type::BOOK &&
+                              (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::FOLDER_VIEW);
   const int textX = 49;
-  const int badgeCount = bookListView ? (isBookMarked(item.path) ? 1 : 0) +
-                                            ((isBookOpened(item.path) || isBookFinished(item.path)) ? 1 : 0)
-                                      : 0;
-  const int badgeReserve = bookListView ? (badgeCount > 0 ? 15 + badgeCount * LIB_BOOK_LIST_BADGE_SIZE +
-                                                                (badgeCount - 1) * LIB_BOOK_LIST_BADGE_GAP + 10
-                                                          : 15)
-                                        : (isBookMarked(item.path) ? 50 : 15);
+  const int badgeCount = showBookBadges ? (isBookMarked(item.path) ? 1 : 0) +
+                                              ((isBookOpened(item.path) || isBookFinished(item.path)) ? 1 : 0)
+                                        : 0;
+  const int badgeReserve = showBookBadges && badgeCount > 0 ? 15 + badgeCount * LIB_BOOK_LIST_BADGE_SIZE +
+                                                                  (badgeCount - 1) * LIB_BOOK_LIST_BADGE_GAP + 10
+                                                            : 15;
   const int textWidth = std::max(40, screenWidth - textX - badgeReserve);
   const int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
   std::string displayText =
       renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
   renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
 
-  if (bookListView) {
+  if (showBookBadges) {
     renderBookListBadges(item, drawY, itemHeight, isSelected, screenWidth);
   }
 }
