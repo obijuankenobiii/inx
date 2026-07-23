@@ -40,9 +40,9 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(
       SettingInfo::Enum("Theme", &SystemSetting::uiTheme, {"Classic", "Bottom Tabs"}, GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum(
-      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
-      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,
-       SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
+      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "List", "Icons", "Cover"},
+      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_BOOK_LIST,
+       SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
       GroupType::DEVICE_DISPLAY));
   settings.push_back(
       SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY));

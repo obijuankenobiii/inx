@@ -303,7 +303,7 @@ class SystemSetting {
     RECENT_GRID = 0,             ///< Grid view
     RECENT_LIST_DEPRECATED = 1,  ///< Removed mode; kept as a saved-settings alias for Flow
     RECENT_FLOW = 2,             ///< Flow carousel
-    RECENT_SIMPLE = 3,           ///< Simple: recent cover on top, favorites list below
+    RECENT_SIMPLE = 3,           ///< Legacy Simple mode; mapped to Flow
     RECENT_BOOK_LIST = 4,        ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
     RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
     RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress

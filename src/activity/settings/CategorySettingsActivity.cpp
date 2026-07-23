@@ -234,7 +234,7 @@ void CategorySettingsActivity::setupMenu() {
                   }
                 }
                 if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
-                    current == SystemSetting::RECENT_LIST_DEPRECATED) {
+                    (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
                   for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
                     if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
                       return settingPtr->enumValues[i].c_str();
@@ -260,7 +260,7 @@ void CategorySettingsActivity::setupMenu() {
                   }
                 }
                 if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
-                    current == SystemSetting::RECENT_LIST_DEPRECATED) {
+                    (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
                   for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
                     if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
                       currentIndex = static_cast<int>(i);
@@ -431,7 +431,8 @@ int CategorySettingsActivity::selectedOptionIndex(const MenuEntry& entry) const 
         return static_cast<int>(i);
       }
     }
-    if (entry.valuePtr == &SystemSetting::recentLibraryMode && current == SystemSetting::RECENT_LIST_DEPRECATED) {
+    if (entry.valuePtr == &SystemSetting::recentLibraryMode &&
+        (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
       for (size_t i = 0; i < setting->enumOptionValues.size(); ++i) {
         if (setting->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
           return static_cast<int>(i);

@@ -32,10 +32,11 @@ constexpr int kRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr const char* kBackupRoot = "/.system/backup";
 
 constexpr const char* kDirectFiles[] = {
-    "/.system/settings.bin",        "/.system/ui_theme.bin",      "/.system/reader_presets.bin",
-    "/.system/wifi.bin",            "/.system/opds_servers.bin",  "/.system/koreader.bin",
-    "/.system/statistics.bin",      "/.metadata/recent.bin",      "/.metadata/books.bin",
-    "/.metadata/library/book_tags.json",
+    "/.system/settings.bin",       "/.system/ui_theme.bin",
+    "/.system/reader_presets.bin", "/.system/wifi.bin",
+    "/.system/opds_servers.bin",   "/.system/koreader.bin",
+    "/.system/statistics.bin",     "/.metadata/recent.bin",
+    "/.metadata/books.bin",        "/.metadata/library/book_tags.json",
 };
 
 constexpr const char* kPerBookFiles[] = {"progress.bin", "statistics.bin", "settings.bin"};
@@ -234,9 +235,8 @@ void BackupRestoreActivity::renderMenu(const int bodyTop) {
 
 void BackupRestoreActivity::renderWorking() {
   const int centerY = renderer.getScreenHeight() / 2;
-  renderer.text.centered(kTitleFont, centerY - 18,
-                         action_ == Action::Backup ? "Creating backup" : "Restoring backup", true,
-                         EpdFontFamily::BOLD);
+  renderer.text.centered(kTitleFont, centerY - 18, action_ == Action::Backup ? "Creating backup" : "Restoring backup",
+                         true, EpdFontFamily::BOLD);
   renderer.text.centered(kMetaFont, centerY + 18, "Please wait");
 }
 
