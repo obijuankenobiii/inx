@@ -141,7 +141,8 @@ class LibraryActivity final : public Activity, public Menu {
   std::function<bool(const TempBookEntry&, const TempBookEntry&)> getReadingStatusComparator(bool ascending) const;
 
  private:
-  TaskHandle_t displayTaskHandle = nullptr;    ///< Handle for display update task
+  TaskHandle_t displayTaskHandle = nullptr;  ///< Handle for display update task
+  TaskHandle_t initialLoadTaskHandle_ = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;  ///< Mutex for render thread safety
   bool halfRefreshOnLoadApplied_ = false;
   volatile bool displayTaskStopRequested_ = false;

@@ -98,13 +98,14 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Main;
     selected_ = 0;
     scroll_ = 0;
-    detailText_.clear();
+    releaseRows();
     syncLayout();
     render();
   }
 
   void hide() {
     visible_ = false;
+    releaseRows();
     owner_.updateRequired = true;
   }
 
@@ -268,6 +269,12 @@ class RecentActivity::HomeMenuDrawer {
   std::vector<DrawerRow> rows_;
   DrawerRow selectedBookRow_;
   std::string detailText_;
+
+  void releaseRows() {
+    std::vector<DrawerRow>().swap(rows_);
+    selectedBookRow_ = DrawerRow();
+    std::string().swap(detailText_);
+  }
 
   void syncLayout() {
     const int sw = renderer_.getScreenWidth();

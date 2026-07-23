@@ -19,6 +19,8 @@
 #include "system/UiTheme.h"
 
 namespace {
+constexpr int kRowValueRightInset = 30;
+
 const char* overlayOptionFor(const int presetIndex, const int optionIndex) {
   if (presetIndex == 0) {
     static constexpr const char* kDefaultOptions[] = {"Edit", "Cancel"};
@@ -190,7 +192,8 @@ void ReaderPresetsActivity::render() {
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1, EpdFontFamily::BOLD);
       const char* tag = xtcExpanded_ ? "-" : "+";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+                           isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
       continue;
@@ -214,7 +217,8 @@ void ReaderPresetsActivity::render() {
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 24 - valueW, textY, value, isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+                           isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
       continue;
@@ -229,7 +233,8 @@ void ReaderPresetsActivity::render() {
     if (presetIndex == 0) {
       const char* tag = "Default";
       const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - 24 - tagW, textY, tag, isSelected ? 0 : 1);
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+                           isSelected ? 0 : 1);
     }
     renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                          LineRender::Style::Dotted);
