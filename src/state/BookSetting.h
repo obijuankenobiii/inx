@@ -81,11 +81,11 @@ struct StatusBarLayout {
  * @brief Per-book reading settings
  */
 struct BookSettings {
-  uint8_t fontFamily = SystemSetting::LITERATA;           ///< Font family
-  uint8_t fontSize = SystemSetting::SMALL;                ///< Font size
-  uint8_t lineHeight = 100;                               ///< Line height, % of natural (10-200)
-  uint8_t textSpace = 100;                                ///< Word spacing, % of natural (10-200)
-  uint8_t paragraphAlignment = SystemSetting::JUSTIFIED;  ///< Paragraph alignment
+  uint8_t fontFamily = SystemSetting::LITERATA;            ///< Font family
+  uint8_t fontSize = SystemSetting::SMALL;                 ///< Font size
+  uint8_t lineHeight = 100;                                ///< Line height, % of natural (10-200)
+  uint8_t textSpace = 100;                                 ///< Word spacing, % of natural (10-200)
+  uint8_t paragraphAlignment = SystemSetting::FOLLOW_CSS;  ///< Paragraph alignment
   /** Honor CSS `text-indent` when on (mirrors global "Indent" when unset in per-book file). */
   uint8_t paragraphCssIndentEnabled = 0;
 
@@ -94,7 +94,7 @@ struct BookSettings {
   uint8_t hyphenationEnabled = 1;     ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;   ///< Bionic Reading enabled
 
-  uint8_t screenMargin = 20;  ///< Screen margin in pixels
+  uint8_t screenMargin = 10;  ///< Screen margin in pixels
 
   uint8_t orientation = SystemSetting::PORTRAIT;  ///< Screen orientation
 
@@ -169,7 +169,7 @@ struct BookSettings {
       textSpace = 100;
     }
     if (paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
-      paragraphAlignment = SystemSetting::JUSTIFIED;
+      paragraphAlignment = SystemSetting::FOLLOW_CSS;
     }
     paragraphCssIndentEnabled = paragraphCssIndentEnabled ? 1 : 0;
     extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;

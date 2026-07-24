@@ -22,6 +22,7 @@ class MenuDrawer {
   enum class MenuAction {
     SHOW_BOOKMARKS,
     SHOW_ANNOTATIONS,
+    ENTER_DICTIONARY,
     SELECT_CHAPTER,
     GO_TO_PERCENT,
     KOREADER_SYNC,
@@ -72,6 +73,12 @@ class MenuDrawer {
    * @brief Hides the menu drawer
    */
   void hide();
+
+  /**
+   * @brief Jumps straight to the Table of Contents view, skipping the main menu list. Call after
+   * show() (requires the drawer to be visible and setEpub()/setReaderSpineIndex() to already be set).
+   */
+  void showToc();
 
   /**
    * @brief Checks if the drawer is visible

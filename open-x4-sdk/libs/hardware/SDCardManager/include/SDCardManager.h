@@ -28,12 +28,14 @@ class SDCardManager {
 
   bool ensureDirectoryExists(const char* path);
 
-  FsFile open(const char* path, const oflag_t oflag = O_RDONLY) { return sd.open(path, oflag); }
-  bool mkdir(const char* path, const bool pFlag = true) { return sd.mkdir(path, pFlag); }
+  FsFile open(const char* path, const oflag_t oflag = O_RDONLY) {
+    return initialized ? sd.open(path, oflag) : FsFile();
+  }
+  bool mkdir(const char* path, const bool pFlag = true) { return initialized && sd.mkdir(path, pFlag); }
   bool exists(const char* path);
-  bool remove(const char* path) { return sd.remove(path); }
-  bool rmdir(const char* path) { return sd.rmdir(path); }
-  bool rename(const char* path, const char* newPath) { return sd.rename(path, newPath); }
+  bool remove(const char* path) { return initialized && sd.remove(path); }
+  bool rmdir(const char* path) { return initialized && sd.rmdir(path); }
+  bool rename(const char* path, const char* newPath) { return initialized && sd.rename(path, newPath); }
 
   bool openFileForRead(const char* moduleName, const char* path, FsFile& file);
   bool openFileForRead(const char* moduleName, const std::string& path, FsFile& file);

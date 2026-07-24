@@ -676,8 +676,8 @@ void StatisticActivity::onEnter() {
 void StatisticActivity::onExit() {
   Activity::onExit();
 
-  allBooksStats.clear();
-  loadedBookStatsFlags_.clear();
+  std::vector<BookReadingStats>().swap(allBooksStats);
+  std::vector<uint8_t>().swap(loadedBookStatsFlags_);
 }
 
 int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {

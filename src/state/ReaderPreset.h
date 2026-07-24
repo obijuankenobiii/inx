@@ -30,6 +30,8 @@ class ReaderPresetStore {
 
   /** Loads user presets from SD (idempotent). */
   void load();
+  /** Forces user presets to be re-read from SD. */
+  void reload();
   /** Persists user presets to SD. */
   bool save();
 

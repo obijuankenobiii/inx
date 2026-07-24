@@ -20,6 +20,7 @@
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
+#include "DictionaryPickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
@@ -234,7 +235,7 @@ void CategorySettingsActivity::setupMenu() {
                   }
                 }
                 if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
-                    current == SystemSetting::RECENT_LIST_DEPRECATED) {
+                    (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
                   for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
                     if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
                       return settingPtr->enumValues[i].c_str();
@@ -260,7 +261,7 @@ void CategorySettingsActivity::setupMenu() {
                   }
                 }
                 if (settingPtr->valuePtr == &SystemSetting::recentLibraryMode &&
-                    current == SystemSetting::RECENT_LIST_DEPRECATED) {
+                    (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
                   for (size_t i = 0; i < settingPtr->enumOptionValues.size(); ++i) {
                     if (settingPtr->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
                       currentIndex = static_cast<int>(i);
@@ -381,6 +382,13 @@ void CategorySettingsActivity::setupMenu() {
                 updateRequired = true;
               }));
             }
+            if (strcmp(settingPtr->name, "Choose dictionary") == 0) {
+              exitActivity();
+              enterNewActivity(new DictionaryPickerActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
             updateRequired = true;
           };
         }
@@ -431,7 +439,8 @@ int CategorySettingsActivity::selectedOptionIndex(const MenuEntry& entry) const 
         return static_cast<int>(i);
       }
     }
-    if (entry.valuePtr == &SystemSetting::recentLibraryMode && current == SystemSetting::RECENT_LIST_DEPRECATED) {
+    if (entry.valuePtr == &SystemSetting::recentLibraryMode &&
+        (current == SystemSetting::RECENT_LIST_DEPRECATED || current == SystemSetting::RECENT_SIMPLE)) {
       for (size_t i = 0; i < setting->enumOptionValues.size(); ++i) {
         if (setting->enumOptionValues[i] == SystemSetting::RECENT_FLOW) {
           return static_cast<int>(i);
@@ -819,7 +828,7 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  constexpr int headerHeight = UiTheme::DRAWER_HEADER_HEIGHT - 4;
+  const int headerHeight = INX_THEME.drawerHeaderHeight() - 4;
   constexpr int visibleRows = 5;
 
   const int rows = std::min(visibleRows, static_cast<int>(selectorOptions.size()));
@@ -888,7 +897,7 @@ void CategorySettingsActivity::render() {
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);

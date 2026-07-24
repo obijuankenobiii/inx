@@ -271,6 +271,7 @@ class ChapterHtmlSlimParser {
    * Ensures an image is cached as BMP format.
    */
   bool ensureImageCached(const std::string& internalPath, const std::string& cacheImgPath, int* w, int* h);
+  bool ensureImageFileAvailable(const std::string& internalPath, const std::string& cacheImgPath);
 
   /** Reads cached image dimensions (BMP or JPEG). */
   bool getImageDimensions(const std::string& path, int* w, int* h);

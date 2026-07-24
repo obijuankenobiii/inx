@@ -293,16 +293,21 @@ void StatusBar::renderPageBars(int sectionStart, int sectionCenter, int sectionW
  * @return Status bar section configuration
  */
 StatusBarSectionConfig StatusBar::getConfig(int position) const {
+  StatusBarSectionConfig cfg;
   switch (position) {
     case STATUS_BAR_LEFT:
-      return m_settings.statusBarLeft;
+      cfg.item = static_cast<StatusBarItem>(SETTINGS.statusBarLeft);
+      break;
     case STATUS_BAR_MIDDLE:
-      return m_settings.statusBarMiddle;
+      cfg.item = static_cast<StatusBarItem>(SETTINGS.statusBarMiddle);
+      break;
     case STATUS_BAR_RIGHT:
-      return m_settings.statusBarRight;
+      cfg.item = static_cast<StatusBarItem>(SETTINGS.statusBarRight);
+      break;
     default:
-      return StatusBarSectionConfig();
+      break;
   }
+  return cfg;
 }
 
 /**

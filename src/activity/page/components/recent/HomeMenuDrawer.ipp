@@ -1,7 +1,6 @@
 namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
@@ -98,13 +97,14 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Main;
     selected_ = 0;
     scroll_ = 0;
-    detailText_.clear();
+    releaseRows();
     syncLayout();
     render();
   }
 
   void hide() {
     visible_ = false;
+    releaseRows();
     owner_.updateRequired = true;
   }
 
@@ -113,12 +113,17 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
     if (input.wasReleased(MappedInputManager::Button::Back)) {
+      if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+        mode_ = HomeDrawerMode::Recents;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       if (mode_ == HomeDrawerMode::RecentsActions) {
         loadRecents();
         mode_ = HomeDrawerMode::Recents;
         selected_ = 0;
         scroll_ = 0;
-        render(HalDisplay::HALF_REFRESH);
+        render(HalDisplay::FAST_REFRESH);
         return;
       }
       hide();
@@ -126,6 +131,18 @@ class RecentActivity::HomeMenuDrawer {
     }
 
     if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        confirmQuickDeleteRecent();
+      }
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::Recents && input.wasPressed(MappedInputManager::Button::Left)) {
+      openQuickDeleteRecentConfirm();
       return;
     }
 
@@ -194,6 +211,8 @@ class RecentActivity::HomeMenuDrawer {
 
     if (mode_ == HomeDrawerMode::AnnotationDetail) {
       renderDetail();
+    } else if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      renderQuickDeleteConfirm();
     } else {
       renderRows();
     }
@@ -207,6 +226,7 @@ class RecentActivity::HomeMenuDrawer {
     Main,
     Recents,
     RecentsActions,
+    RecentsDeleteConfirm,
     Favorites,
     Bookmarks,
     Annotations,
@@ -249,6 +269,12 @@ class RecentActivity::HomeMenuDrawer {
   DrawerRow selectedBookRow_;
   std::string detailText_;
 
+  void releaseRows() {
+    std::vector<DrawerRow>().swap(rows_);
+    selectedBookRow_ = DrawerRow();
+    std::string().swap(detailText_);
+  }
+
   void syncLayout() {
     const int sw = renderer_.getScreenWidth();
     const int sh = renderer_.getScreenHeight();
@@ -260,12 +286,12 @@ class RecentActivity::HomeMenuDrawer {
     } else if (isHomeDrawerLandscape(renderer_)) {
       drawerW_ = sw / 2;
       drawerX_ = sw - drawerW_;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     } else {
       drawerX_ = 0;
       drawerW_ = sw;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
@@ -273,7 +299,8 @@ class RecentActivity::HomeMenuDrawer {
   }
 
   int headerHeight() const {
-    return mode_ == HomeDrawerMode::Main ? kHomeDrawerHeaderH : kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    return mode_ == HomeDrawerMode::Main ? INX_THEME.mainHeaderHeight()
+                                         : INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
   }
 
   const char* title() const {
@@ -282,6 +309,8 @@ class RecentActivity::HomeMenuDrawer {
         return "Recents";
       case HomeDrawerMode::RecentsActions:
         return "Book options";
+      case HomeDrawerMode::RecentsDeleteConfirm:
+        return "Remove recent";
       case HomeDrawerMode::Favorites:
         return "Favorites";
       case HomeDrawerMode::Bookmarks:
@@ -398,7 +427,7 @@ class RecentActivity::HomeMenuDrawer {
   void renderLoading(const char* header, const char* message) {
     syncLayout();
     renderer_.clearScreen();
-    const int headerH = kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    const int headerH = INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
     const int titleY = (headerH - renderer_.text.getLineHeight(kHomeDrawerHeaderFont)) / 2 + 4;
     renderer_.text.render(kHomeDrawerHeaderFont, kHomeDrawerPadX, titleY, header, true, EpdFontFamily::BOLD);
     renderer_.line.render(0, headerH, renderer_.getScreenWidth(), headerH, true);
@@ -436,6 +465,30 @@ class RecentActivity::HomeMenuDrawer {
       remaining = trimDrawerText(remaining);
       y += lineH;
     }
+  }
+
+  void renderQuickDeleteConfirm() {
+    const int contentTop = drawerY_ + headerHeight();
+    const int centerY = contentTop + (drawerH_ - headerHeight() - 46) / 2;
+    const std::string title =
+        selectedBookRow_.label.empty() ? "Selected book" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                                                    selectedBookRow_.label.c_str(),
+                                                                                    drawerW_ - kHomeDrawerPadX * 2);
+
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, "Remove from recents?", true,
+                            EpdFontFamily::BOLD);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 4, title.c_str(), true,
+                            EpdFontFamily::REGULAR);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, "Book metadata and cache will stay.", true,
+                            EpdFontFamily::REGULAR);
+  }
+
+  void renderQuickDeleteConfirmOnly() {
+    renderer_.rectangle.fill(drawerX_, drawerY_ + headerHeight() + 1, drawerW_,
+                             drawerH_ - headerHeight() - 1, false);
+    renderQuickDeleteConfirm();
+    drawHints();
+    renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
   void renderBookmarkPreview() {
@@ -514,6 +567,18 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
+    if (mode_ == HomeDrawerMode::Recents) {
+      const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
+                               recentLabels.btn3, recentLabels.btn4);
+      return;
+    }
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      const auto confirmLabels = owner_.mappedInput.mapLabels("Cancel", "Remove", "", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
+                               confirmLabels.btn3, confirmLabels.btn4);
+      return;
+    }
     renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
@@ -810,6 +875,32 @@ class RecentActivity::HomeMenuDrawer {
     render();
   }
 
+  void openQuickDeleteRecentConfirm() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    selectedBookRow_ = rows_[selected_];
+    mode_ = HomeDrawerMode::RecentsDeleteConfirm;
+    renderQuickDeleteConfirmOnly();
+  }
+
+  void confirmQuickDeleteRecent() {
+    removeSelectedRecentEntryOnly();
+    owner_.loadRecentBooks(false);
+    loadRecents();
+    mode_ = HomeDrawerMode::Recents;
+    selected_ = 0;
+    scroll_ = 0;
+    render(HalDisplay::FAST_REFRESH);
+  }
+
+  void removeSelectedRecentEntryOnly() {
+    removeSelectedFromRecentIndex();
+    if (!selectedBookRow_.bookPath.empty()) {
+      RECENT_BOOKS.removeBook(selectedBookRow_.bookPath);
+    }
+  }
+
   void applySelectedRecentAction() {
     if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
       return;
@@ -835,7 +926,7 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Recents;
     selected_ = 0;
     scroll_ = 0;
-    render(HalDisplay::HALF_REFRESH);
+    render(HalDisplay::FAST_REFRESH);
   }
 
   void markSelectedBookDone() {

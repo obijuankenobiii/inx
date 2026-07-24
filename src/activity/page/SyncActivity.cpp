@@ -7,6 +7,8 @@
 
 #include <GfxRenderer.h>
 
+#include "activity/network/BackupRestoreActivity.h"
+#include "activity/reader/ImageViewerActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -14,8 +16,9 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 4;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser"};
+constexpr int MENU_ITEM_COUNT = 6;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Manage via wifi", "Connect to calibre", "Create hotspot",
+                                           "OPDS Browser",   "Backup and restore", "Device"};
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
@@ -36,6 +39,11 @@ void SyncActivity::onEnter() {
  * Processes button presses for menu navigation and tab switching.
  */
 void SyncActivity::loop() {
+  if (subActivity) {
+    ActivityWithSubactivity::loop();
+    return;
+  }
+
   if (tabSelectorIndex == 3 && updateRequired) {
     updateRequired = false;
     render();
@@ -84,6 +92,22 @@ void SyncActivity::loop() {
       mode = NetworkMode::OPDS_BROWSER;
     }
 
+    if (selectedIndex == 4) {
+      enterNewActivity(new BackupRestoreActivity(renderer, mappedInput, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
+    if (selectedIndex == 5) {
+      enterNewActivity(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
     if (onModeSelected) {
       onModeSelected(mode);
     }
@@ -119,9 +143,9 @@ void SyncActivity::render() const {
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device connections", true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device Management", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = headerY + headerHeight;
@@ -144,7 +168,8 @@ void SyncActivity::render() const {
       const int titleY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
 
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 30, titleY, "›", !isSelected);
+      const int caretW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "›");
+      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - caretW - 30, titleY, "›", !isSelected);
 
       if (i < MENU_ITEM_COUNT - 1) {
         renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
@@ -162,4 +187,4 @@ void SyncActivity::render() const {
 /**
  * Lifecycle hook called when exiting the activity.
  */
-void SyncActivity::onExit() { Activity::onExit(); }
+void SyncActivity::onExit() { ActivityWithSubactivity::onExit(); }

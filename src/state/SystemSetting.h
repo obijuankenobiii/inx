@@ -281,10 +281,32 @@ class SystemSetting {
     READER_PAGE_TURN = 0,     ///< Turn page
     READER_PAGE_REFRESH = 1,  ///< Refresh screen
     READER_ANNOTATE = 2,      ///< Enter EPUB highlight / annotation mode
+    READER_DICTIONARY = 3,    ///< Enter EPUB dictionary lookup mode
     READER_SHORT_PWRBTN_COUNT
   };
 
   enum XTC_SHORT_PWRBTN { XTC_POWER_NEXT = 0, XTC_POWER_PAGE_REFRESH = 1, XTC_SHORT_PWRBTN_COUNT };
+
+  /**
+   * @brief Action assignable to a reader button's short or long press. Supersedes the older, more
+   * bespoke readerDirectionMapping/longPressChapterSkip/readerMenuButton settings, which stay for
+   * serialization backward-compat but are no longer surfaced in the settings UI or consulted by the
+   * reader - see ReaderButtonBindings.
+   */
+  enum READER_BUTTON_ACTION {
+    BTN_ACTION_NONE = 0,
+    BTN_ACTION_PAGE_NEXT,
+    BTN_ACTION_PAGE_PREVIOUS,
+    BTN_ACTION_OPEN_SETTINGS,
+    BTN_ACTION_ANNOTATE,
+    BTN_ACTION_DICTIONARY,
+    BTN_ACTION_PAGE_REFRESH,
+    BTN_ACTION_CHAPTER_SKIP_NEXT,
+    BTN_ACTION_CHAPTER_SKIP_PREVIOUS,
+    BTN_ACTION_BOOKMARK,
+    BTN_ACTION_TABLE_OF_CONTENTS,
+    READER_BUTTON_ACTION_COUNT
+  };
 
   /**
    * @brief Battery percentage display options
@@ -303,7 +325,7 @@ class SystemSetting {
     RECENT_GRID = 0,             ///< Grid view
     RECENT_LIST_DEPRECATED = 1,  ///< Removed mode; kept as a saved-settings alias for Flow
     RECENT_FLOW = 2,             ///< Flow carousel
-    RECENT_SIMPLE = 3,           ///< Simple: recent cover on top, favorites list below
+    RECENT_SIMPLE = 3,           ///< Legacy Simple mode; mapped to Flow
     RECENT_BOOK_LIST = 4,        ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
     RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
     RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress
@@ -381,6 +403,22 @@ class SystemSetting {
   uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
   uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
   uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
+  /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
+  char dictionaryFolder[64] = "";
+
+  /** Per-button reader action mapping (READER_BUTTON_ACTION values). Side Up/Down are always the
+   *  raw Up/Down buttons regardless of device (X4: physically a vertical rocker; X3: physically
+   *  horizontal, but the same BTN_UP/BTN_DOWN signals) - Front Left/Right are the separate front row,
+   *  present and independent on both devices. Defaults match the pre-existing default reading
+   *  behavior (side pager + chapter-skip long-press, front pager, no long-press). */
+  uint8_t btnUpShortAction = BTN_ACTION_PAGE_PREVIOUS;
+  uint8_t btnUpLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
+  uint8_t btnDownShortAction = BTN_ACTION_PAGE_NEXT;
+  uint8_t btnDownLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+  uint8_t btnLeftShortAction = BTN_ACTION_PAGE_PREVIOUS;
+  uint8_t btnLeftLongAction = BTN_ACTION_NONE;
+  uint8_t btnRightShortAction = BTN_ACTION_PAGE_NEXT;
+  uint8_t btnRightLongAction = BTN_ACTION_NONE;
 
   uint8_t orientation = PORTRAIT;  ///< Screen orientation
 
@@ -392,11 +430,11 @@ class SystemSetting {
   uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
   uint8_t uiTheme = UI_THEME_CLASSIC;         ///< UI chrome theme
 
-  uint8_t fontFamily = LITERATA;           ///< Font family
-  uint8_t fontSize = SMALL;                ///< Font size
-  uint8_t lineHeight = 100;                ///< Reader line height, % of natural (10-200)
-  uint8_t textSpace = 100;                 ///< Reader word spacing, % of natural (10-200)
-  uint8_t paragraphAlignment = JUSTIFIED;  ///< Paragraph alignment
+  uint8_t fontFamily = LITERATA;            ///< Font family
+  uint8_t fontSize = SMALL;                 ///< Font size
+  uint8_t lineHeight = 100;                 ///< Reader line height, % of natural (10-200)
+  uint8_t textSpace = 100;                  ///< Reader word spacing, % of natural (10-200)
+  uint8_t paragraphAlignment = FOLLOW_CSS;  ///< Paragraph alignment
   /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
   uint8_t paragraphCssIndentEnabled = 0;
 
@@ -406,7 +444,7 @@ class SystemSetting {
   uint8_t hyphenationEnabled = 1;         ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;       ///< Bionic Reading enabled
 
-  uint8_t screenMargin = 20;  ///< Screen margin in pixels
+  uint8_t screenMargin = 10;  ///< Screen margin in pixels
 
   char opdsServerUrl[128] = "";  ///< OPDS server URL
   char opdsUsername[64] = "";    ///< OPDS username

@@ -14,8 +14,10 @@
 #include <vector>
 
 #include "EpubAnnotationUi.h"
+#include "EpubDictionaryUi.h"
 #include "EpubReadingStats.h"
 #include "MenuDrawer.h"
+#include "ReaderButtonBindings.h"
 #include "SettingsDrawer.h"
 #include "StatusBar.h"
 #include "activity/ActivityWithSubactivity.h"
@@ -41,6 +43,8 @@ struct ViewportInfo {
  */
 class EpubActivity final : public ActivityWithSubactivity {
   friend class EpubAnnotationUi;
+  friend class EpubDictionaryUi;
+  friend class ReaderButtonBindings;
 
  public:
   /**
@@ -183,9 +187,20 @@ class EpubActivity final : public ActivityWithSubactivity {
   void loadProgress();
 
   /**
+   * Lazily constructs and wires up menuDrawer, without changing its visibility. Shared by
+   * toggleMenuDrawer() and openTableOfContents().
+   */
+  void ensureMenuDrawer();
+
+  /**
    * Toggles the menu drawer visibility.
    */
   void toggleMenuDrawer();
+
+  /**
+   * Opens the menu drawer directly to its Table of Contents view, skipping the main menu list.
+   */
+  void openTableOfContents();
 
   /**
    * Toggles the settings drawer visibility.
@@ -268,6 +283,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   void drawBookmarkIndicator();
 
   EpubAnnotationUi annUi_;
+  EpubDictionaryUi dictUi_;
+  ReaderButtonBindings btnBindings_;
 
   /**
    * Applies current book settings and rebuilds affected sections.

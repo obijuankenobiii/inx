@@ -70,6 +70,11 @@ void ReaderPresetStore::load() {
   f.close();
 }
 
+void ReaderPresetStore::reload() {
+  loaded_ = false;
+  load();
+}
+
 bool ReaderPresetStore::save() {
   SdMan.mkdir(kDir);
 
