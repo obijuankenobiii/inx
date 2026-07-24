@@ -334,7 +334,7 @@ bool StarDictLookup::lookupViaLinearScan(const std::string& candidateLower, uint
   return false;
 }
 
-bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefinition) {
+bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefinition, bool* outTruncated) {
   if (!isOpen_) {
     Serial.printf("[%lu] [DICT] lookup('%s'): dictionary not open\n", millis(), queryWord.c_str());
     return false;
@@ -386,11 +386,15 @@ bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefini
                   static_cast<unsigned long long>(dictOffset));
     return false;
   }
-  outDefinition.resize(dictSize);
-  const int readN = dictFile_.read(&outDefinition[0], dictSize);
-  if (readN != static_cast<int>(dictSize)) {
+  const uint32_t readSize = std::min(dictSize, kMaxDefinitionBytes);
+  if (outTruncated) {
+    *outTruncated = readSize < dictSize;
+  }
+  outDefinition.resize(readSize);
+  const int readN = dictFile_.read(&outDefinition[0], readSize);
+  if (readN != static_cast<int>(readSize)) {
     Serial.printf("[%lu] [DICT] lookup('%s'): read %d of %u expected bytes\n", millis(), queryWord.c_str(), readN,
-                  dictSize);
+                  readSize);
     return false;
   }
   return true;

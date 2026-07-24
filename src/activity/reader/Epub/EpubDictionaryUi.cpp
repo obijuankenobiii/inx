@@ -27,11 +27,6 @@ constexpr unsigned long kNavRepeatIntervalMs = 95;
 // rendered at) and drawDefinitionPanel() (to size/draw the panel itself).
 constexpr int kDefinitionPanelMargin = 16;
 constexpr int kDefinitionPanelPad = 20;
-// Hard cap on how much raw definition text gets parsed/laid out. A big scholarly dictionary entry can
-// be 10+KB of HTML, which produces thousands of small string/vector allocations in the parser and
-// layout below - that was intermittently crashing (heap exhaustion) on the ESP32-C3. This is already
-// far more than fits on the panel even with scrolling, so truncating costs nothing in practice.
-constexpr size_t kMaxDefinitionRawBytes = 4000;
 
 std::string stripSurroundingPunctuation(const std::string& s) {
   size_t start = 0;
@@ -543,6 +538,7 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
   currentDefinition_.clear();
   definitionScrollLine_ = 0;
 
+  bool truncated = false;
   if (lookedUpWord_.empty()) {
     currentDefinition_ = "Nothing to look up.";
   } else if (SETTINGS.dictionaryFolder[0] == '\0') {
@@ -556,12 +552,11 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
     ensureDictionaryOpen();
     if (!dict_.isOpen()) {
       currentDefinition_ = "Could not open the selected dictionary.";
-    } else if (!dict_.lookup(lookedUpWord_, currentDefinition_)) {
+    } else if (!dict_.lookup(lookedUpWord_, currentDefinition_, &truncated)) {
       currentDefinition_ = "No definition found.";
     }
   }
-  if (currentDefinition_.size() > kMaxDefinitionRawBytes) {
-    currentDefinition_.resize(kMaxDefinitionRawBytes);
+  if (truncated) {
     // Back off from a cut that landed mid-UTF-8-codepoint (dictionaries are full of accented
     // letters, IPA symbols, en/em dashes) so we never hand a malformed byte sequence to the parser.
     while (!currentDefinition_.empty()) {

@@ -33,9 +33,17 @@ class StarDictLookup {
 
   const std::string& bookname() const { return bookname_; }
 
+  /** Hard cap on how many raw definition bytes are read from the .dict file (and thus allocated) per
+   *  lookup. Some entries in large scholarly dictionaries run 50KB+ of HTML, which can fail to
+   *  allocate on the ESP32-C3's fragmented heap and abort() the whole firmware. Definitions this long
+   *  never fit the reader's definition panel anyway, so capping the read avoids ever attempting the
+   *  huge allocation in the first place. */
+  static constexpr uint32_t kMaxDefinitionBytes = 4000;
+
   /** Looks up queryWord (exact match, then case-insensitive fallback). Returns true and fills
-   *  outDefinition on success. */
-  bool lookup(const std::string& queryWord, std::string& outDefinition);
+   *  outDefinition (capped to kMaxDefinitionBytes raw bytes) on success. If outTruncated is non-null,
+   *  set to whether the on-disk definition was larger than the cap. */
+  bool lookup(const std::string& queryWord, std::string& outDefinition, bool* outTruncated = nullptr);
 
  private:
   // Field named entryText, not "word" - Arduino.h #defines a function-like macro `word(...)`
