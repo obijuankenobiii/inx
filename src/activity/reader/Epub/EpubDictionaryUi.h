@@ -34,6 +34,32 @@ struct DefinitionBlock {
   std::vector<DefinitionTextRun> runs;
 };
 
+/** One atom to render within a wrapped line: a word (or word fragment, if a style change happened
+ *  mid-word) in one style, or a hard line break with text empty. spaceBefore marks whether a space
+ *  should be rendered/measured before it when it's not the first atom on a line. */
+struct DefinitionTextAtom {
+  DefinitionTextAtom() = default;
+  DefinitionTextAtom(std::string t, EpdFontFamily::Style s, bool hb, bool sb)
+      : text(std::move(t)), style(s), hardBreak(hb), spaceBefore(sb) {}
+
+  std::string text;
+  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
+  bool hardBreak = false;
+  bool spaceBefore = false;
+};
+
+/** One already-wrapped, already-styled line ready to render in the definition panel. */
+struct DefinitionStyledLine {
+  DefinitionStyledLine() = default;
+  DefinitionStyledLine(std::vector<DefinitionTextAtom> a, int f, int indent, int gap)
+      : atoms(std::move(a)), fontId(f), indentPx(indent), extraGapBeforePx(gap) {}
+
+  std::vector<DefinitionTextAtom> atoms;
+  int fontId = 0;
+  int indentPx = 0;
+  int extraGapBeforePx = 0;
+};
+
 /**
  * Dictionary lookup UI: chord entry, D-pad word navigation, framebuffer capture/repaint, and an
  * on-SD StarDict lookup - same interaction shape as EpubAnnotationUi (see that file), but without
@@ -75,6 +101,11 @@ class EpubDictionaryUi {
   std::string lookedUpWord_;
   std::string currentDefinition_;
   std::vector<DefinitionBlock> definitionBlocks_;
+  // Wrapped/styled once per lookup in performLookup() (not per-frame in drawDefinitionPanel) - a
+  // large HTML definition (a big scholarly dictionary entry can be 10+KB of markup) produces
+  // thousands of small string/vector allocations, which was crashing on repeated re-layout (e.g. one
+  // extra full re-parse+re-layout per scroll press) under heap pressure on the ESP32-C3.
+  std::vector<DefinitionStyledLine> definitionLines_;
   size_t definitionScrollLine_ = 0;
   bool definitionScrollable_ = false;
 

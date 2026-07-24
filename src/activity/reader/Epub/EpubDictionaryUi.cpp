@@ -23,6 +23,16 @@ constexpr unsigned long kNavEdgeDebounceMs = 130;
 constexpr unsigned long kNavRepeatInitialMs = 700;
 constexpr unsigned long kNavRepeatIntervalMs = 95;
 
+// Shared between performLookup() (to lay out definitionLines_ once, at the width it'll actually be
+// rendered at) and drawDefinitionPanel() (to size/draw the panel itself).
+constexpr int kDefinitionPanelMargin = 16;
+constexpr int kDefinitionPanelPad = 20;
+// Hard cap on how much raw definition text gets parsed/laid out. A big scholarly dictionary entry can
+// be 10+KB of HTML, which produces thousands of small string/vector allocations in the parser and
+// layout below - that was intermittently crashing (heap exhaustion) on the ESP32-C3. This is already
+// far more than fits on the panel even with scrolling, so truncating costs nothing in practice.
+constexpr size_t kMaxDefinitionRawBytes = 4000;
+
 std::string stripSurroundingPunctuation(const std::string& s) {
   size_t start = 0;
   size_t end = s.size();
@@ -235,32 +245,18 @@ std::vector<DefinitionBlock> parseHtmlToBlocks(const std::string& html) {
   return blocks;
 }
 
-/** One atom to render within a wrapped line: a word (or word fragment, if a style change happened
- *  mid-word) in one style, or a hard line break with text empty. spaceBefore marks whether a space
- *  should be rendered/measured before it when it's not the first atom on a line. */
-struct TextAtom {
-  TextAtom() = default;
-  TextAtom(std::string t, EpdFontFamily::Style s, bool hb, bool sb)
-      : text(std::move(t)), style(s), hardBreak(hb), spaceBefore(sb) {}
-
-  std::string text;
-  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
-  bool hardBreak = false;
-  bool spaceBefore = false;
-};
-
 /** Splits a block's style runs into atoms (words, carrying their run's style) plus hard-break atoms
  *  for embedded '\n's, tracking whether each atom had a space before it (false only when two runs
  *  are glued together with no space between them, e.g. a style change mid-word). */
-std::vector<TextAtom> tokenizeBlock(const DefinitionBlock& block) {
-  std::vector<TextAtom> atoms;
+std::vector<DefinitionTextAtom> tokenizeBlock(const DefinitionBlock& block) {
+  std::vector<DefinitionTextAtom> atoms;
   bool pendingSpace = false;
   bool isFirstAtom = true;
   for (const DefinitionTextRun& run : block.runs) {
     size_t i = 0;
     while (i < run.text.size()) {
       if (run.text[i] == '\n') {
-        atoms.push_back(TextAtom{"", EpdFontFamily::REGULAR, true, false});
+        atoms.push_back(DefinitionTextAtom{"", EpdFontFamily::REGULAR, true, false});
         ++i;
         pendingSpace = false;
         isFirstAtom = true;
@@ -275,7 +271,7 @@ std::vector<TextAtom> tokenizeBlock(const DefinitionBlock& block) {
       while (i < run.text.size() && run.text[i] != ' ' && run.text[i] != '\n') {
         ++i;
       }
-      TextAtom atom;
+      DefinitionTextAtom atom;
       atom.text = run.text.substr(start, i - start);
       atom.style = run.style;
       atom.spaceBefore = !isFirstAtom && pendingSpace;
@@ -287,20 +283,13 @@ std::vector<TextAtom> tokenizeBlock(const DefinitionBlock& block) {
   return atoms;
 }
 
-/** One already-wrapped, already-styled line ready to render in the definition panel. */
-struct StyledLine {
-  std::vector<TextAtom> atoms;
-  int fontId;
-  int indentPx;
-  int extraGapBeforePx;
-};
-
 /** Greedy word-wrap of a block's atoms into lines no wider than maxWidth, breaking only where an
  *  atom has spaceBefore (or at a hard break) so mid-word style changes never split across lines. */
-std::vector<StyledLine> wrapAtomsToWidth(const GfxRenderer& renderer, const std::vector<TextAtom>& atoms,
-                                         const int fontId, const int indentPx, const int maxWidth) {
-  std::vector<StyledLine> lines;
-  StyledLine current{{}, fontId, indentPx, 0};
+std::vector<DefinitionStyledLine> wrapAtomsToWidth(const GfxRenderer& renderer,
+                                                   const std::vector<DefinitionTextAtom>& atoms, const int fontId,
+                                                   const int indentPx, const int maxWidth) {
+  std::vector<DefinitionStyledLine> lines;
+  DefinitionStyledLine current{{}, fontId, indentPx, 0};
   int currentWidth = 0;
   const int spaceW = renderer.text.getSpaceWidth(fontId);
 
@@ -308,11 +297,11 @@ std::vector<StyledLine> wrapAtomsToWidth(const GfxRenderer& renderer, const std:
     if (!current.atoms.empty()) {
       lines.push_back(std::move(current));
     }
-    current = StyledLine{{}, fontId, indentPx, 0};
+    current = DefinitionStyledLine{{}, fontId, indentPx, 0};
     currentWidth = 0;
   };
 
-  for (const TextAtom& atom : atoms) {
+  for (const DefinitionTextAtom& atom : atoms) {
     if (atom.hardBreak) {
       flushLine();
       continue;
@@ -321,7 +310,7 @@ std::vector<StyledLine> wrapAtomsToWidth(const GfxRenderer& renderer, const std:
     const int extra = (atom.spaceBefore && !current.atoms.empty()) ? spaceW : 0;
     if (!current.atoms.empty() && currentWidth + extra + atomW > maxWidth) {
       flushLine();
-      TextAtom first = atom;
+      DefinitionTextAtom first = atom;
       first.spaceBefore = false;
       currentWidth = atomW;
       current.atoms.push_back(std::move(first));
@@ -349,12 +338,13 @@ int fontIdForBlock(const DefinitionBlock& block) {
 
 /** Flattens parsed HTML blocks into wrapped, styled lines with per-block font/indent/bullet, each
  *  narrowed to maxWidth (minus that block's indent) at its own font. */
-std::vector<StyledLine> layoutDefinitionBlocks(const GfxRenderer& renderer,
-                                               const std::vector<DefinitionBlock>& blocks, const int maxWidth) {
+std::vector<DefinitionStyledLine> layoutDefinitionBlocks(const GfxRenderer& renderer,
+                                                         const std::vector<DefinitionBlock>& blocks,
+                                                         const int maxWidth) {
   constexpr int kListIndentPx = 14;
   constexpr int kBlockGapPx = 4;
 
-  std::vector<StyledLine> styledLines;
+  std::vector<DefinitionStyledLine> styledLines;
   for (size_t bi = 0; bi < blocks.size(); ++bi) {
     const DefinitionBlock& block = blocks[bi];
     const int fontId = fontIdForBlock(block);
@@ -362,7 +352,7 @@ std::vector<StyledLine> layoutDefinitionBlocks(const GfxRenderer& renderer,
 
     auto atoms = tokenizeBlock(block);
     if (block.kind == DefinitionBlockKind::ListItem && !atoms.empty()) {
-      atoms.insert(atoms.begin(), TextAtom{"\xE2\x80\xA2", EpdFontFamily::REGULAR, false, false});
+      atoms.insert(atoms.begin(), DefinitionTextAtom{"\xE2\x80\xA2", EpdFontFamily::REGULAR, false, false});
       atoms[1].spaceBefore = true;
     }
 
@@ -514,6 +504,7 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
   lookedUpWord_.clear();
   currentDefinition_.clear();
   definitionBlocks_.clear();
+  definitionLines_.clear();
   definitionScrollLine_ = 0;
   definitionScrollable_ = false;
   words_.clear();
@@ -569,9 +560,30 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
       currentDefinition_ = "No definition found.";
     }
   }
+  if (currentDefinition_.size() > kMaxDefinitionRawBytes) {
+    currentDefinition_.resize(kMaxDefinitionRawBytes);
+    // Back off from a cut that landed mid-UTF-8-codepoint (dictionaries are full of accented
+    // letters, IPA symbols, en/em dashes) so we never hand a malformed byte sequence to the parser.
+    while (!currentDefinition_.empty()) {
+      const auto last = static_cast<unsigned char>(currentDefinition_.back());
+      if ((last & 0xC0) == 0x80) {
+        currentDefinition_.pop_back();  // continuation byte - still mid-sequence
+        continue;
+      }
+      if (last >= 0xC0) {
+        currentDefinition_.pop_back();  // orphaned lead byte - its continuation got cut off
+      }
+      break;
+    }
+    currentDefinition_ += " \xE2\x80\xA6";
+  }
   // Plain fallback messages above have no tags, so this is a no-op for them - it only does real work
   // for an actual HTML definition. Keeps drawDefinitionPanel() dealing with a single block list always.
   definitionBlocks_ = parseHtmlToBlocks(currentDefinition_);
+  // Laid out once here (not per-frame in drawDefinitionPanel) - see kMaxDefinitionRawBytes comment.
+  const int textWidth =
+      (act.renderer.getScreenWidth() - kDefinitionPanelMargin * 2) - kDefinitionPanelPad * 2;
+  definitionLines_ = layoutDefinitionBlocks(act.renderer, definitionBlocks_, textWidth);
   showingDefinition_ = true;
   act.updateRequired = true;
 }
@@ -785,8 +797,8 @@ void EpubDictionaryUi::drawFocusHighlight(EpubActivity& act) {
 void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   const int screenW = act.renderer.getScreenWidth();
   const int screenH = act.renderer.getScreenHeight();
-  constexpr int margin = 16;
-  constexpr int pad = 20;
+  constexpr int margin = kDefinitionPanelMargin;
+  constexpr int pad = kDefinitionPanelPad;
   const int panelX = margin;
   const int panelW = screenW - margin * 2;
   const int panelBottom = screenH - margin - 40;  // leave room for the button-hint row below
@@ -795,11 +807,11 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
 
   const int titleFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
   const int titleH = act.renderer.text.getLineHeight(titleFontId);
-  const int textWidth = panelW - pad * 2;
-  const auto styledLines = layoutDefinitionBlocks(act.renderer, definitionBlocks_, textWidth);
+  // definitionLines_ is computed once per lookup (performLookup()), not recomputed here every frame.
+  const auto& styledLines = definitionLines_;
 
   int contentH = 0;
-  for (const StyledLine& sl : styledLines) {
+  for (const DefinitionStyledLine& sl : styledLines) {
     contentH += act.renderer.text.getLineHeight(sl.fontId) + sl.extraGapBeforePx;
   }
 
@@ -846,7 +858,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   definitionScrollLine_ = std::min(definitionScrollLine_, static_cast<size_t>(maxScrollLine));
 
   for (size_t i = definitionScrollLine_; i < styledLines.size(); ++i) {
-    const StyledLine& sl = styledLines[i];
+    const DefinitionStyledLine& sl = styledLines[i];
     const int lineH = act.renderer.text.getLineHeight(sl.fontId);
     const int gap = (i == definitionScrollLine_) ? 0 : sl.extraGapBeforePx;
     if (y + gap + lineH > contentBottom) {
@@ -856,7 +868,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
     int x = panelX + pad + sl.indentPx;
     const int spaceW = act.renderer.text.getSpaceWidth(sl.fontId);
     for (size_t ai = 0; ai < sl.atoms.size(); ++ai) {
-      const TextAtom& atom = sl.atoms[ai];
+      const DefinitionTextAtom& atom = sl.atoms[ai];
       if (ai > 0 && atom.spaceBefore) {
         x += spaceW;
       }
