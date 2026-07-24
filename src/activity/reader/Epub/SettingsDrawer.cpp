@@ -526,6 +526,8 @@ void SettingsDrawer::setupMenu() {
           return "Page Refresh";
         case SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE:
           return "Annotate";
+        case SystemSetting::READER_SHORT_PWRBTN::READER_DICTIONARY:
+          return "Dictionary";
         default:
           return "Page Turn";
       }

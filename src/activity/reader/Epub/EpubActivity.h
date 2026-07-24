@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "EpubAnnotationUi.h"
+#include "EpubDictionaryUi.h"
 #include "EpubReadingStats.h"
 #include "MenuDrawer.h"
 #include "SettingsDrawer.h"
@@ -41,6 +42,7 @@ struct ViewportInfo {
  */
 class EpubActivity final : public ActivityWithSubactivity {
   friend class EpubAnnotationUi;
+  friend class EpubDictionaryUi;
 
  public:
   /**
@@ -268,6 +270,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void drawBookmarkIndicator();
 
   EpubAnnotationUi annUi_;
+  EpubDictionaryUi dictUi_;
 
   /**
    * Applies current book settings and rebuilds affected sections.

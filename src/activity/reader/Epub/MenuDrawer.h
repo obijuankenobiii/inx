@@ -22,6 +22,7 @@ class MenuDrawer {
   enum class MenuAction {
     SHOW_BOOKMARKS,
     SHOW_ANNOTATIONS,
+    ENTER_DICTIONARY,
     SELECT_CHAPTER,
     GO_TO_PERCENT,
     KOREADER_SYNC,

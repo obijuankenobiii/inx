@@ -281,6 +281,7 @@ class SystemSetting {
     READER_PAGE_TURN = 0,     ///< Turn page
     READER_PAGE_REFRESH = 1,  ///< Refresh screen
     READER_ANNOTATE = 2,      ///< Enter EPUB highlight / annotation mode
+    READER_DICTIONARY = 3,    ///< Enter EPUB dictionary lookup mode
     READER_SHORT_PWRBTN_COUNT
   };
 
@@ -381,6 +382,8 @@ class SystemSetting {
   uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
   uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
   uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
+  /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
+  char dictionaryFolder[64] = "";
 
   uint8_t orientation = PORTRAIT;  ///< Screen orientation
 

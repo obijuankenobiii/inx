@@ -112,6 +112,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   menuItems.push_back({"Go To Percent", MenuAction::GO_TO_PERCENT});
   menuItems.push_back({"Show Bookmarks", MenuAction::SHOW_BOOKMARKS});
   menuItems.push_back({"Annotations", MenuAction::SHOW_ANNOTATIONS});
+  menuItems.push_back({"Dictionary", MenuAction::ENTER_DICTIONARY});
   menuItems.push_back({"KOReader Sync", MenuAction::KOREADER_SYNC});
   menuItems.push_back({"Delete Cache", MenuAction::DELETE_CACHE});
   menuItems.push_back({"Delete Progress", MenuAction::DELETE_PROGRESS});

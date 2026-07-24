@@ -20,6 +20,7 @@
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
+#include "DictionaryPickerActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
@@ -377,6 +378,13 @@ void CategorySettingsActivity::setupMenu() {
             if (strcmp(settingPtr->name, "Check for updates") == 0) {
               exitActivity();
               enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
+                exitActivity();
+                updateRequired = true;
+              }));
+            }
+            if (strcmp(settingPtr->name, "Choose dictionary") == 0) {
+              exitActivity();
+              enterNewActivity(new DictionaryPickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));

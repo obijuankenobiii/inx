@@ -742,6 +742,18 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (dictUi_.isActive()) {
+    dictUi_.handleInput(*this);
+    if (updateRequired && dictUi_.isActive()) {
+      updateRequired = false;
+      dictUi_.repaint(*this);
+    } else if (updateRequired) {
+      updateRequired = false;
+      renderScreen(true);
+    }
+    return;
+  }
+
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
     return;
@@ -804,6 +816,7 @@ void EpubActivity::loop() {
 
   if (section && epub && !menuDrawerVisible && !settingsDrawerVisible) {
     annUi_.tryChordEnter(*this);
+    dictUi_.tryChordEnter(*this);
   }
 
   if (mappedInput.isPressed(menuBtn) && mappedInput.getHeldTime() >= 500) {
@@ -914,6 +927,13 @@ void EpubActivity::loop() {
       SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE) {
     pauseReadingStats();
     annUi_.enter(*this);
+    return;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_DICTIONARY) {
+    pauseReadingStats();
+    dictUi_.enter(*this);
     return;
   }
 
@@ -1042,6 +1062,9 @@ void EpubActivity::toggleMenuDrawer() {
             case MenuDrawer::MenuAction::SHOW_BOOKMARKS:
               break;
             case MenuDrawer::MenuAction::SHOW_ANNOTATIONS:
+              break;
+            case MenuDrawer::MenuAction::ENTER_DICTIONARY:
+              dictUi_.enter(*this);
               break;
             case MenuDrawer::MenuAction::SELECT_CHAPTER:
               break;
@@ -1910,6 +1933,8 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   if (annUi_.isActive()) {
     annUi_.drawUiOverlay(*this);
+  } else if (dictUi_.isActive()) {
+    dictUi_.drawUiOverlay(*this);
   } else if (!annUi_.storedRanges().empty()) {
     annUi_.drawStoredOverlay(*this);
   } else if (highQuality && bwStored) {

@@ -41,14 +41,14 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 31;
-// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 68, through
-// libraryShelfEnabled - NOT counting the version/count header fields read separately before the loop). This
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 69, through
+// dictionaryFolder - NOT counting the version/count header fields read separately before the loop). This
 // is written into the file as its own "how many fields do I contain" header and read back as
 // fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to know whether the tail
 // fields are actually present. If it's wrong, either the tail fields never get read back even though they
 // were written (undercount), or the file never triggers the self-healing rewrite on old-format files
 // (overcount, since fileSettingsCount can never reach it).
-constexpr uint8_t SETTINGS_COUNT = 68;
+constexpr uint8_t SETTINGS_COUNT = 69;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -217,6 +217,7 @@ uint32_t settingsHash(const SystemSetting& settings, const uint8_t fontFamilyToS
   hashPod(hash, settings.shakePageTurnSensitivity);
   hashPod(hash, settings.uiTheme);
   hashPod(hash, settings.libraryShelfEnabled);
+  hashString(hash, settings.dictionaryFolder);
   return hash;
 }
 }  // namespace
@@ -354,6 +355,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, shakePageTurnSensitivity);
   serialization::writePod(outputFile, uiTheme);
   serialization::writePod(outputFile, libraryShelfEnabled);
+  serialization::writeString(outputFile, std::string(dictionaryFolder));
 
   outputFile.close();
   saveUiThemeSetting(uiTheme);
@@ -714,6 +716,13 @@ bool SystemSetting::loadFromFile() {
       if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      std::string dictFolderStr;
+      serialization::readString(inputFile, dictFolderStr);
+      strncpy(dictionaryFolder, dictFolderStr.c_str(), sizeof(dictionaryFolder) - 1);
+      dictionaryFolder[sizeof(dictionaryFolder) - 1] = '\0';
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -749,6 +758,9 @@ bool SystemSetting::loadFromFile() {
   }
   if (settingsRead < 68) {
     libraryShelfEnabled = 0;
+  }
+  if (settingsRead < 69) {
+    dictionaryFolder[0] = '\0';
   }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 9) {
