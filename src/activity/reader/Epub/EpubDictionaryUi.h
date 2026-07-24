@@ -1,5 +1,6 @@
 #pragma once
 
+#include <EpdFontFamily.h>
 #include <Epub/PageWordIndex.h>
 
 #include <cstddef>
@@ -14,12 +15,23 @@ class EpubActivity;
 
 enum class DefinitionBlockKind : uint8_t { Paragraph, Heading, ListItem };
 
+/** A run of text within a block that shares one font style (bold/italic/bold-italic/regular, from
+ *  nested <b>/<strong>/<i>/<em> tags). May contain '\n' from <br>. */
+struct DefinitionTextRun {
+  DefinitionTextRun() = default;
+  DefinitionTextRun(std::string t, EpdFontFamily::Style s) : text(std::move(t)), style(s) {}
+
+  std::string text;
+  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
+};
+
 /** One block-level chunk of a parsed StarDict "h" (HTML) definition - a paragraph, heading, or list
- *  item, laid out with its own font/indent at render time. text may still contain '\n' from <br>. */
+ *  item, laid out with its own font size/indent at render time; each run within it may still carry
+ *  its own bold/italic style. */
 struct DefinitionBlock {
   DefinitionBlockKind kind = DefinitionBlockKind::Paragraph;
   int headingLevel = 1;  // 1-6, only meaningful when kind == Heading
-  std::string text;
+  std::vector<DefinitionTextRun> runs;
 };
 
 /**
@@ -63,6 +75,8 @@ class EpubDictionaryUi {
   std::string lookedUpWord_;
   std::string currentDefinition_;
   std::vector<DefinitionBlock> definitionBlocks_;
+  size_t definitionScrollLine_ = 0;
+  bool definitionScrollable_ = false;
 
   static constexpr size_t kCaptureChunkBytes = 8000;
   std::vector<std::unique_ptr<uint8_t[]>> captureChunks_{};
