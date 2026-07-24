@@ -32,6 +32,11 @@ bool folderLooksLikeDictionary(const std::string& folderPath) {
     if (!file.isDirectory()) {
       char name[160] = {};
       file.getName(name, sizeof(name));
+      // Skip macOS AppleDouble sidecar junk ("._real.idx" etc), same as StarDictLookup::open().
+      if (name[0] == '.') {
+        file.close();
+        continue;
+      }
       if (StringUtils::checkFileExtension(std::string(name), ".idx")) {
         hasIdx = true;
       } else if (StringUtils::checkFileExtension(std::string(name), ".dict")) {

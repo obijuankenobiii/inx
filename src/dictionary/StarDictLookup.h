@@ -49,12 +49,22 @@ class StarDictLookup {
   bool parseIfo(const std::string& ifoPath);
   bool buildCheckpoints();
   /** Reads one variable-length .idx entry at idxOffset. Returns false on read failure/EOF.
-   *  nextOffset is the file offset immediately after this entry (for linear-scan advancement). */
-  bool readIdxEntryAt(uint32_t idxOffset, std::string& outEntryText, uint32_t& outDictOffset, uint32_t& outDictSize,
+   *  nextOffset is the file offset immediately after this entry (for linear-scan advancement).
+   *  The dict-offset field is 4 or 8 bytes on disk depending on the .ifo's idxoffsetbits (see
+   *  use64BitOffsets_ below), hence outDictOffset being 64-bit here. */
+  bool readIdxEntryAt(uint32_t idxOffset, std::string& outEntryText, uint64_t& outDictOffset, uint32_t& outDictSize,
                       uint32_t& outNextOffset);
   /** Case-insensitive-first comparison matching StarDict's default collation closely enough for
    *  practical lookup; returns <0, 0, >0. */
   static int compareWord(const std::string& a, const std::string& b);
+  /** Checkpoint-based binary search + bounded scan, assuming .idx is sorted in plain byte order
+   *  (the documented StarDict convention). Returns true/fills offsets on an exact match. */
+  bool lookupViaCheckpoints(const std::string& candidate, uint64_t& outDictOffset, uint32_t& outDictSize);
+  /** Full sequential scan of .idx, case-insensitive. Slower but correct regardless of the actual
+   *  on-disk sort order - many third-party-generated StarDict files don't follow the spec's byte-
+   *  order sort (e.g. case-insensitive sort instead), which silently breaks the checkpoint binary
+   *  search above. Used only as a fallback when the fast path finds nothing. */
+  bool lookupViaLinearScan(const std::string& candidate, uint64_t& outDictOffset, uint32_t& outDictSize);
 
   bool isOpen_ = false;
   FsFile idxFile_;
@@ -63,6 +73,10 @@ class StarDictLookup {
   std::string sameTypeSequence_;
   uint32_t wordCount_ = 0;
   uint32_t idxFileSize_ = 0;
+  // Whether .idx dict-offset fields are 8 bytes (idxoffsetbits=64 in .ifo) instead of the default 4.
+  // Large dictionaries (multi-GB .dict files) need this; getting it wrong misaligns every entry
+  // after the first, since the offset/size fields are fixed-width but the preceding word isn't.
+  bool use64BitOffsets_ = false;
   std::vector<Checkpoint> checkpoints_;
 
   static constexpr uint32_t kCheckpointStride = 256;

@@ -12,6 +12,16 @@
 
 class EpubActivity;
 
+enum class DefinitionBlockKind : uint8_t { Paragraph, Heading, ListItem };
+
+/** One block-level chunk of a parsed StarDict "h" (HTML) definition - a paragraph, heading, or list
+ *  item, laid out with its own font/indent at render time. text may still contain '\n' from <br>. */
+struct DefinitionBlock {
+  DefinitionBlockKind kind = DefinitionBlockKind::Paragraph;
+  int headingLevel = 1;  // 1-6, only meaningful when kind == Heading
+  std::string text;
+};
+
 /**
  * Dictionary lookup UI: chord entry, D-pad word navigation, framebuffer capture/repaint, and an
  * on-SD StarDict lookup - same interaction shape as EpubAnnotationUi (see that file), but without
@@ -52,6 +62,7 @@ class EpubDictionaryUi {
   bool showingDefinition_ = false;
   std::string lookedUpWord_;
   std::string currentDefinition_;
+  std::vector<DefinitionBlock> definitionBlocks_;
 
   static constexpr size_t kCaptureChunkBytes = 8000;
   std::vector<std::unique_ptr<uint8_t[]>> captureChunks_{};

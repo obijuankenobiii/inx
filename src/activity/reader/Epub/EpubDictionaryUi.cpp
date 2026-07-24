@@ -36,9 +36,149 @@ std::string stripSurroundingPunctuation(const std::string& s) {
   return s.substr(start, end - start);
 }
 
-/** Greedy word-wrap: splits text into lines no wider than maxWidth at the given font. */
-std::vector<std::string> wrapTextToWidth(const GfxRenderer& renderer, const int fontId, const std::string& text,
-                                         const int maxWidth) {
+std::string decodeHtmlEntities(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  size_t i = 0;
+  while (i < s.size()) {
+    if (s[i] == '&') {
+      const size_t semi = s.find(';', i);
+      if (semi != std::string::npos && semi - i <= 10) {
+        const std::string entity = s.substr(i + 1, semi - i - 1);
+        if (entity == "amp") {
+          out += '&';
+          i = semi + 1;
+          continue;
+        }
+        if (entity == "lt") {
+          out += '<';
+          i = semi + 1;
+          continue;
+        }
+        if (entity == "gt") {
+          out += '>';
+          i = semi + 1;
+          continue;
+        }
+        if (entity == "quot") {
+          out += '"';
+          i = semi + 1;
+          continue;
+        }
+        if (entity == "apos" || entity == "#39") {
+          out += '\'';
+          i = semi + 1;
+          continue;
+        }
+        if (entity == "nbsp") {
+          out += ' ';
+          i = semi + 1;
+          continue;
+        }
+      }
+    }
+    out += s[i];
+    ++i;
+  }
+  return out;
+}
+
+/** Appends c to text, collapsing runs of whitespace (including raw source newlines/tabs, which are
+ *  just HTML source formatting, not real line breaks) down to a single space, and never starting a
+ *  block with leading whitespace. Deliberate '\n' breaks (from <br>) are appended directly by the
+ *  caller instead of going through this, so they aren't collapsed away. */
+void appendCollapsedChar(std::string& text, char c) {
+  if (c == '\n' || c == '\r' || c == '\t') {
+    c = ' ';
+  }
+  if (c == ' ' && (text.empty() || text.back() == ' ' || text.back() == '\n')) {
+    return;
+  }
+  text += c;
+}
+
+/** Parses a StarDict "h" (HTML) definition into block-level chunks (paragraph/heading/list item),
+ *  discarding all tags but keeping their text content, so the caller can render each block with its
+ *  own font size/indent. Inline-only tags (b, i, span, etc.) are stripped with no effect on layout;
+ *  <br> becomes a forced line break within the current block. */
+std::vector<DefinitionBlock> parseHtmlToBlocks(const std::string& html) {
+  std::vector<DefinitionBlock> blocks;
+  DefinitionBlock current;
+
+  auto flush = [&]() {
+    while (!current.text.empty() && (current.text.back() == ' ' || current.text.back() == '\n')) {
+      current.text.pop_back();
+    }
+    if (!current.text.empty()) {
+      blocks.push_back(current);
+    }
+    current = DefinitionBlock{};
+  };
+
+  size_t i = 0;
+  while (i < html.size()) {
+    if (html[i] == '<') {
+      const size_t close = html.find('>', i);
+      if (close == std::string::npos) {
+        break;  // unterminated tag - stop rather than emit garbage
+      }
+      std::string tag = html.substr(i + 1, close - i - 1);
+      i = close + 1;
+      const bool closing = !tag.empty() && tag[0] == '/';
+      if (closing) {
+        tag.erase(0, 1);
+      }
+      const size_t space = tag.find_first_of(" \t");
+      if (space != std::string::npos) {
+        tag = tag.substr(0, space);
+      }
+      if (!tag.empty() && tag.back() == '/') {
+        tag.pop_back();
+      }
+      std::transform(tag.begin(), tag.end(), tag.begin(), [](unsigned char c) { return std::tolower(c); });
+
+      if (tag == "br") {
+        if (!current.text.empty() && current.text.back() != '\n') {
+          current.text += '\n';
+        }
+        continue;
+      }
+      if (tag.size() == 2 && tag[0] == 'h' && tag[1] >= '1' && tag[1] <= '6') {
+        flush();
+        if (!closing) {
+          current.kind = DefinitionBlockKind::Heading;
+          current.headingLevel = tag[1] - '0';
+        }
+        continue;
+      }
+      if (tag == "li") {
+        flush();
+        if (!closing) {
+          current.kind = DefinitionBlockKind::ListItem;
+        }
+        continue;
+      }
+      if (tag == "p" || tag == "div" || tag == "ul" || tag == "ol") {
+        flush();
+        continue;
+      }
+      // Any other tag (b, i, u, span, font, tt, sub, sup, etc.) - strip, keep inline text content.
+      continue;
+    }
+    appendCollapsedChar(current.text, html[i]);
+    ++i;
+  }
+  flush();
+
+  for (DefinitionBlock& block : blocks) {
+    block.text = decodeHtmlEntities(block.text);
+  }
+  return blocks;
+}
+
+/** Greedy word-wrap of a single paragraph (no embedded newlines) into lines no wider than maxWidth. */
+std::vector<std::string> wrapParagraphToWidth(const GfxRenderer& renderer, const int fontId, const std::string& text,
+                                              const int maxWidth) {
   std::vector<std::string> lines;
   std::string current;
   size_t i = 0;
@@ -58,6 +198,77 @@ std::vector<std::string> wrapTextToWidth(const GfxRenderer& renderer, const int 
     lines.push_back(current);
   }
   return lines;
+}
+
+/** Word-wraps text into lines no wider than maxWidth, treating '\n' as a hard paragraph break
+ *  (blank source lines produce no output line, so consecutive breaks don't leave gaps). */
+std::vector<std::string> wrapTextToWidth(const GfxRenderer& renderer, const int fontId, const std::string& text,
+                                         const int maxWidth) {
+  std::vector<std::string> lines;
+  size_t start = 0;
+  while (start <= text.size()) {
+    const size_t nl = text.find('\n', start);
+    const std::string paragraph = (nl == std::string::npos) ? text.substr(start) : text.substr(start, nl - start);
+    if (!paragraph.empty()) {
+      const auto paragraphLines = wrapParagraphToWidth(renderer, fontId, paragraph, maxWidth);
+      lines.insert(lines.end(), paragraphLines.begin(), paragraphLines.end());
+    }
+    if (nl == std::string::npos) {
+      break;
+    }
+    start = nl + 1;
+  }
+  return lines;
+}
+
+int fontIdForBlock(const DefinitionBlock& block) {
+  if (block.kind != DefinitionBlockKind::Heading) {
+    return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  }
+  if (block.headingLevel <= 1) {
+    return ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+  }
+  if (block.headingLevel == 2) {
+    return ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+  }
+  return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+}
+
+/** One already-wrapped, already-styled line ready to render in the definition panel. */
+struct StyledLine {
+  std::string text;
+  int fontId;
+  bool bold;
+  int indentPx;
+  int extraGapBeforePx;
+};
+
+/** Flattens parsed HTML blocks into wrapped lines with per-block font/indent/bullet, each narrowed
+ *  to maxWidth (minus that block's indent) at its own font. */
+std::vector<StyledLine> layoutDefinitionBlocks(const GfxRenderer& renderer,
+                                               const std::vector<DefinitionBlock>& blocks, const int maxWidth) {
+  constexpr int kListIndentPx = 14;
+  constexpr int kBlockGapPx = 4;
+
+  std::vector<StyledLine> styledLines;
+  for (size_t bi = 0; bi < blocks.size(); ++bi) {
+    const DefinitionBlock& block = blocks[bi];
+    const int fontId = fontIdForBlock(block);
+    const bool bold = block.kind == DefinitionBlockKind::Heading;
+    const int indent = block.kind == DefinitionBlockKind::ListItem ? kListIndentPx : 0;
+    const std::string text = block.kind == DefinitionBlockKind::ListItem ? "\xE2\x80\xA2 " + block.text : block.text;
+    const auto wrapped = wrapTextToWidth(renderer, fontId, text, maxWidth - indent);
+    for (size_t li = 0; li < wrapped.size(); ++li) {
+      StyledLine sl;
+      sl.text = wrapped[li];
+      sl.fontId = fontId;
+      sl.bold = bold;
+      sl.indentPx = indent;
+      sl.extraGapBeforePx = (li == 0 && bi > 0) ? kBlockGapPx : 0;
+      styledLines.push_back(std::move(sl));
+    }
+  }
+  return styledLines;
 }
 
 }  // namespace
@@ -198,6 +409,7 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
   showingDefinition_ = false;
   lookedUpWord_.clear();
   currentDefinition_.clear();
+  definitionBlocks_.clear();
   words_.clear();
   lineFirst_.clear();
   lastNavEdgeDir_ = -1;
@@ -218,10 +430,12 @@ void EpubDictionaryUi::ensureDictionaryOpen() {
   }
   dictOpenAttempted_ = true;
   if (SETTINGS.dictionaryFolder[0] == '\0') {
+    Serial.printf("[%lu] [DICT] ensureDictionaryOpen: SETTINGS.dictionaryFolder is empty\n", millis());
     return;
   }
   const std::string folder = std::string("/dictionaries/") + SETTINGS.dictionaryFolder;
-  dict_.open(folder);
+  const bool opened = dict_.open(folder);
+  Serial.printf("[%lu] [DICT] ensureDictionaryOpen: open('%s') -> %d\n", millis(), folder.c_str(), opened ? 1 : 0);
 }
 
 void EpubDictionaryUi::performLookup(EpubActivity& act) {
@@ -238,9 +452,18 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
     currentDefinition_ = "No dictionary selected. Pick one in Settings > Reader > Choose dictionary.";
   } else if (!dict_.isOpen()) {
     currentDefinition_ = "Could not open the selected dictionary.";
-  } else if (!dict_.lookup(lookedUpWord_, currentDefinition_)) {
-    currentDefinition_ = "No definition found.";
+  } else {
+    // The actual SD scan can take several seconds on a large dictionary - show a status popup (also
+    // forces an immediate screen flush) before the blocking call, same pattern as readerPopup's other
+    // callers (e.g. "Deleting book...").
+    act.readerPopup("Looking up...");
+    if (!dict_.lookup(lookedUpWord_, currentDefinition_)) {
+      currentDefinition_ = "No definition found.";
+    }
   }
+  // Plain fallback messages above have no tags, so this is a no-op for them - it only does real work
+  // for an actual HTML definition. Keeps drawDefinitionPanel() dealing with a single block list always.
+  definitionBlocks_ = parseHtmlToBlocks(currentDefinition_);
   showingDefinition_ = true;
   act.updateRequired = true;
 }
@@ -458,23 +681,32 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   act.renderer.rectangle.render(panelX, panelTop, panelW, panelH, true);
 
   const int titleFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-  const int bodyFontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   int y = panelTop + pad + act.renderer.text.getLineHeight(titleFontId);
   act.renderer.text.render(titleFontId, panelX + pad, y - act.renderer.text.getLineHeight(titleFontId),
                            lookedUpWord_.c_str(), true, EpdFontFamily::BOLD);
   y += 10;
 
   const int textWidth = panelW - pad * 2;
-  const auto lines = wrapTextToWidth(act.renderer, bodyFontId, currentDefinition_, textWidth);
-  const int lineH = act.renderer.text.getLineHeight(bodyFontId);
-  const int maxLines = std::max(1, (panelTop + panelH - pad - y) / lineH);
-  for (size_t i = 0; i < lines.size() && static_cast<int>(i) < maxLines; ++i) {
-    const bool lastVisible = static_cast<int>(i) == maxLines - 1 && lines.size() > static_cast<size_t>(maxLines);
-    std::string lineText = lines[i];
-    if (lastVisible) {
-      lineText += " …";
+  const int maxY = panelTop + panelH - pad;
+  const auto styledLines = layoutDefinitionBlocks(act.renderer, definitionBlocks_, textWidth);
+  for (size_t i = 0; i < styledLines.size(); ++i) {
+    const StyledLine& sl = styledLines[i];
+    const int lineH = act.renderer.text.getLineHeight(sl.fontId);
+    if (y + sl.extraGapBeforePx + lineH > maxY) {
+      break;
     }
-    act.renderer.text.render(bodyFontId, panelX + pad, y, lineText.c_str(), true, EpdFontFamily::REGULAR);
+    y += sl.extraGapBeforePx;
+
+    std::string lineText = sl.text;
+    if (i + 1 < styledLines.size()) {
+      const StyledLine& next = styledLines[i + 1];
+      const int nextLineH = act.renderer.text.getLineHeight(next.fontId);
+      if (y + lineH + next.extraGapBeforePx + nextLineH > maxY) {
+        lineText += " …";
+      }
+    }
+    act.renderer.text.render(sl.fontId, panelX + pad + sl.indentPx, y, lineText.c_str(), true,
+                             sl.bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
     y += lineH;
   }
 }
