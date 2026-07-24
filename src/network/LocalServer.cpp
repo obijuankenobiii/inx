@@ -38,6 +38,7 @@
 #include "html/HomePageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
 #include "html/JsZipMinJs.generated.h"
+#include "html/QrCreatorLogoJs.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "html/TagsPageHtml.generated.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
@@ -61,6 +62,10 @@ const char* HIDDEN_ITEMS[] = {"System Volume Information", ".metadata"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
+constexpr const char* DEVICE_IDENTITY_DIR = "/.system/identity";
+constexpr const char* DEVICE_IDENTITY_JSON = "/.system/identity/device.json";
+constexpr const char* DEVICE_IDENTITY_PHOTO = "/.system/identity/device-photo.png";
+constexpr const char* DEVICE_IDENTITY_CARD = "/sleep/device-identity.jpg";
 
 LocalServer* wsInstance = nullptr;
 
@@ -89,6 +94,112 @@ void copySettingString(char* dest, size_t destSize, const char* value) {
   }
   strncpy(dest, value, destSize - 1);
   dest[destSize - 1] = '\0';
+}
+
+String escapeJsonString(const String& input) {
+  String out;
+  for (size_t i = 0; i < input.length(); ++i) {
+    const char c = input.charAt(i);
+    switch (c) {
+      case '\\':
+        out += "\\\\";
+        break;
+      case '"':
+        out += "\\\"";
+        break;
+      case '\n':
+        out += "\\n";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        out += c;
+        break;
+    }
+  }
+  return out;
+}
+
+bool ensureDeviceIdentityDir() {
+  if (!SdMan.exists("/.system")) {
+    SdMan.mkdir("/.system");
+  }
+  if (!SdMan.exists(DEVICE_IDENTITY_DIR)) {
+    return SdMan.mkdir(DEVICE_IDENTITY_DIR);
+  }
+  return true;
+}
+
+bool readDeviceIdentity(String& name, String& link, String& label, String& tmpl) {
+  name = "";
+  link = "";
+  label = "";
+  tmpl = "photo";
+  if (!SdMan.exists(DEVICE_IDENTITY_JSON)) {
+    return false;
+  }
+
+  FsFile file = SdMan.open(DEVICE_IDENTITY_JSON, O_READ);
+  if (!file) {
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  if (error) {
+    return false;
+  }
+
+  name = doc["name"] | "";
+  link = doc["link"] | "";
+  label = doc["label"] | "";
+  tmpl = doc["template"] | "photo";
+  return true;
+}
+
+bool writeDeviceIdentity(const String& name, const String& link, const String& label, const String& tmpl) {
+  if (!ensureDeviceIdentityDir()) {
+    return false;
+  }
+
+  FsFile file;
+  if (!SdMan.openFileForWrite("DID", DEVICE_IDENTITY_JSON, file)) {
+    return false;
+  }
+
+  JsonDocument doc;
+  doc["name"] = name;
+  doc["link"] = link;
+  doc["label"] = label;
+  doc["template"] = tmpl;
+  const bool ok = serializeJson(doc, file) > 0;
+  file.close();
+  return ok;
+}
+
+void sendIdentityImage(WebServer* server, const char* path, const char* contentType) {
+  if (!SdMan.exists(path)) {
+    server->send(404, "text/plain", "Image not found");
+    return;
+  }
+
+  FsFile file = SdMan.open(path, O_READ);
+  if (!file) {
+    server->send(500, "text/plain", "Failed to open image");
+    return;
+  }
+
+  server->setContentLength(file.size());
+  server->sendHeader("Cache-Control", "no-store");
+  server->send(200, contentType, "");
+  WiFiClient client = server->client();
+  client.write(file);
+  file.close();
 }
 
 void clearEpubCacheIfNeeded(const String& filePath) {
@@ -553,10 +664,15 @@ void LocalServer::begin() {
   server->on("/tags", HTTP_GET, [this] { handleTagsPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
+  server->on("/js/qr_creator_logo.min.js", HTTP_GET, [this] { handleQrCreatorLogoJs(); });
   server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
   server->on("/js/files_page.js", HTTP_GET, [this] { handleFilesPageJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
+  server->on("/api/device-identity", HTTP_GET, [this] { handleDeviceIdentityGet(); });
+  server->on("/api/device-identity", HTTP_POST, [this] { handleDeviceIdentityPost(); });
+  server->on("/api/device-identity/photo", HTTP_GET, [this] { handleDeviceIdentityPhoto(); });
+  server->on("/api/device-identity/card", HTTP_GET, [this] { handleDeviceIdentityCardImage(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
   server->on("/api/export-notes", HTTP_GET, [this] { handleExportNotesData(); });
   server->on("/api/book-tags", HTTP_GET, [this] { handleBookTagsGet(); });
@@ -744,15 +860,84 @@ void LocalServer::handleStatus() const {
   doc["rssi"] = apMode ? 0 : WiFi.RSSI();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["uptime"] = millis() / 1000;
-  doc["device"] = gpio.deviceIsX3() ? "X3" : "X4";
-  doc["displayWidth"] = gpio.deviceIsX3() ? 792 : 800;
-  doc["displayHeight"] = gpio.deviceIsX3() ? 528 : 480;
-  doc["screenWidth"] = gpio.deviceIsX3() ? 528 : 480;
-  doc["screenHeight"] = gpio.deviceIsX3() ? 792 : 800;
+#ifndef INX_SIMULATOR_WEB_ONLY
+  const bool isX3 = gpio.deviceIsX3();
+#else
+  const bool isX3 = false;
+#endif
+  doc["device"] = isX3 ? "X3" : "X4";
+  doc["displayWidth"] = isX3 ? 792 : 800;
+  doc["displayHeight"] = isX3 ? 528 : 480;
+  doc["screenWidth"] = isX3 ? 528 : 480;
+  doc["screenHeight"] = isX3 ? 792 : 800;
 
   String json;
   serializeJson(doc, json);
   server->send(200, "application/json", json);
+}
+
+void LocalServer::handleDeviceIdentityGet() const {
+  String name;
+  String link;
+  String label;
+  String tmpl;
+  readDeviceIdentity(name, link, label, tmpl);
+
+  String json = "{\"ok\":true";
+  json += ",\"name\":\"" + escapeJsonString(name) + "\"";
+  json += ",\"link\":\"" + escapeJsonString(link) + "\"";
+  json += ",\"label\":\"" + escapeJsonString(label) + "\"";
+  json += ",\"template\":\"" + escapeJsonString(tmpl) + "\"";
+  json += ",\"hasPhoto\":";
+  json += SdMan.exists(DEVICE_IDENTITY_PHOTO) ? "true" : "false";
+  json += ",\"hasCard\":";
+  json += SdMan.exists(DEVICE_IDENTITY_CARD) ? "true" : "false";
+  json += "}";
+  server->send(200, "application/json", json);
+}
+
+void LocalServer::handleDeviceIdentityPost() const {
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, server->arg("plain"));
+  if (error) {
+    server->send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String name = doc["name"] | "";
+  String link = doc["link"] | "";
+  String label = doc["label"] | "";
+  String tmpl = doc["template"] | "photo";
+  name.trim();
+  link.trim();
+  label.trim();
+  if (name.length() > 64) {
+    name = name.substring(0, 64);
+  }
+  if (link.length() > 180) {
+    link = link.substring(0, 180);
+  }
+  if (label.length() > 48) {
+    label = label.substring(0, 48);
+  }
+  if (tmpl != "minimal") {
+    tmpl = "photo";
+  }
+
+  if (!writeDeviceIdentity(name, link, label, tmpl)) {
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"Could not save identity\"}");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+void LocalServer::handleDeviceIdentityPhoto() const {
+  sendIdentityImage(server.get(), DEVICE_IDENTITY_PHOTO, "image/png");
+}
+
+void LocalServer::handleDeviceIdentityCardImage() const {
+  sendIdentityImage(server.get(), DEVICE_IDENTITY_CARD, "image/jpeg");
 }
 
 void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
@@ -838,6 +1023,10 @@ void LocalServer::handleInxFontPackJs() const {
 
 void LocalServer::handleJsZipMinJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), JSZIP_MIN_JS, sizeof(JSZIP_MIN_JS) - 1);
+}
+
+void LocalServer::handleQrCreatorLogoJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), QR_CREATOR_LOGO_JS, sizeof(QR_CREATOR_LOGO_JS) - 1);
 }
 
 void LocalServer::handleEpubPageJs() const {

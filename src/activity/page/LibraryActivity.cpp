@@ -1432,7 +1432,7 @@ bool LibraryActivity::isBookFinished(const std::string& path) const {
  */
 void LibraryActivity::render() const {
   const int headerY = mainContentTop();
-  const int headerHeight = HEADER_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int dividerY = headerY + headerHeight;
   const int gridStartY = dividerY + librarySubheadingHeight() - 3;
 
@@ -2745,7 +2745,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
 /** Computes the pixel size of a shelf-mode cover slot for the current screen. */
 void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, int& outCoverH) {
-  const int startY = INX_THEME.mainContentTop() + HEADER_HEIGHT - 3;
+  const int startY = INX_THEME.mainContentTop() + INX_THEME.mainHeaderHeight() - 3;
   const int screenW = renderer.getScreenWidth();
   const int screenH = INX_THEME.mainContentBottom(renderer) - 10;
   const int availableW = screenW - LIB_SHELF_OUTER_PAD_X * 2;

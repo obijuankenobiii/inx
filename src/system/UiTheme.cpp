@@ -3,6 +3,7 @@
 #include <EpdFontFamily.h>
 #include <GfxRenderer.h>
 
+#include "HalGPIO.h"
 #include "images/Library.h"
 #include "images/Recent.h"
 #include "images/Setting.h"
@@ -21,6 +22,8 @@ constexpr int kBottomTabIconNudgeY = -3;
 constexpr int kPageHeaderTopPadding = 5;
 constexpr int kPageHeaderBottomPadding = 5;
 constexpr int kPageHeaderDividerThickness = 2;
+
+int x3ChromeAdjustment() { return gpio.deviceIsX3() ? 2 : 0; }
 }  // namespace
 
 UiTheme& UiTheme::getInstance() {
@@ -32,18 +35,27 @@ UiTheme::MainTabPlacement UiTheme::mainTabPlacement() const {
   return SETTINGS.uiTheme == SystemSetting::UI_THEME_BOTTOM_TABS ? MainTabPlacement::Bottom : MainTabPlacement::Top;
 }
 
-int UiTheme::mainTabBarHeight() const { return mainTabsAtBottom() ? BOTTOM_TAB_BAR_HEIGHT : MAIN_TAB_BAR_HEIGHT; }
+int UiTheme::mainHeaderHeight() const { return MAIN_TAB_BAR_HEIGHT - x3ChromeAdjustment(); }
+
+int UiTheme::mainTabBarHeight() const {
+  const int baseHeight = mainTabsAtBottom() ? BOTTOM_TAB_BAR_HEIGHT : MAIN_TAB_BAR_HEIGHT;
+  return baseHeight - x3ChromeAdjustment();
+}
 
 int UiTheme::mainTabBarY(const GfxRenderer& renderer) const {
-  return mainTabsAtBottom() ? renderer.getScreenHeight() - BOTTOM_TAB_BAR_HEIGHT : 0;
+  return mainTabsAtBottom() ? renderer.getScreenHeight() - mainTabBarHeight() : 0;
 }
 
-int UiTheme::mainContentTop() const { return mainTabsAtBottom() ? TOP_STATUS_HEIGHT : MAIN_TAB_BAR_HEIGHT; }
+int UiTheme::mainContentTop() const { return mainTabsAtBottom() ? TOP_STATUS_HEIGHT : mainHeaderHeight(); }
 
 int UiTheme::mainContentBottom(const GfxRenderer& renderer) const {
-  return mainTabsAtBottom() ? renderer.getScreenHeight() - BOTTOM_TAB_BAR_HEIGHT - BOTTOM_CONTENT_PADDING
+  return mainTabsAtBottom() ? renderer.getScreenHeight() - mainTabBarHeight() - BOTTOM_CONTENT_PADDING
                             : renderer.getScreenHeight();
 }
+
+int UiTheme::drawerHeaderHeight() const { return DRAWER_HEADER_HEIGHT - x3ChromeAdjustment(); }
+
+int UiTheme::drawerPageHeaderHeight() const { return DRAWER_PAGE_HEADER_HEIGHT - x3ChromeAdjustment(); }
 
 void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedIndex,
                              const bool showBatteryPercentage) const {
@@ -107,7 +119,7 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, const int startY, const char* trailingText,
                             const int titleX) const {
   const int pageWidth = renderer.getScreenWidth();
-  const int headerH = DRAWER_PAGE_HEADER_HEIGHT;
+  const int headerH = drawerPageHeaderHeight();
   renderer.rectangle.fill(0, startY, pageWidth, headerH, false);
   const int dividerY = startY + headerH;
   renderer.rectangle.fill(0, dividerY, pageWidth, kPageHeaderDividerThickness, true);

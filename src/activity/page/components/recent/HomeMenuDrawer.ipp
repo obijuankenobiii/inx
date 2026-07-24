@@ -1,7 +1,6 @@
 namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
@@ -287,12 +286,12 @@ class RecentActivity::HomeMenuDrawer {
     } else if (isHomeDrawerLandscape(renderer_)) {
       drawerW_ = sw / 2;
       drawerX_ = sw - drawerW_;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     } else {
       drawerX_ = 0;
       drawerW_ = sw;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
@@ -300,7 +299,8 @@ class RecentActivity::HomeMenuDrawer {
   }
 
   int headerHeight() const {
-    return mode_ == HomeDrawerMode::Main ? kHomeDrawerHeaderH : kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    return mode_ == HomeDrawerMode::Main ? INX_THEME.mainHeaderHeight()
+                                         : INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
   }
 
   const char* title() const {
@@ -427,7 +427,7 @@ class RecentActivity::HomeMenuDrawer {
   void renderLoading(const char* header, const char* message) {
     syncLayout();
     renderer_.clearScreen();
-    const int headerH = kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    const int headerH = INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
     const int titleY = (headerH - renderer_.text.getLineHeight(kHomeDrawerHeaderFont)) / 2 + 4;
     renderer_.text.render(kHomeDrawerHeaderFont, kHomeDrawerPadX, titleY, header, true, EpdFontFamily::BOLD);
     renderer_.line.render(0, headerH, renderer_.getScreenWidth(), headerH, true);

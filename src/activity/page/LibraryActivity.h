@@ -71,7 +71,6 @@ class LibraryActivity final : public Activity, public Menu {
   };
 
   static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of list items in folder view
-  static constexpr int HEADER_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;     ///< Height of the library header row
   static constexpr int FOLDER_ICON_WIDTH = 16;                               ///< Width of folder icon
   static constexpr int FOLDER_ICON_SPACING = 20;                             ///< Spacing for folder icons
   static constexpr int BOOK_ITEMS_PER_PAGE = 9;                              ///< Items per page for book view

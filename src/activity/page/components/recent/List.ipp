@@ -76,7 +76,8 @@ void RecentActivity::renderList(int startY) {
       barY = y + rowH - barH - 4;
     }
     const int barX = textX;
-    const int barW = std::max(24, textRight - pctW - 10 - barX);
+    const int maxBarW = std::max(24, textRight - pctW - 10 - barX);
+    const int barW = std::max(24, maxBarW * 80 / 100);
 
     renderer.rectangle.fill(barX, barY, barW, barH, false);
     renderer.rectangle.render(barX, barY, barW, barH, true);

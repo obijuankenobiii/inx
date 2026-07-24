@@ -8,6 +8,7 @@
 #include <GfxRenderer.h>
 
 #include "activity/network/BackupRestoreActivity.h"
+#include "activity/reader/ImageViewerActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -15,9 +16,9 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 5;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot", "OPDS Browser",
-                                           "Backup and restore"};
+constexpr int MENU_ITEM_COUNT = 6;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Connect to Calibre", "Create Hotspot",
+                                           "OPDS Browser",   "Backup and restore", "My Device"};
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
@@ -99,6 +100,14 @@ void SyncActivity::loop() {
       return;
     }
 
+    if (selectedIndex == 5) {
+      enterNewActivity(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
     if (onModeSelected) {
       onModeSelected(mode);
     }
@@ -134,7 +143,7 @@ void SyncActivity::render() const {
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, "Device Management", true,
                        EpdFontFamily::BOLD);

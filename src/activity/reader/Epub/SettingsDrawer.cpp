@@ -21,8 +21,9 @@
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
 namespace {
-constexpr int kDrawerHeaderHeight = UiTheme::DRAWER_HEADER_HEIGHT;
-constexpr int kDrawerListTop = kDrawerHeaderHeight + 1;
+int drawerHeaderHeight() { return INX_THEME.drawerHeaderHeight(); }
+
+int drawerListTop() { return drawerHeaderHeight() + 1; }
 constexpr int kDrawerListBottomPadding = UiTheme::DRAWER_LIST_BOTTOM_PADDING;
 constexpr int kDrawerHeaderHPad = 20;
 constexpr int kDrawerHeaderPillPadX = 10;
@@ -131,21 +132,21 @@ void SettingsDrawer::setEmbeddedRegion(int x, int y, int w, int h) {
   drawerY = y;
   drawerWidth = w;
   drawerHeight = h;
-  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
 }
 
 int SettingsDrawer::snapEmbeddedHeight(int maxHeight) const {
   // Largest height <= maxHeight that fits a whole number of rows under the header, so the embedded
   // drawer has no dead space below the last row.
-  const int usable = maxHeight - kDrawerListTop - kDrawerListBottomPadding;
+  const int usable = maxHeight - drawerListTop() - kDrawerListBottomPadding;
   const int rows = std::max(1, usable / itemHeight);
-  return kDrawerListTop + rows * itemHeight + kDrawerListBottomPadding;
+  return drawerListTop() + rows * itemHeight + kDrawerListBottomPadding;
 }
 
 void SettingsDrawer::syncLayoutFromRenderer() {
   if (embedded_) {
     // Keep the host-provided region; just recompute how many rows fit.
-    itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
+    itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
     return;
   }
   const int sw = renderer.getScreenWidth();
@@ -161,7 +162,7 @@ void SettingsDrawer::syncLayoutFromRenderer() {
     drawerHeight = sh * kPortraitDrawerHeightPercent / 100;
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - kDrawerListTop - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
 }
 
 /**
@@ -742,14 +743,14 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
-  const int headerCenterY = drawerY + kDrawerHeaderHeight / 2;
+  const int headerCenterY = drawerY + drawerHeaderHeight() / 2;
   const int titleY = headerCenterY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + kDrawerHeaderHPad, titleY, "Book Settings", true,
                        EpdFontFamily::BOLD);
 
   drawModePill(renderer, drawerX + drawerWidth - kDrawerHeaderHPad, headerCenterY, drawerModeLabel(settings),
                hasPresetSource(settings));
-  const int dividerY = drawerY + kDrawerHeaderHeight;
+  const int dividerY = drawerY + drawerHeaderHeight();
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
 }
 
@@ -767,7 +768,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + kDrawerListTop;
+  const int startY = drawerY + drawerListTop();
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -864,7 +865,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int totalItems = static_cast<int>(menuItems.size());
   if (totalItems <= itemsPerPage) return;
 
-  int startY = drawerY + kDrawerListTop;
+  int startY = drawerY + drawerListTop();
   int listHeight = itemsPerPage * itemHeight;
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
@@ -873,7 +874,7 @@ void SettingsDrawer::drawScrollIndicator() {
 }
 
 void SettingsDrawer::clearScrollIndicatorArea() {
-  const int startY = drawerY + kDrawerListTop;
+  const int startY = drawerY + drawerListTop();
   const int listHeight = itemsPerPage * itemHeight;
   renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
 }

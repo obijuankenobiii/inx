@@ -820,7 +820,7 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
   constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  constexpr int headerHeight = UiTheme::DRAWER_HEADER_HEIGHT - 4;
+  const int headerHeight = INX_THEME.drawerHeaderHeight() - 4;
   constexpr int visibleRows = 5;
 
   const int rows = std::min(visibleRows, static_cast<int>(selectorOptions.size()));
@@ -889,7 +889,7 @@ void CategorySettingsActivity::render() {
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
 
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);

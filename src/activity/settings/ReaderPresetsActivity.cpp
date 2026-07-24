@@ -153,7 +153,7 @@ void ReaderPresetsActivity::render() {
   renderTabBar(renderer);
 
   const int headerY = mainContentTop();
-  const int headerHeight = TAB_BAR_HEIGHT;
+  const int headerHeight = mainHeaderHeight();
   const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
 
@@ -254,7 +254,7 @@ void ReaderPresetsActivity::renderOverlay() {
 
   const int boxW = std::min(screenW - 60, 320);
   constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  constexpr int overlayHeaderH = UiTheme::DRAWER_HEADER_HEIGHT - 4;
+  const int overlayHeaderH = INX_THEME.drawerHeaderHeight() - 4;
   const int boxH = overlayHeaderH + optionCount * rowH;
   const int boxX = (screenW - boxW) / 2;
   const int boxY = (screenH - boxH) / 2;

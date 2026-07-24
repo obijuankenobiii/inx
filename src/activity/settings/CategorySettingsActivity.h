@@ -274,7 +274,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
         onTabSync(std::move(tabNavigateSync)),
         onTabStatistics(std::move(tabNavigateStatistics)) {
     tabSelectorIndex = 2;
-    const int contentTop = mainContentTop() + TAB_BAR_HEIGHT;
+    const int contentTop = mainContentTop() + mainHeaderHeight();
     const int contentBottom =
         INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 80;
     itemsPerPage = (contentBottom - contentTop) / UiTheme::DRAWER_LIST_ITEM_HEIGHT;
