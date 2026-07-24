@@ -226,6 +226,23 @@ void MenuDrawer::show() {
 }
 
 /**
+ * @brief Jumps straight to the Table of Contents view, skipping the main menu list.
+ */
+void MenuDrawer::showToc() {
+  showingToc = true;
+  int preferredTocIndex = -1;
+  if (epub && readerSpineIndex_ >= 0) {
+    const int ti = epub->getTocIndexForSpineIndex(readerSpineIndex_);
+    if (ti >= 0) {
+      preferredTocIndex = ti;
+    }
+  }
+  prepareTocForOpen(preferredTocIndex);
+  lastInputTime = xTaskGetTickCount();
+  renderWithRefresh();
+}
+
+/**
  * @brief Hides the menu drawer
  */
 void MenuDrawer::hide() {

@@ -1961,9 +1961,6 @@ void LocalServer::handleSettingsGet() const {
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
   doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
 
-  doc["readerDirectionMapping"] = SETTINGS.readerDirectionMapping;
-  doc["readerMenuButton"] = SETTINGS.readerMenuButton;
-  doc["longPressChapterSkip"] = SETTINGS.longPressChapterSkip;
   doc["readerShortPwrBtn"] = SETTINGS.readerShortPwrBtn;
   doc["shakePageTurn"] = SETTINGS.shakePageTurn;
   doc["shakePageTurnSensitivity"] = SETTINGS.shakePageTurnSensitivity;
@@ -2138,22 +2135,6 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "bionicReadingEnabled") == 0) {
       SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
-      changed = true;
-    } else if (strcmp(key, "readerDirectionMapping") == 0) {
-      SETTINGS.readerDirectionMapping = (uint8_t)value;
-      changed = true;
-    } else if (strcmp(key, "readerMenuButton") == 0) {
-      uint8_t v = (uint8_t)value;
-      if (v >= SystemSetting::READER_MENU_BUTTON_COUNT) {
-        v = SystemSetting::MENU_UP;
-      }
-      SETTINGS.readerMenuButton = v;
-      changed = true;
-    } else if (strcmp(key, "longPressChapterSkip") == 0) {
-      const int v = static_cast<int>(value);
-      SETTINGS.longPressChapterSkip =
-          (v < 0) ? 0
-                  : (v > SystemSetting::LONG_PRESS_PAGE_SKIP_5 ? SystemSetting::LONG_PRESS_PAGE_SKIP_5 : (uint8_t)v);
       changed = true;
     } else if (strcmp(key, "readerShortPwrBtn") == 0) {
       SETTINGS.readerShortPwrBtn = (uint8_t)value;

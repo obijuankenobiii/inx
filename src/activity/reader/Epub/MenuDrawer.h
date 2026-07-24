@@ -75,6 +75,12 @@ class MenuDrawer {
   void hide();
 
   /**
+   * @brief Jumps straight to the Table of Contents view, skipping the main menu list. Call after
+   * show() (requires the drawer to be visible and setEpub()/setReaderSpineIndex() to already be set).
+   */
+  void showToc();
+
+  /**
    * @brief Checks if the drawer is visible
    * @return true if visible
    */

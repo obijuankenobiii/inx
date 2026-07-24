@@ -288,6 +288,27 @@ class SystemSetting {
   enum XTC_SHORT_PWRBTN { XTC_POWER_NEXT = 0, XTC_POWER_PAGE_REFRESH = 1, XTC_SHORT_PWRBTN_COUNT };
 
   /**
+   * @brief Action assignable to a reader button's short or long press. Supersedes the older, more
+   * bespoke readerDirectionMapping/longPressChapterSkip/readerMenuButton settings, which stay for
+   * serialization backward-compat but are no longer surfaced in the settings UI or consulted by the
+   * reader - see ReaderButtonBindings.
+   */
+  enum READER_BUTTON_ACTION {
+    BTN_ACTION_NONE = 0,
+    BTN_ACTION_PAGE_NEXT,
+    BTN_ACTION_PAGE_PREVIOUS,
+    BTN_ACTION_OPEN_SETTINGS,
+    BTN_ACTION_ANNOTATE,
+    BTN_ACTION_DICTIONARY,
+    BTN_ACTION_PAGE_REFRESH,
+    BTN_ACTION_CHAPTER_SKIP_NEXT,
+    BTN_ACTION_CHAPTER_SKIP_PREVIOUS,
+    BTN_ACTION_BOOKMARK,
+    BTN_ACTION_TABLE_OF_CONTENTS,
+    READER_BUTTON_ACTION_COUNT
+  };
+
+  /**
    * @brief Battery percentage display options
    */
   enum HIDE_BATTERY_PERCENTAGE {
@@ -384,6 +405,20 @@ class SystemSetting {
   uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
   /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
   char dictionaryFolder[64] = "";
+
+  /** Per-button reader action mapping (READER_BUTTON_ACTION values). Side Up/Down are always the
+   *  raw Up/Down buttons regardless of device (X4: physically a vertical rocker; X3: physically
+   *  horizontal, but the same BTN_UP/BTN_DOWN signals) - Front Left/Right are the separate front row,
+   *  present and independent on both devices. Defaults match the pre-existing default reading
+   *  behavior (side pager + chapter-skip long-press, front pager, no long-press). */
+  uint8_t btnUpShortAction = BTN_ACTION_PAGE_PREVIOUS;
+  uint8_t btnUpLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
+  uint8_t btnDownShortAction = BTN_ACTION_PAGE_NEXT;
+  uint8_t btnDownLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+  uint8_t btnLeftShortAction = BTN_ACTION_PAGE_PREVIOUS;
+  uint8_t btnLeftLongAction = BTN_ACTION_NONE;
+  uint8_t btnRightShortAction = BTN_ACTION_PAGE_NEXT;
+  uint8_t btnRightLongAction = BTN_ACTION_NONE;
 
   uint8_t orientation = PORTRAIT;  ///< Screen orientation
 
