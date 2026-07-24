@@ -41,7 +41,14 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 31;
-constexpr uint8_t SETTINGS_COUNT = 69;
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 68, through
+// libraryShelfEnabled - NOT counting the version/count header fields read separately before the loop). This
+// is written into the file as its own "how many fields do I contain" header and read back as
+// fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to know whether the tail
+// fields are actually present. If it's wrong, either the tail fields never get read back even though they
+// were written (undercount), or the file never triggers the self-healing rewrite on old-format files
+// (overcount, since fileSettingsCount can never reach it).
+constexpr uint8_t SETTINGS_COUNT = 68;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -728,19 +735,19 @@ bool SystemSetting::loadFromFile() {
   if (settingsRead < 63) {
     xtcRefreshFrequency = getRefreshFrequency();
   }
-  if (settingsRead < 65) {
+  if (settingsRead < 64) {
     sleepClockRefreshInterval = CLOCK_REFRESH_OFF;
   }
-  if (settingsRead < 66) {
+  if (settingsRead < 65) {
     shakePageTurn = 0;
   }
-  if (settingsRead < 67) {
+  if (settingsRead < 66) {
     shakePageTurnSensitivity = 1;
   }
-  if (settingsRead < 68) {
+  if (settingsRead < 67) {
     uiTheme = UI_THEME_CLASSIC;
   }
-  if (settingsRead < 69) {
+  if (settingsRead < 68) {
     libraryShelfEnabled = 0;
   }
 

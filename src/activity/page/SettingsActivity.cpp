@@ -174,6 +174,11 @@ void SettingsActivity::loop() {
 
   if (subActivity) {
     subActivity->loop();
+    // subActivity->loop() may have deferred a switchTo<T>() (via deferExternalNav) that deletes `this`.
+    // Run it now and return immediately without touching any member below.
+    if (runPendingExternalNav()) {
+      return;
+    }
     processPendingPanelSwap();
     return;
   }
@@ -205,11 +210,13 @@ void SettingsActivity::loop() {
 
   if (mappedInput.wasPressed(tabPrevButton())) {
     handleTabNavigation(true, false);
+    runPendingExternalNav();
     return;
   }
 
   if (mappedInput.wasPressed(tabNextButton())) {
     handleTabNavigation(false, true);
+    runPendingExternalNav();
     return;
   }
 
@@ -245,16 +252,16 @@ void SettingsActivity::openCurrentPanel() {
     enterNewActivity(new ReaderPresetsActivity(
         renderer, mappedInput, [this] { requestPanelSwap(); },
         [this] {
-          if (onRecentOpen) onRecentOpen();
+          if (onRecentOpen) deferExternalNav(onRecentOpen);
         },
         [this] {
-          if (onLibraryOpen) onLibraryOpen();
+          if (onLibraryOpen) deferExternalNav(onLibraryOpen);
         },
         [this] {
-          if (onSyncOpen) onSyncOpen();
+          if (onSyncOpen) deferExternalNav(onSyncOpen);
         },
         [this] {
-          if (onStatisticsOpen) onStatisticsOpen();
+          if (onStatisticsOpen) deferExternalNav(onStatisticsOpen);
         }));
     return;
   }
@@ -277,16 +284,16 @@ void SettingsActivity::openCurrentPanel() {
       },
       panelBackLabel(currentPanel),
       [this] {
-        if (onRecentOpen) onRecentOpen();
+        if (onRecentOpen) deferExternalNav(onRecentOpen);
       },
       [this] {
-        if (onLibraryOpen) onLibraryOpen();
+        if (onLibraryOpen) deferExternalNav(onLibraryOpen);
       },
       [this] {
-        if (onSyncOpen) onSyncOpen();
+        if (onSyncOpen) deferExternalNav(onSyncOpen);
       },
       [this] {
-        if (onStatisticsOpen) onStatisticsOpen();
+        if (onStatisticsOpen) deferExternalNav(onStatisticsOpen);
       }));
 }
 
