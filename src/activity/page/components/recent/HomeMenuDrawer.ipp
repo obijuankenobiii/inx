@@ -120,6 +120,11 @@ class RecentActivity::HomeMenuDrawer {
         render(HalDisplay::FAST_REFRESH);
         return;
       }
+      if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+        mode_ = HomeDrawerMode::Dictionary;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       if (mode_ == HomeDrawerMode::RecentsActions) {
         loadRecents();
         mode_ = HomeDrawerMode::Recents;
@@ -149,8 +154,20 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
 
+    if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        confirmQuickDeleteDictionaryWord();
+      }
+      return;
+    }
+
     if (mode_ == HomeDrawerMode::Recents && input.wasPressed(MappedInputManager::Button::Left)) {
       openQuickDeleteRecentConfirm();
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::Dictionary && input.wasPressed(MappedInputManager::Button::Left)) {
+      openQuickDeleteDictionaryConfirm();
       return;
     }
 
@@ -222,7 +239,9 @@ class RecentActivity::HomeMenuDrawer {
     } else if (mode_ == HomeDrawerMode::DictionaryDetail) {
       renderDictionaryDetail();
     } else if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
-      renderQuickDeleteConfirm();
+      renderQuickDeleteConfirm("Remove from recents?", "Book metadata and cache will stay.");
+    } else if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+      renderQuickDeleteConfirm("Delete this word?", "The saved definition will also be removed.");
     } else {
       renderRows();
     }
@@ -241,6 +260,7 @@ class RecentActivity::HomeMenuDrawer {
     Bookmarks,
     Annotations,
     Dictionary,
+    DictionaryDeleteConfirm,
     BookmarkDetail,
     AnnotationDetail,
     DictionaryDetail
@@ -336,6 +356,8 @@ class RecentActivity::HomeMenuDrawer {
         return "Annotations";
       case HomeDrawerMode::Dictionary:
         return "Dictionary";
+      case HomeDrawerMode::DictionaryDeleteConfirm:
+        return "Delete word";
       case HomeDrawerMode::BookmarkDetail:
         return "Bookmark";
       case HomeDrawerMode::AnnotationDetail:
@@ -506,26 +528,27 @@ class RecentActivity::HomeMenuDrawer {
     renderStyledLines(renderer_, dictionaryDetailLines_, textX, y, bottomLimit);
   }
 
-  void renderQuickDeleteConfirm() {
+  /** Shared confirm-dialog body for both "delete recent" and "delete saved word" - selectedBookRow_
+   *  holds whichever row was selected when the delete gesture fired (label doubles as the book title
+   *  or the dictionary word, since DrawerRow is reused generically for both). */
+  void renderQuickDeleteConfirm(const char* heading, const char* subtext) {
     const int contentTop = drawerY_ + headerHeight();
     const int centerY = contentTop + (drawerH_ - headerHeight() - 46) / 2;
     const std::string title =
-        selectedBookRow_.label.empty() ? "Selected book" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        selectedBookRow_.label.empty() ? "Selected item" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
                                                                                     selectedBookRow_.label.c_str(),
                                                                                     drawerW_ - kHomeDrawerPadX * 2);
 
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, "Remove from recents?", true,
-                            EpdFontFamily::BOLD);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, heading, true, EpdFontFamily::BOLD);
     renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 4, title.c_str(), true,
                             EpdFontFamily::REGULAR);
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, "Book metadata and cache will stay.", true,
-                            EpdFontFamily::REGULAR);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, subtext, true, EpdFontFamily::REGULAR);
   }
 
-  void renderQuickDeleteConfirmOnly() {
+  void renderQuickDeleteConfirmOnly(const char* heading, const char* subtext) {
     renderer_.rectangle.fill(drawerX_, drawerY_ + headerHeight() + 1, drawerW_,
                              drawerH_ - headerHeight() - 1, false);
-    renderQuickDeleteConfirm();
+    renderQuickDeleteConfirm(heading, subtext);
     drawHints();
     renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
   }
@@ -606,13 +629,13 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
-    if (mode_ == HomeDrawerMode::Recents) {
+    if (mode_ == HomeDrawerMode::Recents || mode_ == HomeDrawerMode::Dictionary) {
       const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
       renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
                                recentLabels.btn3, recentLabels.btn4);
       return;
     }
-    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm || mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
       const auto confirmLabels = owner_.mappedInput.mapLabels("Cancel", "Remove", "", "");
       renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
                                confirmLabels.btn3, confirmLabels.btn4);
@@ -961,7 +984,7 @@ class RecentActivity::HomeMenuDrawer {
     }
     selectedBookRow_ = rows_[selected_];
     mode_ = HomeDrawerMode::RecentsDeleteConfirm;
-    renderQuickDeleteConfirmOnly();
+    renderQuickDeleteConfirmOnly("Remove from recents?", "Book metadata and cache will stay.");
   }
 
   void confirmQuickDeleteRecent() {
@@ -979,6 +1002,24 @@ class RecentActivity::HomeMenuDrawer {
     if (!selectedBookRow_.bookPath.empty()) {
       RECENT_BOOKS.removeBook(selectedBookRow_.bookPath);
     }
+  }
+
+  void openQuickDeleteDictionaryConfirm() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    selectedBookRow_ = rows_[selected_];
+    mode_ = HomeDrawerMode::DictionaryDeleteConfirm;
+    renderQuickDeleteConfirmOnly("Delete this word?", "The saved definition will also be removed.");
+  }
+
+  void confirmQuickDeleteDictionaryWord() {
+    SAVED_WORDS.remove(selectedBookRow_.label);
+    loadDictionaryWords();
+    mode_ = HomeDrawerMode::Dictionary;
+    selected_ = 0;
+    scroll_ = 0;
+    render(HalDisplay::FAST_REFRESH);
   }
 
   void applySelectedRecentAction() {

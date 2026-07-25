@@ -43,6 +43,10 @@ class SavedDictionaryWordStore {
    *  already saved (case-insensitive), at the capacity limit, or the write failed. */
   bool add(const std::string& word, const std::string& definition);
 
+  /** Deletes a saved word's file and removes it from the in-RAM list (case-insensitive match).
+   *  Returns false if no such word was saved. */
+  bool remove(const std::string& word);
+
  private:
   SavedDictionaryWordStore() = default;
 

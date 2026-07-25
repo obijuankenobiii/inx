@@ -938,6 +938,11 @@ void EpubActivity::ensureMenuDrawer() {
             case MenuDrawer::MenuAction::SHOW_ANNOTATIONS:
               break;
             case MenuDrawer::MenuAction::ENTER_DICTIONARY:
+              // The menu drawer was just hide()-n above, but that only flips its own visibility flag -
+              // the framebuffer still has its pixels in it until something repaints. dictUi_.enter()
+              // captures whatever's in the framebuffer right now as its backdrop, so without this the
+              // dictionary UI would draw its word-highlight overlay on top of the menu still showing.
+              renderScreen(true);
               dictUi_.enter(*this);
               break;
             case MenuDrawer::MenuAction::SELECT_CHAPTER:

@@ -168,3 +168,17 @@ bool SavedDictionaryWordStore::add(const std::string& word, const std::string& d
   entries_.push_back(std::move(entry));
   return true;
 }
+
+bool SavedDictionaryWordStore::remove(const std::string& word) {
+  load();
+  const std::string lower = toLowerCopy(word);
+  const auto it = std::find_if(entries_.begin(), entries_.end(),
+                               [&lower](const SavedWordEntry& e) { return toLowerCopy(e.word) == lower; });
+  if (it == entries_.end()) {
+    return false;
+  }
+  const std::string path = std::string(kDir) + "/" + it->filename;
+  SdMan.remove(path.c_str());
+  entries_.erase(it);
+  return true;
+}
