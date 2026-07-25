@@ -400,7 +400,7 @@ class SystemSetting {
 
   uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
 
-  uint8_t readerShortPwrBtn = READER_PAGE_TURN;  ///< Reader short power button behavior
+  uint8_t readerShortPwrBtn = READER_PAGE_REFRESH;  ///< Reader short power button behavior
   uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
   uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
   /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
@@ -409,16 +409,15 @@ class SystemSetting {
   /** Per-button reader action mapping (READER_BUTTON_ACTION values). Side Up/Down are always the
    *  raw Up/Down buttons regardless of device (X4: physically a vertical rocker; X3: physically
    *  horizontal, but the same BTN_UP/BTN_DOWN signals) - Front Left/Right are the separate front row,
-   *  present and independent on both devices. Defaults match the pre-existing default reading
-   *  behavior (side pager + chapter-skip long-press, front pager, no long-press). */
+   *  present and independent on both devices. */
   uint8_t btnUpShortAction = BTN_ACTION_PAGE_PREVIOUS;
-  uint8_t btnUpLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
+  uint8_t btnUpLongAction = BTN_ACTION_OPEN_SETTINGS;
   uint8_t btnDownShortAction = BTN_ACTION_PAGE_NEXT;
-  uint8_t btnDownLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+  uint8_t btnDownLongAction = BTN_ACTION_ANNOTATE;
   uint8_t btnLeftShortAction = BTN_ACTION_PAGE_PREVIOUS;
-  uint8_t btnLeftLongAction = BTN_ACTION_NONE;
+  uint8_t btnLeftLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
   uint8_t btnRightShortAction = BTN_ACTION_PAGE_NEXT;
-  uint8_t btnRightLongAction = BTN_ACTION_NONE;
+  uint8_t btnRightLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
 
   uint8_t orientation = PORTRAIT;  ///< Screen orientation
 

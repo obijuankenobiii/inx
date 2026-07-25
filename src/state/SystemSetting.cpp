@@ -814,25 +814,25 @@ bool SystemSetting::loadFromFile() {
     btnUpShortAction = BTN_ACTION_PAGE_PREVIOUS;
   }
   if (settingsRead < 71) {
-    btnUpLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
+    btnUpLongAction = BTN_ACTION_OPEN_SETTINGS;
   }
   if (settingsRead < 72) {
     btnDownShortAction = BTN_ACTION_PAGE_NEXT;
   }
   if (settingsRead < 73) {
-    btnDownLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+    btnDownLongAction = BTN_ACTION_ANNOTATE;
   }
   if (settingsRead < 74) {
     btnLeftShortAction = BTN_ACTION_PAGE_PREVIOUS;
   }
   if (settingsRead < 75) {
-    btnLeftLongAction = BTN_ACTION_NONE;
+    btnLeftLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
   }
   if (settingsRead < 76) {
     btnRightShortAction = BTN_ACTION_PAGE_NEXT;
   }
   if (settingsRead < 77) {
-    btnRightLongAction = BTN_ACTION_NONE;
+    btnRightLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
   }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 9) {
