@@ -1,6 +1,5 @@
 #pragma once
 
-#include <EpdFontFamily.h>
 #include <Epub/PageWordIndex.h>
 
 #include <cstddef>
@@ -9,56 +8,10 @@
 #include <string>
 #include <vector>
 
+#include "dictionary/DictionaryDefinitionLayout.h"
 #include "dictionary/StarDictLookup.h"
 
 class EpubActivity;
-
-enum class DefinitionBlockKind : uint8_t { Paragraph, Heading, ListItem };
-
-/** A run of text within a block that shares one font style (bold/italic/bold-italic/regular, from
- *  nested <b>/<strong>/<i>/<em> tags). May contain '\n' from <br>. */
-struct DefinitionTextRun {
-  DefinitionTextRun() = default;
-  DefinitionTextRun(std::string t, EpdFontFamily::Style s) : text(std::move(t)), style(s) {}
-
-  std::string text;
-  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
-};
-
-/** One block-level chunk of a parsed StarDict "h" (HTML) definition - a paragraph, heading, or list
- *  item, laid out with its own font size/indent at render time; each run within it may still carry
- *  its own bold/italic style. */
-struct DefinitionBlock {
-  DefinitionBlockKind kind = DefinitionBlockKind::Paragraph;
-  int headingLevel = 1;  // 1-6, only meaningful when kind == Heading
-  std::vector<DefinitionTextRun> runs;
-};
-
-/** One atom to render within a wrapped line: a word (or word fragment, if a style change happened
- *  mid-word) in one style, or a hard line break with text empty. spaceBefore marks whether a space
- *  should be rendered/measured before it when it's not the first atom on a line. */
-struct DefinitionTextAtom {
-  DefinitionTextAtom() = default;
-  DefinitionTextAtom(std::string t, EpdFontFamily::Style s, bool hb, bool sb)
-      : text(std::move(t)), style(s), hardBreak(hb), spaceBefore(sb) {}
-
-  std::string text;
-  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
-  bool hardBreak = false;
-  bool spaceBefore = false;
-};
-
-/** One already-wrapped, already-styled line ready to render in the definition panel. */
-struct DefinitionStyledLine {
-  DefinitionStyledLine() = default;
-  DefinitionStyledLine(std::vector<DefinitionTextAtom> a, int f, int indent, int gap)
-      : atoms(std::move(a)), fontId(f), indentPx(indent), extraGapBeforePx(gap) {}
-
-  std::vector<DefinitionTextAtom> atoms;
-  int fontId = 0;
-  int indentPx = 0;
-  int extraGapBeforePx = 0;
-};
 
 /**
  * Dictionary lookup UI: chord entry, D-pad word navigation, framebuffer capture/repaint, and an
@@ -89,6 +42,7 @@ class EpubDictionaryUi {
   void drawDefinitionPanel(EpubActivity& act);
   void performLookup(EpubActivity& act);
   void ensureDictionaryOpen();
+  void saveCurrentWord(EpubActivity& act);
 
   bool mode_ = false;
   std::vector<PageWordHit> words_;
@@ -99,6 +53,7 @@ class EpubDictionaryUi {
   bool dictOpenAttempted_ = false;
   bool showingDefinition_ = false;
   std::string lookedUpWord_;
+  bool wordAlreadySaved_ = false;
   std::string currentDefinition_;
   std::vector<DefinitionBlock> definitionBlocks_;
   // Wrapped/styled once per lookup in performLookup() (not per-frame in drawDefinitionPanel) - a

@@ -9,6 +9,9 @@
 
 #include "activity/network/BackupRestoreActivity.h"
 #include "activity/reader/ImageViewerActivity.h"
+#include "activity/settings/DictionaryPickerActivity.h"
+#include "activity/settings/KOReaderSettingsActivity.h"
+#include "activity/settings/OtaUpdateActivity.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -16,9 +19,10 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 6;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Manage via wifi", "Connect to calibre", "Create hotspot",
-                                           "OPDS Browser",   "Backup and restore", "Device"};
+constexpr int MENU_ITEM_COUNT = 9;
+const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Manage via wifi",  "Connect to calibre", "Create hotspot",
+                                           "OPDS Browser",     "Backup and restore", "Device",
+                                           "KOReader Sync",    "Check for updates",  "Choose dictionary"};
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 
@@ -102,6 +106,30 @@ void SyncActivity::loop() {
 
     if (selectedIndex == 5) {
       enterNewActivity(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
+    if (selectedIndex == 6) {
+      enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
+    if (selectedIndex == 7) {
+      enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      return;
+    }
+
+    if (selectedIndex == 8) {
+      enterNewActivity(new DictionaryPickerActivity(renderer, mappedInput, [this] {
         exitActivity();
         updateRequired = true;
       }));

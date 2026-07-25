@@ -1,6 +1,7 @@
 namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+constexpr int kHomeDrawerMainRowCount = 5;  // Recents, Bookmarks, Annotations, Dictionary, Favorites
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
@@ -84,6 +85,7 @@ std::string trimDrawerText(std::string s) {
   }
   return s;
 }
+
 }  // namespace
 
 class RecentActivity::HomeMenuDrawer {
@@ -126,11 +128,17 @@ class RecentActivity::HomeMenuDrawer {
         render(HalDisplay::FAST_REFRESH);
         return;
       }
+      if (mode_ == HomeDrawerMode::DictionaryDetail) {
+        mode_ = HomeDrawerMode::Dictionary;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       hide();
       return;
     }
 
-    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail ||
+        mode_ == HomeDrawerMode::DictionaryDetail) {
       return;
     }
 
@@ -211,6 +219,8 @@ class RecentActivity::HomeMenuDrawer {
 
     if (mode_ == HomeDrawerMode::AnnotationDetail) {
       renderDetail();
+    } else if (mode_ == HomeDrawerMode::DictionaryDetail) {
+      renderDictionaryDetail();
     } else if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
       renderQuickDeleteConfirm();
     } else {
@@ -230,8 +240,10 @@ class RecentActivity::HomeMenuDrawer {
     Favorites,
     Bookmarks,
     Annotations,
+    Dictionary,
     BookmarkDetail,
-    AnnotationDetail
+    AnnotationDetail,
+    DictionaryDetail
   };
 
   enum class RecentBookAction {
@@ -268,11 +280,15 @@ class RecentActivity::HomeMenuDrawer {
   std::vector<DrawerRow> rows_;
   DrawerRow selectedBookRow_;
   std::string detailText_;
+  std::string dictionaryDetailWord_;
+  std::vector<DefinitionStyledLine> dictionaryDetailLines_;
 
   void releaseRows() {
     std::vector<DrawerRow>().swap(rows_);
     selectedBookRow_ = DrawerRow();
     std::string().swap(detailText_);
+    std::string().swap(dictionaryDetailWord_);
+    std::vector<DefinitionStyledLine>().swap(dictionaryDetailLines_);
   }
 
   void syncLayout() {
@@ -286,16 +302,17 @@ class RecentActivity::HomeMenuDrawer {
     } else if (isHomeDrawerLandscape(renderer_)) {
       drawerW_ = sw / 2;
       drawerX_ = sw - drawerW_;
-      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + kHomeDrawerMainRowCount * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     } else {
       drawerX_ = 0;
       drawerW_ = sw;
-      drawerH_ = INX_THEME.mainHeaderHeight() + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + kHomeDrawerMainRowCount * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
-    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 4 : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
+    rowsPerPage_ =
+        mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowCount : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
   }
 
   int headerHeight() const {
@@ -317,10 +334,14 @@ class RecentActivity::HomeMenuDrawer {
         return "Bookmarks";
       case HomeDrawerMode::Annotations:
         return "Annotations";
+      case HomeDrawerMode::Dictionary:
+        return "Dictionary";
       case HomeDrawerMode::BookmarkDetail:
         return "Bookmark";
       case HomeDrawerMode::AnnotationDetail:
         return "Annotation";
+      case HomeDrawerMode::DictionaryDetail:
+        return dictionaryDetailWord_.empty() ? "Definition" : dictionaryDetailWord_.c_str();
       case HomeDrawerMode::Main:
       default:
         return "Menu";
@@ -329,7 +350,7 @@ class RecentActivity::HomeMenuDrawer {
 
   int itemCount() const {
     if (mode_ == HomeDrawerMode::Main) {
-      return 4;
+      return kHomeDrawerMainRowCount;
     }
     return static_cast<int>(rows_.size());
   }
@@ -343,6 +364,8 @@ class RecentActivity::HomeMenuDrawer {
       case 2:
         return "Annotations";
       case 3:
+        return "Dictionary";
+      case 4:
       default:
         return "Favorites";
     }
@@ -372,6 +395,7 @@ class RecentActivity::HomeMenuDrawer {
                           : mode_ == HomeDrawerMode::Favorites      ? "No favorites"
                           : mode_ == HomeDrawerMode::Bookmarks      ? "No bookmarks"
                           : mode_ == HomeDrawerMode::Annotations    ? "No annotations"
+                          : mode_ == HomeDrawerMode::Dictionary     ? "No saved words"
                                                                     : "";
       const int msgY = drawerY_ + headerHeight() + 42;
       renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, empty, true);
@@ -465,6 +489,21 @@ class RecentActivity::HomeMenuDrawer {
       remaining = trimDrawerText(remaining);
       y += lineH;
     }
+  }
+
+  /** Draws the saved word's stored definition with the same bold/italic/heading formatting as the
+   *  in-reader dictionary panel (dictionaryDetailLines_ is pre-parsed/laid-out in
+   *  openDictionaryDetail(), not re-parsed per frame). Falls back to renderDetail()'s plain-text path
+   *  for the "No definition saved." message when there's nothing stored. */
+  void renderDictionaryDetail() {
+    if (dictionaryDetailLines_.empty()) {
+      renderDetail();
+      return;
+    }
+    const int y = drawerY_ + headerHeight() + 18;
+    const int textX = drawerX_ + kHomeDrawerPadX;
+    const int bottomLimit = drawerY_ + drawerH_ - 50;
+    renderStyledLines(renderer_, dictionaryDetailLines_, textX, y, bottomLimit);
   }
 
   void renderQuickDeleteConfirm() {
@@ -596,6 +635,10 @@ class RecentActivity::HomeMenuDrawer {
         renderLoading("Annotations", "Loading Annotations");
         loadAnnotations();
         mode_ = HomeDrawerMode::Annotations;
+      } else if (selected_ == 3) {
+        renderLoading("Dictionary", "Loading Saved Words");
+        loadDictionaryWords();
+        mode_ = HomeDrawerMode::Dictionary;
       } else {
         renderLoading("Favorites", "Loading Books");
         loadFavorites();
@@ -633,7 +676,43 @@ class RecentActivity::HomeMenuDrawer {
       detailText_ = rows_[selected_].sublabel.empty() ? rows_[selected_].label : rows_[selected_].sublabel;
       mode_ = HomeDrawerMode::AnnotationDetail;
       render();
+      return;
     }
+    if (mode_ == HomeDrawerMode::Dictionary) {
+      openDictionaryDetail(selected_);
+    }
+  }
+
+  /** Populates rows_ from the global saved-words list (just the words - loadDictionaryWords() never
+   *  touches the stored definitions, see SavedDictionaryWords.h). */
+  void loadDictionaryWords() {
+    rows_.clear();
+    const int n = SAVED_WORDS.count();
+    for (int i = 0; i < n; ++i) {
+      DrawerRow row;
+      row.label = SAVED_WORDS.wordAt(i);
+      rows_.push_back(std::move(row));
+    }
+  }
+
+  /** Loads the definition exactly as it was saved (same HTML source EpubDictionaryUi looked up),
+   *  parses+lays it out once here (not per-frame - see EpubDictionaryUi's identical reasoning), and
+   *  switches to DictionaryDetail so it renders with the same bold/italic/heading formatting as the
+   *  in-reader panel instead of plain text. */
+  void openDictionaryDetail(const int index) {
+    dictionaryDetailWord_ = SAVED_WORDS.wordAt(index);
+    const std::string definition = SAVED_WORDS.definitionAt(index);
+    dictionaryDetailLines_.clear();
+    if (definition.empty()) {
+      detailText_ = "No definition saved.";
+    } else {
+      const auto blocks = parseHtmlToBlocks(definition);
+      const int textWidth = renderer_.getScreenWidth() - kHomeDrawerPadX * 2;
+      dictionaryDetailLines_ = layoutDefinitionBlocks(renderer_, blocks, textWidth);
+      detailText_.clear();
+    }
+    mode_ = HomeDrawerMode::DictionaryDetail;
+    render();
   }
 
   void loadRecents() {

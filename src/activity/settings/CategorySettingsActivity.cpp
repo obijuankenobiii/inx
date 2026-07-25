@@ -16,13 +16,9 @@
 #include <iterator>
 #include <string>
 
-#include "../OpdsServerListActivity.h"
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
-#include "DictionaryPickerActivity.h"
-#include "KOReaderSettingsActivity.h"
-#include "OtaUpdateActivity.h"
 #include "ReaderFontSettingsDraw.h"
 #include "SleepImagePickerActivity.h"
 #include "ThumbnailGeneratorActivity.h"
@@ -332,20 +328,6 @@ void CategorySettingsActivity::setupMenu() {
               }
               return;
             }
-            if (strcmp(settingPtr->name, "KOReader Sync") == 0) {
-              exitActivity();
-              enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
-                exitActivity();
-                updateRequired = true;
-              }));
-            }
-            if (strcmp(settingPtr->name, "OPDS Browser") == 0) {
-              exitActivity();
-              enterNewActivity(new OpdsServerListActivity(renderer, mappedInput, [this] {
-                exitActivity();
-                updateRequired = true;
-              }));
-            }
             if (strcmp(settingPtr->name, "Delete Cache") == 0) {
               exitActivity();
               enterNewActivity(new ClearCacheActivity(renderer, mappedInput, [this] {
@@ -371,20 +353,6 @@ void CategorySettingsActivity::setupMenu() {
             if (strcmp(settingPtr->name, "Sync time via WiFi") == 0 || strcmp(settingPtr->name, "Sync") == 0) {
               exitActivity();
               enterNewActivity(new TimeSyncActivity(renderer, mappedInput, [this] {
-                exitActivity();
-                updateRequired = true;
-              }));
-            }
-            if (strcmp(settingPtr->name, "Check for updates") == 0) {
-              exitActivity();
-              enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
-                exitActivity();
-                updateRequired = true;
-              }));
-            }
-            if (strcmp(settingPtr->name, "Choose dictionary") == 0) {
-              exitActivity();
-              enterNewActivity(new DictionaryPickerActivity(renderer, mappedInput, [this] {
                 exitActivity();
                 updateRequired = true;
               }));

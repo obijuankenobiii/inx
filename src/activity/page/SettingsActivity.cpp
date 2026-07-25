@@ -110,10 +110,6 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("Choose dictionary", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("About", GroupType::NONE));
 
   return settings;
