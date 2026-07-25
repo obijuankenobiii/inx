@@ -17,6 +17,7 @@
 #include "EpubDictionaryUi.h"
 #include "EpubReadingStats.h"
 #include "MenuDrawer.h"
+#include "OrientationPickerUi.h"
 #include "ReaderButtonBindings.h"
 #include "SettingsDrawer.h"
 #include "StatusBar.h"
@@ -44,6 +45,7 @@ struct ViewportInfo {
 class EpubActivity final : public ActivityWithSubactivity {
   friend class EpubAnnotationUi;
   friend class EpubDictionaryUi;
+  friend class OrientationPickerUi;
   friend class ReaderButtonBindings;
 
  public:
@@ -284,6 +286,7 @@ class EpubActivity final : public ActivityWithSubactivity {
 
   EpubAnnotationUi annUi_;
   EpubDictionaryUi dictUi_;
+  OrientationPickerUi orientationPicker_;
   ReaderButtonBindings btnBindings_;
 
   /**

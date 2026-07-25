@@ -305,6 +305,7 @@ class SystemSetting {
     BTN_ACTION_CHAPTER_SKIP_PREVIOUS,
     BTN_ACTION_BOOKMARK,
     BTN_ACTION_TABLE_OF_CONTENTS,
+    BTN_ACTION_CHANGE_ORIENTATION,
     READER_BUTTON_ACTION_COUNT
   };
 
@@ -400,8 +401,10 @@ class SystemSetting {
 
   uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
 
-  uint8_t readerShortPwrBtn = READER_PAGE_REFRESH;  ///< Reader short power button behavior
-  uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;       ///< XTC short power button behavior
+  /** Superseded by btnPowerShortAction (see below) - kept only for serialization backward-compat and
+   *  as the migration source for it. No longer consulted by the reader. */
+  uint8_t readerShortPwrBtn = READER_PAGE_REFRESH;
+  uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;  ///< XTC short power button behavior
   uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
   /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
   char dictionaryFolder[64] = "";
@@ -418,6 +421,12 @@ class SystemSetting {
   uint8_t btnLeftLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
   uint8_t btnRightShortAction = BTN_ACTION_PAGE_NEXT;
   uint8_t btnRightLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+  /** Power Button (short) - same READER_BUTTON_ACTION set as the 8 fields above (short-press only, no
+   *  long-press pair - see ReaderPresetsActivity::isPowerButtonRow). Supersedes readerShortPwrBtn's
+   *  narrower 4-option READER_SHORT_PWRBTN enum; that field stays for serialization backward-compat
+   *  (loadFromFile() migrates its value into this field on first load of an older settings file) but is
+   *  no longer consulted by the reader. */
+  uint8_t btnPowerShortAction = BTN_ACTION_PAGE_REFRESH;
 
   uint8_t orientation = PORTRAIT;  ///< Screen orientation
 

@@ -86,6 +86,9 @@ void ReaderButtonBindings::dispatch(EpubActivity& act, const uint8_t action) {
     case SystemSetting::BTN_ACTION_TABLE_OF_CONTENTS:
       act.openTableOfContents();
       break;
+    case SystemSetting::BTN_ACTION_CHANGE_ORIENTATION:
+      act.orientationPicker_.enter(act);
+      break;
     case SystemSetting::BTN_ACTION_ANNOTATE:
       act.pauseReadingStats();
       act.annUi_.enter(act);

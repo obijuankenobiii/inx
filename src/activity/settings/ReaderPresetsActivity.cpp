@@ -125,23 +125,18 @@ const char* readerButtonActionLabel(const uint8_t action) {
                                         "Chapter Skip Next",
                                         "Chapter Skip Previous",
                                         "Bookmark",
-                                        "Table of Contents"};
+                                        "Table of Contents",
+                                        "Change Orientation"};
   if (action >= SystemSetting::READER_BUTTON_ACTION_COUNT) {
     return "None";
   }
   return kLabels[action];
 }
 
-// Power Button is a single, pre-existing short-press-only reader setting (physical Power button while
-// reading has no reader-configurable long-press - that's reserved at the hardware/system level) - a 9th
-// row in "Buttons" alongside the 8 Up/Down/Left/Right short+long rows, not paired with a long-press slot.
-const char* readerShortPwrBtnLabel(const uint8_t value) {
-  static const char* const kLabels[] = {"Page Turn", "Page Refresh", "Annotate", "Dictionary"};
-  if (value >= SystemSetting::READER_SHORT_PWRBTN_COUNT) {
-    return "Page Turn";
-  }
-  return kLabels[value];
-}
+// Power Button is a single, short-press-only reader setting (physical Power button while reading has
+// no reader-configurable long-press - that's reserved at the hardware/system level) - a 9th row in
+// "Buttons" alongside the 8 Up/Down/Left/Right short+long rows, not paired with a long-press slot. It
+// shares the same READER_BUTTON_ACTION set (and readerButtonActionLabel()) as those 8 rows.
 }  // namespace
 
 ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
@@ -354,7 +349,7 @@ void ReaderPresetsActivity::render() {
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Power Button (short)";
-      const char* value = readerShortPwrBtnLabel(SETTINGS.readerShortPwrBtn);
+      const char* value = readerButtonActionLabel(SETTINGS.btnPowerShortAction);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
@@ -511,13 +506,14 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
 
   if (isPowerButtonRow(row)) {
     std::vector<std::string> options;
-    for (int i = 0; i < static_cast<int>(SystemSetting::READER_SHORT_PWRBTN_COUNT); ++i) {
-      options.emplace_back(readerShortPwrBtnLabel(static_cast<uint8_t>(i)));
+    for (int i = 0; i < static_cast<int>(SystemSetting::READER_BUTTON_ACTION_COUNT); ++i) {
+      options.emplace_back(readerButtonActionLabel(static_cast<uint8_t>(i)));
     }
-    openGenericSelector("Power Button (short)", std::move(options), SETTINGS.readerShortPwrBtn, [](const int chosen) {
-      SETTINGS.readerShortPwrBtn = static_cast<uint8_t>(chosen);
-      SETTINGS.saveToFile();
-    });
+    openGenericSelector("Power Button (short)", std::move(options), SETTINGS.btnPowerShortAction,
+                        [](const int chosen) {
+                          SETTINGS.btnPowerShortAction = static_cast<uint8_t>(chosen);
+                          SETTINGS.saveToFile();
+                        });
     return;
   }
 

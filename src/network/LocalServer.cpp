@@ -1961,7 +1961,6 @@ void LocalServer::handleSettingsGet() const {
   doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
   doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
 
-  doc["readerShortPwrBtn"] = SETTINGS.readerShortPwrBtn;
   doc["shakePageTurn"] = SETTINGS.shakePageTurn;
   doc["shakePageTurnSensitivity"] = SETTINGS.shakePageTurnSensitivity;
 
@@ -2135,9 +2134,6 @@ void LocalServer::handleSettingsUpdate() const {
       changed = true;
     } else if (strcmp(key, "bionicReadingEnabled") == 0) {
       SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
-      changed = true;
-    } else if (strcmp(key, "readerShortPwrBtn") == 0) {
-      SETTINGS.readerShortPwrBtn = (uint8_t)value;
       changed = true;
     } else if (strcmp(key, "shakePageTurn") == 0) {
       const int motionMode = static_cast<int>(value);

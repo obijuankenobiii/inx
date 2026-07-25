@@ -40,15 +40,15 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 32;
-// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 77, through
-// btnRightLongAction - NOT counting the version/count header fields read separately before the loop). This
+constexpr uint8_t SETTINGS_FILE_VERSION = 33;
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 78, through
+// btnPowerShortAction - NOT counting the version/count header fields read separately before the loop). This
 // is written into the file as its own "how many fields do I contain" header and read back as
 // fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to know whether the tail
 // fields are actually present. If it's wrong, either the tail fields never get read back even though they
 // were written (undercount), or the file never triggers the self-healing rewrite on old-format files
 // (overcount, since fileSettingsCount can never reach it).
-constexpr uint8_t SETTINGS_COUNT = 77;
+constexpr uint8_t SETTINGS_COUNT = 78;
 /** Last field index in v9 (1-based count of persisted pods through displayImageDither). */
 constexpr uint8_t SETTINGS_COUNT_V9 = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
@@ -226,6 +226,7 @@ uint32_t settingsHash(const SystemSetting& settings, const uint8_t fontFamilyToS
   hashPod(hash, settings.btnLeftLongAction);
   hashPod(hash, settings.btnRightShortAction);
   hashPod(hash, settings.btnRightLongAction);
+  hashPod(hash, settings.btnPowerShortAction);
   return hash;
 }
 }  // namespace
@@ -372,6 +373,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, btnLeftLongAction);
   serialization::writePod(outputFile, btnRightShortAction);
   serialization::writePod(outputFile, btnRightLongAction);
+  serialization::writePod(outputFile, btnPowerShortAction);
 
   outputFile.close();
   saveUiThemeSetting(uiTheme);
@@ -771,6 +773,10 @@ bool SystemSetting::loadFromFile() {
       readAndValidate(inputFile, btnRightLongAction, READER_BUTTON_ACTION_COUNT);
       ++settingsRead;
     }
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, btnPowerShortAction, READER_BUTTON_ACTION_COUNT);
+      ++settingsRead;
+    }
 
   } while (false);
 
@@ -833,6 +839,26 @@ bool SystemSetting::loadFromFile() {
   }
   if (settingsRead < 77) {
     btnRightLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
+  }
+  if (settingsRead < 78) {
+    // Migrate the old 4-option readerShortPwrBtn (already read above, unconditionally, earlier in
+    // this same load) into its equivalent under the new 12-option READER_BUTTON_ACTION set, so
+    // upgrading preserves whatever the user actually had configured instead of resetting it.
+    switch (readerShortPwrBtn) {
+      case READER_PAGE_TURN:
+        btnPowerShortAction = BTN_ACTION_PAGE_NEXT;
+        break;
+      case READER_ANNOTATE:
+        btnPowerShortAction = BTN_ACTION_ANNOTATE;
+        break;
+      case READER_DICTIONARY:
+        btnPowerShortAction = BTN_ACTION_DICTIONARY;
+        break;
+      case READER_PAGE_REFRESH:
+      default:
+        btnPowerShortAction = BTN_ACTION_PAGE_REFRESH;
+        break;
+    }
   }
 
   if (recentVisibleCount < 1 || recentVisibleCount > 9) {

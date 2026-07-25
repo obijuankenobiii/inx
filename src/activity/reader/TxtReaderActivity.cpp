@@ -118,7 +118,7 @@ void TxtReaderActivity::loop() {
                                                      mappedInput.wasPressed(MappedInputManager::Button::Left))
                                                   : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
                                                      mappedInput.wasReleased(MappedInputManager::Button::Left)));
-  const bool powerPageTurn = SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_TURN &&
+  const bool powerPageTurn = SETTINGS.btnPowerShortAction == SystemSetting::BTN_ACTION_PAGE_NEXT &&
                              mappedInput.wasReleased(MappedInputManager::Button::Power);
   const bool nextTriggered =
       motionGesture == MappedInputManager::MotionGesture::Next ||

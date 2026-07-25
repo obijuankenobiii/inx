@@ -740,6 +740,13 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (orientationPicker_.isActive()) {
+    orientationPicker_.handleInput(*this);
+    // handleInput() already repaints inline (popup redraw on Up/Down, renderScreen(true) on Back) -
+    // Confirm instead sets isToggleClosed so the block below performs the actual relayout next loop().
+    return;
+  }
+
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
     return;
@@ -796,32 +803,11 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_TURN) {
-    endPageTimer();
-    pageTurn(true);
-    lastAutoPageTurnTime = millis();
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_PAGE_REFRESH) {
-    renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
-    updateRequired = true;
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_ANNOTATE) {
-    pauseReadingStats();
-    annUi_.enter(*this);
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      SETTINGS.readerShortPwrBtn == SystemSetting::READER_SHORT_PWRBTN::READER_DICTIONARY) {
-    pauseReadingStats();
-    dictUi_.enter(*this);
+  // Power (short-press only, no long-press pairing) shares the same 12-option READER_BUTTON_ACTION
+  // dispatch as Up/Down/Left/Right - see SETTINGS.btnPowerShortAction's doc comment for why this
+  // supersedes the old 4-option readerShortPwrBtn.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power)) {
+    btnBindings_.dispatch(*this, SETTINGS.btnPowerShortAction);
     return;
   }
 

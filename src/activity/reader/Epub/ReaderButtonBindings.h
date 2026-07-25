@@ -28,6 +28,12 @@ class ReaderButtonBindings {
    *  mapped action fired this call. */
   bool handleInput(EpubActivity& act);
 
+  /** Fires a single READER_BUTTON_ACTION immediately, bypassing press-state tracking. Public so
+   *  EpubActivity's Power button (short-press only, no long-press pairing so it doesn't need
+   *  handleButton()'s state machine) can reuse the same 12-action dispatch as Up/Down/Left/Right
+   *  instead of duplicating a subset of it. */
+  void dispatch(EpubActivity& act, uint8_t action);
+
  private:
   struct PressState {
     bool active = false;
@@ -37,7 +43,6 @@ class ReaderButtonBindings {
 
   bool handleButton(EpubActivity& act, MappedInputManager::Button button, PressState& state, uint8_t shortAction,
                     uint8_t longAction);
-  void dispatch(EpubActivity& act, uint8_t action);
 
   PressState upState_;
   PressState downState_;
