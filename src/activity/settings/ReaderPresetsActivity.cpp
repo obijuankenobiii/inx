@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include <EpdFontFamily.h>
+#include <esp_heap_caps.h>
 
 #include <algorithm>
 #include <cstring>
@@ -160,6 +161,8 @@ ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputM
 }
 
 void ReaderPresetsActivity::onEnter() {
+  Serial.printf("[%lu] [MEM] Free heap at ReaderPresetsActivity::onEnter(): %u bytes\n", millis(),
+               static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
   const int listTop = mainHeaderDividerY();

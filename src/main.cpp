@@ -296,6 +296,9 @@ void setup() {
       break;
   }
 
+  Serial.printf("[%lu] [MEM] Free heap at end of setup(): %u bytes\n", millis(),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
+
   switchTo<BootActivity>(render, input);
   waitForPowerRelease();
 }

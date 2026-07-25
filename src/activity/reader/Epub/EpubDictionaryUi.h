@@ -43,6 +43,11 @@ class EpubDictionaryUi {
   void performLookup(EpubActivity& act);
   void ensureDictionaryOpen();
   void saveCurrentWord(EpubActivity& act);
+  /** Actually releases currentDefinition_/definitionBlocks_/definitionLines_'s heap capacity (not
+   *  just .clear(), which keeps it reserved for reuse) - a big dictionary entry's parsed/laid-out
+   *  form can run into the tens of KB, and .clear() alone would leave that reserved for as long as
+   *  the book stays open even after the user backs out of viewing it. */
+  void releaseDefinitionMemory();
 
   bool mode_ = false;
   std::vector<PageWordHit> words_;

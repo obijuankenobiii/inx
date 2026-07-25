@@ -156,7 +156,7 @@ void EpubDictionaryUi::enter(EpubActivity& act) {
   mode_ = true;
   showingDefinition_ = false;
   lookedUpWord_.clear();
-  currentDefinition_.clear();
+  releaseDefinitionMemory();
   focus_ = 0;
   lastNavEdgeDir_ = -1;
   navRepeatDir_ = -1;
@@ -180,23 +180,36 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
   mode_ = false;
   showingDefinition_ = false;
   lookedUpWord_.clear();
-  currentDefinition_.clear();
-  definitionBlocks_.clear();
-  definitionLines_.clear();
-  definitionScrollLine_ = 0;
-  definitionScrollable_ = false;
-  words_.clear();
-  lineFirst_.clear();
+  releaseDefinitionMemory();
+  std::vector<PageWordHit>().swap(words_);
+  std::vector<size_t>().swap(lineFirst_);
+  // dict_ holds the on-SD dictionary's in-RAM checkpoint index once opened (hundreds of entries for
+  // a large dictionary, tens of KB) - close it here instead of leaving it open for the rest of the
+  // reading session just because the user looked something up once. ensureDictionaryOpen() re-attempts
+  // opening (and re-scans the index) next time the user actually looks something up.
+  dict_.close();
+  dictOpenAttempted_ = false;
   lastNavEdgeDir_ = -1;
   navRepeatDir_ = -1;
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  std::vector<std::unique_ptr<uint8_t[]>>().swap(captureChunks_);
   captureMonolithic_.reset();
   captureUsesMonolithic_ = false;
   captureBytes_ = 0;
   captureValid_ = false;
   act.updateRequired = true;
+}
+
+/** See header - swaps with a default-constructed temporary rather than .clear(), so the heap
+ *  capacity a big definition needed is actually returned instead of sitting reserved for reuse. */
+void EpubDictionaryUi::releaseDefinitionMemory() {
+  std::string().swap(currentDefinition_);
+  std::vector<DefinitionBlock>().swap(definitionBlocks_);
+  std::vector<DefinitionStyledLine>().swap(definitionLines_);
+  definitionScrollLine_ = 0;
+  definitionScrollable_ = false;
 }
 
 void EpubDictionaryUi::ensureDictionaryOpen() {
@@ -404,6 +417,7 @@ void EpubDictionaryUi::handleInput(EpubActivity& act) {
   if (m.wasReleased(MappedInputManager::Button::Back)) {
     if (showingDefinition_) {
       showingDefinition_ = false;
+      releaseDefinitionMemory();
       act.updateRequired = true;
     } else {
       exit(act);

@@ -95,9 +95,11 @@ void StarDictLookup::close() {
   if (dictFile_) {
     dictFile_.close();
   }
-  checkpoints_.clear();
-  bookname_.clear();
-  sameTypeSequence_.clear();
+  // swap, not .clear() - checkpoints_ is the in-RAM index built by buildCheckpoints() (hundreds of
+  // entries for a large dictionary), and .clear() alone would leave that capacity reserved.
+  std::vector<Checkpoint>().swap(checkpoints_);
+  std::string().swap(bookname_);
+  std::string().swap(sameTypeSequence_);
   wordCount_ = 0;
   idxFileSize_ = 0;
   use64BitOffsets_ = false;

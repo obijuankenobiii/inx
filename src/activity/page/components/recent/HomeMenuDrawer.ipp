@@ -702,13 +702,13 @@ class RecentActivity::HomeMenuDrawer {
   void openDictionaryDetail(const int index) {
     dictionaryDetailWord_ = SAVED_WORDS.wordAt(index);
     const std::string definition = SAVED_WORDS.definitionAt(index);
-    dictionaryDetailLines_.clear();
     if (definition.empty()) {
+      std::vector<DefinitionStyledLine>().swap(dictionaryDetailLines_);  // actually release, not just clear()
       detailText_ = "No definition saved.";
     } else {
       const auto blocks = parseHtmlToBlocks(definition);
       const int textWidth = renderer_.getScreenWidth() - kHomeDrawerPadX * 2;
-      dictionaryDetailLines_ = layoutDefinitionBlocks(renderer_, blocks, textWidth);
+      dictionaryDetailLines_ = layoutDefinitionBlocks(renderer_, blocks, textWidth);  // move-assign frees old capacity
       detailText_.clear();
     }
     mode_ = HomeDrawerMode::DictionaryDetail;
@@ -749,7 +749,8 @@ class RecentActivity::HomeMenuDrawer {
       rows_.push_back(std::move(row));
     };
 
-    for (const auto& book : BOOK_STATE.books) {
+    const std::vector<BookState::Book> allBooks = BOOK_STATE.getAllBooks();
+    for (const auto& book : allBooks) {
       if (book.path.empty()) {
         continue;
       }

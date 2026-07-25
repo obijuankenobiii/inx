@@ -13,6 +13,7 @@
 #include <HalDisplay.h>
 #include <ImageRender.h>
 #include <SDCardManager.h>
+#include <esp_heap_caps.h>
 #include <esp_task_wdt.h>
 #include <time.h>
 
@@ -609,6 +610,8 @@ bool EpubActivity::slowPath() {
  */
 void EpubActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
+  Serial.printf("[%lu] [MEM] Free heap at EpubActivity::onEnter() (book open, dictionary untouched): %u bytes\n",
+               millis(), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
   epub->setupCacheDir();
 
   syncOrientationFromGlobalIfNeeded();
@@ -616,9 +619,10 @@ void EpubActivity::onEnter() {
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
 
-  const auto* book = BOOK_STATE.findBookByPath(epub->getPath());
+  BookState::Book bookState;
+  const bool isTracked = BOOK_STATE.findBook(epub->getPath(), bookState);
   bool hasProgress = bookProgress->exists();
-  const bool useFastPath = (epub->isLoaded() || epub->hasMetadataCache()) && book && hasProgress;
+  const bool useFastPath = (epub->isLoaded() || epub->hasMetadataCache()) && isTracked && hasProgress;
 
   if (!useFastPath) {
     renderer.clearScreen(0xff);

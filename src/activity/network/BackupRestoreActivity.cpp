@@ -13,7 +13,6 @@
 #include <string>
 
 #include "KOReaderCredentialStore.h"
-#include "state/BookState.h"
 #include "state/NetworkCredential.h"
 #include "state/OpdsServerStore.h"
 #include "state/ReaderPreset.h"
@@ -311,7 +310,7 @@ bool BackupRestoreActivity::restoreBackup() {
 void BackupRestoreActivity::reloadStoresAfterRestore() {
   SETTINGS.loadFromFile();
   RECENT_BOOKS.loadFromFile();
-  BOOK_STATE.loadFromFile();
+  // BookState no longer caches anything in RAM - every call already reads fresh from books.bin.
   WIFI_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();
   KOREADER_STORE.loadFromFile();

@@ -18,149 +18,77 @@ namespace {
 constexpr uint8_t BOOKS_FILE_VERSION = 2;
 constexpr uint8_t BOOKS_FILE_VERSION_V1 = 1;
 constexpr char BOOKS_FILE[] = "/.metadata/books.bin";
-}  // namespace
 
-BookState BookState::instance;
+/** Reads every record from BOOKS_FILE into a fresh local vector - the only representation of "all
+ *  books" that ever exists. Callers use it and let it fall out of scope; nothing is cached between
+ *  calls. Returns the file's stored next-id counter (1 if the file is missing/unreadable). */
+uint32_t loadAllBooks(std::vector<BookState::Book>& out) {
+  out.clear();
 
-void BookState::rebuildPathIndex() {
-  pathIndex_.clear();
-  pathIndex_.reserve(books.size());
-  for (size_t i = 0; i < books.size(); ++i) {
-    pathIndex_[books[i].path] = i;
+  FsFile inputFile;
+  if (!SdMan.openFileForRead("BKS", BOOKS_FILE, inputFile)) {
+    return 1;
   }
-}
 
-void BookState::rebuildFavoriteIndices() {
-  favoriteIndices_.clear();
-  for (size_t i = 0; i < books.size(); ++i) {
-    if (books[i].isFavorite) {
-      favoriteIndices_.push_back(i);
+  uint8_t version = 0;
+  serialization::readPod(inputFile, version);
+  if (version != BOOKS_FILE_VERSION && version != BOOKS_FILE_VERSION_V1) {
+    inputFile.close();
+    return 1;
+  }
+
+  uint32_t nextId = 1;
+  serialization::readPod(inputFile, nextId);
+
+  size_t count = 0;
+  if (version == BOOKS_FILE_VERSION_V1) {
+    uint16_t count16 = 0;
+    serialization::readPod(inputFile, count16);
+    count = count16;
+  } else {
+    uint32_t count32 = 0;
+    serialization::readPod(inputFile, count32);
+    count = static_cast<size_t>(count32);
+  }
+
+  out.reserve(count);
+  for (size_t i = 0; i < count; i++) {
+    BookState::Book book;
+    serialization::readString(inputFile, book.path);
+    serialization::readString(inputFile, book.title);
+    serialization::readString(inputFile, book.author);
+    serialization::readPod(inputFile, book.id);
+
+    uint8_t flags = 0;
+    serialization::readPod(inputFile, flags);
+    book.isFavorite = (flags & 0x01) != 0;
+    book.isReading = (flags & 0x02) != 0;
+    book.isFinished = (flags & 0x04) != 0;
+
+    out.push_back(std::move(book));
+    if ((i % 256u) == 255u) {
+      yield();
     }
   }
-  std::sort(favoriteIndices_.begin(), favoriteIndices_.end(),
-            [this](size_t ia, size_t ib) { return books[ia].id > books[ib].id; });
+
+  inputFile.close();
+  return nextId;
 }
 
-void BookState::compactIdleMetadata() {
+/** Drops title (idle books) and author (all books) before writing, same as the old in-RAM
+ *  compactIdleMetadata() pass - keeps the file itself, and thus every future load, small. Display
+ *  surfaces for favorite/reading books (the only ones that keep a title) already have their own
+ *  copies of title/author (RecentBooks, book metadata cache) to fall back on. */
+void compactForWrite(std::vector<BookState::Book>& books) {
   for (auto& book : books) {
-    // Keep display titles only for books that still have a dedicated flag-driven surface.
     if (!book.isFavorite && !book.isReading) {
       std::string().swap(book.title);
     }
-    // Idle state never needs author strings from BookState; recents/stats keep their own copies.
     std::string().swap(book.author);
   }
 }
 
-void BookState::addOrUpdateBook(const std::string& path, const std::string& title, const std::string& author) {
-  const auto mapIt = pathIndex_.find(path);
-  if (mapIt != pathIndex_.end()) {
-    books[mapIt->second].title = title;
-    books[mapIt->second].author = author;
-  } else {
-    books.push_back({path, title, author, nextId++});
-    pathIndex_[path] = books.size() - 1;
-  }
-
-  saveToFile();
-  compactIdleMetadata();
-}
-
-std::vector<BookState::Book> BookState::getFavoriteBooks() const {
-  std::vector<Book> result;
-  result.reserve(favoriteIndices_.size());
-  std::transform(favoriteIndices_.begin(), favoriteIndices_.end(), std::back_inserter(result),
-                 [this](size_t idx) { return books[idx]; });
-  return result;
-}
-
-std::vector<BookState::Book> BookState::getReadingBooks() const {
-  std::vector<Book> result;
-  std::copy_if(books.begin(), books.end(), std::back_inserter(result), [](const Book& book) { return book.isReading; });
-  std::sort(result.begin(), result.end(), [](const Book& a, const Book& b) { return a.id > b.id; });
-  return result;
-}
-
-std::vector<BookState::Book> BookState::getFinishedBooks() const {
-  std::vector<Book> result;
-
-  std::copy_if(books.begin(), books.end(), std::back_inserter(result),
-               [](const Book& book) { return book.isFinished; });
-  std::sort(result.begin(), result.end(), [](const Book& a, const Book& b) { return a.id > b.id; });
-  return result;
-}
-
-BookState::Book* BookState::findBookByPath(const std::string& path) {
-  const auto mapIt = pathIndex_.find(path);
-  if (mapIt == pathIndex_.end()) {
-    return nullptr;
-  }
-  return &books[mapIt->second];
-}
-
-void BookState::renamePath(const std::string& oldPath, const std::string& newPath) {
-  const auto mapIt = pathIndex_.find(oldPath);
-  if (mapIt == pathIndex_.end()) {
-    return;
-  }
-  books[mapIt->second].path = newPath;
-  rebuildPathIndex();
-  saveToFile();
-}
-
-void BookState::toggleFavorite(const std::string& path) {
-  Book* b = findBookByPath(path);
-  if (b != nullptr) {
-    b->isFavorite = !b->isFavorite;
-    rebuildFavoriteIndices();
-    saveToFile();
-    compactIdleMetadata();
-  }
-}
-
-void BookState::setReading(const std::string& path, bool reading) {
-  Book* b = findBookByPath(path);
-  if (b != nullptr) {
-    b->isReading = reading;
-    saveToFile();
-    compactIdleMetadata();
-  }
-}
-
-void BookState::setFinished(const std::string& path, bool finished) {
-  Book* b = findBookByPath(path);
-  if (b != nullptr) {
-    b->isFinished = finished;
-    if (finished) b->isReading = false;
-    rebuildFavoriteIndices();
-    saveToFile();
-    compactIdleMetadata();
-  }
-}
-
-void BookState::removeBook(const std::string& path) {
-  const auto mapIt = pathIndex_.find(path);
-  if (mapIt == pathIndex_.end()) {
-    return;
-  }
-  books.erase(books.begin() + static_cast<std::ptrdiff_t>(mapIt->second));
-  rebuildPathIndex();
-  rebuildFavoriteIndices();
-  saveToFile();
-  compactIdleMetadata();
-}
-
-void BookState::clear(const bool saveNow) {
-  books.clear();
-  pathIndex_.clear();
-  favoriteIndices_.clear();
-  nextId = 1;
-  if (saveNow) {
-    saveToFile();
-  }
-}
-
-bool BookState::saveToFile() const {
+bool writeAllBooks(const std::vector<BookState::Book>& books, const uint32_t nextId) {
   SdMan.mkdir("/.metadata");
 
   FsFile outputFile;
@@ -170,9 +98,7 @@ bool BookState::saveToFile() const {
 
   serialization::writePod(outputFile, BOOKS_FILE_VERSION);
   serialization::writePod(outputFile, nextId);
-
-  const uint32_t count = static_cast<uint32_t>(books.size());
-  serialization::writePod(outputFile, count);
+  serialization::writePod(outputFile, static_cast<uint32_t>(books.size()));
 
   uint32_t written = 0;
   for (const auto& book : books) {
@@ -195,68 +121,174 @@ bool BookState::saveToFile() const {
   return true;
 }
 
-bool BookState::loadFromFile() {
-  FsFile inputFile;
-  if (!SdMan.openFileForRead("BKS", BOOKS_FILE, inputFile)) {
-    books.clear();
-    pathIndex_.clear();
-    favoriteIndices_.clear();
-    nextId = 1;
-    return false;
-  }
-
-  uint8_t version;
-  serialization::readPod(inputFile, version);
-
-  if (version != BOOKS_FILE_VERSION && version != BOOKS_FILE_VERSION_V1) {
-    inputFile.close();
-    return false;
-  }
-
-  serialization::readPod(inputFile, nextId);
-
-  size_t count = 0;
-  if (version == BOOKS_FILE_VERSION_V1) {
-    uint16_t count16;
-    serialization::readPod(inputFile, count16);
-    count = count16;
-  } else {
-    uint32_t count32;
-    serialization::readPod(inputFile, count32);
-    count = static_cast<size_t>(count32);
-  }
-
-  books.clear();
-  pathIndex_.clear();
-  favoriteIndices_.clear();
-  if (count != 0) {
-    books.reserve(count);
-  }
-
-  for (size_t i = 0; i < count; i++) {
-    Book book;
-    serialization::readString(inputFile, book.path);
-    serialization::readString(inputFile, book.title);
-    serialization::readString(inputFile, book.author);
-    serialization::readPod(inputFile, book.id);
-
-    uint8_t flags;
-    serialization::readPod(inputFile, flags);
-    book.isFavorite = (flags & 0x01) != 0;
-    book.isReading = (flags & 0x02) != 0;
-    book.isFinished = (flags & 0x04) != 0;
-
-    books.push_back(book);
-    if ((i % 256u) == 255u) {
-      yield();
+std::vector<BookState::Book> filterAndSort(std::vector<BookState::Book>& books, bool (*pred)(const BookState::Book&)) {
+  std::vector<BookState::Book> result;
+  for (auto& b : books) {
+    if (pred(b)) {
+      result.push_back(std::move(b));
     }
   }
+  std::sort(result.begin(), result.end(),
+           [](const BookState::Book& a, const BookState::Book& b) { return a.id > b.id; });
+  return result;
+}
+}  // namespace
 
-  inputFile.close();
-  rebuildPathIndex();
-  rebuildFavoriteIndices();
-  compactIdleMetadata();
-  return true;
+BookState BookState::instance;
+
+bool BookState::findBook(const std::string& path, Book& out) const {
+  std::vector<Book> books;
+  loadAllBooks(books);
+  for (auto& b : books) {
+    if (b.path == path) {
+      out = std::move(b);
+      return true;
+    }
+  }
+  return false;
 }
 
-void BookState::compactForIdle() { compactIdleMetadata(); }
+void BookState::addOrUpdateBook(const std::string& path, const std::string& title, const std::string& author) {
+  std::vector<Book> books;
+  uint32_t nextId = loadAllBooks(books);
+
+  bool found = false;
+  for (auto& b : books) {
+    if (b.path == path) {
+      b.title = title;
+      b.author = author;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    books.push_back(Book(path, title, author, nextId++));
+  }
+
+  compactForWrite(books);
+  writeAllBooks(books, nextId);
+}
+
+void BookState::toggleFavorite(const std::string& path, const std::string& fallbackTitle) {
+  std::vector<Book> books;
+  uint32_t nextId = loadAllBooks(books);
+
+  Book* target = nullptr;
+  for (auto& b : books) {
+    if (b.path == path) {
+      target = &b;
+      break;
+    }
+  }
+  if (target == nullptr) {
+    books.push_back(Book(path, fallbackTitle, "", nextId++));
+    target = &books.back();
+  }
+
+  target->isFavorite = !target->isFavorite;
+  if (target->isFavorite && target->title.empty()) {
+    target->title = fallbackTitle;
+  }
+
+  compactForWrite(books);
+  writeAllBooks(books, nextId);
+}
+
+void BookState::setReading(const std::string& path, const bool isReading, const std::string& fallbackTitle) {
+  std::vector<Book> books;
+  uint32_t nextId = loadAllBooks(books);
+
+  Book* target = nullptr;
+  for (auto& b : books) {
+    if (b.path == path) {
+      target = &b;
+      break;
+    }
+  }
+  if (target == nullptr) {
+    if (!isReading) {
+      return;  // nothing to clear for an untracked book
+    }
+    books.push_back(Book(path, fallbackTitle, "", nextId++));
+    target = &books.back();
+  }
+
+  target->isReading = isReading;
+  if (isReading && target->title.empty()) {
+    target->title = fallbackTitle;
+  }
+
+  compactForWrite(books);
+  writeAllBooks(books, nextId);
+}
+
+void BookState::setFinished(const std::string& path, const bool finished) {
+  std::vector<Book> books;
+  const uint32_t nextId = loadAllBooks(books);
+
+  for (auto& b : books) {
+    if (b.path == path) {
+      b.isFinished = finished;
+      if (finished) b.isReading = false;
+      compactForWrite(books);
+      writeAllBooks(books, nextId);
+      return;
+    }
+  }
+}
+
+void BookState::removeBook(const std::string& path) {
+  std::vector<Book> books;
+  const uint32_t nextId = loadAllBooks(books);
+
+  const auto it = std::find_if(books.begin(), books.end(), [&](const Book& b) { return b.path == path; });
+  if (it == books.end()) {
+    return;
+  }
+  books.erase(it);
+  writeAllBooks(books, nextId);
+}
+
+void BookState::renamePath(const std::string& oldPath, const std::string& newPath) {
+  std::vector<Book> books;
+  const uint32_t nextId = loadAllBooks(books);
+
+  for (auto& b : books) {
+    if (b.path == oldPath) {
+      b.path = newPath;
+      writeAllBooks(books, nextId);
+      return;
+    }
+  }
+}
+
+void BookState::clear(const bool writeFile) {
+  if (!writeFile) {
+    return;  // caller already deleted books.bin directly - nothing else to reset
+  }
+  writeAllBooks({}, 1);
+}
+
+std::vector<BookState::Book> BookState::getAllBooks() const {
+  std::vector<Book> books;
+  loadAllBooks(books);
+  return books;
+}
+
+std::vector<BookState::Book> BookState::getFavoriteBooks() const {
+  std::vector<Book> books;
+  loadAllBooks(books);
+  return filterAndSort(books, [](const Book& b) { return b.isFavorite; });
+}
+
+std::vector<BookState::Book> BookState::getReadingBooks() const {
+  std::vector<Book> books;
+  loadAllBooks(books);
+  return filterAndSort(books, [](const Book& b) { return b.isReading; });
+}
+
+std::vector<BookState::Book> BookState::getFinishedBooks() const {
+  std::vector<Book> books;
+  loadAllBooks(books);
+  return filterAndSort(books, [](const Book& b) { return b.isFinished; });
+}

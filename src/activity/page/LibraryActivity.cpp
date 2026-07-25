@@ -688,11 +688,11 @@ uint8_t LibraryActivity::getBookStateFlags(const std::string& path) const {
   }
 
   uint8_t flags = 0;
-  auto* book = BOOK_STATE.findBookByPath(path);
-  if (book) {
-    if (book->isFavorite) flags |= BOOK_STATE_FAVORITE;
-    if (book->isReading) flags |= BOOK_STATE_READING;
-    if (book->isFinished) flags |= BOOK_STATE_FINISHED;
+  BookState::Book book;
+  if (BOOK_STATE.findBook(path, book)) {
+    if (book.isFavorite) flags |= BOOK_STATE_FAVORITE;
+    if (book.isReading) flags |= BOOK_STATE_READING;
+    if (book.isFinished) flags |= BOOK_STATE_FINISHED;
   }
   bookStateCache_[path] = flags;
   return flags;
@@ -2092,25 +2092,7 @@ void LibraryActivity::handleFavoriteLongPress(int itemCount) {
     const LibraryItem& item = currentPageItems[selectorIndex];
 
     if (item.type == LibraryItem::Type::BOOK && !isSupportedImageFile(item.path)) {
-      auto* book = BOOK_STATE.findBookByPath(item.path);
-
-      if (!book) {
-        BOOK_STATE.addOrUpdateBook(item.path, item.displayName, "");
-        book = BOOK_STATE.findBookByPath(item.path);
-        if (book) {
-          book->isFavorite = true;
-          BOOK_STATE.saveToFile();
-          BOOK_STATE.compactForIdle();
-        }
-      } else {
-        const bool makeFavorite = !book->isFavorite;
-        book->isFavorite = makeFavorite;
-        if (makeFavorite && book->title.empty()) {
-          book->title = item.displayName;
-        }
-        BOOK_STATE.saveToFile();
-        BOOK_STATE.compactForIdle();
-      }
+      BOOK_STATE.toggleFavorite(item.path, item.displayName);
 
       bookStateCache_.erase(item.path);
       if (favoritesPromoted) {
@@ -2289,23 +2271,8 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
       return;
     }
 
-    auto* book = BOOK_STATE.findBookByPath(item.path);
+    BOOK_STATE.setReading(item.path, true, item.displayName);
 
-    if (!book) {
-      BOOK_STATE.addOrUpdateBook(item.path, item.displayName, "");
-      book = BOOK_STATE.findBookByPath(item.path);
-      if (book) {
-        book->isReading = true;
-      }
-    } else {
-      book->isReading = true;
-      if (book->title.empty()) {
-        book->title = item.displayName;
-      }
-    }
-
-    BOOK_STATE.saveToFile();
-    BOOK_STATE.compactForIdle();
     bookStateCache_.erase(item.path);
     onSelectBook(item.path);
   }

@@ -13,6 +13,7 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 #include <Xtc.h>
+#include <esp_heap_caps.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -618,6 +619,9 @@ const RecentActivity::CachedRecentStats& RecentActivity::statsForRecentIndex(con
  */
 void RecentActivity::onEnter() {
   Activity::onEnter();
+
+  Serial.printf("[%lu] [MEM] Free heap at RecentActivity::onEnter(): %u bytes\n", millis(),
+               static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
 
   freeRecentPageBuffer();
   layoutEngine_.reset();

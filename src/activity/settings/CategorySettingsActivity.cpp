@@ -9,6 +9,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
+#include <esp_heap_caps.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -60,6 +61,8 @@ void CategorySettingsActivity::taskTrampoline(void* param) {
  */
 void CategorySettingsActivity::onEnter() {
   Activity::onEnter();
+  Serial.printf("[%lu] [MEM] Free heap at CategorySettingsActivity::onEnter(): %u bytes\n", millis(),
+               static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
   renderingMutex = xSemaphoreCreateMutex();
 
   halfRefreshOnLoadApplied_ = false;
