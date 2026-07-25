@@ -14,6 +14,7 @@
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
+#include "ReaderFontSettingsDraw.h"
 #include "ReaderPresetEditorActivity.h"
 #include "state/ReaderPreset.h"
 #include "state/SystemSetting.h"
@@ -290,25 +291,35 @@ void ReaderPresetsActivity::render() {
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Text Anti-Aliasing";
-      const char* value = SETTINGS.textAntiAliasing ? "On" : "Off";
+      const char* value = nullptr;
+      bool isToggle = true;
+      bool toggleChecked = SETTINGS.textAntiAliasing != 0;
       const int systemLocalRow = rowIndex - systemHeaderRow();
       if (systemLocalRow == 2) {
         label = "  Refresh Frequency";
         value = systemRefreshLabel();
+        isToggle = false;
       } else if (systemLocalRow == 3) {
         label = "  Page Auto Turn";
         value = systemAutoTurnLabel();
+        isToggle = false;
       } else if (systemLocalRow == 4) {
         label = "  Image Quality";
         value = readerQualityLabel(SETTINGS.readerImageGrayscale);
+        isToggle = false;
       } else if (systemLocalRow == 5) {
         label = "  Smart Refresh (Images)";
-        value = SETTINGS.readerSmartRefreshOnImages ? "On" : "Off";
+        toggleChecked = SETTINGS.readerSmartRefreshOnImages != 0;
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
-                           isSelected ? 0 : 1);
+      if (isToggle) {
+        ReaderFontSettingsDraw::drawToggleCheckbox(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight,
+                                                   isSelected, toggleChecked);
+      } else {
+        const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
+        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+                             isSelected ? 0 : 1);
+      }
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
       continue;
@@ -457,9 +468,9 @@ void ReaderPresetsActivity::renderOverlay() {
   for (int i = 0; i < optionCount; i++) {
     const int rowY = boxY + overlayHeaderH + i * rowH;
     const bool sel = (i == overlaySel_);
-    renderer.rectangle.fill(
-        boxX + 1, rowY, boxW - 2, rowH,
-        sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+    if (sel) {
+      renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
                          sel ? 0 : 1);
@@ -679,9 +690,9 @@ void ReaderPresetsActivity::renderActionSelectorOverlay() {
     }
     const int rowY = boxY + overlayHeaderH + i * rowH;
     const bool sel = (optionIdx == actionSelectorSel_);
-    renderer.rectangle.fill(
-        boxX + 1, rowY, boxW - 2, rowH,
-        sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+    if (sel) {
+      renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, selectorOptions_[optionIdx].c_str(),
                          sel ? 0 : 1);

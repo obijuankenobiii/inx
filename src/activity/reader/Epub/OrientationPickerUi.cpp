@@ -80,9 +80,9 @@ void OrientationPickerUi::render(EpubActivity& act) {
   for (int i = 0; i < kOrientationCount; ++i) {
     const int rowY = boxY + overlayHeaderH + i * rowH;
     const bool sel = (i == selected_);
-    renderer.rectangle.fill(
-        boxX + 1, rowY, boxW - 2, rowH,
-        sel ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+    if (sel) {
+      renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
     const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, kOrientationLabels[i], sel ? 0 : 1);
     if (i + 1 < kOrientationCount) {
