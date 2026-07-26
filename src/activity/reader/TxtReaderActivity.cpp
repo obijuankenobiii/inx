@@ -22,6 +22,7 @@ namespace {
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 25;
 constexpr int progressBarMarginTop = 1;
+constexpr int emptyLinesPerTextLine = 2;
 constexpr size_t CHUNK_SIZE = 8 * 1024;
 
 constexpr uint32_t CACHE_MAGIC = 0x54585449;
@@ -257,8 +258,10 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
   buffer[chunkSize] = '\0';
 
   size_t pos = 0;
+  size_t outLinesLimit = linesPerPage;
+  int emptyLinePool = 0;
 
-  while (pos < chunkSize && static_cast<int>(outLines.size()) < linesPerPage) {
+  while (pos < chunkSize && outLines.size() < outLinesLimit) {
     size_t lineEnd = pos;
     while (lineEnd < chunkSize && buffer[lineEnd] != '\n') {
       lineEnd++;
@@ -266,7 +269,7 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
     bool lineComplete = (lineEnd < chunkSize) || (offset + lineEnd >= fileSize);
 
-    if (!lineComplete && static_cast<int>(outLines.size()) > 0) {
+    if (!lineComplete && outLines.size() > 0) {
       break;
     }
 
@@ -279,7 +282,19 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
     size_t lineBytePos = 0;
 
-    while (!line.empty() && static_cast<int>(outLines.size()) < linesPerPage) {
+    while (outLines.size() < outLinesLimit) {
+
+      if (line.empty()) {
+        if (emptyLinePool == 0) {
+          emptyLinePool = emptyLinesPerTextLine;
+          outLinesLimit -= 1;
+        }
+        outLines.push_back(line);
+        outLinesLimit += 1;
+        emptyLinePool -= 1;
+        break;
+      }
+
       int lineWidth = renderer.text.getWidth(cachedFontId, line.c_str());
 
       if (lineWidth <= viewportWidth) {
@@ -380,12 +395,15 @@ void TxtReaderActivity::renderPage() {
   orientedMarginBottom += statusBarMargin;
 
   const int lineHeight = renderer.text.getLineHeight(cachedFontId);
+  const int emptyLineHeight = lineHeight / emptyLinesPerTextLine;
   const int contentWidth = viewportWidth;
 
   auto renderLines = [&]() {
     int y = orientedMarginTop;
     for (const auto& line : currentPageLines) {
-      if (!line.empty()) {
+      if (line.empty()) {
+        y += emptyLineHeight;
+      } else {
         int x = orientedMarginLeft;
 
         switch (cachedParagraphAlignment) {
@@ -410,8 +428,8 @@ void TxtReaderActivity::renderPage() {
         }
 
         renderer.text.render(cachedFontId, x, y, line.c_str());
+        y += lineHeight;
       }
-      y += lineHeight;
     }
   };
 
