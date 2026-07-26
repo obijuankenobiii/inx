@@ -21,6 +21,7 @@ constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
 constexpr char tmpCssBinFile[] = "/css.bin.tmp";
+constexpr size_t kMaxOpfCssScanBytes = 64 * 1024;
 constexpr size_t kMaxParsedCssBytes = 50 * 1024;
 }  // namespace
 
@@ -55,29 +56,6 @@ bool BookMetadataCache::beginTocPass() {
     return false;
   }
 
-  if (spineCount >= LARGE_SPINE_THRESHOLD) {
-    spineHrefIndex.clear();
-    spineHrefIndex.reserve(spineCount);
-    spineFile.seek(0);
-    for (int i = 0; i < spineCount; i++) {
-      auto entry = readSpineEntry(spineFile);
-      SpineHrefIndexEntry idx;
-      idx.hrefHash = fnvHash64(entry.href);
-      idx.hrefLen = static_cast<uint16_t>(entry.href.size());
-      idx.spineIndex = static_cast<int16_t>(i);
-      spineHrefIndex.push_back(idx);
-    }
-    std::sort(spineHrefIndex.begin(), spineHrefIndex.end(),
-              [](const SpineHrefIndexEntry& a, const SpineHrefIndexEntry& b) {
-                return a.hrefHash < b.hrefHash || (a.hrefHash == b.hrefHash && a.hrefLen < b.hrefLen);
-              });
-    spineFile.seek(0);
-    useSpineHrefIndex = true;
-    Serial.printf("[%lu] [BMC] Using fast index for %d spine items\n", millis(), spineCount);
-  } else {
-    useSpineHrefIndex = false;
-  }
-
   return true;
 }
 
@@ -99,9 +77,6 @@ void BookMetadataCache::appendSyntheticTocFromSpineIfEmpty() {
 bool BookMetadataCache::endTocPass() {
   tocFile.close();
   spineFile.close();
-
-  spineHrefIndex.clear();
-  useSpineHrefIndex = false;
 
   return true;
 }
@@ -220,17 +195,6 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     }
   }
 
-  std::vector<int16_t> spineToTocIndex(spineCount, -1);
-  tocFile.seek(0);
-  for (int j = 0; j < tocCount; j++) {
-    auto tocEntry = readTocEntry(tocFile);
-    if (tocEntry.spineIndex >= 0 && tocEntry.spineIndex < spineCount) {
-      if (spineToTocIndex[tocEntry.spineIndex] == -1) {
-        spineToTocIndex[tocEntry.spineIndex] = static_cast<int16_t>(j);
-      }
-    }
-  }
-
   ZipFile zip(epubPath);
 
   if (!zip.open()) {
@@ -242,47 +206,13 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     return false;
   }
 
-  std::vector<uint32_t> spineSizes;
-  bool useBatchSizes = false;
-
-  if (spineCount >= LARGE_SPINE_THRESHOLD) {
-    Serial.printf("[%lu] [BMC] Using batch size lookup for %d spine items\n", millis(), spineCount);
-
-    std::vector<ZipFile::SizeTarget> targets;
-    targets.reserve(spineCount);
-
-    spineFile.seek(0);
-    for (int i = 0; i < spineCount; i++) {
-      auto entry = readSpineEntry(spineFile);
-      std::string path = FsHelpers::normalisePath(entry.href);
-
-      ZipFile::SizeTarget t;
-      t.hash = ZipFile::fnvHash64(path.c_str(), path.size());
-      t.len = static_cast<uint16_t>(path.size());
-      t.index = static_cast<uint16_t>(i);
-      targets.push_back(t);
-    }
-
-    std::sort(targets.begin(), targets.end(), [](const ZipFile::SizeTarget& a, const ZipFile::SizeTarget& b) {
-      return a.hash < b.hash || (a.hash == b.hash && a.len < b.len);
-    });
-
-    spineSizes.resize(spineCount, 0);
-    int matched = zip.fillUncompressedSizes(targets, spineSizes);
-    Serial.printf("[%lu] [BMC] Batch lookup matched %d/%d spine items\n", millis(), matched, spineCount);
-
-    targets.clear();
-
-    useBatchSizes = true;
-  }
-
   uint32_t cumSize = 0;
   spineFile.seek(0);
   int lastSpineTocIndex = -1;
   for (int i = 0; i < spineCount; i++) {
     auto spineEntry = readSpineEntry(spineFile);
 
-    spineEntry.tocIndex = spineToTocIndex[i];
+    spineEntry.tocIndex = findFirstTocIndexForSpine(static_cast<uint16_t>(i));
 
     if (spineEntry.tocIndex == -1) {
       Serial.printf(
@@ -293,19 +223,9 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     lastSpineTocIndex = spineEntry.tocIndex;
 
     size_t itemSize = 0;
-    if (useBatchSizes) {
-      itemSize = spineSizes[i];
-      if (itemSize == 0) {
-        const std::string path = FsHelpers::normalisePath(spineEntry.href);
-        if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-          Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
-        }
-      }
-    } else {
-      const std::string path = FsHelpers::normalisePath(spineEntry.href);
-      if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
-        Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
-      }
+    const std::string path = FsHelpers::normalisePath(spineEntry.href);
+    if (!zip.getInflatedFileSize(path.c_str(), &itemSize)) {
+      Serial.printf("[%lu] [BMC] Warning: Could not get size for spine item: %s\n", millis(), path.c_str());
     }
 
     cumSize += itemSize;
@@ -398,36 +318,16 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
 
   int16_t spineIndex = -1;
 
-  if (useSpineHrefIndex) {
-    uint64_t targetHash = fnvHash64(href);
-    uint16_t targetLen = static_cast<uint16_t>(href.size());
-
-    auto it =
-        std::lower_bound(spineHrefIndex.begin(), spineHrefIndex.end(), SpineHrefIndexEntry{targetHash, targetLen, 0},
-                         [](const SpineHrefIndexEntry& a, const SpineHrefIndexEntry& b) {
-                           return a.hrefHash < b.hrefHash || (a.hrefHash == b.hrefHash && a.hrefLen < b.hrefLen);
-                         });
-
-    while (it != spineHrefIndex.end() && it->hrefHash == targetHash && it->hrefLen == targetLen) {
-      spineIndex = it->spineIndex;
+  spineFile.seek(0);
+  for (int i = 0; i < spineCount; i++) {
+    auto spineEntry = readSpineEntry(spineFile);
+    if (spineEntry.href == href) {
+      spineIndex = static_cast<int16_t>(i);
       break;
     }
-
-    if (spineIndex == -1) {
-      Serial.printf("[%lu] [BMC] createTocEntry: Could not find spine item for TOC href %s\n", millis(), href.c_str());
-    }
-  } else {
-    spineFile.seek(0);
-    for (int i = 0; i < spineCount; i++) {
-      auto spineEntry = readSpineEntry(spineFile);
-      if (spineEntry.href == href) {
-        spineIndex = static_cast<int16_t>(i);
-        break;
-      }
-    }
-    if (spineIndex == -1) {
-      Serial.printf("[%lu] [BMC] createTocEntry: Could not find spine item for TOC href %s\n", millis(), href.c_str());
-    }
+  }
+  if (spineIndex == -1) {
+    Serial.printf("[%lu] [BMC] createTocEntry: Could not find spine item for TOC href %s\n", millis(), href.c_str());
   }
 
   const TocEntry entry(title, href, anchor, level, spineIndex);
@@ -533,6 +433,13 @@ bool BookMetadataCache::extractAndCacheCssFiles(const std::string& epubPath) {
     Serial.printf("[%lu] [BMC] Could not get OPF size\n", millis());
     zip.close();
     return false;
+  }
+
+  if (opfSize > kMaxOpfCssScanBytes) {
+    Serial.printf("[%lu] [BMC] Skipping CSS extraction for large OPF (%u bytes)\n", millis(),
+                  static_cast<unsigned>(opfSize));
+    zip.close();
+    return true;
   }
 
   std::string tempOpfPath = cachePath + "/.opf.tmp";
@@ -806,6 +713,25 @@ BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(FsFile& file) co
   serialization::readPod(file, entry.cumulativeSize);
   serialization::readPod(file, entry.tocIndex);
   return entry;
+}
+
+int16_t BookMetadataCache::findFirstTocIndexForSpine(const uint16_t spineIndex) {
+  if (!tocFile) {
+    return -1;
+  }
+
+  const uint32_t oldPosition = tocFile.position();
+  int16_t result = -1;
+  tocFile.seek(0);
+  for (int i = 0; i < tocCount; ++i) {
+    const TocEntry tocEntry = readTocEntry(tocFile);
+    if (tocEntry.spineIndex == static_cast<int16_t>(spineIndex)) {
+      result = static_cast<int16_t>(i);
+      break;
+    }
+  }
+  tocFile.seek(oldPosition);
+  return result;
 }
 
 BookMetadataCache::TocEntry BookMetadataCache::readTocEntry(FsFile& file) const {

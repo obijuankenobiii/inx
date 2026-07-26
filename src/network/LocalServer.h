@@ -70,10 +70,15 @@ class LocalServer {
   void handleTagsPage() const;
   void handleInxFontPackJs() const;
   void handleJsZipMinJs() const;
+  void handleQrCreatorLogoJs() const;
   void handleEpubPageJs() const;
   void handleFilesPageJs() const;
   void handleNotFound() const;
   void handleStatus() const;
+  void handleDeviceIdentityGet() const;
+  void handleDeviceIdentityPost() const;
+  void handleDeviceIdentityPhoto() const;
+  void handleDeviceIdentityCardImage() const;
   void handleFileList() const;
   void handleEpubPage() const;
   void handleExportPage() const;

@@ -48,6 +48,7 @@ GfxRenderer renderer(display);
 GfxRenderer& render = renderer;
 
 Activity* currentActivity = nullptr;
+bool sdCardAvailable = false;
 
 unsigned long t1 = 0;
 unsigned long t2 = 0;
@@ -276,13 +277,12 @@ void setup() {
     while (!Serial && (millis() - start) < 3000) delay(10);
   }
 
-  if (!SdMan.begin()) {
-    switchTo<FullScreenMessageActivity>(render, input, "SD card error", EpdFontFamily::BOLD);
-    return;
-  }
+  sdCardAvailable = SdMan.begin();
 
-  SETTINGS.loadFromFile();
-  OPDS_STORE.loadOrMigrate({"Default", SETTINGS.opdsServerUrl, SETTINGS.opdsUsername, SETTINGS.opdsPassword});
+  if (sdCardAvailable) {
+    SETTINGS.loadFromFile();
+    OPDS_STORE.loadOrMigrate({"Default", SETTINGS.opdsServerUrl, SETTINGS.opdsUsername, SETTINGS.opdsPassword});
+  }
   normalizeUnavailableClockSettings();
 
   switch (gpio.getWakeupReason()) {
@@ -295,6 +295,9 @@ void setup() {
     default:
       break;
   }
+
+  Serial.printf("[%lu] [MEM] Free heap at end of setup(): %u bytes\n", millis(),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
 
   switchTo<BootActivity>(render, input);
   waitForPowerRelease();

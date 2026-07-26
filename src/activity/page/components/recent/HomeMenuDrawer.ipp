@@ -1,7 +1,7 @@
 namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-constexpr int kHomeDrawerHeaderH = UiTheme::MAIN_TAB_BAR_HEIGHT;
+constexpr int kHomeDrawerMainRowCount = 5;  // Recents, Bookmarks, Annotations, Dictionary, Favorites
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
@@ -85,6 +85,7 @@ std::string trimDrawerText(std::string s) {
   }
   return s;
 }
+
 }  // namespace
 
 class RecentActivity::HomeMenuDrawer {
@@ -98,13 +99,14 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Main;
     selected_ = 0;
     scroll_ = 0;
-    detailText_.clear();
+    releaseRows();
     syncLayout();
     render();
   }
 
   void hide() {
     visible_ = false;
+    releaseRows();
     owner_.updateRequired = true;
   }
 
@@ -113,19 +115,59 @@ class RecentActivity::HomeMenuDrawer {
       return;
     }
     if (input.wasReleased(MappedInputManager::Button::Back)) {
+      if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+        mode_ = HomeDrawerMode::Recents;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
+      if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+        mode_ = HomeDrawerMode::Dictionary;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       if (mode_ == HomeDrawerMode::RecentsActions) {
         loadRecents();
         mode_ = HomeDrawerMode::Recents;
         selected_ = 0;
         scroll_ = 0;
-        render(HalDisplay::HALF_REFRESH);
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
+      if (mode_ == HomeDrawerMode::DictionaryDetail) {
+        mode_ = HomeDrawerMode::Dictionary;
+        render(HalDisplay::FAST_REFRESH);
         return;
       }
       hide();
       return;
     }
 
-    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail ||
+        mode_ == HomeDrawerMode::DictionaryDetail) {
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        confirmQuickDeleteRecent();
+      }
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        confirmQuickDeleteDictionaryWord();
+      }
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::Recents && input.wasPressed(MappedInputManager::Button::Left)) {
+      openQuickDeleteRecentConfirm();
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::Dictionary && input.wasPressed(MappedInputManager::Button::Left)) {
+      openQuickDeleteDictionaryConfirm();
       return;
     }
 
@@ -194,6 +236,12 @@ class RecentActivity::HomeMenuDrawer {
 
     if (mode_ == HomeDrawerMode::AnnotationDetail) {
       renderDetail();
+    } else if (mode_ == HomeDrawerMode::DictionaryDetail) {
+      renderDictionaryDetail();
+    } else if (mode_ == HomeDrawerMode::RecentsDeleteConfirm) {
+      renderQuickDeleteConfirm("Remove from recents?", "Book metadata and cache will stay.");
+    } else if (mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+      renderQuickDeleteConfirm("Delete this word?", "The saved definition will also be removed.");
     } else {
       renderRows();
     }
@@ -207,11 +255,15 @@ class RecentActivity::HomeMenuDrawer {
     Main,
     Recents,
     RecentsActions,
+    RecentsDeleteConfirm,
     Favorites,
     Bookmarks,
     Annotations,
+    Dictionary,
+    DictionaryDeleteConfirm,
     BookmarkDetail,
-    AnnotationDetail
+    AnnotationDetail,
+    DictionaryDetail
   };
 
   enum class RecentBookAction {
@@ -248,6 +300,16 @@ class RecentActivity::HomeMenuDrawer {
   std::vector<DrawerRow> rows_;
   DrawerRow selectedBookRow_;
   std::string detailText_;
+  std::string dictionaryDetailWord_;
+  std::vector<DefinitionStyledLine> dictionaryDetailLines_;
+
+  void releaseRows() {
+    std::vector<DrawerRow>().swap(rows_);
+    selectedBookRow_ = DrawerRow();
+    std::string().swap(detailText_);
+    std::string().swap(dictionaryDetailWord_);
+    std::vector<DefinitionStyledLine>().swap(dictionaryDetailLines_);
+  }
 
   void syncLayout() {
     const int sw = renderer_.getScreenWidth();
@@ -260,20 +322,22 @@ class RecentActivity::HomeMenuDrawer {
     } else if (isHomeDrawerLandscape(renderer_)) {
       drawerW_ = sw / 2;
       drawerX_ = sw - drawerW_;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + kHomeDrawerMainRowCount * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     } else {
       drawerX_ = 0;
       drawerW_ = sw;
-      drawerH_ = kHomeDrawerHeaderH + 4 * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
+      drawerH_ = INX_THEME.mainHeaderHeight() + kHomeDrawerMainRowCount * kHomeDrawerMainRowH + kHomeDrawerMainBottomPad;
       drawerY_ = sh - drawerH_;
     }
     const int rowH = mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowH : kHomeDrawerRowH;
-    rowsPerPage_ = mode_ == HomeDrawerMode::Main ? 4 : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
+    rowsPerPage_ =
+        mode_ == HomeDrawerMode::Main ? kHomeDrawerMainRowCount : std::max(1, (drawerH_ - headerHeight() - 12 - 46) / rowH);
   }
 
   int headerHeight() const {
-    return mode_ == HomeDrawerMode::Main ? kHomeDrawerHeaderH : kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    return mode_ == HomeDrawerMode::Main ? INX_THEME.mainHeaderHeight()
+                                         : INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
   }
 
   const char* title() const {
@@ -282,16 +346,24 @@ class RecentActivity::HomeMenuDrawer {
         return "Recents";
       case HomeDrawerMode::RecentsActions:
         return "Book options";
+      case HomeDrawerMode::RecentsDeleteConfirm:
+        return "Remove recent";
       case HomeDrawerMode::Favorites:
         return "Favorites";
       case HomeDrawerMode::Bookmarks:
         return "Bookmarks";
       case HomeDrawerMode::Annotations:
         return "Annotations";
+      case HomeDrawerMode::Dictionary:
+        return "Dictionary";
+      case HomeDrawerMode::DictionaryDeleteConfirm:
+        return "Delete word";
       case HomeDrawerMode::BookmarkDetail:
         return "Bookmark";
       case HomeDrawerMode::AnnotationDetail:
         return "Annotation";
+      case HomeDrawerMode::DictionaryDetail:
+        return dictionaryDetailWord_.empty() ? "Definition" : dictionaryDetailWord_.c_str();
       case HomeDrawerMode::Main:
       default:
         return "Menu";
@@ -300,7 +372,7 @@ class RecentActivity::HomeMenuDrawer {
 
   int itemCount() const {
     if (mode_ == HomeDrawerMode::Main) {
-      return 4;
+      return kHomeDrawerMainRowCount;
     }
     return static_cast<int>(rows_.size());
   }
@@ -314,6 +386,8 @@ class RecentActivity::HomeMenuDrawer {
       case 2:
         return "Annotations";
       case 3:
+        return "Dictionary";
+      case 4:
       default:
         return "Favorites";
     }
@@ -343,6 +417,7 @@ class RecentActivity::HomeMenuDrawer {
                           : mode_ == HomeDrawerMode::Favorites      ? "No favorites"
                           : mode_ == HomeDrawerMode::Bookmarks      ? "No bookmarks"
                           : mode_ == HomeDrawerMode::Annotations    ? "No annotations"
+                          : mode_ == HomeDrawerMode::Dictionary     ? "No saved words"
                                                                     : "";
       const int msgY = drawerY_ + headerHeight() + 42;
       renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, empty, true);
@@ -398,7 +473,7 @@ class RecentActivity::HomeMenuDrawer {
   void renderLoading(const char* header, const char* message) {
     syncLayout();
     renderer_.clearScreen();
-    const int headerH = kHomeDrawerHeaderH + kHomeDrawerPageHeaderExtraH;
+    const int headerH = INX_THEME.mainHeaderHeight() + kHomeDrawerPageHeaderExtraH;
     const int titleY = (headerH - renderer_.text.getLineHeight(kHomeDrawerHeaderFont)) / 2 + 4;
     renderer_.text.render(kHomeDrawerHeaderFont, kHomeDrawerPadX, titleY, header, true, EpdFontFamily::BOLD);
     renderer_.line.render(0, headerH, renderer_.getScreenWidth(), headerH, true);
@@ -436,6 +511,46 @@ class RecentActivity::HomeMenuDrawer {
       remaining = trimDrawerText(remaining);
       y += lineH;
     }
+  }
+
+  /** Draws the saved word's stored definition with the same bold/italic/heading formatting as the
+   *  in-reader dictionary panel (dictionaryDetailLines_ is pre-parsed/laid-out in
+   *  openDictionaryDetail(), not re-parsed per frame). Falls back to renderDetail()'s plain-text path
+   *  for the "No definition saved." message when there's nothing stored. */
+  void renderDictionaryDetail() {
+    if (dictionaryDetailLines_.empty()) {
+      renderDetail();
+      return;
+    }
+    const int y = drawerY_ + headerHeight() + 18;
+    const int textX = drawerX_ + kHomeDrawerPadX;
+    const int bottomLimit = drawerY_ + drawerH_ - 50;
+    renderStyledLines(renderer_, dictionaryDetailLines_, textX, y, bottomLimit);
+  }
+
+  /** Shared confirm-dialog body for both "delete recent" and "delete saved word" - selectedBookRow_
+   *  holds whichever row was selected when the delete gesture fired (label doubles as the book title
+   *  or the dictionary word, since DrawerRow is reused generically for both). */
+  void renderQuickDeleteConfirm(const char* heading, const char* subtext) {
+    const int contentTop = drawerY_ + headerHeight();
+    const int centerY = contentTop + (drawerH_ - headerHeight() - 46) / 2;
+    const std::string title =
+        selectedBookRow_.label.empty() ? "Selected item" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+                                                                                    selectedBookRow_.label.c_str(),
+                                                                                    drawerW_ - kHomeDrawerPadX * 2);
+
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, heading, true, EpdFontFamily::BOLD);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 4, title.c_str(), true,
+                            EpdFontFamily::REGULAR);
+    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, subtext, true, EpdFontFamily::REGULAR);
+  }
+
+  void renderQuickDeleteConfirmOnly(const char* heading, const char* subtext) {
+    renderer_.rectangle.fill(drawerX_, drawerY_ + headerHeight() + 1, drawerW_,
+                             drawerH_ - headerHeight() - 1, false);
+    renderQuickDeleteConfirm(heading, subtext);
+    drawHints();
+    renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
   void renderBookmarkPreview() {
@@ -514,6 +629,18 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
+    if (mode_ == HomeDrawerMode::Recents || mode_ == HomeDrawerMode::Dictionary) {
+      const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
+                               recentLabels.btn3, recentLabels.btn4);
+      return;
+    }
+    if (mode_ == HomeDrawerMode::RecentsDeleteConfirm || mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
+      const auto confirmLabels = owner_.mappedInput.mapLabels("Cancel", "Remove", "", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
+                               confirmLabels.btn3, confirmLabels.btn4);
+      return;
+    }
     renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
@@ -531,6 +658,10 @@ class RecentActivity::HomeMenuDrawer {
         renderLoading("Annotations", "Loading Annotations");
         loadAnnotations();
         mode_ = HomeDrawerMode::Annotations;
+      } else if (selected_ == 3) {
+        renderLoading("Dictionary", "Loading Saved Words");
+        loadDictionaryWords();
+        mode_ = HomeDrawerMode::Dictionary;
       } else {
         renderLoading("Favorites", "Loading Books");
         loadFavorites();
@@ -568,7 +699,43 @@ class RecentActivity::HomeMenuDrawer {
       detailText_ = rows_[selected_].sublabel.empty() ? rows_[selected_].label : rows_[selected_].sublabel;
       mode_ = HomeDrawerMode::AnnotationDetail;
       render();
+      return;
     }
+    if (mode_ == HomeDrawerMode::Dictionary) {
+      openDictionaryDetail(selected_);
+    }
+  }
+
+  /** Populates rows_ from the global saved-words list (just the words - loadDictionaryWords() never
+   *  touches the stored definitions, see SavedDictionaryWords.h). */
+  void loadDictionaryWords() {
+    rows_.clear();
+    const int n = SAVED_WORDS.count();
+    for (int i = 0; i < n; ++i) {
+      DrawerRow row;
+      row.label = SAVED_WORDS.wordAt(i);
+      rows_.push_back(std::move(row));
+    }
+  }
+
+  /** Loads the definition exactly as it was saved (same HTML source EpubDictionaryUi looked up),
+   *  parses+lays it out once here (not per-frame - see EpubDictionaryUi's identical reasoning), and
+   *  switches to DictionaryDetail so it renders with the same bold/italic/heading formatting as the
+   *  in-reader panel instead of plain text. */
+  void openDictionaryDetail(const int index) {
+    dictionaryDetailWord_ = SAVED_WORDS.wordAt(index);
+    const std::string definition = SAVED_WORDS.definitionAt(index);
+    if (definition.empty()) {
+      std::vector<DefinitionStyledLine>().swap(dictionaryDetailLines_);  // actually release, not just clear()
+      detailText_ = "No definition saved.";
+    } else {
+      const auto blocks = parseHtmlToBlocks(definition);
+      const int textWidth = renderer_.getScreenWidth() - kHomeDrawerPadX * 2;
+      dictionaryDetailLines_ = layoutDefinitionBlocks(renderer_, blocks, textWidth);  // move-assign frees old capacity
+      detailText_.clear();
+    }
+    mode_ = HomeDrawerMode::DictionaryDetail;
+    render();
   }
 
   void loadRecents() {
@@ -605,7 +772,8 @@ class RecentActivity::HomeMenuDrawer {
       rows_.push_back(std::move(row));
     };
 
-    for (const auto& book : BOOK_STATE.books) {
+    const std::vector<BookState::Book> allBooks = BOOK_STATE.getAllBooks();
+    for (const auto& book : allBooks) {
       if (book.path.empty()) {
         continue;
       }
@@ -810,6 +978,50 @@ class RecentActivity::HomeMenuDrawer {
     render();
   }
 
+  void openQuickDeleteRecentConfirm() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    selectedBookRow_ = rows_[selected_];
+    mode_ = HomeDrawerMode::RecentsDeleteConfirm;
+    renderQuickDeleteConfirmOnly("Remove from recents?", "Book metadata and cache will stay.");
+  }
+
+  void confirmQuickDeleteRecent() {
+    removeSelectedRecentEntryOnly();
+    owner_.loadRecentBooks(false);
+    loadRecents();
+    mode_ = HomeDrawerMode::Recents;
+    selected_ = 0;
+    scroll_ = 0;
+    render(HalDisplay::FAST_REFRESH);
+  }
+
+  void removeSelectedRecentEntryOnly() {
+    removeSelectedFromRecentIndex();
+    if (!selectedBookRow_.bookPath.empty()) {
+      RECENT_BOOKS.removeBook(selectedBookRow_.bookPath);
+    }
+  }
+
+  void openQuickDeleteDictionaryConfirm() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    selectedBookRow_ = rows_[selected_];
+    mode_ = HomeDrawerMode::DictionaryDeleteConfirm;
+    renderQuickDeleteConfirmOnly("Delete this word?", "The saved definition will also be removed.");
+  }
+
+  void confirmQuickDeleteDictionaryWord() {
+    SAVED_WORDS.remove(selectedBookRow_.label);
+    loadDictionaryWords();
+    mode_ = HomeDrawerMode::Dictionary;
+    selected_ = 0;
+    scroll_ = 0;
+    render(HalDisplay::FAST_REFRESH);
+  }
+
   void applySelectedRecentAction() {
     if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
       return;
@@ -835,7 +1047,7 @@ class RecentActivity::HomeMenuDrawer {
     mode_ = HomeDrawerMode::Recents;
     selected_ = 0;
     scroll_ = 0;
-    render(HalDisplay::HALF_REFRESH);
+    render(HalDisplay::FAST_REFRESH);
   }
 
   void markSelectedBookDone() {

@@ -10,7 +10,6 @@
 
 #include "KOReaderCredentialStore.h"
 #include "images/CorgiWhite.h"
-#include "state/BookState.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
 #include "state/SystemSetting.h"
@@ -34,7 +33,6 @@ void BootActivity::onEnter() {
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
-  BOOK_STATE.loadFromFile();
 
   if (SdMan.ready() && SdMan.exists(KOReaderCredentialStore::SYSTEM_SETTINGS_PATH)) {
     (void)KOREADER_STORE.loadFromFile();

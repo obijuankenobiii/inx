@@ -93,6 +93,9 @@ bool SDCardManager::begin() {
 bool SDCardManager::ready() const { return initialized; }
 
 bool SDCardManager::exists(const char* path) {
+  if (!initialized) {
+    return false;
+  }
   if (sd.exists(path)) {
     return true;
   }

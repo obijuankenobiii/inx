@@ -1,1 +1,214 @@
-<!doctypehtml><html lang=en><meta charset=UTF-8><meta content="width=device-width,initial-scale=1,viewport-fit=cover"name=viewport><link rel=preconnect href=https://fonts.googleapis.com><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel=stylesheet><title>Inx — Dashboard</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}.container{max-width:720px;margin:0 auto;padding:28px 18px}.header{text-align:center;margin-bottom:22px}.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}.header .subtitle{font-size:13px;font-weight:400;color:#777;display:none}.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}.nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}.nav-btn:hover{background:#eee;color:#111}.nav-btn.active{background:#111;color:#fff}.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px;margin-bottom:32px}.card{background:rgba(255,255,255,.9);backdrop-filter:blur(18px);border-radius:22px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,.02),0 1px 2px rgba(0,0,0,.04);border:.5px solid rgba(0,0,0,.05);transition:all .3s cubic-bezier(.4, 0, .2, 1)}.card:hover{transform:translateY(-2px);box-shadow:0 20px 40px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);background:rgba(255,255,255,.96)}.card-header{display:flex;align-items:center;gap:14px;margin-bottom:24px}.card-header .icon{font-size:28px}.card-header h2{font-size:18px;font-weight:590;color:#1d1d1f;letter-spacing:-.015em}.status-grid{display:flex;flex-direction:column;gap:16px}.status-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.04)}.status-item:last-child{border-bottom:none}.status-label{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;color:#6e6e73}.status-value{font-size:14px;font-weight:600;color:#222;font-family:inherit}.status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:510}.badge-online{background:#34c759;color:#fff}.badge-online span{display:inline-block;width:6px;height:6px;background:#fff;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}.badge-ip{background:#eee;color:#333;font-family:inherit}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:14px;margin-top:8px}.stat-card{text-align:center;padding:18px 12px;background:#f5f5f7;border-radius:18px;transition:all .2s ease}.stat-card:hover{background:#e8e8ed;transform:scale(.98)}.stat-value{font-size:28px;font-weight:590;color:#1d1d1f;display:block;letter-spacing:-.002em}.stat-label{font-size:13px;color:#6e6e73;margin-top:6px;display:block;font-weight:400}.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:8px}.action-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;text-decoration:none}.action-btn:hover{background:#333}.action-btn:active{transform:scale(.98)}.action-btn-secondary{background:#eee;color:#222}.action-btn-secondary:hover{background:#e0e0e0}.footer{text-align:center;padding:32px 20px 20px;color:#8e8e93;font-size:12px;border-top:.5px solid rgba(0,0,0,.06);margin-top:40px}.footer a{color:#0071e3;text-decoration:none}.footer a:hover{text-decoration:underline}@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.card{animation:fadeInUp .5s cubic-bezier(.4,0,.2,1) forwards}.card:nth-child(1){animation-delay:0s}.card:nth-child(2){animation-delay:80ms}.card:nth-child(3){animation-delay:.16s}@media (max-width:768px){.container{padding:28px 16px}.header h1{font-size:22px}.header .subtitle{font-size:15px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.dashboard-grid{gap:16px}.card{padding:20px}.stat-value{font-size:22px}.quick-actions{grid-template-columns:1fr}}::selection{background:#0071e3;color:#fff}</style><div class=container><div class=header><h1>Inx</h1></div><div class=nav-links><a href=/ class="nav-btn active">Dashboard</a> <a href=/files class=nav-btn>Files</a> <a href=/epub class=nav-btn>Epub</a> <a href=/tags class=nav-btn>Tags</a> <a href=/font-manager class=nav-btn>Fonts</a> <a href=/export class=nav-btn>Bookmarks &amp; Annotations</a> <a href=/settings class=nav-btn>Settings</a></div><div class=dashboard-grid><div class=card><div class=card-header><span class=icon></span><h2>Status</h2></div><div class=status-grid><div class=status-item><div class=status-label>Version</div><div class=status-value id=version>—</div></div><div class=status-item><div class=status-label>Network</div><div class=status-value><span class="status-badge badge-online"><span></span> OK</span></div></div><div class=status-item><div class=status-label>IP</div><div class=status-value><span class="status-badge badge-ip"id=ip-address>—</span></div></div><div class=status-item><div class=status-label>Wi‑Fi</div><div class=status-value id=rssi>—</div></div></div></div><div class=card><div class=card-header><span class=icon></span><h2>Device</h2></div><div class=stats-grid><div class=stat-card><span class=stat-value id=free-heap>—</span> <span class=stat-label>Memory Free</span></div><div class=stat-card><span class=stat-value id=uptime>—</span> <span class=stat-label>Uptime</span></div><div class=stat-card><span class=stat-value id=mode>—</span> <span class=stat-label>Network Mode</span></div></div></div><div class=card><div class=card-header><span class=icon></span><h2>Open</h2></div><div class=quick-actions><a href=/files class=action-btn>Library</a> <a href=/font-manager class="action-btn action-btn-secondary">Fonts</a> <button class="action-btn action-btn-secondary"onclick=refreshData()>Refresh</button></div></div></div><div class=footer><a href="https://github.com/obijuankenobiii/inx">GitHub</a></div></div><script>function formatBytes(t){if(0===t)return"0 B";var e=Math.floor(Math.log(t)/Math.log(1024));return parseFloat((t/Math.pow(1024,e)).toFixed(0))+" "+["B","KB","MB","GB"][e]}function formatUptime(t){var e=Math.floor(t/86400),r=Math.floor(t%86400/3600),o=Math.floor(t%3600/60);return 0<e?`${e}d ${r}h`:0<r?`${r}h ${o}m`:0<o?`${o}m`:`${t}s`}function formatRSSI(t){return-55<=t?"Strong":-72<=t?"OK":"Weak"}async function fetchStatus(){try{const e=await fetch("/api/status");if(!e.ok)throw new Error(`HTTP ${e.status}`);var t=await e.json();updateElement("version",t.version||"1.0.0"),updateElement("ip-address",t.ip||"—"),updateElement("free-heap",formatBytes(t.freeHeap||0)),updateElement("uptime",formatUptime(t.uptime||0)),updateElement("mode",t.mode||"—"),t.rssi&&updateElement("rssi",formatRSSI(t.rssi))}catch(t){console.error("Error fetching status:",t);const r=["version","ip-address","free-heap","uptime","mode","rssi"];r.forEach(t=>{const e=document.getElementById(t);e&&"—"===e.textContent&&(e.textContent="⚠️")})}}function updateElement(t,e){const r=document.getElementById(t);r&&r.textContent!==e&&(r.style.opacity="0",setTimeout(()=>{r.textContent=e,r.style.opacity="1"},100))}function refreshData(){const t=event?.target?.closest?.(".action-btn");t&&(t.style.transform="scale(0.96)",setTimeout(()=>{t.style.transform="scale(1)"},150)),fetchStatus()}let refreshInterval;function startAutoRefresh(){fetchStatus(),refreshInterval=setInterval(fetchStatus,15e3)}function stopAutoRefresh(){refreshInterval&&clearInterval(refreshInterval)}window.addEventListener("load",startAutoRefresh),window.addEventListener("beforeunload",stopAutoRefresh)</script>
+<!doctype html>
+<html lang="en">
+<meta charset="UTF-8">
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<title>Inx — Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}
+button,input{font:inherit}
+.container{max-width:720px;margin:0 auto;padding:28px 18px}
+.header{text-align:center;margin-bottom:22px}
+.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}
+.header .subtitle{font-size:13px;font-weight:400;color:#777;display:none}
+.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}
+.nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
+.nav-btn:hover{background:#eee;color:#111}
+.nav-btn.active{background:#111;color:#fff}
+.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px;margin-bottom:32px}
+.card{background:rgba(255,255,255,.9);backdrop-filter:blur(18px);border-radius:22px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,.02),0 1px 2px rgba(0,0,0,.04);border:.5px solid rgba(0,0,0,.05);transition:all .3s cubic-bezier(.4, 0, .2, 1)}
+.card:hover{transform:translateY(-2px);box-shadow:0 20px 40px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);background:rgba(255,255,255,.96)}
+.card.wide{grid-column:1/-1}
+.card-header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+.card-header .icon{font-size:28px}
+.card-header h2{font-size:18px;font-weight:590;color:#1d1d1f;letter-spacing:-.015em}
+.card-header .header-action{margin-left:auto}
+.status-grid{display:flex;flex-direction:column;gap:16px}
+.status-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.04)}
+.status-item:last-child{border-bottom:none}
+.status-label{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;color:#6e6e73}
+.status-value{font-size:14px;font-weight:600;color:#222;font-family:inherit}
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:510}
+.badge-online{background:#34c759;color:#fff}
+.badge-online span{display:inline-block;width:6px;height:6px;background:#fff;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.badge-ip{background:#eee;color:#333;font-family:inherit}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:14px;margin-top:8px}
+.stat-card{text-align:center;padding:18px 12px;background:#f5f5f7;border-radius:18px;transition:all .2s ease}
+.stat-card:hover{background:#e8e8ed;transform:scale(.98)}
+.stat-value{font-size:28px;font-weight:590;color:#1d1d1f;display:block;letter-spacing:-.002em}
+.stat-label{font-size:13px;color:#6e6e73;margin-top:6px;display:block;font-weight:400}
+.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:8px}
+.action-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;text-decoration:none;min-height:40px}
+.action-btn:hover{background:#333}
+.action-btn:active{transform:scale(.98)}
+.action-btn-secondary{background:#eee;color:#222}
+.action-btn-secondary:hover{background:#e0e0e0}
+.action-btn:disabled{opacity:.45;cursor:default}
+.field{display:grid;gap:6px;margin-bottom:16px}
+.field label{font-size:13px;font-weight:510;color:#6e6e73}
+.field input{width:100%;min-height:42px;border:1px solid rgba(0,0,0,.1);border-radius:12px;background:#fff;color:#1d1d1f;padding:9px 14px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.field input:focus{outline:0;border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.06)}
+.field input::placeholder{color:#b3b3b8}
+.segmented{display:flex;background:#e8e8ed;border-radius:980px;padding:3px;margin-bottom:16px;gap:2px}
+.segmented button{flex:1;border:0;background:transparent;color:#6e6e73;padding:9px 8px;border-radius:980px;font-size:12.5px;font-weight:560;cursor:pointer;min-height:34px;transition:background .15s,color .15s}
+.segmented button.active{background:#111;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.dropzone{display:block;border:1.5px dashed rgba(0,0,0,.14);border-radius:14px;background:#fbfbfc;padding:18px 16px;text-align:center;color:#6e6e73;cursor:pointer;margin-bottom:16px;position:relative;transition:opacity .15s,border-color .15s,background .15s}
+.dropzone:hover{border-color:rgba(0,0,0,.28);background:#f5f5f7}
+.dropzone strong{display:block;color:#1d1d1f;font-size:14px;font-weight:590;margin-bottom:3px}
+.dropzone span{font-size:12.5px;color:#8e8e93}
+.dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.dropzone.disabled{opacity:.45;cursor:default;pointer-events:none}
+.identity-actions{display:flex;gap:8px;margin-top:18px}
+.identity-actions .action-btn{flex:1;border-radius:980px;min-height:44px}
+.identity-note{min-height:18px;font-size:12.5px;color:#8e8e93;margin-top:10px}
+.identity-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(240px,300px);gap:20px;align-items:start}
+.card-stage{background:#f5f5f7;border:.5px solid rgba(0,0,0,.05);border-radius:16px;padding:14px;display:flex;justify-content:center}
+.card-stage canvas{display:block;width:100%;max-width:280px;height:auto;background:#fff;border-radius:10px}
+.toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:10px 20px;border-radius:980px;font-size:13px;opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:1000}
+.toast.show{opacity:1}
+.identity-empty{display:flex;justify-content:center;padding:8px 0}
+.identity-add{display:flex;flex-direction:column;align-items:center;gap:10px;border:1.5px dashed rgba(0,0,0,.14);border-radius:16px;background:#fbfbfc;padding:26px 44px;cursor:pointer;min-width:220px;transition:background .15s,border-color .15s;font-family:inherit}
+.identity-add:hover{background:#f5f5f7;border-color:rgba(0,0,0,.28)}
+.identity-add .plus{width:38px;height:38px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;line-height:1}
+.identity-add span:last-child{font-size:13px;font-weight:590;color:#1d1d1f}
+.identity-view{display:flex;justify-content:center;padding:4px 0}
+.identity-view img{display:block;width:100%;max-width:230px;height:auto;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.1)}
+.footer{text-align:center;padding:32px 20px 20px;color:#8e8e93;font-size:12px;border-top:.5px solid rgba(0,0,0,.06);margin-top:40px}
+.footer a{color:#0071e3;text-decoration:none}
+.footer a:hover{text-decoration:underline}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card{animation:fadeInUp .5s cubic-bezier(.4,0,.2,1) forwards}
+.card:nth-child(1){animation-delay:0s}
+.card:nth-child(2){animation-delay:80ms}
+.card:nth-child(3){animation-delay:.16s}
+.card:nth-child(4){animation-delay:.24s}
+@media (max-width:768px){.container{padding:28px 16px}.header h1{font-size:22px}.header .subtitle{font-size:15px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.dashboard-grid{gap:16px;grid-template-columns:1fr}.card{padding:20px}.stat-value{font-size:22px}.quick-actions{grid-template-columns:1fr}.identity-layout{grid-template-columns:1fr}.identity-actions{flex-direction:column}.card-stage{order:-1}.card-stage canvas{max-width:220px}}
+::selection{background:#0071e3;color:#fff}
+</style>
+<div class="container">
+  <div class="header"><h1>Inx</h1></div>
+  <div class="nav-links">
+    <a href="/" class="nav-btn active">Dashboard</a>
+    <a href="/files" class="nav-btn">Files</a>
+    <a href="/epub" class="nav-btn">Epub</a>
+    <a href="/tags" class="nav-btn">Tags</a>
+    <a href="/font-manager" class="nav-btn">Fonts</a>
+    <a href="/export" class="nav-btn">Bookmarks &amp; Annotations</a>
+    <a href="/settings" class="nav-btn">Settings</a>
+  </div>
+  <div class="dashboard-grid">
+    <div class="card">
+      <div class="card-header"><span class="icon"></span><h2>Status</h2></div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Version</div><div class="status-value" id="version">—</div></div>
+        <div class="status-item"><div class="status-label">Network</div><div class="status-value"><span class="status-badge badge-online"><span></span> OK</span></div></div>
+        <div class="status-item"><div class="status-label">IP</div><div class="status-value"><span class="status-badge badge-ip" id="ip-address">—</span></div></div>
+        <div class="status-item"><div class="status-label">Wi‑Fi</div><div class="status-value" id="rssi">—</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="icon"></span><h2>Device</h2></div>
+      <div class="stats-grid">
+        <div class="stat-card"><span class="stat-value" id="free-heap">—</span> <span class="stat-label">Memory Free</span></div>
+        <div class="stat-card"><span class="stat-value" id="uptime">—</span> <span class="stat-label">Uptime</span></div>
+        <div class="stat-card"><span class="stat-value" id="mode">—</span> <span class="stat-label">Network Mode</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="icon"></span><h2>Open</h2></div>
+      <div class="quick-actions">
+        <a href="/files" class="action-btn">Library</a>
+        <a href="/font-manager" class="action-btn action-btn-secondary">Fonts</a>
+        <button class="action-btn action-btn-secondary" onclick="refreshData()">Refresh</button>
+      </div>
+    </div>
+    <div class="card" id="identityCard">
+      <div class="card-header">
+        <span class="icon"></span><h2>Device identity</h2>
+        <button class="action-btn action-btn-secondary header-action" id="identityEditBtn" onclick="enterIdentityEdit()" style="display:none">Edit</button>
+      </div>
+      <div class="identity-empty" id="identityEmpty" style="display:none">
+        <button class="identity-add" onclick="enterIdentityEdit()">
+          <span class="plus">+</span>
+          <span>Add device identity</span>
+        </button>
+      </div>
+      <div class="identity-view" id="identityView" style="display:none">
+        <img id="identityViewImg" alt="Device identity card">
+      </div>
+      <div class="identity-layout" id="identityEditForm" style="display:none">
+        <div>
+          <div class="field">
+            <label for="deviceName">Device name</label>
+            <input id="deviceName" maxlength="64" placeholder="My Inx Reader" oninput="scheduleIdentityRender()">
+          </div>
+          <div class="field">
+            <label for="identityLabel">Label (optional)</label>
+            <input id="identityLabel" maxlength="48" placeholder="e.g. Personal Reader" oninput="scheduleIdentityRender()">
+          </div>
+          <div class="field">
+            <label for="identityLink">QR redirect link</label>
+            <input id="identityLink" maxlength="180" inputmode="url" placeholder="https://example.com" oninput="scheduleIdentityRender()">
+          </div>
+          <div class="segmented" id="templateSwitch">
+            <button type="button" class="active" data-template="photo" onclick="setIdentityTemplate('photo')">With photo</button>
+            <button type="button" data-template="minimal" onclick="setIdentityTemplate('minimal')">Minimal</button>
+          </div>
+          <label class="dropzone" id="identityDropzone" for="identityImage">
+            <strong>Upload photo</strong>
+            <span>PNG or JPEG, shown at the top of the card</span>
+            <input id="identityImage" type="file" accept="image/png,image/jpeg,image/webp" onchange="loadIdentityImage(event)">
+          </label>
+          <div class="identity-actions">
+            <button class="action-btn" id="saveIdentityBtn" onclick="saveIdentity()">Save</button>
+            <button class="action-btn action-btn-secondary" onclick="cancelIdentityEdit()">Cancel</button>
+            <button class="action-btn action-btn-secondary" id="downloadIdentityBtn" onclick="downloadIdentityCard()">Download</button>
+          </div>
+          <div class="identity-note" id="identityStatus"></div>
+        </div>
+        <div class="card-stage"><canvas id="identityCanvas" width="640" height="1000"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><a href="https://github.com/obijuankenobiii/inx">GitHub</a></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/js/qr_creator_logo.min.js"></script>
+<script>
+function formatBytes(t){if(0===t)return"0 B";var e=Math.floor(Math.log(t)/Math.log(1024));return parseFloat((t/Math.pow(1024,e)).toFixed(0))+" "+["B","KB","MB","GB"][e]}
+function formatUptime(t){var e=Math.floor(t/86400),r=Math.floor(t%86400/3600),o=Math.floor(t%3600/60);return 0<e?`${e}d ${r}h`:0<r?`${r}h ${o}m`:0<o?`${o}m`:`${t}s`}
+function formatRSSI(t){return-55<=t?"Strong":-72<=t?"OK":"Weak"}
+function updateElement(t,e){const r=document.getElementById(t);r&&r.textContent!==e&&(r.style.opacity="0",setTimeout(()=>{r.textContent=e,r.style.opacity="1"},100))}
+async function fetchStatus(){try{const e=await fetch("/api/status");if(!e.ok)throw new Error(`HTTP ${e.status}`);var t=await e.json();updateElement("version",t.version||"1.0.0"),updateElement("ip-address",t.ip||"—"),updateElement("free-heap",formatBytes(t.freeHeap||0)),updateElement("uptime",formatUptime(t.uptime||0)),updateElement("mode",t.mode||"—"),t.rssi&&updateElement("rssi",formatRSSI(t.rssi))}catch(t){console.error("Error fetching status:",t);const r=["version","ip-address","free-heap","uptime","mode","rssi"];r.forEach(t=>{const e=document.getElementById(t);e&&"—"===e.textContent&&(e.textContent="⚠️")})}}
+function refreshData(){const t=event?.target?.closest?.(".action-btn");t&&(t.style.transform="scale(0.96)",setTimeout(()=>{t.style.transform="scale(1)"},150)),fetchStatus(),loadIdentity()}
+let refreshInterval,identityTimer,identityPhoto=null,identityTemplate="photo",lastCardRendered=false,identityHasSaved=false;
+function startAutoRefresh(){fetchStatus();loadIdentity();refreshInterval=setInterval(fetchStatus,15e3)}
+function stopAutoRefresh(){refreshInterval&&clearInterval(refreshInterval)}
+function identityStatus(t,isError){const e=document.getElementById("identityStatus");e.textContent=t||"";e.style.color=isError?"#b00020":"#8e8e93"}
+function showToast(t,isError){const e=document.getElementById("toast");e.textContent=t;e.style.background=isError?"#ff3b30":"#1d1d1f";e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2200)}
+function scheduleIdentityRender(){clearTimeout(identityTimer);identityTimer=setTimeout(renderIdentityCard,350)}
+function setIdentityTemplate(t){identityTemplate=t;document.querySelectorAll("#templateSwitch button").forEach(b=>b.classList.toggle("active",b.dataset.template===t));document.getElementById("identityDropzone").classList.toggle("disabled",t==="minimal");renderIdentityCard()}
+function showIdentitySection(mode){document.getElementById("identityCard").classList.toggle("wide",mode==="edit");document.getElementById("identityEmpty").style.display=mode==="empty"?"flex":"none";document.getElementById("identityView").style.display=mode==="view"?"flex":"none";document.getElementById("identityEditForm").style.display=mode==="edit"?"grid":"none";document.getElementById("identityEditBtn").style.display=mode==="view"?"inline-flex":"none"}
+function enterIdentityEdit(){showIdentitySection("edit");renderIdentityCard()}
+function cancelIdentityEdit(){identityStatus("");showIdentitySection(identityHasSaved?"view":"empty")}
+async function loadIdentity(){try{const e=await fetch("/api/device-identity"),t=await e.json();if(!t.ok)throw new Error("load failed");document.getElementById("deviceName").value=t.name||"";document.getElementById("identityLabel").value=t.label||"";document.getElementById("identityLink").value=t.link||"";setIdentityTemplate(t.template==="minimal"?"minimal":"photo");if(t.hasPhoto){await loadSavedPhoto()}identityHasSaved=Boolean(t.hasCard);if(identityHasSaved){document.getElementById("identityViewImg").src="/api/device-identity/card?ts="+Date.now();showIdentitySection("view")}else{showIdentitySection("empty")}}catch(e){showIdentitySection("empty")}}
+async function loadSavedPhoto(){return new Promise((resolve)=>{const img=new Image;img.onload=()=>{identityPhoto=img;resolve()};img.onerror=()=>resolve();img.src="/api/device-identity/photo?ts="+Date.now()})}
+function loadIdentityImage(event){const file=event.target.files&&event.target.files[0];if(!file)return;const img=new Image;img.onload=()=>{identityPhoto=img;URL.revokeObjectURL(img.src);renderIdentityCard()};img.src=URL.createObjectURL(file)}
+function drawRoundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function drawIdentityPlaceholder(text){const c=document.getElementById("identityCanvas"),ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle="#111";ctx.lineWidth=3;drawRoundRect(ctx,20,20,c.width-40,c.height-40,26);ctx.stroke();ctx.fillStyle="#111";ctx.font="700 30px Atkinson Hyperlegible, sans-serif";ctx.textAlign="center";ctx.fillText(text,c.width/2,c.height/2)}
+function drawImageCover(ctx,img,x,y,w,h){const scale=Math.max(w/img.width,h/img.height),iw=img.width*scale,ih=img.height*scale;ctx.drawImage(img,x+(w-iw)/2,y+(h-ih)/2,iw,ih)}
+async function renderQrOnly(size){const tmp=document.createElement("canvas");tmp.width=size;tmp.height=size;const link=document.getElementById("identityLink").value.trim();if(!window.QrCreator)throw new Error("QR generator unavailable");await new Promise(resolve=>QrCreator.render({text:link,radius:.32,ecLevel:"M",fill:"#111",cornerFill:"#111",background:"#fff",size},tmp,resolve));return tmp}
+async function renderIdentityCard(){const name=document.getElementById("deviceName").value.trim(),label=document.getElementById("identityLabel").value.trim(),link=document.getElementById("identityLink").value.trim();if(!link){lastCardRendered=false;drawIdentityPlaceholder(name||"Device identity");return}try{identityStatus("Rendering card...");const c=document.getElementById("identityCanvas"),ctx=c.getContext("2d"),w=c.width,h=c.height,qrSize=Math.round(w*.56),qr=await renderQrOnly(qrSize);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.strokeStyle="#111";ctx.lineWidth=3;drawRoundRect(ctx,20,20,w-40,h-40,26);ctx.stroke();let y=64;const usePhoto=identityTemplate==="photo"&&identityPhoto;if(usePhoto){const r=w*.19,cx=w/2,cy=y+r;ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.closePath();ctx.clip();drawImageCover(ctx,identityPhoto,cx-r,cy-r,r*2,r*2);ctx.restore();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.lineWidth=3;ctx.strokeStyle="#111";ctx.stroke();y=cy+r+36}else{y+=6}ctx.fillStyle="#111";ctx.textAlign="center";const nameSize=Math.round(w*.072);ctx.font="700 "+nameSize+"px Atkinson Hyperlegible, sans-serif";ctx.fillText(name||"Inx Reader",w/2,y);y+=Math.round(nameSize*.82);if(label){const labelSize=Math.round(w*.032);ctx.fillStyle="#777";ctx.font="700 "+labelSize+"px Atkinson Hyperlegible, sans-serif";ctx.fillText(label.toUpperCase(),w/2,y);y+=labelSize+22}else{y+=16}ctx.strokeStyle="#e6e6e9";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(56,y);ctx.lineTo(w-56,y);ctx.stroke();y+=28;ctx.drawImage(qr,(w-qrSize)/2,y,qrSize,qrSize);y+=qrSize+34;ctx.fillStyle="#999";ctx.font="400 "+Math.round(w*.032)+"px Atkinson Hyperlegible, sans-serif";ctx.fillText("Scan to connect",w/2,y);ctx.fillStyle="#bbb";ctx.font="700 "+Math.round(w*.026)+"px Atkinson Hyperlegible, sans-serif";ctx.fillText("INX",w/2,h-34);lastCardRendered=true;identityStatus("")}catch(e){lastCardRendered=false;identityStatus(e.message,true);drawIdentityPlaceholder("Card unavailable")}}
+function canvasBlob(canvas,type,quality){return new Promise(resolve=>canvas.toBlob(resolve,type,quality))}
+async function ensureIdentityFolder(){await fetch("/mkdir?path=/&name=.system",{method:"POST"}).catch(()=>{});await fetch("/mkdir?path=/.system&name=identity",{method:"POST"}).catch(()=>{});await fetch("/mkdir?path=/&name=sleep",{method:"POST"}).catch(()=>{})}
+async function uploadBlob(folder,blob,filename){const fd=new FormData;fd.append("file",blob,filename);const e=await fetch("/upload?path="+encodeURIComponent(folder),{method:"POST",body:fd});if(!e.ok)throw new Error(await e.text()||"Upload failed")}
+async function saveIdentity(){const name=document.getElementById("deviceName").value.trim(),label=document.getElementById("identityLabel").value.trim(),link=document.getElementById("identityLink").value.trim();if(!link){identityStatus("Enter a QR redirect link.",true);return}try{identityStatus("Saving identity...");const meta=await fetch("/api/device-identity",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,label,link,template:identityTemplate})});if(!meta.ok)throw new Error("Could not save identity");await ensureIdentityFolder();if(!lastCardRendered)await renderIdentityCard();const cardBlob=await canvasBlob(document.getElementById("identityCanvas"),"image/jpeg",.92);await uploadBlob("/sleep",cardBlob,"device-identity.jpg");if(identityTemplate==="photo"&&identityPhoto){const s=480,pc=document.createElement("canvas");pc.width=s;pc.height=s;const pctx=pc.getContext("2d");pctx.fillStyle="#fff";pctx.fillRect(0,0,s,s);drawImageCover(pctx,identityPhoto,0,0,s,s);await uploadBlob("/.system/identity",await canvasBlob(pc,"image/png"),"device-photo.png")}identityHasSaved=true;document.getElementById("identityViewImg").src=URL.createObjectURL(cardBlob);identityStatus("");showToast("Device identity saved.");showIdentitySection("view")}catch(e){identityStatus(e.message,true);showToast(e.message,true)}}
+async function downloadIdentityCard(){if(!lastCardRendered)await renderIdentityCard();const a=document.createElement("a");a.download=(document.getElementById("deviceName").value.trim()||"inx-device").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".jpg";a.href=document.getElementById("identityCanvas").toDataURL("image/jpeg",.92);a.click()}
+window.addEventListener("load",startAutoRefresh);
+window.addEventListener("beforeunload",stopAutoRefresh);
+</script>
+</html>

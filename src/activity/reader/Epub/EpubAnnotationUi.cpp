@@ -50,10 +50,11 @@ void EpubAnnotationUi::clearWordIndexCache() {
 
 void EpubAnnotationUi::clearSessionAndCapture() {
   annotations_.clearSession();
-  pendingSpans_.clear();
+  std::vector<std::pair<size_t, size_t>>().swap(pendingSpans_);
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  std::vector<std::unique_ptr<uint8_t[]>>().swap(captureChunks_);
   captureMonolithic_.reset();
   captureUsesMonolithic_ = false;
   captureBytes_ = 0;
@@ -178,16 +179,20 @@ void EpubAnnotationUi::enter(EpubActivity& act) {
 void EpubAnnotationUi::exit(EpubActivity& act) {
   mode_ = false;
   selectingStarted_ = false;
-  pendingSpans_.clear();
-  storedRanges_.clear();
-  words_.clear();
-  lineFirst_.clear();
+  // swap, not .clear() - .clear() empties the contents but keeps the heap capacity reserved for
+  // reuse; a page with many highlights/words can grow these well past what's needed once the UI
+  // closes (same fix as EpubDictionaryUi's releaseDefinitionMemory()).
+  std::vector<std::pair<size_t, size_t>>().swap(pendingSpans_);
+  std::vector<std::pair<size_t, size_t>>().swap(storedRanges_);
+  std::vector<PageWordHit>().swap(words_);
+  std::vector<size_t>().swap(lineFirst_);
   clearWordIndexCache();
   annLastNavEdgeDir_ = -1;
   annNavRepeatDir_ = -1;
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
+  std::vector<std::unique_ptr<uint8_t[]>>().swap(captureChunks_);
   captureMonolithic_.reset();
   captureUsesMonolithic_ = false;
   captureBytes_ = 0;

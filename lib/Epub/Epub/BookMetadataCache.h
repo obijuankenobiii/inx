@@ -72,15 +72,6 @@ class BookMetadataCache {
   FsFile tocFile;
   FsFile cssFile;
 
-  struct SpineHrefIndexEntry {
-    uint64_t hrefHash;
-    uint16_t hrefLen;
-    int16_t spineIndex;
-  };
-  std::vector<SpineHrefIndexEntry> spineHrefIndex;
-  bool useSpineHrefIndex = false;
-
-  static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
   static constexpr uint32_t MAX_CSS_SIZE = 1024 * 1024;
 
   static uint64_t fnvHash64(const std::string& s) {
@@ -98,6 +89,7 @@ class BookMetadataCache {
   SpineEntry readSpineEntry(FsFile& file) const;
   TocEntry readTocEntry(FsFile& file) const;
   CssEntry readCssEntry(FsFile& file) const;
+  int16_t findFirstTocIndexForSpine(uint16_t spineIndex);
 
  public:
   BookMetadata coreMetadata;

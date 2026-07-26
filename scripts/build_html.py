@@ -12,6 +12,8 @@ JS_EMBEDS = [
     ("data/js/jszip.min.js", "src/network/html/JsZipMinJs.generated.h", "JSZIP_MIN_JS", "INXJZ9"),
     ("data/js/epub_page.js", "src/network/html/EpubPageJs.generated.h", "EPUB_PAGE_JS", "INXEPUB"),
     ("data/js/files_page.js", "src/network/html/FilesPageJs.generated.h", "FILES_PAGE_JS", "INXFILES"),
+    ("data/js/qr_creator_logo.min.js", "src/network/html/QrCreatorLogoJs.generated.h", "QR_CREATOR_LOGO_JS",
+     "INXQR"),
 ]
 
 

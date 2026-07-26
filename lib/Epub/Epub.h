@@ -95,6 +95,8 @@ class Epub {
   std::string getCombinedCss() const;
   /** Parsed book-level CSS dictionary shared by every chapter parser. Null when heap is too low. */
   const CssParser* getParsedCssParser() const;
+  /** Releases the parsed CSS dictionary heap after a section build; the SD binary cache remains available. */
+  void releaseParsedCssParser() const;
 
   size_t getCumulativeSpineItemSize(int spineIndex) const;
   size_t getBookSize() const;

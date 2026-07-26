@@ -40,9 +40,9 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(
       SettingInfo::Enum("Theme", &SystemSetting::uiTheme, {"Classic", "Bottom Tabs"}, GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum(
-      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "Simple", "List", "Icons", "Cover"},
-      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_SIMPLE,
-       SystemSetting::RECENT_BOOK_LIST, SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
+      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "List", "Icons", "Cover"},
+      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_BOOK_LIST,
+       SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
       GroupType::DEVICE_DISPLAY));
   settings.push_back(
       SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY));
@@ -110,9 +110,6 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("KOReader Sync", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("OPDS Browser", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("Check for updates", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("About", GroupType::NONE));
 
   return settings;
@@ -174,6 +171,11 @@ void SettingsActivity::loop() {
 
   if (subActivity) {
     subActivity->loop();
+    // subActivity->loop() may have deferred a switchTo<T>() (via deferExternalNav) that deletes `this`.
+    // Run it now and return immediately without touching any member below.
+    if (runPendingExternalNav()) {
+      return;
+    }
     processPendingPanelSwap();
     return;
   }
@@ -205,11 +207,13 @@ void SettingsActivity::loop() {
 
   if (mappedInput.wasPressed(tabPrevButton())) {
     handleTabNavigation(true, false);
+    runPendingExternalNav();
     return;
   }
 
   if (mappedInput.wasPressed(tabNextButton())) {
     handleTabNavigation(false, true);
+    runPendingExternalNav();
     return;
   }
 
@@ -245,16 +249,16 @@ void SettingsActivity::openCurrentPanel() {
     enterNewActivity(new ReaderPresetsActivity(
         renderer, mappedInput, [this] { requestPanelSwap(); },
         [this] {
-          if (onRecentOpen) onRecentOpen();
+          if (onRecentOpen) deferExternalNav(onRecentOpen);
         },
         [this] {
-          if (onLibraryOpen) onLibraryOpen();
+          if (onLibraryOpen) deferExternalNav(onLibraryOpen);
         },
         [this] {
-          if (onSyncOpen) onSyncOpen();
+          if (onSyncOpen) deferExternalNav(onSyncOpen);
         },
         [this] {
-          if (onStatisticsOpen) onStatisticsOpen();
+          if (onStatisticsOpen) deferExternalNav(onStatisticsOpen);
         }));
     return;
   }
@@ -277,16 +281,16 @@ void SettingsActivity::openCurrentPanel() {
       },
       panelBackLabel(currentPanel),
       [this] {
-        if (onRecentOpen) onRecentOpen();
+        if (onRecentOpen) deferExternalNav(onRecentOpen);
       },
       [this] {
-        if (onLibraryOpen) onLibraryOpen();
+        if (onLibraryOpen) deferExternalNav(onLibraryOpen);
       },
       [this] {
-        if (onSyncOpen) onSyncOpen();
+        if (onSyncOpen) deferExternalNav(onSyncOpen);
       },
       [this] {
-        if (onStatisticsOpen) onStatisticsOpen();
+        if (onStatisticsOpen) deferExternalNav(onStatisticsOpen);
       }));
 }
 

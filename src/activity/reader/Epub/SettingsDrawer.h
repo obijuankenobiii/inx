@@ -237,11 +237,4 @@ class SettingsDrawer {
    * @param group Group to toggle
    */
   void toggleGroup(GroupType group);
-
-  /**
-   * @brief Gets display name for a status bar item
-   * @param item The status bar item
-   * @return String representation for display
-   */
-  static const char* getStatusBarItemName(StatusBarItem item);
 };

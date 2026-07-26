@@ -26,11 +26,10 @@ class Flow;
 class Grid;
 class Grid3x3;
 class List;
-class SimpleUi;
 }  // namespace recent
 
 /**
- * Activity that displays recently opened books in grid, flow, simple, cover, icon, or book-list layouts.
+ * Activity that displays recently opened books in grid, flow, cover, icon, or book-list layouts.
  * Shows book covers, titles, authors, and reading progress.
  *
  * Complexity contract:
@@ -64,12 +63,11 @@ class RecentActivity final : public Activity, public Menu {
    * View mode enumeration for displaying recent books.
    */
   enum class ViewMode {
-    Grid,     /**< Display books in a grid with covers */
-    Flow,     /**< Flow carousel */
-    SimpleUi, /**< Recent cover on gray band, favorites list below */
-    List,     /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
-    Icons,    /**< 3×3 icon grid; scroll for more books */
-    Cover     /**< Latest recent cover only, with progress below */
+    Grid,  /**< Display books in a grid with covers */
+    Flow,  /**< Flow carousel */
+    List,  /**< Thumbnail left; title, author, progress (5 rows, scrollable) */
+    Icons, /**< 3×3 icon grid; scroll for more books */
+    Cover  /**< Latest recent cover only, with progress below */
   };
 
  private:
@@ -80,9 +78,6 @@ class RecentActivity final : public Activity, public Menu {
   bool updateRequired = false;
   bool bookSelected = false;
   int scrollOffset = 0;
-
-  std::vector<BookState::Book> simpleUiFavorites_;
-  int simpleUiFavScroll_ = 0;
 
   std::vector<RecentBook> recentBooks;
   struct CachedRecentStats {
@@ -124,11 +119,10 @@ class RecentActivity final : public Activity, public Menu {
   void openHomeMenuDrawer();
   void closeHomeMenuDrawer();
   const CachedRecentStats& statsForRecentIndex(int index) const;
-  void rebuildSimpleUiFavorites(const std::vector<BookState::Book>& favorites);
-
   /** Full redraw when updateRequired; clears flag (same work as former display task). */
   void pumpDisplayFromLoop();
   void renderInitialLoadingFrame();
+  void renderSdCardUnavailableMessage();
   void resetRecentImageCacheJobs();
   bool queueRecentImageCacheBuild(const std::string& path, int x, int y, int w, int h, bool cropToFill,
                                   BitmapRender::RoundedOutside roundedOutside);
@@ -159,7 +153,6 @@ class RecentActivity final : public Activity, public Menu {
    */
   void renderFlow();
 
-  void renderSimpleUi();
   void renderCoverMode();
 
   /** Book list: five rows, vertical scroll when more than five recents. */
@@ -177,11 +170,11 @@ class RecentActivity final : public Activity, public Menu {
                             const std::string& placeholderTitle, int placeholderFontId);
 
   /** Tab-relative Y where each Recent view paints its body (keeps constants out of layout engine defs). */
-  int recentGridPaintStartY() const {
-    return INX_THEME.mainTabsAtBottom() ? mainContentTop() + 6 : TAB_BAR_HEIGHT - 29;
-  }
+  int recentGridPaintStartY() const { return mainContentTop() + 16; }
   int recentIconsPaintStartY() const { return mainContentTop() + 6; }
-  int recentListPaintStartY() const { return mainContentTop() + 15; }
+  int recentListPaintStartY() const {
+    return INX_THEME.mainTabsAtBottom() ? mainContentTop() + 10 : mainContentTop() + 15;
+  }
 
   /**
    * View-mode paint strategy: one implementation per `ViewMode`, created by `makeLayoutEngine`.
@@ -200,9 +193,6 @@ class RecentActivity final : public Activity, public Menu {
   struct CoverViewLayout final : LayoutEngine {
     void paint(RecentActivity& self) override;
   };
-  struct SimpleUiViewLayout final : LayoutEngine {
-    void paint(RecentActivity& self) override;
-  };
   struct ListViewLayout final : LayoutEngine {
     void paint(RecentActivity& self) override;
   };
@@ -215,7 +205,6 @@ class RecentActivity final : public Activity, public Menu {
   friend class recent::Grid;
   friend class recent::Grid3x3;
   friend class recent::List;
-  friend class recent::SimpleUi;
 
   static std::unique_ptr<LayoutEngine> makeLayoutEngine(ViewMode mode);
   void syncLayoutEngineForViewMode();
@@ -292,7 +281,6 @@ class RecentActivity final : public Activity, public Menu {
   RecentBook randomFavoriteBook;
   bool hasRandomFavorite;
 
-  void clampSimpleUiFavoriteScroll(int maxVisibleFavs);
   bool canUseRecentPageBuffer() const;
   bool storeRecentPageBuffer();
   bool restoreRecentPageBuffer();

@@ -40,6 +40,8 @@ bool hasJpegExt(const std::string& path) {
 
 bool hasPngExt(const std::string& path) { return StringUtils::checkFileExtension(path, ".png"); }
 
+bool hasBmpExt(const std::string& path) { return StringUtils::checkFileExtension(path, ".bmp"); }
+
 bool containsAsciiInsensitive(const std::string& haystack, const char* needle) {
   if (needle == nullptr || *needle == '\0') {
     return true;
@@ -710,13 +712,16 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
   std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
 
-  int actualW = 0, actualH = 0;
-  if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
-    const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMaxH = css().getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-    const int cssMinH = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMaxH = css().getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMinH = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
 
+  int actualW = 0, actualH = 0;
+  bool imageAvailable = false;
+  if (imgWidth > 0 && imgHeight > 0) {
+    imageAvailable = ensureImageFileAvailable(fullInternalPath, cacheImgPath);
+  } else if (ensureImageCached(fullInternalPath, cacheImgPath, &actualW, &actualH)) {
     if (imgWidth == 0 && cssMaxW > 0) {
       imgWidth = std::min(actualW, cssMaxW);
       imgHeight = (actualH * imgWidth) / std::max(1, actualW);
@@ -738,7 +743,10 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgWidth = actualW;
       imgHeight = actualH;
     }
+    imageAvailable = true;
+  }
 
+  if (imageAvailable) {
     if (cssMaxW > 0 && imgWidth > cssMaxW) {
       imgHeight = (imgHeight * cssMaxW) / std::max(1, imgWidth);
       imgWidth = cssMaxW;
@@ -2216,7 +2224,7 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
   }
 
   bool result = false;
-  if (cacheIsJpeg || cacheIsPng) {
+  if (cacheIsJpeg || cacheIsPng || hasBmpExt(internalPath)) {
     result = epub.extractItemToPath(internalPath, cacheImgPath, 4096);
   } else {
     result = epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
@@ -2239,6 +2247,30 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
   return false;
 }
 
+bool ChapterHtmlSlimParser::ensureImageFileAvailable(const std::string& internalPath, const std::string& cacheImgPath) {
+  if (SdMan.exists(cacheImgPath.c_str())) {
+    return true;
+  }
+
+  if (skipImages) {
+    Serial.printf("[%lu] [EBP-IMG] skip extract (known size) href=%s\n", static_cast<unsigned long>(millis()),
+                  internalPath.c_str());
+    return false;
+  }
+
+  const bool rawRenderable = hasJpegExt(internalPath) || hasPngExt(internalPath) || hasBmpExt(internalPath);
+  const bool result = rawRenderable ? epub.extractItemToPath(internalPath, cacheImgPath, 4096)
+                                    : epub.extractAndConvertImage(internalPath, cacheImgPath, viewportWidth, 0);
+  if (result && ++imageExtractCountForYield_ % 2u == 0u) {
+    yield();
+  }
+  if (!result) {
+    Serial.printf("[%lu] [EBP-IMG] ensureImageFileAvailable failed href=%s\n", static_cast<unsigned long>(millis()),
+                  internalPath.c_str());
+  }
+  return result;
+}
+
 /**
  * Adds an image to the current page layout.
  * Handles scaling, centering, and special handling for extra-large images.
@@ -2247,67 +2279,18 @@ bool ChapterHtmlSlimParser::ensureImageCached(const std::string& internalPath, c
  * @param imgH Original image height
  */
 namespace {
-// Decides whether an image (JPEG / PNG / BMP — whatever format the cache holds) has enough continuous-tone
-// (mid-gray) content to be worth grayscale rendering. It decodes the image through the SAME pipeline used for
-// display (so the result matches what would actually be shown) at a small size for speed, and histograms the
-// resulting 4 levels via the analysis hook in adjustTwoBitImageLevelForDisplay(). Comics / line art / mostly
-// black-and-white images have almost no mid-gray pixels and render fine (and far faster) as plain 1-bit.
-bool imageHasGrayscaleContent(GfxRenderer& renderer, const std::string& path, int imgW, int imgH) {
+bool shouldUseGrayscaleForImageDimensions(const int imgW, const int imgH) {
   if (imgW <= 0 || imgH <= 0) {
-    return true;
-  }
-  // Tiny images (HR rules, separators, small icons/ornaments) never benefit from grayscale and their
-  // anti-aliased edges easily trip the mid-gray threshold — always render them as fast 1-bit.
-  constexpr int kMinGrayscaleImageDim = 48;
-  if (imgW < kMinGrayscaleImageDim || imgH < kMinGrayscaleImageDim) {
     return false;
   }
-  // Decode at a small size; the mid-gray fraction is ~scale-invariant and this keeps build time down.
-  constexpr int kMaxAnalyzeW = 160;
-  int aw = imgW;
-  int ah = imgH;
-  if (aw > kMaxAnalyzeW) {
-    ah = std::max(1, imgH * kMaxAnalyzeW / imgW);
-    aw = kMaxAnalyzeW;
-  }
-
-  ImageRender::Options opt;
-  opt.mode = ImageRenderMode::TwoBit;  // 2-bit path -> adjustTwoBitImageLevelForDisplay runs per pixel (histogram)
-  opt.useDisplayCache = false;         // detection only; don't read/write the display cache
-
-  const int rowBytes = (aw + 7) / 8;
-  std::vector<uint8_t> savedPixels(static_cast<size_t>(rowBytes) * static_cast<size_t>(ah));
-  const bool restorePixels = !savedPixels.empty();
-  if (restorePixels) {
-    for (int y = 0; y < ah; ++y) {
-      renderer.readPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
-    }
-  }
-
-  const GfxRenderer::RenderMode savedMode = renderer.getRenderMode();
-  renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-  beginImageLevelAnalysis();
-  const bool ok = ImageRender::create(renderer, path).render(0, 0, aw, ah, opt);
-  const uint32_t midPct = imageLevelAnalysisMidPercent();
-  endImageLevelAnalysis();
-  renderer.setRenderMode(savedMode);
-  if (restorePixels) {
-    for (int y = 0; y < ah; ++y) {
-      renderer.drawPackedRow1bpp(0, y, aw, savedPixels.data() + static_cast<size_t>(y) * rowBytes);
-    }
-  }
-
-  if (!ok) {
-    return true;  // default to grayscale if we couldn't decode it
-  }
-  constexpr uint32_t kMidGrayThresholdPercent = 6;  // below this -> treat as 1-bit (comic/line art)
-  return midPct >= kMidGrayThresholdPercent;
+  constexpr int kMinGrayscaleImageDim = 100;
+  return imgW >= kMinGrayscaleImageDim && imgH >= kMinGrayscaleImageDim;
 }
 }  // namespace
 
 void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, int imgW, int imgH) {
   bool isExtraLarge = (imgW >= viewportWidth * 0.95 && imgH >= viewportHeight * 0.65);
-  const bool grayscale = imageHasGrayscaleContent(renderer, bmpPath, imgW, imgH);
+  const bool grayscale = shouldUseGrayscaleForImageDimensions(imgW, imgH);
 
   const auto addPlacedImage = [this, &bmpPath, imgW, imgH, grayscale](const int16_t x, const int16_t y) {
     auto image = std::make_shared<PageImage>(bmpPath, imgW, imgH, x, y, grayscale);

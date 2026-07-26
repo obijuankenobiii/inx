@@ -19,14 +19,6 @@ uint8_t quantizeSimple(int gray);
 ImageToneSample quantizeTwoBitImage(int gray);
 uint8_t adjustTwoBitImageLevelForDisplay(uint8_t level);
 uint8_t mapQualityGray2Level(uint8_t level);
-
-// Image grayscale-content analysis. While active, every 2-bit image level that passes through
-// adjustTwoBitImageLevelForDisplay() (i.e. every rendered image pixel, for JPEG/PNG/BMP alike) is tallied.
-// Render an image in 2-bit mode between begin/end, then query the mid-gray fraction to decide whether it has
-// continuous tone worth grayscale (vs essentially 1-bit comic/line art).
-void beginImageLevelAnalysis();
-void endImageLevelAnalysis();
-uint32_t imageLevelAnalysisMidPercent();  // % of sampled pixels at mid-gray levels (1 or 2); 0 if none sampled
 uint8_t quantize1bit(int gray, int x, int y);
 int adjustOneBitPixel(int gray);
 int adjustPixel(int gray);

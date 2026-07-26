@@ -17,7 +17,6 @@
 
 class Menu {
  protected:
-  static constexpr int TAB_BAR_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
   static constexpr int TAB_COUNT = 5;
   int tabSelectorIndex = 0;
 
@@ -67,7 +66,8 @@ class Menu {
 
   int mainContentTop() const { return INX_THEME.mainContentTop(); }
   int mainContentBottom(const GfxRenderer& renderer) const { return INX_THEME.mainContentBottom(renderer); }
-  int mainHeaderDividerY() const { return mainContentTop() + TAB_BAR_HEIGHT; }
+  int mainHeaderDividerY() const { return mainContentTop() + INX_THEME.mainHeaderHeight(); }
+  int mainHeaderHeight() const { return INX_THEME.mainHeaderHeight(); }
 
   /**
    * @brief Draws the battery icon and percentage on the screen

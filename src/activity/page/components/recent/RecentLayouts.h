@@ -31,9 +31,4 @@ class Flow {
   static void render(RecentActivity& self);
 };
 
-class SimpleUi {
- public:
-  static void render(RecentActivity& self);
-};
-
 }  // namespace recent

@@ -43,8 +43,6 @@ ContentOpfParser::~ContentOpfParser() {
   if (SdMan.exists((cachePath + itemCacheFile).c_str())) {
     SdMan.remove((cachePath + itemCacheFile).c_str());
   }
-  itemIndex.clear();
-  useItemIndex = false;
 }
 
 size_t ContentOpfParser::write(const uint8_t data) { return write(&data, 1); }
@@ -137,13 +135,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           millis());
     }
 
-    if (self->itemIndex.size() >= LARGE_SPINE_THRESHOLD) {
-      std::sort(self->itemIndex.begin(), self->itemIndex.end(), [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
-        return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
-      });
-      self->useItemIndex = true;
-      Serial.printf("[%lu] [COF] Using fast index for %zu manifest items\n", millis(), self->itemIndex.size());
-    }
     return;
   }
 
@@ -195,14 +186,6 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    if (self->tempItemStore) {
-      ItemIndexEntry entry;
-      entry.idHash = fnvHash(itemId);
-      entry.idLen = static_cast<uint16_t>(itemId.size());
-      entry.fileOffset = static_cast<uint32_t>(self->tempItemStore.position());
-      self->itemIndex.push_back(entry);
-    }
-
     serialization::writeString(self->tempItemStore, itemId);
     serialization::writeString(self->tempItemStore, href);
 
@@ -236,37 +219,14 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
           std::string href;
           bool found = false;
 
-          if (self->useItemIndex) {
-            uint32_t targetHash = fnvHash(idref);
-            uint16_t targetLen = static_cast<uint16_t>(idref.size());
-
-            auto it = std::lower_bound(self->itemIndex.begin(), self->itemIndex.end(),
-                                       ItemIndexEntry{targetHash, targetLen, 0},
-                                       [](const ItemIndexEntry& a, const ItemIndexEntry& b) {
-                                         return a.idHash < b.idHash || (a.idHash == b.idHash && a.idLen < b.idLen);
-                                       });
-
-            while (it != self->itemIndex.end() && it->idHash == targetHash) {
-              self->tempItemStore.seek(it->fileOffset);
-              std::string itemId;
-              serialization::readString(self->tempItemStore, itemId);
-              if (itemId == idref) {
-                serialization::readString(self->tempItemStore, href);
-                found = true;
-                break;
-              }
-              ++it;
-            }
-          } else {
-            self->tempItemStore.seek(0);
-            std::string itemId;
-            while (self->tempItemStore.available()) {
-              serialization::readString(self->tempItemStore, itemId);
-              serialization::readString(self->tempItemStore, href);
-              if (itemId == idref) {
-                found = true;
-                break;
-              }
+          self->tempItemStore.seek(0);
+          std::string itemId;
+          while (self->tempItemStore.available()) {
+            serialization::readString(self->tempItemStore, itemId);
+            serialization::readString(self->tempItemStore, href);
+            if (itemId == idref) {
+              found = true;
+              break;
             }
           }
 
