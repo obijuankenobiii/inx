@@ -64,6 +64,10 @@ const char* statusPlaceholder(StatusBarItem item) {
       return "Jane Author";
     case StatusBarItem::PAGE_NUMBERS_WITH_PERCENT:
       return "12/340 45%";
+    case StatusBarItem::TIME_LEFT_CHAPTER:
+      return "12m";
+    case StatusBarItem::TIME_LEFT_BOOK:
+      return "3h 45m";
     case StatusBarItem::NONE:
     default:
       return "";

@@ -494,6 +494,22 @@ void SettingsDrawer::setupMenu() {
 }
 
 /**
+ * @brief Gets the display name for a status bar item
+ * @param item The status bar item enum value
+ * @return String representation of the item
+ */
+const char* SettingsDrawer::getStatusBarItemName(StatusBarItem item) {
+  static const char* names[] = {"None",       "Page Numbers",   "Percentage",   "Chapter Title",      "Battery Icon",
+                                "Battery %",  "Battery Icon+%", "Progress Bar", "Progress Bar+%",     "Page Bars",
+                                "Book Title", "Author Name",    "Page Num+%",   "Time Left (Chapter)", "Time Left (Book)"};
+  int index = static_cast<int>(item);
+  if (index < 0 || index >= static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
+    index = 0;
+  }
+  return names[index];
+}
+
+/**
  * @brief Shows the settings drawer
  */
 void SettingsDrawer::show() {

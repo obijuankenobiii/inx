@@ -22,8 +22,9 @@ static const int STATUS_BAR_RIGHT = 2;
  * @param epub Reference to the EPUB document
  * @param settings Reference to the book settings
  */
-StatusBar::StatusBar(GfxRenderer& renderer, const Epub& epub, const BookSettings& settings)
-    : m_renderer(renderer), m_epub(epub), m_settings(settings), m_visible(true) {}
+StatusBar::StatusBar(GfxRenderer& renderer, const Epub& epub, const BookSettings& settings,
+                     const EpubReadingStats* readingStats)
+    : m_renderer(renderer), m_epub(epub), m_settings(settings), m_readingStats(readingStats), m_visible(true) {}
 
 /**
  * @brief Renders the complete status bar with three configurable sections
@@ -230,6 +231,20 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
       std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, combined.c_str(), maxWidth);
       int xPos = getPositionX(truncated.c_str());
       m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+      break;
+    }
+
+    case StatusBarItem::TIME_LEFT_CHAPTER: {
+      const std::string timeLeft = m_readingStats ? m_readingStats->chapterTimeLeftString(section) : "-";
+      int xPos = getPositionX(timeLeft.c_str());
+      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, timeLeft.c_str());
+      break;
+    }
+
+    case StatusBarItem::TIME_LEFT_BOOK: {
+      const std::string timeLeft = m_readingStats ? m_readingStats->bookTimeLeftString() : "-";
+      int xPos = getPositionX(timeLeft.c_str());
+      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, timeLeft.c_str());
       break;
     }
 

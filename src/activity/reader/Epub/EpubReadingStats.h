@@ -21,7 +21,22 @@ class EpubReadingStats {
   void save(const Epub& epub);
   void display(GfxRenderer& renderer, const Epub& epub) const;
 
+  /**
+   * @brief Returns a compact "time left in chapter" string for the status bar.
+   * @param section Current section being read.
+   * @return Formatted string (e.g. "1h 20m", "12m"), or "-" when no reliable estimate exists.
+   */
+  std::string chapterTimeLeftString(const Section* section) const;
+
+  /**
+   * @brief Returns a compact "time left in book" string for the status bar.
+   * @return Formatted string (e.g. "3h 45m", "1h"), or "-" when no reliable estimate exists.
+   */
+  std::string bookTimeLeftString() const;
+
  private:
+  static constexpr uint32_t kMinPageDwellMs = 5000;
+  static constexpr uint32_t kMinPaceSamples = 3;
   static std::string formatTime(uint32_t timeMs);
 
   BookReadingStats stats_{};
