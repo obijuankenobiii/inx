@@ -80,6 +80,68 @@ std::string stripPunctuation(const std::string& s) {
   return s.substr(start, end - start);
 }
 
+/** Generates candidate base forms for a possibly-inflected English word (possessive, plural,
+ *  past tense -ed, gerund -ing), so a form absent from the dictionary (e.g. "running", "jumped",
+ *  "books") can still resolve to its base entry ("run", "jump", "book"). Heuristic suffix-stripping,
+ *  not a full stemmer - callers try each candidate as an exact lookup and take the first hit, so
+ *  over-generating (a few wrong candidates) is harmless as long as the right one is in the list. */
+std::vector<std::string> stemCandidates(const std::string& lower) {
+  std::vector<std::string> out;
+  const size_t n = lower.size();
+  auto add = [&](const std::string& s) {
+    if (s.size() >= 2) {
+      out.push_back(s);
+    }
+  };
+
+  // Possessive: "dog's" -> "dog" (stripPunctuation keeps apostrophes, so this can reach here).
+  if (n > 2 && lower[n - 2] == '\'' && lower[n - 1] == 's') {
+    add(lower.substr(0, n - 2));
+  }
+
+  // -ing: running->runn->run (doubled consonant), making->make (silent e), jumping->jump.
+  if (n > 4 && lower.compare(n - 3, 3, "ing") == 0) {
+    const std::string base = lower.substr(0, n - 3);
+    add(base);
+    add(base + "e");
+    if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
+      add(base.substr(0, base.size() - 1));
+    }
+  }
+
+  // -ied: tried->tri->try.
+  if (n > 3 && lower.compare(n - 3, 3, "ied") == 0) {
+    add(lower.substr(0, n - 3) + "y");
+  }
+
+  // -ed: jumped->jump, liked/lik->like, stopped/stopp->stop.
+  if (n > 3 && lower.compare(n - 2, 2, "ed") == 0) {
+    const std::string base = lower.substr(0, n - 2);
+    add(base);
+    add(base + "e");
+    if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
+      add(base.substr(0, base.size() - 1));
+    }
+  }
+
+  // -ies: flies->fly, berries->berry.
+  if (n > 4 && lower.compare(n - 3, 3, "ies") == 0) {
+    add(lower.substr(0, n - 3) + "y");
+  }
+
+  // -es: boxes->box, watches->watch.
+  if (n > 3 && lower.compare(n - 2, 2, "es") == 0) {
+    add(lower.substr(0, n - 2));
+  }
+
+  // -s: books->book (skip "ss" endings like "glass" and words already handled above).
+  if (n > 2 && lower[n - 1] == 's' && lower[n - 2] != 's') {
+    add(lower.substr(0, n - 1));
+  }
+
+  return out;
+}
+
 }  // namespace
 
 int StarDictLookup::compareWord(const std::string& a, const std::string& b) {
@@ -352,10 +414,23 @@ bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefini
   uint32_t dictSize = 0;
   bool found = false;
 
+  const std::string lowerCleaned = toLowerCopy(cleaned);
+
+  // Word forms to try, in priority order: the word as typed/cased, then (if the word carries an
+  // inflectional suffix like -s/-ed/-ing/'s) heuristic base forms, so "running"/"books"/"jumped"
+  // can still resolve to "run"/"book"/"jump" when the inflected form isn't its own dictionary entry.
+  std::vector<std::string> candidates = {cleaned, lowerCleaned, toTitleCaseCopy(cleaned)};
+  for (const std::string& stem : stemCandidates(lowerCleaned)) {
+    candidates.push_back(stem);
+    candidates.push_back(toTitleCaseCopy(stem));
+  }
+
   const unsigned long t0 = millis();
-  for (const std::string& candidate : {cleaned, toLowerCopy(cleaned), toTitleCaseCopy(cleaned)}) {
+  std::string hitCandidate;
+  for (const std::string& candidate : candidates) {
     if (lookupViaCheckpoints(candidate, dictOffset, dictSize)) {
       found = true;
+      hitCandidate = candidate;
       Serial.printf("[%lu] [DICT] lookup('%s'): fast path hit on candidate='%s' (%lums)\n", millis(),
                     queryWord.c_str(), candidate.c_str(), millis() - t0);
       break;
@@ -370,8 +445,20 @@ bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefini
     // The fast path assumes .idx is sorted in plain byte order (the documented StarDict
     // convention). Many third-party-generated dictionaries sort case-insensitively instead, which
     // silently breaks the checkpoint binary search above for every lookup. Fall back to a full
-    // sequential scan, which is correct regardless of the actual on-disk order.
-    found = lookupViaLinearScan(toLowerCopy(cleaned), dictOffset, dictSize);
+    // sequential scan, which is correct regardless of the actual on-disk order. Try the same
+    // as-typed-then-stemmed candidate list here too, so the stemming fallback isn't lost for
+    // dictionaries that only work via linear scan.
+    std::vector<std::string> linearCandidates = {lowerCleaned};
+    for (const std::string& stem : stemCandidates(lowerCleaned)) {
+      linearCandidates.push_back(stem);
+    }
+    for (const std::string& candidate : linearCandidates) {
+      if (lookupViaLinearScan(candidate, dictOffset, dictSize)) {
+        found = true;
+        hitCandidate = candidate;
+        break;
+      }
+    }
     Serial.printf("[%lu] [DICT] lookup('%s'): linear scan %s (%lums)\n", millis(), queryWord.c_str(),
                   found ? "hit" : "miss", millis() - t1);
   }
@@ -380,8 +467,8 @@ bool StarDictLookup::lookup(const std::string& queryWord, std::string& outDefini
     return false;
   }
 
-  Serial.printf("[%lu] [DICT] lookup('%s'): dictOffset=%llu dictSize=%u\n", millis(), queryWord.c_str(),
-                static_cast<unsigned long long>(dictOffset), dictSize);
+  Serial.printf("[%lu] [DICT] lookup('%s'): matched '%s', dictOffset=%llu dictSize=%u\n", millis(),
+                queryWord.c_str(), hitCandidate.c_str(), static_cast<unsigned long long>(dictOffset), dictSize);
 
   if (dictSize == 0 || !dictFile_.seekSet(dictOffset)) {
     Serial.printf("[%lu] [DICT] lookup('%s'): dictSize==0 or seekSet(%llu) failed\n", millis(), queryWord.c_str(),
