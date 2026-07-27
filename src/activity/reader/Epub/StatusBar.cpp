@@ -60,7 +60,9 @@ void StatusBar::render(const Section* section, int currentSpineIndex, int orient
 
   const int screenHeight = m_renderer.getScreenHeight();
   const int screenWidth = m_renderer.getScreenWidth();
-  const int textY = screenHeight - orientedMarginBottom - 4;
+  const int fullHeight = reservedFullBarHeight();
+  const int textY = fullHeight > 0 ? screenHeight - orientedMarginBottom - 4
+                                   : screenHeight - m_renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) - 5;
 
   const int availableWidth = screenWidth - orientedMarginLeft - orientedMarginRight;
   const int positions[] = {STATUS_BAR_LEFT, STATUS_BAR_MIDDLE, STATUS_BAR_RIGHT};
@@ -81,7 +83,6 @@ void StatusBar::render(const Section* section, int currentSpineIndex, int orient
     renderSection(activePositions[index], sectionStart, sectionCenter, sectionWidth, textY, section, currentSpineIndex);
   }
 
-  const int fullHeight = reservedFullBarHeight();
   if (fullHeight > 0) {
     renderFullBar(fullHeight, section, currentSpineIndex);
   }

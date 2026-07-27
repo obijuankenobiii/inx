@@ -64,7 +64,7 @@ static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
 
 namespace {
 constexpr unsigned long goHomeMs = 1000;
-constexpr int statusBarMargin = 2;
+constexpr int statusBarMargin = 5;
 constexpr int statusBarFullGap = 10;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
