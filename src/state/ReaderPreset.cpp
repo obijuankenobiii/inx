@@ -161,7 +161,13 @@ bool ReaderPresetStore::update(int index, const std::string& name, const BookSet
   load();
   if (index <= 0) {
     // Default: write the settings back to the global reader fields.
+    const uint8_t statusBarLeft = READER_SETTINGS.statusBarLeft;
+    const uint8_t statusBarMiddle = READER_SETTINGS.statusBarMiddle;
+    const uint8_t statusBarRight = READER_SETTINGS.statusBarRight;
     settings.applyToGlobalSettings();
+    READER_SETTINGS.statusBarLeft = statusBarLeft;
+    READER_SETTINGS.statusBarMiddle = statusBarMiddle;
+    READER_SETTINGS.statusBarRight = statusBarRight;
     SETTINGS.saveToFile();
     return true;
   }

@@ -7,28 +7,29 @@ void RecentActivity::renderList(int startY) {
     return;
   }
 
-  constexpr int kHintReserve = 54;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - kHintReserve;
-  const int contentH = std::max(1, contentBottom - startY);
-  const int rowH = std::max(56, contentH / LIST_VISIBLE_ITEMS);
+  const int hintReserve = INX_THEME.mainTabsAtBottom() ? INX_THEME.mainTabBarHeight() : 54;
+  constexpr int listPadY = 6;
+  const int listTop = startY + listPadY;
+  const int contentBottom = screenH - hintReserve - listPadY;
+  const int contentH = std::max(1, contentBottom - listTop);
   constexpr int padX = 18;
-  const int thumbH = std::max(48, rowH - 10);
-  const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
   const bool thumbRound = SETTINGS.bitmapRoundedCorners != 0;
 
   const int visibleCount = std::min(LIST_VISIBLE_ITEMS, totalBooks - scrollOffset);
   for (int slot = 0; slot < visibleCount; ++slot) {
     const int bi = scrollOffset + slot;
-    const int y = startY + slot * rowH;
+    const int y = listTop + (contentH * slot) / LIST_VISIBLE_ITEMS;
+    const int rowBottom = listTop + (contentH * (slot + 1)) / LIST_VISIBLE_ITEMS;
+    const int rowH = std::max(56, rowBottom - y);
+    const int thumbH = std::max(48, rowH - 10);
+    const int thumbW = std::min(88, thumbH * RecentActivity::COVER_WIDTH / RecentActivity::COVER_HEIGHT);
     const RecentBook& book = recentBooks[static_cast<size_t>(bi)];
     const bool selected = !suppressBufferedSelection_ && (selectorIndex == bi);
 
     if (selected) {
-      for (int py = y + 2; py < y + rowH - 2; py += 4) {
-        renderer.rectangle.dotted(0, py, screenW, 1, true);
-      }
+      drawFlowCarouselBackdropInRect(renderer, 0, y, screenW, rowH);
     }
 
     const int ty = y + (rowH - thumbH) / 2;

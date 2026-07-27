@@ -172,9 +172,7 @@ class RecentActivity final : public Activity, public Menu {
   /** Tab-relative Y where each Recent view paints its body (keeps constants out of layout engine defs). */
   int recentGridPaintStartY() const { return mainContentTop() + 16; }
   int recentIconsPaintStartY() const { return mainContentTop() + 6; }
-  int recentListPaintStartY() const {
-    return INX_THEME.mainTabsAtBottom() ? mainContentTop() + 10 : mainContentTop() + 15;
-  }
+  int recentListPaintStartY() const { return mainContentTop(); }
 
   /**
    * View-mode paint strategy: one implementation per `ViewMode`, created by `makeLayoutEngine`.

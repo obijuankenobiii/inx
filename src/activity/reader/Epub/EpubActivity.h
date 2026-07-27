@@ -137,6 +137,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   bool hasSettingsDrawerSnapshot_ = false;
   /** Last orientation value used for a full layout/section rebuild; used to detect drift after global sync. */
   uint8_t bookLayoutAppliedOrientation_ = 0xFF;
+  /** Last global status-bar layout used for a full layout/section rebuild. */
+  uint32_t statusBarLayoutAppliedSignature_ = 0xFFFFFFFF;
   bool leftButtonLongPressProcessed = false;
 
   EpubReadingStats readingStats_;
@@ -334,6 +336,9 @@ class EpubActivity final : public ActivityWithSubactivity {
   void setupOrientation();
   /** Refreshes inherited reader defaults into books that do not use custom settings. */
   bool syncSettingsFromGlobalIfNeeded();
+  uint32_t currentStatusBarLayoutSignature() const;
+  bool statusBarLayoutChangedSinceApplied() const;
+  void markStatusBarLayoutApplied();
   /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
   void onBookSettingsLiveLayoutSync();
   void ensureThumbnailExists();

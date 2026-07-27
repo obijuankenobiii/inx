@@ -64,7 +64,8 @@ static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
 
 namespace {
 constexpr unsigned long goHomeMs = 1000;
-constexpr int statusBarMargin = 19;
+constexpr int statusBarMargin = 2;
+constexpr int statusBarFullGap = 10;
 constexpr int progressBarMarginTop = 10;
 constexpr unsigned long bookmarkHoldMs = 1000;
 constexpr bool kReaderHighQualityFastLut = true;
@@ -150,9 +151,14 @@ ViewportInfo EpubActivity::calculateViewport() {
         (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
   }
 
+  const int fullBarHeight = StatusBar::reservedFullBarHeight();
+  if (hasStatusBar && fullBarHeight > 0) {
+    info.totalMarginBottom += statusBarFullGap;
+  }
+
   // Full is a second bar stacked below the main one, so its height is always additive rather than
   // replacing anything - see StatusBar::render() for how the two bands stack.
-  info.totalMarginBottom += StatusBar::reservedFullBarHeight();
+  info.totalMarginBottom += fullBarHeight;
 
   info.fontId = bookSettings.getReaderFontId();
   // Each line's baseline is (top + ascender), so the first line's cap top sits (ascender - capHeight)
@@ -380,6 +386,19 @@ bool EpubActivity::syncSettingsFromGlobalIfNeeded() {
   bookSettings.useCustomSettings = false;
   return bookSettings != before;
 }
+
+uint32_t EpubActivity::currentStatusBarLayoutSignature() const {
+  return static_cast<uint32_t>(READER_SETTINGS.statusBarLeft) |
+         (static_cast<uint32_t>(READER_SETTINGS.statusBarMiddle) << 8) |
+         (static_cast<uint32_t>(READER_SETTINGS.statusBarRight) << 16) |
+         (static_cast<uint32_t>(READER_SETTINGS.statusBarFullStyle) << 24);
+}
+
+bool EpubActivity::statusBarLayoutChangedSinceApplied() const {
+  return currentStatusBarLayoutSignature() != statusBarLayoutAppliedSignature_;
+}
+
+void EpubActivity::markStatusBarLayoutApplied() { statusBarLayoutAppliedSignature_ = currentStatusBarLayoutSignature(); }
 
 void EpubActivity::onBookSettingsLiveLayoutSync() {
   if (settingsDrawer) {
@@ -652,6 +671,7 @@ void EpubActivity::onEnter() {
   updateRequired = true;
   lastAutoPageTurnTime = millis();
   bookLayoutAppliedOrientation_ = bookSettings.orientation;
+  markStatusBarLayoutApplied();
 
   lastGoodSpineIndex_ = currentSpineIndex;
   lastGoodPageNumber_ = nextPageNumber;
@@ -776,7 +796,8 @@ void EpubActivity::loop() {
   if (isToggleClosed) {
     isToggleClosed = false;
     const bool inheritedSettingsChanged = syncSettingsFromGlobalIfNeeded();
-    const bool layoutNeedsRebuild = inheritedSettingsChanged || (settingsDrawer && settingsDrawer->shouldUpdate()) ||
+    const bool layoutNeedsRebuild = inheritedSettingsChanged || statusBarLayoutChangedSinceApplied() ||
+                                    (settingsDrawer && settingsDrawer->shouldUpdate()) ||
                                     (bookSettings.orientation != bookLayoutAppliedOrientation_);
     if (layoutNeedsRebuild) {
       applyBookSettings();
@@ -1773,7 +1794,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool highQualityCacheReady =
       displayWithQualityPass &&
       page->allGrayscaleImagesCachedTwoBit(renderer, orientedMarginLeft, orientedMarginTop, /*quality=*/true);
-  const bool displayImagePlaceholder = displayWithQualityPass && !highQualityCacheReady || deferOneBitImageRender;
+  const bool displayImagePlaceholder = displayWithQualityPass && !highQualityCacheReady;
   if (displayImagePlaceholder) {
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true, /*onlyGrayscale=*/true);
   }
@@ -1831,6 +1852,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (deferOneBitImageRender) {
     // Text is already on screen (pushed above); draw the images now (decoding/caching them if this is
     // the first time) and push a quick partial refresh so they pop in without having delayed the text.
+    page->fillImageRects(renderer, orientedMarginLeft - 2, orientedMarginTop - 2, false, /*onlyGrayscale=*/true);
     page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
     renderer.displayBuffer();
   }
@@ -2156,6 +2178,7 @@ void EpubActivity::applyBookSettings() {
     section.reset();
 
     bookLayoutAppliedOrientation_ = bookSettings.orientation;
+    markStatusBarLayoutApplied();
     suppressNextSectionLoadProgress_ = true;
     hasSettingsDrawerSnapshot_ = false;
     saveBookSettings();
@@ -2170,6 +2193,7 @@ void EpubActivity::applyBookSettings() {
   section.reset();
 
   bookLayoutAppliedOrientation_ = bookSettings.orientation;
+  markStatusBarLayoutApplied();
   suppressNextSectionLoadProgress_ = true;
   hasSettingsDrawerSnapshot_ = false;
   updateRequired = true;
