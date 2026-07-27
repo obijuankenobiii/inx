@@ -30,6 +30,7 @@
 #include "activity/system/SleepActivity.h"
 #include "activity/util/FullScreenMessageActivity.h"
 #include "state/OpdsServerStore.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -285,6 +286,7 @@ void setup() {
 
   if (sdCardAvailable) {
     SETTINGS.loadFromFile();
+    READER_SETTINGS.loadFromFile();
     OPDS_STORE.loadOrMigrate({"Default", SETTINGS.opdsServerUrl, SETTINGS.opdsUsername, SETTINGS.opdsPassword});
   }
   normalizeUnavailableClockSettings();

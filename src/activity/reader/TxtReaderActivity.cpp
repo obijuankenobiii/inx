@@ -12,6 +12,7 @@
 
 #include "state/RecentBooks.h"
 #include "state/Session.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -41,7 +42,7 @@ void TxtReaderActivity::onEnter() {
     return;
   }
 
-  switch (SETTINGS.orientation) {
+  switch (READER_SETTINGS.orientation) {
     case SystemSetting::ORIENTATION::PORTRAIT:
       renderer.setOrientation(GfxRenderer::Orientation::Portrait);
       break;
@@ -111,7 +112,7 @@ void TxtReaderActivity::loop() {
     return;
   }
 
-  const bool usePressForPageTurn = SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
+  const bool usePressForPageTurn = READER_SETTINGS.longPressChapterSkip == SystemSetting::LONG_PRESS_OFF;
   const MappedInputManager::MotionGesture motionGesture = mappedInput.readMotionGesture(
       static_cast<uint8_t>(renderer.getOrientation()), SETTINGS.shakePageTurn, SETTINGS.shakePageTurnSensitivity);
   const bool prevTriggered = motionGesture == MappedInputManager::MotionGesture::Previous ||
@@ -119,7 +120,7 @@ void TxtReaderActivity::loop() {
                                                      mappedInput.wasPressed(MappedInputManager::Button::Left))
                                                   : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
                                                      mappedInput.wasReleased(MappedInputManager::Button::Left)));
-  const bool powerPageTurn = SETTINGS.btnPowerShortAction == SystemSetting::BTN_ACTION_PAGE_NEXT &&
+  const bool powerPageTurn = READER_SETTINGS.btnPowerShortAction == SystemSetting::BTN_ACTION_PAGE_NEXT &&
                              mappedInput.wasReleased(MappedInputManager::Button::Power);
   const bool nextTriggered =
       motionGesture == MappedInputManager::MotionGesture::Next ||
@@ -158,10 +159,10 @@ void TxtReaderActivity::initializeReader() {
     return;
   }
 
-  cachedFontId = SETTINGS.getReaderFontId();
+  cachedFontId = READER_SETTINGS.getReaderFontId();
   FontManager::ensureFontReady(cachedFontId, renderer);
-  cachedScreenMargin = SETTINGS.screenMargin;
-  cachedParagraphAlignment = SETTINGS.paragraphAlignment;
+  cachedScreenMargin = READER_SETTINGS.screenMargin;
+  cachedParagraphAlignment = READER_SETTINGS.paragraphAlignment;
 
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
@@ -171,9 +172,9 @@ void TxtReaderActivity::initializeReader() {
   orientedMarginRight += cachedScreenMargin;
   orientedMarginBottom += cachedScreenMargin;
 
-  if (SETTINGS.statusBar != SystemSetting::STATUS_BAR_MODE::NONE) {
-    const bool showProgressBar = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR ||
-                                 SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::ONLY_PROGRESS_BAR;
+  if (READER_SETTINGS.statusBar != SystemSetting::STATUS_BAR_MODE::NONE) {
+    const bool showProgressBar = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR ||
+                                 READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::ONLY_PROGRESS_BAR;
     orientedMarginBottom += statusBarMargin - cachedScreenMargin +
                             (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
   }
@@ -438,13 +439,13 @@ void TxtReaderActivity::renderPage() {
 
   if (pagesUntilFullRefresh <= 1) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+    pagesUntilFullRefresh = READER_SETTINGS.getRefreshFrequency();
   } else {
     renderer.displayBuffer();
     pagesUntilFullRefresh--;
   }
 
-  if (SETTINGS.textAntiAliasing && renderer.text.supportsAntiAliasing(cachedFontId)) {
+  if (READER_SETTINGS.textAntiAliasing && renderer.text.supportsAntiAliasing(cachedFontId)) {
     renderer.storeBwBuffer();
 
     renderer.clearScreen(0x00);
@@ -466,17 +467,17 @@ void TxtReaderActivity::renderPage() {
 
 void TxtReaderActivity::renderStatusBar(const int orientedMarginRight, const int orientedMarginBottom,
                                         const int orientedMarginLeft) const {
-  const bool showProgressPercentage = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL;
-  const bool showProgressBar = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR ||
-                               SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::ONLY_PROGRESS_BAR;
-  const bool showProgressText = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
-                                SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
-  const bool showBattery = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::NO_PROGRESS ||
-                           SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
-                           SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
-  const bool showTitle = SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::NO_PROGRESS ||
-                         SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
-                         SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
+  const bool showProgressPercentage = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL;
+  const bool showProgressBar = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR ||
+                               READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::ONLY_PROGRESS_BAR;
+  const bool showProgressText = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
+                                READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
+  const bool showBattery = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::NO_PROGRESS ||
+                           READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
+                           READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
+  const bool showTitle = READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::NO_PROGRESS ||
+                         READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL ||
+                         READER_SETTINGS.statusBar == SystemSetting::STATUS_BAR_MODE::FULL_WITH_PROGRESS_BAR;
   const bool showBatteryPercentage =
       SETTINGS.hideBatteryPercentage == SystemSetting::HIDE_BATTERY_PERCENTAGE::HIDE_NEVER;
 

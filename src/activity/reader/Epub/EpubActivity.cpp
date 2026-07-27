@@ -137,18 +137,22 @@ ViewportInfo EpubActivity::calculateViewport() {
   info.totalMarginLeft = oL + bookSettings.screenMargin;
   info.totalMarginRight = oR + bookSettings.screenMargin;
 
-  bool hasStatusBar = (SETTINGS.statusBarLeft != SystemSetting::STATUS_ITEM_NONE ||
-                       SETTINGS.statusBarMiddle != SystemSetting::STATUS_ITEM_NONE ||
-                       SETTINGS.statusBarRight != SystemSetting::STATUS_ITEM_NONE);
+  bool hasStatusBar = (READER_SETTINGS.statusBarLeft != SystemSetting::STATUS_ITEM_NONE ||
+                       READER_SETTINGS.statusBarMiddle != SystemSetting::STATUS_ITEM_NONE ||
+                       READER_SETTINGS.statusBarRight != SystemSetting::STATUS_ITEM_NONE);
 
-  bool showProgressBar = (SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR ||
-                          SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT);
+  bool showProgressBar = (READER_SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR ||
+                          READER_SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT);
 
   if (hasStatusBar) {
     info.totalMarginBottom +=
         statusBarMargin - bookSettings.screenMargin +
         (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
   }
+
+  // Full is a second bar stacked below the main one, so its height is always additive rather than
+  // replacing anything - see StatusBar::render() for how the two bands stack.
+  info.totalMarginBottom += StatusBar::reservedFullBarHeight();
 
   info.fontId = bookSettings.getReaderFontId();
   // Each line's baseline is (top + ascender), so the first line's cap top sits (ascender - capHeight)
@@ -368,7 +372,7 @@ void EpubActivity::setupOrientation() {
 
 void EpubActivity::syncOrientationFromGlobalIfNeeded() {
   if (!bookSettings.useCustomSettings) {
-    const SystemSetting& g = SystemSetting::getInstance();
+    const ReaderSetting& g = ReaderSetting::getInstance();
     bookSettings.orientation = g.orientation;
     bookSettings.paragraphCssIndentEnabled = g.paragraphCssIndentEnabled;
   }
@@ -804,10 +808,10 @@ void EpubActivity::loop() {
   }
 
   // Power (short-press only, no long-press pairing) shares the same 12-option READER_BUTTON_ACTION
-  // dispatch as Up/Down/Left/Right - see SETTINGS.btnPowerShortAction's doc comment for why this
+  // dispatch as Up/Down/Left/Right - see READER_SETTINGS.btnPowerShortAction's doc comment for why this
   // supersedes the old 4-option readerShortPwrBtn.
   if (mappedInput.wasReleased(MappedInputManager::Button::Power)) {
-    btnBindings_.dispatch(*this, SETTINGS.btnPowerShortAction);
+    btnBindings_.dispatch(*this, READER_SETTINGS.btnPowerShortAction);
     return;
   }
 
@@ -820,13 +824,13 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (SETTINGS.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible) {
+  if (READER_SETTINGS.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
 
     unsigned long elapsed = millis() - lastAutoPageTurnTime;
-    if (elapsed >= (SETTINGS.pageAutoTurnSeconds * 1000UL)) {
+    if (elapsed >= (READER_SETTINGS.pageAutoTurnSeconds * 1000UL)) {
       lastAutoPageTurnTime = millis();
       endPageTimer();
       pageTurn(true);
@@ -1313,8 +1317,8 @@ void EpubActivity::prewarmCurrentSectionImages() {
 
   const ViewportInfo info = calculateViewport();
   const ImageRenderMode imageMode =
-      SETTINGS.readerImageGrayscale != 0 ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
-  const bool imageQuality = SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
+      READER_SETTINGS.readerImageGrayscale != 0 ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
+  const bool imageQuality = READER_SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH;
 
   const int savedPage = section->currentPage;
   int warmedImages = 0;
@@ -1704,17 +1708,17 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     }
   }
 
-  const bool textAa = SETTINGS.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
+  const bool textAa = READER_SETTINGS.textAntiAliasing != 0 && renderer.text.supportsAntiAliasing(fontId);
 
   // Medium is the explicit grayscale mode: run its grayscale refresh for image pages. High stays selective so
   // line-art/comic images can use the sharper 2-bit quantizer without paying for the quality grayscale pass. If
   // text AA already needs a medium grayscale pass, include those non-quality High images in the same pass.
-  const bool readerImageTwoBit = SETTINGS.readerImageGrayscale != 0 && pageHasImages;
-  const bool highImageMode = SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH && pageHasImages;
+  const bool readerImageTwoBit = READER_SETTINGS.readerImageGrayscale != 0 && pageHasImages;
+  const bool highImageMode = READER_SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_HIGH && pageHasImages;
   const bool pngMediumOnly = highImageMode && page->anyPngImage();
   const bool highQuality = highImageMode && page->anyImageNeedsGrayscale() && !pngMediumOnly;
   const bool mediumImageGrayscale =
-      (SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages) || pngMediumOnly ||
+      (READER_SETTINGS.readerImageGrayscale == SystemSetting::READER_IMAGE_MEDIUM && pageHasImages) || pngMediumOnly ||
       (highImageMode && !highQuality && textAa);
   const bool needsImageGrayscale = mediumImageGrayscale || highQuality;
   const ImageRenderMode imageMode = readerImageTwoBit ? ImageRenderMode::TwoBit : ImageRenderMode::OneBit;
@@ -1725,7 +1729,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   const bool needsTextAntiAliasPass = textAa;
 
-  const bool smartImageRefreshEnabled = SETTINGS.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive();
+  const bool smartImageRefreshEnabled = READER_SETTINGS.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive();
   const bool smartRefreshAfterLargeImage = lastPageHadImages && lastPageHadLargeImage;
 
   // Default (non-grayscale) reading mode: draw and push the text/status bar first, then draw the page's
@@ -1756,7 +1760,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   auto displayPageBuffer = [this, smartRefreshThisPageAfterLargeImage]() {
     if (smartRefreshThisPageAfterLargeImage || pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+      pagesUntilFullRefresh = READER_SETTINGS.getRefreshFrequency();
     } else {
       renderer.displayBuffer();
       pagesUntilFullRefresh--;
@@ -1773,7 +1777,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (!displayWithQualityPass || !highQualityCacheReady) {
     displayPageBuffer();
   } else if (pagesUntilFullRefresh <= 1) {
-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+    pagesUntilFullRefresh = READER_SETTINGS.getRefreshFrequency();
   } else {
     pagesUntilFullRefresh--;
   }
@@ -2062,7 +2066,7 @@ void EpubActivity::loadBookSettings() {
       bookSettings.loadFromGlobalSettings();
       bookSettings.useCustomSettings = false;
     }
-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+    pagesUntilFullRefresh = READER_SETTINGS.getRefreshFrequency();
   }
 }
 

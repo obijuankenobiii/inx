@@ -16,10 +16,24 @@
 #include "state/BookSetting.h"
 
 /**
- * @brief Manages the status bar rendering for the EPUB reader
+ * @brief Manages the status bar rendering for the EPUB reader.
+ *
+ * Two independent bars: the main bar has its own Left/Middle/Right section config and sits within
+ * the page's left/right margin, like a page footer. Full is a second bar stacked below the main bar,
+ * spanning the screen edge-to-edge - it is deliberately NOT a 3-section text bar (that would just
+ * duplicate the main bar); it's a single full-width loading/progress visualization restricted to
+ * kFullBarStyles. A bar with no content (main: all three sections NONE; Full: style NONE) reports
+ * zero height so EpubActivity::calculateViewport() reclaims its space for the book page.
  */
 class StatusBar {
  public:
+  /** The only items Full may hold - "bar" visualizations, not text (see SystemSetting::
+   *  statusBarFullStyle). Index into this array is what the Full-bar picker UI cycles through. */
+  static constexpr StatusBarItem kFullBarStyles[4] = {StatusBarItem::NONE, StatusBarItem::PROGRESS_BAR,
+                                                       StatusBarItem::PROGRESS_BAR_WITH_PERCENT,
+                                                       StatusBarItem::PAGE_BARS};
+  static constexpr int kFullBarStyleCount = 4;
+
   /**
    * @brief Constructs a new StatusBar
    * @param renderer Reference to the graphics renderer
@@ -30,7 +44,7 @@ class StatusBar {
           const EpubReadingStats* readingStats = nullptr);
 
   /**
-   * @brief Renders the complete status bar
+   * @brief Renders the complete status bar (main bar plus the Full bar, if either has content)
    * @param section Current section being read
    * @param currentSpineIndex Current spine index
    * @param orientedMarginRight Right margin
@@ -52,7 +66,24 @@ class StatusBar {
    */
   bool isVisible() const { return m_visible; }
 
+  /** True if the Full bar's style is not NONE. */
+  static bool hasFullBarContent();
+
+  /** Pixel height to reserve for the Full bar (0 if hasFullBarContent() is false). Always additive
+   *  to the normal bottom margin - see EpubActivity::calculateViewport(). */
+  static int reservedFullBarHeight();
+
  private:
+  /**
+   * @brief Renders the Full bar: a single loading/progress visualization hugging the very bottom
+   * edge of the screen (y = screen height, minus the panel's hardware-safe inset), spanning the
+   * full edge-to-edge width - not the padded, vertically-centered text-row layout the main bar uses.
+   * @param barHeight Reserved height for the bar (see reservedFullBarHeight())
+   * @param section Current section
+   * @param currentSpineIndex Current spine index
+   */
+  void renderFullBar(int barHeight, const Section* section, int currentSpineIndex) const;
+
   /**
    * @brief Renders a single status bar section
    * @param position Section position (0=left, 1=middle, 2=right)

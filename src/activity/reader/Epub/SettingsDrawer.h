@@ -105,13 +105,14 @@ class SettingsDrawer {
    * @brief Types of setting groups for organization
    */
   enum class GroupType {
-    FONT,       ///< Font-related settings
-    LAYOUT,     ///< Layout and spacing settings
-    IMAGE,      ///< Book bitmap appearance (global reader image options)
-    CONTROLS,   ///< System and control settings
-    STATUS_BAR  ///< Status bar configuration
+    FONT,            ///< Font-related settings
+    LAYOUT,          ///< Layout and spacing settings
+    IMAGE,           ///< Book bitmap appearance (global reader image options)
+    CONTROLS,        ///< System and control settings
+    STATUS_BAR,      ///< Status bar configuration
+    STATUS_BAR_FULL  ///< Full-width status bar configuration (stacked below the main bar)
   };
-  static constexpr size_t kGroupCount = 5;
+  static constexpr size_t kGroupCount = 6;
   static constexpr size_t groupIndex(const GroupType group) { return static_cast<size_t>(group); }
   bool isGroupExpanded(GroupType group) const { return groupExpanded_[groupIndex(group)]; }
 
@@ -121,9 +122,10 @@ class SettingsDrawer {
    */
   enum class MenuItem {
 
-    Separator,           ///< Generic separator for Font, Layout, Controls groups
-    StatusBarSeparator,  ///< Special separator for Status Bar group
-    PresetPicker,        ///< Per-book: pick and immediately apply a saved preset
+    Separator,               ///< Generic separator for Font, Layout, Controls groups
+    StatusBarSeparator,      ///< Special separator for Status Bar group
+    StatusBarFullSeparator,  ///< Special separator for the Full-width Status Bar group
+    PresetPicker,            ///< Per-book: pick and immediately apply a saved preset
 
     FontFamily,  ///< Font style selection
     FontSize,    ///< Font size selection
@@ -147,6 +149,10 @@ class SettingsDrawer {
     StatusBarLeft,    ///< Left status bar section content
     StatusBarMiddle,  ///< Middle status bar section content
     StatusBarRight,   ///< Right status bar section content
+
+    /** The Full bar is a single full-width loading/progress bar (see StatusBar::kFullBarStyles),
+     *  not 3 independent text sections like the main bar - one row, not three. */
+    StatusBarFullStyle,
 
     ReaderImageGrayscale,     ///< Global: EPUB image grayscale pass
     ReaderSmartImageRefresh,  ///< Global: half refresh on image pages

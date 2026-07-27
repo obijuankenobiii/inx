@@ -5,6 +5,7 @@
 
 #include <algorithm>
 
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -87,8 +88,8 @@ void DictionaryPickerActivity::scanDictionaryFolders() {
 
   std::sort(folders_.begin(), folders_.end());
 
-  if (SETTINGS.dictionaryFolder[0] != '\0') {
-    const auto it = std::find(folders_.begin(), folders_.end(), std::string(SETTINGS.dictionaryFolder));
+  if (READER_SETTINGS.dictionaryFolder[0] != '\0') {
+    const auto it = std::find(folders_.begin(), folders_.end(), std::string(READER_SETTINGS.dictionaryFolder));
     if (it != folders_.end()) {
       selectedIndex_ = static_cast<int>(std::distance(folders_.begin(), it));
     }
@@ -118,9 +119,9 @@ void DictionaryPickerActivity::loop() {
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     const std::string& chosen = folders_[static_cast<size_t>(selectedIndex_)];
-    strncpy(SETTINGS.dictionaryFolder, chosen.c_str(), sizeof(SETTINGS.dictionaryFolder) - 1);
-    SETTINGS.dictionaryFolder[sizeof(SETTINGS.dictionaryFolder) - 1] = '\0';
-    SETTINGS.saveToFile();
+    strncpy(READER_SETTINGS.dictionaryFolder, chosen.c_str(), sizeof(READER_SETTINGS.dictionaryFolder) - 1);
+    READER_SETTINGS.dictionaryFolder[sizeof(READER_SETTINGS.dictionaryFolder) - 1] = '\0';
+    READER_SETTINGS.saveToFile();
     goBack_();
     return;
   }
@@ -158,7 +159,7 @@ void DictionaryPickerActivity::render() {
   for (int i = scrollOffset_; i < endIndex; ++i) {
     const int y = bodyTop + (i - scrollOffset_) * kRowH;
     const bool selected = i == selectedIndex_;
-    const bool active = folders_[static_cast<size_t>(i)] == SETTINGS.dictionaryFolder;
+    const bool active = folders_[static_cast<size_t>(i)] == READER_SETTINGS.dictionaryFolder;
     if (selected) {
       renderer.rectangle.fill(0, y, screenW, kRowH, static_cast<int>(GfxRenderer::FillTone::Ink));
     }

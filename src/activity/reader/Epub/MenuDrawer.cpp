@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include "Epub.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/UiTheme.h"
@@ -37,10 +38,10 @@ bool readDrawerListPrev(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
     return in.wasPressed(MappedInputManager::Button::Right) || in.wasPressed(MappedInputManager::Button::Up);
   }
-  if (SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
+  if (READER_SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
     return in.wasPressed(MappedInputManager::Button::Up) || in.wasPressed(MappedInputManager::Button::Left);
   }
-  switch (SETTINGS.readerDirectionMapping) {
+  switch (READER_SETTINGS.readerDirectionMapping) {
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_RIGHT_LEFT:
       return in.wasPressed(MappedInputManager::Button::Right);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_UP_DOWN:
@@ -57,10 +58,10 @@ bool readDrawerListNext(const MappedInputManager& in, const GfxRenderer& r) {
   if (isLandscapeReader(r)) {
     return in.wasPressed(MappedInputManager::Button::Left) || in.wasPressed(MappedInputManager::Button::Down);
   }
-  if (SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
+  if (READER_SETTINGS.readerDirectionMapping == SystemSetting::READER_DIRECTION_MAPPING::MAP_NONE) {
     return in.wasPressed(MappedInputManager::Button::Down) || in.wasPressed(MappedInputManager::Button::Right);
   }
-  switch (SETTINGS.readerDirectionMapping) {
+  switch (READER_SETTINGS.readerDirectionMapping) {
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_RIGHT_LEFT:
       return in.wasPressed(MappedInputManager::Button::Left);
     case SystemSetting::READER_DIRECTION_MAPPING::MAP_UP_DOWN:

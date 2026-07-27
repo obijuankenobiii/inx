@@ -9,6 +9,7 @@
 #include <GfxRenderer.h>
 
 #include "EpubActivity.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 
 bool ReaderButtonBindings::handleInput(EpubActivity& act) {
@@ -16,20 +17,20 @@ bool ReaderButtonBindings::handleInput(EpubActivity& act) {
   // mode (dictionary/annotation/menu/settings), the remaining buttons shouldn't also dispatch into it
   // on the same frame. A one-frame delay in starting to track a later button's press is imperceptible
   // against the ~700ms long-press threshold.
-  if (handleButton(act, MappedInputManager::Button::Up, upState_, SETTINGS.btnUpShortAction,
-                   SETTINGS.btnUpLongAction)) {
+  if (handleButton(act, MappedInputManager::Button::Up, upState_, READER_SETTINGS.btnUpShortAction,
+                   READER_SETTINGS.btnUpLongAction)) {
     return true;
   }
-  if (handleButton(act, MappedInputManager::Button::Down, downState_, SETTINGS.btnDownShortAction,
-                   SETTINGS.btnDownLongAction)) {
+  if (handleButton(act, MappedInputManager::Button::Down, downState_, READER_SETTINGS.btnDownShortAction,
+                   READER_SETTINGS.btnDownLongAction)) {
     return true;
   }
-  if (handleButton(act, MappedInputManager::Button::Left, leftState_, SETTINGS.btnLeftShortAction,
-                   SETTINGS.btnLeftLongAction)) {
+  if (handleButton(act, MappedInputManager::Button::Left, leftState_, READER_SETTINGS.btnLeftShortAction,
+                   READER_SETTINGS.btnLeftLongAction)) {
     return true;
   }
-  if (handleButton(act, MappedInputManager::Button::Right, rightState_, SETTINGS.btnRightShortAction,
-                   SETTINGS.btnRightLongAction)) {
+  if (handleButton(act, MappedInputManager::Button::Right, rightState_, READER_SETTINGS.btnRightShortAction,
+                   READER_SETTINGS.btnRightLongAction)) {
     return true;
   }
   return false;

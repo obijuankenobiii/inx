@@ -13,6 +13,7 @@
 #include "EpubActivity.h"
 #include "dictionary/DictionaryDefinitionLayout.h"
 #include "state/SavedDictionaryWords.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -217,11 +218,11 @@ void EpubDictionaryUi::ensureDictionaryOpen() {
     return;
   }
   dictOpenAttempted_ = true;
-  if (SETTINGS.dictionaryFolder[0] == '\0') {
-    Serial.printf("[%lu] [DICT] ensureDictionaryOpen: SETTINGS.dictionaryFolder is empty\n", millis());
+  if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
+    Serial.printf("[%lu] [DICT] ensureDictionaryOpen: READER_SETTINGS.dictionaryFolder is empty\n", millis());
     return;
   }
-  const std::string folder = std::string("/dictionaries/") + SETTINGS.dictionaryFolder;
+  const std::string folder = std::string("/dictionaries/") + READER_SETTINGS.dictionaryFolder;
   const bool opened = dict_.open(folder);
   Serial.printf("[%lu] [DICT] ensureDictionaryOpen: open('%s') -> %d\n", millis(), folder.c_str(), opened ? 1 : 0);
 }
@@ -238,7 +239,7 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
   bool truncated = false;
   if (lookedUpWord_.empty()) {
     currentDefinition_ = "Nothing to look up.";
-  } else if (SETTINGS.dictionaryFolder[0] == '\0') {
+  } else if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
     currentDefinition_ = "No dictionary selected. Pick one in Settings > Reader > Choose dictionary.";
   } else {
     // Show the status popup FIRST, before any blocking work - opening the dictionary (first lookup

@@ -10,7 +10,9 @@
 #include <string>
 
 #include "../../settings/ReaderFontSettingsDraw.h"
+#include "StatusBar.h"
 #include "state/ReaderPreset.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -426,7 +428,7 @@ void SettingsDrawer::setupMenu() {
   // pageAutoTurnSeconds/readerImageGrayscale/readerSmartRefreshOnImages there). Power Button and
   // Long-press specifically are further superseded by the per-button action mapping
   // (ReaderButtonBindings). Status Bar stays visible here for quick access while reading, but reads and
-  // writes the global SystemSetting fields directly (SETTINGS.statusBarLeft/Middle/Right, also editable
+  // writes the global SystemSetting fields directly (READER_SETTINGS.statusBarLeft/Middle/Right, also editable
   // from ReaderPresetsActivity's System section) rather than a per-book BookSettings override - the
   // BookSettings& parameter these lambdas take is unused for that reason.
 
@@ -448,13 +450,13 @@ void SettingsDrawer::setupMenu() {
     statusLeftEntry.group = GroupType::STATUS_BAR;
     statusLeftEntry.name = "Left Section";
     statusLeftEntry.getValueText = [](const BookSettings&) -> const char* {
-      return statusBarItemName(static_cast<StatusBarItem>(SETTINGS.statusBarLeft));
+      return statusBarItemName(static_cast<StatusBarItem>(READER_SETTINGS.statusBarLeft));
     };
     statusLeftEntry.change = [](BookSettings&, int delta) {
-      int newVal = static_cast<int>(SETTINGS.statusBarLeft) + delta;
+      int newVal = static_cast<int>(READER_SETTINGS.statusBarLeft) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
-        SETTINGS.statusBarLeft = static_cast<uint8_t>(newVal);
-        SETTINGS.saveToFile();
+        READER_SETTINGS.statusBarLeft = static_cast<uint8_t>(newVal);
+        READER_SETTINGS.saveToFile();
       }
     };
     menuItems.push_back(statusLeftEntry);
@@ -464,13 +466,13 @@ void SettingsDrawer::setupMenu() {
     statusMiddleEntry.group = GroupType::STATUS_BAR;
     statusMiddleEntry.name = "Middle Section";
     statusMiddleEntry.getValueText = [](const BookSettings&) -> const char* {
-      return statusBarItemName(static_cast<StatusBarItem>(SETTINGS.statusBarMiddle));
+      return statusBarItemName(static_cast<StatusBarItem>(READER_SETTINGS.statusBarMiddle));
     };
     statusMiddleEntry.change = [](BookSettings&, int delta) {
-      int newVal = static_cast<int>(SETTINGS.statusBarMiddle) + delta;
+      int newVal = static_cast<int>(READER_SETTINGS.statusBarMiddle) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
-        SETTINGS.statusBarMiddle = static_cast<uint8_t>(newVal);
-        SETTINGS.saveToFile();
+        READER_SETTINGS.statusBarMiddle = static_cast<uint8_t>(newVal);
+        READER_SETTINGS.saveToFile();
       }
     };
     menuItems.push_back(statusMiddleEntry);
@@ -480,16 +482,56 @@ void SettingsDrawer::setupMenu() {
     statusRightEntry.group = GroupType::STATUS_BAR;
     statusRightEntry.name = "Right Section";
     statusRightEntry.getValueText = [](const BookSettings&) -> const char* {
-      return statusBarItemName(static_cast<StatusBarItem>(SETTINGS.statusBarRight));
+      return statusBarItemName(static_cast<StatusBarItem>(READER_SETTINGS.statusBarRight));
     };
     statusRightEntry.change = [](BookSettings&, int delta) {
-      int newVal = static_cast<int>(SETTINGS.statusBarRight) + delta;
+      int newVal = static_cast<int>(READER_SETTINGS.statusBarRight) + delta;
       if (newVal >= 0 && newVal < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
-        SETTINGS.statusBarRight = static_cast<uint8_t>(newVal);
-        SETTINGS.saveToFile();
+        READER_SETTINGS.statusBarRight = static_cast<uint8_t>(newVal);
+        READER_SETTINGS.saveToFile();
       }
     };
     menuItems.push_back(statusRightEntry);
+  }
+
+  MenuEntry statusBarFullSeparator;
+  statusBarFullSeparator.item = MenuItem::StatusBarFullSeparator;
+  statusBarFullSeparator.group = GroupType::STATUS_BAR_FULL;
+  statusBarFullSeparator.name = "═══ Full Width Bar ═══";
+  statusBarFullSeparator.getValueText = [this](const BookSettings&) -> const char* {
+    static char indicator[4];
+    snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(GroupType::STATUS_BAR_FULL) ? "-" : "+");
+    return indicator;
+  };
+  statusBarFullSeparator.change = [](BookSettings&, int) {};
+  menuItems.push_back(statusBarFullSeparator);
+
+  if (isGroupExpanded(GroupType::STATUS_BAR_FULL)) {
+    // A single style row, not 3 Left/Middle/Right rows - Full is one full-width bar restricted to
+    // StatusBar::kFullBarStyles (loading/progress visualizations), so there's nothing to put in
+    // separate sections.
+    MenuEntry fullStyleEntry;
+    fullStyleEntry.item = MenuItem::StatusBarFullStyle;
+    fullStyleEntry.group = GroupType::STATUS_BAR_FULL;
+    fullStyleEntry.name = "Style";
+    fullStyleEntry.getValueText = [](const BookSettings&) -> const char* {
+      return statusBarItemName(static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle));
+    };
+    fullStyleEntry.change = [](BookSettings&, int delta) {
+      int idx = 0;
+      for (int i = 0; i < StatusBar::kFullBarStyleCount; ++i) {
+        if (StatusBar::kFullBarStyles[i] == static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle)) {
+          idx = i;
+          break;
+        }
+      }
+      const int newIdx = idx + delta;
+      if (newIdx >= 0 && newIdx < StatusBar::kFullBarStyleCount) {
+        READER_SETTINGS.statusBarFullStyle = static_cast<uint8_t>(StatusBar::kFullBarStyles[newIdx]);
+        READER_SETTINGS.saveToFile();
+      }
+    };
+    menuItems.push_back(fullStyleEntry);
   }
 }
 
@@ -602,7 +644,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
       drawerX, itemY, drawerWidth, itemHeight,
       isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
 
-  if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator) {
+  if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator ||
+      entry.item == MenuItem::StatusBarFullSeparator) {
     const int textX = drawerX + 15;
     const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
     renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
@@ -739,7 +782,8 @@ void SettingsDrawer::toggleGroup(GroupType group) {
 
   for (size_t i = 0; i < menuItems.size(); i++) {
     if (menuItems[i].group == group &&
-        (menuItems[i].item == MenuItem::Separator || menuItems[i].item == MenuItem::StatusBarSeparator)) {
+        (menuItems[i].item == MenuItem::Separator || menuItems[i].item == MenuItem::StatusBarSeparator ||
+         menuItems[i].item == MenuItem::StatusBarFullSeparator)) {
       selectedIndex = static_cast<int>(i);
       if (selectedIndex < scrollOffset) {
         scrollOffset = selectedIndex;
@@ -811,7 +855,8 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
   if (input.wasPressed(MappedInputManager::Button::Confirm)) {
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
       const auto& selected = menuItems[selectedIndex];
-      if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator) {
+      if (selected.item == MenuItem::Separator || selected.item == MenuItem::StatusBarSeparator ||
+          selected.item == MenuItem::StatusBarFullSeparator) {
         toggleGroup(selected.group);
         needRedraw = true;
       }
@@ -865,6 +910,7 @@ void SettingsDrawer::applyChange(int delta) {
       case MenuItem::StatusBarLeft:
       case MenuItem::StatusBarMiddle:
       case MenuItem::StatusBarRight:
+      case MenuItem::StatusBarFullStyle:
       case MenuItem::Hyphenation:
       case MenuItem::RefreshRate:
       case MenuItem::AntiAliasing:
@@ -872,6 +918,7 @@ void SettingsDrawer::applyChange(int delta) {
       case MenuItem::NavigationLock:
       case MenuItem::Separator:
       case MenuItem::StatusBarSeparator:
+      case MenuItem::StatusBarFullSeparator:
       case MenuItem::PresetPicker:
         break;
     }

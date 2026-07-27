@@ -24,6 +24,7 @@
 #include <functional>
 #include <set>
 
+#include "../state/ReaderSetting.h"
 #include "../state/SystemSetting.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include "activity/reader/Epub/EpubActivity.h"
@@ -1948,30 +1949,31 @@ void LocalServer::handleSettingsGet() const {
   doc["libraryShelfEnabled"] = SETTINGS.libraryShelfEnabled;
   doc["librarySortMode"] = SETTINGS.librarySortMode;
 
-  doc["fontFamily"] = SETTINGS.fontFamily;
-  doc["fontSize"] = SETTINGS.fontSize;
+  doc["fontFamily"] = READER_SETTINGS.fontFamily;
+  doc["fontSize"] = READER_SETTINGS.fontSize;
 
-  doc["lineHeight"] = SETTINGS.lineHeight;
-  doc["textSpace"] = SETTINGS.textSpace;
-  doc["screenMargin"] = SETTINGS.screenMargin;
-  doc["paragraphAlignment"] = SETTINGS.paragraphAlignment;
-  doc["paragraphCssIndentEnabled"] = SETTINGS.paragraphCssIndentEnabled;
-  doc["extraParagraphSpacing"] = SETTINGS.extraParagraphSpacing;
-  doc["orientation"] = SETTINGS.orientation;
-  doc["hyphenationEnabled"] = SETTINGS.hyphenationEnabled;
-  doc["bionicReadingEnabled"] = SETTINGS.bionicReadingEnabled;
+  doc["lineHeight"] = READER_SETTINGS.lineHeight;
+  doc["textSpace"] = READER_SETTINGS.textSpace;
+  doc["screenMargin"] = READER_SETTINGS.screenMargin;
+  doc["paragraphAlignment"] = READER_SETTINGS.paragraphAlignment;
+  doc["paragraphCssIndentEnabled"] = READER_SETTINGS.paragraphCssIndentEnabled;
+  doc["extraParagraphSpacing"] = READER_SETTINGS.extraParagraphSpacing;
+  doc["orientation"] = READER_SETTINGS.orientation;
+  doc["hyphenationEnabled"] = READER_SETTINGS.hyphenationEnabled;
+  doc["bionicReadingEnabled"] = READER_SETTINGS.bionicReadingEnabled;
 
   doc["shakePageTurn"] = SETTINGS.shakePageTurn;
   doc["shakePageTurnSensitivity"] = SETTINGS.shakePageTurnSensitivity;
 
-  doc["textAntiAliasing"] = SETTINGS.textAntiAliasing;
-  doc["refreshFrequency"] = SETTINGS.refreshFrequency;
-  doc["readerImageGrayscale"] = SETTINGS.readerImageGrayscale;
-  doc["readerSmartRefreshOnImages"] = SETTINGS.readerSmartRefreshOnImages;
-  doc["statusBar"] = SETTINGS.statusBar;
-  doc["statusBarLeft"] = SETTINGS.statusBarLeft;
-  doc["statusBarMiddle"] = SETTINGS.statusBarMiddle;
-  doc["statusBarRight"] = SETTINGS.statusBarRight;
+  doc["textAntiAliasing"] = READER_SETTINGS.textAntiAliasing;
+  doc["refreshFrequency"] = READER_SETTINGS.refreshFrequency;
+  doc["readerImageGrayscale"] = READER_SETTINGS.readerImageGrayscale;
+  doc["readerSmartRefreshOnImages"] = READER_SETTINGS.readerSmartRefreshOnImages;
+  doc["statusBar"] = READER_SETTINGS.statusBar;
+  doc["statusBarLeft"] = READER_SETTINGS.statusBarLeft;
+  doc["statusBarMiddle"] = READER_SETTINGS.statusBarMiddle;
+  doc["statusBarRight"] = READER_SETTINGS.statusBarRight;
+  doc["statusBarFullStyle"] = READER_SETTINGS.statusBarFullStyle;
 
   doc["frontButtonLayout"] = SETTINGS.frontButtonLayout;
   doc["shortPwrBtn"] = SETTINGS.shortPwrBtn;
@@ -1985,7 +1987,7 @@ void LocalServer::handleSettingsGet() const {
   doc["refreshOnLoadSettings"] = SETTINGS.refreshOnLoadSettings;
   doc["refreshOnLoadSync"] = SETTINGS.refreshOnLoadSync;
   doc["refreshOnLoadStatistics"] = SETTINGS.refreshOnLoadStatistics;
-  doc["pageAutoTurnSeconds"] = SETTINGS.pageAutoTurnSeconds;
+  doc["pageAutoTurnSeconds"] = READER_SETTINGS.pageAutoTurnSeconds;
   doc["bitmapRoundedCorners"] = SETTINGS.bitmapRoundedCorners;
   doc["opdsServerUrl"] = SETTINGS.opdsServerUrl;
   doc["opdsUsername"] = SETTINGS.opdsUsername;
@@ -2012,6 +2014,7 @@ void LocalServer::handleSettingsUpdate() const {
   }
 
   bool changed = false;
+  bool readerChanged = false;
   const bool clockAvailable = clockSettingsAvailable();
 
   for (JsonPair kv : doc.as<JsonObject>()) {
@@ -2098,43 +2101,43 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.librarySortMode = static_cast<uint8_t>(v);
       changed = true;
     } else if (strcmp(key, "fontFamily") == 0) {
-      SETTINGS.fontFamily = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.fontFamily = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "fontSize") == 0) {
-      SETTINGS.fontSize = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.fontSize = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "lineHeight") == 0) {
       uint8_t v = (uint8_t)value;
-      SETTINGS.lineHeight = (v < 10 || v > 200) ? 100 : v;
-      changed = true;
+      READER_SETTINGS.lineHeight = (v < 10 || v > 200) ? 100 : v;
+      readerChanged = true;
     } else if (strcmp(key, "textSpace") == 0) {
       uint8_t v = (uint8_t)value;
-      SETTINGS.textSpace = (v < 10 || v > 200) ? 100 : v;
-      changed = true;
+      READER_SETTINGS.textSpace = (v < 10 || v > 200) ? 100 : v;
+      readerChanged = true;
     } else if (strcmp(key, "screenMargin") == 0) {
-      SETTINGS.screenMargin = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.screenMargin = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "paragraphAlignment") == 0) {
-      SETTINGS.paragraphAlignment = (uint8_t)value;
-      if (SETTINGS.paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
-        SETTINGS.paragraphAlignment = SystemSetting::JUSTIFIED;
+      READER_SETTINGS.paragraphAlignment = (uint8_t)value;
+      if (READER_SETTINGS.paragraphAlignment >= SystemSetting::PARAGRAPH_ALIGNMENT_COUNT) {
+        READER_SETTINGS.paragraphAlignment = SystemSetting::JUSTIFIED;
       }
-      changed = true;
+      readerChanged = true;
     } else if (strcmp(key, "extraParagraphSpacing") == 0) {
-      SETTINGS.extraParagraphSpacing = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.extraParagraphSpacing = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "paragraphCssIndentEnabled") == 0) {
-      SETTINGS.paragraphCssIndentEnabled = (uint8_t)value ? 1 : 0;
-      changed = true;
+      READER_SETTINGS.paragraphCssIndentEnabled = (uint8_t)value ? 1 : 0;
+      readerChanged = true;
     } else if (strcmp(key, "orientation") == 0) {
-      SETTINGS.orientation = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.orientation = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "hyphenationEnabled") == 0) {
-      SETTINGS.hyphenationEnabled = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.hyphenationEnabled = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "bionicReadingEnabled") == 0) {
-      SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
-      changed = true;
+      READER_SETTINGS.bionicReadingEnabled = (uint8_t)value ? 1 : 0;
+      readerChanged = true;
     } else if (strcmp(key, "shakePageTurn") == 0) {
       const int motionMode = static_cast<int>(value);
       SETTINGS.shakePageTurn = static_cast<uint8_t>(motionMode < 0 ? 0 : motionMode > 2 ? 2 : motionMode);
@@ -2144,31 +2147,34 @@ void LocalServer::handleSettingsUpdate() const {
       SETTINGS.shakePageTurnSensitivity = static_cast<uint8_t>(sensitivity < 0 ? 0 : sensitivity > 2 ? 2 : sensitivity);
       changed = true;
     } else if (strcmp(key, "textAntiAliasing") == 0) {
-      SETTINGS.textAntiAliasing = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.textAntiAliasing = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "refreshFrequency") == 0) {
-      SETTINGS.refreshFrequency = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.refreshFrequency = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "readerImageGrayscale") == 0) {
-      SETTINGS.readerImageGrayscale = (value >= 0 && value < SystemSetting::READER_IMAGE_QUALITY_COUNT)
+      READER_SETTINGS.readerImageGrayscale = (value >= 0 && value < SystemSetting::READER_IMAGE_QUALITY_COUNT)
                                           ? (uint8_t)value
                                           : SystemSetting::READER_IMAGE_LOW;
-      changed = true;
+      readerChanged = true;
     } else if (strcmp(key, "readerSmartRefreshOnImages") == 0) {
-      SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
-      changed = true;
+      READER_SETTINGS.readerSmartRefreshOnImages = (uint8_t)value ? 1 : 0;
+      readerChanged = true;
     } else if (strcmp(key, "statusBar") == 0) {
-      SETTINGS.statusBar = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.statusBar = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "statusBarLeft") == 0) {
-      SETTINGS.statusBarLeft = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.statusBarLeft = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "statusBarMiddle") == 0) {
-      SETTINGS.statusBarMiddle = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.statusBarMiddle = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "statusBarRight") == 0) {
-      SETTINGS.statusBarRight = (uint8_t)value;
-      changed = true;
+      READER_SETTINGS.statusBarRight = (uint8_t)value;
+      readerChanged = true;
+    } else if (strcmp(key, "statusBarFullStyle") == 0) {
+      READER_SETTINGS.statusBarFullStyle = (uint8_t)value;
+      readerChanged = true;
     } else if (strcmp(key, "frontButtonLayout") == 0) {
       SETTINGS.frontButtonLayout = (uint8_t)value;
       changed = true;
@@ -2210,8 +2216,8 @@ void LocalServer::handleSettingsUpdate() const {
       if (v < 0) v = 0;
       if (v > 180) v = 180;
       v = (v / 10) * 10;
-      SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
-      changed = true;
+      READER_SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(v);
+      readerChanged = true;
     } else if (strcmp(key, "bitmapRoundedCorners") == 0) {
       int cornerStyle = static_cast<int>(value);
       if (cornerStyle < 0) cornerStyle = 0;
@@ -2233,6 +2239,10 @@ void LocalServer::handleSettingsUpdate() const {
   if (changed) {
     SETTINGS.saveToFile();
     Serial.printf("[%lu] [WEB] Settings updated and saved\n", millis());
+  }
+  if (readerChanged) {
+    READER_SETTINGS.saveToFile();
+    Serial.printf("[%lu] [WEB] Reader settings updated and saved\n", millis());
   }
 
   server->send(200, "application/json", "{\"status\":\"ok\"}");

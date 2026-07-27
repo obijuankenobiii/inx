@@ -17,6 +17,7 @@
 #include "ReaderFontSettingsDraw.h"
 #include "ReaderPresetEditorActivity.h"
 #include "state/ReaderPreset.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/MenuNav.h"
 #include "system/UiTheme.h"
@@ -47,37 +48,37 @@ const char* readerQualityLabel(const uint8_t quality) {
 }
 
 const char* xtcPowerLabel() {
-  return SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? "Page Refresh" : "Next";
+  return READER_SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? "Page Refresh" : "Next";
 }
 
 const char* xtcAutoTurnLabel() {
   static char buf[12];
-  if (SETTINGS.xtcPageAutoTurnSeconds == 0) {
+  if (READER_SETTINGS.xtcPageAutoTurnSeconds == 0) {
     return "Off";
   }
-  snprintf(buf, sizeof(buf), "%u sec", SETTINGS.xtcPageAutoTurnSeconds);
+  snprintf(buf, sizeof(buf), "%u sec", READER_SETTINGS.xtcPageAutoTurnSeconds);
   return buf;
 }
 
 const char* xtcRefreshLabel() {
   static char buf[12];
-  snprintf(buf, sizeof(buf), "%u page%s", SETTINGS.xtcRefreshFrequency, SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
+  snprintf(buf, sizeof(buf), "%u page%s", READER_SETTINGS.xtcRefreshFrequency, READER_SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
   return buf;
 }
 
 const char* systemRefreshLabel() {
   static char buf[12];
-  const int pages = SETTINGS.getRefreshFrequency();
+  const int pages = READER_SETTINGS.getRefreshFrequency();
   snprintf(buf, sizeof(buf), "%u page%s", pages, pages == 1 ? "" : "s");
   return buf;
 }
 
 const char* systemAutoTurnLabel() {
   static char buf[12];
-  if (SETTINGS.pageAutoTurnSeconds == 0) {
+  if (READER_SETTINGS.pageAutoTurnSeconds == 0) {
     return "Off";
   }
-  snprintf(buf, sizeof(buf), "%u sec", SETTINGS.pageAutoTurnSeconds);
+  snprintf(buf, sizeof(buf), "%u sec", READER_SETTINGS.pageAutoTurnSeconds);
   return buf;
 }
 
@@ -88,10 +89,10 @@ const char* systemAutoTurnLabel() {
 // on both devices.
 constexpr int kButtonActionRowCount = 8;
 
-uint8_t SystemSetting::* const kButtonActionFields[kButtonActionRowCount] = {
-    &SystemSetting::btnUpShortAction,    &SystemSetting::btnUpLongAction,   &SystemSetting::btnDownShortAction,
-    &SystemSetting::btnDownLongAction,   &SystemSetting::btnLeftShortAction, &SystemSetting::btnLeftLongAction,
-    &SystemSetting::btnRightShortAction, &SystemSetting::btnRightLongAction};
+uint8_t ReaderSetting::* const kButtonActionFields[kButtonActionRowCount] = {
+    &ReaderSetting::btnUpShortAction,    &ReaderSetting::btnUpLongAction,   &ReaderSetting::btnDownShortAction,
+    &ReaderSetting::btnDownLongAction,   &ReaderSetting::btnLeftShortAction, &ReaderSetting::btnLeftLongAction,
+    &ReaderSetting::btnRightShortAction, &ReaderSetting::btnRightLongAction};
 
 const char* buttonActionRowLabel(const int idx, const bool x3) {
   switch (idx) {
@@ -209,11 +210,11 @@ void ReaderPresetsActivity::changeSystemSetting(const int row, const int delta) 
   (void)delta;
   const int systemLocalRow = row - systemHeaderRow();
   if (systemLocalRow == 1) {
-    SETTINGS.textAntiAliasing = !SETTINGS.textAntiAliasing;
+    READER_SETTINGS.textAntiAliasing = !READER_SETTINGS.textAntiAliasing;
   } else if (systemLocalRow == 5) {
-    SETTINGS.readerSmartRefreshOnImages = !SETTINGS.readerSmartRefreshOnImages;
+    READER_SETTINGS.readerSmartRefreshOnImages = !READER_SETTINGS.readerSmartRefreshOnImages;
   }
-  SETTINGS.saveToFile();
+  READER_SETTINGS.saveToFile();
 }
 
 int ReaderPresetsActivity::xtcHeaderRow() const {
@@ -294,7 +295,7 @@ void ReaderPresetsActivity::render() {
       const char* label = "  Text Anti-Aliasing";
       const char* value = nullptr;
       bool isToggle = true;
-      bool toggleChecked = SETTINGS.textAntiAliasing != 0;
+      bool toggleChecked = READER_SETTINGS.textAntiAliasing != 0;
       const int systemLocalRow = rowIndex - systemHeaderRow();
       if (systemLocalRow == 2) {
         label = "  Refresh Frequency";
@@ -306,11 +307,11 @@ void ReaderPresetsActivity::render() {
         isToggle = false;
       } else if (systemLocalRow == 4) {
         label = "  Image Quality";
-        value = readerQualityLabel(SETTINGS.readerImageGrayscale);
+        value = readerQualityLabel(READER_SETTINGS.readerImageGrayscale);
         isToggle = false;
       } else if (systemLocalRow == 5) {
         label = "  Smart Refresh (Images)";
-        toggleChecked = SETTINGS.readerSmartRefreshOnImages != 0;
+        toggleChecked = READER_SETTINGS.readerSmartRefreshOnImages != 0;
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       if (isToggle) {
@@ -346,7 +347,7 @@ void ReaderPresetsActivity::render() {
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const int idx = rowIndex - buttonsHeaderRow() - 1;  // 0-7
       const char* label = buttonActionRowLabel(idx, renderer.deviceIsX3());
-      const char* value = readerButtonActionLabel(SETTINGS.*(kButtonActionFields[idx]));
+      const char* value = readerButtonActionLabel(READER_SETTINGS.*(kButtonActionFields[idx]));
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
@@ -361,7 +362,7 @@ void ReaderPresetsActivity::render() {
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Power Button (short)";
-      const char* value = readerButtonActionLabel(SETTINGS.btnPowerShortAction);
+      const char* value = readerButtonActionLabel(READER_SETTINGS.btnPowerShortAction);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
@@ -390,7 +391,7 @@ void ReaderPresetsActivity::render() {
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Quality";
-      const char* value = readerQualityLabel(SETTINGS.xtcImageQuality);
+      const char* value = readerQualityLabel(READER_SETTINGS.xtcImageQuality);
       const int xtcLocalRow = rowIndex - xtcHeader;
       if (xtcLocalRow == 2) {
         label = "  Auto Page Turn";
@@ -503,15 +504,15 @@ void ReaderPresetsActivity::openGenericSelector(std::string title, std::vector<s
 void ReaderPresetsActivity::openSelectorForRow(const int row) {
   if (isButtonActionRow(row)) {
     const int idx = row - buttonsHeaderRow() - 1;  // 0-7
-    uint8_t SystemSetting::* const field = kButtonActionFields[idx];
+    uint8_t ReaderSetting::* const field = kButtonActionFields[idx];
     std::vector<std::string> options;
     for (int i = 0; i < static_cast<int>(SystemSetting::READER_BUTTON_ACTION_COUNT); ++i) {
       options.emplace_back(readerButtonActionLabel(static_cast<uint8_t>(i)));
     }
     openGenericSelector(buttonActionRowLabel(idx, renderer.deviceIsX3()), std::move(options),
-                        static_cast<int>(SETTINGS.*field), [field](const int chosen) {
-                          SETTINGS.*field = static_cast<uint8_t>(chosen);
-                          SETTINGS.saveToFile();
+                        static_cast<int>(READER_SETTINGS.*field), [field](const int chosen) {
+                          READER_SETTINGS.*field = static_cast<uint8_t>(chosen);
+                          READER_SETTINGS.saveToFile();
                         });
     return;
   }
@@ -521,10 +522,10 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     for (int i = 0; i < static_cast<int>(SystemSetting::READER_BUTTON_ACTION_COUNT); ++i) {
       options.emplace_back(readerButtonActionLabel(static_cast<uint8_t>(i)));
     }
-    openGenericSelector("Power Button (short)", std::move(options), SETTINGS.btnPowerShortAction,
+    openGenericSelector("Power Button (short)", std::move(options), READER_SETTINGS.btnPowerShortAction,
                         [](const int chosen) {
-                          SETTINGS.btnPowerShortAction = static_cast<uint8_t>(chosen);
-                          SETTINGS.saveToFile();
+                          READER_SETTINGS.btnPowerShortAction = static_cast<uint8_t>(chosen);
+                          READER_SETTINGS.saveToFile();
                         });
     return;
   }
@@ -534,10 +535,10 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     // refreshFrequency stores the SystemSetting::REFRESH_FREQUENCY enum index (0-4), not the page count
     // itself - see SystemSetting::getRefreshFrequency() for the index->page-count mapping this must match.
     std::vector<std::string> options = {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"};
-    const int idx = SETTINGS.refreshFrequency < options.size() ? SETTINGS.refreshFrequency : 3;
+    const int idx = READER_SETTINGS.refreshFrequency < options.size() ? READER_SETTINGS.refreshFrequency : 3;
     openGenericSelector("Refresh Frequency", std::move(options), idx, [](const int chosen) {
-      SETTINGS.refreshFrequency = static_cast<uint8_t>(chosen);
-      SETTINGS.saveToFile();
+      READER_SETTINGS.refreshFrequency = static_cast<uint8_t>(chosen);
+      READER_SETTINGS.saveToFile();
     });
     return;
   }
@@ -546,26 +547,26 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     for (int sec = 0; sec <= 180; sec += 10) {
       options.push_back(sec == 0 ? "Off" : (std::to_string(sec) + " sec"));
     }
-    const int idx = SETTINGS.pageAutoTurnSeconds / 10;
+    const int idx = READER_SETTINGS.pageAutoTurnSeconds / 10;
     openGenericSelector("Page Auto Turn", std::move(options), idx, [](const int chosen) {
-      SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(chosen * 10);
-      SETTINGS.saveToFile();
+      READER_SETTINGS.pageAutoTurnSeconds = static_cast<uint8_t>(chosen * 10);
+      READER_SETTINGS.saveToFile();
     });
     return;
   }
   if (systemLocalRow == 4) {
-    openGenericSelector("Image Quality", {"Low", "Medium", "High"}, SETTINGS.readerImageGrayscale,
+    openGenericSelector("Image Quality", {"Low", "Medium", "High"}, READER_SETTINGS.readerImageGrayscale,
                         [](const int chosen) {
-                          SETTINGS.readerImageGrayscale = static_cast<uint8_t>(chosen);
-                          SETTINGS.saveToFile();
+                          READER_SETTINGS.readerImageGrayscale = static_cast<uint8_t>(chosen);
+                          READER_SETTINGS.saveToFile();
                         });
     return;
   }
   const int xtcLocalRow = isXtcSettingRow(row) ? row - xtcHeaderRow() : -1;
   if (xtcLocalRow == 1) {
-    openGenericSelector("Quality", {"Low", "Medium", "High"}, SETTINGS.xtcImageQuality, [](const int chosen) {
-      SETTINGS.xtcImageQuality = static_cast<uint8_t>(chosen);
-      SETTINGS.saveToFile();
+    openGenericSelector("Quality", {"Low", "Medium", "High"}, READER_SETTINGS.xtcImageQuality, [](const int chosen) {
+      READER_SETTINGS.xtcImageQuality = static_cast<uint8_t>(chosen);
+      READER_SETTINGS.saveToFile();
     });
     return;
   }
@@ -574,10 +575,10 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     for (int sec = 0; sec <= 60; sec += 10) {
       options.push_back(sec == 0 ? "Off" : (std::to_string(sec) + " sec"));
     }
-    const int idx = SETTINGS.xtcPageAutoTurnSeconds / 10;
+    const int idx = READER_SETTINGS.xtcPageAutoTurnSeconds / 10;
     openGenericSelector("Auto Page Turn", std::move(options), idx, [](const int chosen) {
-      SETTINGS.xtcPageAutoTurnSeconds = static_cast<uint8_t>(chosen * 10);
-      SETTINGS.saveToFile();
+      READER_SETTINGS.xtcPageAutoTurnSeconds = static_cast<uint8_t>(chosen * 10);
+      READER_SETTINGS.saveToFile();
     });
     return;
   }
@@ -586,23 +587,23 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     std::vector<std::string> options = {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"};
     int idx = 4;
     for (int i = 0; i < 5; ++i) {
-      if (values[i] == SETTINGS.xtcRefreshFrequency) {
+      if (values[i] == READER_SETTINGS.xtcRefreshFrequency) {
         idx = i;
         break;
       }
     }
     openGenericSelector("Page Until Refresh", std::move(options), idx, [](const int chosen) {
       static constexpr uint8_t v[] = {1, 5, 10, 15, 30};
-      SETTINGS.xtcRefreshFrequency = v[chosen];
-      SETTINGS.saveToFile();
+      READER_SETTINGS.xtcRefreshFrequency = v[chosen];
+      READER_SETTINGS.saveToFile();
     });
     return;
   }
   if (xtcLocalRow == 4) {
-    const int idx = SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? 1 : 0;
+    const int idx = READER_SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? 1 : 0;
     openGenericSelector("Power Button", {"Next", "Page Refresh"}, idx, [](const int chosen) {
-      SETTINGS.xtcShortPwrBtn = chosen == 1 ? SystemSetting::XTC_POWER_PAGE_REFRESH : SystemSetting::XTC_POWER_NEXT;
-      SETTINGS.saveToFile();
+      READER_SETTINGS.xtcShortPwrBtn = chosen == 1 ? SystemSetting::XTC_POWER_PAGE_REFRESH : SystemSetting::XTC_POWER_NEXT;
+      READER_SETTINGS.saveToFile();
     });
     return;
   }

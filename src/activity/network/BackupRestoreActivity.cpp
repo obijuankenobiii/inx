@@ -16,6 +16,7 @@
 #include "state/NetworkCredential.h"
 #include "state/OpdsServerStore.h"
 #include "state/ReaderPreset.h"
+#include "state/ReaderSetting.h"
 #include "state/RecentBooks.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
@@ -31,11 +32,12 @@ constexpr int kRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr const char* kBackupRoot = "/.system/backup";
 
 constexpr const char* kDirectFiles[] = {
-    "/.system/settings.bin",       "/.system/ui_theme.bin",
-    "/.system/reader_presets.bin", "/.system/wifi.bin",
-    "/.system/opds_servers.bin",   "/.system/koreader.bin",
-    "/.system/statistics.bin",     "/.metadata/recent.bin",
-    "/.metadata/books.bin",        "/.metadata/library/book_tags.json",
+    "/.system/settings.bin",       "/.system/reader_settings.bin",
+    "/.system/ui_theme.bin",       "/.system/reader_presets.bin",
+    "/.system/wifi.bin",           "/.system/opds_servers.bin",
+    "/.system/koreader.bin",       "/.system/statistics.bin",
+    "/.metadata/recent.bin",       "/.metadata/books.bin",
+    "/.metadata/library/book_tags.json",
 };
 
 constexpr const char* kPerBookFiles[] = {"progress.bin", "statistics.bin", "settings.bin"};
@@ -309,6 +311,7 @@ bool BackupRestoreActivity::restoreBackup() {
 
 void BackupRestoreActivity::reloadStoresAfterRestore() {
   SETTINGS.loadFromFile();
+  READER_SETTINGS.loadFromFile();
   RECENT_BOOKS.loadFromFile();
   // BookState no longer caches anything in RAM - every call already reads fresh from books.bin.
   WIFI_STORE.loadFromFile();

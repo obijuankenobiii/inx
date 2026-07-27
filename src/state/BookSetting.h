@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <string>
 
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 
@@ -301,7 +302,7 @@ struct BookSettings {
         paragraphCssIndentEnabled = 1;
       }
     } else {
-      paragraphCssIndentEnabled = SystemSetting::getInstance().paragraphCssIndentEnabled;
+      paragraphCssIndentEnabled = ReaderSetting::getInstance().paragraphCssIndentEnabled;
     }
 
     if (bytesAvailable >= offset + 1) {
@@ -325,13 +326,13 @@ struct BookSettings {
         readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
       }
     } else {
-      readerImageGrayscale = SystemSetting::getInstance().readerImageGrayscale;
+      readerImageGrayscale = ReaderSetting::getInstance().readerImageGrayscale;
     }
 
     if (bytesAvailable >= offset + 1) {
       readerSmartRefreshOnImages = data[offset++] ? 1 : 0;
     } else {
-      readerSmartRefreshOnImages = SystemSetting::getInstance().readerSmartRefreshOnImages ? 1 : 0;
+      readerSmartRefreshOnImages = ReaderSetting::getInstance().readerSmartRefreshOnImages ? 1 : 0;
     }
 
     if (bytesAvailable >= offset + 1) {
@@ -400,10 +401,10 @@ struct BookSettings {
   }
 
   /**
-   * @brief Loads settings from global SystemSetting
+   * @brief Loads settings from global ReaderSetting
    */
   void loadFromGlobalSettings() {
-    SystemSetting& global = SystemSetting::getInstance();
+    ReaderSetting& global = ReaderSetting::getInstance();
     fontFamily = global.fontFamily;
     fontSize = global.fontSize;
     lineHeight = global.lineHeight;
@@ -450,11 +451,11 @@ struct BookSettings {
   }
 
   /**
-   * @brief Writes these settings back into the global SystemSetting reader fields (inverse of
-   *        loadFromGlobalSettings). Does NOT persist — caller should SETTINGS.saveToFile().
+   * @brief Writes these settings back into the global ReaderSetting reader fields (inverse of
+   *        loadFromGlobalSettings). Does NOT persist — caller should READER_SETTINGS.saveToFile().
    */
   void applyToGlobalSettings() const {
-    SystemSetting& global = SystemSetting::getInstance();
+    ReaderSetting& global = ReaderSetting::getInstance();
     global.fontFamily = fontFamily;
     global.fontSize = fontSize;
     global.lineHeight = lineHeight;
@@ -502,7 +503,7 @@ struct BookSettings {
    * @return Font identifier for rendering
    */
   int getReaderFontId() const {
-    SystemSetting& global = SystemSetting::getInstance();
+    ReaderSetting& global = ReaderSetting::getInstance();
     uint8_t oldFam = global.fontFamily;
     uint8_t oldSize = global.fontSize;
     global.fontFamily = this->fontFamily;

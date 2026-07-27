@@ -7,6 +7,7 @@
 
 #include <utility>
 
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 
 namespace {
@@ -163,7 +164,7 @@ MappedInputManager::Labels MappedInputManager::mapLabelsWithReaderNav(const char
     std::swap(p, n);
   } else {
     using RM = SystemSetting::READER_DIRECTION_MAPPING;
-    switch (static_cast<RM>(SETTINGS.readerDirectionMapping)) {
+    switch (static_cast<RM>(READER_SETTINGS.readerDirectionMapping)) {
       case RM::MAP_RIGHT_LEFT:
         std::swap(p, n);
         break;

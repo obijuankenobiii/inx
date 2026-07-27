@@ -392,80 +392,27 @@ class SystemSetting {
   /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
   uint8_t timeZoneQuarterOffset = 80;
 
-  uint8_t statusBar = FULL;  ///< Legacy status bar mode
-
-  uint8_t statusBarLeft = STATUS_ITEM_BATTERY_ICON_WITH_PERCENT;  ///< Left status bar section
-  uint8_t statusBarMiddle = STATUS_ITEM_CHAPTER_TITLE;            ///< Middle status bar section
-  uint8_t statusBarRight = STATUS_ITEM_PAGE_NUMBERS;              ///< Right status bar section
-
-  uint8_t extraParagraphSpacing = 1;  ///< Extra paragraph spacing enabled
-  uint8_t textAntiAliasing = 0;       ///< Text anti-aliasing enabled
-
   uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
-
-  /** Superseded by btnPowerShortAction (see below) - kept only for serialization backward-compat and
-   *  as the migration source for it. No longer consulted by the reader. */
-  uint8_t readerShortPwrBtn = READER_PAGE_REFRESH;
-  uint8_t xtcShortPwrBtn = XTC_POWER_NEXT;  ///< XTC short power button behavior
-  uint8_t xtcPageAutoTurnSeconds = 0;            ///< XTC auto page turn interval, 0=off
-  /** Selected /dictionaries/<folder> for EPUB dictionary lookup. Empty = none selected. */
-  char dictionaryFolder[64] = "";
-
-  /** Per-button reader action mapping (READER_BUTTON_ACTION values). Side Up/Down are always the
-   *  raw Up/Down buttons regardless of device (X4: physically a vertical rocker; X3: physically
-   *  horizontal, but the same BTN_UP/BTN_DOWN signals) - Front Left/Right are the separate front row,
-   *  present and independent on both devices. */
-  uint8_t btnUpShortAction = BTN_ACTION_PAGE_PREVIOUS;
-  uint8_t btnUpLongAction = BTN_ACTION_OPEN_SETTINGS;
-  uint8_t btnDownShortAction = BTN_ACTION_PAGE_NEXT;
-  uint8_t btnDownLongAction = BTN_ACTION_ANNOTATE;
-  uint8_t btnLeftShortAction = BTN_ACTION_PAGE_PREVIOUS;
-  uint8_t btnLeftLongAction = BTN_ACTION_CHAPTER_SKIP_PREVIOUS;
-  uint8_t btnRightShortAction = BTN_ACTION_PAGE_NEXT;
-  uint8_t btnRightLongAction = BTN_ACTION_CHAPTER_SKIP_NEXT;
-  /** Power Button (short) - same READER_BUTTON_ACTION set as the 8 fields above (short-press only, no
-   *  long-press pair - see ReaderPresetsActivity::isPowerButtonRow). Supersedes readerShortPwrBtn's
-   *  narrower 4-option READER_SHORT_PWRBTN enum; that field stays for serialization backward-compat
-   *  (loadFromFile() migrates its value into this field on first load of an older settings file) but is
-   *  no longer consulted by the reader. */
-  uint8_t btnPowerShortAction = BTN_ACTION_PAGE_REFRESH;
-
-  uint8_t orientation = PORTRAIT;  ///< Screen orientation
 
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;  ///< Front button layout
   uint8_t sideButtonLayout = PREV_NEXT;                 ///< Side button layout
 
-  uint8_t readerDirectionMapping = MAP_NONE;  ///< Reader direction mapping
-  uint8_t readerMenuButton = MENU_UP;         ///< Reader menu button assignment
   uint8_t mainMenuNav = MAIN_MENU_NAV_FRONT;  ///< Main-menu tab vs item navigation buttons
   uint8_t uiTheme = UI_THEME_CLASSIC;         ///< UI chrome theme
 
-  uint8_t fontFamily = LITERATA;            ///< Font family
-  uint8_t fontSize = SMALL;                 ///< Font size
-  uint8_t lineHeight = 100;                 ///< Reader line height, % of natural (10-200)
-  uint8_t textSpace = 100;                  ///< Reader word spacing, % of natural (10-200)
-  uint8_t paragraphAlignment = FOLLOW_CSS;  ///< Paragraph alignment
-  /** When set, EPUB/CSS `text-indent` is applied (reader "Indent"; passed to Section as respectCssParagraphIndent). */
-  uint8_t paragraphCssIndentEnabled = 0;
-
   uint8_t sleepTimeout = SLEEP_10_MIN;  ///< Sleep timeout
-
-  uint8_t refreshFrequency = REFRESH_15;  ///< Refresh frequency
-  uint8_t hyphenationEnabled = 1;         ///< Hyphenation enabled
-  uint8_t bionicReadingEnabled = 0;       ///< Bionic Reading enabled
-
-  uint8_t screenMargin = 10;  ///< Screen margin in pixels
 
   char opdsServerUrl[128] = "";  ///< OPDS server URL
   char opdsUsername[64] = "";    ///< OPDS username
   char opdsPassword[64] = "";    ///< OPDS password
 
   uint8_t hideBatteryPercentage = HIDE_NEVER;  ///< Hide battery percentage setting
-  /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only. */
+  /** Long-press on prev/next: 0=off, 1=chapter skip (EPUB), 2=skip 5 pages (EPUB). Legacy files used 0/1 only.
+   *  The persisted value (ReaderSetting::longPressChapterSkip) moved to ReaderSetting; these named
+   *  constants stay here since BookSetting.h references them extensively as SystemSetting::XXX. */
   static constexpr uint8_t LONG_PRESS_OFF = 0;
   static constexpr uint8_t LONG_PRESS_CHAPTER_SKIP = 1;
   static constexpr uint8_t LONG_PRESS_PAGE_SKIP_5 = 2;
-  uint8_t longPressChapterSkip = LONG_PRESS_CHAPTER_SKIP;
   uint8_t useLibraryIndex = 0;  ///< Use library index enabled
   /** Half refresh once after first paint on hub screens (ghosting cleanup). */
   uint8_t refreshOnLoadRecent = 0;
@@ -488,12 +435,6 @@ class SystemSetting {
 
   uint8_t bootSetting = RECENT_PAGE;  ///< Boot destination setting
 
-  /**
-   * @brief Page auto-turn interval in seconds
-   * @details Values: 0 = off, increments of 10 (10, 20, 30, 40, 50, 60)
-   */
-  uint8_t pageAutoTurnSeconds = 0;
-
   /** Book image quality (READER_IMAGE_QUALITY): 0=Low(1-bit), 1=Medium(fast 2-bit grayscale),
    *  2=High(quality 2-bit grayscale with text preserved). */
   enum READER_IMAGE_QUALITY {
@@ -502,15 +443,6 @@ class SystemSetting {
     READER_IMAGE_HIGH = 2,    ///< 2-bit grayscale, quality LUT, text preserved
     READER_IMAGE_QUALITY_COUNT
   };
-  uint8_t readerImageGrayscale = READER_IMAGE_LOW;
-  uint8_t xtcImageQuality = READER_IMAGE_LOW;
-  uint8_t xtcRefreshFrequency = 15;  ///< XTC full refresh cadence in pages
-  /** When set, image-heavy EPUB pages use a gentler (half) refresh before/after transitions. */
-  uint8_t readerSmartRefreshOnImages = 1;
-  /** Legacy ignored value retained for settings-file compatibility. */
-  uint8_t legacyReaderImagePresentation = 1;
-  /** Legacy ignored value retained for settings-file compatibility. */
-  uint8_t readerImageDither = IMAGE_DITHER_ATKINSON;
   /** Legacy ignored value retained for settings-file compatibility. */
   uint8_t displayImageDither = IMAGE_DITHER_ATKINSON;
   /** Legacy ignored value retained for settings-file compatibility. */
@@ -545,22 +477,6 @@ class SystemSetting {
   uint16_t getPowerButtonDuration() const { return (shortPwrBtn == SystemSetting::SHORT_PWRBTN::SLEEP) ? 10 : 400; }
 
   /**
-   * @brief Gets reader font ID based on font family and size
-   * @return Font identifier for rendering
-   */
-  int getReaderFontId() const;
-
-  /**
-   * @brief Reader font ID for a given family and size (e.g. settings previews).
-   */
-  int getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size) const;
-
-  /**
-   * @brief Font ID for reader **settings UI** previews only (built-in; avoids loading SD streaming fonts in menus).
-   */
-  int getReaderFontIdForSettingsUi(uint8_t familySlot, uint8_t sizeIndex) const;
-
-  /**
    * @brief Validates and stores the fixed custom sleep image choice (basename under /sleep/ or SD-root sleep file).
    * @param s nullptr or empty string clears (random selection each sleep).
    */
@@ -579,25 +495,10 @@ class SystemSetting {
   bool loadFromFile();
 
   /**
-   * @brief Gets reader line compression factor based on font and spacing
-   * @return Line compression multiplier
-   */
-  float getReaderLineCompression() const;
-
-  /** Word-spacing multiplier (textSpace/100, 100 = natural inter-word space). */
-  float getReaderWordSpacingFactor() const;
-
-  /**
    * @brief Gets sleep timeout in milliseconds
    * @return Sleep timeout in milliseconds
    */
   unsigned long getSleepTimeoutMs() const;
-
-  /**
-   * @brief Gets screen refresh frequency in pages
-   * @return Number of pages between refreshes
-   */
-  int getRefreshFrequency() const;
 
   int getTimeZoneOffsetMinutes() const;
   void formatTimeZone(char* out, size_t outSize) const;

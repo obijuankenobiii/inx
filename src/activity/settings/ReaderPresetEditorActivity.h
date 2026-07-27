@@ -36,6 +36,8 @@ class ReaderPresetEditorActivity final : public ActivityWithSubactivity {
  private:
   void renderPreview();
   void renderPreviewStatusBar(int barTop, int barHeight);
+  /** Full: a single full-width loading/progress-bar mock, not 3 text sections. */
+  void renderPreviewFullBar(int barTop, int barHeight);
   void beginExit();
   void doSaveAndFinish();
   void promptName();

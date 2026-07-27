@@ -24,6 +24,7 @@
 #include "SleepImagePickerActivity.h"
 #include "ThumbnailGeneratorActivity.h"
 #include "TimeSyncActivity.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -72,7 +73,7 @@ void CategorySettingsActivity::onEnter() {
 
   if (categoryName != nullptr && strcmp(categoryName, "Reader") == 0) {
     FontManager::scanSDFonts("/fonts", true);
-    FontManager::clampReaderFontFamilySlot(SETTINGS.fontFamily);
+    FontManager::clampReaderFontFamilySlot(READER_SETTINGS.fontFamily);
   }
 
   setupMenu();
@@ -943,12 +944,12 @@ void CategorySettingsActivity::render() {
     } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Family") == 0) {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, SETTINGS.fontFamily, pageWidth - 24, itemY, itemHeight,
+        ReaderFontSettingsDraw::drawFontFamilyRowValue(renderer, READER_SETTINGS.fontFamily, pageWidth - 24, itemY, itemHeight,
                                                        isSelected, val);
       }
     } else if (entry.type == SettingType::ENUM && entry.name && strcmp(entry.name, "Font Size") == 0) {
       const int valueAreaLeft = std::max(textX + 88, pageWidth * 38 / 100);
-      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, SETTINGS.fontFamily, SETTINGS.fontSize,
+      ReaderFontSettingsDraw::drawFontSizeSliderRowValue(renderer, READER_SETTINGS.fontFamily, READER_SETTINGS.fontSize,
                                                          valueAreaLeft, pageWidth - 24, itemY, itemHeight, isSelected);
     } else {
       const char* val = entry.getValueText();

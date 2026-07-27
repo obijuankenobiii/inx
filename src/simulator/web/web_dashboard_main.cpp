@@ -8,6 +8,7 @@
 #include "KOReaderCredentialStore.h"
 #include "network/LocalServer.h"
 #include "state/NetworkCredential.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 
 namespace {
@@ -21,6 +22,7 @@ void setup() {
 
   SdMan.begin();
   SETTINGS.loadFromFile();
+  READER_SETTINGS.loadFromFile();
   WIFI_STORE.loadFromFile();
   KOREADER_STORE.loadFromFile();
 

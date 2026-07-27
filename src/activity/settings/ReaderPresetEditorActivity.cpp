@@ -13,9 +13,11 @@
 #include <string>
 
 #include "../reader/Epub/SettingsDrawer.h"
+#include "../reader/Epub/StatusBar.h"
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
 #include "state/ReaderPreset.h"
+#include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -186,9 +188,13 @@ void ReaderPresetEditorActivity::renderPreview() {
   // Clear the preview region (no header label/tag; the demo text is the focus).
   renderer.rectangle.fill(0, 0, screenW, previewHeight_, false);
 
+  // Mirror StatusBar::reservedFullBarHeight() so the preview reserves the same space the real
+  // reader would for the Full bar if it currently has content (global SETTINGS, same as the real
+  // reader - see StatusBar::render()'s doc comment for why this isn't per-preset).
   const int statusBarHeight = 28;
+  const int fullBarHeight = StatusBar::reservedFullBarHeight();
   const int bodyTop = 16;
-  const int bodyBottom = previewHeight_ - statusBarHeight - 6;
+  const int bodyBottom = previewHeight_ - statusBarHeight - fullBarHeight - 6;
   const int maxWidth = std::max(40, screenW - 2 * margin);
   const int spaceWidth = std::max(
       1, static_cast<int>(std::lround(renderer.text.getSpaceWidth(fontId) * working_.getReaderWordSpacingFactor())));
@@ -271,7 +277,10 @@ void ReaderPresetEditorActivity::renderPreview() {
     y += paragraphGap;
   }
 
-  renderPreviewStatusBar(previewHeight_ - statusBarHeight, statusBarHeight);
+  renderPreviewStatusBar(previewHeight_ - statusBarHeight - fullBarHeight, statusBarHeight);
+  if (fullBarHeight > 0) {
+    renderPreviewFullBar(previewHeight_ - fullBarHeight, fullBarHeight);
+  }
 }
 
 void ReaderPresetEditorActivity::renderPreviewStatusBar(int barTop, int barHeight) {
@@ -281,9 +290,12 @@ void ReaderPresetEditorActivity::renderPreviewStatusBar(int barTop, int barHeigh
 
   const int textY = barTop + (barHeight - renderer.text.getLineHeight(fontId)) / 2 + 2;
 
-  const char* left = statusPlaceholder(working_.statusBarLeft.item);
-  const char* middle = statusPlaceholder(working_.statusBarMiddle.item);
-  const char* right = statusPlaceholder(working_.statusBarRight.item);
+  // Global SETTINGS, not working_ - the Status Bar entries in the embedded drawer write to
+  // READER_SETTINGS.statusBarLeft/Middle/Right (see SettingsDrawer.cpp's setupMenu() comment), not to this
+  // per-book working_ copy, so reading working_ here would always show the stale seeded value.
+  const char* left = statusPlaceholder(static_cast<StatusBarItem>(READER_SETTINGS.statusBarLeft));
+  const char* middle = statusPlaceholder(static_cast<StatusBarItem>(READER_SETTINGS.statusBarMiddle));
+  const char* right = statusPlaceholder(static_cast<StatusBarItem>(READER_SETTINGS.statusBarRight));
 
   if (left && left[0]) {
     renderer.text.render(fontId, margin + 2, textY, left, true);
@@ -295,6 +307,53 @@ void ReaderPresetEditorActivity::renderPreviewStatusBar(int barTop, int barHeigh
   if (right && right[0]) {
     const int w = renderer.text.getWidth(fontId, right);
     renderer.text.render(fontId, screenW - margin - 2 - w, textY, right, true);
+  }
+}
+
+void ReaderPresetEditorActivity::renderPreviewFullBar(int barTop, int barHeight) {
+  const StatusBarItem style = static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle);
+  if (style == StatusBarItem::NONE) {
+    return;
+  }
+
+  const int screenW = renderer.getScreenWidth();
+  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int textY = barTop + (barHeight - renderer.text.getLineHeight(fontId)) / 2 + 2;
+
+  if (style == StatusBarItem::PAGE_BARS) {
+    // Mock: a row of small filled/outline bars across the full width, like real page bars.
+    constexpr int kBars = 24;
+    constexpr int kFilledBars = 9;  // representative "partway through the book" look
+    const int barMarginX = 12;
+    const int totalW = screenW - 2 * barMarginX;
+    const int barW = std::max(2, totalW / kBars - 1);
+    for (int i = 0; i < kBars; ++i) {
+      const int x = barMarginX + i * (barW + 1);
+      if (i < kFilledBars) {
+        renderer.rectangle.fill(x, textY, barW, 5, true);
+      } else {
+        renderer.rectangle.render(x, textY, barW, 5, true);
+      }
+    }
+    return;
+  }
+
+  // PROGRESS_BAR / PROGRESS_BAR_WITH_PERCENT: one full-width bar, ~40% filled for a representative look.
+  const bool withPercent = style == StatusBarItem::PROGRESS_BAR_WITH_PERCENT;
+  const char* pct = "40%";
+  const int pctW = withPercent ? renderer.text.getWidth(fontId, pct) : 0;
+  const int barMarginX = 12;
+  const int barW = screenW - 2 * barMarginX - (withPercent ? pctW + 8 : 0);
+  const int barX = barMarginX;
+  const int barY = textY + 1;
+
+  renderer.rectangle.render(barX, barY, barW, 6, true);
+  const int fillW = barW * 2 / 5;
+  if (fillW > 0) {
+    renderer.rectangle.fill(barX + 1, barY + 1, fillW - 2, 4, true);
+  }
+  if (withPercent) {
+    renderer.text.render(fontId, barX + barW + 8, textY, pct, true);
   }
 }
 
