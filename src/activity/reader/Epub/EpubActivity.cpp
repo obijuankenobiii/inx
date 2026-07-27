@@ -1728,9 +1728,14 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool smartImageRefreshEnabled = SETTINGS.readerSmartRefreshOnImages && !isBookmarking && !annUi_.isActive();
   const bool smartRefreshAfterLargeImage = lastPageHadImages && lastPageHadLargeImage;
 
-  const bool skipImagesInPageRender = needsImageGrayscale && highQuality;
+  // Default (non-grayscale) reading mode: draw and push the text/status bar first, then draw the page's
+  // images and push a second refresh - so a not-yet-cached image's decode doesn't delay the rest of the
+  // page. skipImagesInPageRender already covers the "high quality" grayscale case (images drawn in a
+  // separate pass below); fold this case into it so page->render() skips images here too.
+  const bool deferOneBitImageRender = imageMode == ImageRenderMode::OneBit && pageHasImages && !needsImageGrayscale && pageHasLargeImage;
+  const bool skipImagesInPageRender = (needsImageGrayscale && highQuality) || deferOneBitImageRender;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender, imageMode,
-               /*skipOnlyGrayscaleImages=*/highQuality);
+               /*skipOnlyGrayscaleImages=*/highQuality && !deferOneBitImageRender);
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
@@ -1761,7 +1766,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   const bool highQualityCacheReady =
       displayWithQualityPass &&
       page->allGrayscaleImagesCachedTwoBit(renderer, orientedMarginLeft, orientedMarginTop, /*quality=*/true);
-  const bool displayImagePlaceholder = displayWithQualityPass && !highQualityCacheReady;
+  const bool displayImagePlaceholder = displayWithQualityPass && !highQualityCacheReady || deferOneBitImageRender;
   if (displayImagePlaceholder) {
     page->fillImageRects(renderer, orientedMarginLeft, orientedMarginTop, true, /*onlyGrayscale=*/true);
   }
@@ -1814,6 +1819,13 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
 
   } else if (bwStored) {
     renderer.restoreBwBuffer();
+  }
+
+  if (deferOneBitImageRender) {
+    // Text is already on screen (pushed above); draw the images now (decoding/caching them if this is
+    // the first time) and push a quick partial refresh so they pop in without having delayed the text.
+    page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop, imageMode);
+    renderer.displayBuffer();
   }
 
   lastPageHadImages = pageHasImages;
