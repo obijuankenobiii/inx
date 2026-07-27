@@ -108,16 +108,20 @@ bool isExportedNoteImage(const std::string& path) {
  * @brief Opens the reader activity and returns to the library when closed.
  */
 void openReaderFromCallback(const std::string& path) {
-  if (isExportedNoteImage(path)) {
-    switchTo<ImageViewerActivity>(render, input, path, [path]() {
-      std::string folderPath = path.substr(0, path.find_last_of('/'));
+  // Defensive copy: `path` is typically a reference into the calling activity's own state (e.g.
+  // LibraryActivity's currentPageItems), but switchTo() deletes that activity before this function's
+  // arguments are used to construct the new one - passing `path` itself through would dangle.
+  const std::string pathCopy = path;
+  if (isExportedNoteImage(pathCopy)) {
+    switchTo<ImageViewerActivity>(render, input, pathCopy, [pathCopy]() {
+      std::string folderPath = pathCopy.substr(0, pathCopy.find_last_of('/'));
       if (folderPath.empty()) folderPath = "/";
       onGoToLibrary(folderPath);
     });
     return;
   }
-  switchTo<ReaderActivity>(render, input, path, [path](const std::string&) {
-    std::string folderPath = path.substr(0, path.find_last_of('/'));
+  switchTo<ReaderActivity>(render, input, pathCopy, [pathCopy](const std::string&) {
+    std::string folderPath = pathCopy.substr(0, pathCopy.find_last_of('/'));
     if (folderPath.empty()) folderPath = "/";
     onGoToLibrary(folderPath);
   });
