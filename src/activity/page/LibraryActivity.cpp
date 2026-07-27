@@ -2907,7 +2907,7 @@ void LibraryActivity::renderGridItemIcon(const LibraryItem& item, int x, int y, 
 void LibraryActivity::renderLibraryGrid(int startY) const {
   const std::vector<LibraryItem>& items = currentPageItems;
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight() - 30;
+  const int screenH = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) + 8 : renderer.getScreenHeight() - 30;
   const int availW = std::max(1, screenW - LIB_GRID_OUTER_PAD * 2);
   const int availH = std::max(1, screenH - startY - LIB_GRID_OUTER_PAD * 2);
   const int frameW = std::min(GRID_ICON_SIZE, (availW - (LIB_GRID_COLS - 1) * LIB_GRID_GAP_X) / LIB_GRID_COLS);

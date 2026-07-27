@@ -188,10 +188,14 @@ void ReaderPresetEditorActivity::renderPreview() {
   // Clear the preview region (no header label/tag; the demo text is the focus).
   renderer.rectangle.fill(0, 0, screenW, previewHeight_, false);
 
-  // Mirror StatusBar::reservedFullBarHeight() so the preview reserves the same space the real
-  // reader would for the Full bar if it currently has content (global SETTINGS, same as the real
-  // reader - see StatusBar::render()'s doc comment for why this isn't per-preset).
-  const int statusBarHeight = 28;
+  // Mirror EpubActivity::calculateViewport()'s hasStatusBar check and StatusBar::reservedFullBarHeight()
+  // so the preview reclaims the same space the real reader would when a bar has no content (global
+  // SETTINGS, same as the real reader - see StatusBar::render()'s doc comment for why this isn't
+  // per-preset).
+  const bool hasStatusBar = (READER_SETTINGS.statusBarLeft != SystemSetting::STATUS_ITEM_NONE ||
+                             READER_SETTINGS.statusBarMiddle != SystemSetting::STATUS_ITEM_NONE ||
+                             READER_SETTINGS.statusBarRight != SystemSetting::STATUS_ITEM_NONE);
+  const int statusBarHeight = hasStatusBar ? 28 : 0;
   const int fullBarHeight = StatusBar::reservedFullBarHeight();
   const int bodyTop = 16;
   const int bodyBottom = previewHeight_ - statusBarHeight - fullBarHeight - 6;

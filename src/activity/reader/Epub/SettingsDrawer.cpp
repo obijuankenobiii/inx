@@ -907,10 +907,13 @@ void SettingsDrawer::applyChange(int delta) {
       case MenuItem::ReaderImageGrayscale:
       case MenuItem::ReaderSmartImageRefresh:
       case MenuItem::ReaderPowerButton:
+        break;
       case MenuItem::StatusBarLeft:
       case MenuItem::StatusBarMiddle:
       case MenuItem::StatusBarRight:
       case MenuItem::StatusBarFullStyle:
+        settingsUpdated = true;
+        break;
       case MenuItem::Hyphenation:
       case MenuItem::RefreshRate:
       case MenuItem::AntiAliasing:

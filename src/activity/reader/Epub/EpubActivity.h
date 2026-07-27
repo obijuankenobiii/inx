@@ -332,8 +332,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   std::unique_ptr<Section> loadSection(int spineIndex, const ViewportInfo& info, bool showProgress = true);
 
   void setupOrientation();
-  /** Copies device reading orientation into book settings when the book follows global defaults. */
-  void syncOrientationFromGlobalIfNeeded();
+  /** Refreshes inherited reader defaults into books that do not use custom settings. */
+  bool syncSettingsFromGlobalIfNeeded();
   /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
   void onBookSettingsLiveLayoutSync();
   void ensureThumbnailExists();

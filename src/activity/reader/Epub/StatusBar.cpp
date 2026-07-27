@@ -63,25 +63,23 @@ void StatusBar::render(const Section* section, int currentSpineIndex, int orient
   const int textY = screenHeight - orientedMarginBottom - 4;
 
   const int availableWidth = screenWidth - orientedMarginLeft - orientedMarginRight;
-  const int sectionWidth = availableWidth / 3;
+  const int positions[] = {STATUS_BAR_LEFT, STATUS_BAR_MIDDLE, STATUS_BAR_RIGHT};
+  int activePositions[3];
+  int activeCount = 0;
 
-  const int leftSectionStart = orientedMarginLeft;
-  const int leftSectionCenter = leftSectionStart + (sectionWidth / 2);
+  for (const int position : positions) {
+    if (getConfig(position).item != StatusBarItem::NONE) {
+      activePositions[activeCount++] = position;
+    }
+  }
 
-  const int middleThirdStart = orientedMarginLeft + sectionWidth;
-  const int middleSectionCenter = middleThirdStart + (sectionWidth / 2);
-
-  const int rightThirdStart = middleThirdStart + sectionWidth;
-  const int rightSectionCenter = rightThirdStart + (sectionWidth / 2);
-  const int rightSectionStart = rightThirdStart;
-
-  renderSection(STATUS_BAR_LEFT, leftSectionStart, leftSectionCenter, sectionWidth, textY, section, currentSpineIndex);
-
-  renderSection(STATUS_BAR_MIDDLE, middleThirdStart, middleSectionCenter, sectionWidth, textY, section,
-                currentSpineIndex);
-
-  renderSection(STATUS_BAR_RIGHT, rightSectionStart, rightSectionCenter, sectionWidth, textY, section,
-                currentSpineIndex);
+  for (int index = 0; index < activeCount; ++index) {
+    const int sectionStart = orientedMarginLeft + (availableWidth * index) / activeCount;
+    const int sectionEnd = orientedMarginLeft + (availableWidth * (index + 1)) / activeCount;
+    const int sectionWidth = sectionEnd - sectionStart;
+    const int sectionCenter = sectionStart + (sectionWidth / 2);
+    renderSection(activePositions[index], sectionStart, sectionCenter, sectionWidth, textY, section, currentSpineIndex);
+  }
 
   const int fullHeight = reservedFullBarHeight();
   if (fullHeight > 0) {

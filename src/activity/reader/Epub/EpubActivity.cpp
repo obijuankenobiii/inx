@@ -132,14 +132,14 @@ ViewportInfo EpubActivity::calculateViewport() {
   int oT, oR, oB, oL;
   renderer.getOrientedViewableTRBL(&oT, &oR, &oB, &oL);
 
-  info.totalMarginTop = oT + bookSettings.screenMargin;
-  info.totalMarginBottom = oB + bookSettings.screenMargin;
-  info.totalMarginLeft = oL + bookSettings.screenMargin;
-  info.totalMarginRight = oR + bookSettings.screenMargin;
-
   bool hasStatusBar = (READER_SETTINGS.statusBarLeft != SystemSetting::STATUS_ITEM_NONE ||
                        READER_SETTINGS.statusBarMiddle != SystemSetting::STATUS_ITEM_NONE ||
                        READER_SETTINGS.statusBarRight != SystemSetting::STATUS_ITEM_NONE);
+
+  info.totalMarginTop = oT + bookSettings.screenMargin;
+  info.totalMarginBottom = oB + (hasStatusBar ? bookSettings.screenMargin : 0);
+  info.totalMarginLeft = oL + bookSettings.screenMargin;
+  info.totalMarginRight = oR + bookSettings.screenMargin;
 
   bool showProgressBar = (READER_SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR ||
                           READER_SETTINGS.statusBarMiddle == SystemSetting::STATUS_ITEM_PROGRESS_BAR_WITH_PERCENT);
@@ -370,12 +370,15 @@ void EpubActivity::setupOrientation() {
   mappedInput.setInvertDirectionalAxes180(renderer.getOrientation() == GfxRenderer::Orientation::LandscapeClockwise);
 }
 
-void EpubActivity::syncOrientationFromGlobalIfNeeded() {
-  if (!bookSettings.useCustomSettings) {
-    const ReaderSetting& g = ReaderSetting::getInstance();
-    bookSettings.orientation = g.orientation;
-    bookSettings.paragraphCssIndentEnabled = g.paragraphCssIndentEnabled;
+bool EpubActivity::syncSettingsFromGlobalIfNeeded() {
+  if (bookSettings.useCustomSettings) {
+    return false;
   }
+
+  const BookSettings before = bookSettings;
+  bookSettings.loadFromGlobalSettings();
+  bookSettings.useCustomSettings = false;
+  return bookSettings != before;
 }
 
 void EpubActivity::onBookSettingsLiveLayoutSync() {
@@ -618,7 +621,7 @@ void EpubActivity::onEnter() {
                millis(), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)));
   epub->setupCacheDir();
 
-  syncOrientationFromGlobalIfNeeded();
+  syncSettingsFromGlobalIfNeeded();
   setupOrientation();
 
   bookProgress.reset(new BookProgress(epub->getCachePath()));
@@ -772,8 +775,8 @@ void EpubActivity::loop() {
 
   if (isToggleClosed) {
     isToggleClosed = false;
-    syncOrientationFromGlobalIfNeeded();
-    const bool layoutNeedsRebuild = (settingsDrawer && settingsDrawer->shouldUpdate()) ||
+    const bool inheritedSettingsChanged = syncSettingsFromGlobalIfNeeded();
+    const bool layoutNeedsRebuild = inheritedSettingsChanged || (settingsDrawer && settingsDrawer->shouldUpdate()) ||
                                     (bookSettings.orientation != bookLayoutAppliedOrientation_);
     if (layoutNeedsRebuild) {
       applyBookSettings();
@@ -1107,7 +1110,7 @@ void EpubActivity::toggleSettingsDrawer() {
 
   if (settingsDrawerVisible) {
     pauseReadingStats();
-    syncOrientationFromGlobalIfNeeded();
+    syncSettingsFromGlobalIfNeeded();
     settingsDrawerSnapshot_ = bookSettings;
     hasSettingsDrawerSnapshot_ = true;
 
@@ -2065,6 +2068,8 @@ void EpubActivity::loadBookSettings() {
     if (!loaded) {
       bookSettings.loadFromGlobalSettings();
       bookSettings.useCustomSettings = false;
+    } else {
+      syncSettingsFromGlobalIfNeeded();
     }
     pagesUntilFullRefresh = READER_SETTINGS.getRefreshFrequency();
   }
@@ -2105,7 +2110,7 @@ void EpubActivity::applyBookSettings() {
     return;
   }
 
-  syncOrientationFromGlobalIfNeeded();
+  syncSettingsFromGlobalIfNeeded();
   setupOrientation();
 
   bookSettings.normalize();

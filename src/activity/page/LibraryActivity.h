@@ -77,7 +77,7 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                            ///< Items per page for folder view
   static constexpr int GRID_ITEMS_PER_PAGE = 12;                             ///< Items per page for grid folder view
   static constexpr int SHELF_ITEMS_PER_PAGE = 9;  ///< Items per page for shelf view (3x3 grid)
-  static constexpr int GRID_ICON_SIZE = 150;      ///< Icon frame size for grid folders
+  static constexpr int GRID_ICON_SIZE = 148;      ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
