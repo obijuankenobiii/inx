@@ -1756,7 +1756,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   auto displayPageBuffer = [this, smartRefreshThisPageAfterLargeImage]() {
     if (smartRefreshThisPageAfterLargeImage || pagesUntilFullRefresh <= 1) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      pagesUntilFullRefresh = SETTINGS.refreshFrequency;
+      pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
     } else {
       renderer.displayBuffer();
       pagesUntilFullRefresh--;
@@ -1773,7 +1773,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   if (!displayWithQualityPass || !highQualityCacheReady) {
     displayPageBuffer();
   } else if (pagesUntilFullRefresh <= 1) {
-    pagesUntilFullRefresh = SETTINGS.refreshFrequency;
+    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
   } else {
     pagesUntilFullRefresh--;
   }
@@ -2062,7 +2062,7 @@ void EpubActivity::loadBookSettings() {
       bookSettings.loadFromGlobalSettings();
       bookSettings.useCustomSettings = false;
     }
-    pagesUntilFullRefresh = SETTINGS.refreshFrequency;
+    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
   }
 }
 

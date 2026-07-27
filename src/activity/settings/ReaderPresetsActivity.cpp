@@ -67,7 +67,8 @@ const char* xtcRefreshLabel() {
 
 const char* systemRefreshLabel() {
   static char buf[12];
-  snprintf(buf, sizeof(buf), "%u page%s", SETTINGS.refreshFrequency, SETTINGS.refreshFrequency == 1 ? "" : "s");
+  const int pages = SETTINGS.getRefreshFrequency();
+  snprintf(buf, sizeof(buf), "%u page%s", pages, pages == 1 ? "" : "s");
   return buf;
 }
 
@@ -530,18 +531,12 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
 
   const int systemLocalRow = isSystemSettingRow(row) ? row - systemHeaderRow() : -1;
   if (systemLocalRow == 2) {
-    static constexpr uint8_t values[] = {1, 5, 10, 15, 30};
+    // refreshFrequency stores the SystemSetting::REFRESH_FREQUENCY enum index (0-4), not the page count
+    // itself - see SystemSetting::getRefreshFrequency() for the index->page-count mapping this must match.
     std::vector<std::string> options = {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"};
-    int idx = 4;
-    for (int i = 0; i < 5; ++i) {
-      if (values[i] == SETTINGS.refreshFrequency) {
-        idx = i;
-        break;
-      }
-    }
+    const int idx = SETTINGS.refreshFrequency < options.size() ? SETTINGS.refreshFrequency : 3;
     openGenericSelector("Refresh Frequency", std::move(options), idx, [](const int chosen) {
-      static constexpr uint8_t v[] = {1, 5, 10, 15, 30};
-      SETTINGS.refreshFrequency = v[chosen];
+      SETTINGS.refreshFrequency = static_cast<uint8_t>(chosen);
       SETTINGS.saveToFile();
     });
     return;
