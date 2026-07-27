@@ -14,7 +14,7 @@ Inx is a community firmware for Xteink e-paper readers. It is focused on a clean
 
 - Read **EPUB**, **XTC / XTCH**, **TXT**, and **MD** files.
 - Browse books from **Recent**, **Library**, **Settings**, **File Transfer**, and **Statistics** tabs.
-- Use EPUB features such as bookmarks, annotations, go-to-percent, table of contents, footnotes, per-book settings, and KOReader sync.
+- Use EPUB features such as bookmarks, annotations, dictionary lookup, go-to-percent, table of contents, footnotes, per-book settings, and KOReader sync.
 - Render **JPEG**, **PNG**, and **BMP** images directly.
 - Use **1-bit** or **2-bit** image rendering.
 - Cache rendered images and system data for faster repeat loads.
@@ -30,6 +30,7 @@ Inx is a community firmware for Xteink e-paper readers. It is focused on a clean
 - EPUB paging with saved progress.
 - EPUB layout support for tables, drop caps, borders, images, lists, blockquotes, superscript/subscript, and common CSS spacing/alignment.
 - EPUB text annotation and highlight support.
+- EPUB dictionary lookup using StarDict dictionaries stored on the SD card.
 - EPUB bookmarks.
 - Go to a specific percentage in an EPUB.
 - Table of contents, bookmark, annotation, and footnote navigation from the in-book menu.
@@ -140,6 +141,33 @@ The local web interface includes:
 - **Fonts**: build SD-card font packs from TTF/OTF files and upload them to `/fonts`.
 - **Settings**: edit system settings, reader settings, Wi-Fi networks, KOReader settings, and OPDS servers.
 
+## Dictionary
+
+Inx supports EPUB dictionary lookup with StarDict dictionaries stored on the SD card.
+
+You can download a ready-to-use dictionary pack here:
+
+[Download dictionary pack](https://drive.google.com/file/d/1_O1aB2tH9aG9ftoHXfzBJt2-Oe7042A2/view?usp=sharing)
+
+To install a dictionary:
+
+1. Download and extract the dictionary pack.
+2. Copy the extracted dictionary folder to `/dictionaries/` on the SD card.
+3. Make sure the dictionary folder directly contains `.ifo`, `.idx`, and `.dict` files.
+4. On the device, open **Settings -> Choose dictionary** and select the dictionary.
+
+Example SD-card layout:
+
+```text
+/dictionaries/
+  English/
+    dictionary.ifo
+    dictionary.idx
+    dictionary.dict
+```
+
+Only uncompressed `.dict` files are supported. Compressed `.dict.dz` dictionaries are not supported.
+
 ## Fonts
 
 Inx includes built-in **Literata** and **Atkinson Hyperlegible** reader fonts.
@@ -188,6 +216,7 @@ Main cache locations:
 /.system/cache/   Display and image cache
 /.system/         Settings, TXT cache, and system data
 /fonts/           SD-card reader fonts
+/dictionaries/    StarDict dictionaries for EPUB lookup
 /sleep/           Custom sleep images
 ```
 
