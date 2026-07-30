@@ -90,7 +90,7 @@ void ExternalFont::unload() {
 }
 
 /** Load font metadata from an on-disk font file at path, keeping glyph data on SD for on-demand reads. */
-bool ExternalFont::load(const char* path) {
+bool ExternalFont::load(const char* path, const bool enableGlyphBitmapCache) {
   unload();
   m_filePath = path;
   m_file = SdMan.open(path, FILE_READ);
@@ -137,17 +137,24 @@ bool ExternalFont::load(const char* path) {
     return false;
   }
   m_bitmapDataStart = m_file.position();
-  m_hasAntiAliasData = m_fontData->is2Bit && detectAntiAliasData();
+  setGlyphBitmapCacheEnabled(enableGlyphBitmapCache);
+  m_hasAntiAliasData = enableGlyphBitmapCache && m_fontData->is2Bit && detectAntiAliasData();
 
   metaCacheClear();
   bitmapCacheClear();
-  Serial.printf(
-      "[ExternalFont] On-demand glyph table: %u glyphs, mode=%s, aa=%d, meta %u-slot (~%u B), bitmap %u-slot x %u B "
-      "(~%u B)\n",
-      m_glyphCount, m_fontData->is2Bit ? "2bit" : "1bit", m_hasAntiAliasData ? 1 : 0,
-      static_cast<unsigned>(kGlyphMetaCacheSlots), static_cast<unsigned>(sizeof(m_metaCache)),
-      static_cast<unsigned>(kGlyphBitmapCacheSlots), static_cast<unsigned>(kGlyphBitmapCacheMaxBytes),
-      static_cast<unsigned>(kGlyphBitmapCacheSlots * sizeof(GlyphBitmapCacheSlot)));
+  if (m_bitmapCacheEnabled) {
+    Serial.printf(
+        "[ExternalFont] On-demand glyph table: %u glyphs, mode=%s, aa=%d, meta %u-slot (~%u B), bitmap %u-slot x %u B "
+        "(~%u B)\n",
+        m_glyphCount, m_fontData->is2Bit ? "2bit" : "1bit", m_hasAntiAliasData ? 1 : 0,
+        static_cast<unsigned>(kGlyphMetaCacheSlots), static_cast<unsigned>(sizeof(m_metaCache)),
+        static_cast<unsigned>(kGlyphBitmapCacheSlots), static_cast<unsigned>(kGlyphBitmapCacheMaxBytes),
+        static_cast<unsigned>(kGlyphBitmapCacheSlots * sizeof(GlyphBitmapCacheSlot)));
+  } else {
+    Serial.printf("[ExternalFont] On-demand glyph table: %u glyphs, mode=%s, aa=0, meta %u-slot (~%u B), bitmap cache off\n",
+                  m_glyphCount, m_fontData->is2Bit ? "2bit" : "1bit",
+                  static_cast<unsigned>(kGlyphMetaCacheSlots), static_cast<unsigned>(sizeof(m_metaCache)));
+  }
   return true;
 }
 

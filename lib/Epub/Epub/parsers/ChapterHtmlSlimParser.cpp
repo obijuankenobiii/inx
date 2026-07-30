@@ -2192,8 +2192,14 @@ void ChapterHtmlSlimParser::completeCurrentPage() {
   if (!currentPage || currentPage->elements.empty()) {
     return;
   }
+  finalizeOpenBorderBoxesForPageBreak();
   currentPage->trimElementStorage();
   completePageFn(std::move(currentPage));
+  for (auto& scope : cssBorderBoxStack) {
+    scope.elem = nullptr;
+  }
+  pendingTopBorderElem_ = nullptr;
+  pendingBorderBoxElem_ = nullptr;
 }
 
 void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {

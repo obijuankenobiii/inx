@@ -11,7 +11,7 @@ class ExternalFont {
   /** Unload the font and release its resources. */
   ~ExternalFont();
   /** Load font metadata from an on-disk font file at path, keeping glyph data on SD for on-demand reads. */
-  bool load(const char* path);
+  bool load(const char* path, bool enableGlyphBitmapCache = true);
   /** Close the font file and release cached glyph data. */
   void unload();
   /** Enable or disable the shared glyph bitmap cache for this font instance. */
@@ -49,7 +49,7 @@ class ExternalFont {
   /** Return whether the given offset/length is eligible for bitmap caching. */
   bool bitmapCacheCanStore(uint32_t offset, uint32_t length) const;
 
-  static constexpr size_t kGlyphMetaCacheSlots = 64;
+  static constexpr size_t kGlyphMetaCacheSlots = 128;
   struct GlyphMetaCacheSlot {
     uint32_t cp = 0xFFFFFFFFu;
     uint32_t stamp = 0;

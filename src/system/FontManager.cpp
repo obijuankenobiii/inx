@@ -457,7 +457,7 @@ int FontManager::getLoadedFontCount() { return g_loadedFontCount; }
  * @brief Loads a specific font from SD card by ID
  * Uses streaming ExternalFont with on-demand glyph table reads (no full index in RAM).
  */
-bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
+bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer, const bool enableGlyphBitmapCache) {
   if (!g_scannedForFonts) {
     (void)scanSDFonts("/fonts", false);
   }
@@ -488,20 +488,18 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
       return nullptr;
     }
     auto stream = std::unique_ptr<ExternalFont>(new ExternalFont());
-    if (!stream->load(path.c_str())) {
+    if (!stream->load(path.c_str(), enableGlyphBitmapCache)) {
       Serial.printf("[FontManager] Skipping %s (failed to load): %s\n", label, path.c_str());
       return nullptr;
     }
-    stream->setGlyphBitmapCacheEnabled(true);
     return stream;
   };
 
   std::unique_ptr<ExternalFont> regularStream(new ExternalFont());
-  if (!regularStream->load(entry->regularPath.c_str())) {
+  if (!regularStream->load(entry->regularPath.c_str(), enableGlyphBitmapCache)) {
     Serial.printf("[FontManager] Failed to load regular: %s\n", entry->regularPath.c_str());
     return false;
   }
-  regularStream->setGlyphBitmapCacheEnabled(true);
 
   entry->regularFont = new EpdFont(regularStream->getData());
   g_fontStorage.push_back(std::unique_ptr<EpdFont>(entry->regularFont));
@@ -544,8 +542,8 @@ bool FontManager::loadFontFromSD(int fontId, GfxRenderer& renderer) {
     renderer.addStreamingFontStyle(entry->id, EpdFontFamily::BOLD_ITALIC, std::move(boldItalicStream));
   }
 
-  Serial.printf("[FontManager] Loaded font ID %d: %s %dpt (SD streaming, on-demand glyphs)\n", fontId,
-                entry->family.c_str(), entry->size);
+  Serial.printf("[FontManager] Loaded font ID %d: %s %dpt (SD streaming, %s, on-demand glyphs)\n", fontId,
+                entry->family.c_str(), entry->size, enableGlyphBitmapCache ? "cached" : "stream-only");
 
   return true;
 }
@@ -583,7 +581,13 @@ bool FontManager::ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer)
   }
 
   for (int i = 0; i < requiredCount; ++i) {
-    if (!ensureFontReady(requiredIds[i], renderer)) {
+    const int fontId = requiredIds[i];
+    if (fontId >= SD_FONT_START_ID) {
+      const bool cacheGlyphBitmaps = fontId == bodyFontId;
+      if (!loadFontFromSD(fontId, renderer, cacheGlyphBitmaps)) {
+        return false;
+      }
+    } else if (!ensureFontReady(fontId, renderer)) {
       return false;
     }
   }

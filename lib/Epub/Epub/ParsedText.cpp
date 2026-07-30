@@ -29,10 +29,11 @@ constexpr uint8_t kScriptScalePct = 70;
 
 template <typename T>
 std::vector<T> moveListPrefixToVector(std::list<T>& values, const size_t count) {
+  const size_t take = std::min(count, values.size());
   std::vector<T> out;
-  out.reserve(count);
+  out.reserve(take);
   auto endIt = values.begin();
-  std::advance(endIt, static_cast<std::ptrdiff_t>(count));
+  std::advance(endIt, static_cast<std::ptrdiff_t>(take));
   for (auto it = values.begin(); it != endIt; ++it) {
     out.push_back(std::move(*it));
   }
@@ -42,15 +43,16 @@ std::vector<T> moveListPrefixToVector(std::list<T>& values, const size_t count) 
 
 std::vector<EpdFontFamily::Style> moveStylePrefixToVector(std::list<EpdFontFamily::Style>& values,
                                                           const size_t count) {
+  const size_t take = std::min(count, values.size());
   auto endIt = values.begin();
-  std::advance(endIt, static_cast<std::ptrdiff_t>(count));
+  std::advance(endIt, static_cast<std::ptrdiff_t>(take));
   if (std::all_of(values.begin(), endIt,
                   [](EpdFontFamily::Style style) { return style == EpdFontFamily::REGULAR; })) {
     values.erase(values.begin(), endIt);
     return {};
   }
   std::vector<EpdFontFamily::Style> out;
-  out.reserve(count);
+  out.reserve(take);
   for (auto it = values.begin(); it != endIt; ++it) {
     out.push_back(*it);
   }
@@ -60,8 +62,9 @@ std::vector<EpdFontFamily::Style> moveStylePrefixToVector(std::list<EpdFontFamil
 
 uint8_t moveBytePrefixToCompactVector(std::list<uint8_t>& values, const size_t count, const uint8_t emptyDefault,
                                       std::vector<uint8_t>& out) {
+  const size_t take = std::min(count, values.size());
   auto endIt = values.begin();
-  std::advance(endIt, static_cast<std::ptrdiff_t>(count));
+  std::advance(endIt, static_cast<std::ptrdiff_t>(take));
   if (values.begin() == endIt) {
     return emptyDefault;
   }
@@ -70,7 +73,7 @@ uint8_t moveBytePrefixToCompactVector(std::list<uint8_t>& values, const size_t c
     values.erase(values.begin(), endIt);
     return first;
   }
-  out.reserve(count);
+  out.reserve(take);
   for (auto it = values.begin(); it != endIt; ++it) {
     out.push_back(*it);
   }
@@ -305,6 +308,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     lineBreakIndices = computeHyphenatedLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
   } else {
     lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, dropW, dropL);
+  }
+  if (lineBreakIndices.empty() || (!includeLastLine && lineBreakIndices.size() <= 1)) {
+    return;
   }
   const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
   const std::vector<uint8_t> joinPreviousSnapshot =
@@ -858,10 +864,10 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   const uint8_t verticalAlignDefault =
       moveBytePrefixToCompactVector(wordVerticalAlign, lineWordCount, TextBlock::BASELINE, lineWordVerticalAlign);
   auto joinPreviousEndIt = wordJoinPrevious.begin();
-  std::advance(joinPreviousEndIt, static_cast<std::ptrdiff_t>(lineWordCount));
+  std::advance(joinPreviousEndIt, static_cast<std::ptrdiff_t>(std::min(lineWordCount, wordJoinPrevious.size())));
   wordJoinPrevious.erase(wordJoinPrevious.begin(), joinPreviousEndIt);
   auto xOffsetEndIt = wordXOffset.begin();
-  std::advance(xOffsetEndIt, static_cast<std::ptrdiff_t>(lineWordCount));
+  std::advance(xOffsetEndIt, static_cast<std::ptrdiff_t>(std::min(lineWordCount, wordXOffset.size())));
   wordXOffset.erase(wordXOffset.begin(), xOffsetEndIt);
 
   // Image lists are only present when this block has inline images; splice them in parallel when so.

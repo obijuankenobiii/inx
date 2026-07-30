@@ -47,7 +47,7 @@ class FontManager {
   static void clampReaderFontFamilySlot(uint8_t& slot);
   static int getFontIdNearestPointSize(const std::string& family, int preferredPt);
 
-  static bool loadFontFromSD(int fontId, GfxRenderer& renderer);
+  static bool loadFontFromSD(int fontId, GfxRenderer& renderer, bool enableGlyphBitmapCache = true);
   static bool ensureFontReady(int fontId, GfxRenderer& renderer);
   /** Preload body, next-larger, and max-in-family SD slots used together during EPUB layout. */
   static bool ensureReaderLayoutFonts(int bodyFontId, GfxRenderer& renderer);
