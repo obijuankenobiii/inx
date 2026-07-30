@@ -30,10 +30,10 @@ ReaderSetting ReaderSetting::instance;
 
 namespace {
 constexpr uint8_t READER_SETTINGS_FILE_VERSION = 1;
-// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 39,
-// through longPressChapterSkip) - NOT counting the version/count header fields read separately
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 40,
+// through readingGuideLinesEnabled) - NOT counting the version/count header fields read separately
 // before the loop. See SystemSetting.cpp's SETTINGS_COUNT comment for how this header is used.
-constexpr uint8_t READER_SETTINGS_COUNT = 39;
+constexpr uint8_t READER_SETTINGS_COUNT = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char READER_SETTINGS_FILE[] = "/.system/reader_settings.bin";
 constexpr uint32_t FNV1A_OFFSET = 2166136261UL;
@@ -120,6 +120,7 @@ uint32_t readerSettingsHash(const ReaderSetting& settings, const uint8_t fontFam
   hashPod(hash, settings.refreshFrequency);
   hashPod(hash, settings.hyphenationEnabled);
   hashPod(hash, settings.bionicReadingEnabled);
+  hashPod(hash, settings.readingGuideLinesEnabled);
   hashPod(hash, settings.screenMargin);
   hashPod(hash, settings.pageAutoTurnSeconds);
   hashPod(hash, settings.readerImageGrayscale);
@@ -210,6 +211,7 @@ bool ReaderSetting::saveToFile() const {
   serialization::writePod(outputFile, legacyReaderImagePresentation);
   serialization::writePod(outputFile, readerImageDither);
   serialization::writePod(outputFile, longPressChapterSkip);
+  serialization::writePod(outputFile, readingGuideLinesEnabled);
 
   outputFile.close();
 
@@ -392,6 +394,10 @@ bool ReaderSetting::loadFromFile() {
     if (longPressChapterSkip > SystemSetting::LONG_PRESS_PAGE_SKIP_5) {
       longPressChapterSkip = SystemSetting::LONG_PRESS_CHAPTER_SKIP;
     }
+    if (++settingsRead >= fileSettingsCount) break;
+
+    serialization::readPod(inputFile, readingGuideLinesEnabled);
+    if (readingGuideLinesEnabled > 1) readingGuideLinesEnabled = 0;
     ++settingsRead;
 
   } while (false);

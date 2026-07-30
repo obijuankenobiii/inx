@@ -1765,6 +1765,9 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender, imageMode,
                /*skipOnlyGrayscaleImages=*/highQuality && !deferOneBitImageRender);
 
+  // Overlay before storeBwBuffer so guide lines are preserved through AA/grayscale passes.
+  drawReadingGuideLines(orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
     drawBookmarkIndicator();
@@ -1870,6 +1873,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.clearScreen();
     page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
                  ImageRenderMode::OneBit, /*skipOnlyGrayscaleImages=*/true);
+    drawReadingGuideLines(orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     if (isCurrentPageBookmarked()) {
       drawBookmarkIndicator();
@@ -1897,6 +1901,27 @@ void EpubActivity::renderStatusBar(const int orientedMarginRight, const int orie
   if (statusBar && section) {
     statusBar->render(section.get(), currentSpineIndex, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   }
+}
+
+void EpubActivity::drawReadingGuideLines(const int orientedMarginTop, const int orientedMarginRight,
+                                         const int orientedMarginBottom, const int orientedMarginLeft) const {
+  if (!READER_SETTINGS.readingGuideLinesEnabled) {
+    return;
+  }
+  const int contentWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
+  if (contentWidth < 3) {
+    return;
+  }
+  const int lineTop = orientedMarginTop;
+  const int lineBottom = renderer.getScreenHeight() - orientedMarginBottom;
+  if (lineBottom <= lineTop) {
+    return;
+  }
+  const int x1 = orientedMarginLeft + contentWidth / 3;
+  const int x2 = orientedMarginLeft + (contentWidth * 2) / 3;
+  // Dotted so the guides cue fixation without fighting body text on e-ink.
+  renderer.line.render(x1, lineTop, x1, lineBottom, true, LineRender::Style::Dotted);
+  renderer.line.render(x2, lineTop, x2, lineBottom, true, LineRender::Style::Dotted);
 }
 
 /**

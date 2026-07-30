@@ -419,6 +419,20 @@ void SettingsDrawer::setupMenu() {
       s.markCustomSettings();
     };
     menuItems.push_back(bionicEntry);
+
+    // Global visual overlay (not baked into layout/cache) — same idea as status-bar rows.
+    MenuEntry guideLinesEntry;
+    guideLinesEntry.item = MenuItem::ReadingGuideLines;
+    guideLinesEntry.group = GroupType::LAYOUT;
+    guideLinesEntry.name = "Guide Lines";
+    guideLinesEntry.getValueText = [](const BookSettings&) -> const char* {
+      return READER_SETTINGS.readingGuideLinesEnabled ? "On" : "Off";
+    };
+    guideLinesEntry.change = [](BookSettings&, int) {
+      READER_SETTINGS.readingGuideLinesEnabled = READER_SETTINGS.readingGuideLinesEnabled ? 0 : 1;
+      READER_SETTINGS.saveToFile();
+    };
+    menuItems.push_back(guideLinesEntry);
   }
 
   // The "═══ System ═══" group (Text Anti-Aliasing, Refresh Frequency, Power Button, Long-press,
@@ -697,6 +711,10 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
         checkbox = true;
         checked = settings.bionicReadingEnabled != 0;
         break;
+      case MenuItem::ReadingGuideLines:
+        checkbox = true;
+        checked = READER_SETTINGS.readingGuideLinesEnabled != 0;
+        break;
       case MenuItem::ReaderSmartImageRefresh:
         checkbox = true;
         checked = settings.readerSmartRefreshOnImages != 0;
@@ -900,6 +918,9 @@ void SettingsDrawer::applyChange(int delta) {
       case MenuItem::ParagraphCssIndent:
       case MenuItem::BionicReading:
       case MenuItem::FontFamily:
+        settingsUpdated = true;
+        break;
+      case MenuItem::ReadingGuideLines:
         settingsUpdated = true;
         break;
       case MenuItem::ReadingOrientation:
