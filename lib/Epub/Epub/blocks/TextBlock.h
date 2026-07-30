@@ -195,7 +195,7 @@ class TextBlock final : public Block {
    * @param y Base Y coordinate
    * @param spacingMultiplier Optional multiplier for word spacing (default 1.0)
    */
-  void render(GfxRenderer& renderer, int fontId, int x, int y) const;
+  void render(GfxRenderer& renderer, int fontId, int x, int y, bool black = true) const;
 
   /**
    * Gets the block type identifier.

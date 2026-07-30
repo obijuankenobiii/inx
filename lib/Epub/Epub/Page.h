@@ -331,6 +331,9 @@ class PageCssBorderBox final : public PageElement {
         backgroundTone(backgroundTone) {}
 
   PageElementTag getTag() const override { return TAG_PageCssBorderBox; }
+  bool hasBackground() const { return backgroundTone != 0; }
+  int16_t getWidth() const { return width; }
+  int16_t getHeight() const { return height; }
   void setGeometry(const int16_t x, const int16_t y, const int16_t w, const int16_t h) {
     xPos = x;
     yPos = y;

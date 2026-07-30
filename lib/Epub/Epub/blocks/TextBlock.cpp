@@ -32,16 +32,17 @@ EpdFontFamily::Style bionicStyleFor(EpdFontFamily::Style style) {
 }
 
 int renderSmallCapsSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y,
-                           const std::string& text, const EpdFontFamily::Style style) {
+                           const std::string& text, const EpdFontFamily::Style style, const bool black) {
   if (text.empty()) {
     return x;
   }
   // renderSmallCaps returns its advance, so no separate width measurement pass is needed.
-  return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), true, style);
+  return renderer.text.renderSmallCaps(fontId, x, y, text.c_str(), black, style);
 }
 
 int renderWordSegment(const GfxRenderer& renderer, const int fontId, const int x, const int y, const std::string& text,
-                      const EpdFontFamily::Style style, const bool smallCaps, const uint8_t verticalAlign) {
+                      const EpdFontFamily::Style style, const bool smallCaps, const uint8_t verticalAlign,
+                      const bool black) {
   if (text.empty()) {
     return x;
   }
@@ -50,14 +51,14 @@ int renderWordSegment(const GfxRenderer& renderer, const int fontId, const int x
     const int scriptY =
         verticalAlign == TextBlock::SUPERSCRIPT ? y - std::max(1, lineHeight / 3) : y + std::max(1, lineHeight / 5);
     if (smallCaps) {
-      return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, true, style);
+      return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, black, style);
     }
-    return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, true, style);
+    return renderer.text.renderScaled(fontId, x, scriptY, text.c_str(), kScriptScalePct, black, style);
   }
   if (smallCaps) {
-    return renderSmallCapsSegment(renderer, fontId, x, y, text, style);
+    return renderSmallCapsSegment(renderer, fontId, x, y, text, style, black);
   }
-  renderer.text.render(fontId, x, y, text.c_str(), true, style);
+  renderer.text.render(fontId, x, y, text.c_str(), black, style);
   return x + renderer.text.getWidth(fontId, text.c_str(), style);
 }
 
@@ -262,7 +263,7 @@ EpdFontFamily::Style TextBlock::getWordStyleAt(size_t index) const {
   return (*wordStyles)[index];
 }
 
-void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, const int y) const {
+void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, const int y, const bool black) const {
   const auto* wordStyles = extra && !extra->wordStyles.empty() ? &extra->wordStyles : nullptr;
   const auto* bionicPrefixBytes = extra ? &extra->bionicPrefixBytes : nullptr;
   const auto* wordSmallCaps = extra ? &extra->wordSmallCaps : nullptr;
@@ -334,19 +335,20 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
     }
 
     if (prefixBytes == 0 || prefixBytes >= slotIt->text.size()) {
-      endX = renderWordSegment(renderer, fontId, startX, y, slotIt->text, wordStyle, smallCaps, verticalAlign);
+      endX = renderWordSegment(renderer, fontId, startX, y, slotIt->text, wordStyle, smallCaps, verticalAlign, black);
     } else {
       const std::string prefix = slotIt->text.substr(0, prefixBytes);
       const std::string suffix = slotIt->text.substr(prefixBytes);
       const auto prefixStyle = bionicStyleFor(wordStyle);
-      const int suffixX = renderWordSegment(renderer, fontId, startX, y, prefix, prefixStyle, smallCaps, verticalAlign);
-      endX = renderWordSegment(renderer, fontId, suffixX, y, suffix, wordStyle, smallCaps, verticalAlign);
+      const int suffixX =
+          renderWordSegment(renderer, fontId, startX, y, prefix, prefixStyle, smallCaps, verticalAlign, black);
+      endX = renderWordSegment(renderer, fontId, suffixX, y, suffix, wordStyle, smallCaps, verticalAlign, black);
     }
     if (underline && endX <= startX) {
       endX = startX + measureWordSegment(renderer, fontId, slotIt->text, wordStyle, smallCaps, verticalAlign);
     }
     if (underline && endX > startX) {
-      renderer.line.render(startX, underlineY, endX - 1, underlineY, true);
+      renderer.line.render(startX, underlineY, endX - 1, underlineY, black);
     }
     if (hasBionicVector) {
       ++prefixIt;

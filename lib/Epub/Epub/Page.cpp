@@ -775,22 +775,25 @@ void PageCssBorderBox::render(GfxRenderer& renderer, const int fontId, const int
   const int right = left + boxWidth - 1;
   const int bottom = top + boxHeight - 1;
 
-  if (backgroundTone != 0) {
-    renderer.rectangle.fill(left, top, boxWidth, boxHeight, backgroundTone, radius > 0, true);
+  const bool hasBackground = backgroundTone != 0;
+  const uint8_t effectiveBorderTone = hasBackground ? 0 : borderTone;
+  if (hasBackground) {
+    renderer.rectangle.fill(left, top, boxWidth, boxHeight, static_cast<int>(GfxRenderer::FillTone::Ink), radius > 0,
+                            true);
   }
   if (radius > 0 && borderTop == borderRight && borderTop == borderBottom && borderTop == borderLeft &&
       styleTop == PageCssBorderLine::SOLID && styleRight == PageCssBorderLine::SOLID &&
       styleBottom == PageCssBorderLine::SOLID && styleLeft == PageCssBorderLine::SOLID) {
-    drawRoundedBorder(renderer, left, top, boxWidth, boxHeight, std::max<int>(1, borderTop), borderTone);
+    drawRoundedBorder(renderer, left, top, boxWidth, boxHeight, std::max<int>(1, borderTop), effectiveBorderTone);
     return;
   }
 
-  drawHorizontalBorder(renderer, left, right, top, borderTop, styleTop, borderTone);
+  drawHorizontalBorder(renderer, left, right, top, borderTop, styleTop, effectiveBorderTone);
   drawHorizontalBorder(renderer, left, right, bottom - std::max<int>(1, borderBottom) + 1, borderBottom, styleBottom,
-                       borderTone);
-  drawVerticalBorder(renderer, left, top, bottom, borderLeft, styleLeft, borderTone);
+                       effectiveBorderTone);
+  drawVerticalBorder(renderer, left, top, bottom, borderLeft, styleLeft, effectiveBorderTone);
   drawVerticalBorder(renderer, right - std::max<int>(1, borderRight) + 1, top, bottom, borderRight, styleRight,
-                     borderTone);
+                     effectiveBorderTone);
 }
 
 bool PageCssBorderBox::serialize(FsFile& file) {
@@ -929,6 +932,26 @@ bool Page::getImageBoundingBox(const GfxRenderer& renderer, const int xOffset, c
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontId, const int xOffset, const int yOffset,
                   bool skipImages, const ImageRenderMode imageMode, const bool skipOnlyGrayscaleImages) const {
+  struct InvertedTextRegion {
+    int16_t x;
+    int16_t y;
+    int16_t w;
+    int16_t h;
+  };
+  std::vector<InvertedTextRegion> invertedTextRegions;
+  auto isInvertedText = [&](const int textX, const int textY, const int textFontId) {
+    const int lineHeight = std::max(1, renderer.text.getLineHeight(textFontId));
+    const int textBottom = textY + lineHeight - 1;
+    for (const auto& region : invertedTextRegions) {
+      const int regionRight = region.x + region.w;
+      const int regionBottom = region.y + region.h;
+      if (textX >= region.x && textX < regionRight && textBottom >= region.y && textY < regionBottom) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   for (auto& element : elements) {
     if (skipImages && element->getTag() == TAG_PageImage) {
       const auto* image = static_cast<const PageImage*>(element.get());
@@ -940,14 +963,31 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int headerFontI
     uint8_t tag = element->getTag();
     if (tag == TAG_PageLine) {
       const auto* line = static_cast<const PageLine*>(element.get());
-      line->getTextBlock().render(renderer, fontId, line->xPos + xOffset, line->yPos + yOffset);
+      const int textX = line->xPos + xOffset;
+      const int textY = line->yPos + yOffset;
+      line->getTextBlock().render(renderer, fontId, textX, textY, !isInvertedText(textX, textY, fontId));
     } else if (tag == TAG_PageHeader) {
       const auto* header = static_cast<const PageHeader*>(element.get());
       // Use the element's own font id (header font for headings, or a per-block large-font override).
       const int feId = header->getHeaderFontId() > 0 ? header->getHeaderFontId() : headerFontId;
-      header->getTextBlock().render(renderer, feId, header->xPos + xOffset, header->yPos + yOffset);
+      const int textX = header->xPos + xOffset;
+      const int textY = header->yPos + yOffset;
+      header->getTextBlock().render(renderer, feId, textX, textY, !isInvertedText(textX, textY, feId));
+    } else if (tag == TAG_PageSmallCaps) {
+      const auto* smallCaps = static_cast<const PageSmallCaps*>(element.get());
+      const int textX = smallCaps->xPos + xOffset;
+      const int textY = smallCaps->yPos + yOffset;
+      smallCaps->getTextBlock().render(renderer, fontId, textX, textY, !isInvertedText(textX, textY, fontId));
     } else {
       element->render(renderer, fontId, xOffset, yOffset, imageMode);
+      if (tag == TAG_PageCssBorderBox) {
+        const auto* box = static_cast<const PageCssBorderBox*>(element.get());
+        if (box->hasBackground()) {
+          invertedTextRegions.push_back(
+              {static_cast<int16_t>(box->xPos + xOffset), static_cast<int16_t>(box->yPos + yOffset), box->getWidth(),
+               box->getHeight()});
+        }
+      }
     }
   }
 }
