@@ -1421,18 +1421,13 @@ void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int
   const int activeFontId = inHeader ? headerFontId : fontId;
   const int inset = renderer.text.getGlyphTopInset(activeFontId, 'H', EpdFontFamily::REGULAR);
   const int reduce = std::min(inset, paddingTop);  // never pull the text above the padded box
-  Serial.printf(
-      "[DBG-TOP] fontId=%d headerFontId=%d inHeader=%d activeFontId=%d borderTop=%d paddingTop=%d inset=%d "
-      "reduce=%d shrinkToContent=%d extraParagraphSpacing=%d\n",
-      fontId, headerFontId, inHeader ? 1 : 0, activeFontId, borderTop, paddingTop, inset, reduce,
-      currentBlockShrinkBorderBoxToContent ? 1 : 0, extraParagraphSpacing ? 1 : 0);
   if (reduce > 0) {
     currentPageNextY = static_cast<int16_t>(std::max(0, static_cast<int>(currentPageNextY) - reduce));
   }
 }
 
 // Mirrors tightenAfterTopBorder for the bottom edge. A line's height reserves space below the glyph ink
-// (descent/leading) that the top-side tightening has no equivalent overshoot for, so without this, any
+// (descent/leading) that the top-side tightening has no equivalent overshoot for, so without this, a
 // border-bottom + padding-bottom combo renders with a visibly bigger gap than the same values on top.
 void ChapterHtmlSlimParser::tightenBeforeBottomBorder(const int borderBottom, const int paddingBottom) {
   if (borderBottom <= 0 || paddingBottom <= 0) return;
@@ -1440,8 +1435,8 @@ void ChapterHtmlSlimParser::tightenBeforeBottomBorder(const int borderBottom, co
   const int activeFontId = inHeader ? headerFontId : fontId;
   const int inset = renderer.text.getGlyphBottomInset(activeFontId, '0', EpdFontFamily::REGULAR);
   // Unlike tightenAfterTopBorder, padding-bottom hasn't been added to currentPageNextY yet at this point, so
-  // capping the pull-up at paddingBottom (rather than at the content-start floor already enforced below) would
-  // leave part of the line's unused bottom slack uncorrected whenever padding-bottom is smaller than the inset.
+  // capping the pull-up at paddingBottom (rather than at the content-start floor enforced below) would leave
+  // part of the line's unused bottom slack uncorrected whenever padding-bottom is smaller than the inset.
   if (inset > 0) {
     currentPageNextY = static_cast<int16_t>(
         std::max<int>(currentBlockContentStartY, static_cast<int>(currentPageNextY) - inset));
@@ -1457,6 +1452,12 @@ int ChapterHtmlSlimParser::activeBlockContentWidth() const {
 
 void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const std::string& classAttr,
                                              const std::string& idAttr, const std::string& styleAttr) {
+  // A nested descendant (not the header itself) is about to overwrite the shared currentBlock* fields with
+  // its own values - mark the still-open header's preserved scope stale so its own values get restored when
+  // it closes, instead of the last descendant's values being mistaken for the header's own.
+  if (!headerClosingStack.empty() && headerClosingStack.back().depth != depth) {
+    headerClosingStack.back().stale = true;
+  }
   const int marginTop = css().getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int paddingTop = css().getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int marginLeft = css().getMarginLeftPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
@@ -1563,9 +1564,6 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
     return;
   }
 
-  Serial.printf("[DBG-MARGIN] tag=%s class=%s marginTop=%d currentPageNextY=%d willApply=%d\n", tagLower.c_str(),
-                classAttr.c_str(), marginTop, static_cast<int>(currentPageNextY),
-                (currentPageNextY > 0 && marginTop > 0) ? 1 : 0);
   if (currentPageNextY > 0 && marginTop > 0) {
     applyVerticalSpacing(marginTop);
   }
@@ -1627,7 +1625,9 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   if (paddingTop > 0) {
     applyVerticalSpacing(paddingTop);
   }
-  tightenAfterTopBorder(borderTop, paddingTop);
+  if (!currentBlockShrinkBorderBoxToContent) {
+    tightenAfterTopBorder(borderTop, paddingTop);
+  }
   currentBlockContentStartY = currentPageNextY;
 }
 
@@ -1821,6 +1821,16 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
     self->inHeader = true;
     self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+    // Preserve this header's own closing spacing now, before any nested child (e.g. a bordered <span>) calls
+    // beginCssBlockBox() itself and overwrites the shared currentBlock* fields with its own values.
+    ChapterHtmlSlimParser::HeaderClosingScope headerScope;
+    headerScope.depth = self->depth;
+    headerScope.marginBottom = self->currentBlockMarginBottomPx;
+    headerScope.paddingBottom = self->currentBlockPaddingBottomPx;
+    headerScope.borderBottom = self->currentBlockBorderBottomPx;
+    headerScope.borderBottomStyle = self->currentBlockBorderBottomStyle;
+    headerScope.usesBorderBox = self->currentBlockUsesBorderBox;
+    self->headerClosingStack.push_back(headerScope);
     // Headers default to centered, but follow an explicit CSS text-align (e.g. .h2 { text-align: right }).
     TextBlock::Style headerStyle = TextBlock::CENTER_ALIGN;
     if (self->css().hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
@@ -2050,6 +2060,25 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   self->depth -= 1;
 
+  if (!self->headerClosingStack.empty() && self->headerClosingStack.back().depth == self->depth) {
+    const auto headerScope = self->headerClosingStack.back();
+    self->headerClosingStack.pop_back();
+    // Only re-apply when a nested child actually clobbered this header's own values - the common case (a
+    // header with no nested custom-display-block children) already applied its own spacing correctly above,
+    // and a header that is itself a border box gets its closing spacing from the cssBorderBoxStack scope below.
+    if (headerScope.stale && !headerScope.usesBorderBox) {
+      if (headerScope.paddingBottom > 0) {
+        self->applyVerticalSpacing(headerScope.paddingBottom);
+      }
+      if (headerScope.borderBottom > 0) {
+        self->addCssBorderLine(headerScope.borderBottom, headerScope.borderBottomStyle);
+      }
+      if (headerScope.marginBottom > 0) {
+        self->applyVerticalSpacing(headerScope.marginBottom);
+      }
+    }
+  }
+
   if (!self->cssBorderBoxStack.empty() && self->cssBorderBoxStack.back().depth == self->depth) {
     if (!self->cssBorderBoxStack.back().finalized && self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
       // Lay out the last child's remaining text only. Its own trailing margin/padding/border (and the
@@ -2061,7 +2090,9 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       // Same correction as the direct-content path in makePages(): pull the cursor up to the last child's
       // actual glyph-ink bottom before adding the box's own padding-bottom, so a box with equal top/bottom
       // padding renders symmetrically instead of the bottom edge sitting lower than the top.
-      self->tightenBeforeBottomBorder(scope.borderBottom, scope.paddingBottom);
+      if (!scope.shrinkToContent) {
+        self->tightenBeforeBottomBorder(scope.borderBottom, scope.paddingBottom);
+      }
       if (scope.paddingBottom > 0) {
         self->applyVerticalSpacing(scope.paddingBottom);
       } else if (scope.borderBottom > 0) {
@@ -2348,18 +2379,9 @@ void ChapterHtmlSlimParser::makePages(bool deferClosingSpacingToCaller) {
     currentPageNextY = 0;
   }
 
-  // Use the header font's line height (when flushing a heading) rather than the body font's - otherwise the
-  // reader's default paragraph-gap top-up after a heading with little/no CSS closing spacing of its own (e.g.
-  // a bordered heading with just a few px of padding, no margin) ends up sized for body text and looks
-  // compressed against the bigger heading it's actually following.
-  const int lineHeight = renderer.text.getLineHeight(inHeader ? headerFontId : fontId) * lineCompression;
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
   const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
   const int readerParagraphGap = (extraParagraphSpacing && !deferClosingSpacingToCaller) ? lineHeight / 2 : 0;
-  Serial.printf(
-      "[DBG-GAP] inHeader=%d fontId=%d headerFontId=%d lineCompression=%.2f lineHeight=%d readerParagraphGap=%d "
-      "extraParagraphSpacing=%d currentBlockPaddingBottomPx=%d currentBlockMarginBottomPx=%d\n",
-      inHeader ? 1 : 0, fontId, headerFontId, lineCompression, lineHeight, readerParagraphGap,
-      extraParagraphSpacing ? 1 : 0, currentBlockPaddingBottomPx, currentBlockMarginBottomPx);
 
   currentTextBlock->layoutAndExtractLines(
       renderer, activeBlockFontId(), static_cast<uint16_t>(std::max(1, currentTextBlockContentWidth)),

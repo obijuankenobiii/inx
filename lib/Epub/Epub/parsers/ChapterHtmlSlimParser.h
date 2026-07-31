@@ -146,8 +146,24 @@ class ChapterHtmlSlimParser {
     bool shrinkToContent = false;
     bool finalized = false;
   };
+  // A header's own closing spacing (captured right after its beginCssBlockBox() call) so it survives nested
+  // children - like a bordered <span> - that call beginCssBlockBox() themselves and overwrite the shared
+  // currentBlock* fields with their own (different) values before the header gets to close.
+  struct HeaderClosingScope {
+    int depth = 0;
+    int marginBottom = 0;
+    int paddingBottom = 0;
+    int borderBottom = 0;
+    uint8_t borderBottomStyle = 0;
+    bool usesBorderBox = false;
+    // Set once a nested child's own beginCssBlockBox() call overwrites the shared currentBlock* fields with
+    // its own values - signals that this header's preserved values (not the live fields) must be re-applied
+    // when it closes.
+    bool stale = false;
+  };
   std::vector<CssHorizontalInsetScope> cssHorizontalInsetStack;
   std::vector<CssBorderBoxScope> cssBorderBoxStack;
+  std::vector<HeaderClosingScope> headerClosingStack;
   int currentCssInsetLeftPx = 0;
   int currentCssInsetRightPx = 0;
   int currentBlockBottomSpacingPx = 0;
