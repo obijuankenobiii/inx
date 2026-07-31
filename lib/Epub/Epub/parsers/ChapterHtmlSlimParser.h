@@ -145,25 +145,37 @@ class ChapterHtmlSlimParser {
     int horizontalChrome = 0;
     bool shrinkToContent = false;
     bool finalized = false;
+    // Set once a nested child's own beginCssBlockBox() call overwrites the shared currentBlock* fields with
+    // its own values while this box is still open - a leaf box (e.g. a single-line <p> bubble) never sees
+    // this, so its own content can still be flushed normally (non-deferred) at its own close, including the
+    // shrink-to-content width narrowing that only runs on that normal path.
+    bool stale = false;
   };
-  // A header's own closing spacing (captured right after its beginCssBlockBox() call) so it survives nested
-  // children - like a bordered <span> - that call beginCssBlockBox() themselves and overwrite the shared
-  // currentBlock* fields with their own (different) values before the header gets to close.
-  struct HeaderClosingScope {
+  // A block-like element's own closing spacing (captured right after its beginCssBlockBox() call) so it
+  // survives nested children - a header, a bordered <span>, or a plain nested <div> - that call
+  // beginCssBlockBox() themselves and overwrite the shared currentBlock* fields with their own (different)
+  // values before this element gets to close. Pushed for headers, block tags, and custom-display-block
+  // elements alike (any beginCssBlockBox() caller with real CSS spacing of its own).
+  struct BlockClosingScope {
     int depth = 0;
     int marginBottom = 0;
     int paddingBottom = 0;
     int borderBottom = 0;
     uint8_t borderBottomStyle = 0;
     bool usesBorderBox = false;
+    int minHeight = 0;
+    int16_t contentStartY = 0;
     // Set once a nested child's own beginCssBlockBox() call overwrites the shared currentBlock* fields with
-    // its own values - signals that this header's preserved values (not the live fields) must be re-applied
+    // its own values - signals that this element's preserved values (not the live fields) must be re-applied
     // when it closes.
     bool stale = false;
   };
   std::vector<CssHorizontalInsetScope> cssHorizontalInsetStack;
   std::vector<CssBorderBoxScope> cssBorderBoxStack;
-  std::vector<HeaderClosingScope> headerClosingStack;
+  std::vector<BlockClosingScope> blockClosingStack;
+  /** Pushes a BlockClosingScope for the element that just called beginCssBlockBox(), if it has any CSS
+   *  closing spacing of its own worth preserving against nested-child clobbering. */
+  void pushBlockClosingScopeIfNeeded();
   int currentCssInsetLeftPx = 0;
   int currentCssInsetRightPx = 0;
   int currentBlockBottomSpacingPx = 0;

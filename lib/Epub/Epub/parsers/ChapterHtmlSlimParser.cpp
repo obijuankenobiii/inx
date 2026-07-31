@@ -1452,11 +1452,14 @@ int ChapterHtmlSlimParser::activeBlockContentWidth() const {
 
 void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const std::string& classAttr,
                                              const std::string& idAttr, const std::string& styleAttr) {
-  // A nested descendant (not the header itself) is about to overwrite the shared currentBlock* fields with
-  // its own values - mark the still-open header's preserved scope stale so its own values get restored when
-  // it closes, instead of the last descendant's values being mistaken for the header's own.
-  if (!headerClosingStack.empty() && headerClosingStack.back().depth != depth) {
-    headerClosingStack.back().stale = true;
+  // A nested descendant (not the element itself) is about to overwrite the shared currentBlock* fields with
+  // its own values - mark the still-open ancestor's preserved scope stale so its own values get restored when
+  // it closes, instead of the last descendant's values being mistaken for the ancestor's own.
+  if (!blockClosingStack.empty() && blockClosingStack.back().depth != depth) {
+    blockClosingStack.back().stale = true;
+  }
+  if (!cssBorderBoxStack.empty() && cssBorderBoxStack.back().depth != depth) {
+    cssBorderBoxStack.back().stale = true;
   }
   const int marginTop = css().getMarginTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int paddingTop = css().getPaddingTopPx(tagLower, classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
@@ -1631,6 +1634,20 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   currentBlockContentStartY = currentPageNextY;
 }
 
+void ChapterHtmlSlimParser::pushBlockClosingScopeIfNeeded() {
+  if (!currentBlockSpacingFromCss) return;
+  BlockClosingScope scope;
+  scope.depth = depth;
+  scope.marginBottom = currentBlockMarginBottomPx;
+  scope.paddingBottom = currentBlockPaddingBottomPx;
+  scope.borderBottom = currentBlockBorderBottomPx;
+  scope.borderBottomStyle = currentBlockBorderBottomStyle;
+  scope.usesBorderBox = currentBlockUsesBorderBox;
+  scope.minHeight = currentBlockMinHeightPx;
+  scope.contentStartY = currentBlockContentStartY;
+  blockClosingStack.push_back(scope);
+}
+
 PageCssBorderLine* ChapterHtmlSlimParser::addCssBorderLine(const int thicknessPx, const uint8_t style) {
   if (thicknessPx <= 0) {
     return nullptr;
@@ -1771,6 +1788,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->makePages();
     }
     self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+    self->pushBlockClosingScopeIfNeeded();
     self->currentBlockFontId =
         self->blockFontIdForEm(self->css().getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
     TextBlock::Style blockStyle =
@@ -1821,16 +1839,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
     self->inHeader = true;
     self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
-    // Preserve this header's own closing spacing now, before any nested child (e.g. a bordered <span>) calls
-    // beginCssBlockBox() itself and overwrites the shared currentBlock* fields with its own values.
-    ChapterHtmlSlimParser::HeaderClosingScope headerScope;
-    headerScope.depth = self->depth;
-    headerScope.marginBottom = self->currentBlockMarginBottomPx;
-    headerScope.paddingBottom = self->currentBlockPaddingBottomPx;
-    headerScope.borderBottom = self->currentBlockBorderBottomPx;
-    headerScope.borderBottomStyle = self->currentBlockBorderBottomStyle;
-    headerScope.usesBorderBox = self->currentBlockUsesBorderBox;
-    self->headerClosingStack.push_back(headerScope);
+    self->pushBlockClosingScopeIfNeeded();
     // Headers default to centered, but follow an explicit CSS text-align (e.g. .h2 { text-align: right }).
     TextBlock::Style headerStyle = TextBlock::CENTER_ALIGN;
     if (self->css().hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
@@ -1846,6 +1855,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           self->resolveBlockStyle(name, atts, elementHasExplicitTextAlign, elementCssStyle, inheritedCssStyle);
       self->startNewTextBlock(blockStyle);
       self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
+      self->pushBlockClosingScopeIfNeeded();
       // Large CSS font-size on a block (e.g. a big centered title <p>) renders with a bigger reader font.
       self->currentBlockFontId =
           self->blockFontIdForEm(self->css().getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
@@ -2060,30 +2070,50 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   self->depth -= 1;
 
-  if (!self->headerClosingStack.empty() && self->headerClosingStack.back().depth == self->depth) {
-    const auto headerScope = self->headerClosingStack.back();
-    self->headerClosingStack.pop_back();
-    // Only re-apply when a nested child actually clobbered this header's own values - the common case (a
-    // header with no nested custom-display-block children) already applied its own spacing correctly above,
-    // and a header that is itself a border box gets its closing spacing from the cssBorderBoxStack scope below.
-    if (headerScope.stale && !headerScope.usesBorderBox) {
-      if (headerScope.paddingBottom > 0) {
-        self->applyVerticalSpacing(headerScope.paddingBottom);
+  if (!self->blockClosingStack.empty() && self->blockClosingStack.back().depth == self->depth) {
+    const auto blockScope = self->blockClosingStack.back();
+    self->blockClosingStack.pop_back();
+    // Only re-apply when a nested child actually clobbered this element's own values - the common case (no
+    // nested block/header/custom-display-block children) already applied its own spacing correctly via its
+    // natural flush, and an element that is itself a border box gets its closing spacing from the
+    // cssBorderBoxStack scope below.
+    if (blockScope.stale && !blockScope.usesBorderBox) {
+      // Any trailing text left by the last nested child belongs to that child, not this element - lay it out
+      // without applying its (already-consumed-elsewhere) trailing spacing before this element's own spacing.
+      if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+        self->makePages(true);
       }
-      if (headerScope.borderBottom > 0) {
-        self->addCssBorderLine(headerScope.borderBottom, headerScope.borderBottomStyle);
+      if (blockScope.minHeight > 0 && self->currentPageNextY >= blockScope.contentStartY) {
+        const int contentHeight = static_cast<int>(self->currentPageNextY) - static_cast<int>(blockScope.contentStartY);
+        if (contentHeight < blockScope.minHeight) {
+          self->applyVerticalSpacing(blockScope.minHeight - contentHeight);
+        }
       }
-      if (headerScope.marginBottom > 0) {
-        self->applyVerticalSpacing(headerScope.marginBottom);
+      if (blockScope.paddingBottom > 0) {
+        self->applyVerticalSpacing(blockScope.paddingBottom);
+      }
+      if (blockScope.borderBottom > 0) {
+        self->addCssBorderLine(blockScope.borderBottom, blockScope.borderBottomStyle);
+      }
+      if (blockScope.marginBottom > 0) {
+        self->applyVerticalSpacing(blockScope.marginBottom);
       }
     }
   }
 
   if (!self->cssBorderBoxStack.empty() && self->cssBorderBoxStack.back().depth == self->depth) {
     if (!self->cssBorderBoxStack.back().finalized && self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
-      // Lay out the last child's remaining text only. Its own trailing margin/padding/border (and the
-      // reader's default paragraph gap) must not stack with the box's own closing spacing applied below.
-      self->makePages(true);
+      if (self->cssBorderBoxStack.back().stale) {
+        // A nested child already flushed its own trailing spacing earlier (clobbering this box's own
+        // pending values) - lay out its remaining text only, and apply the box's own preserved closing
+        // spacing separately below, so the two don't stack.
+        self->makePages(true);
+      } else {
+        // No nested child touched this box's own state - this is its own content closing normally, so the
+        // ordinary flush (including the shrink-to-content width narrowing below) applies directly and marks
+        // the box finalized, matching a plain leaf box like a single-line bubble.
+        self->makePages();
+      }
     }
     auto scope = self->cssBorderBoxStack.back();
     if (!scope.finalized) {
