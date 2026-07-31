@@ -96,6 +96,8 @@ class ReaderSetting {
   uint8_t refreshFrequency = 3;  ///< SystemSetting::REFRESH_15 (enum index, not the page count - see getRefreshFrequency())
   uint8_t hyphenationEnabled = 1;    ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;  ///< Bionic Reading enabled
+  /** Vertical reading-guide lines at 1/3 and 2/3 of content width (speed-reading aid). */
+  uint8_t readingGuideLinesEnabled = 0;
 
   uint8_t screenMargin = 10;  ///< Screen margin in pixels
 

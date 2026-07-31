@@ -179,6 +179,13 @@ class EpubActivity final : public ActivityWithSubactivity {
   void renderStatusBar(int orientedMarginRight, int orientedMarginBottom, int orientedMarginLeft) const;
 
   /**
+   * Draws vertical reading-guide lines at 1/3 and 2/3 of the content width when enabled.
+   * Pure overlay — does not affect layout or page cache.
+   */
+  void drawReadingGuideLines(int orientedMarginTop, int orientedMarginRight, int orientedMarginBottom,
+                             int orientedMarginLeft) const;
+
+  /**
    * Saves current reading progress to file using BookProgress handler.
    *
    * @param spineIndex Current spine index

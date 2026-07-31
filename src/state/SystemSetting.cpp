@@ -48,14 +48,14 @@ constexpr uint8_t SETTINGS_FILE_VERSION = 37;
 // parsed, so loadFromFile() discards them and starts fresh instead of attempting to read them. See
 // ReaderSetting.cpp for the new reader_settings.bin format (independently versioned from 1).
 constexpr uint8_t MIN_SUPPORTED_SETTINGS_VERSION = 37;
-// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 38,
-// through shakePageTurnSensitivity - NOT counting the version/count header fields read separately
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 39,
+// through hideButtonHints - NOT counting the version/count header fields read separately
 // before the loop). This is written into the file as its own "how many fields do I contain" header
 // and read back as fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to
 // know whether the tail fields are actually present. If it's wrong, either the tail fields never get
 // read back even though they were written (undercount), or the file never triggers the self-healing
 // rewrite on old-format files (overcount, since fileSettingsCount can never reach it).
-constexpr uint8_t SETTINGS_COUNT = 38;
+constexpr uint8_t SETTINGS_COUNT = 39;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 constexpr char UI_THEME_FILE[] = "/.system/ui_theme.bin";
@@ -192,6 +192,7 @@ uint32_t settingsHash(const SystemSetting& settings) {
   hashPod(hash, settings.shakePageTurnSensitivity);
   hashPod(hash, settings.uiTheme);
   hashPod(hash, settings.libraryShelfEnabled);
+  hashPod(hash, settings.hideButtonHints);
   return hash;
 }
 
@@ -287,6 +288,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, shakePageTurnSensitivity);
   serialization::writePod(outputFile, uiTheme);
   serialization::writePod(outputFile, libraryShelfEnabled);
+  serialization::writePod(outputFile, hideButtonHints);
 
   outputFile.close();
   saveUiThemeSetting(uiTheme);
@@ -469,6 +471,10 @@ bool SystemSetting::loadFromFile() {
 
     serialization::readPod(inputFile, libraryShelfEnabled);
     if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
+    if (++settingsRead >= fileSettingsCount) break;
+
+    serialization::readPod(inputFile, hideButtonHints);
+    if (hideButtonHints > 1) hideButtonHints = 0;
     ++settingsRead;
 
   } while (false);
@@ -478,6 +484,7 @@ bool SystemSetting::loadFromFile() {
   if (recentVisibleCount < 1 || recentVisibleCount > 9) recentVisibleCount = 9;
   if (librarySortEnabled > 1) librarySortEnabled = 1;
   if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
+  if (hideButtonHints > 1) hideButtonHints = 0;
   if (librarySortMode > 7) librarySortMode = 0;
   if (sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) sleepClockStyle = CLOCK_CENTERED_DATE;
   if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) sleepClockTimeFormat = CLOCK_24_HOUR;
