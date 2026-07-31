@@ -106,16 +106,6 @@ class ChapterHtmlSlimParser {
   // unconditional pop would drop an ancestor's alignment and break inheritance for later siblings.
   std::vector<int> cssAlignmentDepths;
   std::vector<int> cssDisplayBlockDepths;
-  // Page/cursor snapshot taken right before a custom-display-block element (e.g. a bordered <span>) emits its
-  // border-top/padding-top, pushed in lockstep with cssDisplayBlockDepths. If the element closes having added
-  // no text (e.g. a bare `<span class="bordered"/>` used only as an endnote anchor), endElement rolls back to
-  // this snapshot so the never-used border/padding doesn't leave a stray line and gap on the page.
-  struct CssDisplayBlockSnapshot {
-    int16_t y;
-    size_t elementCount;
-    CssDisplayBlockSnapshot(const int16_t y, const size_t elementCount) : y(y), elementCount(elementCount) {}
-  };
-  std::vector<CssDisplayBlockSnapshot> cssDisplayBlockSnapshots;
   struct CssFontStyleScope {
     int depth = 0;
     bool bold = false;

@@ -536,7 +536,6 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   cssAlignmentStack.clear();
   cssAlignmentDepths.clear();
   cssDisplayBlockDepths.clear();
-  cssDisplayBlockSnapshots.clear();
   cssFontStyleStack.clear();
   smallCapsStack.clear();
   smallCapsDepths.clear();
@@ -1771,8 +1770,6 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
       self->makePages();
     }
-    self->cssDisplayBlockSnapshots.emplace_back(self->currentPageNextY,
-                                                self->currentPage ? self->currentPage->elements.size() : size_t{0});
     self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
     self->currentBlockFontId =
         self->blockFontIdForEm(self->css().getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
@@ -2092,34 +2089,6 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   if (!self->cssDisplayBlockDepths.empty() && self->cssDisplayBlockDepths.back() == self->depth) {
     self->cssDisplayBlockDepths.pop_back();
-    if (!self->cssDisplayBlockSnapshots.empty()) {
-      const auto snap = self->cssDisplayBlockSnapshots.back();
-      self->cssDisplayBlockSnapshots.pop_back();
-      // A single word with no trailing whitespace/tag flush yet (e.g. "POSITIVE" right before its own closing
-      // tag) still sits in partWordBuffer, not yet committed into currentTextBlock — flush it first so the
-      // emptiness check below reflects everything this element actually received, not just committed words.
-      self->flushPartWordBuffer();
-      if (self->currentTextBlock && self->currentTextBlock->isEmpty() && self->currentPage &&
-          self->currentPage->elements.size() > snap.elementCount) {
-        // This custom-display-block element (e.g. a bordered <span> used only as an endnote anchor in some
-        // EPUBs) never received any text, so the border/padding it already emitted above is a stray line
-        // with nothing below it. Roll the page and cursor back to how they looked right before it opened.
-        self->currentPage->elements.resize(snap.elementCount);
-        self->currentPageNextY = snap.y;
-        self->currentBlockContentStartY = snap.y;
-        self->pendingTopBorderElem_ = nullptr;
-        self->currentBlockBorderTopPx = 0;
-        self->currentBlockBorderBottomPx = 0;
-        self->currentBlockBorderLeftPx = 0;
-        self->currentBlockBorderRightPx = 0;
-        self->currentBlockPaddingBottomPx = 0;
-        self->currentBlockMarginBottomPx = 0;
-        self->currentBlockUsesBorderBox = false;
-        self->currentBlockShrinkBorderBoxToContent = false;
-        self->currentBlockSpacingFromCss = false;
-        self->currentBlockMinHeightPx = 0;
-      }
-    }
   }
   if (!self->inlineXOffsetStack.empty() && self->inlineXOffsetStack.back().depth == self->depth) {
     self->currentInlineXOffsetPx -= self->inlineXOffsetStack.back().offset;
@@ -2704,7 +2673,6 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   currentBlockContentStartY = 0;
   currentBlockFontId = -1;
   cssDisplayBlockDepths.clear();
-  cssDisplayBlockSnapshots.clear();
   inlineXOffsetStack.clear();
   currentInlineXOffsetPx = 0;
   cssHorizontalInsetStack.clear();
