@@ -1774,7 +1774,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
   // images and push a second refresh - so a not-yet-cached image's decode doesn't delay the rest of the
   // page. skipImagesInPageRender already covers the "high quality" grayscale case (images drawn in a
   // separate pass below); fold this case into it so page->render() skips images here too.
-  const bool deferOneBitImageRender = imageMode == ImageRenderMode::OneBit && pageHasImages && !needsImageGrayscale && pageHasLargeImage;
+  const bool deferOneBitImageRender = imageMode == ImageRenderMode::OneBit && pageHasImages && !needsImageGrayscale;
   const bool skipImagesInPageRender = (needsImageGrayscale && highQuality) || deferOneBitImageRender;
   page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, skipImagesInPageRender, imageMode,
                /*skipOnlyGrayscaleImages=*/highQuality && !deferOneBitImageRender);

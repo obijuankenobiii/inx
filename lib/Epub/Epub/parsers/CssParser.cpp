@@ -24,7 +24,7 @@ namespace {
 
 // Hard ceiling on stored rules (each holds only tracked properties, so it's small). The real bound at runtime
 // is the heap-reserve guard in parse(); this just caps worst-case memory if heap is plentiful.
-constexpr size_t kMaxCssRules = 2048;
+constexpr size_t kMaxCssRules = 1024;
 constexpr uint32_t kCssParserCacheMagic = 0x43535042;  // "CSPB"
 constexpr uint16_t kCssParserCacheVersion = 3;
 constexpr uint8_t kCssPropertyInvalid = 0xFF;

@@ -59,7 +59,7 @@ class BookMetadataCache {
 
  private:
   std::string cachePath;
-  size_t lutOffset;
+  uint32_t lutOffset;
   uint16_t spineCount;
   uint16_t tocCount;
   uint16_t cssCount;

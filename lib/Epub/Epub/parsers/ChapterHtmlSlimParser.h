@@ -235,8 +235,12 @@ class ChapterHtmlSlimParser {
 
   /**
    * Converts the current text block into page lines.
+   * @param deferClosingSpacingToCaller Lay out text only — skip this block's own trailing margin/padding/border
+   *        spacing (and border-box geometry finalization). Used when flushing the last child of a border/padded
+   *        box right before the box's own (authoritative) closing spacing is applied by the caller, so the
+   *        child's trailing spacing doesn't stack with the box's.
    */
-  void makePages();
+  void makePages(bool deferClosingSpacingToCaller = false);
 
   /**
    * Adds a single text line to the current page.
@@ -258,6 +262,7 @@ class ChapterHtmlSlimParser {
   /** Removes the first line's glyph top leading after a padded top border so the visible gap equals the CSS
    *  padding (not padding + leading). Capped at the padding, so zero-padding blocks are unaffected. */
   void tightenAfterTopBorder(int borderTop, int paddingTop);
+  void tightenBeforeBottomBorder(int borderBottom, int paddingBottom);
   /** Applies a CSS block's box model at its start: emits the top margin/border/padding, records the matching
    *  bottom edges + min-height for makePages() to apply, and marks the block's spacing as CSS-driven. Shared by
    *  the header, block, and custom-display-block element branches in startElement(). */

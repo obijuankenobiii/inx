@@ -1426,6 +1426,23 @@ void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int
   }
 }
 
+// Mirrors tightenAfterTopBorder for the bottom edge. A line's height reserves space below the glyph ink
+// (descent/leading) that the top-side tightening has no equivalent overshoot for, so without this, any
+// border-bottom + padding-bottom combo renders with a visibly bigger gap than the same values on top.
+void ChapterHtmlSlimParser::tightenBeforeBottomBorder(const int borderBottom, const int paddingBottom) {
+  if (borderBottom <= 0 || paddingBottom <= 0) return;
+  if (currentPageNextY <= currentBlockContentStartY) return;
+  const int activeFontId = inHeader ? headerFontId : fontId;
+  const int inset = renderer.text.getGlyphBottomInset(activeFontId, '0', EpdFontFamily::REGULAR);
+  // Unlike tightenAfterTopBorder, padding-bottom hasn't been added to currentPageNextY yet at this point, so
+  // capping the pull-up at paddingBottom (rather than at the content-start floor already enforced below) would
+  // leave part of the line's unused bottom slack uncorrected whenever padding-bottom is smaller than the inset.
+  if (inset > 0) {
+    currentPageNextY = static_cast<int16_t>(
+        std::max<int>(currentBlockContentStartY, static_cast<int>(currentPageNextY) - inset));
+  }
+}
+
 int ChapterHtmlSlimParser::activeBlockContentX() const { return std::max(0, currentCssInsetLeftPx); }
 
 int ChapterHtmlSlimParser::activeBlockContentWidth() const {
@@ -1602,9 +1619,7 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
   if (paddingTop > 0) {
     applyVerticalSpacing(paddingTop);
   }
-  if (!currentBlockShrinkBorderBoxToContent) {
-    tightenAfterTopBorder(borderTop, paddingTop);
-  }
+  tightenAfterTopBorder(borderTop, paddingTop);
   currentBlockContentStartY = currentPageNextY;
 }
 
@@ -2029,10 +2044,16 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   if (!self->cssBorderBoxStack.empty() && self->cssBorderBoxStack.back().depth == self->depth) {
     if (!self->cssBorderBoxStack.back().finalized && self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
-      self->makePages();
+      // Lay out the last child's remaining text only. Its own trailing margin/padding/border (and the
+      // reader's default paragraph gap) must not stack with the box's own closing spacing applied below.
+      self->makePages(true);
     }
     auto scope = self->cssBorderBoxStack.back();
     if (!scope.finalized) {
+      // Same correction as the direct-content path in makePages(): pull the cursor up to the last child's
+      // actual glyph-ink bottom before adding the box's own padding-bottom, so a box with equal top/bottom
+      // padding renders symmetrically instead of the bottom edge sitting lower than the top.
+      self->tightenBeforeBottomBorder(scope.borderBottom, scope.paddingBottom);
       if (scope.paddingBottom > 0) {
         self->applyVerticalSpacing(scope.paddingBottom);
       } else if (scope.borderBottom > 0) {
@@ -2311,7 +2332,7 @@ void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const
  * Converts the current text block into page lines.
  * Extracts lines based on viewport width and adds them to the current page.
  */
-void ChapterHtmlSlimParser::makePages() {
+void ChapterHtmlSlimParser::makePages(bool deferClosingSpacingToCaller) {
   if (!currentTextBlock) return;
 
   if (!currentPage) {
@@ -2321,7 +2342,7 @@ void ChapterHtmlSlimParser::makePages() {
 
   const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
   const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
-  const int readerParagraphGap = extraParagraphSpacing ? lineHeight / 2 : 0;
+  const int readerParagraphGap = (extraParagraphSpacing && !deferClosingSpacingToCaller) ? lineHeight / 2 : 0;
 
   currentTextBlock->layoutAndExtractLines(
       renderer, activeBlockFontId(), static_cast<uint16_t>(std::max(1, currentTextBlockContentWidth)),
@@ -2334,7 +2355,10 @@ void ChapterHtmlSlimParser::makePages() {
     pendingTopBorderElem_ = nullptr;
   }
 
-  if (currentBlockSpacingFromCss) {
+  // When deferring, the caller's own (authoritative) closing spacing — e.g. a border box's cssBorderBoxStack
+  // scope — runs right after this call, so this flush must not also apply the last child's own trailing
+  // margin/padding/border here (that stacked on top of the box's own bottom spacing and doubled the gap).
+  if (currentBlockSpacingFromCss && !deferClosingSpacingToCaller) {
     if (currentBlockShrinkBorderBoxToContent && currentPageNextY > currentBlockContentStartY) {
       const int activeFontId = activeBlockFontId();
       const int blockLineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
@@ -2343,6 +2367,11 @@ void ChapterHtmlSlimParser::makePages() {
           renderer.text.getGlyphBottomInset(activeFontId, '0', EpdFontFamily::REGULAR);
       currentPageNextY = static_cast<int16_t>(
           std::max<int>(currentBlockContentStartY + 1, static_cast<int>(currentPageNextY) - lowerLineGap));
+    } else if (!currentBlockShrinkBorderBoxToContent) {
+      // Mirrors tightenAfterTopBorder: pull the cursor up to the last line's actual glyph-ink bottom before
+      // adding this block's own padding-bottom/border-bottom, so the bottom gap matches the top gap for the
+      // same CSS values instead of overshooting by the font's unused line-height slack.
+      tightenBeforeBottomBorder(currentBlockBorderBottomPx, currentBlockPaddingBottomPx);
     }
     applyMinHeightPadding();  // grow short content to the block's min-height before the bottom box spacing
     if (currentBlockPaddingBottomPx > 0) {
