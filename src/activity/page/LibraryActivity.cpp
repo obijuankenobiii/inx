@@ -635,7 +635,7 @@ void LibraryActivity::findBooksPaginated(const std::string& path, std::vector<Li
 bool LibraryActivity::isValidBookFile(const std::string& filename) const {
   return StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
          StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt") ||
-         StringUtils::checkFileExtension(filename, ".md");
+         StringUtils::checkFileExtension(filename, ".md") || StringUtils::checkFileExtension(filename, ".mobi");
 }
 
 /**

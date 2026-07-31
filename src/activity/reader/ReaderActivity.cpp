@@ -8,8 +8,11 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <functional>
+
 #include "Epub.h"
 #include "Epub/EpubActivity.h"
+#include "Mobi.h"
 #include "Txt.h"
 #include "TxtReaderActivity.h"
 #include "Xtc.h"
@@ -48,6 +51,13 @@ bool ReaderActivity::isXtcFile(const std::string& path) {
 bool ReaderActivity::isTxtFile(const std::string& path) {
   return StringUtils::checkFileExtension(path, ".txt") || StringUtils::checkFileExtension(path, ".md");
 }
+
+/**
+ * @brief Checks if the file is a classic MOBI6 format file
+ * @param path Path to the file
+ * @return true if file has a .mobi extension
+ */
+bool ReaderActivity::isMobiFile(const std::string& path) { return StringUtils::checkFileExtension(path, ".mobi"); }
 
 /**
  * @brief Loads an EPUB file from the given path
@@ -107,6 +117,32 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
   }
 
   return nullptr;
+}
+
+/**
+ * @brief Loads a MOBI file by transcoding it (once, then cached) into a minimal EPUB and loading that
+ * @param path Path to the MOBI file
+ * @return Unique pointer to loaded Epub object (backed by the transcoded cache file), or nullptr on failure
+ */
+std::unique_ptr<Epub> ReaderActivity::loadEpubFromMobi(const std::string& path) {
+  if (!SdMan.exists(path.c_str())) {
+    return nullptr;
+  }
+
+  // Same hash-of-path cache-identity convention Epub itself uses (see Epub's own constructor) - a stable,
+  // deterministic cache path per source file, so re-opening the same .mobi reuses the same transcoded epub
+  // (and its progress/recents, which are tracked by that cache path - see Epub::getPath() callers).
+  const std::string cacheDir = "/.metadata/mobi";
+  SdMan.mkdir(cacheDir.c_str());
+  const std::string cachedEpubPath = cacheDir + "/" + std::to_string(std::hash<std::string>{}(path)) + ".epub";
+
+  if (!SdMan.exists(cachedEpubPath.c_str())) {
+    if (!Mobi::convertToEpub(path, cachedEpubPath)) {
+      return nullptr;
+    }
+  }
+
+  return loadEpub(cachedEpubPath);
 }
 
 /**
@@ -199,6 +235,13 @@ void ReaderActivity::onEnter() {
       return;
     }
     onGoToTxtReader(std::move(txt));
+  } else if (isMobiFile(initialBookPath)) {
+    auto epub = loadEpubFromMobi(initialBookPath);
+    if (!epub) {
+      showCorruptedBookError();
+      return;
+    }
+    onGoToEpubReader(std::move(epub));
   } else {
     auto epub = loadEpub(initialBookPath);
     if (!epub) {

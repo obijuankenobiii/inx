@@ -1422,6 +1422,11 @@ void ChapterHtmlSlimParser::tightenAfterTopBorder(const int borderTop, const int
   const int activeFontId = inHeader ? headerFontId : fontId;
   const int inset = renderer.text.getGlyphTopInset(activeFontId, 'H', EpdFontFamily::REGULAR);
   const int reduce = std::min(inset, paddingTop);  // never pull the text above the padded box
+  Serial.printf(
+      "[DBG-TOP] fontId=%d headerFontId=%d inHeader=%d activeFontId=%d borderTop=%d paddingTop=%d inset=%d "
+      "reduce=%d shrinkToContent=%d extraParagraphSpacing=%d\n",
+      fontId, headerFontId, inHeader ? 1 : 0, activeFontId, borderTop, paddingTop, inset, reduce,
+      currentBlockShrinkBorderBoxToContent ? 1 : 0, extraParagraphSpacing ? 1 : 0);
   if (reduce > 0) {
     currentPageNextY = static_cast<int16_t>(std::max(0, static_cast<int>(currentPageNextY) - reduce));
   }
@@ -1559,6 +1564,9 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
     return;
   }
 
+  Serial.printf("[DBG-MARGIN] tag=%s class=%s marginTop=%d currentPageNextY=%d willApply=%d\n", tagLower.c_str(),
+                classAttr.c_str(), marginTop, static_cast<int>(currentPageNextY),
+                (currentPageNextY > 0 && marginTop > 0) ? 1 : 0);
   if (currentPageNextY > 0 && marginTop > 0) {
     applyVerticalSpacing(marginTop);
   }
@@ -2371,9 +2379,18 @@ void ChapterHtmlSlimParser::makePages(bool deferClosingSpacingToCaller) {
     currentPageNextY = 0;
   }
 
-  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  // Use the header font's line height (when flushing a heading) rather than the body font's - otherwise the
+  // reader's default paragraph-gap top-up after a heading with little/no CSS closing spacing of its own (e.g.
+  // a bordered heading with just a few px of padding, no margin) ends up sized for body text and looks
+  // compressed against the bigger heading it's actually following.
+  const int lineHeight = renderer.text.getLineHeight(inHeader ? headerFontId : fontId) * lineCompression;
   const bool centerBorder = (currentTextBlock->getStyle() == TextBlock::CENTER_ALIGN);
   const int readerParagraphGap = (extraParagraphSpacing && !deferClosingSpacingToCaller) ? lineHeight / 2 : 0;
+  Serial.printf(
+      "[DBG-GAP] inHeader=%d fontId=%d headerFontId=%d lineCompression=%.2f lineHeight=%d readerParagraphGap=%d "
+      "extraParagraphSpacing=%d currentBlockPaddingBottomPx=%d currentBlockMarginBottomPx=%d\n",
+      inHeader ? 1 : 0, fontId, headerFontId, lineCompression, lineHeight, readerParagraphGap,
+      extraParagraphSpacing ? 1 : 0, currentBlockPaddingBottomPx, currentBlockMarginBottomPx);
 
   currentTextBlock->layoutAndExtractLines(
       renderer, activeBlockFontId(), static_cast<uint16_t>(std::max(1, currentTextBlockContentWidth)),

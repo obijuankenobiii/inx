@@ -51,6 +51,13 @@ class ReaderActivity final : public ActivityWithSubactivity {
   static std::unique_ptr<Txt> loadTxt(const std::string& path);
 
   /**
+   * @brief Loads a MOBI file by transcoding it (once, then cached) into a minimal EPUB and loading that
+   * @param path Path to the MOBI file
+   * @return Unique pointer to loaded Epub object (backed by the transcoded cache file), or nullptr on failure
+   */
+  static std::unique_ptr<Epub> loadEpubFromMobi(const std::string& path);
+
+  /**
    * @brief Checks if the file is an XTC format file
    * @param path Path to the file
    * @return true if file has .xtc or .xtch extension
@@ -63,6 +70,13 @@ class ReaderActivity final : public ActivityWithSubactivity {
    * @return true if file has .txt or .md extension
    */
   static bool isTxtFile(const std::string& path);
+
+  /**
+   * @brief Checks if the file is a classic MOBI6 format file
+   * @param path Path to the file
+   * @return true if file has a .mobi extension
+   */
+  static bool isMobiFile(const std::string& path);
 
   /**
    * @brief Extracts the parent directory path from a file path
