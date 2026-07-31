@@ -894,6 +894,12 @@ void CategorySettingsActivity::render() {
   const int dividerY = headerY + headerHeight;
   renderer.line.render(0, dividerY, pageWidth, dividerY, true);
 
+  const char* backLbl = selectorOpen ? "Cancel" : (backButtonLabel ? backButtonLabel : "\xC2\xAB Back");
+  const char* confirmLbl = selectorOpen ? "Select" : "Open";
+  const char* prevLbl = selectorOpen ? "Page -" : "";
+  const char* nextLbl = selectorOpen ? "Page +" : "";
+  const auto labels = mappedInput.mapLabels(backLbl, confirmLbl, prevLbl, nextLbl);
+
   const int startY = dividerY;
   constexpr int itemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
@@ -975,15 +981,20 @@ void CategorySettingsActivity::render() {
     renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
+  if (INX_THEME.mainTabsAtBottom()) {
+    // Bottom-tabs mode moves the tab bar to the screen bottom, where the classic button-hints row normally
+    // goes, so redraw that same row just above the tab bar instead — only for this settings screen, since
+    // other bottom-tabs screens rely on the tab bar alone.
+    const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
+    const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
+                           hintsY);
+  }
+
   if (selectorOpen) {
     renderSelectorOverlay();
   }
 
-  const char* backLbl = selectorOpen ? "Cancel" : (backButtonLabel ? backButtonLabel : "\xC2\xAB Back");
-  const char* confirmLbl = selectorOpen ? "Select" : "Open";
-  const char* prevLbl = selectorOpen ? "Page -" : "";
-  const char* nextLbl = selectorOpen ? "Page +" : "";
-  const auto labels = mappedInput.mapLabels(backLbl, confirmLbl, prevLbl, nextLbl);
   renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

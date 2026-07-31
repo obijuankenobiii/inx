@@ -167,6 +167,10 @@ struct SettingInfo {
 extern const int LIST_ITEM_HEIGHT;
 
 class CategorySettingsActivity final : public ActivityWithSubactivity, public Menu {
+  // In bottom-tabs mode, the tab bar sits at the screen bottom where the classic button-hints row normally
+  // goes, so that row is redrawn just above the tab bar instead (see render()). This reserves that space.
+  static constexpr int kBottomButtonHintsHeight = 50;
+
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
@@ -275,8 +279,9 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
         onTabStatistics(std::move(tabNavigateStatistics)) {
     tabSelectorIndex = 2;
     const int contentTop = mainContentTop() + mainHeaderHeight();
-    const int contentBottom =
-        INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 80;
+    const int contentBottom = INX_THEME.mainTabsAtBottom()
+                                  ? mainContentBottom(renderer) - kBottomButtonHintsHeight
+                                  : renderer.getScreenHeight() - 80;
     itemsPerPage = (contentBottom - contentTop) / UiTheme::DRAWER_LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
 

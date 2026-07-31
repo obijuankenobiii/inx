@@ -162,7 +162,8 @@ void ReaderPresetsActivity::onEnter() {
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
   const int listTop = mainHeaderDividerY();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 60;
+  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) - kBottomButtonHintsHeight
+                                                         : screenH - 60;
   itemsPerPage_ = std::max(1, (contentBottom - listTop) / kListItemHeight);
   selectedRow_ = 0;
   scrollOffset_ = 0;
@@ -440,6 +441,14 @@ void ReaderPresetsActivity::render() {
                          LineRender::Style::Dotted);
   }
   renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
+
+  if (INX_THEME.mainTabsAtBottom()) {
+    // Bottom-tabs mode moves the tab bar to the screen bottom, where the classic button-hints row normally
+    // goes, so redraw that same row just above the tab bar instead — matches CategorySettingsActivity.
+    const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
+    const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
+    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "", hintsY);
+  }
 
   renderButtonHints(renderer, "\xC2\xAB Back", "Open", "", "");
 

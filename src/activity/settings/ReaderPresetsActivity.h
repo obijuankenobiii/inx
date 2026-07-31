@@ -75,6 +75,9 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   const std::function<void()> onTabStatistics_;
 
   static constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+  // In bottom-tabs mode, the tab bar sits at the screen bottom where the classic button-hints row normally
+  // goes, so that row is redrawn just above the tab bar instead (see render()). This reserves that space.
+  static constexpr int kBottomButtonHintsHeight = 50;
 
   int selectedRow_ = 0;
   int scrollOffset_ = 0;
