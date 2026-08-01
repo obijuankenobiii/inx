@@ -54,11 +54,10 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
 
   if (x3) {
     settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));
+    settings.push_back(SettingInfo::Toggle("Show Clock", &SystemSetting::showMenuClock, GroupType::CLOCK));
     settings.push_back(SettingInfo::Action("Face", GroupType::CLOCK));
     settings.push_back(
         SettingInfo::Enum("Format", &SystemSetting::sleepClockTimeFormat, {"12 hour", "24 hour"}, GroupType::CLOCK));
-    settings.push_back(
-        SettingInfo::Value("Timezone", &SystemSetting::timeZoneQuarterOffset, {0, 104, 1}, GroupType::CLOCK));
     settings.push_back(SettingInfo::Action("Sync", GroupType::CLOCK));
   }
 

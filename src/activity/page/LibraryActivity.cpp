@@ -2917,14 +2917,18 @@ void LibraryActivity::renderLibraryGrid(int startY) const {
   const int gapY = (LIB_GRID_ROWS > 1) ? std::max(LIB_GRID_MIN_GAP_Y, remainingH / (LIB_GRID_ROWS - 1)) : 0;
   const int blockH = LIB_GRID_ROWS * frameH + (LIB_GRID_ROWS - 1) * gapY;
   const int blockTop = startY + LIB_GRID_OUTER_PAD + std::max(0, (availH - blockH) / 2);
-  const int blockW = LIB_GRID_COLS * frameW + (LIB_GRID_COLS - 1) * LIB_GRID_GAP_X;
+  // Leftover horizontal space (frameW caps out at GRID_ICON_SIZE well before filling the screen) goes into
+  // the gap between columns instead of sitting as unused side margin - same idea as gapY above.
+  const int remainingW = availW - LIB_GRID_COLS * frameW;
+  const int gapX = (LIB_GRID_COLS > 1) ? std::max(LIB_GRID_GAP_X, remainingW / (LIB_GRID_COLS - 1)) : 0;
+  const int blockW = LIB_GRID_COLS * frameW + (LIB_GRID_COLS - 1) * gapX;
   const int row0X = LIB_GRID_OUTER_PAD + std::max(0, (availW - blockW) / 2);
   const bool rounded = true;
 
   for (int i = 0; i < static_cast<int>(items.size()) && i < GRID_ITEMS_PER_PAGE; ++i) {
     const int row = i / LIB_GRID_COLS;
     const int col = i % LIB_GRID_COLS;
-    const int boxX = row0X + col * (frameW + LIB_GRID_GAP_X);
+    const int boxX = row0X + col * (frameW + gapX);
     const int boxY = blockTop + row * (frameH + gapY);
     const bool selected = tabSelectorIndex == 1 && selectorIndex == i && !isHeaderButtonSelected &&
                           !isIndexButtonSelected && !isSortButtonSelected;

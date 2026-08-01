@@ -283,19 +283,11 @@ void CategorySettingsActivity::setupMenu() {
           }
         }
         if (setting.type == SettingType::VALUE) {
-          if (setting.name != nullptr && strcmp(setting.name, "Timezone") == 0) {
-            entry.getValueText = []() -> const char* {
-              static char buffer[16];
-              SETTINGS.formatTimeZone(buffer, sizeof(buffer));
-              return buffer;
-            };
-          } else {
-            entry.getValueText = [settingPtr]() -> const char* {
-              static char buffer[32];
-              snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(settingPtr->valuePtr));
-              return buffer;
-            };
-          }
+          entry.getValueText = [settingPtr]() -> const char* {
+            static char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%d", SETTINGS.*(settingPtr->valuePtr));
+            return buffer;
+          };
           entry.change = [this, settingPtr](int delta) {
             int current = SETTINGS.*(settingPtr->valuePtr);
             int newVal = current + (delta * settingPtr->valueRange.step);
@@ -380,17 +372,6 @@ void CategorySettingsActivity::applyChange(int delta) {
   selected.change(delta);
 }
 
-namespace {
-std::string formatTimezoneOption(const uint8_t value) {
-  const int minutes = (static_cast<int>(value) - 48) * 15;
-  const char sign = minutes < 0 ? '-' : '+';
-  const int absMinutes = minutes < 0 ? -minutes : minutes;
-  char buffer[16];
-  std::snprintf(buffer, sizeof(buffer), "UTC%c%02d:%02d", sign, absMinutes / 60, absMinutes % 60);
-  return std::string(buffer);
-}
-}  // namespace
-
 int CategorySettingsActivity::selectedOptionIndex(const MenuEntry& entry) const {
   if (!entry.valuePtr) {
     return 0;
@@ -461,13 +442,9 @@ void CategorySettingsActivity::openSelectorForSelected() {
   } else {
     const int step = std::max(1, static_cast<int>(entry.valueRange.step));
     for (int value = entry.valueRange.min; value <= entry.valueRange.max; value += step) {
-      if (entry.name && std::strcmp(entry.name, "Timezone") == 0) {
-        selectorOptions.push_back(formatTimezoneOption(static_cast<uint8_t>(value)));
-      } else {
-        char buffer[16];
-        std::snprintf(buffer, sizeof(buffer), "%d", value);
-        selectorOptions.emplace_back(buffer);
-      }
+      char buffer[16];
+      std::snprintf(buffer, sizeof(buffer), "%d", value);
+      selectorOptions.emplace_back(buffer);
     }
   }
   if (selectorOptions.empty()) {

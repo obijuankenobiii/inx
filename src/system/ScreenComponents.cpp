@@ -33,7 +33,7 @@ void drawBatteryLightningBolt(const GfxRenderer& renderer, const int boltX, cons
 }
 
 bool formatMenuClock(char* out, const size_t outSize) {
-  if (!out || outSize == 0 || !gpio.deviceIsX3()) {
+  if (!out || outSize == 0 || !gpio.deviceIsX3() || !SETTINGS.showMenuClock) {
     return false;
   }
 

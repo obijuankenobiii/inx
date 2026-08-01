@@ -392,6 +392,8 @@ class SystemSetting {
   uint8_t sleepClockRefreshInterval = CLOCK_REFRESH_OFF;  ///< Legacy settings slot; Date Time is X3-only
   /** UTC offset in 15-minute steps, biased by +12h. 0=UTC-12:00, 80=UTC+08:00, 104=UTC+14:00. */
   uint8_t timeZoneQuarterOffset = 80;
+  /** X3 only: show the ambient clock (ScreenComponents::drawMenuClock) in the tab-bar chrome. */
+  uint8_t showMenuClock = 1;
 
   uint8_t shortPwrBtn = PAGE_REFRESH;  ///< Short power button behavior
 

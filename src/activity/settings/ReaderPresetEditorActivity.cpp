@@ -247,6 +247,10 @@ void ReaderPresetEditorActivity::renderPreview() {
   constexpr int kSmallCapsWordCount = 4;
   const char dropCapLetter[2] = {kLoremParagraph1[0], '\0'};
   const int dropCapFontId = READER_SETTINGS.getReaderFontIdForFamilyAndSize(working_.fontFamily, SystemSetting::EXTRA_LARGE);
+  // Unlike the body font (ensured in onEnter()/the drawer's change callback), this larger same-family size
+  // is only ever touched here - for an SD custom font it's a distinct, separately-loaded slot, so without
+  // this it silently has no glyph data and the drop cap (and its width, throwing off the wrap indent) is blank.
+  FontManager::ensureFontReady(dropCapFontId, renderer);
   const int dropCapWidth = renderer.text.getWidth(dropCapFontId, dropCapLetter, EpdFontFamily::BOLD) + 6;
 
   int y = bodyTop;
