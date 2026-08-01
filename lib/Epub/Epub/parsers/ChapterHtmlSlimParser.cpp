@@ -1579,20 +1579,34 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
     return;
   }
 
-  if (currentPageNextY > 0 && marginTop > 0) {
-    applyVerticalSpacing(marginTop);
-  }
-  if (currentBlockUsesBorderBox) {
-    const int activeFontId = activeBlockFontId();
-    const int lineHeight = renderer.text.getLineHeight(activeFontId) * lineCompression;
-    const int keepTogetherHeight =
-        reservedBorderThickness(borderTop, currentBlockBorderTopStyle) + paddingTop + currentBlockPaddingBottomPx +
-        reservedBorderThickness(currentBlockBorderBottomPx, currentBlockBorderBottomStyle) + std::max(1, lineHeight) * 8;
-    if (currentPageNextY > 0 && viewportHeight - currentPageNextY < keepTogetherHeight) {
+  if (currentPageNextY > 0 && (marginTop > 0 || currentBlockUsesBorderBox)) {
+    // Reserving a block's full margin-top can leave just enough room for the margin but not the block's own
+    // first line (or, for a bordered box, its chrome plus a couple of content lines) - bouncing the whole
+    // block to the next page and leaving that margin's worth of space sitting unused on this one (real
+    // content that would have fit, pushed off for the sake of full-size spacing). Margins collapsing at a
+    // forced page break is standard print-CSS behavior anyway, so figure out what's actually needed for the
+    // block to usefully start here, clamp the margin down to whatever's left after that, and only fall
+    // through to a full page break when even a zero margin wouldn't leave room for the block itself.
+    const int lineHeight = std::max(1, renderer.text.getLineHeight(activeBlockFontId())) * lineCompression;
+    const int contentMinHeight =
+        currentBlockUsesBorderBox
+            ? reservedBorderThickness(borderTop, currentBlockBorderTopStyle) + paddingTop +
+                  currentBlockPaddingBottomPx +
+                  reservedBorderThickness(currentBlockBorderBottomPx, currentBlockBorderBottomStyle) + lineHeight * 3
+            : lineHeight;
+    const int remaining = viewportHeight - currentPageNextY;
+    if (remaining >= marginTop + contentMinHeight) {
+      if (marginTop > 0) applyVerticalSpacing(marginTop);
+    } else if (remaining >= contentMinHeight) {
+      const int clampedMargin = remaining - contentMinHeight;
+      if (clampedMargin > 0) applyVerticalSpacing(clampedMargin);
+    } else {
       completeCurrentPage();
       currentPage.reset(new Page());
       currentPageNextY = 0;
     }
+  }
+  if (currentBlockUsesBorderBox) {
     if (!currentPage) {
       currentPage.reset(new Page());
     }
@@ -1870,6 +1884,15 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->flushPartWordBuffer();
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
+      if (self->css().isPageBreakBeforeAlways(tagLower, classAttr, idAttr, styleAttr)) {
+        if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+          self->makePages();
+        }
+        if (self->currentPage && !self->currentPage->elements.empty()) {
+          self->completeCurrentPage();
+          self->currentPageNextY = 0;
+        }
+      }
       const TextBlock::Style blockStyle =
           self->resolveBlockStyle(name, atts, elementHasExplicitTextAlign, elementCssStyle, inheritedCssStyle);
       self->startNewTextBlock(blockStyle);

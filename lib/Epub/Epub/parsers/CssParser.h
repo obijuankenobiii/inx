@@ -169,6 +169,11 @@ class CssParser {
   /** True if the resolved `list-style`/`list-style-type` is `none` (no marker should be drawn). */
   bool isListStyleNone(const std::string& elementTagLower, const std::string& className, const std::string& id,
                        const std::string& styleAttr) const;
+  /** True if `page-break-before`/`page-break-after` resolves to `always` (forces a fresh page). */
+  bool isPageBreakBeforeAlways(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                               const std::string& styleAttr) const;
+  bool isPageBreakAfterAlways(const std::string& elementTagLower, const std::string& className, const std::string& id,
+                              const std::string& styleAttr) const;
   std::string getBackgroundImagePath(const std::string& elementTagLower, const std::string& className,
                                      const std::string& id, const std::string& styleAttr,
                                      const std::string& currentFilePath) const;

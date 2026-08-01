@@ -34,7 +34,8 @@ inline bool isTrackedCssProperty(const std::string& name) {
       "max-inline-size", "max-width",        "min-block-size",
       "min-height",      "min-inline-size",  "min-width",
       "padding",         "padding-bottom",   "padding-left",
-      "padding-right",   "padding-top",      "text-align",
+      "padding-right",   "padding-top",      "page-break-after",
+      "page-break-before", "text-align",
       "text-indent",     "vertical-align",   "width",
   };
   return std::binary_search(std::begin(kTracked), std::end(kTracked), name.c_str(),
