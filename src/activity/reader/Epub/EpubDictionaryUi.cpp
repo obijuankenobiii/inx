@@ -346,8 +346,12 @@ bool EpubDictionaryUi::tryNavigationHoldRepeat(EpubActivity& act) {
   } else if (navRepeatDir_ == 1 && rightHeld) {
     moveFocusWord(1);
   } else if (navRepeatDir_ == 2 && upHeld) {
+    // Auto-repeat covers 2 lines/tick (vs. 1 for the initial press) - holding Up/Down would
+    // otherwise take forever to cross a full page at kNavRepeatIntervalMs.
+    moveFocusLine(-1);
     moveFocusLine(-1);
   } else if (navRepeatDir_ == 3 && downHeld) {
+    moveFocusLine(1);
     moveFocusLine(1);
   } else {
     navRepeatDir_ = -1;
