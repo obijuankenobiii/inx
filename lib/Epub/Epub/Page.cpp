@@ -177,7 +177,7 @@ void drawRoundedBorder(GfxRenderer& renderer, const int x, const int y, const in
   if (width <= 0 || height <= 0 || thickness <= 0 || tone == 0) {
     return;
   }
-  const int r = std::max(1, std::min(width, height) / 5);
+  const int r = std::max(1, std::min(width, height) / 15);
   const int right = x + width - 1;
   const int bottom = y + height - 1;
   for (int t = 0; t < thickness; ++t) {
@@ -363,6 +363,43 @@ std::unique_ptr<PageDropCap> PageDropCap::deserialize(FsFile& file) {
   serialization::readPod(file, inlineFirstLine);
   serialization::readString(file, text);
   return std::unique_ptr<PageDropCap>(new PageDropCap(text, x, y, dcFontId, inlineFirstLine));
+}
+
+void PageListMarker::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                            ImageRenderMode) {
+  // Drawn as a plain filled circle rather than a font glyph - some fonts render "." or "•" too small, too
+  // faint, or positioned oddly (this reader has no dedicated bullet glyph), so a drawn shape sized off the
+  // item's own font metrics is the only way to guarantee a clearly visible, correctly placed marker.
+  const int ascender = renderer.text.getFontAscenderSize(markerFontId);
+  const int radius = std::max(3, ascender / 4);
+  const int bodyBaseline = yPos + yOffset + renderer.text.getFontAscenderSize(fontId);
+  const int centerX = xPos + xOffset + radius;
+  const int centerY = bodyBaseline - ascender / 2;
+  for (int dy = -radius; dy <= radius; ++dy) {
+    const int span = static_cast<int>(std::sqrt(static_cast<double>(radius * radius - dy * dy)));
+    for (int dx = -span; dx <= span; ++dx) {
+      renderer.drawPixel(centerX + dx, centerY + dy, true);
+    }
+  }
+}
+
+bool PageListMarker::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  serialization::writePod(file, markerFontId);
+  serialization::writeString(file, text);
+  return true;
+}
+
+std::unique_ptr<PageListMarker> PageListMarker::deserialize(FsFile& file) {
+  int16_t x, y;
+  int fontId;
+  std::string text;
+  serialization::readPod(file, x);
+  serialization::readPod(file, y);
+  serialization::readPod(file, fontId);
+  serialization::readString(file, text);
+  return std::unique_ptr<PageListMarker>(new PageListMarker(text, x, y, fontId));
 }
 
 /**
@@ -1129,6 +1166,8 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
       page->elements.push_back(PageCssBorderLine::deserialize(file));
     } else if (tag == TAG_PageCssBorderBox) {
       page->elements.push_back(PageCssBorderBox::deserialize(file));
+    } else if (tag == TAG_PageListMarker) {
+      page->elements.push_back(PageListMarker::deserialize(file));
     }
   }
   return page;

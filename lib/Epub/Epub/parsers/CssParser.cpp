@@ -26,7 +26,7 @@ namespace {
 // is the heap-reserve guard in parse(); this just caps worst-case memory if heap is plentiful.
 constexpr size_t kMaxCssRules = 1024;
 constexpr uint32_t kCssParserCacheMagic = 0x43535042;  // "CSPB"
-constexpr uint16_t kCssParserCacheVersion = 3;
+constexpr uint16_t kCssParserCacheVersion = 4;
 constexpr uint8_t kCssPropertyInvalid = 0xFF;
 
 uint8_t cssPropertyId(const std::string& name) {
@@ -39,6 +39,7 @@ uint8_t cssPropertyId(const std::string& name) {
       "margin-top",       "max-height",       "max-width",        "min-height",   "min-width",
       "padding",          "padding-bottom",   "padding-left",     "padding-right", "padding-top",
       "text-align",       "text-indent",      "vertical-align",   "width",        "float",
+      "list-style",       "list-style-type",
   };
   for (uint8_t i = 0; i < sizeof(kNames) / sizeof(kNames[0]); ++i) {
     if (name == kNames[i]) {
@@ -58,6 +59,7 @@ const char* cssPropertyName(const uint8_t id) {
       "margin-top",       "max-height",       "max-width",        "min-height",   "min-width",
       "padding",          "padding-bottom",   "padding-left",     "padding-right", "padding-top",
       "text-align",       "text-indent",      "vertical-align",   "width",        "float",
+      "list-style",       "list-style-type",
   };
   return id < sizeof(kNames) / sizeof(kNames[0]) ? kNames[id] : "";
 }
@@ -2188,6 +2190,28 @@ bool CssParser::hasBorderSpecified(const std::string& elementTagLower, const std
          hasPropertySpecified("border-left", className, id, styleAttr, elementTagLower) ||
          hasPropertySpecified("border-width", className, id, styleAttr, elementTagLower) ||
          hasPropertySpecified("border-style", className, id, styleAttr, elementTagLower);
+}
+
+bool CssParser::hasListStyleSpecified(const std::string& elementTagLower, const std::string& className,
+                                      const std::string& id, const std::string& styleAttr) const {
+  return hasPropertySpecified("list-style-type", className, id, styleAttr, elementTagLower) ||
+         hasPropertySpecified("list-style", className, id, styleAttr, elementTagLower);
+}
+
+bool CssParser::isListStyleNone(const std::string& elementTagLower, const std::string& className,
+                                const std::string& id, const std::string& styleAttr) const {
+  const std::string type = getCascadedPropertyValue("list-style-type", className, id, styleAttr, elementTagLower);
+  if (!type.empty()) {
+    return toLower(trimCssWs(type)) == "none";
+  }
+  // "list-style" is a shorthand for <type> <position> <image> in any order (e.g. "none" or "square inside").
+  const std::string shorthand = getCascadedPropertyValue("list-style", className, id, styleAttr, elementTagLower);
+  for (const auto& tok : splitCssWhitespaceList(trimCssWs(shorthand))) {
+    if (toLower(tok) == "none") {
+      return true;
+    }
+  }
+  return false;
 }
 
 std::string CssParser::getBackgroundImagePath(const std::string& elementTagLower, const std::string& className,

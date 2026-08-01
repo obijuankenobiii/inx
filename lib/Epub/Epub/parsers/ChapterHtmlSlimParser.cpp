@@ -521,6 +521,7 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   underlineUntilDepth = INT_MAX;
   superscriptUntilDepth = INT_MAX;
   subscriptUntilDepth = INT_MAX;
+  listNoIndentDepths_.clear();
   inHeader = false;
   inDropCap = false;
   dropCapDepth = INT_MAX;
@@ -534,8 +535,12 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   currentTextBlockContentX = 0;
   currentTextBlockContentWidth = std::max(1, static_cast<int>(viewportWidth));
   cssAlignmentStack.clear();
+  cssAlignmentExplicitStack.clear();
   cssAlignmentDepths.clear();
   cssDisplayBlockDepths.clear();
+  ulBulletVisibleStack.clear();
+  ulBulletVisibleDepths.clear();
+  pendingListMarker_ = false;
   cssFontStyleStack.clear();
   smallCapsStack.clear();
   smallCapsDepths.clear();
@@ -1840,10 +1845,17 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inHeader = true;
     self->beginCssBlockBox(tagLower, classAttr, idAttr, styleAttr);
     self->pushBlockClosingScopeIfNeeded();
-    // Headers default to centered, but follow an explicit CSS text-align (e.g. .h2 { text-align: right }).
+    // Headers follow their own explicit CSS text-align first (e.g. .h2 { text-align: right }), then a real
+    // explicit text-align inherited from an ancestor (text-align is an inherited CSS property - e.g. a
+    // wrapping title-card div with text-align: left). Only when neither is ever detected do headers default
+    // to centered - many chapter-title headers are styled via a descendant selector like ".chapter-title h2"
+    // that the simplified CSS matcher's own-element check can't see, so this default is still needed.
     TextBlock::Style headerStyle = TextBlock::CENTER_ALIGN;
-    if (self->css().hasTextAlignSpecified(tagLower, classAttr, idAttr, styleAttr)) {
-      headerStyle = self->resolveTextAlignFromAttributes(name, atts, inheritedCssStyle);
+    if (elementHasExplicitTextAlign) {
+      headerStyle = elementCssStyle;
+    } else if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS &&
+               !self->cssAlignmentExplicitStack.empty() && self->cssAlignmentExplicitStack.back()) {
+      headerStyle = inheritedCssStyle;
     }
     self->startNewTextBlock(headerStyle);
   } else if (isBlockTag) {
@@ -1859,14 +1871,48 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       // Large CSS font-size on a block (e.g. a big centered title <p>) renders with a bigger reader font.
       self->currentBlockFontId =
           self->blockFontIdForEm(self->css().getFontSizeEm(tagLower, classAttr, idAttr, styleAttr));
-      if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
-          self->css().hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+      if (self->currentTextBlock && !self->listNoIndentDepths_.empty()) {
+        // Inside a <ul>/<ol> - never let a first-line indent (CSS text-indent or the reader's own default
+        // paragraph indent) throw off the hanging-bullet alignment, on the <li> itself or anything nested
+        // inside it. List items must always line up.
+        self->currentTextBlock->setCssTextIndentFromCascade(0);
+      } else if (self->currentTextBlock && (followCssParagraphLayout || self->respectCssParagraphIndent) &&
+                 self->css().hasTextIndentSpecified(tagLower, classAttr, idAttr, styleAttr)) {
         const int px = self->css().getTextIndentPx(tagLower, classAttr, idAttr, styleAttr, self->viewportWidth,
                                                    self->viewportHeight);
         self->currentTextBlock->setCssTextIndentFromCascade(px);
       }
       if (self->currentBlockShrinkBorderBoxToContent && self->currentTextBlock) {
         self->currentTextBlock->setCssTextIndentFromCascade(0);
+      }
+      if (tagLower == "ul" || tagLower == "ol") {
+        self->listNoIndentDepths_.push_back(self->depth);
+      }
+      if (tagLower == "ul") {
+        self->ulBulletVisibleStack.push_back(!self->css().isListStyleNone(tagLower, classAttr, idAttr, styleAttr));
+        self->ulBulletVisibleDepths.push_back(self->depth);
+      } else if (tagLower == "li") {
+        bool showBullet = !self->ulBulletVisibleStack.empty() && self->ulBulletVisibleStack.back();
+        if (self->css().hasListStyleSpecified(tagLower, classAttr, idAttr, styleAttr)) {
+          showBullet = !self->css().isListStyleNone(tagLower, classAttr, idAttr, styleAttr);
+        }
+        // Deferred to the first real (non-whitespace) character in characterData() - the <li>'s actual text
+        // may be nested inside its own block (e.g. <li><p>text</p></li>), and creating the marker here would
+        // place it at a Y the nested block hasn't reached yet.
+        self->pendingListMarker_ = showBullet;
+        self->listMarkerIndentPx_ = 0;
+        if (showBullet) {
+          // The marker is a standalone element (like a drop cap), not a word in the text flow - an inline
+          // x-offset only nudges *rendering*, it doesn't shrink the width the layout reserves for that word,
+          // so the marker+space would still push the item's actual first word in by their own width while
+          // wrapped lines (with no marker) started further left. Instead: record where the marker itself goes
+          // (the current margin), then push every line of the item - first line included - in by the marker's
+          // width, so the marker floats in that reclaimed space to the left of text that's uniformly indented.
+          self->pendingListMarkerX_ = static_cast<int16_t>(self->activeBlockContentX());
+          self->listMarkerIndentPx_ = std::max(1, self->renderer.text.getLineHeight(self->activeBlockFontId()));
+          self->currentCssInsetLeftPx += self->listMarkerIndentPx_;
+          self->captureCurrentTextBlockBox();
+        }
       }
     }
   }
@@ -1880,6 +1926,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     // otherwise the subtree keeps inheriting the ancestor's alignment.
     const TextBlock::Style pushedCssStyle = elementHasExplicitTextAlign ? elementCssStyle : inheritedCssStyle;
     self->cssAlignmentStack.push_back(pushedCssStyle);
+    self->cssAlignmentExplicitStack.push_back(
+        elementHasExplicitTextAlign ||
+        (!self->cssAlignmentExplicitStack.empty() && self->cssAlignmentExplicitStack.back()));
     self->cssAlignmentDepths.push_back(self->depth);
   }
   self->depth += 1;
@@ -1942,6 +1991,18 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       continue;
     }
 
+    if (self->pendingListMarker_ && self->partWordBufferIndex == 0) {
+      self->pendingListMarker_ = false;
+      // Drawn as its own PageListMarker element at the un-indented margin, not as a word in the text flow - a
+      // word here would still reserve its own width in the line layout even with a rendering-only offset
+      // applied, pushing the item's real first word in by the marker's width while wrapped lines (with no
+      // marker word) started further left. The item's actual text starts directly at the hanging-indented
+      // margin (see listMarkerIndentPx_ above), with nothing preceding it in the flow.
+      if (!self->currentPage) self->currentPage.reset(new Page());
+      self->currentPage->elements.emplace_back(
+          new PageListMarker("\xC2\xB7", self->pendingListMarkerX_, self->currentPageNextY, self->activeBlockFontId()));
+    }
+
     if (!self->inDropCap && self->partWordBufferIndex >= MAX_WORD_SIZE) {
       self->flushPartWordBuffer();
     }
@@ -1973,6 +2034,13 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
  */
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+
+  if (strcmp(name, "li") == 0) {
+    // Drop an unconsumed marker (e.g. an empty <li></li>) so it doesn't bleed into whatever follows.
+    self->pendingListMarker_ = false;
+    self->currentCssInsetLeftPx -= self->listMarkerIndentPx_;
+    self->listMarkerIndentPx_ = 0;
+  }
 
   if (self->imagePrefetchPassOnly_) {
     (void)name;
@@ -2151,6 +2219,13 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (!self->cssDisplayBlockDepths.empty() && self->cssDisplayBlockDepths.back() == self->depth) {
     self->cssDisplayBlockDepths.pop_back();
   }
+  if (!self->ulBulletVisibleDepths.empty() && self->ulBulletVisibleDepths.back() == self->depth) {
+    self->ulBulletVisibleStack.pop_back();
+    self->ulBulletVisibleDepths.pop_back();
+  }
+  if (!self->listNoIndentDepths_.empty() && self->listNoIndentDepths_.back() == self->depth) {
+    self->listNoIndentDepths_.pop_back();
+  }
   if (!self->inlineXOffsetStack.empty() && self->inlineXOffsetStack.back().depth == self->depth) {
     self->currentInlineXOffsetPx -= self->inlineXOffsetStack.back().offset;
     self->inlineXOffsetStack.pop_back();
@@ -2161,6 +2236,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (self->paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS && !self->cssAlignmentDepths.empty() &&
       self->cssAlignmentDepths.back() == self->depth) {
     self->cssAlignmentStack.pop_back();
+    self->cssAlignmentExplicitStack.pop_back();
     self->cssAlignmentDepths.pop_back();
   }
   if (!self->cssFontStyleStack.empty() && self->cssFontStyleStack.back().depth == self->depth) {
@@ -2725,6 +2801,9 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   currentBlockContentStartY = 0;
   currentBlockFontId = -1;
   cssDisplayBlockDepths.clear();
+  ulBulletVisibleStack.clear();
+  ulBulletVisibleDepths.clear();
+  listNoIndentDepths_.clear();
   inlineXOffsetStack.clear();
   currentInlineXOffsetPx = 0;
   cssHorizontalInsetStack.clear();
@@ -2752,6 +2831,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages(bool skipImageProcessing) {
   }
   if (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS) {
     cssAlignmentStack.push_back(initialBlockStyle);
+    cssAlignmentExplicitStack.push_back(false);  // no real CSS text-align behind this yet, just the doc default
     cssAlignmentDepths.push_back(-1);  // sentinel root: no element depth (>=0) ever pops it
   }
   smallCapsStack.push_back(false);

@@ -28,6 +28,7 @@ enum PageElementTag : uint8_t {
   TAG_PageSmallCaps = 7,
   TAG_PageCssBorderLine = 8,
   TAG_PageCssBorderBox = 9,
+  TAG_PageListMarker = 10,
 };
 
 /**
@@ -165,6 +166,35 @@ class PageDropCap final : public PageElement {
               ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageDropCap> deserialize(FsFile& file);
+};
+
+/**
+ * A <ul>/<ol> list item's bullet/number marker, drawn as its own element at the item's un-indented
+ * margin - independent of the text word flow, so it never reserves layout width that would push the
+ * item's real text (or wrapped continuation lines) out of alignment with each other.
+ */
+class PageListMarker final : public PageElement {
+  std::string text;
+  int markerFontId;
+
+ public:
+  /**
+   * @param text The marker glyph(s) to render (e.g. a bullet dot or "1.")
+   * @param xPos X coordinate (the list item's margin, before its hanging indent)
+   * @param yPos Y coordinate (top of the item's first line)
+   * @param fontId Font to render the marker in, sized to match the item's own body text
+   */
+  PageListMarker(std::string text, const int16_t xPos, const int16_t yPos, int fontId)
+      : PageElement(xPos, yPos), text(std::move(text)), markerFontId(fontId) {}
+
+  const std::string& getMarkerText() const { return text; }
+  int getMarkerFontId() const { return markerFontId; }
+
+  PageElementTag getTag() const override { return TAG_PageListMarker; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
+              ImageRenderMode imageMode = ImageRenderMode::OneBit) override;
+  bool serialize(FsFile& file) override;
+  static std::unique_ptr<PageListMarker> deserialize(FsFile& file);
 };
 
 /**

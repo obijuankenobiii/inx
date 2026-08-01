@@ -55,6 +55,11 @@ class ChapterHtmlSlimParser {
   int underlineUntilDepth = INT_MAX;
   int superscriptUntilDepth = INT_MAX;
   int subscriptUntilDepth = INT_MAX;
+  // Depths of every currently-open <ul>/<ol> (a stack, so nested lists close out correctly). While non-empty,
+  // cancels any first-line text-indent - CSS text-indent or the reader's own default paragraph indent - on
+  // the <li> itself or anything nested inside it (e.g. <li><p>...</p></li>). List items must always line up
+  // regardless of the reader's Indent setting or the book's CSS.
+  std::vector<int> listNoIndentDepths_;
 
   int fontId;
   int headerFontId;
@@ -101,11 +106,31 @@ class ChapterHtmlSlimParser {
   CssParser::UsageFilter cssUsageFilter_;
   bool cssLoaded;
   std::vector<TextBlock::Style> cssAlignmentStack;
+  // Parallel to cssAlignmentStack: true once some element in this ancestry chain (this one or an ancestor)
+  // had a real CSS text-align of its own - as opposed to cssAlignmentStack just holding the document's
+  // default fallback style with no actual CSS behind it. Headers use this to tell "inherit the ancestor's
+  // real text-align" apart from "no CSS alignment info detected anywhere, use the header's own centered
+  // default" (many books rely on that default because their h1/h2 rule is a descendant selector like
+  // ".chapter-title h2" that the simplified CSS matcher's own-element check doesn't detect).
+  std::vector<bool> cssAlignmentExplicitStack;
   // Element depth that pushed each cssAlignmentStack entry, so endElement only pops the level it pushed.
   // Tags that early-return in startElement (img, hr, table cells, skipped tags) never push; without this an
   // unconditional pop would drop an ancestor's alignment and break inheritance for later siblings.
   std::vector<int> cssAlignmentDepths;
   std::vector<int> cssDisplayBlockDepths;
+  // Whether <li> items directly inside the innermost open <ul> should draw a bullet marker, per its own
+  // list-style/list-style-type CSS (defaults to visible, matching the browser default of list-style: disc).
+  std::vector<bool> ulBulletVisibleStack;
+  std::vector<int> ulBulletVisibleDepths;
+  // Set when a <li> that should show a bullet opens; consumed as a standalone marker element (not a text
+  // word - see pendingListMarkerX_) in characterData() right before the first real character of the item's
+  // text, wherever that text ends up nesting.
+  bool pendingListMarker_ = false;
+  // Left edge (px) where the pending marker itself should be drawn - the <li>'s margin before its hanging
+  // indent was added.
+  int16_t pendingListMarkerX_ = 0;
+  // Hanging-indent width applied to the current <li> (0 if it has no marker), so it can be undone at </li>.
+  int listMarkerIndentPx_ = 0;
   struct CssFontStyleScope {
     int depth = 0;
     bool bold = false;

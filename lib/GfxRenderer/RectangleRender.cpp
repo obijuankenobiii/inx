@@ -11,7 +11,7 @@ int RoundedRectCornerRadius(const int width, const int height, const bool subtle
   if (m < 5) {
     return 1;
   }
-  int r = m / (subtle ? 20 : 10);
+  int r = m / (subtle ? 20 : 14);
   if (r < 2) {
     r = 2;
   }
