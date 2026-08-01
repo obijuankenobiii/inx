@@ -147,6 +147,7 @@ class SystemSetting {
     LEFT_RIGHT_BACK_CONFIRM = 1,  ///< Prev/Next on left, Back/Confirm on right
     LEFT_BACK_CONFIRM_RIGHT = 2,  ///< Prev on left, Back/Confirm in middle, Next on right
     BACK_CONFIRM_RIGHT_LEFT = 3,  ///< Back/Confirm on right, Prev/Next on left
+    LEFT_RIGHT_CONFIRM_BACK = 4,  ///< Prev/Next on left, Confirm/Back on right
     FRONT_BUTTON_LAYOUT_COUNT
   };
 

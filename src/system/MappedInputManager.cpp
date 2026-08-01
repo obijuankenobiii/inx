@@ -30,6 +30,7 @@ constexpr FrontLayoutMap kFrontLayouts[] = {
     {HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT, HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM},
     {HalGPIO::BTN_CONFIRM, HalGPIO::BTN_LEFT, HalGPIO::BTN_BACK, HalGPIO::BTN_RIGHT},
     {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_RIGHT, HalGPIO::BTN_LEFT},
+    {HalGPIO::BTN_RIGHT, HalGPIO::BTN_LEFT, HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM},
 };
 
 constexpr SideLayoutMap kSideLayouts[] = {
@@ -148,6 +149,8 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
       return {p, back, confirm, n};
     case SystemSetting::BACK_CONFIRM_RIGHT_LEFT:
       return {back, confirm, n, p};
+    case SystemSetting::LEFT_RIGHT_CONFIRM_BACK:
+      return {p, n, confirm, back};
     case SystemSetting::BACK_CONFIRM_LEFT_RIGHT:
     default:
       return {back, confirm, p, n};
