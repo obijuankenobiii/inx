@@ -54,6 +54,17 @@ class EpubAnnotations {
                                        int currentPage, const std::vector<PageWordHit>& annWords,
                                        std::vector<std::pair<size_t, size_t>>& outMerged);
 
+  /** Called right after a spine's section file is freshly (re)built - e.g. a font/size/margin change
+   *  repaginated it. A highlight's stored page number and word-index are both tied to one specific
+   *  pagination; when that changes, the phrase can land on a different page entirely, not just a different
+   *  word index on the same page. Re-locates every single-page annotation for this spine by searching the
+   *  new pages for its stored phrase and rewrites the ann/ shards to match. No-ops (cheaply) for spines with
+   *  no existing annotations. Multi-page-spanning highlights are left at their stored position (best
+   *  effort) rather than risk mis-splitting them. */
+  static void migrateSpineAnnotations(const std::string& cachePath, int spineIndex, int newPageCount,
+                                      GfxRenderer& renderer, int bodyFontId, int headerFontId, int marginLeft,
+                                      int marginTop);
+
  private:
   static bool tryAppendPreciseHighlightRanges(const EpubAnnotationRecord& r, int cs, int cp,
                                               const std::vector<PageWordHit>& annWords,

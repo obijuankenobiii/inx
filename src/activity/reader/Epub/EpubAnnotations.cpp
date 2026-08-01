@@ -4,11 +4,14 @@
 
 #include "EpubAnnotations.h"
 
+#include <Arduino.h>
+#include <Epub/Section.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 #include <sstream>
 
 #include "state/EpubNotesIndex.h"
@@ -16,6 +19,79 @@
 namespace {
 
 constexpr uint32_t kAnnMagicV3 = 0x334E4E41;  // "ANN3"
+
+std::vector<std::string> splitAnnotationWords(const std::string& text) {
+  std::vector<std::string> words;
+  std::istringstream iss(text);
+  std::string w;
+  while (iss >> w) {
+    words.push_back(std::move(w));
+  }
+  return words;
+}
+
+/** Checks whether `target` starts at pageWords[pos], joining subsequent hyphen-broken tokens if needed (a
+ *  line wrap at a hyphenation point splits one word into multiple tokens, e.g. "Labora-" + "tory" for
+ *  "Laboratory" - a font/margin change can introduce or remove such a split for a word that used to be
+ *  captured whole). Returns how many tokens the match consumed (>=1), or 0 if `target` isn't found here. */
+size_t matchWordAllowingHyphenation(const std::vector<PageWordHit>& pageWords, const size_t pos,
+                                    const std::string& target) {
+  if (pos >= pageWords.size()) {
+    return 0;
+  }
+  std::string joined = pageWords[pos].text;
+  size_t consumed = 1;
+  if (joined == target) {
+    return consumed;
+  }
+  while (!joined.empty() && joined.back() == '-' && pos + consumed < pageWords.size() &&
+        joined.size() <= target.size()) {
+    joined.pop_back();
+    joined += pageWords[pos + consumed].text;
+    ++consumed;
+    if (joined == target) {
+      return consumed;
+    }
+  }
+  return 0;
+}
+
+/** True if a contiguous run starting at pageWords[startPos] spells out `phrase` word for word (allowing
+ *  hyphen-rejoining per matchWordAllowingHyphenation). Returns the number of pageWords tokens the whole
+ *  phrase consumed (>=phrase.size()), or 0 if it doesn't match here. */
+size_t matchPhraseAt(const std::vector<PageWordHit>& pageWords, const size_t startPos,
+                     const std::vector<std::string>& phrase) {
+  size_t pos = startPos;
+  for (const std::string& word : phrase) {
+    const size_t consumed = matchWordAllowingHyphenation(pageWords, pos, word);
+    if (consumed == 0) {
+      return 0;
+    }
+    pos += consumed;
+  }
+  return pos - startPos;
+}
+
+/** True if annWords[wordLo..wordHi] is exactly the stored highlight text, word for word (mirroring the
+ *  original capture - not necessarily one raw token per word, if hyphenation now splits one of them). A
+ *  font/layout change repaginates the book, so a stored word-index range can end up pointing at completely
+ *  different words on the new layout - this catches that instead of silently highlighting the wrong phrase.
+ *  Older records with no stored text can't be verified this way, so they're left trusted as before. */
+bool wordRangeMatchesStoredText(const std::vector<PageWordHit>& annWords, const size_t wordLo, const size_t wordHi,
+                                const std::string& storedText) {
+  if (storedText.empty()) {
+    return true;
+  }
+  if (wordLo > wordHi || wordHi >= annWords.size()) {
+    return false;
+  }
+  const std::vector<std::string> expected = splitAnnotationWords(storedText);
+  if (expected.empty()) {
+    return false;
+  }
+  const size_t consumed = matchPhraseAt(annWords, wordLo, expected);
+  return consumed > 0 && wordLo + consumed - 1 == wordHi;
+}
 
 std::string pageShardPath(const std::string& cachePath, int spine, int page) {
   char buf[48];
@@ -341,7 +417,14 @@ bool EpubAnnotations::tryAppendPreciseHighlightRanges(const EpubAnnotationRecord
 
   if (ss == es && sp == ep) {
     if (cs == ss && cp == ep) {
-      appendRange(static_cast<size_t>(r.pageWordLo), static_cast<size_t>(r.pageWordHi));
+      const size_t lo = static_cast<size_t>(r.pageWordLo);
+      const size_t hi = static_cast<size_t>(r.pageWordHi);
+      if (!wordRangeMatchesStoredText(annWords, lo, hi, r.text)) {
+        // Stale index from a repagination (e.g. a font change) - let the caller fall back to searching
+        // for the stored phrase text instead of highlighting whatever now sits at that old position.
+        return false;
+      }
+      appendRange(lo, hi);
     }
     return true;
   }
@@ -384,30 +467,33 @@ void EpubAnnotations::mergeStoredRangesForPage(const std::vector<EpubAnnotationR
     if (tryAppendPreciseHighlightRanges(diskRec, currentSpine, currentPage, annWords, raw)) {
       continue;
     }
-    const std::string& ann = diskRec.text;
-    std::vector<std::string> aw;
-    {
-      std::istringstream iss(ann);
-      std::string w;
-      while (iss >> w) {
-        aw.push_back(std::move(w));
-      }
-    }
+    const std::vector<std::string> aw = splitAnnotationWords(diskRec.text);
     if (aw.empty()) {
       continue;
     }
     const size_t n = annWords.size();
     for (size_t a = 0; a < aw.size(); ++a) {
       for (size_t i = 0; i < n; ++i) {
-        if (annWords[i].text != aw[a]) {
+        const size_t firstConsumed = matchWordAllowingHyphenation(annWords, i, aw[a]);
+        if (firstConsumed == 0) {
           continue;
         }
-        size_t k = 0;
-        while (a + k < aw.size() && i + k < n && annWords[i + k].text == aw[a + k]) {
+        size_t pos = i + firstConsumed;
+        size_t k = 1;
+        while (a + k < aw.size() && pos < n) {
+          const size_t consumed = matchWordAllowingHyphenation(annWords, pos, aw[a + k]);
+          if (consumed == 0) {
+            break;
+          }
+          pos += consumed;
           ++k;
         }
-        if (k > 0) {
-          raw.emplace_back(i, i + k - 1);
+        // Only trust a run that reaches the end of the stored phrase (a full or tail match) or the end of
+        // this page's words (a match that continues onto the next page, for a highlight spanning pages) -
+        // a run that stops partway through both is coincidental (e.g. a common short word like "a"
+        // recurring elsewhere on the page), not the highlighted phrase.
+        if (a + k == aw.size() || pos == n) {
+          raw.emplace_back(i, pos - 1);
         }
       }
     }
@@ -428,4 +514,132 @@ void EpubAnnotations::mergeStoredRangesForPage(const std::vector<EpubAnnotationR
   }
   merged.push_back(cur);
   outMerged = std::move(merged);
+}
+
+void EpubAnnotations::migrateSpineAnnotations(const std::string& cachePath, const int spineIndex,
+                                              const int newPageCount, GfxRenderer& renderer, const int bodyFontId,
+                                              const int headerFontId, const int marginLeft, const int marginTop) {
+  const std::string annDir = cachePath + "/" + std::string(kSubdir);
+  if (!SdMan.exists(annDir.c_str())) {
+    return;
+  }
+  std::vector<String> files = SdMan.listFiles(annDir.c_str());
+  std::vector<std::string> shardPaths;
+  for (const String& f : files) {
+    int s = 0;
+    int p = 0;
+    if (std::sscanf(f.c_str(), "s_%d_p_%d.bin", &s, &p) != 2 || s != spineIndex) {
+      continue;
+    }
+    shardPaths.push_back(annDir + "/" + f.c_str());
+  }
+  if (shardPaths.empty()) {
+    return;
+  }
+
+  // A multi-page record was written into every shard it touches, so gathering from all of this spine's
+  // shards can yield duplicates of the same logical record - collapse those before relocating anything.
+  std::vector<EpubAnnotationRecord> allRecords;
+  {
+    std::vector<std::string> seenKeys;
+    for (const std::string& path : shardPaths) {
+      std::vector<EpubAnnotationRecord> recs;
+      loadAnn3(path, recs);
+      for (auto& r : recs) {
+        char keyBuf[64];
+        std::snprintf(keyBuf, sizeof(keyBuf), "%u|%u|%u|%u|%u", r.timestamp, r.startSpine, r.startPage, r.endSpine,
+                     r.endPage);
+        std::string key(keyBuf);
+        key += "|";
+        key += r.text;
+        if (std::find(seenKeys.begin(), seenKeys.end(), key) != seenKeys.end()) {
+          continue;
+        }
+        seenKeys.push_back(std::move(key));
+        allRecords.push_back(std::move(r));
+      }
+    }
+  }
+  for (const std::string& path : shardPaths) {
+    SdMan.remove(path.c_str());
+  }
+  if (allRecords.empty()) {
+    return;
+  }
+
+  std::vector<bool> resolved(allRecords.size(), false);
+
+  for (int page = 0; page < newPageCount; ++page) {
+    if (std::all_of(resolved.begin(), resolved.end(), [](const bool b) { return b; })) {
+      break;
+    }
+    std::unique_ptr<Page> pageObj = Section::loadCachedPage(cachePath, spineIndex, page);
+    if (!pageObj) {
+      continue;
+    }
+    std::vector<PageWordHit> pageWords;
+    buildPageWordIndex(*pageObj, renderer, bodyFontId, headerFontId, marginLeft, marginTop, pageWords, nullptr,
+                       /*omitStoredWordStrings=*/false);
+    if (pageWords.empty()) {
+      continue;
+    }
+
+    for (size_t idx = 0; idx < allRecords.size(); ++idx) {
+      if (resolved[idx]) {
+        continue;
+      }
+      EpubAnnotationRecord& r = allRecords[idx];
+      // Only single-page-within-this-spine records get relocated by phrase search; a multi-page span keeps
+      // its stored position below rather than risk mis-splitting it across the new pagination.
+      if (r.startSpine != spineIndex || r.endSpine != spineIndex || r.startPage != r.endPage) {
+        continue;
+      }
+      const std::vector<std::string> phrase = splitAnnotationWords(r.text);
+      if (phrase.empty()) {
+        continue;
+      }
+      for (size_t i = 0; i < pageWords.size(); ++i) {
+        const size_t consumed = matchPhraseAt(pageWords, i, phrase);
+        if (consumed > 0) {
+          r.startPage = static_cast<uint16_t>(page);
+          r.endPage = static_cast<uint16_t>(page);
+          r.pageWordLo = static_cast<uint16_t>(i);
+          r.pageWordHi = static_cast<uint16_t>(i + consumed - 1);
+          r.startPageWordLo = EpubAnnotations::kWildcard;
+          r.startPageWordHi = EpubAnnotations::kWildcard;
+          resolved[idx] = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Anything not relocated (phrase not found anywhere, or a multi-page span) keeps its stored position so
+  // the highlight isn't lost outright, clamped into range and with its index marked unknown so a future
+  // render falls back to a same-page phrase search rather than trusting a now-unverifiable range.
+  std::map<int, std::vector<EpubAnnotationRecord>> byNewPage;
+  for (size_t idx = 0; idx < allRecords.size(); ++idx) {
+    EpubAnnotationRecord& r = allRecords[idx];
+    if (!resolved[idx]) {
+      r.pageWordLo = EpubAnnotations::kWildcard;
+      r.pageWordHi = EpubAnnotations::kWildcard;
+      r.startPageWordLo = EpubAnnotations::kWildcard;
+      r.startPageWordHi = EpubAnnotations::kWildcard;
+      if (newPageCount > 0) {
+        if (r.startPage >= newPageCount) r.startPage = static_cast<uint16_t>(newPageCount - 1);
+        if (r.endPage >= newPageCount) r.endPage = static_cast<uint16_t>(newPageCount - 1);
+      }
+    }
+    byNewPage[static_cast<int>(r.startPage)].push_back(r);
+    if (r.endPage != r.startPage) {
+      byNewPage[static_cast<int>(r.endPage)].push_back(r);
+    }
+  }
+
+  SdMan.mkdir(annDir.c_str());
+  for (auto& kv : byNewPage) {
+    trimOldest(kv.second, static_cast<size_t>(kMaxPerPage));
+    writeAnn3(pageShardPath(cachePath, spineIndex, kv.first), kv.second);
+  }
+  EpubNotesIndex::invalidate();
 }

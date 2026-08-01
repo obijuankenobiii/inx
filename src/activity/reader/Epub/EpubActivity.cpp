@@ -305,6 +305,16 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
       bookSettings.bionicReadingEnabled != 0, nullptr, skipImages, nullptr, false, ImageRenderMode::OneBit, false,
       info.totalMarginTop);
 
+  if (success) {
+    // This spine's pagination just changed (first build, or a font/size/margin change forced a rebuild) -
+    // re-locate any existing highlights for it by their stored phrase before anything renders, so a
+    // highlight created under one layout stays on the right words after switching to another. Cheap no-op
+    // for the common case of a spine with no annotations.
+    EpubAnnotations::migrateSpineAnnotations(cachePath, spineIndex, tempSection->pageCount, renderer, info.fontId,
+                                             FontManager::getNextFont(info.fontId), info.totalMarginLeft,
+                                             info.totalMarginTop);
+  }
+
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
     renderer.clearScreen();
@@ -1704,7 +1714,12 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
       if (!section || !EpubAnnotations::recordTouchesPage(rec, currentSpineIndex, section->currentPage)) {
         continue;
       }
-      if (rec.pageWordLo == EpubAnnotations::kWildcard) {
+      // A wildcard index always needed the word text for its search fallback. A stored phrase (rec.text)
+      // now also needs it: mergeStoredRangesForPage() verifies a precise index against that phrase before
+      // trusting it (a font/layout change repaginates the book, so a stale index can otherwise land on the
+      // wrong words entirely) and falls back to searching by phrase when it doesn't match - both need the
+      // actual word strings to compare against, not just the index.
+      if (rec.pageWordLo == EpubAnnotations::kWildcard || !rec.text.empty()) {
         omitStoredWordStrings = false;
         break;
       }
