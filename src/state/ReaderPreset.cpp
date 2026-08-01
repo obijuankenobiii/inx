@@ -36,7 +36,8 @@ void ReaderPresetStore::load() {
     return;
   }
 
-  const size_t recordSize = version >= 3   ? BookSettings::kSerializedSize
+  const size_t recordSize = version >= 4   ? BookSettings::kSerializedSize
+                            : version >= 3 ? BookSettings::kSerializedSizeV3
                             : version >= 2 ? BookSettings::kSerializedSizeV2
                                            : BookSettings::kLegacySerializedSize;
 

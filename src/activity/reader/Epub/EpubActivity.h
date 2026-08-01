@@ -179,11 +179,13 @@ class EpubActivity final : public ActivityWithSubactivity {
   void renderStatusBar(int orientedMarginRight, int orientedMarginBottom, int orientedMarginLeft) const;
 
   /**
-   * Draws vertical reading-guide lines at 1/3 and 2/3 of the content width when enabled.
+   * Draws the reading-guide overlay when enabled: Grid (vertical lines at 1/3 and 2/3 of the content width)
+   * or Notebook (one horizontal ruled line under each actual text line on the page, so blank space - end of
+   * page, gaps around images - never gets a stray line and every line lands exactly under real text).
    * Pure overlay — does not affect layout or page cache.
    */
-  void drawReadingGuideLines(int orientedMarginTop, int orientedMarginRight, int orientedMarginBottom,
-                             int orientedMarginLeft) const;
+  void drawReadingGuideLines(const Page& page, int orientedMarginTop, int orientedMarginRight,
+                             int orientedMarginBottom, int orientedMarginLeft, int fontId) const;
 
   /**
    * Saves current reading progress to file using BookProgress handler.

@@ -397,7 +397,7 @@ bool ReaderSetting::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, readingGuideLinesEnabled);
-    if (readingGuideLinesEnabled > 1) readingGuideLinesEnabled = 0;
+    if (readingGuideLinesEnabled > 2) readingGuideLinesEnabled = 0;
     ++settingsRead;
 
   } while (false);

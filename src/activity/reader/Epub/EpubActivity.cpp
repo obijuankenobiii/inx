@@ -1780,7 +1780,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
                /*skipOnlyGrayscaleImages=*/highQuality && !deferOneBitImageRender);
 
   // Overlay before storeBwBuffer so guide lines are preserved through AA/grayscale passes.
-  drawReadingGuideLines(orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+  drawReadingGuideLines(*page, orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft, fontId);
 
   renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   if (isCurrentPageBookmarked()) {
@@ -1887,7 +1887,7 @@ void EpubActivity::renderContents(std::unique_ptr<Page> page, const int oriented
     renderer.clearScreen();
     page->render(renderer, fontId, headerFontId, orientedMarginLeft, orientedMarginTop, /*skipImages=*/true,
                  ImageRenderMode::OneBit, /*skipOnlyGrayscaleImages=*/true);
-    drawReadingGuideLines(orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+    drawReadingGuideLines(*page, orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft, fontId);
     renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     if (isCurrentPageBookmarked()) {
       drawBookmarkIndicator();
@@ -1917,9 +1917,10 @@ void EpubActivity::renderStatusBar(const int orientedMarginRight, const int orie
   }
 }
 
-void EpubActivity::drawReadingGuideLines(const int orientedMarginTop, const int orientedMarginRight,
-                                         const int orientedMarginBottom, const int orientedMarginLeft) const {
-  if (!READER_SETTINGS.readingGuideLinesEnabled) {
+void EpubActivity::drawReadingGuideLines(const Page& page, const int orientedMarginTop,
+                                         const int orientedMarginRight, const int orientedMarginBottom,
+                                         const int orientedMarginLeft, const int fontId) const {
+  if (!bookSettings.readingGuideLinesEnabled) {
     return;
   }
   const int contentWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
@@ -1929,6 +1930,37 @@ void EpubActivity::drawReadingGuideLines(const int orientedMarginTop, const int 
   const int lineTop = orientedMarginTop;
   const int lineBottom = renderer.getScreenHeight() - orientedMarginBottom;
   if (lineBottom <= lineTop) {
+    return;
+  }
+  if (bookSettings.readingGuideLinesEnabled == 2) {
+    // Notebook: one ruled line under each actual text line on the page (headers use their own bigger font's
+    // metrics) - never a synthetic uniform grid, so blank space never gets a stray line and every line is
+    // guaranteed to sit under real text instead of drifting into it over the length of a page.
+    constexpr int kClearancePx = 4;
+    const int contentRight = renderer.getScreenWidth() - orientedMarginRight;
+    for (const auto& element : page.elements) {
+      int lineFontId = fontId;
+      switch (element->getTag()) {
+        case TAG_PageLine:
+          lineFontId = fontId;
+          break;
+        case TAG_PageHeader:
+          lineFontId = static_cast<const PageHeader&>(*element).getHeaderFontId();
+          break;
+        case TAG_PageSmallCaps:
+          lineFontId = static_cast<const PageSmallCaps&>(*element).getCompatFontId();
+          break;
+        default:
+          continue;
+      }
+      const int ascender = renderer.text.getFontAscenderSize(lineFontId);
+      // element->yPos is content-relative (PageLine::render() adds orientedMarginTop itself as yOffset) -
+      // add it back here to get the real screen Y, or every line lands orientedMarginTop px too high.
+      const int y = orientedMarginTop + element->yPos + ascender + kClearancePx + 2;
+      if (y >= lineTop && y < lineBottom) {
+        renderer.line.render(orientedMarginLeft, y, contentRight, y, true, LineRender::Style::Dotted);
+      }
+    }
     return;
   }
   const int x1 = orientedMarginLeft + contentWidth / 3;

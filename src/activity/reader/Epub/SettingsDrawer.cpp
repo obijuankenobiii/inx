@@ -420,17 +420,23 @@ void SettingsDrawer::setupMenu() {
     };
     menuItems.push_back(bionicEntry);
 
-    // Global visual overlay (not baked into layout/cache) — same idea as status-bar rows.
+    // Per-book (pure visual overlay, never baked into layout/cache) — same pattern as hyphenation/bionic above.
     MenuEntry guideLinesEntry;
     guideLinesEntry.item = MenuItem::ReadingGuideLines;
     guideLinesEntry.group = GroupType::LAYOUT;
     guideLinesEntry.name = "Guide Lines";
-    guideLinesEntry.getValueText = [](const BookSettings&) -> const char* {
-      return READER_SETTINGS.readingGuideLinesEnabled ? "On" : "Off";
+    guideLinesEntry.getValueText = [](const BookSettings& s) -> const char* {
+      static const char* styles[] = {"Off", "Grid", "Notebook"};
+      int index = s.readingGuideLinesEnabled;
+      if (index > 2) index = 0;
+      return styles[index];
     };
-    guideLinesEntry.change = [](BookSettings&, int) {
-      READER_SETTINGS.readingGuideLinesEnabled = READER_SETTINGS.readingGuideLinesEnabled ? 0 : 1;
-      READER_SETTINGS.saveToFile();
+    guideLinesEntry.change = [](BookSettings& s, int delta) {
+      int newVal = s.readingGuideLinesEnabled + delta;
+      if (newVal >= 0 && newVal <= 2) {
+        s.readingGuideLinesEnabled = newVal;
+        s.markCustomSettings();
+      }
     };
     menuItems.push_back(guideLinesEntry);
   }
@@ -711,10 +717,6 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
         checkbox = true;
         checked = settings.bionicReadingEnabled != 0;
         break;
-      case MenuItem::ReadingGuideLines:
-        checkbox = true;
-        checked = READER_SETTINGS.readingGuideLinesEnabled != 0;
-        break;
       case MenuItem::ReaderSmartImageRefresh:
         checkbox = true;
         checked = settings.readerSmartRefreshOnImages != 0;
@@ -933,14 +935,14 @@ void SettingsDrawer::applyChange(int delta) {
       case MenuItem::FontFamily:
         settingsUpdated = true;
         break;
-      case MenuItem::ReadingGuideLines:
-        settingsUpdated = true;
-        break;
       case MenuItem::ReadingOrientation:
       case MenuItem::PageAutoTurn:
       case MenuItem::ReaderImageGrayscale:
       case MenuItem::ReaderSmartImageRefresh:
       case MenuItem::ReaderPowerButton:
+      // Pure visual overlay — never affects text layout/pagination, so it never needs the expensive
+      // full-page rebuild that settingsUpdated triggers, just the normal redraw that already happens.
+      case MenuItem::ReadingGuideLines:
         break;
       case MenuItem::StatusBarLeft:
       case MenuItem::StatusBarMiddle:

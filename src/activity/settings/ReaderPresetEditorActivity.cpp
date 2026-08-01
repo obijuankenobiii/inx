@@ -24,12 +24,8 @@
 
 namespace {
 
-const char* kLoremParagraph1 =
-    "The quick brown fox jumps over the lazy dog while the printing press hums softly in the "
-    "background, setting each line of type with patient, deliberate care.";
-const char* kLoremParagraph2 =
-    "Good typography is invisible: it carries the words to the reader without ever calling attention "
-    "to itself, balancing rhythm, spacing, and contrast on every page.";
+const char* kLoremParagraph1 = "The quick brown fox jumps over the lazy dog while the printing press hums softly.";
+const char* kLoremParagraph2 = "Good typography is invisible.";
 constexpr int kPreviewMaxWords = 64;
 constexpr size_t kPreviewWordBufferSize = 48;
 constexpr size_t kPresetNameMaxLen = 40;
@@ -208,10 +204,25 @@ void ReaderPresetEditorActivity::renderPreview() {
   const bool bionic = working_.bionicReadingEnabled != 0;
   const int indentPx = working_.paragraphCssIndentEnabled ? (2 * spaceWidth + 8) : 0;
   const uint8_t align = working_.paragraphAlignment;
+  const int guideStyle = working_.readingGuideLinesEnabled;
+  const int fontAscender = renderer.text.getFontAscenderSize(fontId);
+  constexpr int kGuideClearancePx = 6;
 
-  auto renderWord = [&](int x, int y, const WordSlice& word) {
+  auto drawGuideLineUnder = [&](int lineY) {
+    if (guideStyle != 2) return;
+    const int guideY = lineY + fontAscender + kGuideClearancePx;
+    if (guideY < bodyBottom) {
+      renderer.line.render(margin, guideY, screenW - margin, guideY, true, LineRender::Style::Dotted);
+    }
+  };
+
+  auto renderWord = [&](int x, int y, const WordSlice& word, bool smallCaps) {
     char wordBuf[kPreviewWordBufferSize];
     const char* text = wordToBuffer(word, wordBuf, sizeof(wordBuf));
+    if (smallCaps) {
+      renderer.text.renderSmallCaps(fontId, x, y, text, true, EpdFontFamily::REGULAR);
+      return;
+    }
     const size_t len = std::strlen(text);
     if (!bionic || len < 2) {
       renderer.text.render(fontId, x, y, text, true, EpdFontFamily::REGULAR);
@@ -229,8 +240,17 @@ void ReaderPresetEditorActivity::renderPreview() {
     renderer.text.render(fontId, x + headW, y, tail, true, EpdFontFamily::REGULAR);
   };
 
+  // Paragraph 0 opens with a drop cap ("T", split off kLoremParagraph1's first letter) followed by a
+  // small-caps run for the next few words - the classic chapter-opening treatment - so the preview shows
+  // both effects together, illustrating how they actually look in a real book.
+  constexpr int kDropCapLines = 2;
+  constexpr int kSmallCapsWordCount = 4;
+  const char dropCapLetter[2] = {kLoremParagraph1[0], '\0'};
+  const int dropCapFontId = READER_SETTINGS.getReaderFontIdForFamilyAndSize(working_.fontFamily, SystemSetting::EXTRA_LARGE);
+  const int dropCapWidth = renderer.text.getWidth(dropCapFontId, dropCapLetter, EpdFontFamily::BOLD) + 6;
+
   int y = bodyTop;
-  const char* paragraphs[2] = {kLoremParagraph1, kLoremParagraph2};
+  const char* paragraphs[2] = {kLoremParagraph1 + 1, kLoremParagraph2};
   const int paragraphGap = working_.extraParagraphSpacing ? (lineHeight / 2 + 4) : 2;
 
   for (int p = 0; p < 2 && y + lineHeight <= bodyBottom; ++p) {
@@ -238,8 +258,10 @@ void ReaderPresetEditorActivity::renderPreview() {
     const int wordCount = splitWords(paragraphs[p], words, kPreviewMaxWords);
     int i = 0;
     bool firstLine = true;
+    int dropCapLinesLeft = (p == 0) ? kDropCapLines : 0;
+    const int paragraphFirstLineY = y;
     while (i < wordCount && y + lineHeight <= bodyBottom) {
-      const int lineIndent = firstLine ? indentPx : 0;
+      const int lineIndent = dropCapLinesLeft > 0 ? dropCapWidth : (firstLine ? indentPx : 0);
       const int lineMaxWidth = maxWidth - lineIndent;
 
       // Greedily pack words for this line.
@@ -249,7 +271,9 @@ void ReaderPresetEditorActivity::renderPreview() {
       int widthCount = 0;
       while (i < wordCount && widthCount < kPreviewMaxWords) {
         char wordBuf[kPreviewWordBufferSize];
-        const int ww = renderer.text.getWidth(fontId, wordToBuffer(words[i], wordBuf, sizeof(wordBuf)));
+        const char* wordText = wordToBuffer(words[i], wordBuf, sizeof(wordBuf));
+        const bool smallCaps = p == 0 && i < kSmallCapsWordCount;
+        const int ww = smallCaps ? renderer.text.getSmallCapsWidth(fontId, wordText) : renderer.text.getWidth(fontId, wordText);
         const int withWord = naturalWidth + (i > lineStart ? spaceWidth : 0) + ww;
         if (withWord > lineMaxWidth && i > lineStart) break;
         widths[widthCount++] = ww;
@@ -271,14 +295,51 @@ void ReaderPresetEditorActivity::renderPreview() {
       }
 
       for (int k = 0; k < count; ++k) {
-        renderWord(x, y, words[lineStart + k]);
+        renderWord(x, y, words[lineStart + k], p == 0 && (lineStart + k) < kSmallCapsWordCount);
         x += widths[k] + gap;
       }
 
+      drawGuideLineUnder(y);
       y += lineHeight;
       firstLine = false;
+      if (dropCapLinesLeft > 0) --dropCapLinesLeft;
+    }
+    if (p == 0) {
+      // Align the drop cap's cap-top with the first body line's cap-top, same formula as PageDropCap::render.
+      const int dropAscender = renderer.text.getFontAscenderSize(dropCapFontId);
+      const int bodyBaseline = paragraphFirstLineY + fontAscender;
+      renderer.text.render(dropCapFontId, margin, bodyBaseline - dropAscender, dropCapLetter, true, EpdFontFamily::BOLD);
     }
     y += paragraphGap;
+  }
+
+  // A short bulleted list, so the preview also shows list-marker size/spacing (Page::listMarker in the
+  // real reader draws the same plain filled circle rather than relying on font glyph coverage).
+  static const char* kListItems[] = {"First list item here", "Second list item too"};
+  const int bulletRadius = std::max(3, fontAscender / 4);
+  const int bulletIndent = std::max(1, renderer.text.getLineHeight(fontId));
+  for (const char* item : kListItems) {
+    if (y + lineHeight > bodyBottom) break;
+    const int bodyBaseline = y + fontAscender;
+    const int centerX = margin + bulletRadius;
+    const int centerY = bodyBaseline - fontAscender / 2;
+    for (int dy = -bulletRadius; dy <= bulletRadius; ++dy) {
+      const int span = static_cast<int>(std::sqrt(static_cast<double>(bulletRadius * bulletRadius - dy * dy)));
+      for (int dx = -span; dx <= span; ++dx) {
+        renderer.drawPixel(centerX + dx, centerY + dy, true);
+      }
+    }
+    renderer.text.render(fontId, margin + bulletIndent, y, item, true, EpdFontFamily::REGULAR);
+    drawGuideLineUnder(y);
+    y += lineHeight;
+  }
+
+  if (guideStyle == 1) {
+    const int contentWidth = screenW - 2 * margin;
+    const int x1 = margin + contentWidth / 3;
+    const int x2 = margin + (contentWidth * 2) / 3;
+    renderer.line.render(x1, bodyTop, x1, bodyBottom, true, LineRender::Style::Dotted);
+    renderer.line.render(x2, bodyTop, x2, bodyBottom, true, LineRender::Style::Dotted);
   }
 
   renderPreviewStatusBar(previewHeight_ - statusBarHeight - fullBarHeight, statusBarHeight);

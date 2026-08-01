@@ -123,6 +123,10 @@ struct BookSettings {
   uint8_t readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
   uint8_t readerSmartRefreshOnImages = 1;
 
+  /** Reading-guide overlay style: 0 = off, 1 = Grid, 2 = Notebook. Pure visual overlay - never affects
+   *  layout/pagination. */
+  uint8_t readingGuideLinesEnabled = 0;
+
   static constexpr uint8_t kNoReaderPreset = 0xFF;
 
   bool useCustomSettings = false;  ///< Whether custom settings are active
@@ -158,7 +162,8 @@ struct BookSettings {
    */
   static constexpr size_t kLegacySerializedSize = 18;
   static constexpr size_t kSerializedSizeV2 = 20;
-  static constexpr size_t kSerializedSize = 21;
+  static constexpr size_t kSerializedSizeV3 = 21;
+  static constexpr size_t kSerializedSize = 22;
 
   void markCustomSettings() {
     useCustomSettings = true;
@@ -201,6 +206,9 @@ struct BookSettings {
       readerImageGrayscale = SystemSetting::READER_IMAGE_LOW;
     }
     readerSmartRefreshOnImages = readerSmartRefreshOnImages ? 1 : 0;
+    if (readingGuideLinesEnabled > 2) {
+      readingGuideLinesEnabled = 0;
+    }
 
     auto normalizeStatus = [](StatusBarSectionConfig& section) {
       if (static_cast<uint8_t>(section.item) >= static_cast<uint8_t>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
@@ -241,6 +249,7 @@ struct BookSettings {
     data[offset++] = readerImageGrayscale;
     data[offset++] = readerSmartRefreshOnImages;
     data[offset++] = readerPresetIndex;
+    data[offset++] = readingGuideLinesEnabled;
   }
 
   /**
@@ -341,6 +350,15 @@ struct BookSettings {
       readerPresetIndex = kNoReaderPreset;
     }
 
+    if (bytesAvailable >= offset + 1) {
+      readingGuideLinesEnabled = data[offset++];
+      if (readingGuideLinesEnabled > 2) {
+        readingGuideLinesEnabled = 0;
+      }
+    } else {
+      readingGuideLinesEnabled = ReaderSetting::getInstance().readingGuideLinesEnabled;
+    }
+
     return true;
   }
 
@@ -414,6 +432,7 @@ struct BookSettings {
     paragraphCssIndentEnabled = global.paragraphCssIndentEnabled;
     hyphenationEnabled = global.hyphenationEnabled;
     bionicReadingEnabled = global.bionicReadingEnabled;
+    readingGuideLinesEnabled = global.readingGuideLinesEnabled;
     screenMargin = global.screenMargin;
 
     switch (global.refreshFrequency) {
