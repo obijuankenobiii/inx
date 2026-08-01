@@ -685,6 +685,8 @@ void EpubActivity::onEnter() {
   annUi_.clearSessionAndCapture();
 }
 
+bool EpubActivity::preventAutoSleep() { return gpio.deviceIsX3() && SETTINGS.shakePageTurn != 0; }
+
 /**
  * @brief Called when exiting the activity
  */
