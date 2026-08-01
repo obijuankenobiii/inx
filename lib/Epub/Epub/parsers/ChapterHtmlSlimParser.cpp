@@ -760,6 +760,13 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   bool heightIsPercentage = false;
   const bool followCssParagraphLayout = (paragraphAlignment == EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS);
 
+  // A "squeeze" wrapper (e.g. a div with a large margin-right%) shrinks the box a "width:100%" image
+  // actually resolves against - the same accumulated inset already used for text layout below. Without
+  // this, such an image's percentage width resolves against the full viewport instead of its narrow
+  // container and renders far too large.
+  const int availableImgWidth =
+      std::max(1, static_cast<int>(viewportWidth) - std::max(0, currentCssInsetLeftPx) - std::max(0, currentCssInsetRightPx));
+
   if (imgWidth == 0 || imgHeight == 0) {
     if (!styleAttr.empty()) {
       size_t widthPos = styleAttr.find("width:");
@@ -780,7 +787,7 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     }
 
     if (imgWidth == 0) {
-      int cssWidth = css().getWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+      int cssWidth = css().getWidth(classAttr, idAttr, styleAttr, availableImgWidth, viewportHeight);
 
       if (cssWidth == 0 && !widthIsPercentage) {
         imgWidth = cssWidth;
@@ -803,8 +810,8 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
   std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
   std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
 
-  const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
-  const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
+  const int cssMaxW = css().getMaxWidth(classAttr, idAttr, styleAttr, availableImgWidth, viewportHeight);
+  const int cssMinW = css().getMinWidth(classAttr, idAttr, styleAttr, availableImgWidth, viewportHeight);
   const int cssMaxH = css().getMaxHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
   const int cssMinH = css().getMinHeight(classAttr, idAttr, styleAttr, viewportWidth, viewportHeight);
 
@@ -856,9 +863,9 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
       imgHeight = cssMinH;
     }
 
-    if (imgWidth > viewportWidth) {
-      imgHeight = (imgHeight * viewportWidth) / imgWidth;
-      imgWidth = viewportWidth;
+    if (imgWidth > availableImgWidth) {
+      imgHeight = (imgHeight * availableImgWidth) / imgWidth;
+      imgWidth = availableImgWidth;
     }
 
     if (imgHeight > viewportHeight) {
@@ -2359,6 +2366,18 @@ void ChapterHtmlSlimParser::completeCurrentPage() {
     return;
   }
   finalizeOpenBorderBoxesForPageBreak();
+
+  // A page holding nothing but a single image (no text, no borders) reads better as a full-page plate:
+  // center it vertically instead of leaving it wherever the flow happened to place it (usually flush at
+  // the top). Horizontal centering already happens unconditionally in PageImage::render().
+  if (currentPage->elements.size() == 1 && currentPage->elements[0]->getTag() == TAG_PageImage) {
+    auto& img = static_cast<PageImage&>(*currentPage->elements[0]);
+    const int extraSpace = viewportHeight - img.getHeight();
+    if (extraSpace > 0) {
+      img.yPos = static_cast<int16_t>(extraSpace / 2);
+    }
+  }
+
   currentPage->trimElementStorage();
   completePageFn(std::move(currentPage));
   for (auto& scope : cssBorderBoxStack) {
