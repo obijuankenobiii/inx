@@ -331,6 +331,7 @@ void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, con
       ++imgPathIt;
       if (wordImageW && imgWIt != wordImageW->end()) ++imgWIt;
       if (wordImageH && imgHIt != wordImageH->end()) ++imgHIt;
+      if (wordStyles) ++styleIt;
       continue;
     }
 

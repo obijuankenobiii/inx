@@ -869,18 +869,18 @@ void ChapterHtmlSlimParser::processImageElement(const char** atts) {
     if (imgWidth < 1) imgWidth = 1;
     if (imgHeight < 1) imgHeight = 1;
 
-    // An image flows inline (as an atomic "word" on a text line) only when it is BOTH in a text context
-    // (heading, or mid-paragraph with words already placed) AND small enough to be an ornament — roughly the
-    // text line height. Larger images (e.g. a chapter decoration in an <h1> before a <br>) stay block-level
-    // at full size, otherwise they'd be shrunk to the line height.
+    // An image flows inline (as an atomic "word" on a text line) when it's small enough to be an ornament
+    // (roughly the text line height) and isn't the sole content of its own dedicated CSS display-block/border
+    // wrapper (e.g. a standalone figure <div>, which should stay block-level even if small). Unlike the
+    // block-wrapper case, an inline <span> wrapping the image (e.g. "<p><span><img/></span> Title</p>", a
+    // common "icon before a heading" pattern) doesn't require text to already precede it in the paragraph -
+    // the image can be the very first thing on the line, with real text following right after it.
     const int activeFontId = inHeader ? headerFontId : fontId;
     const int lineH = std::max(1, renderer.text.getLineHeight(activeFontId));
     const bool ornamentSized = (imgHeight <= lineH * 2);
     const bool insideCssDisplayBlock = !cssDisplayBlockDepths.empty();
     const bool blockWrapperImageOnly = insideCssDisplayBlock && currentTextBlock && currentTextBlock->isEmpty();
-    const bool inlineImage =
-        ornamentSized && !insideCssDisplayBlock && !blockWrapperImageOnly &&
-        (inHeader || (currentTextBlock && !currentTextBlock->isEmpty()));
+    const bool inlineImage = ornamentSized && !insideCssDisplayBlock && !blockWrapperImageOnly;
     if (inlineImage) {
       int dispW = imgWidth;
       int dispH = imgHeight;
