@@ -401,8 +401,7 @@ void EpubDictionaryUi::moveFocusLine(const int delta) {
       return;
     }
     lineIdx--;
-    const size_t end = lineFirst_[lineIdx + 1];
-    focus_ = end - 1;
+    focus_ = lineFirst_[lineIdx];
   } else {
     if (lineIdx + 1 >= lineFirst_.size()) {
       return;
