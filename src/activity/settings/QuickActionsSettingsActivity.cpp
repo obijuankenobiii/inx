@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "ReaderFontSettingsDraw.h"
@@ -18,7 +19,8 @@ constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 constexpr int kRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kValueColumnRight = 30;
 
-/** Every mappable action except None (nothing to run) and Quick Actions itself (would recurse). */
+/** Every mappable action except None (nothing to run) and Quick Actions itself (would recurse),
+ *  A-Z by label so the checklist doesn't depend on READER_BUTTON_ACTION's enum declaration order. */
 std::vector<uint8_t> eligibleActions() {
   std::vector<uint8_t> actions;
   for (int i = 1; i < static_cast<int>(SystemSetting::READER_BUTTON_ACTION_COUNT); ++i) {
@@ -27,6 +29,9 @@ std::vector<uint8_t> eligibleActions() {
     }
     actions.push_back(static_cast<uint8_t>(i));
   }
+  std::sort(actions.begin(), actions.end(), [](const uint8_t a, const uint8_t b) {
+    return strcmp(SystemSetting::readerButtonActionLabel(a), SystemSetting::readerButtonActionLabel(b)) < 0;
+  });
   return actions;
 }
 }  // namespace

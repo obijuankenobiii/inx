@@ -10,6 +10,7 @@
 #include <HalDisplay.h>
 
 #include <algorithm>
+#include <cstring>
 
 #include "EpubActivity.h"
 #include "ReaderButtonBindings.h"
@@ -34,6 +35,10 @@ void QuickActionsMenuUi::enter(EpubActivity& act) {
       actions_.push_back(static_cast<uint8_t>(i));
     }
   }
+  // A-Z by label, same order as the QuickActionsSettingsActivity checklist this is built from.
+  std::sort(actions_.begin(), actions_.end(), [](const uint8_t a, const uint8_t b) {
+    return strcmp(SystemSetting::readerButtonActionLabel(a), SystemSetting::readerButtonActionLabel(b)) < 0;
+  });
   if (actions_.empty()) {
     act.readerPopup("No quick actions configured");
     return;
