@@ -123,6 +123,12 @@ class ReaderSetting {
    *  Values match SystemSetting::LONG_PRESS_OFF/LONG_PRESS_CHAPTER_SKIP/LONG_PRESS_PAGE_SKIP_5. */
   uint8_t longPressChapterSkip = 1;  ///< SystemSetting::LONG_PRESS_CHAPTER_SKIP
 
+  /** Bitmask of SystemSetting::READER_BUTTON_ACTION values (bit N = 1u << N) included in the
+   *  "Quick Actions" popup opened by a button mapped to BTN_ACTION_QUICK_ACTIONS - see
+   *  QuickActionsSettingsActivity (the checklist that edits this) and QuickActionsMenuUi (the popup
+   *  that reads it). BTN_ACTION_NONE and BTN_ACTION_QUICK_ACTIONS itself are never set/offered. */
+  uint32_t quickActionsMask = 0;
+
   ~ReaderSetting() = default;
 
   /**

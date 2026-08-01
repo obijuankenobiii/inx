@@ -13,6 +13,7 @@
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
+#include "QuickActionsSettingsActivity.h"
 #include "ReaderFontSettingsDraw.h"
 #include "ReaderPresetEditorActivity.h"
 #include "state/ReaderPreset.h"
@@ -116,25 +117,7 @@ const char* buttonActionRowLabel(const int idx, const bool x3) {
   }
 }
 
-const char* readerButtonActionLabel(const uint8_t action) {
-  static const char* const kLabels[] = {"None",
-                                        "Page Next",
-                                        "Page Previous",
-                                        "Open Settings",
-                                        "Annotate",
-                                        "Dictionary",
-                                        "Page Refresh",
-                                        "Chapter Skip Next",
-                                        "Chapter Skip Previous",
-                                        "Bookmark",
-                                        "Table of Contents",
-                                        "Change Orientation",
-                                        "Apply Preset"};
-  if (action >= SystemSetting::READER_BUTTON_ACTION_COUNT) {
-    return "None";
-  }
-  return kLabels[action];
-}
+const char* readerButtonActionLabel(const uint8_t action) { return SystemSetting::readerButtonActionLabel(action); }
 
 // Power Button is a single, short-press-only reader setting (physical Power button while reading has
 // no reader-configurable long-press - that's reserved at the hardware/system level) - a 9th row in
@@ -173,16 +156,17 @@ void ReaderPresetsActivity::onEnter() {
 
 void ReaderPresetsActivity::onExit() { exitActivity(); }
 
-// System section: 5 fixed rows - Text Anti-Aliasing, Refresh Frequency, Page Auto Turn, Image Quality,
-// Smart Refresh (Images). Pulled out of the per-book/per-preset SettingsDrawer (the "═══ System ═══"
-// and "═══ Image ═══" groups) into single global SystemSetting fields instead of per-book overrides.
-// Status Bar (Left/Middle/Right) is also a global field now (see statusBarLeft/Middle/Right on
-// SystemSetting) but stays UI-editable only from that same SettingsDrawer (opened while reading), not
-// duplicated here - so it's not listed as a row in this section. "Buttons" is its own top-level,
-// collapsible section (short/long press action for each of Up/Down/Left/Right - see ReaderButtonBindings
-// for the dispatch these configure), a sibling of System/XTC, sitting between them: System, Buttons,
-// XTC, Presets.
-constexpr int kSystemFixedRowCount = 5;
+// System section: 6 fixed rows - Text Anti-Aliasing, Refresh Frequency, Page Auto Turn, Image Quality,
+// Smart Refresh (Images), Quick Actions. Pulled out of the per-book/per-preset SettingsDrawer (the
+// "═══ System ═══" and "═══ Image ═══" groups) into single global SystemSetting fields instead of
+// per-book overrides. Status Bar (Left/Middle/Right) is also a global field now (see
+// statusBarLeft/Middle/Right on SystemSetting) but stays UI-editable only from that same SettingsDrawer
+// (opened while reading), not duplicated here - so it's not listed as a row in this section. "Buttons"
+// is its own top-level, collapsible section (short/long press action for each of Up/Down/Left/Right -
+// see ReaderButtonBindings for the dispatch these configure), a sibling of System/XTC, sitting between
+// them: System, Buttons, XTC, Presets. Quick Actions (row 6) opens QuickActionsSettingsActivity, a
+// checklist of which READER_BUTTON_ACTION values a button mapped to BTN_ACTION_QUICK_ACTIONS pops up.
+constexpr int kSystemFixedRowCount = 6;
 
 bool ReaderPresetsActivity::isSystemSettingRow(const int row) const {
   return systemExpanded_ && row > systemHeaderRow() && row <= systemHeaderRow() + kSystemFixedRowCount;
@@ -311,6 +295,10 @@ void ReaderPresetsActivity::render() {
       } else if (systemLocalRow == 5) {
         label = "  Smart Refresh (Images)";
         toggleChecked = READER_SETTINGS.readerSmartRefreshOnImages != 0;
+      } else if (systemLocalRow == 6) {
+        label = "  Quick Actions";
+        value = "Configure >";
+        isToggle = false;
       }
       renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       if (isToggle) {
@@ -727,6 +715,10 @@ void ReaderPresetsActivity::openEditor(int presetIndex) {
       new ReaderPresetEditorActivity(renderer, mappedInput, presetIndex, [this]() { subFinished_ = true; }));
 }
 
+void ReaderPresetsActivity::openQuickActionsScreen() {
+  enterNewActivity(new QuickActionsSettingsActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
+}
+
 void ReaderPresetsActivity::openRenameKeyboard(int presetIndex) {
   const std::string current = READER_PRESETS.nameOf(presetIndex);
   enterNewActivity(new KeyboardEntryActivity(
@@ -751,6 +743,10 @@ void ReaderPresetsActivity::activateSelectedRow() {
     if (systemLocalRow == 1 || systemLocalRow == 5) {
       changeSystemSetting(selectedRow_, 0);  // Text Anti-Aliasing / Smart Refresh: plain toggle, no popup
       render();
+      return;
+    }
+    if (systemLocalRow == 6) {
+      openQuickActionsScreen();
       return;
     }
     openSelectorForRow(selectedRow_);

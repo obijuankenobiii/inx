@@ -199,6 +199,27 @@ uint32_t settingsHash(const SystemSetting& settings) {
 
 }  // namespace
 
+const char* SystemSetting::readerButtonActionLabel(const uint8_t action) {
+  static const char* const kLabels[] = {"None",
+                                        "Page Next",
+                                        "Page Previous",
+                                        "Open Settings",
+                                        "Annotate",
+                                        "Dictionary",
+                                        "Page Refresh",
+                                        "Chapter Skip Next",
+                                        "Chapter Skip Previous",
+                                        "Bookmark",
+                                        "Table of Contents",
+                                        "Change Orientation",
+                                        "Apply Preset",
+                                        "Quick Actions"};
+  if (action >= SystemSetting::READER_BUTTON_ACTION_COUNT) {
+    return "None";
+  }
+  return kLabels[action];
+}
+
 void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
   if (s == nullptr || s[0] == '\0') {
     sleepCustomBmp[0] = '\0';

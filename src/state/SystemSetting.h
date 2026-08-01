@@ -310,8 +310,13 @@ class SystemSetting {
     BTN_ACTION_TABLE_OF_CONTENTS,
     BTN_ACTION_CHANGE_ORIENTATION,
     BTN_ACTION_APPLY_PRESET,
+    BTN_ACTION_QUICK_ACTIONS,
     READER_BUTTON_ACTION_COUNT
   };
+
+  /** Human-readable label for a READER_BUTTON_ACTION value - shared by the button-action pickers in
+   *  ReaderPresetsActivity, the Quick Actions checklist screen, and the in-reader quick-actions popup. */
+  static const char* readerButtonActionLabel(uint8_t action);
 
   /**
    * @brief Battery percentage display options

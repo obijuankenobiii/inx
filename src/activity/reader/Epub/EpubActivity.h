@@ -19,6 +19,7 @@
 #include "MenuDrawer.h"
 #include "OrientationPickerUi.h"
 #include "PresetPickerUi.h"
+#include "QuickActionsMenuUi.h"
 #include "ReaderButtonBindings.h"
 #include "SettingsDrawer.h"
 #include "StatusBar.h"
@@ -48,6 +49,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   friend class EpubDictionaryUi;
   friend class OrientationPickerUi;
   friend class PresetPickerUi;
+  friend class QuickActionsMenuUi;
   friend class ReaderButtonBindings;
 
  public:
@@ -304,6 +306,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   EpubDictionaryUi dictUi_;
   OrientationPickerUi orientationPicker_;
   PresetPickerUi presetPicker_;
+  QuickActionsMenuUi quickActionsUi_;
   ReaderButtonBindings btnBindings_;
 
   /**

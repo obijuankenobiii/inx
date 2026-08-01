@@ -54,6 +54,7 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   void activateSelectedRow();
   void openEditor(int presetIndex);
   void openRenameKeyboard(int presetIndex);
+  void openQuickActionsScreen();  ///< "Quick Actions" row - checklist of actions for the in-reader popup
   void handleOverlayInput();
   void handleListInput();
   void finishSubActivity();

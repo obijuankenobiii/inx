@@ -101,6 +101,10 @@ void ReaderButtonBindings::dispatch(EpubActivity& act, const uint8_t action) {
       act.pauseReadingStats();
       act.presetPicker_.enter(act);
       break;
+    case SystemSetting::BTN_ACTION_QUICK_ACTIONS:
+      act.pauseReadingStats();
+      act.quickActionsUi_.enter(act);
+      break;
     case SystemSetting::BTN_ACTION_ANNOTATE:
       act.pauseReadingStats();
       act.annUi_.enter(act);

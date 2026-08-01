@@ -33,7 +33,13 @@ constexpr uint8_t READER_SETTINGS_FILE_VERSION = 1;
 // Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 40,
 // through readingGuideLinesEnabled) - NOT counting the version/count header fields read separately
 // before the loop. See SystemSetting.cpp's SETTINGS_COUNT comment for how this header is used.
-constexpr uint8_t READER_SETTINGS_COUNT = 40;
+// Must equal the exact number of fields written by saveToFile() / read by loadFromFile()'s do-while
+// loop below (43 as of quickActionsMask) - a stale, too-low value here doesn't corrupt anything, but
+// silently stops the load loop early, leaving every field after the shortfall permanently stuck at
+// its default on every boot regardless of what's actually saved on disk (this was already 2 short -
+// longPressChapterSkip/readingGuideLinesEnabled never actually loaded - before quickActionsMask made
+// the same gap affect a third field and surfaced the bug).
+constexpr uint8_t READER_SETTINGS_COUNT = 43;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char READER_SETTINGS_FILE[] = "/.system/reader_settings.bin";
 constexpr uint32_t FNV1A_OFFSET = 2166136261UL;
@@ -128,6 +134,7 @@ uint32_t readerSettingsHash(const ReaderSetting& settings, const uint8_t fontFam
   hashPod(hash, settings.legacyReaderImagePresentation);
   hashPod(hash, settings.readerImageDither);
   hashPod(hash, settings.longPressChapterSkip);
+  hashPod(hash, settings.quickActionsMask);
   return hash;
 }
 }  // namespace
@@ -212,6 +219,7 @@ bool ReaderSetting::saveToFile() const {
   serialization::writePod(outputFile, readerImageDither);
   serialization::writePod(outputFile, longPressChapterSkip);
   serialization::writePod(outputFile, readingGuideLinesEnabled);
+  serialization::writePod(outputFile, quickActionsMask);
 
   outputFile.close();
 
@@ -398,6 +406,9 @@ bool ReaderSetting::loadFromFile() {
 
     serialization::readPod(inputFile, readingGuideLinesEnabled);
     if (readingGuideLinesEnabled > 2) readingGuideLinesEnabled = 0;
+    if (++settingsRead >= fileSettingsCount) break;
+
+    serialization::readPod(inputFile, quickActionsMask);
     ++settingsRead;
 
   } while (false);
@@ -407,6 +418,10 @@ bool ReaderSetting::loadFromFile() {
 #ifndef INX_SIMULATOR_WEB_ONLY
   FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
+
+  quickActionsMask &= (1u << SystemSetting::READER_BUTTON_ACTION_COUNT) - 1;
+  quickActionsMask &= ~(1u << SystemSetting::BTN_ACTION_NONE);
+  quickActionsMask &= ~(1u << SystemSetting::BTN_ACTION_QUICK_ACTIONS);
 
   if (xtcImageQuality >= SystemSetting::READER_IMAGE_QUALITY_COUNT) xtcImageQuality = SystemSetting::READER_IMAGE_LOW;
   if (xtcShortPwrBtn >= SystemSetting::XTC_SHORT_PWRBTN_COUNT) xtcShortPwrBtn = SystemSetting::XTC_POWER_NEXT;

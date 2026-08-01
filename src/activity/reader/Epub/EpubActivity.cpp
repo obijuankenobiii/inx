@@ -796,6 +796,11 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (quickActionsUi_.isActive()) {
+    quickActionsUi_.handleInput(*this);
+    return;
+  }
+
   if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
     menuDrawer->handleInput(mappedInput);
     return;
