@@ -66,6 +66,13 @@ bool ReaderButtonBindings::handleButton(EpubActivity& act, const MappedInputMana
   return false;
 }
 
+void ReaderButtonBindings::reset() {
+  upState_ = PressState{};
+  downState_ = PressState{};
+  leftState_ = PressState{};
+  rightState_ = PressState{};
+}
+
 void ReaderButtonBindings::dispatch(EpubActivity& act, const uint8_t action) {
   switch (action) {
     case SystemSetting::BTN_ACTION_NONE:

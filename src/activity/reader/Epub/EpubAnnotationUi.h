@@ -90,6 +90,10 @@ class EpubAnnotationUi {
   static void normalizeSpans(std::vector<std::pair<size_t, size_t>>& spans);
 
   bool mode_ = false;
+  /** While true, drawUiOverlay() is a no-op - lets a renderScreen() call rebuild the page/word-index
+   *  cache without baking the cursor box/button hints into the framebuffer that gets captured right
+   *  after (clearAllStoredHighlightsOnCurrentPage() recapture). */
+  bool suppressOverlayDraw_ = false;
   std::vector<PageWordHit> words_;
   std::vector<size_t> lineFirst_;
   size_t anchor_ = 0;

@@ -846,6 +846,16 @@ void EpubActivity::loop() {
     dictUi_.tryChordEnter(*this);
   }
 
+  // A chord above may have just opened the annotation/dictionary overlay this same frame, with
+  // Down+Right/Down+Left still physically held. Both overlays already reset btnBindings_'s
+  // press-state in their enter(), but calling handleInput() below would immediately re-observe
+  // those still-held buttons and re-arm them - freezing a "held" state for the whole overlay
+  // session that goes stale by the time it closes (same bug the reset() was meant to prevent, just
+  // deferred by one frame). Skip it entirely once an overlay has taken over input this frame.
+  if (annUi_.isActive() || dictUi_.isActive()) {
+    return;
+  }
+
   // Up/Down/Left/Right dispatch (page turn, open settings/menu, annotate, dictionary, refresh,
   // chapter skip, bookmark, go home) is fully owned by ReaderButtonBindings now - see that class for
   // the short/long-press-per-button mapping this supersedes.

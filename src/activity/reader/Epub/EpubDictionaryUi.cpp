@@ -154,6 +154,10 @@ void EpubDictionaryUi::enter(EpubActivity& act) {
   if (!act.section || !act.epub) {
     return;
   }
+  // The Down+Left entry chord (and a plain long-press Down) leave the button held while
+  // handleInput() is about to stop running for the whole overlay session - reset its per-button
+  // state now so it doesn't misfire a stale long-press the instant this overlay exits.
+  act.btnBindings_.reset();
   mode_ = true;
   showingDefinition_ = false;
   lookedUpWord_.clear();

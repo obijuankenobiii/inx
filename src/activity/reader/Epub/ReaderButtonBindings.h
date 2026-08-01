@@ -34,6 +34,15 @@ class ReaderButtonBindings {
    *  instead of duplicating a subset of it. */
   void dispatch(EpubActivity& act, uint8_t action);
 
+  /** Clears all 4 buttons' press-state tracking. handleInput() is skipped entirely while the
+   *  annotation/dictionary chord overlays are active (they own Up/Down/Left/Right input directly),
+   *  so a button already-held at the moment one of those opens (e.g. the Down+Right/Down+Left entry
+   *  chords) leaves this class' PressState frozen mid-press for the whole overlay session - by the
+   *  time it closes, the real elapsed hold time already exceeds kLongPressMs, firing a long-press
+   *  action (e.g. chapter skip) the instant input resumes. Call this from those overlays' enter() so
+   *  handleInput() starts every button fresh once it resumes. */
+  void reset();
+
  private:
   struct PressState {
     bool active = false;

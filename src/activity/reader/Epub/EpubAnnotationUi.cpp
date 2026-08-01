@@ -124,7 +124,12 @@ void EpubAnnotationUi::clearAllStoredHighlightsOnCurrentPage(EpubActivity& act) 
   // Force full word-index rebuild so merge/geometry cannot reuse state tied to the deleted highlights.
   clearWordIndexCache();
   // Full redraw clears lattice from the framebuffer; then re-capture for annotation repaint path.
+  // Suppress drawUiOverlay() during this specific render - otherwise it redraws a cursor box at
+  // focus_ (word 0) before the capture, baking a stale highlight permanently into the "clean"
+  // snapshot that every later repaint() restores from, regardless of where focus_ moves next.
+  suppressOverlayDraw_ = true;
   act.renderScreen(true);
+  suppressOverlayDraw_ = false;
   captureFramebuffer(act);
   act.updateRequired = true;
 }
@@ -152,6 +157,10 @@ void EpubAnnotationUi::enter(EpubActivity& act) {
   if (!act.section || !act.epub) {
     return;
   }
+  // The Down+Right entry chord (and a plain long-press Down) leave the button held while
+  // handleInput() is about to stop running for the whole overlay session - reset its per-button
+  // state now so it doesn't misfire a stale long-press the instant this overlay exits.
+  act.btnBindings_.reset();
   mode_ = true;
   selectingStarted_ = false;
   pendingSpans_.clear();
@@ -529,7 +538,7 @@ void EpubAnnotationUi::drawHighlights(EpubActivity& act) {
 }
 
 void EpubAnnotationUi::drawUiOverlay(EpubActivity& act) {
-  if (!mode_) {
+  if (!mode_ || suppressOverlayDraw_) {
     return;
   }
   const GfxRenderer::Orientation o = act.renderer.getOrientation();
