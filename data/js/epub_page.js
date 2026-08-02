@@ -255,12 +255,35 @@ function getSelectedItems() {
   })).filter((item) => item.path);
 }
 
+function ensureBulkOptimizeButton() {
+  const bar = document.getElementById("bulk-actions");
+  const deleteButton = document.getElementById("bulk-delete-btn");
+  if (!bar || !deleteButton) return;
+  let button = document.getElementById("bulk-optimize-btn");
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "bulk-optimize-btn";
+    button.type = "button";
+    button.className = "bulk-delete-btn";
+    button.textContent = "Optimize selected";
+    button.style.background = "#111";
+    button.onclick = optimizeSelectedItems;
+    bar.insertBefore(button, deleteButton);
+  }
+  button.style.marginRight = "8px";
+  button.style.width = "auto";
+  deleteButton.style.width = "auto";
+}
+
 function updateBulkActions() {
+  ensureBulkOptimizeButton();
   const selected = getSelectedItems();
   const bar = document.getElementById("bulk-actions");
   const count = document.getElementById("bulk-count");
+  const optimizeButton = document.getElementById("bulk-optimize-btn");
   if (bar) bar.classList.toggle("active", selected.length > 0);
   if (count) count.textContent = selected.length + " selected";
+  if (optimizeButton) optimizeButton.disabled = selected.length === 0;
 }
 
 async function deleteOnePath(path, type) {
@@ -334,6 +357,145 @@ async function promptDeleteItem(path, name, type) {
   } catch (e) {
     alert((e && e.message) || "Unable to delete item");
   }
+}
+
+function childPath(parent, name) {
+  return String(parent || "/").replace(/\/$/, "") + "/" + name;
+}
+
+async function collectEpubOptimizeTargets(item, out) {
+  if (item.type !== "folder") {
+    if (item.name.toLowerCase().endsWith(".epub")) out.push({ path: item.path, name: item.name });
+    return;
+  }
+
+  const res = await fetch("/api/files?path=" + encodeURIComponent(item.path));
+  if (!res.ok) throw new Error(await res.text());
+  const children = await res.json();
+  for (const child of children) {
+    await collectEpubOptimizeTargets(
+      {
+        path: childPath(item.path, child.name),
+        name: child.name,
+        type: child.isDirectory ? "folder" : "file",
+      },
+      out
+    );
+  }
+}
+
+async function optimizeExistingEpubJob(path, name, index, total) {
+  const itemStart = Math.round((index / total) * 100);
+  const itemSpan = Math.max(1, Math.round(100 / total));
+  setUploadStatus("Downloading " + name, index + 1 + "/" + total, itemStart, true);
+  addModalLog("modalLog", "--- " + name + " ---", "info");
+  const res = await fetch("/download?path=" + encodeURIComponent(path));
+  if (!res.ok) throw new Error(await res.text());
+  const sourceBlob = await res.blob();
+  const fileObj = new File([sourceBlob], name, { type: "application/epub+zip" });
+
+  setUploadStatus("Optimizing " + name, index + 1 + "/" + total, itemStart + Math.round(itemSpan * 0.35), true);
+  const optimized = await optimizeEPUB(fileObj);
+
+  const destPath = path.substring(0, path.lastIndexOf("/")) || "/";
+  setUploadStatus("Uploading " + name, index + 1 + "/" + total, itemStart + Math.round(itemSpan * 0.75), true);
+  await uploadBlobToPath(optimized, name, destPath);
+
+  addModalLog("modalLog", "Re-optimized and re-uploaded: " + name, "success");
+}
+
+// Re-runs the same client-side JSZip pipeline uploadEpubFiles()/optimizeEPUB() use for new imports,
+// but on a file already on the device: download it, optimize in the browser (the device itself can't
+// spare the RAM/CPU for JPEG re-encoding across a whole EPUB), then re-upload to the same path so
+// handleUpload()'s existing-file overwrite replaces it in place.
+async function optimizeExistingEpub(path, name) {
+  clearModalLog("modalLog");
+  hideEpubFolderImportResults();
+  try {
+    await optimizeExistingEpubJob(path, name, 0, 1);
+    setUploadStatus("Optimize complete", "1/1", 100, true, "complete");
+    await hydrate();
+  } catch (e) {
+    setUploadStatus("Optimize failed", "0/1", 100, true, "warn");
+    addModalLog("modalLog", "Optimize failed: " + name + " (" + e.message + ")", "error");
+  }
+}
+
+async function optimizeSelectedItems() {
+  const selected = getSelectedItems();
+  if (!selected.length) return;
+  if (
+    !confirm(
+      "Re-optimize selected EPUBs? Selected folders will be scanned for EPUB files and each book will be replaced in place. This cannot be undone."
+    )
+  ) {
+    return;
+  }
+
+  const button = document.getElementById("bulk-optimize-btn");
+  if (button) button.disabled = true;
+  clearModalLog("modalLog");
+  hideEpubFolderImportResults();
+  setUploadStatus("Finding EPUBs…", "0/" + selected.length, 0, true);
+
+  const targets = [];
+  const failed = [];
+  for (const item of selected) {
+    try {
+      await collectEpubOptimizeTargets(item, targets);
+    } catch (e) {
+      failed.push(item.name);
+      addModalLog("modalLog", "Scan failed: " + item.name + " (" + e.message + ")", "error");
+    }
+  }
+
+  const seen = new Set();
+  const uniqueTargets = targets.filter((target) => {
+    if (seen.has(target.path)) return false;
+    seen.add(target.path);
+    return true;
+  });
+
+  if (!uniqueTargets.length) {
+    setUploadStatus("No EPUBs found", "0/0", 100, true, "warn");
+    if (button) button.disabled = false;
+    return;
+  }
+
+  let succeeded = 0;
+  for (let i = 0; i < uniqueTargets.length; i++) {
+    const target = uniqueTargets[i];
+    try {
+      await optimizeExistingEpubJob(target.path, target.name, i, uniqueTargets.length);
+      succeeded++;
+    } catch (e) {
+      failed.push(target.name);
+      addModalLog("modalLog", "Optimize failed: " + target.name + " (" + e.message + ")", "error");
+    }
+  }
+
+  setUploadStatus(
+    failed.length ? "Bulk optimize finished with issues" : "Bulk optimize complete",
+    succeeded + "/" + uniqueTargets.length,
+    100,
+    true,
+    failed.length ? "warn" : "complete"
+  );
+  showEpubFolderImportResults(succeeded, failed, uniqueTargets);
+  if (button) button.disabled = false;
+  await hydrate();
+}
+
+async function promptOptimizeItem(path, name) {
+  if (
+    !confirm(
+      'Re-optimize "' + name +
+        '"? This re-encodes its images (JPEG resize/compress, GIF conversion, device thumbnail) and replaces the file on this device. This cannot be undone.'
+    )
+  ) {
+    return;
+  }
+  await optimizeExistingEpub(path, name);
 }
 
 async function promptRename(path, currentName, type) {
@@ -449,6 +611,10 @@ async function hydrate() {
         '<button type="button" class="row-action danger delete-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
         '" data-type="' + (item.isDirectory ? "folder" : "file") + '" onclick="promptDeleteItem(this.dataset.path,this.dataset.name,this.dataset.type)" title="Delete" aria-label="Delete">' +
         '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 3.5h4L13 6H7l1-2.5ZM6 6l.7 10h6.6L14 6M8.5 8.5v5M11.5 8.5v5"/></svg></button>';
+      const optimizeBtn =
+        '<button type="button" class="row-action optimize-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
+        '" onclick="promptOptimizeItem(this.dataset.path,this.dataset.name)" title="Re-optimize (resize/compress images)" aria-label="Re-optimize">' +
+        '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2 4.5 11h4L8 18l6.5-9h-4L11 2Z"/></svg></button>';
 
       if (item.isDirectory) {
         html +=
@@ -468,7 +634,7 @@ async function hydrate() {
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17V5.5A1 1 0 0 1 6 4.5Z"/><path d="M7.5 19.5A2.5 2.5 0 0 1 7.5 14H18"/></svg>' +
           '<span class="name">' + escapeHtml(item.name) + '<span class="epub-badge">EPUB</span></span>' +
           '<span class="meta">' + formatFileSize(item.size) + '</span></button>' +
-          renameBtn + deleteBtn + '</div>';
+          optimizeBtn + renameBtn + deleteBtn + '</div>';
       }
     }
     html += "</div>";
