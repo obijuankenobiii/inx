@@ -173,11 +173,20 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     serialization::writePod(bookFile, pos + lutOffset + lutSize);
   }
 
+  // First TOC entry (in file order) whose spineIndex matches each spine item, keyed by spine index - built
+  // here as a side effect of the pass this loop already does over every TOC entry, so the spine loop below
+  // can look each one up in O(1) instead of the old findFirstTocIndexForSpine() re-scanning the whole TOC
+  // file from scratch for every spine item (O(spineCount * tocCount) for a large book).
+  std::vector<int16_t> firstTocIndexForSpine(spineCount, -1);
   tocFile.seek(0);
   for (int i = 0; i < tocCount; i++) {
     uint32_t pos = tocFile.position();
     auto tocEntry = readTocEntry(tocFile);
     serialization::writePod(bookFile, pos + lutOffset + lutSize + static_cast<uint32_t>(spineFile.position()));
+    if (tocEntry.spineIndex >= 0 && tocEntry.spineIndex < static_cast<int16_t>(spineCount) &&
+        firstTocIndexForSpine[tocEntry.spineIndex] == -1) {
+      firstTocIndexForSpine[tocEntry.spineIndex] = static_cast<int16_t>(i);
+    }
   }
 
   if (hasCss) {
@@ -212,7 +221,7 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   for (int i = 0; i < spineCount; i++) {
     auto spineEntry = readSpineEntry(spineFile);
 
-    spineEntry.tocIndex = findFirstTocIndexForSpine(static_cast<uint16_t>(i));
+    spineEntry.tocIndex = firstTocIndexForSpine[i];
 
     if (spineEntry.tocIndex == -1) {
       Serial.printf(
@@ -713,25 +722,6 @@ BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(FsFile& file) co
   serialization::readPod(file, entry.cumulativeSize);
   serialization::readPod(file, entry.tocIndex);
   return entry;
-}
-
-int16_t BookMetadataCache::findFirstTocIndexForSpine(const uint16_t spineIndex) {
-  if (!tocFile) {
-    return -1;
-  }
-
-  const uint32_t oldPosition = tocFile.position();
-  int16_t result = -1;
-  tocFile.seek(0);
-  for (int i = 0; i < tocCount; ++i) {
-    const TocEntry tocEntry = readTocEntry(tocFile);
-    if (tocEntry.spineIndex == static_cast<int16_t>(spineIndex)) {
-      result = static_cast<int16_t>(i);
-      break;
-    }
-  }
-  tocFile.seek(oldPosition);
-  return result;
 }
 
 BookMetadataCache::TocEntry BookMetadataCache::readTocEntry(FsFile& file) const {

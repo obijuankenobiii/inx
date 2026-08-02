@@ -359,8 +359,12 @@ class EpubActivity final : public ActivityWithSubactivity {
   void markStatusBarLayoutApplied();
   /** Settings drawer callback: keep renderer, drawer, and menu layout in sync while editing. */
   void onBookSettingsLiveLayoutSync();
-  void ensureThumbnailExists();
-  void displayCoverOrTitle();
+  /** @param coverAvailable Whether displayCoverOrTitle() already confirmed a real cover exists (cached or
+   *  freshly extracted) - false skips retrying a thumbnail extraction from the same cover entry that just
+   *  failed (or was never there), while the packaged META-INF/thumbnail.jpg path is still tried either way. */
+  void ensureThumbnailExists(bool coverAvailable);
+  /** @return true if a real cover image (not just the title fallback) is now cached on disk. */
+  bool displayCoverOrTitle();
   void loadCurrentSection(bool showProgress = true);
   void updateExternalState();
   void fastPath();

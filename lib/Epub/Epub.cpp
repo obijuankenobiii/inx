@@ -371,7 +371,7 @@ bool Epub::generateCoverBmp(bool cropped) const {
  * @brief Builds cache thumbnails: prefers packaged `META-INF/thumbnail.jpg` from the EPUB (EPUB optimizer), else
  * decodes and resizes JPEG covers to `thumb.jpg`.
  */
-bool Epub::generateThumbBmp() const {
+bool Epub::generateThumbBmp(const bool skipCoverFallback) const {
   const std::string thumbJpegPath = getThumbJpegPath();
   const std::string thumbBmpPath = getThumbBmpPath();
   if (SdMan.exists(thumbJpegPath.c_str()) || SdMan.exists(thumbBmpPath.c_str())) {
@@ -393,51 +393,64 @@ bool Epub::generateThumbBmp() const {
     Serial.printf("[EBP] Packaged thumbnail present but extract failed: %s\n", kPackagedDeviceThumbnailPath);
   }
 
-  const std::string tempPath = cachePath + "/.thumb_extract.tmp";
-  FsFile tempFile;
-
-  if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
+  if (skipCoverFallback) {
+    Serial.printf("[EBP] Thumbnail fallback skipped: cover extraction already failed for %s\n", coverHref.c_str());
     return false;
   }
-
-  bool extracted = readItemContentsToStream(coverHref, tempFile, 2048);
-  tempFile.sync();
-  tempFile.close();
-
-  if (!extracted) {
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  FsFile sourceFile;
-  if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
-    SdMan.remove(tempPath.c_str());
-    return false;
-  }
-
-  bool success = true;
 
   if (!isJpegFile(coverHref)) {
     Serial.printf("[EBP] Thumbnail fallback skipped for non-JPEG cover: %s\n", coverHref.c_str());
-    success = false;
-  } else {
-    FsFile thumbFile;
-    if (SdMan.openFileForWrite("EBP", thumbJpegPath, thumbFile)) {
-      JpegToBmpConverter converter;
-      success = converter.jpegFileToThumbnailJpeg(sourceFile, thumbFile, 225, 340, 82);
-      thumbFile.sync();
-      thumbFile.close();
-      if (!success) {
-        SdMan.remove(thumbJpegPath.c_str());
-      }
-    } else {
-      success = false;
-    }
-    Serial.printf("[EBP] Thumbnail JPEG resize %s: %s\n", success ? "ok" : "failed", thumbJpegPath.c_str());
+    return false;
   }
 
+  // generateCoverBmp() already extracted this exact JPEG entry as a raw copy at getCoverJpegPath() when it
+  // succeeded - reuse it instead of extracting the same zip entry a second time.
+  const std::string cachedCoverJpegPath = getCoverJpegPath(false);
+  const bool haveCachedCover = SdMan.exists(cachedCoverJpegPath.c_str());
+  const std::string tempPath = cachePath + "/.thumb_extract.tmp";
+
+  FsFile sourceFile;
+  if (haveCachedCover) {
+    if (!SdMan.openFileForRead("EBP", cachedCoverJpegPath, sourceFile)) {
+      return false;
+    }
+  } else {
+    FsFile tempFile;
+    if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
+      return false;
+    }
+    const bool extracted = readItemContentsToStream(coverHref, tempFile, 2048);
+    tempFile.sync();
+    tempFile.close();
+    if (!extracted) {
+      SdMan.remove(tempPath.c_str());
+      return false;
+    }
+    if (!SdMan.openFileForRead("EBP", tempPath, sourceFile)) {
+      SdMan.remove(tempPath.c_str());
+      return false;
+    }
+  }
+
+  bool success;
+  FsFile thumbFile;
+  if (SdMan.openFileForWrite("EBP", thumbJpegPath, thumbFile)) {
+    JpegToBmpConverter converter;
+    success = converter.jpegFileToThumbnailJpeg(sourceFile, thumbFile, 225, 340, 82);
+    thumbFile.sync();
+    thumbFile.close();
+    if (!success) {
+      SdMan.remove(thumbJpegPath.c_str());
+    }
+  } else {
+    success = false;
+  }
+  Serial.printf("[EBP] Thumbnail JPEG resize %s: %s\n", success ? "ok" : "failed", thumbJpegPath.c_str());
+
   sourceFile.close();
-  SdMan.remove(tempPath.c_str());
+  if (!haveCachedCover) {
+    SdMan.remove(tempPath.c_str());
+  }
 
   return success;
 }

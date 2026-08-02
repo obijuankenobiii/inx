@@ -581,43 +581,6 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   currentTableCell_.reset();
 }
 
-void ChapterHtmlSlimParser::prefetchImageFromImgAttributes(const XML_Char** atts) {
-  if (hasAmazonRemovedFallbackAttr(atts)) {
-    return;
-  }
-
-  std::string src;
-  std::string classAttr;
-  std::string idAttr;
-  std::string styleAttr;
-  if (atts != nullptr) {
-    for (int i = 0; atts[i]; i += 2) {
-      std::string attrName = atts[i];
-      if (attrName == "src" || attrName == "href" || attrName == "xlink:href") {
-        src = atts[i + 1];
-      } else if (attrName == "class") {
-        classAttr = atts[i + 1];
-      } else if (attrName == "id") {
-        idAttr = atts[i + 1];
-      } else if (attrName == "style") {
-        styleAttr = atts[i + 1];
-      }
-    }
-  }
-  if (src.empty()) {
-    return;
-  }
-  if (isKnownHiddenFallbackImageClass(classAttr)) {
-    return;
-  }
-  const std::string& base = internalPath.empty() ? filepath : internalPath;
-  const std::string fullInternalPath = FsHelpers::resolveRelativePath(base, src);
-  const std::string cacheImgPath = epub.getCacheImgPath(fullInternalPath);
-  int w = 0;
-  int h = 0;
-  ensureImageCached(fullInternalPath, cacheImgPath, &w, &h);
-}
-
 bool ChapterHtmlSlimParser::parseHtmlThroughExpat(const bool callProgressPopup) {
   const XML_Parser parser = XML_ParserCreate(nullptr);
   if (!parser) {
@@ -1243,9 +1206,12 @@ void ChapterHtmlSlimParser::handlePrefetchPassElement(const XML_Char* name, cons
   extractSelectorAttributes(name, atts, tagLower, classAttr, idAttr, styleAttr);
   collectCssUsage(cssUsageFilter_, tagLower, classAttr, idAttr);
 
-  if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-    prefetchImageFromImgAttributes(atts);
-  } else if (skipUntilDepth >= depth && matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
+  // Images are NOT prefetched here anymore - processImageElement() (the layout pass, below) already
+  // calls ensureImageCached() inline the first time it encounters each <img>, so caching them again
+  // here first was pure duplicated zip-extraction/dimension-read work for every image in the chapter
+  // before this pass even reaches layout. Dropping it keeps this pass to CSS-usage collection and
+  // skip-subtree tracking only, the two things loadCssRules()/the layout pass actually need from it.
+  if (skipUntilDepth >= depth && matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
     // Not already inside a skipped subtree: start skipping this one (script/style/etc.).
     skipUntilDepth = depth;
   }

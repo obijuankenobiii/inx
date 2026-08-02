@@ -254,8 +254,6 @@ class ChapterHtmlSlimParser {
 
   void resetStructuralStateForParsePass();
 
-  void prefetchImageFromImgAttributes(const XML_Char** atts);
-
   bool parseHtmlThroughExpat(bool callProgressPopup);
 
   /**

@@ -89,7 +89,6 @@ class BookMetadataCache {
   SpineEntry readSpineEntry(FsFile& file) const;
   TocEntry readTocEntry(FsFile& file) const;
   CssEntry readCssEntry(FsFile& file) const;
-  int16_t findFirstTocIndexForSpine(uint16_t spineIndex);
 
  public:
   BookMetadata coreMetadata;

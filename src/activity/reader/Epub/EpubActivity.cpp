@@ -483,18 +483,18 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, 
 /**
  * @brief Ensures thumbnail exists, generates if needed
  */
-void EpubActivity::ensureThumbnailExists() {
+void EpubActivity::ensureThumbnailExists(const bool coverAvailable) {
   const std::string thumbJpegPath = epub->getThumbJpegPath();
   const std::string thumbBmpPath = epub->getThumbBmpPath();
   if (!SdMan.exists(thumbJpegPath.c_str()) && !SdMan.exists(thumbBmpPath.c_str())) {
-    epub->generateThumbBmp();
+    epub->generateThumbBmp(!coverAvailable);
   }
 }
 
 /**
  * @brief Displays cover if it exists, otherwise shows title
  */
-void EpubActivity::displayCoverOrTitle() {
+bool EpubActivity::displayCoverOrTitle() {
   const std::string coverJpegPath = epub->getCoverJpegPath(false);
   std::string coverPath = epub->getCoverBmpPath(false);
   if (!SdMan.exists(coverPath.c_str()) && !SdMan.exists(coverJpegPath.c_str())) {
@@ -509,7 +509,7 @@ void EpubActivity::displayCoverOrTitle() {
     options.cropToFill = true;
     if (ImageRender::create(renderer, coverJpegPath).render(0, 0, pageWidth, pageHeight, options)) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      return;
+      return true;
     }
   }
 
@@ -521,11 +521,12 @@ void EpubActivity::displayCoverOrTitle() {
     renderer.clearScreen();
     if (ImageRender::create(renderer, coverPath).render(0, 0, pageWidth, pageHeight, options)) {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      return;
+      return true;
     }
   } else {
     displayBookTitle();
   }
+  return false;
 }
 
 /**
@@ -620,12 +621,12 @@ bool EpubActivity::slowPath() {
     return false;
   }
 
-  displayCoverOrTitle();
+  const bool coverAvailable = displayCoverOrTitle();
   loadingProgress = 30;
   drawLoadingScreen();
   vTaskDelay(pdMS_TO_TICKS(50));
 
-  ensureThumbnailExists();
+  ensureThumbnailExists(coverAvailable);
   const int initialSpine = epub->getSpineIndexForInitialOpen();
   currentSpineIndex = (initialSpine == 0 && epub->getSpineItemsCount() > 1) ? 1 : initialSpine;
   nextPageNumber = 0;
