@@ -1883,8 +1883,6 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       }
       if (tagLower == "ul" || tagLower == "ol") {
         self->listNoIndentDepths_.push_back(self->depth);
-      }
-      if (tagLower == "ul") {
         self->ulBulletVisibleStack.push_back(!self->css().isListStyleNone(tagLower, classAttr, idAttr, styleAttr));
         self->ulBulletVisibleDepths.push_back(self->depth);
       } else if (tagLower == "li") {
