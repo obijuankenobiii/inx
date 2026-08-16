@@ -84,6 +84,8 @@ class LocalServer {
   void handleExportPage() const;
   void handleFileListData() const;
   void handleExportNotesData() const;
+  void handleDictionaryWordsData() const;
+  void handleDictionaryWordsCsv() const;
   void handleDownload() const;
   void handleUpload() const;
   void handleUploadPost() const;

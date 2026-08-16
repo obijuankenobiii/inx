@@ -19,12 +19,14 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <set>
 
 #include "../state/ReaderSetting.h"
+#include "../state/SavedDictionaryWords.h"
 #include "../state/SystemSetting.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include "activity/reader/Epub/EpubActivity.h"
@@ -673,6 +675,8 @@ void LocalServer::begin() {
   server->on("/api/device-identity/card", HTTP_GET, [this] { handleDeviceIdentityCardImage(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
   server->on("/api/export-notes", HTTP_GET, [this] { handleExportNotesData(); });
+  server->on("/api/dictionary-words", HTTP_GET, [this] { handleDictionaryWordsData(); });
+  server->on("/api/dictionary-words.csv", HTTP_GET, [this] { handleDictionaryWordsCsv(); });
   server->on("/api/book-tags", HTTP_GET, [this] { handleBookTagsGet(); });
   server->on("/api/book-tags", HTTP_POST, [this] { handleBookTagsPost(); });
   server->on("/api/library-index/refresh", HTTP_POST, [this] { handleLibraryIndexRefresh(); });
@@ -1112,6 +1116,119 @@ void LocalServer::handleExportNotesData() const {
     yield();
   }
   index.close();
+  server->sendContent("");
+#endif
+}
+
+namespace {
+std::string dictHtmlToPlain(const std::string& html) {
+  std::string out;
+  out.reserve(html.size());
+  bool inTag = false;
+  for (const unsigned char c : html) {
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      if (!out.empty() && out.back() != ' ') {
+        out.push_back(' ');
+      }
+      continue;
+    }
+    if (inTag) {
+      continue;
+    }
+    if (c == '\r' || c == '\n' || c == '\t') {
+      if (!out.empty() && out.back() != ' ') {
+        out.push_back(' ');
+      }
+    } else {
+      out.push_back(static_cast<char>(c));
+    }
+  }
+  std::string decoded;
+  decoded.reserve(out.size());
+  for (size_t i = 0; i < out.size(); ++i) {
+    if (out[i] == '&') {
+      if (out.compare(i, 5, "&amp;") == 0) {
+        decoded.push_back('&');
+        i += 4;
+        continue;
+      }
+      if (out.compare(i, 4, "&lt;") == 0) {
+        decoded.push_back('<');
+        i += 3;
+        continue;
+      }
+      if (out.compare(i, 4, "&gt;") == 0) {
+        decoded.push_back('>');
+        i += 3;
+        continue;
+      }
+      if (out.compare(i, 6, "&nbsp;") == 0) {
+        decoded.push_back(' ');
+        i += 5;
+        continue;
+      }
+      if (out.compare(i, 6, "&quot;") == 0) {
+        decoded.push_back('"');
+        i += 5;
+        continue;
+      }
+    }
+    decoded.push_back(out[i]);
+  }
+  while (!decoded.empty() && decoded.back() == ' ') {
+    decoded.pop_back();
+  }
+  return decoded;
+}
+
+std::string csvQuote(const std::string& field) {
+  std::string out = "\"";
+  for (const char c : field) {
+    if (c == '"') {
+      out += "\"\"";
+    } else if (c != '\r') {
+      out.push_back(c);
+    }
+  }
+  out += '"';
+  return out;
+}
+}  // namespace
+
+void LocalServer::handleDictionaryWordsData() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->send(200, "application/json", "{\"ok\":true,\"count\":0}");
+#else
+  const int n = SAVED_WORDS.count();
+  char buf[64];
+  snprintf(buf, sizeof(buf), "{\"ok\":true,\"count\":%d}", n);
+  server->send(200, "application/json", buf);
+#endif
+}
+
+void LocalServer::handleDictionaryWordsCsv() const {
+#ifdef INX_SIMULATOR_WEB_ONLY
+  server->sendHeader("Content-Disposition", "attachment; filename=\"inx-vocabulary.csv\"");
+  server->send(200, "text/csv; charset=utf-8", "word,definition,language\n");
+#else
+  server->sendHeader("Content-Disposition", "attachment; filename=\"inx-vocabulary.csv\"");
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "text/csv; charset=utf-8", "");
+  server->sendContent("word,definition,language\n");
+  const int n = SAVED_WORDS.count();
+  for (int i = 0; i < n; ++i) {
+    const std::string word = SAVED_WORDS.wordAt(i);
+    const std::string definition = dictHtmlToPlain(SAVED_WORDS.definitionAt(i));
+    const std::string language = SAVED_WORDS.languageAt(i);
+    std::string row = csvQuote(word) + "," + csvQuote(definition) + "," + csvQuote(language) + "\n";
+    server->sendContent(row.c_str());
+    yield();
+  }
   server->sendContent("");
 #endif
 }

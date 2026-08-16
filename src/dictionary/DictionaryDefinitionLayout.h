@@ -79,3 +79,13 @@ std::vector<DefinitionStyledLine> layoutDefinitionBlocks(const GfxRenderer& rend
  *  (for scrollable panels like EpubDictionaryUi's) and stopping once a line would cross bottomLimit. */
 void renderStyledLines(GfxRenderer& renderer, const std::vector<DefinitionStyledLine>& lines, int x, int startY,
                        int bottomLimit, size_t startIndex = 0);
+
+/**
+ * True when a StarDict HTML definition contains a real gloss, not just a part-of-speech tag and/or
+ * "past participle of X" / "voltooid deelwoord van X" inflection stub. Translation Wiktionary dumps
+ * often store inflected forms as those stubs; callers should then look up the lemma or another dict.
+ */
+bool definitionHasUsefulGloss(const std::string& html);
+
+/** Lemma hinted by an inflection stub ("returning" → "return"), or empty when the entry isn't one. */
+std::string lemmaFromDefinition(const std::string& html);

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "dictionary/DictionaryDefinitionLayout.h"
+#include "dictionary/DictionaryRegistry.h"
 #include "dictionary/StarDictLookup.h"
 
 class EpubActivity;
@@ -35,14 +36,21 @@ class EpubDictionaryUi {
   void prepareWordGeometry(EpubActivity& act);
   void captureFramebuffer(EpubActivity& act);
   void moveFocusWord(int delta);
-  void moveFocusLine(int delta);
+  void moveFocusLine(int delta, bool wrap);
   bool tryNavigationHoldRepeat(EpubActivity& act);
-  bool isDuplicateNavEdge(int dir, unsigned long now);
   void drawFocusHighlight(EpubActivity& act);
   void drawDefinitionPanel(EpubActivity& act);
   void performLookup(EpubActivity& act);
-  void ensureDictionaryOpen();
+  void ensureDictionaryOpen(EpubActivity& act);
+  void openFolder(const std::string& folderName);
+  bool lookupInFolder(EpubActivity& act, const std::string& folderName, const std::string& queryWord,
+                      std::string& outDefinition, bool* outTruncated);
+  bool tryUsefulLookup(EpubActivity& act, const std::string& folderName, const std::string& queryWord, bool* outTruncated);
+  void cycleDictionary(EpubActivity& act, int delta);
   void saveCurrentWord(EpubActivity& act);
+  std::string resolvePreferredFolder(EpubActivity& act);
+  void setLangLabelFromFolder(const std::string& folderName);
+  void layoutCurrentDefinition(EpubActivity& act, bool truncated);
   /** Actually releases currentDefinition_/definitionBlocks_/definitionLines_'s heap capacity (not
    *  just .clear(), which keeps it reserved for reuse) - a big dictionary entry's parsed/laid-out
    *  form can run into the tens of KB, and .clear() alone would leave that reserved for as long as
@@ -55,6 +63,10 @@ class EpubDictionaryUi {
   size_t focus_ = 0;
 
   StarDictLookup dict_;
+  std::string preferredFolder_;
+  std::string sessionFolder_;
+  std::string activeLangLabel_;
+  bool usedFallbackDict_ = false;
   bool showingDefinition_ = false;
   std::string lookedUpWord_;
   bool wordAlreadySaved_ = false;

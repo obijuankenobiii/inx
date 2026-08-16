@@ -181,6 +181,23 @@ The role of the volume (side) buttons can be swapped in **[Settings](#35-setting
 
 If the **Short Power Button Click** setting is set to "Page Turn", you can also turn to the next page by briefly pressing the Power button.
 
+### Dictionary
+
+Hold **Down + Left** while reading, then Confirm to look up the highlighted word. On a definition, Confirm saves the word; Left/Right switches dictionary if the guessed language is wrong.
+
+Put StarDict folders in `/dictionaries` on the SD card, **one folder per language**. Each folder needs uncompressed `.ifo`, `.idx`, and `.dict` files. Inx does **not** read `.dict.dz` — decompress that first (`dictunzip file.dict.dz`, or `gunzip -c file.dict.dz > file.dict`).
+
+Good sources:
+
+- [FreeDict StarDict downloads](https://freedict.org/downloads/) — pick **StarDict**, then **Dutch–English**, **English–Dutch**, **French–English**, **English–French**.
+- [Hu Zheng’s StarDict archive](http://download.huzheng.org/) — older packs, including English defining dictionaries.
+
+Extract each archive so you have one folder per language, copy those folders into `/dictionaries`, then **Sync → Choose dictionaries**. Left/Right assigns Dutch / English / French / Latin if the folder name was not enough. Confirm sets the fallback dictionary.
+
+Lookups use the surrounding sentence, not only the book's language, so a French, Dutch, or Latin stretch inside an English book can still hit the right dictionary. Inflected forms that only say "past participle of …" are skipped; the lemma is looked up instead, and if that translation dictionary still has no real gloss the same-language defining dictionary is tried (English→Dutch miss → English). Left/Right still cycles every installed folder.
+
+Saved words live under Home → Dictionary. From a computer on the device hotspot, open `/api/dictionary-words.csv` to download an Anki-ready file (word, definition, language).
+
 ### Chapter Navigation
 * **Next Chapter:** Press and **hold** the **Right** (or **Volume Down**) button briefly, then release.
 * **Previous Chapter:** Press and **hold** the **Left** (or **Volume Up**) button briefly, then release.

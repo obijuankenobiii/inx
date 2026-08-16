@@ -22,7 +22,7 @@ namespace {
 constexpr int MENU_ITEM_COUNT = 9;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Manage via wifi",   "Connect to calibre", "Create hotspot",
                                            "OPDS Browser",      "Backup and restore", "KOReader Sync",
-                                           "Check for updates", "Choose dictionary",  "Device"};
+                                           "Check for updates", "Choose dictionaries",  "Device"};
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 

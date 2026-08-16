@@ -36,63 +36,159 @@ bool isGeneralPunctuationAt(const unsigned char* b, const size_t i, const size_t
   return i + 2 < end && b[i] == 0xE2 && (b[i + 1] == 0x80 || b[i + 1] == 0x81);
 }
 
-/** Generates candidate base forms for a possibly-inflected English word (possessive, plural,
- *  past tense -ed, gerund -ing), so a form absent from the dictionary (e.g. "running", "jumped",
- *  "books") can still resolve to its base entry ("run", "jump", "book"). Heuristic suffix-stripping,
- *  not a full stemmer - callers try each candidate as an exact lookup and take the first hit, so
- *  over-generating (a few wrong candidates) is harmless as long as the right one is in the list. */
+/** Generates candidate base forms for a possibly-inflected word so a form absent from the
+ *  dictionary can still resolve to its lemma. Heuristic suffix-stripping, not a full stemmer —
+ *  callers try each candidate as an exact lookup and take the first hit. */
 std::vector<std::string> stemCandidates(const std::string& lower) {
   std::vector<std::string> out;
-  const size_t n = lower.size();
   auto add = [&](const std::string& s) {
     if (s.size() >= 2) {
       out.push_back(s);
     }
   };
 
-  if (n > 2 && lower[n - 2] == '\'' && lower[n - 1] == 's') {
-    add(lower.substr(0, n - 2));
-  }
-  if (n > 4 && lower.compare(n - 4, 4, "\xE2\x80\x99s") == 0) {
-    add(lower.substr(0, n - 4));
-  }
-
-  if (n > 4 && lower.compare(n - 3, 3, "ing") == 0) {
-    const std::string base = lower.substr(0, n - 3);
-    add(base);
-    add(base + "e");
-    if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
-      add(base.substr(0, base.size() - 1));
+  auto stripClitic = [](const std::string& word) -> std::string {
+    auto starts = [&](const char* prefix) {
+      const size_t n = std::strlen(prefix);
+      return word.size() > n + 1 && word.compare(0, n, prefix) == 0 &&
+             std::isalpha(static_cast<unsigned char>(word[n])) != 0;
+    };
+    static const char* kAscii[] = {"l'", "d'", "n'", "m'", "t'", "s'", "c'", "j'", "qu'"};
+    for (const char* prefix : kAscii) {
+      if (starts(prefix)) {
+        return word.substr(std::strlen(prefix));
+      }
     }
-  }
-
-  if (n > 3 && lower.compare(n - 3, 3, "ied") == 0) {
-    add(lower.substr(0, n - 3) + "y");
-  }
-
-  if (n > 3 && lower.compare(n - 2, 2, "ed") == 0) {
-    const std::string base = lower.substr(0, n - 2);
-    add(base);
-    add(base + "e");
-    if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
-      add(base.substr(0, base.size() - 1));
+    constexpr const char* kCurly = "\xE2\x80\x99";  // ’
+    if (word.size() > 5 && word.compare(1, 3, kCurly) == 0 &&
+        std::isalpha(static_cast<unsigned char>(word[0])) != 0) {
+      return word.substr(4);
     }
+    if (word.size() > 6 && word.compare(0, 2, "qu") == 0 && word.compare(2, 3, kCurly) == 0) {
+      return word.substr(5);
+    }
+    return "";
+  };
+
+  const std::string declitic = stripClitic(lower);
+  if (!declitic.empty()) {
+    add(declitic);
   }
 
-  if (n > 4 && lower.compare(n - 3, 3, "ies") == 0) {
-    add(lower.substr(0, n - 3) + "y");
-  }
+  auto addEnglish = [&](const std::string& form) {
+    const size_t n = form.size();
+    if (n > 2 && form[n - 2] == '\'' && form[n - 1] == 's') {
+      add(form.substr(0, n - 2));
+    }
+    if (n > 4 && form.compare(n - 4, 4, "\xE2\x80\x99s") == 0) {
+      add(form.substr(0, n - 4));
+    }
+    if (n > 4 && form.compare(n - 3, 3, "ing") == 0) {
+      const std::string base = form.substr(0, n - 3);
+      add(base);
+      add(base + "e");
+      if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
+        add(base.substr(0, base.size() - 1));
+      }
+    }
+    if (n > 3 && form.compare(n - 3, 3, "ied") == 0) {
+      add(form.substr(0, n - 3) + "y");
+    }
+    if (n > 3 && form.compare(n - 2, 2, "ed") == 0) {
+      const std::string base = form.substr(0, n - 2);
+      add(base);
+      add(base + "e");
+      if (base.size() >= 3 && base[base.size() - 1] == base[base.size() - 2]) {
+        add(base.substr(0, base.size() - 1));
+      }
+    }
+    if (n > 4 && form.compare(n - 3, 3, "ies") == 0) {
+      add(form.substr(0, n - 3) + "y");
+    }
+    if (n > 3 && form.compare(n - 2, 2, "es") == 0) {
+      add(form.substr(0, n - 2));
+    }
+    if (n > 2 && form[n - 1] == 's' && form[n - 2] != 's') {
+      add(form.substr(0, n - 1));
+    }
+  };
 
-  if (n > 3 && lower.compare(n - 2, 2, "es") == 0) {
-    add(lower.substr(0, n - 2));
-  }
+  auto addFrench = [&](const std::string& form) {
+    const size_t n = form.size();
+    if (n > 6 && form.compare(n - 4, 4, "euse") == 0) {
+      add(form.substr(0, n - 4) + "eur");
+      add(form.substr(0, n - 4) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "eur") == 0) {
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "ent") == 0) {
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "ons") == 0) {
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "ant") == 0) {
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 4 && form.compare(n - 2, 2, "ez") == 0) {
+      add(form.substr(0, n - 2) + "er");
+    }
+    if (n > 4 && form.compare(n - 2, 2, "es") == 0) {
+      add(form.substr(0, n - 2) + "er");
+    }
+    if (n > 4 && form.compare(n - 2, 2, "\xC3\xA9") == 0) {  // é
+      add(form.substr(0, n - 2) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "\xC3\xA9" "s") == 0) {  // és
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 5 && form.compare(n - 3, 3, "\xC3\xA9" "e") == 0) {  // ée
+      add(form.substr(0, n - 3) + "er");
+    }
+    if (n > 6 && form.compare(n - 4, 4, "\xC3\xA9" "es") == 0) {  // ées
+      add(form.substr(0, n - 4) + "er");
+    }
+  };
 
-  if (n > 2 && lower[n - 1] == 's' && lower[n - 2] != 's') {
-    add(lower.substr(0, n - 1));
+  auto addLatin = [&](const std::string& form) {
+    const size_t n = form.size();
+    if (n > 6) {
+      const std::string tail4 = form.substr(n - 4);
+      if (tail4 == "ibus" || tail4 == "orum" || tail4 == "arum" || tail4 == "orum") {
+        add(form.substr(0, n - 4));
+        add(form.substr(0, n - 2));
+      }
+    }
+    if (n > 4) {
+      const std::string tail2 = form.substr(n - 2);
+      if (tail2 == "us" || tail2 == "um" || tail2 == "ae" || tail2 == "is" || tail2 == "am" ||
+          tail2 == "os" || tail2 == "as") {
+        add(form.substr(0, n - 2));
+      }
+    }
+  };
+
+  addEnglish(lower);
+  addFrench(lower);
+  addLatin(lower);
+  if (!declitic.empty()) {
+    addEnglish(declitic);
+    addFrench(declitic);
+    addLatin(declitic);
   }
 
   return out;
 }
+
+}  // namespace
+
+std::vector<std::string> StarDictLookup::alternateForms(const std::string& queryWord) {
+  const std::string cleaned = stripSurroundingPunctuation(queryWord);
+  return stemCandidates(toLowerCopy(cleaned));
+}
+
+namespace {
 
 void pushUnique(std::vector<std::string>& list, const std::string& s) {
   if (s.empty()) {
@@ -246,6 +342,7 @@ void StarDictLookup::close() {
   std::vector<DefCacheEntry>().swap(defCache_);
   std::string().swap(folderPath_);
   std::string().swap(bookname_);
+  std::string().swap(lang_);
   std::string().swap(sameTypeSequence_);
   wordCount_ = 0;
   idxFileSize_ = 0;
@@ -281,6 +378,8 @@ bool StarDictLookup::parseIfo(const std::string& ifoPath) {
 
     if (key == "bookname") {
       bookname_ = value.c_str();
+    } else if (key == "lang") {
+      lang_ = value.c_str();
     } else if (key == "wordcount") {
       wordCount_ = static_cast<uint32_t>(value.toInt());
     } else if (key == "idxfilesize") {

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 
 #include "system/Fonts.h"
 
@@ -173,9 +174,85 @@ int fontIdForBlock(const DefinitionBlock& block) {
   return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
 }
 
+std::string asciiLowerCopy(std::string s) {
+  for (char& c : s) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  return s;
+}
+
+/** Drops WikDict / FreeDict IPA: gray <font> runs and slash-wrapped transcriptions like /ti.t/. */
+std::string stripPhoneticMarkup(const std::string& html) {
+  std::string withoutFont;
+  withoutFont.reserve(html.size());
+  size_t i = 0;
+  while (i < html.size()) {
+    if (html[i] == '<') {
+      const size_t close = html.find('>', i);
+      if (close == std::string::npos) {
+        break;
+      }
+      const std::string inner = asciiLowerCopy(html.substr(i + 1, close - i - 1));
+      if (inner.compare(0, 4, "font") == 0 && inner.find("gray") != std::string::npos) {
+        if (!withoutFont.empty() && withoutFont.back() == '/') {
+          withoutFont.pop_back();
+        }
+        size_t end = close + 1;
+        while (end < html.size()) {
+          const size_t next = html.find('<', end);
+          if (next == std::string::npos) {
+            end = html.size();
+            break;
+          }
+          const size_t nextClose = html.find('>', next);
+          if (nextClose == std::string::npos) {
+            end = html.size();
+            break;
+          }
+          const std::string nextInner = asciiLowerCopy(html.substr(next + 1, nextClose - next - 1));
+          end = nextClose + 1;
+          if (nextInner == "/font") {
+            break;
+          }
+        }
+        i = end;
+        while (i < html.size() && (html[i] == '/' || html[i] == ',' || html[i] == ' ')) {
+          ++i;
+        }
+        continue;
+      }
+    }
+    withoutFont.push_back(html[i]);
+    ++i;
+  }
+
+  std::string out;
+  out.reserve(withoutFont.size());
+  i = 0;
+  while (i < withoutFont.size()) {
+    if (withoutFont[i] == '/') {
+      size_t j = i + 1;
+      while (j < withoutFont.size() && withoutFont[j] != '/' && withoutFont[j] != '<') {
+        ++j;
+      }
+      if (j < withoutFont.size() && withoutFont[j] == '/' && (j - i) < 48) {
+        i = j + 1;
+        while (i < withoutFont.size() && (withoutFont[i] == ',' || withoutFont[i] == ' ')) {
+          ++i;
+        }
+        continue;
+      }
+    }
+    out.push_back(withoutFont[i]);
+    ++i;
+  }
+  return out;
+}
+
 }  // namespace
 
 std::vector<DefinitionBlock> parseHtmlToBlocks(const std::string& html) {
+  const std::string source = stripPhoneticMarkup(html);
   std::vector<DefinitionBlock> blocks;
   DefinitionBlock current;
   current.runs.push_back(DefinitionTextRun{});
@@ -227,13 +304,13 @@ std::vector<DefinitionBlock> parseHtmlToBlocks(const std::string& html) {
   };
 
   size_t i = 0;
-  while (i < html.size()) {
-    if (html[i] == '<') {
-      const size_t close = html.find('>', i);
+  while (i < source.size()) {
+    if (source[i] == '<') {
+      const size_t close = source.find('>', i);
       if (close == std::string::npos) {
         break;  // unterminated tag - stop rather than emit garbage
       }
-      std::string tag = html.substr(i + 1, close - i - 1);
+      std::string tag = source.substr(i + 1, close - i - 1);
       i = close + 1;
       const bool closing = !tag.empty() && tag[0] == '/';
       if (closing) {
@@ -286,7 +363,7 @@ std::vector<DefinitionBlock> parseHtmlToBlocks(const std::string& html) {
       continue;
     }
     ensureRunStyle();
-    appendCollapsedChar(current, html[i]);
+    appendCollapsedChar(current, source[i]);
     ++i;
   }
   flush();
@@ -349,4 +426,202 @@ void renderStyledLines(GfxRenderer& renderer, const std::vector<DefinitionStyled
     }
     y += lineH;
   }
+}
+
+namespace {
+
+std::string htmlToCollapsedPlain(const std::string& html) {
+  const std::string source = stripPhoneticMarkup(html);
+  std::string out;
+  out.reserve(source.size());
+  bool inTag = false;
+  for (unsigned char c : source) {
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      if (!out.empty() && out.back() != ' ') {
+        out.push_back(' ');
+      }
+      continue;
+    }
+    if (inTag) {
+      continue;
+    }
+    if (c <= ' ' || c == '\t' || c == '\n' || c == '\r') {
+      if (!out.empty() && out.back() != ' ') {
+        out.push_back(' ');
+      }
+      continue;
+    }
+    if (c >= 'A' && c <= 'Z') {
+      c = static_cast<unsigned char>(c - 'A' + 'a');
+    }
+    out.push_back(static_cast<char>(c));
+  }
+  while (!out.empty() && out.back() == ' ') {
+    out.pop_back();
+  }
+  return decodeHtmlEntities(out);
+}
+
+const char* const kFormOfMarkers[] = {
+    "past participle of",
+    "present participle of",
+    "gerund of",
+    "simple past of",
+    "past tense of",
+    "third-person singular of",
+    "third person singular of",
+    "third-person singular",
+    "inflected form of",
+    "conjugated form of",
+    "comparative of",
+    "superlative of",
+    "plural of",
+    "voltooid deelwoord van",
+    "tegenwoordig deelwoord van",
+    "onvoltooid deelwoord van",
+    "verleden tijd van",
+    "meervoud van",
+    "verkleinwoord van",
+    "vervoeging van",
+    "verbuiging van",
+    "participe passe de",
+    "forme flechie de",
+};
+
+bool isWordChar(const unsigned char c) {
+  return c >= 0x80 || std::isalnum(c) != 0 || c == '\'' || c == '-';
+}
+
+void skipSpaces(const std::string& s, size_t& i) {
+  while (i < s.size() && s[i] == ' ') {
+    ++i;
+  }
+}
+
+bool consumeWord(const std::string& s, size_t& i, const char* word) {
+  const size_t n = std::strlen(word);
+  if (i + n <= s.size() && s.compare(i, n, word) == 0) {
+    const size_t after = i + n;
+    if (after == s.size() || s[after] == ' ') {
+      i = after;
+      skipSpaces(s, i);
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string firstLemmaToken(const std::string& s, size_t i) {
+  skipSpaces(s, i);
+  (void)consumeWord(s, i, "to");
+  (void)consumeWord(s, i, "the");
+  (void)consumeWord(s, i, "a");
+  (void)consumeWord(s, i, "an");
+  (void)consumeWord(s, i, "het");
+  (void)consumeWord(s, i, "de");
+  (void)consumeWord(s, i, "een");
+  const size_t start = i;
+  while (i < s.size() && isWordChar(static_cast<unsigned char>(s[i]))) {
+    ++i;
+  }
+  if (i - start < 2) {
+    return "";
+  }
+  return s.substr(start, i - start);
+}
+
+void eraseFormOfClauses(std::string& plain) {
+  for (const char* marker : kFormOfMarkers) {
+    const size_t markerLen = std::strlen(marker);
+    size_t p = 0;
+    while ((p = plain.find(marker, p)) != std::string::npos) {
+      size_t end = p + markerLen;
+      skipSpaces(plain, end);
+      int words = 0;
+      while (end < plain.size() && words < 4) {
+        if (plain[end] == ' ') {
+          ++words;
+          skipSpaces(plain, end);
+          continue;
+        }
+        if (!isWordChar(static_cast<unsigned char>(plain[end]))) {
+          break;
+        }
+        ++end;
+      }
+      plain.erase(p, end - p);
+    }
+  }
+}
+
+}  // namespace
+
+std::string lemmaFromDefinition(const std::string& html) {
+  const std::string plain = htmlToCollapsedPlain(html);
+  for (const char* marker : kFormOfMarkers) {
+    const size_t p = plain.find(marker);
+    if (p == std::string::npos) {
+      continue;
+    }
+    const std::string lemma = firstLemmaToken(plain, p + std::strlen(marker));
+    if (!lemma.empty()) {
+      return lemma;
+    }
+  }
+  return "";
+}
+
+bool definitionHasUsefulGloss(const std::string& html) {
+  std::string plain = htmlToCollapsedPlain(html);
+  if (plain.empty()) {
+    return false;
+  }
+  eraseFormOfClauses(plain);
+
+  static const char* kPos[] = {"verb",
+                               "noun",
+                               "adjective",
+                               "adverb",
+                               "pronoun",
+                               "preposition",
+                               "conjunction",
+                               "interjection",
+                               "article",
+                               "determiner",
+                               "werkwoord",
+                               "zelfstandig naamwoord",
+                               "bijvoeglijk naamwoord",
+                               "bijwoord",
+                               "lidwoord",
+                               "verbe",
+                               "nom",
+                               "adjectif",
+                               "adverbe",
+                               "substantief"};
+  for (const char* pos : kPos) {
+    const size_t n = std::strlen(pos);
+    size_t p = 0;
+    while ((p = plain.find(pos, p)) != std::string::npos) {
+      const bool startOk = p == 0 || plain[p - 1] == ' ';
+      const bool endOk = p + n == plain.size() || plain[p + n] == ' ';
+      if (startOk && endOk) {
+        plain.erase(p, n);
+      } else {
+        ++p;
+      }
+    }
+  }
+
+  int letters = 0;
+  for (unsigned char c : plain) {
+    if (std::isalnum(c) != 0 || c >= 0x80) {
+      ++letters;
+    }
+  }
+  return letters >= 24;
 }

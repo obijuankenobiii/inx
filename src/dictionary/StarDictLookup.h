@@ -7,8 +7,8 @@
  * Only uncompressed .dict files are supported (no .dict.dz). Only the common
  * "sametypesequence" .ifo layout is supported, where each .idx entry's dict-file bytes are the
  * raw definition with no per-entry type prefix - this covers the vast majority of distributed
- * StarDict dictionaries. .syn synonym files are not consulted; lookups are exact/case-insensitive
- * word match plus a small English stem fallback.
+ * StarDict dictionaries. Optional uncompressed .syn files are not required; lookups try the
+ * typed word, then elision (l'/d'/…), then a small English / French / Latin stem fallback.
  *
  * Lookup index (same idea as CrossPoint 1.5's .qidx):
  * - A sidecar of uint32 .idx byte offsets, one sample every 256 entries.
@@ -24,7 +24,6 @@
 
 #include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
 
 class StarDictLookup {
@@ -42,6 +41,7 @@ class StarDictLookup {
   bool isOpen() const { return isOpen_; }
 
   const std::string& bookname() const { return bookname_; }
+  const std::string& lang() const { return lang_; }
   /** Absolute path of the folder that was last successfully opened (empty if closed). */
   const std::string& folderPath() const { return folderPath_; }
 
@@ -65,6 +65,9 @@ class StarDictLookup {
    *  outDefinition (capped to kMaxDefinitionBytes raw bytes) on success. If outTruncated is non-null,
    *  set to whether the on-disk definition was larger than the cap. */
   bool lookup(const std::string& queryWord, std::string& outDefinition, bool* outTruncated = nullptr);
+
+  /** Elision-stripped and suffix-stripped forms of @p queryWord, not including the word itself. */
+  static std::vector<std::string> alternateForms(const std::string& queryWord);
 
  private:
   struct DefCacheEntry {
@@ -126,6 +129,7 @@ class StarDictLookup {
   FsFile dictFile_;
   std::string folderPath_;
   std::string bookname_;
+  std::string lang_;
   std::string sameTypeSequence_;
   uint32_t wordCount_ = 0;
   uint32_t idxFileSize_ = 0;
