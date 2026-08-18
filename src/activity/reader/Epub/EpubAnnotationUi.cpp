@@ -12,6 +12,7 @@
 #include <new>
 
 #include "EpubActivity.h"
+#include "WordOverlayNav.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -20,10 +21,6 @@ namespace {
 
 constexpr unsigned long kChordHoldMs = 600;
 constexpr int kHighlightLatticeStepPx = 2;
-/** ADC/button bounce can deliver two wasPressed edges ~ms apart; loop has no delay — suppress 2nd edge. */
-constexpr unsigned long kNavEdgeDebounceMs = 130;
-constexpr unsigned long kNavRepeatInitialMs = 700;
-constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 }  // namespace
 
@@ -80,15 +77,6 @@ void EpubAnnotationUi::tryChordEnter(EpubActivity& act) {
     chordStartMs_ = 0;
     chordConsumed_ = false;
   }
-}
-
-bool EpubAnnotationUi::isDuplicateNavEdge(const int dir, const unsigned long now) {
-  if (annLastNavEdgeDir_ == dir && (now - annLastNavEdgeMs_) < kNavEdgeDebounceMs) {
-    return true;
-  }
-  annLastNavEdgeMs_ = now;
-  annLastNavEdgeDir_ = dir;
-  return false;
 }
 
 bool EpubAnnotationUi::hasSaveableContent() const {
@@ -210,82 +198,17 @@ void EpubAnnotationUi::exit(EpubActivity& act) {
 }
 
 bool EpubAnnotationUi::tryNavigationHoldRepeat(EpubActivity& act) {
-  using Btn = MappedInputManager::Button;
-  const MappedInputManager& m = act.mappedInput;
-  const unsigned long now = millis();
-
-  // One edge = one move. Holding the same direction starts repeat only after a long enough delay
-  // that a normal click cannot jump two words/lines.
-  if (m.wasPressed(Btn::Left)) {
-    if (isDuplicateNavEdge(0, now)) {
-      return true;
-    }
-    moveFocusWord(-1);
-    annNavRepeatDir_ = 0;
-    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
+  WordOverlayNav::EdgeState edge{annLastNavEdgeMs_, annLastNavEdgeDir_};
+  const int nav = WordOverlayNav::handleDpad(
+      act.mappedInput, edge, annNavRepeatDir_, annNavRepeatNextMs_, millis(),
+      [this](const int delta) { moveFocusWord(delta); },
+      [this](const int delta, const bool wrap) { moveFocusLine(delta, wrap); });
+  annLastNavEdgeMs_ = edge.lastMs;
+  annLastNavEdgeDir_ = edge.lastDir;
+  if (nav == 2) {
     act.updateRequired = true;
-    return true;
   }
-  if (m.wasPressed(Btn::Right)) {
-    if (isDuplicateNavEdge(1, now)) {
-      return true;
-    }
-    moveFocusWord(1);
-    annNavRepeatDir_ = 1;
-    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Up)) {
-    if (isDuplicateNavEdge(2, now)) {
-      return true;
-    }
-    moveFocusLine(-1);
-    annNavRepeatDir_ = 2;
-    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Down)) {
-    if (isDuplicateNavEdge(3, now)) {
-      return true;
-    }
-    moveFocusLine(1);
-    annNavRepeatDir_ = 3;
-    annNavRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  const bool leftHeld = m.isPressed(Btn::Left);
-  const bool rightHeld = m.isPressed(Btn::Right);
-  const bool upHeld = m.isPressed(Btn::Up);
-  const bool downHeld = m.isPressed(Btn::Down);
-  if (!leftHeld && !rightHeld && !upHeld && !downHeld) {
-    annNavRepeatDir_ = -1;
-    return false;
-  }
-  if (annNavRepeatDir_ < 0 || now < annNavRepeatNextMs_) {
-    return false;
-  }
-  if (annNavRepeatDir_ == 0 && leftHeld) {
-    moveFocusWord(-1);
-  } else if (annNavRepeatDir_ == 1 && rightHeld) {
-    moveFocusWord(1);
-  } else if (annNavRepeatDir_ == 2 && upHeld) {
-    // Auto-repeat covers 2 lines/tick (vs. 1 for the initial press) - holding Up/Down would
-    // otherwise take forever to cross a full page at kNavRepeatIntervalMs.
-    moveFocusLine(-1);
-    moveFocusLine(-1);
-  } else if (annNavRepeatDir_ == 3 && downHeld) {
-    moveFocusLine(1);
-    moveFocusLine(1);
-  } else {
-    annNavRepeatDir_ = -1;
-    return false;
-  }
-  annNavRepeatNextMs_ = now + kNavRepeatIntervalMs;
-  act.updateRequired = true;
-  return true;
+  return nav != 0;
 }
 
 std::string EpubAnnotationUi::extractRangeText(const size_t anchorFlat, const size_t focusFlat) const {
@@ -558,46 +481,11 @@ void EpubAnnotationUi::drawUiOverlay(EpubActivity& act) {
 }
 
 void EpubAnnotationUi::moveFocusWord(const int delta) {
-  if (words_.empty()) {
-    return;
-  }
-  if (delta < 0) {
-    if (focus_ > 0) {
-      focus_--;
-    }
-    return;
-  }
-  if (focus_ + 1 < words_.size()) {
-    focus_++;
-  }
+  WordOverlayNav::moveFocusWord(words_, focus_, delta);
 }
 
-void EpubAnnotationUi::moveFocusLine(const int delta) {
-  if (lineFirst_.empty() || words_.empty()) {
-    return;
-  }
-  size_t lineIdx = 0;
-  for (size_t i = 0; i < lineFirst_.size(); ++i) {
-    const size_t start = lineFirst_[i];
-    const size_t end = (i + 1 < lineFirst_.size()) ? lineFirst_[i + 1] : words_.size();
-    if (focus_ >= start && focus_ < end) {
-      lineIdx = i;
-      break;
-    }
-  }
-  if (delta < 0) {
-    if (lineIdx == 0) {
-      return;
-    }
-    lineIdx--;
-    focus_ = lineFirst_[lineIdx];
-  } else {
-    if (lineIdx + 1 >= lineFirst_.size()) {
-      return;
-    }
-    lineIdx++;
-    focus_ = lineFirst_[lineIdx];
-  }
+void EpubAnnotationUi::moveFocusLine(const int delta, const bool wrap) {
+  WordOverlayNav::moveFocusLine(words_, lineFirst_, focus_, delta, wrap);
 }
 
 void EpubAnnotationUi::handleInput(EpubActivity& act) {

@@ -75,13 +75,10 @@ class EpubAnnotationUi {
   void drawHighlights(EpubActivity& act);
 
   void moveFocusWord(int delta);
-  void moveFocusLine(int delta);
+  void moveFocusLine(int delta, bool wrap);
   bool tryNavigationHoldRepeat(EpubActivity& act);
 
   void captureFramebuffer(EpubActivity& act);
-
-  /** @param dir 0=L,1=R,2=U,3=D */
-  bool isDuplicateNavEdge(int dir, unsigned long now);
 
   bool hasSaveableContent() const;
   void resetSelectionToStart(EpubActivity& act);
@@ -112,10 +109,8 @@ class EpubAnnotationUi {
   bool selectingStarted_ = false;
   /** Completed ranges while browsing between Start/Stop cycles (same page). */
   std::vector<std::pair<size_t, size_t>> pendingSpans_;
-  /** Suppress duplicate wasPressed edges (ADC bounce) for the same direction. */
   unsigned long annLastNavEdgeMs_ = 0;
   int annLastNavEdgeDir_ = -1;  // 0 L, 1 R, 2 U, 3 D; -1 = none
-  /** D-pad hold-repeat: -1 = none; else same encoding as annLastNavEdgeDir_. */
   int annNavRepeatDir_ = -1;
   unsigned long annNavRepeatNextMs_ = 0;
 

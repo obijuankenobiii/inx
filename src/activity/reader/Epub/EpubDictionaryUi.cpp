@@ -15,6 +15,7 @@
 #include <esp_task_wdt.h>
 
 #include "EpubActivity.h"
+#include "WordOverlayNav.h"
 #include "dictionary/DictionaryDefinitionLayout.h"
 #include "dictionary/DictionaryRegistry.h"
 #include "state/SavedDictionaryWords.h"
@@ -28,9 +29,6 @@ namespace {
 
 constexpr unsigned long kChordHoldMs = 600;
 constexpr int kHighlightLatticeStepPx = 2;
-constexpr unsigned long kNavEdgeDebounceMs = 130;
-constexpr unsigned long kNavRepeatInitialMs = 700;
-constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 // Shared between performLookup() (to lay out definitionLines_ once, at the width it'll actually be
 // rendered at) and drawDefinitionPanel() (to size/draw the panel itself).
@@ -100,15 +98,6 @@ void EpubDictionaryUi::tryChordEnter(EpubActivity& act) {
     chordStartMs_ = 0;
     chordConsumed_ = false;
   }
-}
-
-bool EpubDictionaryUi::isDuplicateNavEdge(const int dir, const unsigned long now) {
-  if (lastNavEdgeDir_ == dir && (now - lastNavEdgeMs_) < kNavEdgeDebounceMs) {
-    return true;
-  }
-  lastNavEdgeMs_ = now;
-  lastNavEdgeDir_ = dir;
-  return false;
 }
 
 void EpubDictionaryUi::prepareWordGeometry(EpubActivity& act) {
@@ -497,80 +486,17 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
 }
 
 bool EpubDictionaryUi::tryNavigationHoldRepeat(EpubActivity& act) {
-  using Btn = MappedInputManager::Button;
-  const MappedInputManager& m = act.mappedInput;
-  const unsigned long now = millis();
-
-  if (m.wasPressed(Btn::Left)) {
-    if (isDuplicateNavEdge(0, now)) {
-      return true;
-    }
-    moveFocusWord(-1);
-    navRepeatDir_ = 0;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
+  WordOverlayNav::EdgeState edge{lastNavEdgeMs_, lastNavEdgeDir_};
+  const int nav = WordOverlayNav::handleDpad(
+      act.mappedInput, edge, navRepeatDir_, navRepeatNextMs_, millis(),
+      [this](const int delta) { moveFocusWord(delta); },
+      [this](const int delta, const bool wrap) { moveFocusLine(delta, wrap); });
+  lastNavEdgeMs_ = edge.lastMs;
+  lastNavEdgeDir_ = edge.lastDir;
+  if (nav == 2) {
     act.updateRequired = true;
-    return true;
   }
-  if (m.wasPressed(Btn::Right)) {
-    if (isDuplicateNavEdge(1, now)) {
-      return true;
-    }
-    moveFocusWord(1);
-    navRepeatDir_ = 1;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Up)) {
-    if (isDuplicateNavEdge(2, now)) {
-      return true;
-    }
-    moveFocusLine(-1);
-    navRepeatDir_ = 2;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Down)) {
-    if (isDuplicateNavEdge(3, now)) {
-      return true;
-    }
-    moveFocusLine(1);
-    navRepeatDir_ = 3;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  const bool leftHeld = m.isPressed(Btn::Left);
-  const bool rightHeld = m.isPressed(Btn::Right);
-  const bool upHeld = m.isPressed(Btn::Up);
-  const bool downHeld = m.isPressed(Btn::Down);
-  if (!leftHeld && !rightHeld && !upHeld && !downHeld) {
-    navRepeatDir_ = -1;
-    return false;
-  }
-  if (navRepeatDir_ < 0 || now < navRepeatNextMs_) {
-    return false;
-  }
-  if (navRepeatDir_ == 0 && leftHeld) {
-    moveFocusWord(-1);
-  } else if (navRepeatDir_ == 1 && rightHeld) {
-    moveFocusWord(1);
-  } else if (navRepeatDir_ == 2 && upHeld) {
-    // Auto-repeat covers 2 lines/tick (vs. 1 for the initial press) - holding Up/Down would
-    // otherwise take forever to cross a full page at kNavRepeatIntervalMs.
-    moveFocusLine(-1);
-    moveFocusLine(-1);
-  } else if (navRepeatDir_ == 3 && downHeld) {
-    moveFocusLine(1);
-    moveFocusLine(1);
-  } else {
-    navRepeatDir_ = -1;
-    return false;
-  }
-  navRepeatNextMs_ = now + kNavRepeatIntervalMs;
-  act.updateRequired = true;
-  return true;
+  return nav != 0;
 }
 
 /** Saves lookedUpWord_ plus the definition currently on screen. Idempotent — a repeat Confirm on an
@@ -590,46 +516,11 @@ void EpubDictionaryUi::saveCurrentWord(EpubActivity& act) {
 }
 
 void EpubDictionaryUi::moveFocusWord(const int delta) {
-  if (words_.empty()) {
-    return;
-  }
-  if (delta < 0) {
-    if (focus_ > 0) {
-      focus_--;
-    }
-    return;
-  }
-  if (focus_ + 1 < words_.size()) {
-    focus_++;
-  }
+  WordOverlayNav::moveFocusWord(words_, focus_, delta);
 }
 
-void EpubDictionaryUi::moveFocusLine(const int delta) {
-  if (lineFirst_.empty() || words_.empty()) {
-    return;
-  }
-  size_t lineIdx = 0;
-  for (size_t i = 0; i < lineFirst_.size(); ++i) {
-    const size_t start = lineFirst_[i];
-    const size_t end = (i + 1 < lineFirst_.size()) ? lineFirst_[i + 1] : words_.size();
-    if (focus_ >= start && focus_ < end) {
-      lineIdx = i;
-      break;
-    }
-  }
-  if (delta < 0) {
-    if (lineIdx == 0) {
-      return;
-    }
-    lineIdx--;
-    focus_ = lineFirst_[lineIdx];
-  } else {
-    if (lineIdx + 1 >= lineFirst_.size()) {
-      return;
-    }
-    lineIdx++;
-    focus_ = lineFirst_[lineIdx];
-  }
+void EpubDictionaryUi::moveFocusLine(const int delta, const bool wrap) {
+  WordOverlayNav::moveFocusLine(words_, lineFirst_, focus_, delta, wrap);
 }
 
 void EpubDictionaryUi::handleInput(EpubActivity& act) {
