@@ -1,1 +1,350 @@
-<!doctypehtml><html lang=en><meta charset=UTF-8><meta content="width=device-width,initial-scale=1,viewport-fit=cover"name=viewport><link href=https://fonts.googleapis.com rel=preconnect><link href=https://fonts.gstatic.com rel=preconnect crossorigin><link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"rel=stylesheet><title>Inx - Tags</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}.container{max-width:760px;margin:0 auto;padding:28px 18px}.header{text-align:center;margin-bottom:22px}.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}.nav-btn{padding:6px 12px;background:0 0;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}.nav-btn:hover{background:#eee;color:#111}.nav-btn.active{background:#111;color:#fff}.card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #eee}.card+.card{margin-top:16px}.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}.title{font-size:18px;font-weight:700;color:#111}.summary{font-size:13px;color:#6e6e73}.new-tag-input,.search{width:240px;max-width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font:inherit}.toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.icon-btn{width:40px;height:40px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#111;font-size:21px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}.icon-btn:hover{border-color:#111;background:#f5f5f5}.new-tag-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.add-btn{padding:10px 18px;background:#111;color:#fff;border:none;border-radius:8px;font:inherit;cursor:pointer}.tag-list{display:flex;gap:8px;flex-wrap:wrap}.tag-pill{padding:5px 8px 5px 10px;border-radius:999px;background:#eee;color:#111;font-size:13px;display:inline-flex;align-items:center;gap:6px}.tag-actions{display:inline-flex;align-items:center;gap:2px}.tag-mini-btn{border:none;background:rgba(255,255,255,.7);color:#333;border-radius:999px;padding:3px 7px;font:inherit;font-size:11px;cursor:pointer}.tag-mini-btn:hover{background:#111;color:#fff}.tag-mini-btn.danger:hover{background:#ff3b30;color:#fff}.book-list{display:flex;flex-direction:column;gap:8px}.book-row{display:grid;grid-template-columns:1fr 210px;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #f0f0f0}.book-row:last-child{border-bottom:none}.book-title{font-size:14px;font-weight:700;color:#111;word-break:break-word}.book-path{font-size:12px;color:#777;margin-top:2px;word-break:break-word}.tag-input{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font:inherit;font-size:14px;background:#fff}.new-tag-input:focus,.search:focus,.tag-input:focus{outline:0;border-color:#111;box-shadow:0 0 0 2px rgba(0,0,0,.06)}.status{color:#777;font-size:13px;padding:32px 0;text-align:center}.toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:10px 20px;border-radius:980px;font-size:13px;opacity:0;transition:opacity .25s ease;pointer-events:none}.toast.show{opacity:1}.index-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(250,250,250,.72);backdrop-filter:blur(2px);z-index:20}.index-overlay.open{display:flex}.index-modal{width:min(300px,calc(100vw - 36px));background:#111;color:#fff;border:2px solid #fff;border-radius:12px;padding:22px 20px;text-align:center;box-shadow:0 12px 36px rgba(0,0,0,.22)}.spinner{width:28px;height:28px;margin:0 auto 12px;border:3px solid rgba(255,255,255,.28);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}.index-title{font-size:18px;font-weight:700}.index-detail{margin-top:4px;font-size:12px;color:#cfcfcf;min-height:18px}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:680px){.container{padding:28px 16px}.header h1{font-size:22px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.book-row{grid-template-columns:1fr;gap:8px}.search,.toolbar-actions{width:100%}}</style><div class=container><div class=header><h1>Book Tags</h1></div><div class=nav-links><a class=nav-btn href=/ >Dashboard</a> <a class=nav-btn href=/files>Files</a> <a class=nav-btn href=/epub>Epub</a> <a class="nav-btn active"href=/tags>Tags</a> <a class=nav-btn href=/font-manager>Fonts</a> <a class=nav-btn href=/export>Bookmarks & Annotations</a> <a class=nav-btn href=/settings>Settings</a></div><div class=card><div class=toolbar><div><div class=title>Tag List</div><div class=summary id=tagSummary>Reusable tags</div></div></div><div class=new-tag-row><input autocomplete=off class=new-tag-input id=newTagInput placeholder="New tag"> <button class=add-btn onclick=addTag()>Add</button></div><div class=tag-list id=tagList></div></div><div class=card><div class=toolbar><div><div class=title>Indexed Books</div><div class=summary id=summary>Loading...</div></div><div class=toolbar-actions><button class=icon-btn onclick=refreshIndex() aria-label="Refresh index"title="Refresh index">↻</button> <input autocomplete=off class=search id=search placeholder="Search books or tags"></div></div><div class=book-list id=bookList><div class=status>Loading...</div></div></div><datalist id=tagOptions></datalist></div><div class=index-overlay id=indexOverlay><div class=index-modal><div class=spinner></div><div class=index-title>Indexing</div><div class=index-detail id=indexDetail></div></div></div><div class=toast id=toast></div><script>let books=[],tags=[],saveTimers={},indexPollTimer=null;function escapeHtml(e){return e?e.replace(/[&<>"]/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[e]):""}function showToast(e,t){const a=document.getElementById("toast");a.textContent=e,a.style.background=t?"#ff3b30":"#1d1d1f",a.classList.add("show"),setTimeout(()=>a.classList.remove("show"),1600)}async function loadBooks(){try{const t=await fetch("/api/book-tags");var e=await t.json();if(!e.indexed)return document.getElementById("summary").textContent="Library index is required.",void(document.getElementById("bookList").innerHTML='<div class="status">Enable and build the library index first.</div>');tags=e.tags||[],books=e.books||[],renderTags(),renderBooks()}catch(e){document.getElementById("bookList").innerHTML='<div class="status">Failed to load indexed books.</div>'}}function setIndexing(e,t){document.getElementById("indexOverlay").classList.toggle("open",!!e),document.getElementById("indexDetail").textContent=t||""}async function refreshIndex(){try{if(setIndexing(!0,""),!(await fetch("/api/library-index/refresh",{method:"POST"})).ok)throw new Error("index failed");pollIndexStatus()}catch(e){setIndexing(!1,""),showToast("Failed to start indexing",!0)}}async function pollIndexStatus(){clearTimeout(indexPollTimer);try{const a=await fetch("/api/library-index/status");var t=await a.json();let e="";if(0<t.total&&(e=t.current+" / "+t.total),setIndexing(t.indexing,e),t.indexing)return void(indexPollTimer=setTimeout(pollIndexStatus,850));await loadBooks(),showToast("Index refreshed")}catch(e){setIndexing(!1,""),showToast("Index status failed",!0)}}function renderTags(){const e=document.getElementById("tagList"),t=document.getElementById("tagOptions");document.getElementById("tagSummary").textContent=tags.length?tags.length+" reusable tags":"No tags yet",t.innerHTML=tags.map(e=>'<option value="'+escapeHtml(e)+'"></option>').join(""),e.innerHTML=tags.length?tags.map(e=>{e=escapeHtml(e);return'<span class="tag-pill"><span>'+e+'</span><span class="tag-actions"><button class="tag-mini-btn tag-edit-btn" data-tag="'+e+'">Edit</button><button class="tag-mini-btn danger tag-delete-btn" data-tag="'+e+'">Delete</button></span></span>'}).join(""):'<div class="summary">Create tags here, then reuse them below.</div>',document.querySelectorAll(".tag-edit-btn").forEach(e=>{e.addEventListener("click",()=>renameTag(e.dataset.tag||""))}),document.querySelectorAll(".tag-delete-btn").forEach(e=>{e.addEventListener("click",()=>deleteTag(e.dataset.tag||""))})}function renderBooks(){const t=(document.getElementById("search").value||"").toLowerCase(),e=books.filter(e=>!t||(e.title||"").toLowerCase().includes(t)||(e.path||"").toLowerCase().includes(t)||(e.tag||"").toLowerCase().includes(t));document.getElementById("summary").textContent=e.length+" / "+books.length+" books",e.length?(document.getElementById("bookList").innerHTML=e.map(e=>'<div class="book-row"><div><div class="book-title">'+escapeHtml(e.title||"Untitled")+'</div><div class="book-path">'+escapeHtml(e.path||"")+'</div></div><input class="tag-input" list="tagOptions" value="'+escapeHtml(e.tag||"")+'" placeholder="Tag" data-path="'+escapeHtml(e.path||"")+'"></div>').join(""),document.querySelectorAll(".tag-input").forEach(t=>{t.addEventListener("input",()=>queueSave(t)),t.addEventListener("keydown",e=>{"Enter"===e.key&&(e.preventDefault(),saveTag(t),t.blur())}),t.addEventListener("blur",()=>saveTag(t))})):document.getElementById("bookList").innerHTML='<div class="status">No matching books.</div>'}async function addTag(){const e=document.getElementById("newTagInput");var t=e.value.trim();if(t)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"addTag",tag:t})})).ok)throw new Error("save failed");tags.includes(t)||tags.push(t),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),e.value="",renderTags(),renderBooks(),showToast("Tag added")}catch(e){showToast("Failed to add tag",!0)}}async function renameTag(t){const a=(prompt("Rename tag",t)||"").trim();if(a&&a!==t)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"renameTag",oldTag:t,newTag:a})})).ok)throw new Error("rename failed");tags=tags.map(e=>e===t?a:e).filter((e,t,a)=>a.indexOf(e)===t),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),books.forEach(e=>{e.tag===t&&(e.tag=a)}),renderTags(),renderBooks(),showToast("Tag renamed")}catch(e){showToast("Failed to rename tag",!0)}}async function deleteTag(t){if(confirm('Delete tag "'+t+'" and clear it from matching books?'))try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"deleteTag",tag:t})})).ok)throw new Error("delete failed");tags=tags.filter(e=>e!==t),books.forEach(e=>{e.tag===t&&(e.tag="")}),renderTags(),renderBooks(),showToast("Tag deleted")}catch(e){showToast("Failed to delete tag",!0)}}function queueSave(e){var t=e.dataset.path;clearTimeout(saveTimers[t]),saveTimers[t]=setTimeout(()=>saveTag(e),700)}async function saveTag(e){const t=e.dataset.path;clearTimeout(saveTimers[t]);e=e.value.trim();const a=books.find(e=>e.path===t);if(!a||(a.tag||"")!==e)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:t,tag:e})})).ok)throw new Error("save failed");a&&(a.tag=e),e&&!tags.includes(e)&&(tags.push(e),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),renderTags()),showToast(e?"Tag saved":"Tag cleared")}catch(e){showToast("Failed to save tag",!0)}}document.getElementById("search").addEventListener("input",renderBooks),document.getElementById("newTagInput").addEventListener("keydown",e=>{"Enter"===e.key&&(e.preventDefault(),addTag())}),loadBooks()</script>
+<!doctype html>
+<html lang="en">
+<head><meta name="view-transition" content="same-origin"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Inx — Tags</title>
+  <style>
+    .inx-section{margin:0 0 36px}
+    .inx-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 14px}
+    .inx-section-head h2{font:600 16px/1.2 var(--font-sans);letter-spacing:-.015em}
+    .inx-section-head .summary{font-size:13px;color:var(--muted)}
+    .tag-compose{display:flex;gap:10px;margin:0 0 16px;max-width:520px}
+    .tag-compose input{flex:1;min-width:0;height:42px;padding:0 14px;border:1px solid var(--line);background:var(--panel);font:400 15px/1.2 var(--font-sans);color:var(--ink);outline:none;border-radius:0}
+    .tag-compose input:focus{border-color:var(--ink)}
+    .tag-compose button{height:42px;padding:0 18px;border:0;background:var(--ink);color:#fff;font:700 14px/1 var(--font-sans);cursor:pointer;border-radius:0}
+    .tag-summary{font-size:13px;color:var(--muted);margin:0 0 14px}
+    .tag-list{display:flex;flex-wrap:wrap;gap:10px;min-height:28px}
+    .tag-pill{
+      display:inline-flex;align-items:stretch;background:var(--panel);border:1px solid var(--line);
+      overflow:hidden;
+    }
+    .tag-label{
+      display:flex;align-items:center;padding:0 14px;min-height:36px;
+      font:600 14px/1.2 var(--font-sans);color:var(--ink);
+    }
+    .tag-actions{display:inline-flex;border-left:1px solid var(--line)}
+    .tag-icon-btn{
+      width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+      border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0;
+    }
+    .tag-icon-btn:hover{background:var(--soft);color:var(--ink)}
+    .tag-icon-btn svg{width:18px;height:18px;display:block}
+    .tag-more-menu{
+      position:fixed;min-width:168px;padding:6px;background:var(--panel);border:1px solid var(--line);
+      box-shadow:0 10px 28px rgba(36,35,33,.16);z-index:40;
+    }
+    .tag-more-menu button{
+      width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border:0;background:transparent;
+      color:var(--ink);font:600 14px/1.2 var(--font-sans);cursor:pointer;text-align:left;
+    }
+    .tag-more-menu button:hover{background:var(--soft)}
+    .tag-more-menu button.danger{color:#8e332d}
+    .tag-more-menu button svg{width:16px;height:16px;flex:0 0 auto}
+    .toolbar-row{display:flex;gap:10px;align-items:center;margin:0 0 16px;flex-wrap:wrap}
+    .toolbar-row .search{flex:1;min-width:220px;height:42px;padding:0 14px;border:1px solid var(--line);background:var(--panel);font:400 15px/1.2 var(--font-sans)}
+    .toolbar-row .ghost{height:42px;padding:0 14px;border:1px solid var(--line);background:transparent;color:var(--ink);font:700 13px/1 var(--font-sans);cursor:pointer}
+    .book-list{display:flex;flex-direction:column}
+    .book-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+    .book-row:last-child{border-bottom:0}
+    .book-title{font:600 15px/1.3 var(--font-sans)}
+    .book-path{font-size:12px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tag-input{width:100%;height:40px;padding:0 12px;border:1px solid var(--line);background:var(--panel);font:400 14px/1.2 var(--font-sans)}
+    .status{padding:18px 0;color:var(--muted);font-size:14px}
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:10px 18px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+    .toast.show{opacity:1}
+    .index-overlay{position:fixed;inset:0;background:rgba(36,35,33,.28);display:none;align-items:center;justify-content:center;z-index:80}
+    .index-overlay.open{display:flex}
+    .index-modal{background:var(--panel);border:1px solid var(--line);padding:28px 32px;min-width:260px;text-align:center}
+    .index-title{font:600 16px/1.2 var(--font-sans);margin-bottom:8px}
+    .index-detail{font-size:13px;color:var(--muted)}
+    .spinner{width:28px;height:28px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;margin:0 auto 14px;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:800px){
+      .book-row{grid-template-columns:1fr;gap:8px}
+      .tag-compose{max-width:none}
+    }
+  </style>
+<style id="inx-shell-css">
+@view-transition{navigation:auto}
+:root{
+  --paper:#f7f5f0;--sidebar:#f3f1ec;--panel:#fffdfa;--ink:#242321;--muted:#77736c;
+  --line:#dedbd3;--soft:#ebe7dd;--active:#e7e2d7;--blue:#2559f4;--blue-hover:#1142d4;--radius:2px;
+  --color-highlighter-orange:#ff9f47;--danger:#8e332d;
+  --font-sans:"Source Sans 3",system-ui,sans-serif;
+  --font-serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sidebar-w:250px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--font-sans);line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit}
+a{color:inherit}
+
+.inx-app-shell{min-height:100vh;display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr)}
+.inx-sidebar{
+  position:sticky;top:0;align-self:start;height:100vh;max-height:100vh;
+  background:var(--sidebar);border-right:1px solid var(--line);
+  padding:26px 14px 14px;display:flex;flex-direction:column;gap:6px;overflow:hidden;
+  view-transition-name:inx-sidebar;
+}
+::view-transition-old(inx-sidebar),
+::view-transition-new(inx-sidebar){animation:none;mix-blend-mode:normal;height:100%}
+.inx-brand{
+  display:flex;align-items:center;gap:10px;padding:2px 12px 22px;text-decoration:none;color:var(--ink);
+  font:600 23px/1 var(--font-sans);letter-spacing:-.045em;text-transform:lowercase;
+}
+.inx-brand .inx-mark{width:26px;height:26px;display:block;flex:0 0 auto}
+.inx-side-nav{display:grid;gap:3px}
+.inx-side-nav a,.inx-settings-link{
+  display:flex;align-items:center;gap:12px;min-height:42px;padding:9px 12px;border-radius:var(--radius);
+  text-decoration:none;font-size:15px;font-weight:500;color:var(--ink);
+}
+.inx-side-nav a:hover,.inx-settings-link:hover{background:var(--soft)}
+.inx-side-nav a.active,.inx-settings-link.active{background:var(--active)}
+.inx-side-nav svg,.inx-settings-link svg,.inx-recents-list svg{
+  width:22px;height:22px;flex:0 0 auto;display:block;shape-rendering:geometricPrecision;
+}
+.inx-recents{margin-top:14px;padding:0 4px;min-height:0;overflow:auto}
+.inx-recents-toggle{
+  width:100%;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:8px 8px 6px;cursor:pointer;
+}
+.inx-recents-list{display:grid;gap:2px}
+.inx-recents-list a{
+  display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--radius);text-decoration:none;
+  font-size:13px;font-weight:600;color:var(--ink);min-width:0;
+}
+.inx-recents-list a:hover{background:var(--soft)}
+.inx-recents-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inx-recents-empty{padding:6px 8px 10px;font-size:12px;color:var(--muted)}
+.inx-sidebar-end{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:10px}
+.inx-corner-tray{
+  position:fixed;right:18px;bottom:18px;z-index:50;width:auto;height:48px;display:flex;align-items:center;
+  justify-content:center;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:0 6px 24px #24232118;
+}
+.inx-tray-btn{
+  position:relative;width:40px;height:40px;border:0;border-radius:var(--radius);background:transparent;color:var(--ink);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;
+}
+.inx-tray-btn:hover{background:var(--soft)}
+.inx-tray-btn svg{width:20px;height:20px}
+.inx-tray-tip{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;
+  padding:6px 10px;border-radius:var(--radius);background:var(--ink);color:#fff;font-size:12px;font-weight:600;
+  opacity:0;pointer-events:none;transition:opacity .12s;
+}
+.inx-tray-btn:hover .inx-tray-tip,.inx-tray-btn:focus-visible .inx-tray-tip{opacity:1}
+
+.inx-main{min-width:0;padding:28px clamp(22px,4vw,52px) 56px}
+.inx-page-title{font:600 22px/1.2 var(--font-sans);letter-spacing:-.02em;margin:0 0 20px;color:var(--ink);font-weight:600}
+
+/* Secondary legacy .container pages */
+body.inx-shared .container{
+  max-width:none;min-height:100vh;margin:0;padding:0;
+  display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);
+}
+body.inx-shared .container>.inx-sidebar{grid-column:1;grid-row:1 / span 40}
+body.inx-shared .header{
+  grid-column:2;text-align:left;margin:0;padding:28px clamp(22px,4vw,52px) 0;background:var(--paper);border:0;
+}
+body.inx-shared .header h1{font:600 22px/1.2 var(--font-sans);letter-spacing:-.02em;color:var(--ink)}
+body.inx-shared .nav-links{display:none!important}
+body.inx-shared .container>:not(.inx-sidebar):not(.header){
+  grid-column:2;max-width:1080px;width:100%;padding:18px clamp(22px,4vw,52px) 56px;background:var(--paper);
+}
+body.inx-shared .card,body.inx-shared .panel,body.inx-shared .stage{
+  border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;backdrop-filter:none;
+  padding:0!important;margin:0 0 28px!important;
+}
+body.inx-shared .settings-section{
+  border:1px solid var(--line);border-radius:0;box-shadow:none;background:var(--panel);backdrop-filter:none;
+}
+body.inx-shared .tabs{justify-content:flex-start;gap:8px;margin:0 0 18px;padding:0}
+body.inx-shared .tab-btn{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);color:var(--ink);font-weight:600;
+  padding:8px 16px;font-size:14px;
+}
+body.inx-shared .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+body.inx-shared input,body.inx-shared select,body.inx-shared .btn,body.inx-shared .add-btn,body.inx-shared .action-btn,
+body.inx-shared .new-tag-input,body.inx-shared .search,body.inx-shared .tag-input,body.inx-shared .icon-btn{
+  border-radius:var(--radius)!important;font-family:var(--font-sans)!important;
+}
+body.inx-shared .btn.primary,body.inx-shared .btn-primary,body.inx-shared .add-btn{background:var(--ink);color:#fff;border-radius:var(--radius)}
+body.inx-shared .action-btn{border:1px solid var(--ink);background:transparent;color:var(--ink);font-weight:700}
+body.inx-shared .action-btn:hover{background:var(--soft)}
+body.inx-shared .action-btn.icon-only-action,body.inx-shared .icon-only-action{
+  border:0!important;background:transparent!important;box-shadow:none!important;
+}
+body.inx-shared .action-btn.icon-only-action:hover,body.inx-shared .icon-only-action:hover{
+  background:transparent!important;opacity:.72;
+}
+body.inx-shared .primary-action,body.inx-shared .action-btn.primary-action{background:var(--blue);color:#fff;border-color:var(--blue)}
+body.inx-shared .toast{border-radius:var(--radius)}
+body.inx-shared .tag-pill{border-radius:var(--radius)!important;background:var(--soft)!important}
+body.inx-shared .toggle-slider{border-radius:var(--radius)}
+body.inx-shared .toggle-slider:before{border-radius:1px}
+body.inx-shared input:checked+.toggle-slider{background:var(--ink)}
+body.inx-shared .setting-item{border-bottom:1px solid var(--line)!important;padding:14px 18px!important}
+body.inx-shared .section-header{padding:16px 18px 8px!important}
+body.inx-shared .section-header h3{font:600 16px/1.2 var(--font-sans)!important;color:var(--ink)!important}
+body.inx-shared .setting-label,.inx-shared .title,.inx-shared .book-title{font-family:var(--font-sans)!important;color:var(--ink)!important}
+body.inx-shared .header{border:0!important}
+body.inx-shared .toolbar .title{font:600 16px/1.2 var(--font-sans)}
+body.inx-shared .summary{color:var(--muted)!important}
+
+.inx-drawer-backdrop[hidden],
+.inx-drawer[hidden]{
+  display:none!important;
+}
+.inx-drawer-backdrop{
+  display:block;position:fixed;inset:0;z-index:60;
+  background:rgba(33,30,28,.72);
+  opacity:0;pointer-events:none;
+  transition:opacity .22s cubic-bezier(0,0,.2,1);
+}
+.inx-drawer-backdrop.is-open{
+  opacity:1;pointer-events:auto;
+}
+.inx-drawer{
+  display:flex;position:fixed;top:0;right:0;width:40vw;min-width:min(360px,100vw);max-width:720px;
+  height:100vh;background:var(--panel);border-left:1px solid var(--line);z-index:70;
+  padding:28px 40px 40px;overflow:auto;flex-direction:column;text-align:left!important;
+  box-shadow:-18px 0 56px rgba(33,30,28,.38),-4px 0 18px rgba(33,30,28,.16);
+  transform:translateX(100%);pointer-events:none;
+  transition:transform .28s cubic-bezier(0,0,.2,1);
+}
+.inx-drawer.is-open{
+  transform:translateX(0);pointer-events:auto;
+}
+.inx-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px;text-align:left!important}
+.inx-drawer-tabs{display:flex;gap:28px;justify-content:flex-start;flex:1}
+.inx-drawer-tabs button{
+  border:0;background:transparent;padding:8px 0;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;text-align:left;
+}
+.inx-drawer-tabs button.active{color:var(--ink);border-bottom-color:var(--blue)}
+.inx-drawer-close{
+  width:36px;height:36px;border:0;background:transparent;font-size:26px;line-height:1;cursor:pointer;
+  color:var(--muted);flex:0 0 auto;z-index:2;position:relative;
+}
+.inx-drawer-close:hover{color:var(--ink)}
+.inx-drawer-body,.inx-drawer-body *{text-align:left!important}
+.inx-drawer-body{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0;min-height:120px;color:var(--ink)}
+.inx-update{padding:0 0 28px;margin:0 0 28px;border-bottom:1px solid var(--line)}
+.inx-update:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.inx-update-title{font:400 32px/1.2 var(--font-serif)!important;letter-spacing:-.02em;margin:0 0 10px;color:var(--ink)}
+.inx-update-date{font-size:13px;color:var(--muted);margin:0 0 12px}
+.inx-update p{font-size:15px;color:#4a4742;line-height:1.55;margin:0;max-width:36em}
+
+@media(max-width:900px){
+  .inx-app-shell,body.inx-shared .container{display:block}
+  .inx-sidebar{
+    position:relative;height:auto;max-height:none;padding:14px 12px;border-right:0;border-bottom:1px solid var(--line);
+  }
+  .inx-brand{padding:0 4px 10px;font-size:20px}
+  .inx-brand .inx-mark{width:22px;height:22px}
+  .inx-side-nav{display:flex;overflow:auto;gap:4px}
+  .inx-side-nav a{min-height:38px;white-space:nowrap;font-size:14px}
+  .inx-recents,.inx-sidebar-end .inx-settings-link span{display:none}
+  .inx-sidebar-end{border-top:0;padding-top:0;display:flex;align-items:center;gap:8px}
+  .inx-corner-tray{right:12px;bottom:12px}
+  .inx-main,body.inx-shared .container>:not(.inx-sidebar):not(.header){padding:20px 16px 48px}
+  body.inx-shared .header{padding:18px 16px 0}
+  .inx-page-title,body.inx-shared .header h1{font-size:20px;margin-bottom:14px}
+}
+
+/* Device identity (Settings) */
+.identity-section{padding-bottom:8px}
+.identity-section .section-header{align-items:center}
+.identity-section .field{display:grid;gap:6px;margin-bottom:14px;padding:0 24px}
+.identity-section .field label{font-size:13px;font-weight:600;color:var(--muted)}
+.identity-section .field input{
+  width:100%;min-height:40px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);
+  padding:8px 12px;
+}
+.identity-section .segmented{
+  display:flex;gap:4px;margin:0 24px 14px;padding:3px;background:var(--soft);border-radius:var(--radius);
+}
+.identity-section .segmented button{
+  flex:1;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:2px;
+  font-size:13px;font-weight:600;cursor:pointer;
+}
+.identity-section .segmented button.active{background:var(--ink);color:#fff}
+.identity-section .dropzone{
+  display:block;margin:0 24px 14px;border:1.5px dashed var(--line);border-radius:var(--radius);background:var(--panel);
+  padding:16px;text-align:center;color:var(--muted);cursor:pointer;position:relative;
+}
+.identity-section .dropzone strong{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
+.identity-section .dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.identity-section .dropzone.disabled{opacity:.45;pointer-events:none}
+.identity-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 24px 8px}
+.identity-actions .action-btn{flex:1;min-width:100px;min-height:40px}
+.identity-note{min-height:18px;font-size:12.5px;color:var(--muted);margin:0 24px 16px}
+.identity-layout{
+  display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,280px);gap:18px;align-items:start;padding:0 0 12px;
+}
+.identity-section.wide .identity-layout{display:grid}
+.card-stage{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;justify-content:center;margin:0 24px 16px 0}
+.card-stage canvas{display:block;width:100%;max-width:260px;height:auto;background:#fff}
+.identity-empty{display:flex;justify-content:center;padding:18px 24px 24px}
+.identity-add{
+  display:flex;flex-direction:column;align-items:center;gap:10px;border:1.5px dashed var(--line);border-radius:var(--radius);
+  background:var(--panel);padding:24px 40px;cursor:pointer;min-width:200px;font:inherit;
+}
+.identity-add:hover{background:var(--soft)}
+.identity-add .plus{
+  width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:20px;font-weight:700;
+}
+.identity-view{display:flex;justify-content:center;padding:8px 24px 24px}
+.identity-view img{display:block;width:100%;max-width:220px;height:auto;border-radius:var(--radius);box-shadow:0 8px 24px #24232114}
+@media(max-width:900px){
+  .identity-layout{grid-template-columns:1fr}
+  .card-stage{margin:0 24px 16px;order:-1}
+}
+</style></head>
+<body class="inx-app">
+  <div class="inx-app-shell">
+    <aside id="inx-shell-mount" class="inx-sidebar" data-active="/tags"><a class="inx-brand" href="/" aria-label="inx home"><svg class="inx-mark" viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><g transform="translate(24 24) rotate(42)"><rect x="-16" y="-9" width="32" height="6" rx="3"/><rect x="-9" y="4" width="20" height="6" rx="3"/></g></svg><span>inx</span></a><nav class="inx-side-nav" aria-label="Main navigation"><a href="/"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 3.37891L42 21.3789V42.0002H27V30.1503C23.5766 30.8452 21 33.8718 21 37.5002V42.0002H6V21.3789L24 3.37891ZM18 27.0002H30V39.0002H39V22.6215L24 7.62155L9 22.6215V39.0002H18V27.0002Z"/></svg><span>Home</span></a><a href="/files"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M39 6H9V3H39V6Z"/><path d="M34 35H14V24H34V35ZM17 27V32H31V27H17Z"/><path d="M3 15H45V45H3V15ZM6 22.5V42H42V18H10.5C8.01472 18 6 20.0147 6 22.5Z"/><path d="M6 12H42V9H6V12Z"/></svg><span>My files</span></a><a href="/tags" class="active" aria-current="page"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M10 45H38V19L24 3L10 19V45ZM13 41.5V20.5L24 8.5L35 20.5V41.5H13Z"/><path d="M24 15.5C22.6193 15.5 21.5 16.6193 21.5 18C21.5 19.3807 22.6193 20.5 24 20.5C25.3807 20.5 26.5 19.3807 26.5 18C26.5 16.6193 25.3807 15.5 24 15.5Z"/></svg><span>Tags</span></a><a href="/font-manager"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M7 3H41V45H7V3ZM10 6V42H38V6H10ZM16 12H32V15H16V12ZM16 19H32V22H16V19ZM16 26H27V29H16V26Z"/></svg><span>Fonts</span></a><a href="/export"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M12 4H36V44L24 35.2L12 44V4ZM15 7V37.4L24 30.8L33 37.4V7H15Z"/></svg><span>Bookmarks & annotations</span></a><a href="/trash"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M21 18V33H18V18H21Z"/><path d="M30 33V18H27V33H30Z"/><path d="M33 3H15V9H6V12H9V42H39V12H42V9H33V3ZM30 9H18V6H30V9ZM22.5 12H36V39H12V22.5C12 16.701 16.701 12 22.5 12Z"/></svg><span>Trash</span></a></nav><div class="inx-recents"><button type="button" class="inx-recents-toggle" aria-expanded="true">Recents</button><div class="inx-recents-list"><div class="inx-recents-empty">No recent files</div></div></div><div class="inx-sidebar-end"><a class="inx-settings-link" href="/settings"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M6 12H22V15H6V12Z"/><path d="M34 12H42V15H34V12Z"/><path fill-rule="evenodd" d="M31.5 8C28.4624 8 26 10.4624 26 13.5C26 16.5376 28.4624 19 31.5 19C34.5376 19 37 16.5376 37 13.5C37 10.4624 34.5376 8 31.5 8ZM31.5 11C30.1193 11 29 12.1193 29 13.5C29 14.8807 30.1193 16 31.5 16C32.8807 16 34 14.8807 34 13.5C34 12.1193 32.8807 11 31.5 11Z"/><path d="M6 22.5H14V25.5H6V22.5Z"/><path d="M26 22.5H42V25.5H26V22.5Z"/><path fill-rule="evenodd" d="M19.5 18.5C16.4624 18.5 14 20.9624 14 24C14 27.0376 16.4624 29.5 19.5 29.5C22.5376 29.5 25 27.0376 25 24C25 20.9624 22.5376 18.5 19.5 18.5ZM19.5 21.5C18.1193 21.5 17 22.6193 17 24C17 25.3807 18.1193 26.5 19.5 26.5C20.8807 26.5 22 25.3807 22 24C22 22.6193 20.8807 21.5 19.5 21.5Z"/><path d="M6 33H28V36H6V33Z"/><path d="M40 33H42V36H40V33Z"/><path fill-rule="evenodd" d="M33.5 29C30.4624 29 28 31.4624 28 34.5C28 37.5376 30.4624 40 33.5 40C36.5376 40 39 37.5376 39 34.5C39 31.4624 36.5376 29 33.5 29ZM33.5 32C32.1193 32 31 33.1193 31 34.5C31 35.8807 32.1193 37 33.5 37C34.8807 37 36 35.8807 36 34.5C36 33.1193 34.8807 32 33.5 32Z"/></svg><span>Settings</span></a></div></aside>
+    <main class="inx-main">
+      <h1 class="inx-page-title">Tags</h1>
+
+      <section class="inx-section">
+        <div class="tag-compose">
+          <input autocomplete="off" class="new-tag-input" id="newTagInput" placeholder="New tag">
+          <button type="button" class="add-btn" onclick="addTag()">Add</button>
+        </div>
+        <div class="tag-summary" id="tagSummary">Reusable tags</div>
+        <div class="tag-list" id="tagList"></div>
+        <datalist id="tagOptions"></datalist>
+      </section>
+
+      <section class="inx-section">
+        <div class="inx-section-head">
+          <h2>Indexed books</h2>
+          <div class="summary" id="summary">Loading…</div>
+        </div>
+        <div class="toolbar-row">
+          <input class="search" id="search" placeholder="Search books" oninput="renderBooks()">
+          <button type="button" class="ghost" onclick="refreshIndex()">Refresh index</button>
+        </div>
+        <div class="book-list" id="bookList"><div class="status">Loading…</div></div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+  <div class="index-overlay" id="indexOverlay"><div class="index-modal"><div class="spinner"></div><div class="index-title">Indexing library</div><div class="index-detail" id="indexDetail"></div></div></div>
+  <script>
+let books=[],tags=[],saveTimers={},indexPollTimer=null;function escapeHtml(e){return e?e.replace(/[&<>"]/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[e]):""}function showToast(e,t){const a=document.getElementById("toast");a.textContent=e,a.style.background=t?"#8e332d":"#242321",a.classList.add("show"),setTimeout(()=>a.classList.remove("show"),1600)}async function loadBooks(){try{const t=await fetch("/api/book-tags");var e=await t.json();if(!e.indexed)return document.getElementById("summary").textContent="Library index is required.",void(document.getElementById("bookList").innerHTML='<div class="status">Enable and build the library index first.</div>');tags=e.tags||[],books=e.books||[],renderTags(),renderBooks()}catch(e){document.getElementById("bookList").innerHTML='<div class="status">Failed to load indexed books.</div>'}}function setIndexing(e,t){document.getElementById("indexOverlay").classList.toggle("open",!!e),document.getElementById("indexDetail").textContent=t||""}async function refreshIndex(){try{if(setIndexing(!0,""),!(await fetch("/api/library-index/refresh",{method:"POST"})).ok)throw new Error("index failed");pollIndexStatus()}catch(e){setIndexing(!1,""),showToast("Failed to start indexing",!0)}}async function pollIndexStatus(){clearTimeout(indexPollTimer);try{const a=await fetch("/api/library-index/status");var t=await a.json();let e="";if(0<t.total&&(e=t.current+" / "+t.total),setIndexing(t.indexing,e),t.indexing)return void(indexPollTimer=setTimeout(pollIndexStatus,850));await loadBooks(),showToast("Index refreshed")}catch(e){setIndexing(!1,""),showToast("Index status failed",!0)}}function renderTags(){const e=document.getElementById("tagList"),t=document.getElementById("tagOptions");document.getElementById("tagSummary").textContent=tags.length?tags.length+" reusable tags":"No tags yet",t.innerHTML=tags.map(e=>'<option value="'+escapeHtml(e)+'"></option>').join(""),e.innerHTML=tags.length?tags.map(e=>{e=escapeHtml(e);return'<span class="tag-pill"><span class="tag-label">'+e+'</span><span class="tag-actions"><button type="button" class="tag-icon-btn tag-more-btn" data-tag="'+e+'" aria-label="Tag actions" title="More"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><circle cx="10" cy="24" r="3.5"/><circle cx="24" cy="24" r="3.5"/><circle cx="38" cy="24" r="3.5"/></svg></button></span></span>'}).join(""):'<div class="summary">Create tags here, then reuse them below.</div>',document.querySelectorAll(".tag-more-btn").forEach(e=>{e.addEventListener("click",a=>{a.stopPropagation(),openTagMenu(e)})})}function renderBooks(){const t=(document.getElementById("search").value||"").toLowerCase(),e=books.filter(e=>!t||(e.title||"").toLowerCase().includes(t)||(e.path||"").toLowerCase().includes(t)||(e.tag||"").toLowerCase().includes(t));document.getElementById("summary").textContent=e.length+" / "+books.length+" books",e.length?(document.getElementById("bookList").innerHTML=e.map(e=>'<div class="book-row"><div><div class="book-title">'+escapeHtml(e.title||"Untitled")+'</div><div class="book-path">'+escapeHtml(e.path||"")+'</div></div><input class="tag-input" list="tagOptions" value="'+escapeHtml(e.tag||"")+'" placeholder="Tag" data-path="'+escapeHtml(e.path||"")+'"></div>').join(""),document.querySelectorAll(".tag-input").forEach(t=>{t.addEventListener("input",()=>queueSave(t)),t.addEventListener("keydown",e=>{"Enter"===e.key&&(e.preventDefault(),saveTag(t),t.blur())}),t.addEventListener("blur",()=>saveTag(t))})):document.getElementById("bookList").innerHTML='<div class="status">No matching books.</div>'}async function addTag(){const e=document.getElementById("newTagInput");var t=e.value.trim();if(t)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"addTag",tag:t})})).ok)throw new Error("save failed");tags.includes(t)||tags.push(t),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),e.value="",renderTags(),renderBooks(),showToast("Tag added")}catch(e){showToast("Failed to add tag",!0)}}function closeTagMenus(){document.querySelectorAll(".tag-more-menu").forEach(e=>e.remove())}function openTagMenu(btn){closeTagMenus();const tag=btn.dataset.tag||"";const menu=document.createElement("div");menu.className="tag-more-menu";menu.innerHTML='<button type="button" data-menu-action="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0 0-3L17.5 5.5a2.1 2.1 0 0 0-3 0L4 16v4Z"/><path d="M13.5 6.5 17.5 10.5"/></svg><span>Rename</span></button>'+'<button type="button" class="danger" data-menu-action="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M9 7V5h6v2M8 7l.8 12h6.4L16 7M10 11v5M14 11v5"/></svg><span>Delete</span></button>';document.body.appendChild(menu);const r=btn.getBoundingClientRect();menu.style.top=Math.min(window.innerHeight-menu.offsetHeight-12,r.bottom+6)+"px";menu.style.left=Math.max(12,r.right-menu.offsetWidth)+"px";menu.querySelector('[data-menu-action="rename"]').onclick=()=>{closeTagMenus();renameTag(tag)};menu.querySelector('[data-menu-action="delete"]').onclick=()=>{closeTagMenus();deleteTag(tag)};}async function renameTag(t){const a=(prompt("Rename tag",t)||"").trim();if(a&&a!==t)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"renameTag",oldTag:t,newTag:a})})).ok)throw new Error("rename failed");tags=tags.map(e=>e===t?a:e).filter((e,t,a)=>a.indexOf(e)===t),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),books.forEach(e=>{e.tag===t&&(e.tag=a)}),renderTags(),renderBooks(),showToast("Tag renamed")}catch(e){showToast("Failed to rename tag",!0)}}async function deleteTag(t){if(confirm('Delete tag "'+t+'" and clear it from matching books?'))try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"deleteTag",tag:t})})).ok)throw new Error("delete failed");tags=tags.filter(e=>e!==t),books.forEach(e=>{e.tag===t&&(e.tag="")}),renderTags(),renderBooks(),showToast("Tag deleted")}catch(e){showToast("Failed to delete tag",!0)}}function queueSave(e){var t=e.dataset.path;clearTimeout(saveTimers[t]),saveTimers[t]=setTimeout(()=>saveTag(e),700)}async function saveTag(e){const t=e.dataset.path;clearTimeout(saveTimers[t]);e=e.value.trim();const a=books.find(e=>e.path===t);if(!a||(a.tag||"")!==e)try{if(!(await fetch("/api/book-tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:t,tag:e})})).ok)throw new Error("save failed");a&&(a.tag=e),e&&!tags.includes(e)&&(tags.push(e),tags.sort((e,t)=>e.toLowerCase().localeCompare(t.toLowerCase())),renderTags()),showToast(e?"Tag saved":"Tag cleared")}catch(e){showToast("Failed to save tag",!0)}}document.getElementById("search").addEventListener("input",renderBooks),document.getElementById("newTagInput").addEventListener("keydown",e=>{"Enter"===e.key&&(e.preventDefault(),addTag())}),loadBooks()
+  </script>
+<script>
+document.addEventListener("click",closeTagMenus);
+document.addEventListener("keydown",e=>{e.key==="Escape"&&closeTagMenus()});
+</script>
+<script src="/js/inx_shell.js?v=1786023924"></script></body>
+</html>

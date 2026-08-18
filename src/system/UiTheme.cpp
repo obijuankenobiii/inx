@@ -15,6 +15,7 @@
 
 namespace {
 constexpr int kMainTabCount = 5;
+constexpr int kMainTabIconSrc = 40;
 constexpr int kMainTabIconSize = 38;
 constexpr int kSelectedBorderWidth = 38;
 constexpr int kSelectedBorderHeight = 5;
@@ -89,8 +90,8 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
     const int iconY = tabY + (tabH - kMainTabIconSize) / 2 + (mainTabsAtBottom() ? kBottomTabIconNudgeY : 5);
 
     auto drawTabIcon = [&](const uint8_t* icon) {
-      renderer.bitmap.icon(icon, iconX, iconY, kMainTabIconSize, kMainTabIconSize, BitmapRender::Orientation::None,
-                           false);
+      renderer.bitmap.iconScaled(icon, iconX, iconY, kMainTabIconSrc, kMainTabIconSrc, kMainTabIconSize,
+                                 kMainTabIconSize, BitmapRender::Orientation::None, false);
     };
     switch (i) {
       case 0:
@@ -154,6 +155,8 @@ int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, cons
 
 void UiTheme::drawButtonHints(const GfxRenderer& renderer, const int fontId, const char* btn1, const char* btn2,
                               const char* btn3, const char* btn4) const {
+  // Hide-button-hints is enforced inside UiRender::buttonHints (global policy).
+  // Hub chrome: when main tabs sit on the bottom row, they replace the hint bar.
   if (!mainTabsAtBottom()) {
     renderer.ui.buttonHints(fontId, btn1, btn2, btn3, btn4);
   }

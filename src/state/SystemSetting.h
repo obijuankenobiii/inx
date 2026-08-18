@@ -347,7 +347,7 @@ class SystemSetting {
    */
   enum LIBRARY_MODE {
     LIBRARY_LIST = 0,  ///< Compact list browser
-    LIBRARY_GRID = 1,  ///< 3x4 icon grid browser
+    LIBRARY_GRID = 1,  ///< 2x6 icon grid browser
     LIBRARY_MODE_COUNT
   };
 
@@ -432,10 +432,10 @@ class SystemSetting {
   uint8_t disableNavigation = NAV_NONE;  ///< Navigation disable mode
 
   uint8_t recentLibraryMode = RECENT_FLOW;         ///< Recent library display mode
-  uint8_t libraryMode = LIBRARY_GRID;              ///< Library browser display mode
+  uint8_t libraryMode = LIBRARY_LIST;              ///< Library browser display mode
   uint8_t libraryViewMode = LIBRARY_VIEW_FOLDERS;  ///< Last Library browser content view
   uint8_t libraryShelfEnabled = 0;                 ///< Allow cover shelf view in Library
-  /** Hide on-screen button-hint bar on tabbed hub screens (experienced users). */
+  /** Hide on-screen button-hint chrome everywhere (hub, settings, reader overlays, side buttons). */
   uint8_t hideButtonHints = 0;
   /** How many recent books to show on the Recent hub (1–8). */
   uint8_t recentVisibleCount = 9;

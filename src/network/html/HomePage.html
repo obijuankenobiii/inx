@@ -1,214 +1,519 @@
 <!doctype html>
 <html lang="en">
-<meta charset="UTF-8">
-<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
-<title>Inx — Dashboard</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:#fafafa;color:#1a1a1a;line-height:1.45;letter-spacing:0}
-button,input{font:inherit}
-.container{max-width:720px;margin:0 auto;padding:28px 18px}
-.header{text-align:center;margin-bottom:22px}
-.header h1{font-size:26px;font-weight:700;color:#111;letter-spacing:-.03em;margin-bottom:2px}
-.header .subtitle{font-size:13px;font-weight:400;color:#777;display:none}
-.nav-links{display:flex;justify-content:center;gap:2px;margin-bottom:22px;padding-bottom:8px;border-bottom:1px solid #ebebeb;flex-wrap:wrap}
-.nav-btn{padding:6px 12px;background:transparent;color:#555;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
-.nav-btn:hover{background:#eee;color:#111}
-.nav-btn.active{background:#111;color:#fff}
-.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px;margin-bottom:32px}
-.card{background:rgba(255,255,255,.9);backdrop-filter:blur(18px);border-radius:22px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,.02),0 1px 2px rgba(0,0,0,.04);border:.5px solid rgba(0,0,0,.05);transition:all .3s cubic-bezier(.4, 0, .2, 1)}
-.card:hover{transform:translateY(-2px);box-shadow:0 20px 40px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);background:rgba(255,255,255,.96)}
-.card.wide{grid-column:1/-1}
-.card-header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
-.card-header .icon{font-size:28px}
-.card-header h2{font-size:18px;font-weight:590;color:#1d1d1f;letter-spacing:-.015em}
-.card-header .header-action{margin-left:auto}
-.status-grid{display:flex;flex-direction:column;gap:16px}
-.status-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.04)}
-.status-item:last-child{border-bottom:none}
-.status-label{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;color:#6e6e73}
-.status-value{font-size:14px;font-weight:600;color:#222;font-family:inherit}
-.status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:510}
-.badge-online{background:#34c759;color:#fff}
-.badge-online span{display:inline-block;width:6px;height:6px;background:#fff;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-.badge-ip{background:#eee;color:#333;font-family:inherit}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:14px;margin-top:8px}
-.stat-card{text-align:center;padding:18px 12px;background:#f5f5f7;border-radius:18px;transition:all .2s ease}
-.stat-card:hover{background:#e8e8ed;transform:scale(.98)}
-.stat-value{font-size:28px;font-weight:590;color:#1d1d1f;display:block;letter-spacing:-.002em}
-.stat-label{font-size:13px;color:#6e6e73;margin-top:6px;display:block;font-weight:400}
-.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:8px}
-.action-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;text-decoration:none;min-height:40px}
-.action-btn:hover{background:#333}
-.action-btn:active{transform:scale(.98)}
-.action-btn-secondary{background:#eee;color:#222}
-.action-btn-secondary:hover{background:#e0e0e0}
-.action-btn:disabled{opacity:.45;cursor:default}
-.field{display:grid;gap:6px;margin-bottom:16px}
-.field label{font-size:13px;font-weight:510;color:#6e6e73}
-.field input{width:100%;min-height:42px;border:1px solid rgba(0,0,0,.1);border-radius:12px;background:#fff;color:#1d1d1f;padding:9px 14px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
-.field input:focus{outline:0;border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.06)}
-.field input::placeholder{color:#b3b3b8}
-.segmented{display:flex;background:#e8e8ed;border-radius:980px;padding:3px;margin-bottom:16px;gap:2px}
-.segmented button{flex:1;border:0;background:transparent;color:#6e6e73;padding:9px 8px;border-radius:980px;font-size:12.5px;font-weight:560;cursor:pointer;min-height:34px;transition:background .15s,color .15s}
-.segmented button.active{background:#111;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
-.dropzone{display:block;border:1.5px dashed rgba(0,0,0,.14);border-radius:14px;background:#fbfbfc;padding:18px 16px;text-align:center;color:#6e6e73;cursor:pointer;margin-bottom:16px;position:relative;transition:opacity .15s,border-color .15s,background .15s}
-.dropzone:hover{border-color:rgba(0,0,0,.28);background:#f5f5f7}
-.dropzone strong{display:block;color:#1d1d1f;font-size:14px;font-weight:590;margin-bottom:3px}
-.dropzone span{font-size:12.5px;color:#8e8e93}
-.dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.dropzone.disabled{opacity:.45;cursor:default;pointer-events:none}
-.identity-actions{display:flex;gap:8px;margin-top:18px}
-.identity-actions .action-btn{flex:1;border-radius:980px;min-height:44px}
-.identity-note{min-height:18px;font-size:12.5px;color:#8e8e93;margin-top:10px}
-.identity-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(240px,300px);gap:20px;align-items:start}
-.card-stage{background:#f5f5f7;border:.5px solid rgba(0,0,0,.05);border-radius:16px;padding:14px;display:flex;justify-content:center}
-.card-stage canvas{display:block;width:100%;max-width:280px;height:auto;background:#fff;border-radius:10px}
-.toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:10px 20px;border-radius:980px;font-size:13px;opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:1000}
-.toast.show{opacity:1}
-.identity-empty{display:flex;justify-content:center;padding:8px 0}
-.identity-add{display:flex;flex-direction:column;align-items:center;gap:10px;border:1.5px dashed rgba(0,0,0,.14);border-radius:16px;background:#fbfbfc;padding:26px 44px;cursor:pointer;min-width:220px;transition:background .15s,border-color .15s;font-family:inherit}
-.identity-add:hover{background:#f5f5f7;border-color:rgba(0,0,0,.28)}
-.identity-add .plus{width:38px;height:38px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;line-height:1}
-.identity-add span:last-child{font-size:13px;font-weight:590;color:#1d1d1f}
-.identity-view{display:flex;justify-content:center;padding:4px 0}
-.identity-view img{display:block;width:100%;max-width:230px;height:auto;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.1)}
-.footer{text-align:center;padding:32px 20px 20px;color:#8e8e93;font-size:12px;border-top:.5px solid rgba(0,0,0,.06);margin-top:40px}
-.footer a{color:#0071e3;text-decoration:none}
-.footer a:hover{text-decoration:underline}
-@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.card{animation:fadeInUp .5s cubic-bezier(.4,0,.2,1) forwards}
-.card:nth-child(1){animation-delay:0s}
-.card:nth-child(2){animation-delay:80ms}
-.card:nth-child(3){animation-delay:.16s}
-.card:nth-child(4){animation-delay:.24s}
-@media (max-width:768px){.container{padding:28px 16px}.header h1{font-size:22px}.header .subtitle{font-size:15px}.nav-links{gap:6px}.nav-btn{padding:6px 14px;font-size:13px}.dashboard-grid{gap:16px;grid-template-columns:1fr}.card{padding:20px}.stat-value{font-size:22px}.quick-actions{grid-template-columns:1fr}.identity-layout{grid-template-columns:1fr}.identity-actions{flex-direction:column}.card-stage{order:-1}.card-stage canvas{max-width:220px}}
-::selection{background:#0071e3;color:#fff}
-</style>
-<div class="container">
-  <div class="header"><h1>Inx</h1></div>
-  <div class="nav-links">
-    <a href="/" class="nav-btn active">Dashboard</a>
-    <a href="/files" class="nav-btn">Files</a>
-    <a href="/epub" class="nav-btn">Epub</a>
-    <a href="/tags" class="nav-btn">Tags</a>
-    <a href="/font-manager" class="nav-btn">Fonts</a>
-    <a href="/export" class="nav-btn">Bookmarks &amp; Annotations</a>
-    <a href="/settings" class="nav-btn">Settings</a>
-  </div>
-  <div class="dashboard-grid">
-    <div class="card">
-      <div class="card-header"><span class="icon"></span><h2>Status</h2></div>
-      <div class="status-grid">
-        <div class="status-item"><div class="status-label">Version</div><div class="status-value" id="version">—</div></div>
-        <div class="status-item"><div class="status-label">Network</div><div class="status-value"><span class="status-badge badge-online"><span></span> OK</span></div></div>
-        <div class="status-item"><div class="status-label">IP</div><div class="status-value"><span class="status-badge badge-ip" id="ip-address">—</span></div></div>
-        <div class="status-item"><div class="status-label">Wi‑Fi</div><div class="status-value" id="rssi">—</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><span class="icon"></span><h2>Device</h2></div>
-      <div class="stats-grid">
-        <div class="stat-card"><span class="stat-value" id="free-heap">—</span> <span class="stat-label">Memory Free</span></div>
-        <div class="stat-card"><span class="stat-value" id="uptime">—</span> <span class="stat-label">Uptime</span></div>
-        <div class="stat-card"><span class="stat-value" id="mode">—</span> <span class="stat-label">Network Mode</span></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><span class="icon"></span><h2>Open</h2></div>
-      <div class="quick-actions">
-        <a href="/files" class="action-btn">Library</a>
-        <a href="/font-manager" class="action-btn action-btn-secondary">Fonts</a>
-        <button class="action-btn action-btn-secondary" onclick="refreshData()">Refresh</button>
-      </div>
-    </div>
-    <div class="card" id="identityCard">
-      <div class="card-header">
-        <span class="icon"></span><h2>Device identity</h2>
-        <button class="action-btn action-btn-secondary header-action" id="identityEditBtn" onclick="enterIdentityEdit()" style="display:none">Edit</button>
-      </div>
-      <div class="identity-empty" id="identityEmpty" style="display:none">
-        <button class="identity-add" onclick="enterIdentityEdit()">
-          <span class="plus">+</span>
-          <span>Add device identity</span>
-        </button>
-      </div>
-      <div class="identity-view" id="identityView" style="display:none">
-        <img id="identityViewImg" alt="Device identity card">
-      </div>
-      <div class="identity-layout" id="identityEditForm" style="display:none">
-        <div>
-          <div class="field">
-            <label for="deviceName">Device name</label>
-            <input id="deviceName" maxlength="64" placeholder="My Inx Reader" oninput="scheduleIdentityRender()">
+<head><meta name="view-transition" content="same-origin"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Inx — Home</title>
+  <style>
+    .upload-block{margin:0 0 40px}
+    .upload-label{font:600 15px/1.2 var(--font-sans);margin:0 0 14px;color:var(--ink)}
+    .upload-hero{
+      display:flex;align-items:center;gap:32px;min-height:220px;padding:40px 44px;
+      border:1.5px dashed #c8c1b3;background:var(--panel);
+    }
+    .upload-hero .hero-icon{width:84px;height:84px;flex:0 0 auto;color:var(--ink)}
+    .upload-hero .hero-icon svg{width:84px;height:84px;display:block}
+    .upload-copy{text-align:left}
+    .upload-copy h2{font:400 30px/1.25 var(--font-serif);letter-spacing:-.02em;margin:0 0 8px;color:var(--ink)}
+    .upload-copy p{color:var(--muted);font:400 14px/1.4 var(--font-sans);margin:0}
+    .upload-hero label{cursor:pointer;display:contents}
+    .upload-hero input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+    .upload-hero.dragover{border-color:#8f887b;background:#fff}
+
+    .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 18px}
+    .section-head h2{font:600 18px/1.2 var(--font-sans);letter-spacing:-.015em}
+    .section-head a{color:var(--ink);font-size:13px;font-weight:700;text-decoration:none}
+    .section-head a:hover{text-decoration:underline}
+
+    .recent-grid{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:28px 22px;margin-bottom:40px;
+    }
+    .recent-empty{padding:8px 0 28px;color:var(--muted);font-size:14px}
+    .recent-card{display:flex;flex-direction:column;gap:12px;text-decoration:none;color:var(--ink);min-width:0}
+    .recent-card:hover .recent-cover{box-shadow:0 10px 26px #2423211a}
+    .recent-cover{
+      aspect-ratio:3/4;background:#fff;border:1px solid #e4e0d7;box-shadow:0 6px 18px #24232114;
+      display:flex;align-items:flex-end;justify-content:stretch;overflow:hidden;position:relative;
+    }
+    .recent-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .recent-cover .fallback{
+      width:100%;height:100%;padding:18px 16px;display:flex;flex-direction:column;justify-content:flex-end;
+      background:linear-gradient(180deg,#fbfaf7 0%,#f0ebe3 100%);
+    }
+    .recent-cover .fallback strong{
+      font:400 17px/1.25 var(--font-serif);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+    }
+    .recent-meta{min-width:0}
+    .recent-meta .name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .recent-meta .pages{font-size:13px;color:var(--muted);margin-top:3px}
+
+    .device-strip{
+      display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;width:100%;max-width:none;
+      margin-top:8px;padding:0;background:var(--panel);border:1px solid var(--line);
+    }
+    .device-strip .item{padding:22px 24px;border-right:1px solid var(--line)}
+    .device-strip .item:last-child{border-right:0}
+    .device-strip .item strong{display:block;font-size:22px;font-weight:700;letter-spacing:-.025em}
+    .device-strip .item span{display:block;margin-top:4px;font-size:13px;color:var(--muted);font-weight:600}
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:10px 18px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+    .toast.show{opacity:1}
+    @media(max-width:900px){
+      .upload-hero{flex-direction:column;align-items:flex-start;gap:14px;padding:20px;min-height:0}
+      .upload-copy h2{font-size:22px}
+      .upload-hero .hero-icon,.upload-hero .hero-icon svg{width:56px;height:56px}
+      .recent-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:18px 14px}
+      .device-strip{grid-template-columns:1fr}
+      .device-strip .item{border-right:0;border-bottom:1px solid var(--line)}
+      .device-strip .item:last-child{border-bottom:0}
+    }
+  </style>
+<style id="inx-shell-css">
+@view-transition{navigation:auto}
+:root{
+  --paper:#f7f5f0;--sidebar:#f3f1ec;--panel:#fffdfa;--ink:#242321;--muted:#77736c;
+  --line:#dedbd3;--soft:#ebe7dd;--active:#e7e2d7;--blue:#2559f4;--blue-hover:#1142d4;--radius:2px;
+  --color-highlighter-orange:#ff9f47;--danger:#8e332d;
+  --font-sans:"Source Sans 3",system-ui,sans-serif;
+  --font-serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sidebar-w:250px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--font-sans);line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit}
+a{color:inherit}
+
+.inx-app-shell{min-height:100vh;display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr)}
+.inx-sidebar{
+  position:sticky;top:0;align-self:start;height:100vh;max-height:100vh;
+  background:var(--sidebar);border-right:1px solid var(--line);
+  padding:26px 14px 14px;display:flex;flex-direction:column;gap:6px;overflow:hidden;
+  view-transition-name:inx-sidebar;
+}
+::view-transition-old(inx-sidebar),
+::view-transition-new(inx-sidebar){animation:none;mix-blend-mode:normal;height:100%}
+.inx-brand{
+  display:flex;align-items:center;gap:10px;padding:2px 12px 22px;text-decoration:none;color:var(--ink);
+  font:600 23px/1 var(--font-sans);letter-spacing:-.045em;text-transform:lowercase;
+}
+.inx-brand .inx-mark{width:26px;height:26px;display:block;flex:0 0 auto}
+.inx-side-nav{display:grid;gap:3px}
+.inx-side-nav a,.inx-settings-link{
+  display:flex;align-items:center;gap:12px;min-height:42px;padding:9px 12px;border-radius:var(--radius);
+  text-decoration:none;font-size:15px;font-weight:500;color:var(--ink);
+}
+.inx-side-nav a:hover,.inx-settings-link:hover{background:var(--soft)}
+.inx-side-nav a.active,.inx-settings-link.active{background:var(--active)}
+.inx-side-nav svg,.inx-settings-link svg,.inx-recents-list svg{
+  width:22px;height:22px;flex:0 0 auto;display:block;shape-rendering:geometricPrecision;
+}
+.inx-recents{margin-top:14px;padding:0 4px;min-height:0;overflow:auto}
+.inx-recents-toggle{
+  width:100%;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:8px 8px 6px;cursor:pointer;
+}
+.inx-recents-list{display:grid;gap:2px}
+.inx-recents-list a{
+  display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--radius);text-decoration:none;
+  font-size:13px;font-weight:600;color:var(--ink);min-width:0;
+}
+.inx-recents-list a:hover{background:var(--soft)}
+.inx-recents-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inx-recents-empty{padding:6px 8px 10px;font-size:12px;color:var(--muted)}
+.inx-sidebar-end{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:10px}
+.inx-corner-tray{
+  position:fixed;right:18px;bottom:18px;z-index:50;width:auto;height:48px;display:flex;align-items:center;
+  justify-content:center;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:0 6px 24px #24232118;
+}
+.inx-tray-btn{
+  position:relative;width:40px;height:40px;border:0;border-radius:var(--radius);background:transparent;color:var(--ink);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;
+}
+.inx-tray-btn:hover{background:var(--soft)}
+.inx-tray-btn svg{width:20px;height:20px}
+.inx-tray-tip{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;
+  padding:6px 10px;border-radius:var(--radius);background:var(--ink);color:#fff;font-size:12px;font-weight:600;
+  opacity:0;pointer-events:none;transition:opacity .12s;
+}
+.inx-tray-btn:hover .inx-tray-tip,.inx-tray-btn:focus-visible .inx-tray-tip{opacity:1}
+
+.inx-main{min-width:0;padding:28px clamp(22px,4vw,52px) 56px}
+.inx-page-title{font:600 22px/1.2 var(--font-sans);letter-spacing:-.02em;margin:0 0 20px;color:var(--ink);font-weight:600}
+
+/* Secondary legacy .container pages */
+body.inx-shared .container{
+  max-width:none;min-height:100vh;margin:0;padding:0;
+  display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);
+}
+body.inx-shared .container>.inx-sidebar{grid-column:1;grid-row:1 / span 40}
+body.inx-shared .header{
+  grid-column:2;text-align:left;margin:0;padding:28px clamp(22px,4vw,52px) 0;background:var(--paper);border:0;
+}
+body.inx-shared .header h1{font:600 22px/1.2 var(--font-sans);letter-spacing:-.02em;color:var(--ink)}
+body.inx-shared .nav-links{display:none!important}
+body.inx-shared .container>:not(.inx-sidebar):not(.header){
+  grid-column:2;max-width:1080px;width:100%;padding:18px clamp(22px,4vw,52px) 56px;background:var(--paper);
+}
+body.inx-shared .card,body.inx-shared .panel,body.inx-shared .stage{
+  border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;backdrop-filter:none;
+  padding:0!important;margin:0 0 28px!important;
+}
+body.inx-shared .settings-section{
+  border:1px solid var(--line);border-radius:0;box-shadow:none;background:var(--panel);backdrop-filter:none;
+}
+body.inx-shared .tabs{justify-content:flex-start;gap:8px;margin:0 0 18px;padding:0}
+body.inx-shared .tab-btn{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);color:var(--ink);font-weight:600;
+  padding:8px 16px;font-size:14px;
+}
+body.inx-shared .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+body.inx-shared input,body.inx-shared select,body.inx-shared .btn,body.inx-shared .add-btn,body.inx-shared .action-btn,
+body.inx-shared .new-tag-input,body.inx-shared .search,body.inx-shared .tag-input,body.inx-shared .icon-btn{
+  border-radius:var(--radius)!important;font-family:var(--font-sans)!important;
+}
+body.inx-shared .btn.primary,body.inx-shared .btn-primary,body.inx-shared .add-btn{background:var(--ink);color:#fff;border-radius:var(--radius)}
+body.inx-shared .action-btn{border:1px solid var(--ink);background:transparent;color:var(--ink);font-weight:700}
+body.inx-shared .action-btn:hover{background:var(--soft)}
+body.inx-shared .action-btn.icon-only-action,body.inx-shared .icon-only-action{
+  border:0!important;background:transparent!important;box-shadow:none!important;
+}
+body.inx-shared .action-btn.icon-only-action:hover,body.inx-shared .icon-only-action:hover{
+  background:transparent!important;opacity:.72;
+}
+body.inx-shared .primary-action,body.inx-shared .action-btn.primary-action{background:var(--blue);color:#fff;border-color:var(--blue)}
+body.inx-shared .toast{border-radius:var(--radius)}
+body.inx-shared .tag-pill{border-radius:var(--radius)!important;background:var(--soft)!important}
+body.inx-shared .toggle-slider{border-radius:var(--radius)}
+body.inx-shared .toggle-slider:before{border-radius:1px}
+body.inx-shared input:checked+.toggle-slider{background:var(--ink)}
+body.inx-shared .setting-item{border-bottom:1px solid var(--line)!important;padding:14px 18px!important}
+body.inx-shared .section-header{padding:16px 18px 8px!important}
+body.inx-shared .section-header h3{font:600 16px/1.2 var(--font-sans)!important;color:var(--ink)!important}
+body.inx-shared .setting-label,.inx-shared .title,.inx-shared .book-title{font-family:var(--font-sans)!important;color:var(--ink)!important}
+body.inx-shared .header{border:0!important}
+body.inx-shared .toolbar .title{font:600 16px/1.2 var(--font-sans)}
+body.inx-shared .summary{color:var(--muted)!important}
+
+.inx-drawer-backdrop[hidden],
+.inx-drawer[hidden]{
+  display:none!important;
+}
+.inx-drawer-backdrop{
+  display:block;position:fixed;inset:0;z-index:60;
+  background:rgba(33,30,28,.72);
+  opacity:0;pointer-events:none;
+  transition:opacity .22s cubic-bezier(0,0,.2,1);
+}
+.inx-drawer-backdrop.is-open{
+  opacity:1;pointer-events:auto;
+}
+.inx-drawer{
+  display:flex;position:fixed;top:0;right:0;width:40vw;min-width:min(360px,100vw);max-width:720px;
+  height:100vh;background:var(--panel);border-left:1px solid var(--line);z-index:70;
+  padding:28px 40px 40px;overflow:auto;flex-direction:column;text-align:left!important;
+  box-shadow:-18px 0 56px rgba(33,30,28,.38),-4px 0 18px rgba(33,30,28,.16);
+  transform:translateX(100%);pointer-events:none;
+  transition:transform .28s cubic-bezier(0,0,.2,1);
+}
+.inx-drawer.is-open{
+  transform:translateX(0);pointer-events:auto;
+}
+.inx-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px;text-align:left!important}
+.inx-drawer-tabs{display:flex;gap:28px;justify-content:flex-start;flex:1}
+.inx-drawer-tabs button{
+  border:0;background:transparent;padding:8px 0;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;text-align:left;
+}
+.inx-drawer-tabs button.active{color:var(--ink);border-bottom-color:var(--blue)}
+.inx-drawer-close{
+  width:36px;height:36px;border:0;background:transparent;font-size:26px;line-height:1;cursor:pointer;
+  color:var(--muted);flex:0 0 auto;z-index:2;position:relative;
+}
+.inx-drawer-close:hover{color:var(--ink)}
+.inx-drawer-body,.inx-drawer-body *{text-align:left!important}
+.inx-drawer-body{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0;min-height:120px;color:var(--ink)}
+.inx-update{padding:0 0 28px;margin:0 0 28px;border-bottom:1px solid var(--line)}
+.inx-update:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.inx-update-title{font:400 32px/1.2 var(--font-serif)!important;letter-spacing:-.02em;margin:0 0 10px;color:var(--ink)}
+.inx-update-date{font-size:13px;color:var(--muted);margin:0 0 12px}
+.inx-update p{font-size:15px;color:#4a4742;line-height:1.55;margin:0;max-width:36em}
+
+@media(max-width:900px){
+  .inx-app-shell,body.inx-shared .container{display:block}
+  .inx-sidebar{
+    position:relative;height:auto;max-height:none;padding:14px 12px;border-right:0;border-bottom:1px solid var(--line);
+  }
+  .inx-brand{padding:0 4px 10px;font-size:20px}
+  .inx-brand .inx-mark{width:22px;height:22px}
+  .inx-side-nav{display:flex;overflow:auto;gap:4px}
+  .inx-side-nav a{min-height:38px;white-space:nowrap;font-size:14px}
+  .inx-recents,.inx-sidebar-end .inx-settings-link span{display:none}
+  .inx-sidebar-end{border-top:0;padding-top:0;display:flex;align-items:center;gap:8px}
+  .inx-corner-tray{right:12px;bottom:12px}
+  .inx-main,body.inx-shared .container>:not(.inx-sidebar):not(.header){padding:20px 16px 48px}
+  body.inx-shared .header{padding:18px 16px 0}
+  .inx-page-title,body.inx-shared .header h1{font-size:20px;margin-bottom:14px}
+}
+
+/* Device identity (Settings) */
+.identity-section{padding-bottom:8px}
+.identity-section .section-header{align-items:center}
+.identity-section .field{display:grid;gap:6px;margin-bottom:14px;padding:0 24px}
+.identity-section .field label{font-size:13px;font-weight:600;color:var(--muted)}
+.identity-section .field input{
+  width:100%;min-height:40px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);
+  padding:8px 12px;
+}
+.identity-section .segmented{
+  display:flex;gap:4px;margin:0 24px 14px;padding:3px;background:var(--soft);border-radius:var(--radius);
+}
+.identity-section .segmented button{
+  flex:1;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:2px;
+  font-size:13px;font-weight:600;cursor:pointer;
+}
+.identity-section .segmented button.active{background:var(--ink);color:#fff}
+.identity-section .dropzone{
+  display:block;margin:0 24px 14px;border:1.5px dashed var(--line);border-radius:var(--radius);background:var(--panel);
+  padding:16px;text-align:center;color:var(--muted);cursor:pointer;position:relative;
+}
+.identity-section .dropzone strong{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
+.identity-section .dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.identity-section .dropzone.disabled{opacity:.45;pointer-events:none}
+.identity-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 24px 8px}
+.identity-actions .action-btn{flex:1;min-width:100px;min-height:40px}
+.identity-note{min-height:18px;font-size:12.5px;color:var(--muted);margin:0 24px 16px}
+.identity-layout{
+  display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,280px);gap:18px;align-items:start;padding:0 0 12px;
+}
+.identity-section.wide .identity-layout{display:grid}
+.card-stage{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;justify-content:center;margin:0 24px 16px 0}
+.card-stage canvas{display:block;width:100%;max-width:260px;height:auto;background:#fff}
+.identity-empty{display:flex;justify-content:center;padding:18px 24px 24px}
+.identity-add{
+  display:flex;flex-direction:column;align-items:center;gap:10px;border:1.5px dashed var(--line);border-radius:var(--radius);
+  background:var(--panel);padding:24px 40px;cursor:pointer;min-width:200px;font:inherit;
+}
+.identity-add:hover{background:var(--soft)}
+.identity-add .plus{
+  width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:20px;font-weight:700;
+}
+.identity-view{display:flex;justify-content:center;padding:8px 24px 24px}
+.identity-view img{display:block;width:100%;max-width:220px;height:auto;border-radius:var(--radius);box-shadow:0 8px 24px #24232114}
+@media(max-width:900px){
+  .identity-layout{grid-template-columns:1fr}
+  .card-stage{margin:0 24px 16px;order:-1}
+}
+</style></head>
+<body class="inx-app">
+  <div class="inx-app-shell">
+    <aside id="inx-shell-mount" class="inx-sidebar" data-active="/"><a class="inx-brand" href="/" aria-label="inx home"><svg class="inx-mark" viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><g transform="translate(24 24) rotate(42)"><rect x="-16" y="-9" width="32" height="6" rx="3"/><rect x="-9" y="4" width="20" height="6" rx="3"/></g></svg><span>inx</span></a><nav class="inx-side-nav" aria-label="Main navigation"><a href="/" class="active" aria-current="page"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 3.37891L42 21.3789V42.0002H27V30.1503C23.5766 30.8452 21 33.8718 21 37.5002V42.0002H6V21.3789L24 3.37891ZM18 27.0002H30V39.0002H39V22.6215L24 7.62155L9 22.6215V39.0002H18V27.0002Z"/></svg><span>Home</span></a><a href="/files"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M39 6H9V3H39V6Z"/><path d="M34 35H14V24H34V35ZM17 27V32H31V27H17Z"/><path d="M3 15H45V45H3V15ZM6 22.5V42H42V18H10.5C8.01472 18 6 20.0147 6 22.5Z"/><path d="M6 12H42V9H6V12Z"/></svg><span>My files</span></a><a href="/tags"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M10 45H38V19L24 3L10 19V45ZM13 41.5V20.5L24 8.5L35 20.5V41.5H13Z"/><path d="M24 15.5C22.6193 15.5 21.5 16.6193 21.5 18C21.5 19.3807 22.6193 20.5 24 20.5C25.3807 20.5 26.5 19.3807 26.5 18C26.5 16.6193 25.3807 15.5 24 15.5Z"/></svg><span>Tags</span></a><a href="/font-manager"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M7 3H41V45H7V3ZM10 6V42H38V6H10ZM16 12H32V15H16V12ZM16 19H32V22H16V19ZM16 26H27V29H16V26Z"/></svg><span>Fonts</span></a><a href="/export"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M12 4H36V44L24 35.2L12 44V4ZM15 7V37.4L24 30.8L33 37.4V7H15Z"/></svg><span>Bookmarks & annotations</span></a><a href="/trash"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M21 18V33H18V18H21Z"/><path d="M30 33V18H27V33H30Z"/><path d="M33 3H15V9H6V12H9V42H39V12H42V9H33V3ZM30 9H18V6H30V9ZM22.5 12H36V39H12V22.5C12 16.701 16.701 12 22.5 12Z"/></svg><span>Trash</span></a></nav><div class="inx-recents"><button type="button" class="inx-recents-toggle" aria-expanded="true">Recents</button><div class="inx-recents-list"><div class="inx-recents-empty">No recent files</div></div></div><div class="inx-sidebar-end"><a class="inx-settings-link" href="/settings"><svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M6 12H22V15H6V12Z"/><path d="M34 12H42V15H34V12Z"/><path fill-rule="evenodd" d="M31.5 8C28.4624 8 26 10.4624 26 13.5C26 16.5376 28.4624 19 31.5 19C34.5376 19 37 16.5376 37 13.5C37 10.4624 34.5376 8 31.5 8ZM31.5 11C30.1193 11 29 12.1193 29 13.5C29 14.8807 30.1193 16 31.5 16C32.8807 16 34 14.8807 34 13.5C34 12.1193 32.8807 11 31.5 11Z"/><path d="M6 22.5H14V25.5H6V22.5Z"/><path d="M26 22.5H42V25.5H26V22.5Z"/><path fill-rule="evenodd" d="M19.5 18.5C16.4624 18.5 14 20.9624 14 24C14 27.0376 16.4624 29.5 19.5 29.5C22.5376 29.5 25 27.0376 25 24C25 20.9624 22.5376 18.5 19.5 18.5ZM19.5 21.5C18.1193 21.5 17 22.6193 17 24C17 25.3807 18.1193 26.5 19.5 26.5C20.8807 26.5 22 25.3807 22 24C22 22.6193 20.8807 21.5 19.5 21.5Z"/><path d="M6 33H28V36H6V33Z"/><path d="M40 33H42V36H40V33Z"/><path fill-rule="evenodd" d="M33.5 29C30.4624 29 28 31.4624 28 34.5C28 37.5376 30.4624 40 33.5 40C36.5376 40 39 37.5376 39 34.5C39 31.4624 36.5376 29 33.5 29ZM33.5 32C32.1193 32 31 33.1193 31 34.5C31 35.8807 32.1193 37 33.5 37C34.8807 37 36 35.8807 36 34.5C36 33.1193 34.8807 32 33.5 32Z"/></svg><span>Settings</span></a></div></aside>
+    <main class="inx-main">
+      <h1 class="inx-page-title">Home</h1>
+
+      <section class="upload-block">
+        <h2 class="upload-label">Upload files to inx</h2>
+        <div class="upload-hero" id="home-dropzone">
+          <div class="hero-icon" aria-hidden="true">
+            <svg viewBox="0 0 256 256" fill="currentColor"><defs><filter id="pencil-stroke" x="-50%" y="-50%" width="200%" height="200%" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.15" numOctaves="3" result="turbulence"/><feDisplacementMap in="SourceGraphic" in2="turbulence" scale="7" xChannelSelector="R" yChannelSelector="B" result="displacedGraphic"/><feComposite in="displacedGraphic" in2="SourceAlpha" operator="in" result="finalResult"/></filter></defs><path d="M113.828 28H28V188H127.95V184H32V32H108V72H148V112H152V66.1716L113.828 28ZM112 68V32H112.172L148 67.8284V68H112Z"/><path d="M132 32H224V210C224 217.732 217.732 224 210 224H88V200H84V228H228V28H132V32Z"/><path d="M48 52H92V48H48V52Z"/><path d="M92 92H48V88H92V92Z"/><path d="M48 72H92V68H48V72Z"/><path d="M150 128L190 168L150 208" fill="none" stroke="var(--color-highlighter-orange)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" filter="url(#pencil-stroke)"/><path d="M190 168H106C88.59 168 70 152.9 70 135.49V111.07" fill="none" stroke="var(--color-highlighter-orange)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" filter="url(#pencil-stroke)"/></svg>
           </div>
-          <div class="field">
-            <label for="identityLabel">Label (optional)</label>
-            <input id="identityLabel" maxlength="48" placeholder="e.g. Personal Reader" oninput="scheduleIdentityRender()">
-          </div>
-          <div class="field">
-            <label for="identityLink">QR redirect link</label>
-            <input id="identityLink" maxlength="180" inputmode="url" placeholder="https://example.com" oninput="scheduleIdentityRender()">
-          </div>
-          <div class="segmented" id="templateSwitch">
-            <button type="button" class="active" data-template="photo" onclick="setIdentityTemplate('photo')">With photo</button>
-            <button type="button" data-template="minimal" onclick="setIdentityTemplate('minimal')">Minimal</button>
-          </div>
-          <label class="dropzone" id="identityDropzone" for="identityImage">
-            <strong>Upload photo</strong>
-            <span>PNG or JPEG, shown at the top of the card</span>
-            <input id="identityImage" type="file" accept="image/png,image/jpeg,image/webp" onchange="loadIdentityImage(event)">
+          <label class="upload-copy" for="home-file-input">
+            <h2>Drag and drop or browse your files</h2>
+            <p>Import PDF, JPG, PNG, EPUB, and font files (TTF/OTF) up to 100 MB</p>
+            <input id="home-file-input" multiple type="file" accept=".pdf,.jpg,.jpeg,.png,.epub,.ttf,.otf,.PDF,.JPG,.JPEG,.PNG,.EPUB,.TTF,.OTF">
           </label>
-          <div class="identity-actions">
-            <button class="action-btn" id="saveIdentityBtn" onclick="saveIdentity()">Save</button>
-            <button class="action-btn action-btn-secondary" onclick="cancelIdentityEdit()">Cancel</button>
-            <button class="action-btn action-btn-secondary" id="downloadIdentityBtn" onclick="downloadIdentityCard()">Download</button>
-          </div>
-          <div class="identity-note" id="identityStatus"></div>
         </div>
-        <div class="card-stage"><canvas id="identityCanvas" width="640" height="1000"></canvas></div>
+      </section>
+
+      <div class="section-head">
+        <h2>Recents</h2>
+        <a href="/files">View all</a>
       </div>
-    </div>
+      <div class="recent-grid" id="recent-files">
+        <div class="recent-empty">Books you read on this device will appear here.</div>
+      </div>
+
+      <div class="device-strip" aria-label="Device">
+        <div class="item"><strong id="free-heap">—</strong><span>Memory free</span></div>
+        <div class="item"><strong id="uptime">—</strong><span>Uptime</span></div>
+        <div class="item"><strong id="firmware-version">—</strong><span>Version</span></div>
+      </div>
+    </main>
   </div>
-  <div class="footer"><a href="https://github.com/obijuankenobiii/inx">GitHub</a></div>
-</div>
-<div class="toast" id="toast"></div>
-<script src="/js/qr_creator_logo.min.js"></script>
-<script>
-function formatBytes(t){if(0===t)return"0 B";var e=Math.floor(Math.log(t)/Math.log(1024));return parseFloat((t/Math.pow(1024,e)).toFixed(0))+" "+["B","KB","MB","GB"][e]}
-function formatUptime(t){var e=Math.floor(t/86400),r=Math.floor(t%86400/3600),o=Math.floor(t%3600/60);return 0<e?`${e}d ${r}h`:0<r?`${r}h ${o}m`:0<o?`${o}m`:`${t}s`}
-function formatRSSI(t){return-55<=t?"Strong":-72<=t?"OK":"Weak"}
-function updateElement(t,e){const r=document.getElementById(t);r&&r.textContent!==e&&(r.style.opacity="0",setTimeout(()=>{r.textContent=e,r.style.opacity="1"},100))}
-async function fetchStatus(){try{const e=await fetch("/api/status");if(!e.ok)throw new Error(`HTTP ${e.status}`);var t=await e.json();updateElement("version",t.version||"1.0.0"),updateElement("ip-address",t.ip||"—"),updateElement("free-heap",formatBytes(t.freeHeap||0)),updateElement("uptime",formatUptime(t.uptime||0)),updateElement("mode",t.mode||"—"),t.rssi&&updateElement("rssi",formatRSSI(t.rssi))}catch(t){console.error("Error fetching status:",t);const r=["version","ip-address","free-heap","uptime","mode","rssi"];r.forEach(t=>{const e=document.getElementById(t);e&&"—"===e.textContent&&(e.textContent="⚠️")})}}
-function refreshData(){const t=event?.target?.closest?.(".action-btn");t&&(t.style.transform="scale(0.96)",setTimeout(()=>{t.style.transform="scale(1)"},150)),fetchStatus(),loadIdentity()}
-let refreshInterval,identityTimer,identityPhoto=null,identityTemplate="photo",lastCardRendered=false,identityHasSaved=false;
-function startAutoRefresh(){fetchStatus();loadIdentity();refreshInterval=setInterval(fetchStatus,15e3)}
-function stopAutoRefresh(){refreshInterval&&clearInterval(refreshInterval)}
-function identityStatus(t,isError){const e=document.getElementById("identityStatus");e.textContent=t||"";e.style.color=isError?"#b00020":"#8e8e93"}
-function showToast(t,isError){const e=document.getElementById("toast");e.textContent=t;e.style.background=isError?"#ff3b30":"#1d1d1f";e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2200)}
-function scheduleIdentityRender(){clearTimeout(identityTimer);identityTimer=setTimeout(renderIdentityCard,350)}
-function setIdentityTemplate(t){identityTemplate=t;document.querySelectorAll("#templateSwitch button").forEach(b=>b.classList.toggle("active",b.dataset.template===t));document.getElementById("identityDropzone").classList.toggle("disabled",t==="minimal");renderIdentityCard()}
-function showIdentitySection(mode){document.getElementById("identityCard").classList.toggle("wide",mode==="edit");document.getElementById("identityEmpty").style.display=mode==="empty"?"flex":"none";document.getElementById("identityView").style.display=mode==="view"?"flex":"none";document.getElementById("identityEditForm").style.display=mode==="edit"?"grid":"none";document.getElementById("identityEditBtn").style.display=mode==="view"?"inline-flex":"none"}
-function enterIdentityEdit(){showIdentitySection("edit");renderIdentityCard()}
-function cancelIdentityEdit(){identityStatus("");showIdentitySection(identityHasSaved?"view":"empty")}
-async function loadIdentity(){try{const e=await fetch("/api/device-identity"),t=await e.json();if(!t.ok)throw new Error("load failed");document.getElementById("deviceName").value=t.name||"";document.getElementById("identityLabel").value=t.label||"";document.getElementById("identityLink").value=t.link||"";setIdentityTemplate(t.template==="minimal"?"minimal":"photo");if(t.hasPhoto){await loadSavedPhoto()}identityHasSaved=Boolean(t.hasCard);if(identityHasSaved){document.getElementById("identityViewImg").src="/api/device-identity/card?ts="+Date.now();showIdentitySection("view")}else{showIdentitySection("empty")}}catch(e){showIdentitySection("empty")}}
-async function loadSavedPhoto(){return new Promise((resolve)=>{const img=new Image;img.onload=()=>{identityPhoto=img;resolve()};img.onerror=()=>resolve();img.src="/api/device-identity/photo?ts="+Date.now()})}
-function loadIdentityImage(event){const file=event.target.files&&event.target.files[0];if(!file)return;const img=new Image;img.onload=()=>{identityPhoto=img;URL.revokeObjectURL(img.src);renderIdentityCard()};img.src=URL.createObjectURL(file)}
-function drawRoundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
-function drawIdentityPlaceholder(text){const c=document.getElementById("identityCanvas"),ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle="#111";ctx.lineWidth=3;drawRoundRect(ctx,20,20,c.width-40,c.height-40,26);ctx.stroke();ctx.fillStyle="#111";ctx.font="700 30px Atkinson Hyperlegible, sans-serif";ctx.textAlign="center";ctx.fillText(text,c.width/2,c.height/2)}
-function drawImageCover(ctx,img,x,y,w,h){const scale=Math.max(w/img.width,h/img.height),iw=img.width*scale,ih=img.height*scale;ctx.drawImage(img,x+(w-iw)/2,y+(h-ih)/2,iw,ih)}
-async function renderQrOnly(size){const tmp=document.createElement("canvas");tmp.width=size;tmp.height=size;const link=document.getElementById("identityLink").value.trim();if(!window.QrCreator)throw new Error("QR generator unavailable");await new Promise(resolve=>QrCreator.render({text:link,radius:.32,ecLevel:"M",fill:"#111",cornerFill:"#111",background:"#fff",size},tmp,resolve));return tmp}
-async function renderIdentityCard(){const name=document.getElementById("deviceName").value.trim(),label=document.getElementById("identityLabel").value.trim(),link=document.getElementById("identityLink").value.trim();if(!link){lastCardRendered=false;drawIdentityPlaceholder(name||"Device identity");return}try{identityStatus("Rendering card...");const c=document.getElementById("identityCanvas"),ctx=c.getContext("2d"),w=c.width,h=c.height,qrSize=Math.round(w*.56),qr=await renderQrOnly(qrSize);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.strokeStyle="#111";ctx.lineWidth=3;drawRoundRect(ctx,20,20,w-40,h-40,26);ctx.stroke();let y=64;const usePhoto=identityTemplate==="photo"&&identityPhoto;if(usePhoto){const r=w*.19,cx=w/2,cy=y+r;ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.closePath();ctx.clip();drawImageCover(ctx,identityPhoto,cx-r,cy-r,r*2,r*2);ctx.restore();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.lineWidth=3;ctx.strokeStyle="#111";ctx.stroke();y=cy+r+36}else{y+=6}ctx.fillStyle="#111";ctx.textAlign="center";const nameSize=Math.round(w*.072);ctx.font="700 "+nameSize+"px Atkinson Hyperlegible, sans-serif";ctx.fillText(name||"Inx Reader",w/2,y);y+=Math.round(nameSize*.82);if(label){const labelSize=Math.round(w*.032);ctx.fillStyle="#777";ctx.font="700 "+labelSize+"px Atkinson Hyperlegible, sans-serif";ctx.fillText(label.toUpperCase(),w/2,y);y+=labelSize+22}else{y+=16}ctx.strokeStyle="#e6e6e9";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(56,y);ctx.lineTo(w-56,y);ctx.stroke();y+=28;ctx.drawImage(qr,(w-qrSize)/2,y,qrSize,qrSize);y+=qrSize+34;ctx.fillStyle="#999";ctx.font="400 "+Math.round(w*.032)+"px Atkinson Hyperlegible, sans-serif";ctx.fillText("Scan to connect",w/2,y);ctx.fillStyle="#bbb";ctx.font="700 "+Math.round(w*.026)+"px Atkinson Hyperlegible, sans-serif";ctx.fillText("INX",w/2,h-34);lastCardRendered=true;identityStatus("")}catch(e){lastCardRendered=false;identityStatus(e.message,true);drawIdentityPlaceholder("Card unavailable")}}
-function canvasBlob(canvas,type,quality){return new Promise(resolve=>canvas.toBlob(resolve,type,quality))}
-async function ensureIdentityFolder(){await fetch("/mkdir?path=/&name=.system",{method:"POST"}).catch(()=>{});await fetch("/mkdir?path=/.system&name=identity",{method:"POST"}).catch(()=>{});await fetch("/mkdir?path=/&name=sleep",{method:"POST"}).catch(()=>{})}
-async function uploadBlob(folder,blob,filename){const fd=new FormData;fd.append("file",blob,filename);const e=await fetch("/upload?path="+encodeURIComponent(folder),{method:"POST",body:fd});if(!e.ok)throw new Error(await e.text()||"Upload failed")}
-async function saveIdentity(){const name=document.getElementById("deviceName").value.trim(),label=document.getElementById("identityLabel").value.trim(),link=document.getElementById("identityLink").value.trim();if(!link){identityStatus("Enter a QR redirect link.",true);return}try{identityStatus("Saving identity...");const meta=await fetch("/api/device-identity",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,label,link,template:identityTemplate})});if(!meta.ok)throw new Error("Could not save identity");await ensureIdentityFolder();if(!lastCardRendered)await renderIdentityCard();const cardBlob=await canvasBlob(document.getElementById("identityCanvas"),"image/jpeg",.92);await uploadBlob("/sleep",cardBlob,"device-identity.jpg");if(identityTemplate==="photo"&&identityPhoto){const s=480,pc=document.createElement("canvas");pc.width=s;pc.height=s;const pctx=pc.getContext("2d");pctx.fillStyle="#fff";pctx.fillRect(0,0,s,s);drawImageCover(pctx,identityPhoto,0,0,s,s);await uploadBlob("/.system/identity",await canvasBlob(pc,"image/png"),"device-photo.png")}identityHasSaved=true;document.getElementById("identityViewImg").src=URL.createObjectURL(cardBlob);identityStatus("");showToast("Device identity saved.");showIdentitySection("view")}catch(e){identityStatus(e.message,true);showToast(e.message,true)}}
-async function downloadIdentityCard(){if(!lastCardRendered)await renderIdentityCard();const a=document.createElement("a");a.download=(document.getElementById("deviceName").value.trim()||"inx-device").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".jpg";a.href=document.getElementById("identityCanvas").toDataURL("image/jpeg",.92);a.click()}
-window.addEventListener("load",startAutoRefresh);
-window.addEventListener("beforeunload",stopAutoRefresh);
-</script>
+  <div class="toast" id="toast"></div>
+  <script src="/js/inx_font_pack.js"></script>
+  <script>
+  function formatBytes(t){if(0===t)return"0 B";var e=Math.floor(Math.log(t)/Math.log(1024));return parseFloat((t/Math.pow(1024,e)).toFixed(0))+" "+["B","KB","MB","GB"][e]}
+  function formatUptime(t){var e=Math.floor(t/86400),r=Math.floor(t%86400/3600),o=Math.floor(t%3600/60);return 0<e?e+"d "+r+"h":0<r?r+"h "+o+"m":0<o?o+"m":t+"s"}
+  function updateElement(t,e){const r=document.getElementById(t);r&&(r.textContent=e)}
+  async function fetchStatus(){try{const e=await fetch("/api/status");if(!e.ok)return;var t=await e.json();updateElement("free-heap",formatBytes(t.freeHeap||0));updateElement("uptime",formatUptime(t.uptime||0));updateElement("firmware-version",t.version||"—")}catch(e){}}
+  function showToast(t,isError){const e=document.getElementById("toast");e.textContent=t;e.style.background=isError?"#8e332d":"#242321";e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2800)}
+  function escapeHtml(t){return String(t||"").replace(/[&<>]/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[e]))}
+  function coverCandidates(item){
+    const path=item.path||"";
+    const folder=path.replace(/\/[^/]+$/,"")||"/";
+    const base=(item.name||path).replace(/\.[^.]+$/,"");
+    const list=[];
+    if(item.coverUrl)list.push(item.coverUrl);
+    if(item.isEpub){
+      list.push("/download?path="+encodeURIComponent(folder+"/.metadata/"+base+"/cover.jpg")+"&inline=1");
+    }
+    list.push("/download?path="+encodeURIComponent(folder+"/thumb.jpg")+"&inline=1");
+    list.push("/download?path="+encodeURIComponent("/sleep/"+base+".jpg")+"&inline=1");
+    return list;
+  }
+  function displayName(item){
+    if(item&&item.title)return item.title;
+    const name=item&&(item.name||item.path)||"File";
+    return item&&item.isEpub?String(name).replace(/\.epub$/i,""):String(name);
+  }
+  function recentSubtitle(item){
+    if(item&&typeof item.progress==="number"&&item.progress>=0)return Math.round(item.progress*100)+"%";
+    if(item&&item.author)return item.author;
+    if(item&&item.pages)return item.pages+" pages";
+    if(item&&item.contents&&/\d+\s*pages?/i.test(item.contents))return item.contents;
+    return "—";
+  }
+  function recentCard(item){
+    const href=item.isEpub?"/epub-viewer.html?path="+encodeURIComponent(item.path||""):"/download?path="+encodeURIComponent(item.path||"");
+    const title=displayName(item);
+    const pages=recentSubtitle(item);
+    const covers=coverCandidates(item);
+    return '<a class="recent-card" href="'+href+'"><div class="recent-cover" data-covers="'+escapeHtml(JSON.stringify(covers))+'"><div class="fallback"><strong>'+escapeHtml(title)+'</strong></div></div><div class="recent-meta"><div class="name">'+escapeHtml(title)+'</div><div class="pages">'+escapeHtml(pages)+'</div></div></a>';
+  }
+  function hydrateCovers(root){
+    root.querySelectorAll(".recent-cover[data-covers]").forEach(function(box){
+      let urls=[];
+      try{urls=JSON.parse(box.getAttribute("data-covers")||"[]")}catch(e){}
+      let i=0;
+      function tryNext(){
+        if(i>=urls.length)return;
+        const img=new Image();
+        const url=urls[i++];
+        img.onload=function(){box.innerHTML="";box.appendChild(img)};
+        img.onerror=tryNext;
+        img.alt="";
+        img.src=url;
+      }
+      tryNext();
+    });
+  }
+  async function loadRecentFiles(){
+    const root=document.getElementById("recent-files");
+    if(!root)return;
+    try{
+      const res=await fetch("/api/recent-books");
+      if(!res.ok)throw new Error("recent failed");
+      const items=await res.json();
+      if(!Array.isArray(items)||!items.length){
+        root.innerHTML='<div class="recent-empty">Books you read on this device will appear here.</div>';
+        return;
+      }
+      root.innerHTML=items.slice(0,8).map(recentCard).join("");
+      hydrateCovers(root);
+    }catch(e){
+      root.innerHTML='<div class="recent-empty">Books you read on this device will appear here.</div>';
+    }
+  }
+  async function uploadBlob(folder,blob,filename){
+    const fd=new FormData;
+    fd.append("file",blob,filename);
+    const dest=folder==="/"||folder===""?"":folder;
+    const e=await fetch("/upload?path="+encodeURIComponent(dest),{method:"POST",body:fd});
+    if(!e.ok)throw new Error(await e.text()||"Upload failed");
+  }
+  async function mkdirQuiet(parent,name){
+    const fd=new FormData;
+    fd.append("path",parent);
+    fd.append("name",name);
+    await fetch("/mkdir",{method:"POST",body:fd}).catch(function(){});
+  }
+  function isFontFile(file){return /\.(ttf|otf)$/i.test(file&&file.name||"")}
+  async function installFontGroup(familyLabel, filesByStyle){
+    if(!window.InxFontPack)throw new Error("Font packer missing");
+    const family=InxFontPack.sanitizeFamilyName(familyLabel);
+    const regular=filesByStyle.regular||filesByStyle.bold||filesByStyle.italic||filesByStyle.boldItalic;
+    if(!regular)throw new Error("No font file for "+family);
+    showToast("Installing font “"+family+"”…");
+    const bins=await InxFontPack.buildAllBins({
+      regular:regular,
+      bold:filesByStyle.bold||null,
+      italic:filesByStyle.italic||null,
+      boldItalic:filesByStyle.boldItalic||null,
+      oneBit:false,
+      onLog:function(){},
+      onProgress:function(){}
+    });
+    await mkdirQuiet("/","fonts");
+    await mkdirQuiet("/fonts",family);
+    const dest="/fonts/"+family;
+    let uploaded=0;
+    for(let i=0;i<bins.length;i++){
+      await uploadBlob(dest,bins[i].blob,bins[i].filename);
+      uploaded++;
+    }
+    try{await fetch("/api/fonts/rescan",{method:"POST"})}catch(e){}
+    return {family:family,uploaded:uploaded};
+  }
+  async function installDroppedFonts(fontFiles){
+    const groups=new Map();
+    for(const file of fontFiles){
+      const detected=await InxFontPack.detectFamilyNameFromFile(file);
+      const familyKey=InxFontPack.sanitizeFamilyName(detected||file.name);
+      const style=InxFontPack.guessStyleFromFilename(file.name);
+      if(!groups.has(familyKey))groups.set(familyKey,{label:detected||file.name.replace(/\.[^.]+$/,""),styles:{}});
+      const g=groups.get(familyKey);
+      if(!g.styles[style])g.styles[style]=file;
+    }
+    const results=[];
+    for(const [,group] of groups){
+      results.push(await installFontGroup(group.label,group.styles));
+    }
+    return results;
+  }
+  async function importFromHome(e){
+    const files=Array.from(e.target.files||[]);
+    if(e.target.value!==undefined)e.target.value="";
+    if(!files.length)return;
+    const fonts=files.filter(isFontFile);
+    const docs=files.filter(f=>!isFontFile(f));
+    let docsOk=0,fontOk=0,failed=0;
+    if(fonts.length){
+      if(!window.InxFontPack){
+        showToast("Font packer not loaded — open Fonts page or hard-refresh",true);
+        failed+=fonts.length;
+      }else{
+        try{
+          const installed=await installDroppedFonts(fonts);
+          fontOk=installed.length;
+          showToast(fontOk===1?("Installed font “"+installed[0].family+"”"):(fontOk+" fonts installed"));
+        }catch(err){
+          failed+=fonts.length;
+          showToast(err.message||"Font install failed",true);
+        }
+      }
+    }
+    for(const f of docs){
+      try{await uploadBlob("/",f,f.name);docsOk++}catch(err){failed++;showToast(err.message,true)}
+    }
+    if(docsOk&&!fonts.length)showToast(docsOk+" file(s) imported",failed>0);
+    else if(docsOk&&fonts.length)showToast(docsOk+" file(s) + "+fontOk+" font(s)",failed>0);
+  }
+  window.addEventListener("DOMContentLoaded",function(){
+    loadRecentFiles();fetchStatus();setInterval(fetchStatus,15e3);
+    const input=document.getElementById("home-file-input"),zone=document.getElementById("home-dropzone");
+    if(input)input.addEventListener("change",importFromHome);
+    if(zone){
+      ["dragenter","dragover"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add("dragover")}));
+      ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("dragover")}));
+      zone.addEventListener("drop",e=>importFromHome({target:{files:e.dataTransfer.files}}));
+    }
+  });
+  </script>
+<script src="/js/inx_shell.js?v=1786028666"></script></body>
 </html>

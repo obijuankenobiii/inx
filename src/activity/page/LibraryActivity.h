@@ -73,11 +73,10 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;  ///< Height of list items in folder view
   static constexpr int FOLDER_ICON_WIDTH = 16;                               ///< Width of folder icon
   static constexpr int FOLDER_ICON_SPACING = 20;                             ///< Spacing for folder icons
-  static constexpr int BOOK_ITEMS_PER_PAGE = 9;                              ///< Items per page for book view
-  static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                            ///< Items per page for folder view
+  static constexpr int BOOK_ITEMS_PER_PAGE = 12;                             ///< Items per page for book view
+  static constexpr int FOLDER_ITEMS_PER_PAGE = 12;                           ///< Items per page for folder view
   static constexpr int GRID_ITEMS_PER_PAGE = 12;                             ///< Items per page for grid folder view
   static constexpr int SHELF_ITEMS_PER_PAGE = 9;  ///< Items per page for shelf view (3x3 grid)
-  static constexpr int GRID_ICON_SIZE = 148;      ///< Icon frame size for grid folders
 
   /**
    * @brief Construct a new Library Activity
@@ -618,13 +617,13 @@ class LibraryActivity final : public Activity, public Menu {
   void drawShelfSelectionOverlay(int startY) const;
 
   /**
-   * @brief Render the folder browser as a 3x4 icon grid
+   * @brief Render the folder browser as a 2x6 icon grid
    * @param startY Starting Y position for the grid
    */
   void renderLibraryGrid(int startY) const;
 
   /**
-   * @brief Whether the current folder browser should use the 3x4 grid layout
+   * @brief Whether the current folder browser should use the 2x6 grid layout
    */
   bool isLibraryGridMode() const;
   /** Returns whether the current view mode is the tag collection view. */
@@ -681,6 +680,11 @@ class LibraryActivity final : public Activity, public Menu {
    * @brief Draw button hints at the bottom of the screen
    */
   void drawButtonHints() const;
+  /** Bottom/top chrome status line: item counts and page position next to the battery. */
+  void drawLibraryStatusBar() const;
+  std::string getLibraryStatusText() const;
+  /** Immediate child folder/book counts for a directory (for the selected-item status line). */
+  void countFolderChildren(const std::string& folderPath, int& folderCount, int& bookCount) const;
 
   /**
    * @brief Get the height of a list item based on its type

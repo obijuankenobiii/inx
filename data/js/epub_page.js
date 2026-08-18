@@ -61,10 +61,42 @@ async function optimizeEPUB(file) {
     const out = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
     addModalLog("modalLog", "Preserve mode complete: " + done + " JPEG(s) optimized, " + gifConverted + " GIF(s) converted.", "success");
     addModalLog("modalLog", "Repacked archive (" + (out.size / 1024).toFixed(1) + " KiB).", "success");
-    return out;
+    const title = await extractEpubTitleFromZip(zip);
+    return { blob: out, title };
   } catch (e) {
     addModalLog("modalLog", "Optimization failed: " + e.message, "error");
-    return file;
+    return { blob: file, title: "" };
+  }
+}
+
+function sanitizeEpubFilename(title, fallbackName) {
+  const raw = String(title || "").trim() || String(fallbackName || "book").replace(/\.epub$/i, "");
+  const cleaned = raw
+    .replace(/[\/\\?%*:|"<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return (cleaned || "book") + ".epub";
+}
+
+async function extractEpubTitleFromZip(zip) {
+  try {
+    const containerEntry = zip.file("META-INF/container.xml");
+    if (!containerEntry) return "";
+    const container = await containerEntry.async("string");
+    const fullPathMatch = container.match(/full-path\s*=\s*["']([^"']+)["']/i);
+    if (!fullPathMatch) return "";
+    const opfPath = fullPathMatch[1].replace(/\\/g, "/");
+    const opfEntry = zip.file(opfPath) || zip.file(decodeURIComponent(opfPath));
+    if (!opfEntry) return "";
+    const opf = await opfEntry.async("string");
+    const titleMatch =
+      opf.match(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i) ||
+      opf.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (!titleMatch) return "";
+    return titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  } catch (_) {
+    return "";
   }
 }
 async function uploadBlobToPath(blob, filename, destPath) {
@@ -191,8 +223,14 @@ async function uploadEpubFiles(files, destPath) {
     const prepPct = Math.round((idx / files.length) * 50);
     setUploadStatus("Preparing " + file.name, idx + 1 + "/" + files.length, prepPct, true);
     addModalLog("modalLog", "--- " + file.name + " ---", "info");
-    const blob = await optimizeEPUB(file);
-    prepared.push({ blob, name: file.name });
+    const optimized = await optimizeEPUB(file);
+    const blob = optimized && optimized.blob ? optimized.blob : optimized;
+    const title = optimized && optimized.title ? optimized.title : "";
+    const name = sanitizeEpubFilename(title, file.name);
+    if (title && name !== file.name) {
+      addModalLog("modalLog", "Using book title for filename: " + name, "info");
+    }
+    prepared.push({ blob, name });
   }
 
   let succeeded = 0;
@@ -396,10 +434,11 @@ async function optimizeExistingEpubJob(path, name, index, total) {
 
   setUploadStatus("Optimizing " + name, index + 1 + "/" + total, itemStart + Math.round(itemSpan * 0.35), true);
   const optimized = await optimizeEPUB(fileObj);
+  const blob = optimized && optimized.blob ? optimized.blob : optimized;
 
   const destPath = path.substring(0, path.lastIndexOf("/")) || "/";
   setUploadStatus("Uploading " + name, index + 1 + "/" + total, itemStart + Math.round(itemSpan * 0.75), true);
-  await uploadBlobToPath(optimized, name, destPath);
+  await uploadBlobToPath(blob, name, destPath);
 
   addModalLog("modalLog", "Re-optimized and re-uploaded: " + name, "success");
 }
@@ -594,15 +633,19 @@ async function hydrate() {
       updateBulkActions();
       return;
     }
-    visible.sort((a, b) =>
-      a.isDirectory === b.isDirectory ? (a.name || "").localeCompare(b.name || "") : a.isDirectory ? -1 : 1
-    );
+    visible.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      const aLabel = a.title || a.name || "";
+      const bLabel = b.title || b.name || "";
+      return aLabel.localeCompare(bLabel, undefined, { sensitivity: "base" });
+    });
 
     let html = '<div class="file-list">';
     for (const item of visible) {
       const itemPath = currentPath.replace(/\/$/, "") + "/" + item.name;
       const itemPathAttr = escapeAttr(itemPath);
       const itemNameAttr = escapeAttr(item.name);
+      const shownName = item.isDirectory ? item.name : (item.title || String(item.name || "").replace(/\.epub$/i, ""));
       const renameBtn =
         '<button type="button" class="row-action rename-btn" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr +
         '" data-type="' + (item.isDirectory ? "folder" : "file") + '" onclick="promptRename(this.dataset.path,this.dataset.name,this.dataset.type)" title="Rename" aria-label="Rename">' +
@@ -622,7 +665,7 @@ async function hydrate() {
           '<input class="select-box" type="checkbox" data-path="' + itemPathAttr + '" data-name="' + itemNameAttr + '" data-type="folder" onchange="updateBulkActions()">' +
           '<a class="row-main" href="/epub?path=' + encodeURIComponent(itemPath) + '">' +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-10Z"/></svg>' +
-          '<span class="name">' + escapeHtml(item.name) + '</span><span class="meta">Folder</span>' +
+          '<span class="name">' + escapeHtml(shownName) + '</span><span class="meta">Folder</span>' +
           '<svg class="chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 6 6-6 6"/></svg></a>' +
           renameBtn + deleteBtn + '</div>';
       } else {
@@ -632,7 +675,7 @@ async function hydrate() {
           '<button type="button" class="row-main" onclick="window.location.href=\'/epub-viewer.html?path=' +
           encodeURIComponent(itemPath) + "'\">" +
           '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17V5.5A1 1 0 0 1 6 4.5Z"/><path d="M7.5 19.5A2.5 2.5 0 0 1 7.5 14H18"/></svg>' +
-          '<span class="name">' + escapeHtml(item.name) + '<span class="epub-badge">EPUB</span></span>' +
+          '<span class="name">' + escapeHtml(shownName) + '<span class="epub-badge">EPUB</span></span>' +
           '<span class="meta">' + formatFileSize(item.size) + '</span></button>' +
           optimizeBtn + renameBtn + deleteBtn + '</div>';
       }

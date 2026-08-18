@@ -246,10 +246,17 @@ void enterDeepSleep() {
   gpio.startDeepSleep();
 }
 
+void setupDisplayAndHintsPolicy() {
+  // Honor Settings → "Hide button hints" for every call site (hub, settings, reader
+  // dictionary/annotation overlays, side-button chrome, etc.).
+  UiRender::setHintsHiddenFn([]() { return SETTINGS.hideButtonHints != 0; });
+}
+
 void setupDisplayAndFonts() {
   display.begin();
   render.begin();
   FontManager::initialize(render);
+  setupDisplayAndHintsPolicy();
 }
 
 bool handleGlobalPowerRefresh() {

@@ -188,12 +188,9 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
   releaseDefinitionMemory();
   std::vector<PageWordHit>().swap(words_);
   std::vector<size_t>().swap(lineFirst_);
-  // dict_ holds the on-SD dictionary's in-RAM checkpoint index once opened (hundreds of entries for
-  // a large dictionary, tens of KB) - close it here instead of leaving it open for the rest of the
-  // reading session just because the user looked something up once. ensureDictionaryOpen() re-attempts
-  // opening (and re-scans the index) next time the user actually looks something up.
-  dict_.close();
-  dictOpenAttempted_ = false;
+  // Keep dict_ open for the rest of the book session: reopening rebuilds the checkpoint index with a
+  // full .idx scan, which is the cold-path cost we just paid on the first lookup. RAM held is tens of
+  // KB of checkpoints; reclaimed when the reader activity is destroyed (dict_ is a member).
   lastNavEdgeDir_ = -1;
   navRepeatDir_ = -1;
   for (auto& ch : captureChunks_) {
@@ -218,15 +215,15 @@ void EpubDictionaryUi::releaseDefinitionMemory() {
 }
 
 void EpubDictionaryUi::ensureDictionaryOpen() {
-  if (dictOpenAttempted_) {
-    return;
-  }
-  dictOpenAttempted_ = true;
   if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
     Serial.printf("[%lu] [DICT] ensureDictionaryOpen: READER_SETTINGS.dictionaryFolder is empty\n", millis());
     return;
   }
   const std::string folder = std::string("/dictionaries/") + READER_SETTINGS.dictionaryFolder;
+  // open() is a no-op when the same folder is already warm - safe to call every lookup.
+  if (dict_.isOpen() && dict_.folderPath() == folder) {
+    return;
+  }
   const bool opened = dict_.open(folder);
   Serial.printf("[%lu] [DICT] ensureDictionaryOpen: open('%s') -> %d\n", millis(), folder.c_str(), opened ? 1 : 0);
 }
@@ -246,11 +243,14 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
   } else if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
     currentDefinition_ = "No dictionary selected. Pick one in Settings > Reader > Choose dictionary.";
   } else {
-    // Show the status popup FIRST, before any blocking work - opening the dictionary (first lookup
-    // only) and the SD scan itself can together take several seconds on a large dictionary, and both
-    // must happen after the popup is on screen for it to actually look instant. readerPopup() forces
-    // an immediate flush, same pattern as its other callers (e.g. "Deleting book...").
-    act.readerPopup("Looking up...");
+    const std::string folder = std::string("/dictionaries/") + READER_SETTINGS.dictionaryFolder;
+    const bool alreadyWarm = dict_.isOpen() && dict_.folderPath() == folder;
+    // Cold open (first lookup this session) can still take a second or two while checkpoints are
+    // built - show a toast so the device doesn't look frozen. Warm lookups aim to be near-instant,
+    // so skip the popup and avoid an extra full-screen e-ink refresh.
+    if (!alreadyWarm) {
+      act.readerPopup("Opening dictionary...");
+    }
     ensureDictionaryOpen();
     if (!dict_.isOpen()) {
       currentDefinition_ = "Could not open the selected dictionary.";

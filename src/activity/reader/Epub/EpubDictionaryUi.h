@@ -55,7 +55,6 @@ class EpubDictionaryUi {
   size_t focus_ = 0;
 
   StarDictLookup dict_;
-  bool dictOpenAttempted_ = false;
   bool showingDefinition_ = false;
   std::string lookedUpWord_;
   bool wordAlreadySaved_ = false;

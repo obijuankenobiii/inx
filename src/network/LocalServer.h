@@ -16,6 +16,8 @@
 
 struct FileInfo {
   String name;
+  String title;
+  String updated;
   size_t size;
   bool isEpub;
   bool isDirectory;
@@ -73,8 +75,11 @@ class LocalServer {
   void handleQrCreatorLogoJs() const;
   void handleEpubPageJs() const;
   void handleFilesPageJs() const;
+  void handleInxShellJs() const;
+  void handleDeviceIdentityJs() const;
   void handleNotFound() const;
   void handleStatus() const;
+  void handleRecentBooks() const;
   void handleDeviceIdentityGet() const;
   void handleDeviceIdentityPost() const;
   void handleDeviceIdentityPhoto() const;
@@ -89,6 +94,11 @@ class LocalServer {
   void handleUploadPost() const;
   void handleCreateFolder() const;
   void handleDelete() const;
+  void handleTrashEmpty() const;
+  void handleTrashRestore() const;
+  void handleTrashPage() const;
+  bool deletePathRecursive(const String& itemPath) const;
+  bool moveToTrash(const String& itemPath) const;
   void handleRename() const;
   void collectEpubRenames(const std::string& oldDirPath, const std::string& newDirPath,
                           std::vector<std::pair<std::string, std::string>>& out) const;

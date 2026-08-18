@@ -421,6 +421,7 @@ void SettingsDrawer::setupMenu() {
     menuItems.push_back(bionicEntry);
 
     // Per-book (pure visual overlay, never baked into layout/cache) — same pattern as hyphenation/bionic above.
+    // Grid lines sit at 25%/75% of content width so ~half the page is the fixation band.
     MenuEntry guideLinesEntry;
     guideLinesEntry.item = MenuItem::ReadingGuideLines;
     guideLinesEntry.group = GroupType::LAYOUT;

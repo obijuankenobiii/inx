@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inx device library preview</title>
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --paper: #f4f2ee;
+      --line: #2a2a2a;
+      --muted: #5a5a5a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 28px 16px 48px;
+      background: #d8d2c8;
+      color: var(--ink);
+      font-family: "Atkinson Hyperlegible", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #444;
+    }
+    .note {
+      max-width: 420px;
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #555;
+    }
+    .device {
+      width: min(420px, 100%);
+      aspect-ratio: 3 / 4;
+      background: var(--paper);
+      border: 10px solid #ece8e1;
+      box-shadow:
+        0 0 0 1px #bdb7ad,
+        0 18px 40px rgba(40, 35, 28, 0.22);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      height: 52px;
+      border-bottom: 1.5px solid var(--line);
+      flex-shrink: 0;
+    }
+    .tabs button {
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      cursor: default;
+    }
+    .tabs svg { width: 22px; height: 22px; }
+    .tabs .active {
+      box-shadow: inset 0 -4px 0 var(--ink);
+    }
+    .header {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px 0 18px;
+      border-bottom: 1.5px solid var(--line);
+      flex-shrink: 0;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .sort {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding-left: 14px;
+      border-left: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 96px;
+      justify-content: center;
+    }
+    .list {
+      flex: 1;
+      overflow: hidden;
+      padding-top: 2px;
+    }
+    .row {
+      height: 54px;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) 28px;
+      align-items: center;
+      padding: 0 8px 0 14px;
+      border-bottom: 1px dotted #8a8a8a;
+    }
+    .row.selected {
+      background: var(--ink);
+      color: var(--paper);
+      border-bottom-color: transparent;
+    }
+    .row.selected svg { color: var(--paper); }
+    .row svg {
+      width: 28px;
+      height: 28px;
+      color: var(--ink);
+      margin-left: 4px;
+    }
+    .row span {
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 8px;
+    }
+    .chevron {
+      font-size: 18px;
+      text-align: center;
+      opacity: 0.9;
+    }
+    .hints {
+      height: 40px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      font-size: 12px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .battery {
+      position: absolute;
+      right: 18px;
+      bottom: 52px;
+      font-size: 11px;
+      color: var(--muted);
+      display: none;
+    }
+    .compare {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 900px;
+    }
+    .caption {
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+      margin-top: -8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Device library preview (list mode)</h1>
+  <p class="note">
+    Visual reference for the on-device library list. Firmware embeds the same reMarkable-style
+    icons from <code>data/icons/rm/</code> via <code>scripts/svg_to_icon_header.py</code> into
+    <code>src/images/*.h</code> and renders them in <code>LibraryActivity</code>.
+  </p>
+
+  <div class="device" aria-label="Library list preview">
+    <div class="tabs">
+      <button type="button" title="Home" aria-label="Home">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M24 3.37891L42 21.3789V42.0002H27V30.1503C23.5766 30.8452 21 33.8718 21 37.5002V42.0002H6V21.3789L24 3.37891ZM18 27.0002H30V39.0002H39V22.6215L24 7.62155L9 22.6215V39.0002H18V27.0002Z"/></svg>
+      </button>
+      <button type="button" class="active" title="Library" aria-label="Library">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M39 6H9V3H39V6Z"/><path d="M34 35H14V24H34V35ZM17 27V32H31V27H17Z"/><path d="M3 15H45V45H3V15ZM6 22.5V42H42V18H10.5C8.01472 18 6 20.0147 6 22.5Z"/><path d="M6 12H42V9H6V12Z"/></svg>
+      </button>
+      <button type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M6 12H22V15H6V12Z"/><path d="M34 12H42V15H34V12Z"/><path fill-rule="evenodd" d="M31.5 8C28.4624 8 26 10.4624 26 13.5C26 16.5376 28.4624 19 31.5 19C34.5376 19 37 16.5376 37 13.5C37 10.4624 34.5376 8 31.5 8ZM31.5 11C30.1193 11 29 12.1193 29 13.5C29 14.8807 30.1193 16 31.5 16C32.8807 16 34 14.8807 34 13.5C34 12.1193 32.8807 11 31.5 11Z"/><path d="M6 22.5H14V25.5H6V22.5Z"/><path d="M26 22.5H42V25.5H26V22.5Z"/><path fill-rule="evenodd" d="M19.5 18.5C16.4624 18.5 14 20.9624 14 24C14 27.0376 16.4624 29.5 19.5 29.5C22.5376 29.5 25 27.0376 25 24C25 20.9624 22.5376 18.5 19.5 18.5ZM19.5 21.5C18.1193 21.5 17 22.6193 17 24C17 25.3807 18.1193 26.5 19.5 26.5C20.8807 26.5 22 25.3807 22 24C22 22.6193 20.8807 21.5 19.5 21.5Z"/><path d="M6 33H28V36H6V33Z"/><path d="M40 33H42V36H40V33Z"/><path fill-rule="evenodd" d="M33.5 29C30.4624 29 28 31.4624 28 34.5C28 37.5376 30.4624 40 33.5 40C36.5376 40 39 37.5376 39 34.5C39 31.4624 36.5376 29 33.5 29ZM33.5 32C32.1193 32 31 33.1193 31 34.5C31 35.8807 32.1193 37 33.5 37C34.8807 37 36 35.8807 36 34.5C36 33.1193 34.8807 32 33.5 32Z"/></svg>
+      </button>
+      <button type="button" title="Sync" aria-label="Sync">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M24 8a16 16 0 1 1-11.3 27.3l2.1-2.1A13 13 0 1 0 24 11v5l7-7-7-7v6z"/></svg>
+      </button>
+      <button type="button" title="Stats" aria-label="Stats">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 36h4V20H8v16zm10 0h4V12h-4v24zm10 0h4V24h-4v12zm10 0h4V8h-4v28z"/></svg>
+      </button>
+    </div>
+
+    <div class="header">
+      <h2>Collection</h2>
+      <div class="sort">Group A-Z</div>
+    </div>
+
+    <div class="list">
+      <div class="row selected">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M21.9891 7L24.9891 14H45.5V41H3.5V7H21.9891ZM21.7252 14L20.0109 10H8C7.17157 10 6.5 10.6716 6.5 11.5V24C6.5 18.4772 10.9772 14 16.5 14H21.7252Z"/></svg>
+        <span>Books</span>
+        <div class="chevron">›</div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M21.9891 7L24.9891 14H45.5V41H3.5V7H21.9891ZM21.7252 14L20.0109 10H8C7.17157 10 6.5 10.6716 6.5 11.5V24C6.5 18.4772 10.9772 14 16.5 14H21.7252Z"/></svg>
+        <span>Handwriting</span>
+        <div class="chevron">›</div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M21.9891 7L24.9891 14H45.5V41H3.5V7H21.9891ZM21.7252 14L20.0109 10H8C7.17157 10 6.5 10.6716 6.5 11.5V24C6.5 18.4772 10.9772 14 16.5 14H21.7252Z"/></svg>
+        <span>Letters</span>
+        <div class="chevron">›</div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 23L10 6L26 6L26 18L38 18V23L41 23V15H40.9963L29.0001 3.00354L29 3L7 3L7 23H10ZM29 7.24604L36.754 15L29 15L29 7.24604Z"/><path d="M32 27H41V30H35V33H40V36H35V41H32V27Z"/><path d="M7 27H11.5C12.8924 27 14.2277 27.5531 15.2123 28.5377C16.1969 29.5223 16.75 30.8576 16.75 32.25C16.75 33.6424 16.1969 34.9777 15.2123 35.9623C14.2277 36.9469 12.8924 37.5 11.5 37.5H10V41H7V27ZM10 34.5H11.5C12.0967 34.5 12.669 34.2629 13.091 33.841C13.5129 33.419 13.75 32.8467 13.75 32.25C13.75 31.6533 13.5129 31.081 13.091 30.659C12.669 30.2371 12.0967 30 11.5 30H10V34.5Z"/><path d="M23.5 27H19V41H23.5C25.2919 41 27.0083 40.2853 28.273 39.0207C29.5383 37.7553 30.25 36.0409 30.25 34.25C30.25 33.3726 30.079 32.4002 29.768 31.5008C29.4608 30.6121 28.9777 29.6818 28.273 28.977C27.0071 27.7112 25.2902 27 23.5 27ZM22 38V30H23.5C24.4946 30 25.4484 30.3951 26.1517 31.0983C26.4315 31.3782 26.7172 31.8578 26.9327 32.481C27.1445 33.0935 27.25 33.735 27.25 34.25C27.25 35.2439 26.8554 36.1956 26.1517 36.8993C25.4472 37.6038 24.4929 38 23.5 38H22Z"/></svg>
+        <span>GMO pups.pdf</span>
+        <div></div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M41 3H7V45H41V3ZM27.5 42H10V6H14V24.1213L19 19.1213L24 24.1213V6H38L38 31.5C38 37.299 33.299 42 27.5 42ZM21 6V16.8787L19 14.8787L17 16.8787V6H21Z"/></svg>
+        <span>A yen for yen</span>
+        <div></div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 23L10 6L26 6L26 18L38 18V23L41 23V15H40.9963L29.0001 3.00354L29 3L7 3L7 23H10ZM29 7.24604L36.754 15L29 15L29 7.24604Z"/><path d="M32 27H41V30H35V33H40V36H35V41H32V27Z"/><path d="M7 27H11.5C12.8924 27 14.2277 27.5531 15.2123 28.5377C16.1969 29.5223 16.75 30.8576 16.75 32.25C16.75 33.6424 16.1969 34.9777 15.2123 35.9623C14.2277 36.9469 12.8924 37.5 11.5 37.5H10V41H7V27ZM10 34.5H11.5C12.0967 34.5 12.669 34.2629 13.091 33.841C13.5129 33.419 13.75 32.8467 13.75 32.25C13.75 31.6533 13.5129 31.081 13.091 30.659C12.669 30.2371 12.0967 30 11.5 30H10V34.5Z"/><path d="M23.5 27H19V41H23.5C25.2919 41 27.0083 40.2853 28.273 39.0207C29.5383 37.7553 30.25 36.0409 30.25 34.25C30.25 33.3726 30.079 32.4002 29.768 31.5008C29.4608 30.6121 28.9777 29.6818 28.273 28.977C27.0071 27.7112 25.2902 27 23.5 27ZM22 38V30H23.5C24.4946 30 25.4484 30.3951 26.1517 31.0983C26.4315 31.3782 26.7172 31.8578 26.9327 32.481C27.1445 33.0935 27.25 33.735 27.25 34.25C27.25 35.2439 26.8554 36.1956 26.1517 36.8993C25.4472 37.6038 24.4929 38 23.5 38H22Z"/></svg>
+        <span>Family business.pdf</span>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="hints">
+      <span>« Back</span>
+      <span>Select</span>
+    </div>
+  </div>
+  <p class="caption">After Collection there is no “1 item / Page 1–1” strip on single-page views.</p>
+</body>
+</html>

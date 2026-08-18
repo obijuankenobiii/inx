@@ -12,6 +12,8 @@
 #include <functional>
 #include <string>
 
+#include "util/BookDisplayTitle.h"
+
 class LibraryIndexer {
  public:
   static bool hasIndex() { return SdMan.exists("/.metadata/library/library.idx"); }
@@ -148,7 +150,8 @@ class LibraryIndexer {
           idxFile.write(&nLen, sizeof(nLen));
           idxFile.write(name, nLen);
 
-          std::string displayName = cleanFilename(name);
+          // Prefer EPUB OPF / cached title over a cleaned filename whenever available.
+          std::string displayName = BookDisplayTitle::resolve(thisItemPath, cleanFilename(name));
           uint8_t dLen = (uint8_t)displayName.length();
           idxFile.write(&dLen, sizeof(dLen));
           idxFile.write(displayName.c_str(), dLen);

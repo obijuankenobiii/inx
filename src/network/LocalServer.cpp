@@ -38,10 +38,13 @@
 #include "html/FontManagerPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/InxFontPackJs.generated.h"
+#include "html/InxShellJs.generated.h"
+#include "html/DeviceIdentityJs.generated.h"
 #include "html/JsZipMinJs.generated.h"
 #include "html/QrCreatorLogoJs.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "html/TagsPageHtml.generated.h"
+#include "html/TrashPageHtml.generated.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include "activity/settings/LibraryIndexer.h"
 #include "state/BookState.h"
@@ -55,12 +58,15 @@
 #include "state/NetworkCredential.h"
 #ifndef INX_SIMULATOR_WEB_ONLY
 #include "state/OpdsServerStore.h"
+#include "util/BookDisplayTitle.h"
 #endif
 
 namespace {
 
-const char* HIDDEN_ITEMS[] = {"System Volume Information", ".metadata"};
+const char* HIDDEN_ITEMS[] = {"System Volume Information", ".metadata", "Trash"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
+constexpr const char* kTrashDir = "/Trash";
+constexpr const char* kFontsDir = "/fonts";
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
 constexpr const char* DEVICE_IDENTITY_DIR = "/.system/identity";
@@ -85,6 +91,93 @@ bool wsUploadInProgress = false;
 String wsLastCompleteName;
 size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
+
+/** Collapse ".", reject ".." escapes, and produce an absolute path with no trailing slash (except "/"). */
+bool canonicalizeFsPath(const String& input, String& out) {
+  String path = input;
+  path.trim();
+  if (path.isEmpty()) {
+    return false;
+  }
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+
+  std::vector<String> parts;
+  int start = 1;
+  while (start <= static_cast<int>(path.length())) {
+    const int slash = path.indexOf('/', start);
+    const String part = slash < 0 ? path.substring(start) : path.substring(start, slash);
+    start = slash < 0 ? static_cast<int>(path.length()) + 1 : slash + 1;
+    if (part.isEmpty() || part == ".") {
+      continue;
+    }
+    if (part == "..") {
+      if (parts.empty()) {
+        return false;
+      }
+      parts.pop_back();
+      continue;
+    }
+    parts.push_back(part);
+  }
+
+  if (parts.empty()) {
+    out = "/";
+    return true;
+  }
+
+  out = "";
+  for (const String& part : parts) {
+    out += "/";
+    out += part;
+  }
+  return true;
+}
+
+bool pathIsUnder(const String& path, const char* root) {
+  const String rootStr(root);
+  if (path.equals(rootStr)) {
+    return true;
+  }
+  return path.startsWith(rootStr + "/");
+}
+
+bool isForbiddenDeleteTarget(const String& path) {
+  if (path == "/" || path.equals(kTrashDir) || path.equals(kFontsDir)) {
+    return true;
+  }
+  if (pathIsUnder(path, "/.metadata") || pathIsUnder(path, "/.system")) {
+    return true;
+  }
+  const int slash = path.lastIndexOf('/');
+  const String base = slash >= 0 ? path.substring(slash + 1) : path;
+  if (base.startsWith(".") || base.equals("System Volume Information")) {
+    return true;
+  }
+  if (base.equals("Trash") && !pathIsUnder(path, kTrashDir)) {
+    return true;
+  }
+  int start = 1;
+  while (start <= static_cast<int>(path.length())) {
+    const int next = path.indexOf('/', start);
+    const String part = next < 0 ? path.substring(start) : path.substring(start, next);
+    start = next < 0 ? static_cast<int>(path.length()) + 1 : next + 1;
+    if (!part.isEmpty() && part.startsWith(".")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool allowsPermanentDelete(const String& path) {
+  // Soft-delete (Trash) is the default for library content. Permanent wipe is only for Trash
+  // contents and installed font packs under /fonts.
+  if (path.equals(kTrashDir) || path.equals(kFontsDir)) {
+    return false;
+  }
+  return pathIsUnder(path, kTrashDir) || pathIsUnder(path, kFontsDir);
+}
 
 void copySettingString(char* dest, size_t destSize, const char* value) {
   if (destSize == 0) {
@@ -660,13 +753,17 @@ void LocalServer::begin() {
   server->on("/export", HTTP_GET, [this] { handleExportPage(); });
   server->on("/font-manager", HTTP_GET, [this] { handleFontManagerPage(); });
   server->on("/tags", HTTP_GET, [this] { handleTagsPage(); });
+  server->on("/trash", HTTP_GET, [this] { handleTrashPage(); });
   server->on("/js/inx_font_pack.js", HTTP_GET, [this] { handleInxFontPackJs(); });
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJsZipMinJs(); });
   server->on("/js/qr_creator_logo.min.js", HTTP_GET, [this] { handleQrCreatorLogoJs(); });
   server->on("/js/epub_page.js", HTTP_GET, [this] { handleEpubPageJs(); });
   server->on("/js/files_page.js", HTTP_GET, [this] { handleFilesPageJs(); });
+  server->on("/js/inx_shell.js", HTTP_GET, [this] { handleInxShellJs(); });
+  server->on("/js/device_identity.js", HTTP_GET, [this] { handleDeviceIdentityJs(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
+  server->on("/api/recent-books", HTTP_GET, [this] { handleRecentBooks(); });
   server->on("/api/device-identity", HTTP_GET, [this] { handleDeviceIdentityGet(); });
   server->on("/api/device-identity", HTTP_POST, [this] { handleDeviceIdentityPost(); });
   server->on("/api/device-identity/photo", HTTP_GET, [this] { handleDeviceIdentityPhoto(); });
@@ -684,6 +781,8 @@ void LocalServer::begin() {
   server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
 
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+  server->on("/api/trash/empty", HTTP_POST, [this] { handleTrashEmpty(); });
+  server->on("/api/trash/restore", HTTP_POST, [this] { handleTrashRestore(); });
 
   server->on("/rename", HTTP_POST, [this] { handleRename(); });
 
@@ -709,6 +808,9 @@ void LocalServer::begin() {
   Serial.printf("✓ jszip.min.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(JSZIP_MIN_JS) - 1));
   Serial.printf("✓ epub_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(EPUB_PAGE_JS) - 1));
   Serial.printf("✓ files_page.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(FILES_PAGE_JS) - 1));
+  Serial.printf("✓ inx_shell.js from firmware flash (%u bytes)\n", static_cast<unsigned>(sizeof(INX_SHELL_JS) - 1));
+  Serial.printf("✓ device_identity.js from firmware flash (%u bytes)\n",
+                static_cast<unsigned>(sizeof(DEVICE_IDENTITY_JS) - 1));
   Serial.printf("✓ inx_font_pack.js from firmware flash (%u bytes)\n",
                 static_cast<unsigned>(sizeof(INX_FONT_PACK_JS) - 1));
 
@@ -866,6 +968,68 @@ void LocalServer::handleStatus() const {
   server->send(200, "application/json", json);
 }
 
+void LocalServer::handleRecentBooks() const {
+  String json = "[";
+#ifndef INX_SIMULATOR_WEB_ONLY
+  RECENT_BOOKS.loadFromFile();
+  const auto& books = RECENT_BOOKS.getBooks();
+  bool first = true;
+  const size_t limit = std::min<size_t>(books.size(), 8);
+  for (size_t i = 0; i < limit; ++i) {
+    const RecentBook& book = books[i];
+    if (book.path.empty()) {
+      continue;
+    }
+    const std::string cachePath = book.cachePath.empty() ? epubCachePathForBookPath(book.path) : book.cachePath;
+    const char* coverNames[] = {"cover.jpg", "cover.png", "cover.bmp", "cover_crop.jpg", "cover_crop.bmp", "thumb.jpg"};
+    std::string coverPath;
+    for (const char* name : coverNames) {
+      const std::string candidate = cachePath + "/" + name;
+      if (SdMan.exists(candidate.c_str())) {
+        coverPath = candidate;
+        break;
+      }
+    }
+
+    const size_t slash = book.path.find_last_of('/');
+    const std::string fileName = slash == std::string::npos ? book.path : book.path.substr(slash + 1);
+    const bool isEpub = isEpubFile(String(fileName.c_str()));
+    const std::string title = !book.title.empty() ? book.title : fileName;
+
+    if (!first) {
+      json += ",";
+    }
+    first = false;
+    json += "{\"path\":\"";
+    json += jsonEscape(book.path.c_str());
+    json += "\",\"name\":\"";
+    json += jsonEscape(fileName.c_str());
+    json += "\",\"title\":\"";
+    json += jsonEscape(title.c_str());
+    json += "\",\"author\":\"";
+    json += jsonEscape(book.author.c_str());
+    json += "\",\"isEpub\":";
+    json += isEpub ? "true" : "false";
+    json += ",\"progress\":";
+    if (book.progress >= 0.0f) {
+      json += String(book.progress, 3);
+    } else {
+      json += "null";
+    }
+    json += ",\"coverUrl\":\"";
+    if (!coverPath.empty()) {
+      String coverUrl = "/download?path=";
+      coverUrl += coverPath.c_str();
+      coverUrl += "&inline=1";
+      json += jsonEscape(coverUrl);
+    }
+    json += "\"}";
+  }
+#endif
+  json += "]";
+  server->send(200, "application/json", json);
+}
+
 void LocalServer::handleDeviceIdentityGet() const {
   String name;
   String link;
@@ -945,6 +1109,7 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
 
   Serial.printf("[%lu] [WEB] Scanning files in: %s\n", millis(), path);
 
+  const String parentPath = path;
   FsFile file = root.openNextFile();
   char name[500];
   while (file) {
@@ -966,6 +1131,19 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
       FileInfo info;
       info.name = fileName;
       info.isDirectory = file.isDirectory();
+      info.title = "";
+      info.updated = "";
+
+      uint16_t fatDate = 0;
+      uint16_t fatTime = 0;
+      if (file.getModifyDateTime(&fatDate, &fatTime) && fatDate != 0) {
+        const int day = fatDate & 0x1F;
+        const int month = (fatDate >> 5) & 0x0F;
+        const int year = 1980 + (fatDate >> 9);
+        char updatedBuf[16];
+        snprintf(updatedBuf, sizeof(updatedBuf), "%04d-%02d-%02d", year, month, day);
+        info.updated = updatedBuf;
+      }
 
       if (info.isDirectory) {
         info.size = 0;
@@ -973,6 +1151,25 @@ void LocalServer::scanFiles(const char* path, const std::function<void(FileInfo)
       } else {
         info.size = file.size();
         info.isEpub = isEpubFile(info.name);
+#ifndef INX_SIMULATOR_WEB_ONLY
+        if (info.isEpub) {
+          std::string bookPath;
+          if (parentPath == "/" || parentPath.length() == 0) {
+            bookPath = std::string("/") + name;
+          } else {
+            bookPath = std::string(parentPath.c_str());
+            if (!bookPath.empty() && bookPath.back() == '/') {
+              bookPath.pop_back();
+            }
+            bookPath += "/";
+            bookPath += name;
+          }
+          const std::string title = BookDisplayTitle::lookup(bookPath);
+          if (!title.empty()) {
+            info.title = title.c_str();
+          }
+        }
+#endif
       }
 
       callback(info);
@@ -1007,6 +1204,8 @@ void LocalServer::handleFontManagerPage() const { server->send(200, "text/html",
 
 void LocalServer::handleTagsPage() const { server->send(200, "text/html", TagsPageHtml); }
 
+void LocalServer::handleTrashPage() const { server->send(200, "text/html", TrashPageHtml); }
+
 void LocalServer::handleInxFontPackJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_FONT_PACK_JS, sizeof(INX_FONT_PACK_JS) - 1);
 }
@@ -1025,6 +1224,14 @@ void LocalServer::handleEpubPageJs() const {
 
 void LocalServer::handleFilesPageJs() const {
   server->send_P(200, PSTR("text/javascript; charset=utf-8"), FILES_PAGE_JS, sizeof(FILES_PAGE_JS) - 1);
+}
+
+void LocalServer::handleInxShellJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), INX_SHELL_JS, sizeof(INX_SHELL_JS) - 1);
+}
+
+void LocalServer::handleDeviceIdentityJs() const {
+  server->send_P(200, PSTR("text/javascript; charset=utf-8"), DEVICE_IDENTITY_JS, sizeof(DEVICE_IDENTITY_JS) - 1);
 }
 
 void LocalServer::handleFileListData() const {
@@ -1055,6 +1262,12 @@ void LocalServer::handleFileListData() const {
     doc["size"] = info.size;
     doc["isDirectory"] = info.isDirectory;
     doc["isEpub"] = info.isEpub;
+    if (!info.title.isEmpty()) {
+      doc["title"] = info.title;
+    }
+    if (!info.updated.isEmpty()) {
+      doc["updated"] = info.updated;
+    }
 
     const size_t written = serializeJson(doc, output, outputSize);
     if (written >= outputSize) {
@@ -1579,32 +1792,25 @@ void LocalServer::handleDelete() const {
     return;
   }
 
-  String itemPath = server->arg("path");
+  String rawPath = server->arg("path");
   const String itemType = server->hasArg("type") ? server->arg("type") : "file";
+  const bool permanent = server->hasArg("permanent") && server->arg("permanent") == "1";
+
+  String itemPath;
+  if (!canonicalizeFsPath(rawPath, itemPath)) {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
 
   if (itemPath.isEmpty() || itemPath == "/") {
     server->send(400, "text/plain", "Cannot delete root directory");
     return;
   }
 
-  if (!itemPath.startsWith("/")) {
-    itemPath = "/" + itemPath;
-  }
-
-  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-
-  if (itemName.startsWith(".")) {
-    Serial.printf("[%lu] [WEB] Delete rejected - hidden/system item: %s\n", millis(), itemPath.c_str());
+  if (isForbiddenDeleteTarget(itemPath)) {
+    Serial.printf("[%lu] [WEB] Delete rejected - protected item: %s\n", millis(), itemPath.c_str());
     server->send(403, "text/plain", "Cannot delete system files");
     return;
-  }
-
-  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-    if (itemName.equals(HIDDEN_ITEMS[i])) {
-      Serial.printf("[%lu] [WEB] Delete rejected - protected item: %s\n", millis(), itemPath.c_str());
-      server->send(403, "text/plain", "Cannot delete protected items");
-      return;
-    }
   }
 
   if (!SdMan.exists(itemPath.c_str())) {
@@ -1613,35 +1819,208 @@ void LocalServer::handleDelete() const {
     return;
   }
 
-  Serial.printf("[%lu] [WEB] Attempting to delete %s: %s\n", millis(), itemType.c_str(), itemPath.c_str());
-
-  bool success = false;
-
-  if (itemType == "folder") {
-    FsFile dir = SdMan.open(itemPath.c_str());
-    if (dir && dir.isDirectory()) {
-      FsFile entry = dir.openNextFile();
-      if (entry) {
-        entry.close();
-        dir.close();
-        Serial.printf("[%lu] [WEB] Delete failed - folder not empty: %s\n", millis(), itemPath.c_str());
-        server->send(400, "text/plain", "Folder is not empty. Delete contents first.");
-        return;
-      }
-      dir.close();
+  const bool inTrash = pathIsUnder(itemPath, kTrashDir) && !itemPath.equals(kTrashDir);
+  if (permanent) {
+    if (!allowsPermanentDelete(itemPath)) {
+      Serial.printf("[%lu] [WEB] Permanent delete rejected outside Trash/fonts: %s\n", millis(), itemPath.c_str());
+      server->send(403, "text/plain", "Permanent delete is only allowed for Trash and fonts");
+      return;
     }
-    success = SdMan.rmdir(itemPath.c_str());
-  } else {
-    success = SdMan.remove(itemPath.c_str());
+  } else if (!inTrash) {
+    Serial.printf("[%lu] [WEB] Moving to Trash: %s\n", millis(), itemPath.c_str());
+    if (moveToTrash(itemPath)) {
+      server->send(200, "text/plain", "Moved to Trash");
+    } else {
+      server->send(500, "text/plain", "Failed to move to Trash");
+    }
+    return;
   }
 
-  if (success) {
+  Serial.printf("[%lu] [WEB] Permanently deleting %s: %s\n", millis(), itemType.c_str(), itemPath.c_str());
+  if (deletePathRecursive(itemPath)) {
     Serial.printf("[%lu] [WEB] Successfully deleted: %s\n", millis(), itemPath.c_str());
     server->send(200, "text/plain", "Deleted successfully");
   } else {
     Serial.printf("[%lu] [WEB] Failed to delete: %s\n", millis(), itemPath.c_str());
     server->send(500, "text/plain", "Failed to delete item");
   }
+}
+
+bool LocalServer::moveToTrash(const String& itemPath) const {
+  if (!SdMan.exists(kTrashDir)) {
+    if (!SdMan.mkdir(kTrashDir)) {
+      Serial.printf("[%lu] [WEB] Failed to create Trash folder\n", millis());
+      return false;
+    }
+  }
+
+  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
+  FsFile src = SdMan.open(itemPath.c_str());
+  const bool isDir = src && src.isDirectory();
+  if (src) {
+    src.close();
+  }
+  String destName = itemName;
+  String destPath = String(kTrashDir) + "/" + destName;
+  int suffix = 2;
+  while (SdMan.exists(destPath.c_str())) {
+    const int dot = itemName.lastIndexOf('.');
+    if (!isDir && dot > 0) {
+      destName = itemName.substring(0, dot) + "-" + String(suffix) + itemName.substring(dot);
+    } else {
+      destName = itemName + "-" + String(suffix);
+    }
+    destPath = String(kTrashDir) + "/" + destName;
+    suffix++;
+    if (suffix > 999) {
+      return false;
+    }
+  }
+
+  // Collect EPUB renames before the filesystem rename so nested folder scans still work.
+  std::vector<std::pair<std::string, std::string>> epubRenames;
+  if (isDir) {
+    collectEpubRenames(itemPath.c_str(), destPath.c_str(), epubRenames);
+  } else if (isEpubFile(itemName)) {
+    epubRenames.emplace_back(itemPath.c_str(), destPath.c_str());
+  }
+
+  if (!SdMan.rename(itemPath.c_str(), destPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Trash rename failed: %s -> %s\n", millis(), itemPath.c_str(), destPath.c_str());
+    return false;
+  }
+
+  for (const auto& renamePair : epubRenames) {
+    migrateEpubBookState(renamePair.first, renamePair.second);
+  }
+
+  return true;
+}
+
+bool LocalServer::deletePathRecursive(const String& itemPath) const {
+  FsFile entry = SdMan.open(itemPath.c_str());
+  if (!entry) {
+    return false;
+  }
+
+  if (entry.isDirectory()) {
+    entry.close();
+    FsFile dir = SdMan.open(itemPath.c_str());
+    if (!dir) {
+      return false;
+    }
+    char name[500];
+    FsFile child = dir.openNextFile();
+    while (child) {
+      child.getName(name, sizeof(name));
+      const String childPath = itemPath + "/" + name;
+      child.close();
+      if (!deletePathRecursive(childPath)) {
+        dir.close();
+        return false;
+      }
+      child = dir.openNextFile();
+      yield();
+    }
+    dir.close();
+    return SdMan.rmdir(itemPath.c_str());
+  }
+
+  entry.close();
+  return SdMan.remove(itemPath.c_str());
+}
+
+void LocalServer::handleTrashEmpty() const {
+  if (!SdMan.exists(kTrashDir)) {
+    server->send(200, "text/plain", "Trash already empty");
+    return;
+  }
+
+  std::vector<String> names;
+  scanFiles(kTrashDir, [&](const FileInfo& info) { names.push_back(info.name); });
+
+  for (const String& name : names) {
+    const String path = String(kTrashDir) + "/" + name;
+    if (!deletePathRecursive(path)) {
+      Serial.printf("[%lu] [WEB] Empty Trash failed on: %s\n", millis(), path.c_str());
+      server->send(500, "text/plain", "Failed to empty Trash");
+      return;
+    }
+  }
+
+  server->send(200, "text/plain", "Trash emptied");
+}
+
+void LocalServer::handleTrashRestore() const {
+  if (!server->hasArg("path")) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+
+  String rawPath = server->arg("path");
+  String itemPath;
+  if (!canonicalizeFsPath(rawPath, itemPath)) {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
+  if (!pathIsUnder(itemPath, kTrashDir) || itemPath.equals(kTrashDir)) {
+    server->send(400, "text/plain", "Item is not in Trash");
+    return;
+  }
+  if (!SdMan.exists(itemPath.c_str())) {
+    server->send(404, "text/plain", "Item not found");
+    return;
+  }
+
+  String restoreName = server->hasArg("name") ? server->arg("name") : itemPath.substring(itemPath.lastIndexOf('/') + 1);
+  restoreName.trim();
+  if (restoreName.isEmpty() || restoreName.indexOf('/') >= 0 || restoreName.indexOf('\\') >= 0 ||
+      restoreName == "." || restoreName == ".." || restoreName.startsWith(".") || restoreName.equals("Trash")) {
+    server->send(400, "text/plain", "Invalid restore name");
+    return;
+  }
+
+  String destPath = "/" + restoreName;
+  int suffix = 2;
+  while (SdMan.exists(destPath.c_str())) {
+    const int dot = restoreName.lastIndexOf('.');
+    String candidate;
+    if (dot > 0) {
+      candidate = restoreName.substring(0, dot) + "-" + String(suffix) + restoreName.substring(dot);
+    } else {
+      candidate = restoreName + "-" + String(suffix);
+    }
+    destPath = "/" + candidate;
+    suffix++;
+    if (suffix > 999) {
+      server->send(500, "text/plain", "Could not find a free restore name");
+      return;
+    }
+  }
+
+  FsFile item = SdMan.open(itemPath.c_str());
+  const bool isDir = item && item.isDirectory();
+  if (item) {
+    item.close();
+  }
+
+  std::vector<std::pair<std::string, std::string>> epubRenames;
+  if (isDir) {
+    collectEpubRenames(itemPath.c_str(), destPath.c_str(), epubRenames);
+  } else if (isEpubFile(itemPath.substring(itemPath.lastIndexOf('/') + 1))) {
+    epubRenames.emplace_back(itemPath.c_str(), destPath.c_str());
+  }
+
+  if (!SdMan.rename(itemPath.c_str(), destPath.c_str())) {
+    server->send(500, "text/plain", "Failed to restore item");
+    return;
+  }
+
+  for (const auto& renamePair : epubRenames) {
+    migrateEpubBookState(renamePair.first, renamePair.second);
+  }
+
+  server->send(200, "text/plain", "Restored");
 }
 
 void LocalServer::collectEpubRenames(const std::string& oldDirPath, const std::string& newDirPath,

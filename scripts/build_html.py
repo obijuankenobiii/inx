@@ -2,6 +2,8 @@ import os
 import re
 import sys
 
+from shared_web_shell import apply_shared_shell
+
 # PlatformIO runs this script via exec() (no __file__); use project dir when set.
 REPO_ROOT = os.environ.get("PLATFORMIO_PROJECT_DIR", os.getcwd())
 SRC_DIR = os.path.join(REPO_ROOT, "src")
@@ -12,6 +14,8 @@ JS_EMBEDS = [
     ("data/js/jszip.min.js", "src/network/html/JsZipMinJs.generated.h", "JSZIP_MIN_JS", "INXJZ9"),
     ("data/js/epub_page.js", "src/network/html/EpubPageJs.generated.h", "EPUB_PAGE_JS", "INXEPUB"),
     ("data/js/files_page.js", "src/network/html/FilesPageJs.generated.h", "FILES_PAGE_JS", "INXFILES"),
+    ("data/js/inx_shell.js", "src/network/html/InxShellJs.generated.h", "INX_SHELL_JS", "INXSHELL"),
+    ("data/js/device_identity.js", "src/network/html/DeviceIdentityJs.generated.h", "DEVICE_IDENTITY_JS", "INXID"),
     ("data/js/qr_creator_logo.min.js", "src/network/html/QrCreatorLogoJs.generated.h", "QR_CREATOR_LOGO_JS",
      "INXQR"),
 ]
@@ -85,6 +89,8 @@ for root, _, files in os.walk(SRC_DIR):
             html_path = os.path.join(root, file)
             with open(html_path, "r", encoding="utf-8") as f:
                 html_content = f.read()
+
+            html_content = apply_shared_shell(html_content, file)
 
             # minified = regex.sub("\g<1>", html_content)
             minified = minify_html(html_content)

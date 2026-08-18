@@ -1957,7 +1957,7 @@ void EpubActivity::drawReadingGuideLines(const Page& page, const int orientedMar
     return;
   }
   const int contentWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
-  if (contentWidth < 3) {
+  if (contentWidth < 4) {
     return;
   }
   const int lineTop = orientedMarginTop;
@@ -1996,8 +1996,10 @@ void EpubActivity::drawReadingGuideLines(const Page& page, const int orientedMar
     }
     return;
   }
-  const int x1 = orientedMarginLeft + contentWidth / 3;
-  const int x2 = orientedMarginLeft + (contentWidth * 2) / 3;
+  // Grid mode: 25% / 75% of content width so ~half the page sits between the guides
+  // (1/3–2/3 is too narrow on small XTE screens).
+  const int x1 = orientedMarginLeft + contentWidth / 4;
+  const int x2 = orientedMarginLeft + (contentWidth * 3) / 4;
   // Dotted so the guides cue fixation without fighting body text on e-ink.
   renderer.line.render(x1, lineTop, x1, lineBottom, true, LineRender::Style::Dotted);
   renderer.line.render(x2, lineTop, x2, lineBottom, true, LineRender::Style::Dotted);

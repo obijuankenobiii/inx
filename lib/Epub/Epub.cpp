@@ -406,15 +406,18 @@ bool Epub::generateThumbBmp(const bool skipCoverFallback) const {
   // generateCoverBmp() already extracted this exact JPEG entry as a raw copy at getCoverJpegPath() when it
   // succeeded - reuse it instead of extracting the same zip entry a second time.
   const std::string cachedCoverJpegPath = getCoverJpegPath(false);
-  const bool haveCachedCover = SdMan.exists(cachedCoverJpegPath.c_str());
+  bool haveCachedCover = SdMan.exists(cachedCoverJpegPath.c_str());
   const std::string tempPath = cachePath + "/.thumb_extract.tmp";
 
   FsFile sourceFile;
   if (haveCachedCover) {
     if (!SdMan.openFileForRead("EBP", cachedCoverJpegPath, sourceFile)) {
-      return false;
+      // Stale or unreadable cover.jpg - fall through and re-extract from the EPUB.
+      Serial.printf("[EBP] Cached cover unreadable, re-extracting: %s\n", cachedCoverJpegPath.c_str());
+      haveCachedCover = false;
     }
-  } else {
+  }
+  if (!haveCachedCover) {
     FsFile tempFile;
     if (!SdMan.openFileForWrite("EBP", tempPath, tempFile)) {
       return false;

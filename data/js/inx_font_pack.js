@@ -107,6 +107,87 @@
     return t;
   }
 
+  function decodeNameString(view, start, length, platformID) {
+    var str = '';
+    var i;
+    if (platformID === 0 || platformID === 3) {
+      for (i = 0; i + 1 < length; i += 2) str += String.fromCharCode(view.getUint16(start + i));
+    } else {
+      for (i = 0; i < length; i++) str += String.fromCharCode(view.getUint8(start + i));
+    }
+    return str.replace(/\0/g, '').trim();
+  }
+
+  /** Read font family from TTF/OTF `name` table (prefers typographic family). */
+  function detectFamilyNameFromBuffer(arrayBuffer) {
+    try {
+      var view = new DataView(arrayBuffer);
+      if (view.byteLength < 12) return null;
+      var numTables = view.getUint16(4);
+      var nameOffset = 0;
+      var i;
+      for (i = 0; i < numTables; i++) {
+        var o = 12 + i * 16;
+        if (o + 16 > view.byteLength) break;
+        var tag =
+          String.fromCharCode(view.getUint8(o)) +
+          String.fromCharCode(view.getUint8(o + 1)) +
+          String.fromCharCode(view.getUint8(o + 2)) +
+          String.fromCharCode(view.getUint8(o + 3));
+        if (tag === 'name') {
+          nameOffset = view.getUint32(o + 8);
+          break;
+        }
+      }
+      if (!nameOffset || nameOffset + 6 > view.byteLength) return null;
+      var count = view.getUint16(nameOffset + 2);
+      var stringOffset = view.getUint16(nameOffset + 4);
+      var best = null;
+      for (i = 0; i < count; i++) {
+        var rec = nameOffset + 6 + i * 12;
+        if (rec + 12 > view.byteLength) break;
+        var platformID = view.getUint16(rec);
+        var nameID = view.getUint16(rec + 6);
+        var length = view.getUint16(rec + 8);
+        var offset = view.getUint16(rec + 10);
+        if (nameID !== 1 && nameID !== 16) continue;
+        var start = nameOffset + stringOffset + offset;
+        if (start + length > view.byteLength) continue;
+        var str = decodeNameString(view, start, length, platformID);
+        if (!str) continue;
+        if (nameID === 16) return str;
+        if (!best) best = str;
+      }
+      return best;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function detectFamilyNameFromFile(file) {
+    if (!file) return null;
+    try {
+      var buf = await file.arrayBuffer();
+      var fromTable = detectFamilyNameFromBuffer(buf);
+      if (fromTable) return fromTable;
+    } catch (e) {}
+    var stem = String(file.name || '')
+      .replace(/\.[^.]+$/, '')
+      .replace(/[-_\s]*(regular|bolditalic|bold.?italic|italic|oblique|bold)$/i, '')
+      .trim();
+    return stem || null;
+  }
+
+  function guessStyleFromFilename(name) {
+    var n = String(name || '')
+      .replace(/\.[^.]+$/, '')
+      .toLowerCase();
+    if (/bold.?italic|italic.?bold/.test(n)) return 'boldItalic';
+    if (/\bbold\b/.test(n)) return 'bold';
+    if (/\b(italic|oblique)\b/.test(n)) return 'italic';
+    return 'regular';
+  }
+
   function grayToStored(L) {
     if (L >= PACK_WHITE_LUM_THRESHOLD) return 0;
     if (L >= PACK_LIGHT_GRAY_LUM_THRESHOLD) return 1;
@@ -482,6 +563,9 @@
     SIZES: SIZES,
     readerStepToCanvasPx: readerStepToCanvasPx,
     sanitizeFamilyName: sanitizeFamilyName,
+    detectFamilyNameFromBuffer: detectFamilyNameFromBuffer,
+    detectFamilyNameFromFile: detectFamilyNameFromFile,
+    guessStyleFromFilename: guessStyleFromFilename,
     buildAllBins: buildAllBins,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

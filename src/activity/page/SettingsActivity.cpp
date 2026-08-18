@@ -47,8 +47,8 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(
       SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY));
-  settings.push_back(
-      SettingInfo::Toggle("Hide button hints", &SystemSetting::hideButtonHints, GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Toggle("Hide button hints", &SystemSetting::hideButtonHints,
+                                         GroupType::DEVICE_DISPLAY));  // All screens / reader overlays
   settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
                                         GroupType::DEVICE_DISPLAY));
 

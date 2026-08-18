@@ -10,3 +10,9 @@ build
 /compile_commands.json
 /.cache
 /fs_
+
+# Local Codex extract / design scratch
+.codex-remarkable-extract/
+.venv-icons/
+
+.venv-shots/

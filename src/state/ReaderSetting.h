@@ -96,7 +96,7 @@ class ReaderSetting {
   uint8_t refreshFrequency = 3;  ///< SystemSetting::REFRESH_15 (enum index, not the page count - see getRefreshFrequency())
   uint8_t hyphenationEnabled = 1;    ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;  ///< Bionic Reading enabled
-  /** Reading-guide overlay style: 0 = off, 1 = Grid (vertical lines at 1/3 and 2/3 of content width, a
+  /** Reading-guide overlay style: 0 = off, 1 = Grid (vertical lines at 25% and 75% of content width, a
    *  speed-reading aid), 2 = Notebook (horizontal ruled lines like notebook paper). */
   uint8_t readingGuideLinesEnabled = 0;
 

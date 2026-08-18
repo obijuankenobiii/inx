@@ -279,6 +279,20 @@ python3 scripts/build_html.py
 
 `pio run` also regenerates these files before compiling.
 
+### Lightweight Web Preview
+
+Preview the web UI without PlatformIO, SDL2, or additional packages:
+
+```sh
+python3 scripts/preview_web.py
+```
+
+Open `http://127.0.0.1:8765/`. The preview is read-only and uses sample library entries. To browse a local SD-card export:
+
+```sh
+python3 scripts/preview_web.py --root ./fs_
+```
+
 ### Simulator
 
 Inx includes two native simulator targets based on the CrossPoint simulator.
