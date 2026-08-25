@@ -127,6 +127,11 @@ class EpubActivity final : public ActivityWithSubactivity {
   std::vector<Bookmark> bookmarks;
   bool showBookmarkIndicator = false;
   int lastPreloadedSpineIndex = -1;
+  /** Spine queued for background pagination (next chapter, while sitting on the last page); -1 when idle. */
+  int pendingPreloadSpine_ = -1;
+  /** Earliest millis() at which the queued preload may run - keeps input snappy right after the page turn. */
+  unsigned long preloadDueAt_ = 0;
+  static constexpr unsigned long kPreloadIdleDelayMs = 400;
   bool lastPageHadImages = false;
   /** Previous page: image union bbox at least half screen in both dimensions (for smart HALF refresh). */
   bool lastPageHadLargeImage = false;
@@ -278,7 +283,20 @@ class EpubActivity final : public ActivityWithSubactivity {
 
   void displayBookTitle();
   void drawLoadingScreen();
-  void preloadNextSection();
+  /**
+   * Queues the next chapter for background pagination once the reader settles on the last page of the
+   * current one, so the "Loading chapter..." wait is already paid by the time they turn the page.
+   */
+  void schedulePreloadIfOnLastPage();
+
+  /** Runs a queued preload when the reader has been idle long enough; no-op otherwise. */
+  void maybeRunPendingPreload();
+
+  /** Paginates spineIndex into its cache file if it isn't already cached for the current layout. */
+  void preloadSection(int spineIndex);
+
+  /** True when spineIndex already has a section cache file matching the given layout. */
+  bool isSectionCached(int spineIndex, const ViewportInfo& info);
 
   /** Hides reader menu and settings drawers (if open). Optionally repaints the reader (skip during error popups). */
   void dismissMenuDrawerForBlockingWork(bool repaintReaderScreen = true);

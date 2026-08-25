@@ -369,6 +369,84 @@ std::unique_ptr<Section> EpubActivity::loadSection(int spineIndex, const Viewpor
   return loadedSection;
 }
 
+bool EpubActivity::isSectionCached(int spineIndex, const ViewportInfo& info) {
+  if (!epub) return false;
+  std::shared_ptr<Epub> sharedEpub = std::shared_ptr<Epub>(epub.get(), [](Epub*) {});
+  auto probe = std::unique_ptr<Section>(new Section(sharedEpub, spineIndex, renderer));
+  return probe->loadSectionFile(info.fontId, info.lineCompression, info.wordSpacing,
+                                bookSettings.extraParagraphSpacing, bookSettings.paragraphAlignment, info.width,
+                                info.height, bookSettings.hyphenationEnabled,
+                                bookSettings.paragraphCssIndentEnabled != 0, bookSettings.bionicReadingEnabled != 0);
+}
+
+/**
+ * @brief Paginates a chapter into its cache file ahead of time, drawing nothing
+ *
+ * Only the section .bin is produced - the loaded Section object is thrown away. Turning the page then hits
+ * the cached-file path in loadSection() and skips the "Loading chapter..." popup entirely.
+ */
+void EpubActivity::preloadSection(int spineIndex) {
+  if (!epub) return;
+  const int totalSpines = epub->getSpineItemsCount();
+  if (spineIndex < 0 || spineIndex >= totalSpines) return;
+
+  ViewportInfo info = calculateViewport();
+  if (isSectionCached(spineIndex, info)) {
+    lastPreloadedSpineIndex = spineIndex;
+    return;
+  }
+
+  Serial.printf("[%lu] [EPA] preloadSection: building spine=%d in background\n", millis(), spineIndex);
+  // showProgress=false: nothing is drawn, so the page the reader is looking at stays untouched.
+  const bool ok = buildSection(spineIndex, info, false, false);
+  // Mark it either way - a spine that fails to build would fail on every retry too, and re-trying it on
+  // every idle frame would make the last page of the chapter permanently unresponsive.
+  lastPreloadedSpineIndex = spineIndex;
+  if (!ok) {
+    Serial.printf("[%lu] [EPA] preloadSection: build failed spine=%d\n", millis(), spineIndex);
+  }
+}
+
+/**
+ * @brief Queues the next chapter for preloading when the reader lands on the last page of this one
+ */
+void EpubActivity::schedulePreloadIfOnLastPage() {
+  pendingPreloadSpine_ = -1;
+  if (!epub || !section || section->pageCount == 0) return;
+  if (menuDrawerVisible || settingsDrawerVisible || annUi_.isActive() || dictUi_.isActive()) return;
+  if (section->currentPage != section->pageCount - 1) return;
+
+  const int nextSpine = currentSpineIndex + 1;
+  if (nextSpine >= epub->getSpineItemsCount()) return;
+  if (nextSpine == lastPreloadedSpineIndex) return;
+
+  pendingPreloadSpine_ = nextSpine;
+  preloadDueAt_ = millis() + kPreloadIdleDelayMs;
+}
+
+/**
+ * @brief Runs a queued chapter preload once the reader has been idle for a moment
+ *
+ * Pagination is blocking, so it is deliberately held off until nothing else is going on: any button
+ * activity pushes it back rather than making the device feel stuck right after a page turn.
+ */
+void EpubActivity::maybeRunPendingPreload() {
+  if (pendingPreloadSpine_ < 0) return;
+  if (menuDrawerVisible || settingsDrawerVisible || annUi_.isActive() || dictUi_.isActive() || isDoingSomethingHeavy) {
+    return;
+  }
+
+  if (mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased()) {
+    preloadDueAt_ = millis() + kPreloadIdleDelayMs;
+    return;
+  }
+  if (static_cast<long>(millis() - preloadDueAt_) < 0) return;
+
+  const int spineIndex = pendingPreloadSpine_;
+  pendingPreloadSpine_ = -1;
+  preloadSection(spineIndex);
+}
+
 /**
  * @brief Sets up orientation based on book settings
  */
@@ -692,6 +770,8 @@ void EpubActivity::onEnter() {
   lastGoodSpineIndex_ = currentSpineIndex;
   lastGoodPageNumber_ = nextPageNumber;
   chapterRecoveryAttempted_ = false;
+  lastPreloadedSpineIndex = -1;
+  pendingPreloadSpine_ = -1;
 
   annUi_.clearSessionAndCapture();
 }
@@ -924,8 +1004,12 @@ void EpubActivity::loop() {
   if (updateRequired) {
     updateRequired = false;
     renderScreen();
+    schedulePreloadIfOnLastPage();
     return;
   }
+
+  // Nothing to handle this frame: a good moment to paginate the next chapter, if one is queued.
+  maybeRunPendingPreload();
 }
 
 /**
@@ -1540,6 +1624,7 @@ void EpubActivity::jumpToPercent(int percent) {
  * @param forward True for forward page turn, false for backward
  */
 void EpubActivity::pageTurn(bool forward) {
+  pendingPreloadSpine_ = -1;
   if (!epub) {
     updateRequired = true;
     return;
@@ -2218,6 +2303,9 @@ void EpubActivity::saveBookSettings() {
  */
 void EpubActivity::applyBookSettings() {
   dismissMenuDrawerForBlockingWork();
+  // Every cached section is about to be stale for the new layout; forget what was preloaded for the old one.
+  lastPreloadedSpineIndex = -1;
+  pendingPreloadSpine_ = -1;
 
   int currentPage = 0;
   int currentSpine = currentSpineIndex;
