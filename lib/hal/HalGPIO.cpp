@@ -232,10 +232,40 @@ void HalGPIO::begin() {
   if (deviceIsX4()) {
     pinMode(BAT_GPIO0, INPUT);
     pinMode(UART0_RXD, INPUT);
+    refreshX4Battery(true);
   }
 }
 
-void HalGPIO::update() { inputMgr.update(); }
+void HalGPIO::refreshX4Battery(const bool force) const {
+  const unsigned long now = millis();
+  if (!force && batteryLastPollMs != 0 && (now - batteryLastPollMs) < BATTERY_POLL_MS) {
+    return;
+  }
+  static const BatteryMonitor battery = BatteryMonitor(BAT_GPIO0);
+  uint32_t mvSum = 0;
+  for (int i = 0; i < 8; ++i) {
+    mvSum += battery.readMillivolts();
+  }
+  const int sample = static_cast<int>(BatteryMonitor::percentageFromMillivolts(static_cast<uint16_t>(mvSum / 8)));
+  if (batteryLastPollMs == 0) {
+    batteryCachedPercent = sample;
+  } else {
+    batteryCachedPercent = (batteryCachedPercent + sample) / 2;
+  }
+  if (batteryCachedPercent < 0) {
+    batteryCachedPercent = 0;
+  } else if (batteryCachedPercent > 100) {
+    batteryCachedPercent = 100;
+  }
+  batteryLastPollMs = now;
+}
+
+void HalGPIO::update() {
+  inputMgr.update();
+  if (deviceIsX4()) {
+    refreshX4Battery(false);
+  }
+}
 
 bool HalGPIO::isPressed(uint8_t buttonIndex) const { return inputMgr.isPressed(buttonIndex); }
 
@@ -396,8 +426,12 @@ int HalGPIO::getBatteryPercentage() const {
     batteryLastPollMs = now;
     return batteryCachedPercent;
   }
-  static const BatteryMonitor battery = BatteryMonitor(BAT_GPIO0);
-  return battery.readPercentage();
+  // Paint path must not touch the ADC: e-ink current sags the reading.
+  // gpio.update() samples while idle, including on USB so charging still moves.
+  if (batteryLastPollMs == 0) {
+    refreshX4Battery(true);
+  }
+  return batteryCachedPercent;
 }
 
 bool HalGPIO::isUsbConnected() const {
