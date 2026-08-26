@@ -41,6 +41,8 @@ class EpubDictionaryUi {
   void drawFocusHighlight(EpubActivity& act);
   void drawDefinitionPanel(EpubActivity& act);
   void performLookup(EpubActivity& act);
+  std::string dictionaryQueryFromFocus(EpubActivity& act, bool keepLineBreakHyphen);
+  bool fillWordsForPage(EpubActivity& act, int spine, int page, std::vector<PageWordHit>& out) const;
   void ensureDictionaryOpen();
   void saveCurrentWord(EpubActivity& act);
   /** Actually releases currentDefinition_/definitionBlocks_/definitionLines_'s heap capacity (not
