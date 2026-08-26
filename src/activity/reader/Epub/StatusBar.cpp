@@ -7,6 +7,8 @@
 
 #include <HalGPIO.h>
 
+#include <cctype>
+
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 
@@ -180,7 +182,7 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
   const float bookProgress = calculateBookProgress(section, currentSpineIndex);
   const std::string pageStr = getPageString(section);
   const std::string percentStr = getPercentString(bookProgress);
-  const std::string chapterTitle = getChapterTitle(currentSpineIndex);
+  const std::string chapterTitle = getChapterTitle(currentSpineIndex, section);
   const std::string batteryPercentStr = getBatteryPercentString();
 
   auto getRightAlignedX = [&](const char* text) -> int {
@@ -363,6 +365,13 @@ void StatusBar::renderPageBars(int sectionStart, int sectionCenter, int sectionW
   const int minBarWidth = 2;
 
   int pageCount = static_cast<int>(section->pageCount);
+  int currentPage = section->currentPage;
+  int chapterStart = 0;
+  int chapterCount = 0;
+  if (section->chapterRangeForPage(section->currentPage, &chapterStart, &chapterCount) && chapterCount > 0) {
+    pageCount = chapterCount;
+    currentPage = section->currentPage - chapterStart;
+  }
   int barCount = (pageCount < maxBars) ? pageCount : maxBars;
   int pagesPerBar = pageCount / barCount;
   if (pagesPerBar < 1) pagesPerBar = 1;
@@ -373,7 +382,6 @@ void StatusBar::renderPageBars(int sectionStart, int sectionCenter, int sectionW
   int totalWidth = barCount * barWidth;
   int barStartX = sectionCenter - (totalWidth / 2);
 
-  int currentPage = section->currentPage;
   int barY = textY + 10;
 
   for (int i = 0; i < barCount; i++) {
@@ -425,8 +433,16 @@ StatusBarSectionConfig StatusBar::getConfig(int position) const {
  */
 std::string StatusBar::getPageString(const Section* section) const {
   if (!section) return "0/0";
+  int start = 0;
+  int count = 0;
+  int current = section->currentPage + 1;
+  int total = section->pageCount;
+  if (section->chapterRangeForPage(section->currentPage, &start, &count) && count > 0) {
+    current = section->currentPage - start + 1;
+    total = count;
+  }
   char buffer[16];
-  snprintf(buffer, sizeof(buffer), "%d/%d", section->currentPage + 1, section->pageCount);
+  snprintf(buffer, sizeof(buffer), "%d/%d", current, total);
   return std::string(buffer);
 }
 
@@ -460,12 +476,85 @@ std::string StatusBar::getBatteryPercentString() const {
  * @param currentSpineIndex Current spine index
  * @return Chapter title
  */
-std::string StatusBar::getChapterTitle(int currentSpineIndex) const {
-  int tocIndex = m_epub.getTocIndexForSpineIndex(currentSpineIndex);
-  if (tocIndex != -1) {
-    return m_epub.getTocItem(tocIndex).title;
+std::string StatusBar::getChapterTitle(int currentSpineIndex, const Section* section) const {
+  const int page = section ? section->currentPage : 0;
+  if (currentSpineIndex == cachedChapterSpine_ && page == cachedChapterPage_ && !cachedChapterTitle_.empty()) {
+    return cachedChapterTitle_;
   }
-  return "Chapter " + std::to_string(currentSpineIndex + 1);
+
+  auto titlesMatch = [](const std::string& tocTitle, const std::string& heading) {
+    auto normalize = [](const std::string& s) {
+      std::string out;
+      out.reserve(s.size());
+      for (unsigned char c : s) {
+        if (std::isalnum(c) != 0 || c >= 0x80) {
+          out.push_back(static_cast<char>(std::tolower(c)));
+        }
+      }
+      return out;
+    };
+    const std::string a = normalize(tocTitle);
+    const std::string b = normalize(heading);
+    if (a.empty() || b.empty()) {
+      return false;
+    }
+    return a == b || (a.size() >= b.size() && a.compare(a.size() - b.size(), b.size(), b) == 0);
+  };
+
+  const int count = section ? section->pageCount : 0;
+  std::string chapter;
+  int tocIndex = -1;
+  if (section) {
+    if (const auto* marker = section->chapterMarkerForPage(page)) {
+      chapter = marker->title;
+      const int tocCount = m_epub.getTocItemsCount();
+      int start = m_epub.getTocIndexForSpineIndex(currentSpineIndex);
+      if (start < 0 || start >= tocCount) {
+        start = 0;
+      }
+      bool seenSameSpine = false;
+      for (int i = start; i < tocCount; ++i) {
+        const auto item = m_epub.getTocItem(i);
+        if (item.spineIndex != currentSpineIndex) {
+          if (seenSameSpine) {
+            break;
+          }
+          continue;
+        }
+        seenSameSpine = true;
+        if (titlesMatch(item.title, chapter)) {
+          tocIndex = i;
+        }
+      }
+    }
+  }
+  if (chapter.empty()) {
+    tocIndex = m_epub.getTocIndexForSpinePage(currentSpineIndex, page, count);
+    if (tocIndex != -1) {
+      chapter = m_epub.getTocItem(tocIndex).title;
+    } else {
+      cachedChapterSpine_ = currentSpineIndex;
+      cachedChapterPage_ = page;
+      cachedChapterTitle_ = "Chapter " + std::to_string(currentSpineIndex + 1);
+      return cachedChapterTitle_;
+    }
+  }
+  if (tocIndex > 0) {
+    const auto leaf = m_epub.getTocItem(tocIndex);
+    for (int i = tocIndex - 1; i >= 0; --i) {
+      const auto parent = m_epub.getTocItem(i);
+      if (parent.level < leaf.level && !parent.title.empty() && parent.title != chapter) {
+        cachedChapterSpine_ = currentSpineIndex;
+        cachedChapterPage_ = page;
+        cachedChapterTitle_ = parent.title + " \xC2\xB7 " + chapter;
+        return cachedChapterTitle_;
+      }
+    }
+  }
+  cachedChapterSpine_ = currentSpineIndex;
+  cachedChapterPage_ = page;
+  cachedChapterTitle_ = chapter;
+  return cachedChapterTitle_;
 }
 
 /**
@@ -476,6 +565,6 @@ std::string StatusBar::getChapterTitle(int currentSpineIndex) const {
  */
 float StatusBar::calculateBookProgress(const Section* section, int currentSpineIndex) const {
   if (!section || section->pageCount == 0) return 0;
-  float spineProgress = static_cast<float>(section->currentPage) / section->pageCount;
+  const float spineProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
   return m_epub.calculateProgress(currentSpineIndex, spineProgress) * 100;
 }

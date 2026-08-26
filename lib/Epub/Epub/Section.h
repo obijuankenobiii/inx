@@ -57,6 +57,15 @@ class Section {
   uint16_t pageCount = 0;
   int currentPage = 0;
 
+  struct ChapterMarker {
+    uint16_t startPage = 0;
+    std::string title;
+  };
+  std::vector<ChapterMarker> chapterMarkers;
+
+  const ChapterMarker* chapterMarkerForPage(int page) const;
+  bool chapterRangeForPage(int page, int* startOut, int* countOut) const;
+
   /**
    * Constructs a new Section.
    *

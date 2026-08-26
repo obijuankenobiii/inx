@@ -143,7 +143,12 @@ std::string EpubReadingStats::chapterTimeLeftString(const Section* section) cons
     return "-";
   }
 
-  const int remainingPages = static_cast<int>(section->pageCount) - section->currentPage - 1;
+  int remainingPages = static_cast<int>(section->pageCount) - section->currentPage - 1;
+  int start = 0;
+  int count = 0;
+  if (section->chapterRangeForPage(section->currentPage, &start, &count) && count > 0) {
+    remainingPages = start + count - section->currentPage - 1;
+  }
   if (remainingPages <= 0) {
     return "-";
   }

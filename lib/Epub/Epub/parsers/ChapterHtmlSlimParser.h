@@ -9,6 +9,7 @@
 #include <expat.h>
 
 #include <climits>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -38,6 +39,12 @@ constexpr uint8_t EPUB_PARAGRAPH_ALIGNMENT_FOLLOW_CSS = 4;
  * Handles XML parsing, text layout, and image processing for EPUB chapters.
  */
 class ChapterHtmlSlimParser {
+ public:
+  struct ChapterStart {
+    uint16_t page = 0;
+    std::string title;
+  };
+
  private:
   const std::string& filepath;
   const Epub& epub;
@@ -66,6 +73,10 @@ class ChapterHtmlSlimParser {
   int maxFontId;
 
   bool inHeader = false;
+  bool keepBodyOnThisPage_ = false;
+  bool pendingChapterTitle_ = false;
+  uint16_t completedPageCount_ = 0;
+  std::vector<ChapterStart> chapterStarts_;
 
   bool inDropCap = false;
   int dropCapDepth = INT_MAX;
@@ -262,6 +273,9 @@ class ChapterHtmlSlimParser {
   void startNewTextBlock(TextBlock::Style style);
   void applyVerticalSpacing(int px);
   void flushCurrentTableCell();
+  /** Flush the current word. Only join the next token when this one looks like a mid-word fragment
+   *  (1–2 bytes, or a hyphenated prefix) so a styled complete word is not glued to the following one. */
+  void flushWordPreservingJoinForFragment();
   void flushCurrentTableRow();
   void appendTableText(const XML_Char* s, int len);
   void addTableToPage();
@@ -300,7 +314,19 @@ class ChapterHtmlSlimParser {
   void completeCurrentPage();
   void finalizeOpenBorderBoxesForPageBreak();
   void restartOpenBorderBoxesAfterPageBreak();
+  /** Finish the current page when it already has content, so the next block starts on a fresh page. */
+  void forcePageBreak();
+  /** Page-break if this page already has body text, then apply a modest chapter-opening top spacer. */
+  void startChapterOpening();
+  void emitChapterHeading(const std::string& title);
+  void noteChapterMarker(const std::string& title);
+  int spaceToKeepForBody() const;
+  int clampSpacingToKeepBody(int px) const;
+  bool pageHasPriorContent() const;
+  bool pageHasBodyText() const;
+  bool openingWaitingForBody() const;
   void addCenteredDivider(const char* text);
+  void addQuietSceneBreak();
   void addHorizontalRule(const std::string& tagLower = "hr", const std::string& classAttr = "",
                          const std::string& idAttr = "", const std::string& styleAttr = "");
   /** Emits a horizontal border rule (full content width placeholder) and returns it so its width can be
@@ -382,6 +408,8 @@ class ChapterHtmlSlimParser {
 
  public:
   std::string internalPath;
+
+  const std::vector<ChapterStart>& chapterStarts() const { return chapterStarts_; }
 
   /**
    * Constructs a new HTML parser for a chapter.

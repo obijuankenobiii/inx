@@ -24,6 +24,10 @@ class Epub {
   std::unique_ptr<BookMetadataCache> bookMetadataCache;
   mutable std::unique_ptr<CssParser> parsedCssParser_;
   mutable bool parsedCssLoaded_ = false;
+  mutable int tocPageLookupSpine_ = -1;
+  mutable int tocPageLookupPage_ = -1;
+  mutable int tocPageLookupCount_ = -1;
+  mutable int tocPageLookupIndex_ = -1;
 
   bool findContentOpfFile(std::string* contentOpfFile) const;
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
@@ -90,6 +94,8 @@ class Epub {
   BookMetadataCache::TocEntry getTocItem(int tocIndex) const;
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
+  /** TOC entry for this spine at @p page, preferring nested chapter titles over a wrapping part title. */
+  int getTocIndexForSpinePage(int spineIndex, int page, int pageCount) const;
   int getSpineIndexForTextReference() const;
   /** First spine suitable for reading when opening a book (guide text ref, else TOC, else first HTML spine). */
   int getSpineIndexForInitialOpen() const;

@@ -387,32 +387,250 @@ std::string trimAsciiWhitespace(std::string value) {
   return std::string(first, last);
 }
 
-bool isSceneBreakMarker(const std::string& text, std::string* markerText) {
+enum class SceneBreakKind { None, Literary, Markup, PageBreak, ChapterHeading };
+
+bool isLiteraryBreakCp(const uint32_t cp) {
+  return cp == '.' || cp == '*' || cp == 0x2022 || cp == 0x00B7;
+}
+
+bool isMarkupBreakCp(const uint32_t cp) {
+  return cp == '=' || cp == '-' || cp == '_' || cp == '~' || cp == 0x2013 || cp == 0x2014;
+}
+
+bool isWordSeparatorCp(const uint32_t cp) {
+  if (cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r' || cp == '\f' || cp == '\v') {
+    return true;
+  }
+  if (cp == 0x00A0 || cp == 0x202F || cp == 0x205F || cp == 0x3000) {
+    return true;
+  }
+  if (cp >= 0x2000 && cp <= 0x200A) {
+    return true;
+  }
+  if (cp == 0x200B || cp == 0x2060 || cp == 0xFEFF) {
+    return true;
+  }
+  return false;
+}
+
+bool codepointUsesJoiningScript(const uint32_t cp) {
+  if ((cp >= 0x1100 && cp <= 0x11FF) || (cp >= 0x3130 && cp <= 0x318F) || (cp >= 0xA960 && cp <= 0xA97F) ||
+      (cp >= 0xAC00 && cp <= 0xD7AF)) {
+    return true;
+  }
+  if ((cp >= 0x2E80 && cp <= 0x2FFF) || (cp >= 0x3040 && cp <= 0x30FF) || (cp >= 0x3100 && cp <= 0x312F) ||
+      (cp >= 0x31F0 && cp <= 0x31FF) || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) ||
+      (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0x20000 && cp <= 0x2FA1F)) {
+    return true;
+  }
+  if ((cp >= 0x0E00 && cp <= 0x0E7F) || (cp >= 0x0E80 && cp <= 0x0EFF) || (cp >= 0x1000 && cp <= 0x109F) ||
+      (cp >= 0x1780 && cp <= 0x17FF)) {
+    return true;
+  }
+  return false;
+}
+
+bool tokenUsesJoiningScript(const char* s, const int len) {
+  if (s == nullptr || len <= 0) {
+    return false;
+  }
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
+  const unsigned char* const end = p + len;
+  while (p < end) {
+    if (codepointUsesJoiningScript(utf8NextCodepoint(&p))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+SceneBreakKind classifySceneBreak(const std::string& text) {
   const std::string trimmed = trimAsciiWhitespace(text);
   if (trimmed.empty()) {
-    return false;
+    return SceneBreakKind::None;
   }
 
   int markerCount = 0;
+  bool markup = false;
+  bool sawEquals = false;
+  bool sawOtherMarkup = false;
   const unsigned char* p = reinterpret_cast<const unsigned char*>(trimmed.c_str());
   const unsigned char* const end = p + trimmed.size();
   while (p < end) {
     const uint32_t cp = utf8NextCodepoint(&p);
-    if (cp == '.' || cp == '*' || cp == 0x2022) {
-      ++markerCount;
-      continue;
-    }
     if (cp == ' ' || cp == '\t') {
       continue;
     }
-    return false;
+    if (isLiteraryBreakCp(cp)) {
+      ++markerCount;
+      continue;
+    }
+    if (isMarkupBreakCp(cp)) {
+      markup = true;
+      if (cp == '=') {
+        sawEquals = true;
+      } else {
+        sawOtherMarkup = true;
+      }
+      ++markerCount;
+      continue;
+    }
+    return SceneBreakKind::None;
   }
 
-  if (markerCount == 0 || markerCount > 6) {
+  if (markerCount == 0) {
+    return SceneBreakKind::None;
+  }
+  if (markup) {
+    if (markerCount < 2) {
+      return SceneBreakKind::None;
+    }
+    // AsciiDoc / Calibre leftovers (`==`, `===`) mark a chapter or page boundary, not a scene ornament.
+    if (sawEquals && !sawOtherMarkup) {
+      return SceneBreakKind::PageBreak;
+    }
+    return SceneBreakKind::Markup;
+  }
+  if (markerCount > 6) {
+    return SceneBreakKind::None;
+  }
+  return SceneBreakKind::Literary;
+}
+
+bool isRomanNumeralToken(const std::string& text) {
+  if (text.empty() || text.size() > 8) {
     return false;
   }
-  if (markerText) *markerText = trimmed;
+  for (unsigned char c : text) {
+    const char u = static_cast<char>(std::toupper(c));
+    if (u != 'I' && u != 'V' && u != 'X' && u != 'L' && u != 'C' && u != 'M') {
+      return false;
+    }
+  }
   return true;
+}
+
+bool isNumericChapterToken(const std::string& text) {
+  if (text.empty() || text.size() > 6) {
+    return false;
+  }
+  for (unsigned char c : text) {
+    if (std::isdigit(c) == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool looksLikeChapterTitle(const std::string& text) {
+  const std::string trimmed = trimAsciiWhitespace(text);
+  if (trimmed.empty() || trimmed.find('\n') != std::string::npos) {
+    return false;
+  }
+  return isNumericChapterToken(trimmed) || isRomanNumeralToken(trimmed);
+}
+
+/** AsciiDoc (`==` / `===`) or Markdown ATX (`##`…) heading leftover. Empty title means a break-only line. */
+bool parseChapterHeadingMarkup(const std::string& line, std::string* titleOut) {
+  if (titleOut) {
+    titleOut->clear();
+  }
+  const std::string trimmed = trimAsciiWhitespace(line);
+  if (trimmed.size() < 2) {
+    return false;
+  }
+  const char mark = trimmed[0];
+  if (mark != '=' && mark != '#') {
+    return false;
+  }
+  size_t n = 0;
+  while (n < trimmed.size() && trimmed[n] == mark) {
+    ++n;
+  }
+  if (mark == '=' && (n < 2 || n > 3)) {
+    return false;
+  }
+  if (mark == '#' && (n < 2 || n > 6)) {
+    return false;
+  }
+  if (n == trimmed.size()) {
+    return true;
+  }
+  if (trimmed[n] == ' ' || trimmed[n] == '\t' ||
+      (mark == '=' && std::isalnum(static_cast<unsigned char>(trimmed[n])) != 0)) {
+    const std::string title = trimAsciiWhitespace(trimmed.substr(n));
+    if (titleOut) {
+      *titleOut = title;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Strips a Markdown ATX (`##`) or AsciiDoc (`==`) heading prefix. Returns true when a prefix was removed
+ *  and title text remains. A line that is only markers is left unchanged so classifySceneBreak can handle it. */
+bool stripHeadingMarkupPrefix(std::string& line) {
+  std::string title;
+  if (!parseChapterHeadingMarkup(line, &title) || title.empty()) {
+    return false;
+  }
+  line = std::move(title);
+  return true;
+}
+
+/** Drops separator-only lines and heading-underline leftovers from a text node. Empty result means the
+ *  whole node was markup (caller should emit a scene break). */
+std::string cleanChapterMarkupText(const std::string& text, const bool inHeader, SceneBreakKind* leftoverBreak) {
+  if (leftoverBreak) {
+    *leftoverBreak = SceneBreakKind::None;
+  }
+  std::string out;
+  size_t start = 0;
+  bool sawContent = false;
+  while (start <= text.size()) {
+    const size_t nl = text.find_first_of("\r\n", start);
+    const size_t end = nl == std::string::npos ? text.size() : nl;
+    std::string line = text.substr(start, end - start);
+    if (nl != std::string::npos && text[nl] == '\r' && nl + 1 < text.size() && text[nl + 1] == '\n') {
+      start = nl + 2;
+    } else if (nl != std::string::npos) {
+      start = nl + 1;
+    } else {
+      start = text.size() + 1;
+    }
+
+    std::string headingTitle;
+    if (parseChapterHeadingMarkup(line, &headingTitle)) {
+      if (leftoverBreak && *leftoverBreak == SceneBreakKind::None) {
+        *leftoverBreak = headingTitle.empty() ? SceneBreakKind::PageBreak : SceneBreakKind::ChapterHeading;
+      }
+      if (headingTitle.empty()) {
+        continue;
+      }
+      line = std::move(headingTitle);
+    } else {
+      const SceneBreakKind kind = classifySceneBreak(line);
+      if (kind != SceneBreakKind::None) {
+        if (leftoverBreak && *leftoverBreak == SceneBreakKind::None) {
+          *leftoverBreak = kind;
+        }
+        continue;
+      }
+      if (inHeader || !sawContent) {
+        stripHeadingMarkupPrefix(line);
+      }
+    }
+    line = trimAsciiWhitespace(line);
+    if (line.empty()) {
+      continue;
+    }
+    if (!out.empty()) {
+      out += '\n';
+    }
+    out += line;
+    sawContent = true;
+  }
+  return out;
 }
 
 }  // namespace
@@ -523,6 +741,10 @@ void ChapterHtmlSlimParser::resetStructuralStateForParsePass() {
   subscriptUntilDepth = INT_MAX;
   listNoIndentDepths_.clear();
   inHeader = false;
+  keepBodyOnThisPage_ = false;
+  pendingChapterTitle_ = false;
+  completedPageCount_ = 0;
+  chapterStarts_.clear();
   inDropCap = false;
   dropCapDepth = INT_MAX;
   dropCapConsumeWholeContainer = false;
@@ -920,6 +1142,74 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
     return;
   }
 
+  if (currentTextBlock && currentTextBlock->isEmpty()) {
+    std::string firstToken(partWordBuffer, static_cast<size_t>(partWordBufferIndex));
+    std::string headingTitle;
+    if (parseChapterHeadingMarkup(firstToken, &headingTitle)) {
+      partWordBufferIndex = 0;
+      if (inHeader) {
+        if (headingTitle.empty()) {
+          startChapterOpening();
+          pendingChapterTitle_ = true;
+          return;
+        }
+        if (headingTitle.size() >= MAX_WORD_SIZE) {
+          return;
+        }
+        memcpy(partWordBuffer, headingTitle.c_str(), headingTitle.size());
+        partWordBufferIndex = static_cast<int>(headingTitle.size());
+        partWordBuffer[partWordBufferIndex] = '\0';
+        noteChapterMarker(headingTitle);
+      } else {
+        startChapterOpening();
+        if (!headingTitle.empty()) {
+          emitChapterHeading(headingTitle);
+        } else {
+          pendingChapterTitle_ = true;
+        }
+        return;
+      }
+    } else {
+      const SceneBreakKind kind = classifySceneBreak(firstToken);
+      if (kind != SceneBreakKind::None) {
+        partWordBufferIndex = 0;
+        if (!inHeader) {
+          if (kind == SceneBreakKind::Literary) {
+            addCenteredDivider("\xC2\xB7 \xC2\xB7 \xC2\xB7");
+          } else if (kind == SceneBreakKind::PageBreak || kind == SceneBreakKind::ChapterHeading) {
+            startChapterOpening();
+            pendingChapterTitle_ = true;
+          } else {
+            addQuietSceneBreak();
+          }
+        }
+        return;
+      }
+    }
+    if (pendingChapterTitle_ && looksLikeChapterTitle(firstToken)) {
+      pendingChapterTitle_ = false;
+      if (!inHeader) {
+        partWordBufferIndex = 0;
+        emitChapterHeading(firstToken);
+        return;
+      }
+      noteChapterMarker(firstToken);
+    } else if (inHeader && looksLikeChapterTitle(firstToken)) {
+      if (pageHasPriorContent()) {
+        startChapterOpening();
+      }
+      noteChapterMarker(firstToken);
+    } else if (stripHeadingMarkupPrefix(firstToken)) {
+      if (firstToken.size() >= MAX_WORD_SIZE) {
+        partWordBufferIndex = 0;
+        return;
+      }
+      memcpy(partWordBuffer, firstToken.c_str(), firstToken.size());
+      partWordBufferIndex = static_cast<int>(firstToken.size());
+      partWordBuffer[partWordBufferIndex] = '\0';
+    }
+  }
+
   const bool cssBoldActive = !cssFontStyleStack.empty() && cssFontStyleStack.back().bold;
   const bool cssItalicActive = !cssFontStyleStack.empty() && cssFontStyleStack.back().italic;
   EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
@@ -963,11 +1253,36 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   partWordBufferIndex = 0;
 }
 
+void ChapterHtmlSlimParser::flushWordPreservingJoinForFragment() {
+  if (partWordBufferIndex <= 0) {
+    return;
+  }
+  // Join across a style/tag boundary only for a true fragment: trailing hyphen, a single
+  // letter (drop-cap / first-letter span), or a script that does not separate words with
+  // spaces (CJK, Thai, …). Latin/Cyrillic two-letter words are complete tokens.
+  const bool hyphenFragment = partWordBuffer[static_cast<size_t>(partWordBufferIndex) - 1] == '-';
+  const unsigned char lead = static_cast<unsigned char>(partWordBuffer[0]);
+  const int letterBytes = utf8CodepointByteLength(lead);
+  const bool singleLetter = letterBytes == partWordBufferIndex;
+  const bool joiningScript = tokenUsesJoiningScript(partWordBuffer, partWordBufferIndex);
+  flushPartWordBuffer();
+  nextWordJoinsPrevious = hyphenFragment || singleLetter || joiningScript;
+}
+
 void ChapterHtmlSlimParser::applyVerticalSpacing(const int px) {
   if (px <= 0) {
     return;
   }
-  if (currentPageNextY + px > viewportHeight) {
+  int add = px;
+  if (keepBodyOnThisPage_ || inHeader || openingWaitingForBody()) {
+    add = clampSpacingToKeepBody(add);
+    if (add <= 0) {
+      return;
+    }
+    currentPageNextY = static_cast<int16_t>(currentPageNextY + add);
+    return;
+  }
+  if (currentPageNextY + add > viewportHeight) {
     if (currentPage && !currentPage->elements.empty()) {
       completeCurrentPage();
     }
@@ -975,7 +1290,7 @@ void ChapterHtmlSlimParser::applyVerticalSpacing(const int px) {
     currentPageNextY = 0;
     return;
   }
-  currentPageNextY += px;
+  currentPageNextY += add;
 }
 
 void ChapterHtmlSlimParser::flushCurrentTableCell() {
@@ -1386,6 +1701,11 @@ int ChapterHtmlSlimParser::cssBorderInnerGapPx() const {
 
 void ChapterHtmlSlimParser::applyMinHeightPadding() {
   if (currentBlockMinHeightPx <= 0) return;
+  // Print CSS often gives chapter numbers min-height: 80%/100% so the heading sits on its own leaf.
+  // On this screen that is a blank page with "9" at the top - skip it until body text is on the page.
+  if (inHeader || openingWaitingForBody()) {
+    return;
+  }
   // Skip if the block wrapped onto a new page (content start Y no longer comparable to the current cursor).
   if (currentPageNextY < currentBlockContentStartY) return;
   const int contentHeight = currentPageNextY - currentBlockContentStartY;
@@ -1545,7 +1865,11 @@ void ChapterHtmlSlimParser::beginCssBlockBox(const std::string& tagLower, const 
     return;
   }
 
-  if (currentPageNextY > 0 && (marginTop > 0 || currentBlockUsesBorderBox)) {
+  if (keepBodyOnThisPage_) {
+    if (marginTop > 0) {
+      applyVerticalSpacing(marginTop);
+    }
+  } else if (currentPageNextY > 0 && (marginTop > 0 || currentBlockUsesBorderBox)) {
     // Reserving a block's full margin-top can leave just enough room for the margin but not the block's own
     // first line (or, for a bordered box, its chrome plus a couple of content lines) - bouncing the whole
     // block to the next page and leaving that margin's worth of space sitting unused on this one (real
@@ -1729,8 +2053,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   const bool resolvedSmallCaps = inheritedSmallCaps || hasExplicitSmallCapsHint(name, classAttr, idAttr, styleAttr);
   // Flush any pending word before the small-caps state changes so the preceding text keeps its flag.
   if (resolvedSmallCaps != inheritedSmallCaps && self->partWordBufferIndex > 0) {
-    self->flushPartWordBuffer();
-    self->nextWordJoinsPrevious = true;
+    self->flushWordPreservingJoinForFragment();
   }
   self->smallCapsStack.push_back(resolvedSmallCaps);
   self->smallCapsDepths.push_back(self->depth);
@@ -1742,8 +2065,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->css().resolveFontItalic(tagLower, classAttr, idAttr, styleAttr, inheritedCssItalic);
   if ((resolvedCssBold != inheritedCssBold || resolvedCssItalic != inheritedCssItalic) &&
       self->partWordBufferIndex > 0) {
-    self->flushPartWordBuffer();
-    self->nextWordJoinsPrevious = true;
+    self->flushWordPreservingJoinForFragment();
   }
   CssFontStyleScope fontScope;
   fontScope.depth = self->depth;
@@ -1761,8 +2083,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
   if (elementVerticalAlign != TextBlock::BASELINE) {
     if (self->partWordBufferIndex > 0) {
-      self->flushPartWordBuffer();
-      self->nextWordJoinsPrevious = true;
+      self->flushWordPreservingJoinForFragment();
     }
     if (elementVerticalAlign == TextBlock::SUPERSCRIPT) {
       self->superscriptUntilDepth = self->depth;
@@ -1824,6 +2145,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (isHeaderTag) {
     self->flushPartWordBuffer();
+    if (self->pendingChapterTitle_ || strcmp(name, "h1") == 0 ||
+        self->css().isPageBreakBeforeAlways(tagLower, classAttr, idAttr, styleAttr)) {
+      self->startChapterOpening();
+      self->pendingChapterTitle_ = false;
+    }
     // Lay out the previous (non-header) block with its own context/spacing before switching to header mode,
     // so its margin-bottom isn't overwritten by the header's spacing fields.
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
@@ -1851,13 +2177,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       if (self->currentTextBlock) self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
       if (self->css().isPageBreakBeforeAlways(tagLower, classAttr, idAttr, styleAttr)) {
-        if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
-          self->makePages();
-        }
-        if (self->currentPage && !self->currentPage->elements.empty()) {
-          self->completeCurrentPage();
-          self->currentPageNextY = 0;
-        }
+        self->startChapterOpening();
       }
       const TextBlock::Style blockStyle =
           self->resolveBlockStyle(name, atts, elementHasExplicitTextAlign, elementCssStyle, inheritedCssStyle);
@@ -1966,24 +2286,66 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   }
   if (self->skipUntilDepth < self->depth) return;
 
-  std::string sceneBreakText;
-  if ((!self->currentTextBlock || self->currentTextBlock->isEmpty()) &&
-      isSceneBreakMarker(std::string(reinterpret_cast<const char*>(s), static_cast<size_t>(len)), &sceneBreakText)) {
-    self->addCenteredDivider(sceneBreakText.c_str());
-    return;
+  const bool blockEmpty = !self->currentTextBlock || self->currentTextBlock->isEmpty();
+  std::string cleaned;
+  const char* chars = reinterpret_cast<const char*>(s);
+  int charLen = len;
+  if (blockEmpty && !self->inDropCap) {
+    SceneBreakKind leftover = SceneBreakKind::None;
+    cleaned = cleanChapterMarkupText(std::string(chars, static_cast<size_t>(len)), self->inHeader, &leftover);
+    if (cleaned.empty()) {
+      if (!self->inHeader) {
+        if (leftover == SceneBreakKind::Literary) {
+          self->addCenteredDivider("\xC2\xB7 \xC2\xB7 \xC2\xB7");
+        } else if (leftover == SceneBreakKind::PageBreak || leftover == SceneBreakKind::ChapterHeading) {
+          self->startChapterOpening();
+          self->pendingChapterTitle_ = true;
+        } else if (leftover == SceneBreakKind::Markup) {
+          self->addQuietSceneBreak();
+        }
+      }
+      return;
+    }
+    if (!self->inHeader &&
+        (leftover == SceneBreakKind::PageBreak || leftover == SceneBreakKind::ChapterHeading)) {
+      self->startChapterOpening();
+      const size_t nl = cleaned.find('\n');
+      const std::string heading = nl == std::string::npos ? cleaned : cleaned.substr(0, nl);
+      if (leftover == SceneBreakKind::ChapterHeading || looksLikeChapterTitle(heading)) {
+        self->emitChapterHeading(heading);
+        if (nl == std::string::npos) {
+          return;
+        }
+        cleaned = cleaned.substr(nl + 1);
+      } else {
+        self->pendingChapterTitle_ = true;
+      }
+    }
+    chars = cleaned.c_str();
+    charLen = static_cast<int>(cleaned.size());
   }
 
-  for (int i = 0; i < len; i++) {
-    if (isWhitespace(s[i])) {
+  int i = 0;
+  while (i < charLen) {
+    const unsigned char lead = static_cast<unsigned char>(chars[i]);
+    int clen = utf8CodepointByteLength(lead);
+    if (i + clen > charLen) {
+      clen = charLen - i;
+    }
+    uint32_t cp = lead;
+    if (clen > 1) {
+      unsigned char tmp[5] = {0, 0, 0, 0, 0};
+      memcpy(tmp, chars + i, static_cast<size_t>(clen));
+      const unsigned char* p = tmp;
+      cp = utf8NextCodepoint(&p);
+    }
+
+    if (isWordSeparatorCp(cp) || isWhitespace(chars[i])) {
       if (!self->inDropCap) {
         self->flushPartWordBuffer();
         self->nextWordJoinsPrevious = false;
       }
-      continue;
-    }
-
-    if (s[i] == (XML_Char)0xEF && i + 2 < len && s[i + 1] == (XML_Char)0xBB && s[i + 2] == (XML_Char)0xBF) {
-      i += 2;
+      i += clen;
       continue;
     }
 
@@ -1999,13 +2361,15 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
           new PageListMarker("\xC2\xB7", self->pendingListMarkerX_, self->currentPageNextY, self->activeBlockFontId()));
     }
 
-    if (!self->inDropCap && self->partWordBufferIndex >= MAX_WORD_SIZE) {
-      self->flushPartWordBuffer();
+    for (int b = 0; b < clen; ++b) {
+      if (!self->inDropCap && self->partWordBufferIndex >= MAX_WORD_SIZE) {
+        self->flushPartWordBuffer();
+      }
+      if (self->partWordBufferIndex >= MAX_WORD_SIZE) {
+        break;
+      }
+      self->partWordBuffer[self->partWordBufferIndex++] = chars[i + b];
     }
-    if (self->partWordBufferIndex >= MAX_WORD_SIZE) {
-      continue;
-    }
-    self->partWordBuffer[self->partWordBufferIndex++] = s[i];
 
     if (self->inDropCap && endsWithCompleteUtf8Codepoint(self->partWordBuffer, self->partWordBufferIndex) &&
         countUtf8Codepoints(self->partWordBuffer, self->partWordBufferIndex) >=
@@ -2013,6 +2377,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
                                      self->dropCapConsumeWholeContainer)) {
       self->flushPartWordBuffer();
     }
+    i += clen;
   }
 
   if (self->currentTextBlock && self->currentTextBlock->size() > STREAMING_TEXTBLOCK_WORD_LIMIT) {
@@ -2067,9 +2432,14 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   }
 
   if (self->partWordBufferIndex > 0) {
-    if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
-        matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) || self->depth == 1) {
+    if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) || self->depth == 1) {
       self->flushPartWordBuffer();
+    } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) ||
+               strcmp(name, "span") == 0 || strcmp(name, "a") == 0 || strcmp(name, "font") == 0) {
+      // EPUB converters often wrap a complete word in <span>/<i> with no space before the next
+      // word. Flush here so space-separated scripts get a word break; joining scripts and
+      // single-letter fragments still concatenate via flushWordPreservingJoinForFragment.
+      self->flushWordPreservingJoinForFragment();
     }
   }
   const int closingDepth = self->depth - 1;
@@ -2083,14 +2453,12 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
                                   ? self->cssFontStyleStack[self->cssFontStyleStack.size() - 2].italic
                                   : false;
     if (closingBold != parentBold || closingItalic != parentItalic) {
-      self->flushPartWordBuffer();
-      self->nextWordJoinsPrevious = true;
+      self->flushWordPreservingJoinForFragment();
     }
   }
   if (self->partWordBufferIndex > 0 &&
       (self->superscriptUntilDepth == closingDepth || self->subscriptUntilDepth == closingDepth)) {
-    self->flushPartWordBuffer();
-    self->nextWordJoinsPrevious = true;
+    self->flushWordPreservingJoinForFragment();
   }
 
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
@@ -2245,8 +2613,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     // Flush the trailing word (e.g. "note" in "<span class=smallcaps>author's note</span>") while the
     // small-caps flag is still active, before the scope is popped.
     if (wasSmallCaps != nowSmallCaps && self->partWordBufferIndex > 0) {
-      self->flushPartWordBuffer();
-      self->nextWordJoinsPrevious = true;
+      self->flushWordPreservingJoinForFragment();
     }
     self->smallCapsDepths.pop_back();
     self->smallCapsStack.pop_back();
@@ -2295,11 +2662,16 @@ void ChapterHtmlSlimParser::addLineToPage(TextBlock&& line) {
   if (line.isEmpty()) return;
 
   if (currentPageNextY + lineHeight > viewportHeight) {
-    finalizeOpenBorderBoxesForPageBreak();
-    completeCurrentPage();
-    currentPage.reset(new Page());
-    currentPageNextY = 0;
-    restartOpenBorderBoxesAfterPageBreak();
+    if (openingWaitingForBody()) {
+      currentPageNextY =
+          static_cast<int16_t>(std::max(0, static_cast<int>(viewportHeight) - lineHeight));
+    } else {
+      finalizeOpenBorderBoxesForPageBreak();
+      completeCurrentPage();
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+      restartOpenBorderBoxesAfterPageBreak();
+    }
   }
 
   if (!currentPage) currentPage.reset(new Page());
@@ -2316,6 +2688,9 @@ void ChapterHtmlSlimParser::addLineToPage(TextBlock&& line) {
   }
 
   currentPageNextY += lineHeight;
+  if (!inHeader && currentBlockFontId < 0) {
+    keepBodyOnThisPage_ = false;
+  }
 }
 
 void ChapterHtmlSlimParser::finalizeOpenBorderBoxesForPageBreak() {
@@ -2350,6 +2725,123 @@ void ChapterHtmlSlimParser::restartOpenBorderBoxesAfterPageBreak() {
   }
 }
 
+int ChapterHtmlSlimParser::spaceToKeepForBody() const {
+  const int lineH = std::max(1, static_cast<int>(renderer.text.getLineHeight(fontId) * lineCompression));
+  return lineH * 4;
+}
+
+int ChapterHtmlSlimParser::clampSpacingToKeepBody(const int px) const {
+  const int keep = spaceToKeepForBody();
+  const int maxPx = static_cast<int>(viewportHeight) - static_cast<int>(currentPageNextY) - keep;
+  if (maxPx <= 0) {
+    return 0;
+  }
+  return std::min(px, maxPx);
+}
+
+bool ChapterHtmlSlimParser::pageHasPriorContent() const {
+  return currentPage && !currentPage->elements.empty() && currentPageNextY > viewportHeight / 8;
+}
+
+bool ChapterHtmlSlimParser::pageHasBodyText() const {
+  if (!currentPage) {
+    return false;
+  }
+  for (const auto& el : currentPage->elements) {
+    if (!el) {
+      continue;
+    }
+    switch (el->getTag()) {
+      case TAG_PageLine:
+      case TAG_PageSmallCaps:
+      case TAG_PageDropCap:
+      case TAG_PageTable:
+        return true;
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+bool ChapterHtmlSlimParser::openingWaitingForBody() const { return keepBodyOnThisPage_ && !pageHasBodyText(); }
+
+void ChapterHtmlSlimParser::noteChapterMarker(const std::string& title) {
+  if (imagePrefetchPassOnly_ || title.empty()) {
+    return;
+  }
+  const uint16_t page = completedPageCount_;
+  if (!chapterStarts_.empty() && chapterStarts_.back().page == page) {
+    chapterStarts_.back().title = title;
+    return;
+  }
+  if (chapterStarts_.size() >= 128) {
+    return;
+  }
+  ChapterStart start;
+  start.page = page;
+  start.title = title;
+  chapterStarts_.push_back(std::move(start));
+}
+
+void ChapterHtmlSlimParser::startChapterOpening() {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+  // EPUB CSS repeats page-break-before on the number, the title, the wrapping div, and the first
+  // paragraph. Breaking on each of those leaves a lone "9" on an otherwise empty page.
+  if (openingWaitingForBody()) {
+    return;
+  }
+  forcePageBreak();
+  keepBodyOnThisPage_ = true;
+  if (!currentPage) {
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+  }
+  if (currentPageNextY == 0) {
+    const int lineH = std::max(1, static_cast<int>(renderer.text.getLineHeight(headerFontId) * lineCompression));
+    applyVerticalSpacing(std::min(lineH * 2, static_cast<int>(viewportHeight) / 6));
+  }
+}
+
+void ChapterHtmlSlimParser::emitChapterHeading(const std::string& title) {
+  const std::string trimmed = trimAsciiWhitespace(title);
+  if (trimmed.empty()) {
+    return;
+  }
+  startChapterOpening();
+  const bool restoreHeader = inHeader;
+  inHeader = true;
+  startNewTextBlock(TextBlock::CENTER_ALIGN);
+  if (currentTextBlock) {
+    currentTextBlock->addWord(trimmed, EpdFontFamily::BOLD, false);
+  }
+  makePages();
+  inHeader = restoreHeader;
+  noteChapterMarker(trimmed);
+  keepBodyOnThisPage_ = true;
+  pendingChapterTitle_ = false;
+  const TextBlock::Style bodyStyle =
+      paragraphAlignment <= 3 ? static_cast<TextBlock::Style>(paragraphAlignment) : TextBlock::JUSTIFIED;
+  startNewTextBlock(bodyStyle);
+  const int lineH = std::max(1, static_cast<int>(renderer.text.getLineHeight(fontId) * lineCompression));
+  applyVerticalSpacing(std::min(lineH * 2, clampSpacingToKeepBody(lineH * 2)));
+}
+
+void ChapterHtmlSlimParser::forcePageBreak() {
+  if (openingWaitingForBody()) {
+    return;
+  }
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+  if (currentPage && !currentPage->elements.empty()) {
+    completeCurrentPage();
+    currentPageNextY = 0;
+  }
+}
+
 void ChapterHtmlSlimParser::completeCurrentPage() {
   if (!currentPage || currentPage->elements.empty()) {
     return;
@@ -2369,6 +2861,9 @@ void ChapterHtmlSlimParser::completeCurrentPage() {
 
   currentPage->trimElementStorage();
   completePageFn(std::move(currentPage));
+  if (completedPageCount_ < 0xFFFF) {
+    ++completedPageCount_;
+  }
   for (auto& scope : cssBorderBoxStack) {
     scope.elem = nullptr;
   }
@@ -2392,6 +2887,14 @@ void ChapterHtmlSlimParser::addCenteredDivider(const char* text) {
                                  [this](TextBlock&& textBlock) { addLineToPage(std::move(textBlock)); });
 
   applyVerticalSpacing(spacer);
+}
+
+void ChapterHtmlSlimParser::addQuietSceneBreak() {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+  const int lineHeight = renderer.text.getLineHeight(fontId) * lineCompression;
+  applyVerticalSpacing(std::max(8, lineHeight));
 }
 
 void ChapterHtmlSlimParser::addHorizontalRule(const std::string& tagLower, const std::string& classAttr,

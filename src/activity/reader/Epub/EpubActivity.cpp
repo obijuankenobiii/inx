@@ -2159,7 +2159,9 @@ void EpubActivity::goToBookmark(int index) {
  * @return Chapter title string
  */
 std::string EpubActivity::getCurrentChapterTitle() const {
-  int tocIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
+  const int page = section ? section->currentPage : 0;
+  const int count = section ? section->pageCount : 0;
+  const int tocIndex = epub->getTocIndexForSpinePage(currentSpineIndex, page, count);
   if (tocIndex != -1) {
     return epub->getTocItem(tocIndex).title;
   }

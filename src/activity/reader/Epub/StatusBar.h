@@ -139,7 +139,7 @@ class StatusBar {
    * @param currentSpineIndex Current spine index
    * @return Chapter title
    */
-  std::string getChapterTitle(int currentSpineIndex) const;
+  std::string getChapterTitle(int currentSpineIndex, const Section* section) const;
 
   /**
    * @brief Calculates overall book progress
@@ -154,6 +154,9 @@ class StatusBar {
   const BookSettings& m_settings;
   const EpubReadingStats* m_readingStats;
   bool m_visible;
+  mutable int cachedChapterSpine_ = -1;
+  mutable int cachedChapterPage_ = -1;
+  mutable std::string cachedChapterTitle_;
 };
 
 #endif

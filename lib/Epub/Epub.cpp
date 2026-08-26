@@ -564,6 +564,10 @@ bool Epub::parseTocNavFile() const {
  * @return true if the book was successfully loaded, false otherwise
  */
 bool Epub::load(const bool buildIfMissing) {
+  tocPageLookupSpine_ = -1;
+  tocPageLookupPage_ = -1;
+  tocPageLookupCount_ = -1;
+  tocPageLookupIndex_ = -1;
   setupCacheDir();
 
   parsedCssParser_.reset();
@@ -1027,6 +1031,102 @@ int Epub::getSpineIndexForTocIndex(int tocIndex) const { return getTocItem(tocIn
  * @return Corresponding TOC index, or 0 if not found
  */
 int Epub::getTocIndexForSpineIndex(int spineIndex) const { return getSpineItem(spineIndex).tocIndex; }
+
+int Epub::getTocIndexForSpinePage(const int spineIndex, const int page, const int pageCount) const {
+  if (tocPageLookupSpine_ == spineIndex && tocPageLookupPage_ == page && tocPageLookupCount_ == pageCount) {
+    return tocPageLookupIndex_;
+  }
+
+  const int fallback = getTocIndexForSpineIndex(spineIndex);
+  const int tocCount = getTocItemsCount();
+  auto cacheAndReturn = [this, spineIndex, page, pageCount](const int index) {
+    tocPageLookupSpine_ = spineIndex;
+    tocPageLookupPage_ = page;
+    tocPageLookupCount_ = pageCount;
+    tocPageLookupIndex_ = index;
+    return index;
+  };
+  if (tocCount <= 0) {
+    return cacheAndReturn(fallback);
+  }
+
+  int lo = fallback;
+  if (lo < 0 || lo >= tocCount) {
+    lo = 0;
+  }
+  while (lo > 0) {
+    if (getTocItem(lo - 1).spineIndex != spineIndex) {
+      break;
+    }
+    --lo;
+  }
+
+  int maxLevel = 0;
+  int sameCount = 0;
+  int last = lo;
+  for (int i = lo; i < tocCount; ++i) {
+    const auto item = getTocItem(i);
+    if (item.spineIndex != spineIndex) {
+      if (sameCount > 0) {
+        break;
+      }
+      continue;
+    }
+    ++sameCount;
+    last = i;
+    if (static_cast<int>(item.level) > maxLevel) {
+      maxLevel = static_cast<int>(item.level);
+    }
+  }
+
+  if (sameCount == 0) {
+    if (fallback < 0 || fallback >= tocCount) {
+      return cacheAndReturn(fallback);
+    }
+    const auto inherited = getTocItem(fallback);
+    if (inherited.spineIndex >= spineIndex) {
+      return cacheAndReturn(fallback);
+    }
+    for (int i = fallback - 1; i >= 0; --i) {
+      if (getTocItem(i).level < inherited.level) {
+        return cacheAndReturn(i);
+      }
+    }
+    return cacheAndReturn(fallback);
+  }
+
+  int leafCount = 0;
+  int firstLeaf = lo;
+  for (int i = lo; i <= last; ++i) {
+    const auto item = getTocItem(i);
+    if (item.spineIndex != spineIndex) {
+      continue;
+    }
+    if (static_cast<int>(item.level) >= maxLevel) {
+      if (leafCount == 0) {
+        firstLeaf = i;
+      }
+      ++leafCount;
+    }
+  }
+  if (leafCount <= 1 || pageCount <= 0) {
+    return cacheAndReturn(leafCount == 0 ? lo : firstLeaf);
+  }
+
+  const int slot = std::min(leafCount - 1, std::max(0, page) * leafCount / std::max(1, pageCount));
+  int n = 0;
+  for (int i = lo; i <= last; ++i) {
+    const auto item = getTocItem(i);
+    if (item.spineIndex != spineIndex || static_cast<int>(item.level) < maxLevel) {
+      continue;
+    }
+    if (n == slot) {
+      return cacheAndReturn(i);
+    }
+    ++n;
+  }
+  return cacheAndReturn(firstLeaf);
+}
 
 /**
  * @brief Gets the cumulative size up to a specific spine item.

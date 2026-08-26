@@ -10,6 +10,7 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
+#include <algorithm>
 #include <exception>
 #include <new>
 
@@ -18,7 +19,7 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 76;  // 76: natural-size CSS background HRs
+constexpr uint8_t SECTION_FILE_VERSION = 78;  // 78: keep chapter number + first body on the same page
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(float) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) +
                                  sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
@@ -111,6 +112,7 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   }
   lutOffset = 0;
   pageOffsets.clear();
+  chapterMarkers.clear();
 
   if (!SdMan.openFileForRead("SCT", filePath, file)) return false;
 
@@ -178,15 +180,44 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
     return false;
   }
 
-  if (pageCount > 0 && pageCount <= MAX_CACHED_PAGE_OFFSETS && lutOffset > 0) {
-    try {
-      pageOffsets.resize(pageCount);
-      file.seek(lutOffset);
-      for (uint16_t i = 0; i < pageCount; ++i) {
-        serialization::readPod(file, pageOffsets[i]);
+  if (pageCount > 0 && lutOffset > 0) {
+    if (pageCount <= MAX_CACHED_PAGE_OFFSETS) {
+      try {
+        pageOffsets.resize(pageCount);
+        file.seek(lutOffset);
+        for (uint16_t i = 0; i < pageCount; ++i) {
+          serialization::readPod(file, pageOffsets[i]);
+        }
+      } catch (...) {
+        pageOffsets.clear();
+        file.seek(lutOffset + static_cast<uint32_t>(pageCount) * sizeof(uint32_t));
       }
-    } catch (...) {
-      pageOffsets.clear();
+    } else {
+      file.seek(lutOffset + static_cast<uint32_t>(pageCount) * sizeof(uint32_t));
+    }
+  }
+
+  chapterMarkers.clear();
+  uint16_t markerCount = 0;
+  if (file.available() >= static_cast<int>(sizeof(uint16_t))) {
+    serialization::readPod(file, markerCount);
+    if (markerCount > 128) {
+      markerCount = 0;
+    }
+    for (uint16_t i = 0; i < markerCount; ++i) {
+      ChapterMarker marker;
+      uint8_t titleLen = 0;
+      serialization::readPod(file, marker.startPage);
+      serialization::readPod(file, titleLen);
+      if (titleLen > 48) {
+        chapterMarkers.clear();
+        break;
+      }
+      if (titleLen > 0) {
+        marker.title.resize(titleLen);
+        file.read(reinterpret_cast<uint8_t*>(&marker.title[0]), titleLen);
+      }
+      chapterMarkers.push_back(std::move(marker));
     }
   }
 
@@ -454,6 +485,27 @@ bool Section::createSectionFile(const int fontId, const int headerFontId, const 
     serialization::writePod(file, pos);
   }
 
+  const auto& starts = visitor.chapterStarts();
+  uint16_t markerCount = static_cast<uint16_t>(std::min<size_t>(starts.size(), 128));
+  serialization::writePod(file, markerCount);
+  chapterMarkers.clear();
+  chapterMarkers.reserve(markerCount);
+  for (uint16_t i = 0; i < markerCount; ++i) {
+    ChapterMarker marker;
+    marker.startPage = starts[i].page;
+    marker.title = starts[i].title;
+    if (marker.title.size() > 48) {
+      marker.title.resize(48);
+    }
+    const uint8_t titleLen = static_cast<uint8_t>(marker.title.size());
+    serialization::writePod(file, marker.startPage);
+    serialization::writePod(file, titleLen);
+    if (titleLen > 0) {
+      file.write(reinterpret_cast<const uint8_t*>(marker.title.data()), titleLen);
+    }
+    chapterMarkers.push_back(std::move(marker));
+  }
+
   file.seek(HEADER_SIZE - sizeof(uint32_t) - sizeof(pageCount));
   serialization::writePod(file, pageCount);
   serialization::writePod(file, lutOffset);
@@ -506,6 +558,48 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
 bool Section::clearCache() const {
   if (SdMan.exists(filePath.c_str())) {
     return SdMan.remove(filePath.c_str());
+  }
+  return true;
+}
+
+const Section::ChapterMarker* Section::chapterMarkerForPage(const int page) const {
+  if (chapterMarkers.empty() || page < static_cast<int>(chapterMarkers.front().startPage)) {
+    return nullptr;
+  }
+  const Section::ChapterMarker* found = &chapterMarkers.front();
+  for (const auto& marker : chapterMarkers) {
+    if (static_cast<int>(marker.startPage) > page) {
+      break;
+    }
+    found = &marker;
+  }
+  return found;
+}
+
+bool Section::chapterRangeForPage(const int page, int* startOut, int* countOut) const {
+  if (chapterMarkers.size() < 2 || pageCount == 0) {
+    return false;
+  }
+  const ChapterMarker* marker = chapterMarkerForPage(page);
+  if (marker == nullptr) {
+    return false;
+  }
+  int start = static_cast<int>(marker->startPage);
+  int end = static_cast<int>(pageCount);
+  for (const auto& next : chapterMarkers) {
+    if (static_cast<int>(next.startPage) > start) {
+      end = static_cast<int>(next.startPage);
+      break;
+    }
+  }
+  if (end <= start) {
+    return false;
+  }
+  if (startOut) {
+    *startOut = start;
+  }
+  if (countOut) {
+    *countOut = end - start;
   }
   return true;
 }
