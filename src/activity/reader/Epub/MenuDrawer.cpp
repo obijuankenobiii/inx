@@ -113,7 +113,7 @@ MenuDrawer::MenuDrawer(GfxRenderer& renderer, ActionCallback onAction, DismissCa
   menuItems.push_back({"Apply Preset", MenuAction::APPLY_PRESET});
   menuItems.push_back({"Go To Percent", MenuAction::GO_TO_PERCENT});
   menuItems.push_back({"Show Bookmarks", MenuAction::SHOW_BOOKMARKS});
-  menuItems.push_back({"Annotations", MenuAction::SHOW_ANNOTATIONS});
+  menuItems.push_back({"Highlights", MenuAction::SHOW_ANNOTATIONS});
   menuItems.push_back({"Dictionary", MenuAction::ENTER_DICTIONARY});
   menuItems.push_back({"KOReader Sync", MenuAction::KOREADER_SYNC});
   menuItems.push_back({"Delete Cache", MenuAction::DELETE_CACHE});
@@ -679,7 +679,7 @@ void MenuDrawer::renderAnnotations() {
 
   const int headerH = drawerHeaderHeight();
   const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Highlights", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = tocDrawerY + headerH;
@@ -688,7 +688,7 @@ void MenuDrawer::renderAnnotations() {
   if (totalItems == 0) {
     const char* line1 = "No highlights yet";
     const char* line2 = "Front right + side Down/Right";
-    const char* line3 = "to start annotating.";
+    const char* line3 = "to start highlighting.";
     const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
     const int subLh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID);
     const int msgY = dividerY + 48;

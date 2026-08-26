@@ -1,7 +1,7 @@
 namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
-constexpr int kHomeDrawerMainRowCount = 5;  // Recents, Bookmarks, Annotations, Dictionary, Favorites
+constexpr int kHomeDrawerMainRowCount = 5;  // Recents, Bookmarks, Highlights, Dictionary, Favorites
 constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
@@ -138,12 +138,28 @@ class RecentActivity::HomeMenuDrawer {
         render(HalDisplay::FAST_REFRESH);
         return;
       }
+      if (mode_ == HomeDrawerMode::AnnotationDetail) {
+        mode_ = HomeDrawerMode::Annotations;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
+      if (mode_ == HomeDrawerMode::BookmarkDetail) {
+        mode_ = HomeDrawerMode::Bookmarks;
+        render(HalDisplay::FAST_REFRESH);
+        return;
+      }
       hide();
       return;
     }
 
-    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail ||
-        mode_ == HomeDrawerMode::DictionaryDetail) {
+    if (mode_ == HomeDrawerMode::BookmarkDetail || mode_ == HomeDrawerMode::AnnotationDetail) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        openSelectedNoteInBook();
+      }
+      return;
+    }
+
+    if (mode_ == HomeDrawerMode::DictionaryDetail) {
       return;
     }
 
@@ -284,6 +300,7 @@ class RecentActivity::HomeMenuDrawer {
     int actionId = -1;
     int spine = -1;
     int page = -1;
+    uint32_t timestamp = 0;
   };
 
   RecentActivity& owner_;
@@ -353,7 +370,7 @@ class RecentActivity::HomeMenuDrawer {
       case HomeDrawerMode::Bookmarks:
         return "Bookmarks";
       case HomeDrawerMode::Annotations:
-        return "Annotations";
+        return "Highlights";
       case HomeDrawerMode::Dictionary:
         return "Dictionary";
       case HomeDrawerMode::DictionaryDeleteConfirm:
@@ -361,7 +378,7 @@ class RecentActivity::HomeMenuDrawer {
       case HomeDrawerMode::BookmarkDetail:
         return "Bookmark";
       case HomeDrawerMode::AnnotationDetail:
-        return "Annotation";
+        return "Highlight";
       case HomeDrawerMode::DictionaryDetail:
         return dictionaryDetailWord_.empty() ? "Definition" : dictionaryDetailWord_.c_str();
       case HomeDrawerMode::Main:
@@ -384,7 +401,7 @@ class RecentActivity::HomeMenuDrawer {
       case 1:
         return "Bookmarks";
       case 2:
-        return "Annotations";
+        return "Highlights";
       case 3:
         return "Dictionary";
       case 4:
@@ -416,7 +433,7 @@ class RecentActivity::HomeMenuDrawer {
                           : mode_ == HomeDrawerMode::RecentsActions ? "No book options"
                           : mode_ == HomeDrawerMode::Favorites      ? "No favorites"
                           : mode_ == HomeDrawerMode::Bookmarks      ? "No bookmarks"
-                          : mode_ == HomeDrawerMode::Annotations    ? "No annotations"
+                          : mode_ == HomeDrawerMode::Annotations    ? "No highlights"
                           : mode_ == HomeDrawerMode::Dictionary     ? "No saved words"
                                                                     : "";
       const int msgY = drawerY_ + headerHeight() + 42;
@@ -629,6 +646,12 @@ class RecentActivity::HomeMenuDrawer {
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
+    if (mode_ == HomeDrawerMode::AnnotationDetail || mode_ == HomeDrawerMode::BookmarkDetail) {
+      const auto openLabels = owner_.mappedInput.mapLabels("Back", "Open", "", "");
+      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, openLabels.btn1, openLabels.btn2, openLabels.btn3,
+                               openLabels.btn4);
+      return;
+    }
     if (mode_ == HomeDrawerMode::Recents || mode_ == HomeDrawerMode::Dictionary) {
       const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
       renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
@@ -655,7 +678,7 @@ class RecentActivity::HomeMenuDrawer {
         loadBookmarks();
         mode_ = HomeDrawerMode::Bookmarks;
       } else if (selected_ == 2) {
-        renderLoading("Annotations", "Loading Annotations");
+        renderLoading("Highlights", "Loading Highlights");
         loadAnnotations();
         mode_ = HomeDrawerMode::Annotations;
       } else if (selected_ == 3) {
@@ -1126,6 +1149,56 @@ class RecentActivity::HomeMenuDrawer {
     owner_.openBookPath(row.bookPath, row.bookTitle, row.bookAuthor, true);
   }
 
+  void fillBookIdentity(DrawerRow& row, const std::string& cachePath) {
+    row.cachePath = cachePath;
+    const RecentBook* recent = findRecentBookByCachePath(cachePath);
+    if (!recent) {
+      return;
+    }
+    row.bookPath = recent->path;
+    row.bookTitle = bookDisplayTitle(*recent);
+    row.bookAuthor = recent->author;
+  }
+
+  void openSelectedNoteInBook() {
+    if (selected_ < 0 || selected_ >= static_cast<int>(rows_.size())) {
+      return;
+    }
+    const DrawerRow& row = rows_[selected_];
+    if (row.cachePath.empty() || row.spine < 0 || row.page < 0) {
+      return;
+    }
+
+    BookProgress::Data data{};
+    BookProgress progress(row.cachePath);
+    (void)progress.load(data);
+    data.spineIndex = static_cast<uint16_t>(row.spine);
+    data.pageNumber = static_cast<uint16_t>(row.page);
+    data.lastReadTimestamp = millis();
+    progress.save(data);
+
+    std::string path = row.bookPath;
+    std::string title = row.bookTitle;
+    std::string author = row.bookAuthor;
+    if (path.empty()) {
+      const RecentBook* recent = findRecentBookByCachePath(row.cachePath);
+      if (recent) {
+        path = recent->path;
+        if (title.empty()) {
+          title = bookDisplayTitle(*recent);
+        }
+        if (author.empty()) {
+          author = recent->author;
+        }
+      }
+    }
+    if (path.empty()) {
+      return;
+    }
+    hide();
+    owner_.openBookPath(path, title, author, true);
+  }
+
   void loadBookmarks() {
     rows_.clear();
     const std::vector<std::string> caches = epubCacheDirs();
@@ -1150,9 +1223,10 @@ class RecentActivity::HomeMenuDrawer {
         char pageLabel[24];
         std::snprintf(pageLabel, sizeof(pageLabel), " p%d", static_cast<int>(b.pageNumber) + 1);
         row.label = bookTitle + " - " + std::string(b.chapterTitle) + pageLabel;
-        row.cachePath = cachePath;
+        fillBookIdentity(row, cachePath);
         row.spine = b.spineIndex;
         row.page = b.pageNumber;
+        row.timestamp = b.timestamp;
         rows_.push_back(std::move(row));
       }
       f.close();
@@ -1181,12 +1255,16 @@ class RecentActivity::HomeMenuDrawer {
           const std::string text = trimDrawerText(rec.text);
           row.label = text.empty() ? titleForCachePath(cachePath) : text;
           row.sublabel = text;
-          row.cachePath = cachePath;
+          fillBookIdentity(row, cachePath);
           row.spine = spine;
           row.page = page;
+          row.timestamp = rec.timestamp;
           rows_.push_back(std::move(row));
         }
       }
     }
+    std::stable_sort(rows_.begin(), rows_.end(), [](const DrawerRow& a, const DrawerRow& b) {
+      return a.timestamp > b.timestamp;
+    });
   }
 };
