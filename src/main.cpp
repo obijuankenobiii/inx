@@ -7,6 +7,7 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
+#include <HalPowerManager.h>
 #include <SDCardManager.h>
 #include <SPI.h>
 
@@ -273,12 +274,14 @@ bool handleGlobalPowerRefresh() {
 void setup() {
   t1 = millis();
   gpio.begin();
+  powerManager.begin();
   setupDisplayAndFonts();
 
   if (gpio.isUsbConnected()) {
     Serial.begin(115200);
-    unsigned long start = millis();
-    while (!Serial && (millis() - start) < 3000) delay(10);
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+    Serial.setTxTimeoutMs(0);
+#endif
   }
 
   sdCardAvailable = SdMan.begin();
@@ -295,7 +298,8 @@ void setup() {
       verifyPowerButtonDuration();
       break;
     case HalGPIO::WakeupReason::AfterUSBPower:
-      gpio.startDeepSleep();
+      // USB still plugged in after a flash looks like this. Sleeping here leaves the
+      // last e-ink frame frozen and makes power look dead until a hold-wake.
       break;
     default:
       break;
@@ -311,8 +315,13 @@ void setup() {
 void loop() {
   gpio.update();
   static unsigned long lastActivityTime = millis();
+  static unsigned long lastInputTime = millis();
 
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || (currentActivity && currentActivity->preventAutoSleep())) {
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased()) {
+    lastActivityTime = millis();
+    lastInputTime = millis();
+    powerManager.setPowerSaving(false);
+  } else if (currentActivity && currentActivity->preventAutoSleep()) {
     lastActivityTime = millis();
   }
 
@@ -336,7 +345,11 @@ void loop() {
   }
 
   if (currentActivity && currentActivity->skipLoopDelay()) {
+    powerManager.setPowerSaving(false);
     yield();
+  } else if (millis() - lastInputTime >= HalPowerManager::IDLE_POWER_SAVING_MS) {
+    powerManager.setPowerSaving(true);
+    delay(50);
   } else {
     delay(10);
   }

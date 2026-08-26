@@ -1040,6 +1040,10 @@ std::string RecentActivity::formatTime(uint32_t milliseconds) const {
 /**
  * Main loop for handling user input and updating state.
  */
+bool RecentActivity::skipLoopDelay() {
+  return updateRequired || recentImageCacheJobPending_;
+}
+
 void RecentActivity::loop() {
   if (homeMenuDrawer_ && homeMenuDrawer_->visible()) {
     homeMenuDrawer_->handleInput(mappedInput);

@@ -57,7 +57,7 @@ class RecentActivity final : public Activity, public Menu {
 
   static constexpr int LIST_VISIBLE_ITEMS = 5;
 
-  bool skipLoopDelay() override { return true; }
+  bool skipLoopDelay() override;
 
   /**
    * View mode enumeration for displaying recent books.

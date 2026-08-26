@@ -86,8 +86,6 @@ class EpubActivity final : public ActivityWithSubactivity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  /** Match Crosspoint-style reader: pump display from loop (no separate FreeRTOS render task). */
-  bool skipLoopDelay() override { return true; }
   /** X3 flick/shake page turns never register as button activity, so with auto-sleep on the device would
    *  fall asleep mid-read; suppress the idle timeout in-book while that gesture is enabled. */
   bool preventAutoSleep() override;
