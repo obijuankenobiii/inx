@@ -79,14 +79,26 @@
     [0x2b00, 0x2bff],
     [0xfffd, 0xfffd],
   ];
+  /**
+   * Opt-in only (see buildAllBins opts.cjk): CJK Symbols/Punctuation, Halfwidth/Fullwidth
+   * Forms, and CJK Unified Ideographs. Kept out of CP_RANGES so plain Latin font packs
+   * don't pay for ~21k rasterization attempts (and browser-fallback glyph pollution for
+   * codepoints the uploaded font doesn't actually contain).
+   */
+  var CJK_CP_RANGES = [
+    [0x3000, 0x303f],
+    [0xff00, 0xffef],
+    [0x4e00, 0x9fff],
+  ];
   var MAX_SIDE = 384;
   var MAX_ADVANCE = 256;
 
-  function collectCodepoints() {
+  function collectCodepoints(includeCjk) {
+    var ranges = includeCjk ? CP_RANGES.concat(CJK_CP_RANGES) : CP_RANGES;
     var s = new Set();
-    for (var ri = 0; ri < CP_RANGES.length; ri++) {
-      var a = CP_RANGES[ri][0];
-      var b = CP_RANGES[ri][1];
+    for (var ri = 0; ri < ranges.length; ri++) {
+      var a = ranges[ri][0];
+      var b = ranges[ri][1];
       for (var cp = a; cp <= b; cp++) {
         if (cp >= 0xd800 && cp <= 0xdfff) continue;
         if (cp < 0x20 && cp !== 0x09) continue;
@@ -310,9 +322,19 @@
    * @param {number} readerStep — 10|12|14|16|18 (filename suffix; canvas px from readerStepToCanvasPx)
    * @param {number[]} codepoints sorted ascending
    */
+  function cancelError() {
+    var e = new Error('Build cancelled');
+    e.isCancelled = true;
+    return e;
+  }
+
   async function buildBin(styleName, familyCss, readerStep, codepoints, callbacks) {
     callbacks = callbacks || {};
     var onGlyphProgress = callbacks.onGlyphProgress || function () {};
+    var onLog = callbacks.onLog || function () {};
+    var isCancelled = callbacks.isCancelled || function () {
+      return false;
+    };
     var oneBit = !!callbacks.oneBit;
     var refC = document.createElement('canvas');
     refC.width = 256;
@@ -329,9 +351,15 @@
     for (var i = 0; i < codepoints.length; i++) {
       var cp = codepoints[i];
       var g = rasterizeChar(familyCss, readerStep, cp, scratch, oneBit);
-      if (g === null) continue;
+      if (g === null) {
+        onLog('Skipped U+' + cp.toString(16).toUpperCase() + ' (rasterization failed)', 'info');
+        continue;
+      }
       var dlen = g.bits.length;
-      if (g.w > MAX_SIDE || g.h > MAX_SIDE) continue;
+      if (g.w > MAX_SIDE || g.h > MAX_SIDE) {
+        onLog('Skipped U+' + cp.toString(16).toUpperCase() + ' (glyph too large: ' + g.w + 'x' + g.h + 'px)', 'info');
+        continue;
+      }
       var ax = g.adv;
       if (ax > MAX_ADVANCE) ax = MAX_ADVANCE;
       var row = new ArrayBuffer(24);
@@ -352,6 +380,7 @@
       if (((i + 1) % GLYPH_YIELD_INTERVAL) === 0 || nowMs() - lastYieldAt >= GLYPH_YIELD_BUDGET_MS) {
         onGlyphProgress(i + 1, codepoints.length);
         await yieldToBrowser();
+        if (isCancelled()) throw cancelError();
         lastYieldAt = nowMs();
       }
     }
@@ -404,6 +433,89 @@
     return out;
   }
 
+  /**
+   * Parse an sfnt font's cmap table to find which codepoints actually resolve to a real
+   * glyph (id != 0). Without this, requesting a codepoint the font lacks still rasterizes
+   * something on canvas — the browser silently substitutes its own fallback font — which
+   * would fill CJK packs with glyphs foreign to the chosen typeface (real Han fonts commonly
+   * cover roughly half of the CJK Unified Ideographs block, not all of it). Returns null if
+   * the table can't be parsed, so callers can fall back to unfiltered behavior.
+   */
+  function fontCmapCodepoints(buf) {
+    try {
+      var dv = new DataView(buf);
+      var numTables = dv.getUint16(4);
+      var cmapOffset = -1;
+      for (var i = 0; i < numTables; i++) {
+        var rec = 12 + i * 16;
+        var tag = String.fromCharCode(dv.getUint8(rec), dv.getUint8(rec + 1), dv.getUint8(rec + 2), dv.getUint8(rec + 3));
+        if (tag === 'cmap') {
+          cmapOffset = dv.getUint32(rec + 8);
+          break;
+        }
+      }
+      if (cmapOffset < 0) return null;
+
+      var numSubtables = dv.getUint16(cmapOffset + 2);
+      var best = null;
+      for (var s = 0; s < numSubtables; s++) {
+        var rec2 = cmapOffset + 4 + s * 8;
+        var platformID = dv.getUint16(rec2);
+        var encodingID = dv.getUint16(rec2 + 2);
+        var subOffset = cmapOffset + dv.getUint32(rec2 + 4);
+        var format = dv.getUint16(subOffset);
+        var score;
+        if (format === 12) score = platformID === 3 && encodingID === 10 ? 100 : 80;
+        else if (format === 4) score = platformID === 3 && encodingID === 1 ? 60 : platformID === 0 ? 55 : 40;
+        else continue;
+        if (!best || score > best.score) best = { offset: subOffset, format: format, score: score };
+      }
+      if (!best) return null;
+
+      var set = new Set();
+      if (best.format === 4) {
+        var segCountX2 = dv.getUint16(best.offset + 6);
+        var segCount = segCountX2 / 2;
+        var endCodeOff = best.offset + 14;
+        var startCodeOff = endCodeOff + segCountX2 + 2;
+        var idDeltaOff = startCodeOff + segCountX2;
+        var idRangeOff = idDeltaOff + segCountX2;
+        for (var seg = 0; seg < segCount; seg++) {
+          var endCode = dv.getUint16(endCodeOff + seg * 2);
+          var startCode = dv.getUint16(startCodeOff + seg * 2);
+          if (startCode === 0xffff && endCode === 0xffff) continue;
+          var idRangeOffset = dv.getUint16(idRangeOff + seg * 2);
+          if (idRangeOffset === 0) {
+            var idDelta0 = dv.getInt16(idDeltaOff + seg * 2);
+            for (var cp = startCode; cp <= endCode; cp++) {
+              if (((cp + idDelta0) & 0xffff) !== 0) set.add(cp);
+            }
+          } else {
+            var idDelta = dv.getInt16(idDeltaOff + seg * 2);
+            for (var cp2 = startCode; cp2 <= endCode; cp2++) {
+              var glyphIndexAddr = idRangeOff + seg * 2 + idRangeOffset + (cp2 - startCode) * 2;
+              if (glyphIndexAddr + 1 >= dv.byteLength) continue;
+              var gid = dv.getUint16(glyphIndexAddr);
+              if (gid !== 0 && ((gid + idDelta) & 0xffff) !== 0) set.add(cp2);
+            }
+          }
+        }
+      } else if (best.format === 12) {
+        var nGroups = dv.getUint32(best.offset + 12);
+        var groupsStart = best.offset + 16;
+        for (var g = 0; g < nGroups; g++) {
+          var go = groupsStart + g * 12;
+          var startChar = dv.getUint32(go);
+          var endChar = dv.getUint32(go + 4);
+          for (var cp3 = startChar; cp3 <= endChar; cp3++) set.add(cp3);
+        }
+      }
+      return set;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function registerFace(uniqueFamily, blob, descriptors) {
     var buf = await blob.arrayBuffer();
     var face = new FontFace(uniqueFamily, buf, descriptors || {});
@@ -422,13 +534,17 @@
     var boldItalic = opts.boldItalic;
     var onLog = opts.onLog || function () {};
     var onProgress = opts.onProgress || function () {};
+    var isCancelled = opts.isCancelled || function () {
+      return false;
+    };
     var oneBit = !!opts.oneBit;
+    var cjk = !!opts.cjk;
 
     if (!regular) throw new Error('Regular TTF/OTF is required');
 
     var token = Math.random().toString(36).slice(2, 11);
     var faces = [];
-    var cps = collectCodepoints();
+    var cps = collectCodepoints(cjk);
 
     try {
       var jobs = [];
@@ -447,14 +563,30 @@
         var face = await registerFace(fam, job.blob, job.desc);
         faces.push(face);
 
+        var jobCps = cps;
+        if (cjk) {
+          var supported = fontCmapCodepoints(await job.blob.arrayBuffer());
+          if (supported) {
+            jobCps = cps.filter(function (cp) {
+              return cp < 0x3000 || supported.has(cp);
+            });
+            onLog(job.key + ': font covers ' + jobCps.length + '/' + cps.length + ' requested codepoints.', 'info');
+          } else {
+            onLog(job.key + ': could not read cmap coverage; requesting all codepoints (browser fallback glyphs may appear for unsupported characters).', 'info');
+          }
+        }
+
         for (var si = 0; si < SIZES.length; si++) {
+          if (isCancelled()) throw cancelError();
           var sz = SIZES[si];
           step++;
           onProgress(step, totalSteps, job.key, sz);
           var loadPx = readerStepToCanvasPx(sz);
           await document.fonts.load(loadPx + 'px "' + fam + '"');
-          var bytes = await buildBin(job.key, fam, sz, cps, {
+          var bytes = await buildBin(job.key, fam, sz, jobCps, {
             oneBit: oneBit,
+            onLog: onLog,
+            isCancelled: isCancelled,
             onGlyphProgress: function (done, total) {
               onProgress(step - 1 + done / Math.max(1, total), totalSteps, job.key, sz);
             },
