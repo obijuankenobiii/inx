@@ -17,6 +17,7 @@
 #include <time.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -35,6 +36,7 @@
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "state/BookState.h"
+#include "util/BookDisplayTitle.h"
 #include "state/EpubNotesIndex.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
@@ -58,6 +60,37 @@ static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
     return epub->getTocItem(tocIndex).title;
   }
   return "Chapter " + std::to_string(spineIndex + 1);
+}
+
+bool looksLikeBackMatterTitle(const std::string& title) {
+  std::string lower;
+  lower.reserve(title.size());
+  for (unsigned char c : title) {
+    lower.push_back(static_cast<char>(std::tolower(c)));
+  }
+  static const char* kKeys[] = {
+      "about the author",  "about the authors", "also by",     "other books by", "by the same author",
+      "copyright",         "acknowledg",        "bibliography", "works cited",    "endnotes",
+      "advertisement",     "preview of",        "excerpt from", "discussion questions",
+      "reading group",     "teaser",            "sneak peek",   "about this book", "colophon",
+      "more from",         "newsletter",        "credits"};
+  for (const char* key : kKeys) {
+    if (lower.find(key) != std::string::npos) {
+      return true;
+    }
+  }
+  static const char* kExact[] = {"index", "copyright", "credits", "colophon"};
+  for (const char* key : kExact) {
+    if (lower == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string cleanedEpubTitle(const Epub& book) {
+  const std::string title = BookDisplayTitle::clean(book.getTitle());
+  return title.empty() ? book.getTitle() : title;
 }
 }  // namespace
 
@@ -249,9 +282,6 @@ void EpubActivity::handleChapterLoadFailure() {
   if (epub) {
     epub->clearCache();
   }
-  if (bookProgress) {
-    bookProgress->remove();
-  }
   onGoBack();
 }
 
@@ -434,13 +464,13 @@ void EpubActivity::loadProgress() {
   BookProgress::Data data;
   int totalSpines = epub->getSpineItemsCount();
 
-  if (bookProgress->load(data) && bookProgress->validate(data, totalSpines)) {
+  if (bookProgress->load(data)) {
+    bookProgress->sanitize(data, totalSpines);
     currentSpineIndex = data.spineIndex;
     nextPageNumber = data.pageNumber;
     cachedSpineIndex = currentSpineIndex;
     cachedChapterTotalPageCount = data.chapterPageCount;
   } else {
-    bookProgress->remove();
     currentSpineIndex = 0;
     nextPageNumber = 0;
     cachedSpineIndex = 0;
@@ -454,8 +484,110 @@ void EpubActivity::loadProgress() {
  * @param currentPage Current page number
  * @param pageCount Total pages in current chapter
  */
+int EpubActivity::lastStorySpineIndex() const {
+  if (!epub) {
+    return 0;
+  }
+  const int last = epub->getSpineItemsCount() - 1;
+  if (last < 0) {
+    return 0;
+  }
+  int storyEnd = -1;
+  const int tocCount = epub->getTocItemsCount();
+  for (int i = 0; i < tocCount; ++i) {
+    const auto toc = epub->getTocItem(i);
+    if (toc.spineIndex < 0 || toc.spineIndex > last) {
+      continue;
+    }
+    if (looksLikeBackMatterTitle(toc.title)) {
+      continue;
+    }
+    if (toc.spineIndex > storyEnd) {
+      storyEnd = toc.spineIndex;
+    }
+  }
+  // Only skip back matter when the detected story end is actually near the end of the
+  // spine. Aggressive TOC matching (e.g. "credits" in a chapter title) used to report
+  // spine 0 as "the end", which then marked mid-book positions as finished and reset
+  // progress on reopen.
+  if (storyEnd >= 0 && storyEnd >= (last * 3) / 4) {
+    return storyEnd;
+  }
+  return last;
+}
+
+bool EpubActivity::isAtEndOfStory() const {
+  if (!epub || dictUi_.isActive() || annUi_.isActive()) {
+    return false;
+  }
+  const int total = epub->getSpineItemsCount();
+  if (total <= 0) {
+    return false;
+  }
+  if (currentSpineIndex >= total) {
+    return true;
+  }
+  const int storyEnd = lastStorySpineIndex();
+  if (currentSpineIndex != storyEnd) {
+    return false;
+  }
+  return section && section->pageCount > 0 && section->currentPage >= section->pageCount - 1;
+}
+
+void EpubActivity::markBookFinished() {
+  if (!epub || dictUi_.isActive() || annUi_.isActive()) {
+    return;
+  }
+  BOOK_STATE.setFinished(epub->getPath(), true);
+
+  const int total = epub->getSpineItemsCount();
+  int spine = currentSpineIndex;
+  int page = 0;
+  int count = 1;
+  if (section && section->pageCount > 0) {
+    count = section->pageCount;
+    page = section->currentPage;
+  } else {
+    spine = lastGoodSpineIndex_;
+    page = lastGoodPageNumber_;
+    count = std::max(1, page + 1);
+  }
+  if (total > 0) {
+    if (spine < 0) {
+      spine = 0;
+    }
+    if (spine >= total) {
+      spine = total - 1;
+    }
+  }
+  if (page < 0) {
+    page = 0;
+  }
+
+  if (bookProgress) {
+    BookProgress::Data data;
+    data.spineIndex = static_cast<unsigned int>(spine);
+    data.pageNumber = static_cast<unsigned int>(page);
+    data.chapterPageCount = static_cast<unsigned int>(count);
+    data.lastReadTimestamp = millis();
+    data.progressPercent = 100.0f;
+    bookProgress->save(data);
+  }
+  readingStats_.markBookComplete(*epub);
+  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(), 1.0f);
+}
+
 void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, const bool saveRecentNow) {
   if (!bookProgress || !epub) {
+    return;
+  }
+  if (dictUi_.isActive() || annUi_.isActive()) {
+    return;
+  }
+
+  const int total = epub->getSpineItemsCount();
+  if (total > 0 && spineIndex >= total) {
+    markBookFinished();
     return;
   }
 
@@ -465,18 +597,24 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, 
   data.chapterPageCount = pageCount;
   data.lastReadTimestamp = millis();
 
+  float bookProgressValue = 0.0f;
   if (pageCount > 0) {
-    float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
-    data.progressPercent = epub->calculateProgress(spineIndex, spineProgress) * 100.0f;
+    const float spineProgress = epubSpineReadFraction(currentPage, pageCount);
+    bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
+    data.progressPercent = bookProgressValue * 100.0f;
   }
 
   bookProgress->save(data);
 
   if (pageCount > 0) {
-    float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
-    float bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
-    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue,
-                         saveRecentNow);
+    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(),
+                         bookProgressValue, saveRecentNow);
+  }
+
+  if (isAtEndOfStory()) {
+    markBookFinished();
+  } else if (bookProgressValue < 0.98f) {
+    BOOK_STATE.setFinished(epub->getPath(), false);
   }
 }
 
@@ -588,9 +726,18 @@ void EpubActivity::updateExternalState() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  float spineProgress = section ? static_cast<float>(section->currentPage) / section->pageCount : 0;
+  if (!epub) {
+    return;
+  }
+  if (isAtEndOfStory()) {
+    markBookFinished();
+    return;
+  }
+
+  float spineProgress = section ? epubSpineReadFraction(section->currentPage, section->pageCount) : 0;
   float bookProgressValue = epub->calculateProgress(currentSpineIndex, spineProgress);
-  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
+  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(),
+                       bookProgressValue);
 }
 
 /**
@@ -600,10 +747,10 @@ void EpubActivity::fastPath() {
   loadProgress();
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   int totalSpineItems = epub->getSpineItemsCount();
-  if (currentSpineIndex >= totalSpineItems) {
-    currentSpineIndex = 0;
-    nextPageNumber = 0;
-    cachedSpineIndex = 0;
+  if (totalSpineItems > 0 && currentSpineIndex >= totalSpineItems) {
+    currentSpineIndex = totalSpineItems - 1;
+    nextPageNumber = static_cast<int>(UINT16_MAX);
+    cachedSpineIndex = currentSpineIndex;
     cachedChapterTotalPageCount = 0;
   }
 
@@ -680,9 +827,9 @@ void EpubActivity::onEnter() {
     }
   }
 
+  initStats();
   updateExternalState();
   loadBookmarks();
-  initStats();
 
   updateRequired = true;
   lastAutoPageTurnTime = millis();
@@ -720,12 +867,9 @@ void EpubActivity::onExit() {
   if (epub) {
     saveBookStats();
 
-    if (section) {
-      float spineProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
-      float bookProgressValue = epub->calculateProgress(currentSpineIndex, spineProgress);
-      RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(),
-                           bookProgressValue);
-
+    if (isAtEndOfStory()) {
+      markBookFinished();
+    } else if (section) {
       saveProgress(currentSpineIndex, section->currentPage, section->pageCount, false);
     }
   }
@@ -915,6 +1059,10 @@ void EpubActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
     pauseReadingStats();
+    if (showingEndOfBook()) {
+      goHome();
+      return;
+    }
     toggleMenuDrawer();
     return;
   }
@@ -1123,8 +1271,7 @@ void EpubActivity::ensureMenuDrawer() {
       menuDrawer->setPercentProvider([this]() -> int {
         float bookProgressPercent = 0.0f;
         if (epub && epub->getBookSize() > 0 && section && section->pageCount > 0) {
-          const float chapterProgress =
-              static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+          const float chapterProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
           bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
         }
         int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
@@ -1547,6 +1694,14 @@ void EpubActivity::jumpToPercent(int percent) {
   section.reset();
 }
 
+bool EpubActivity::showingEndOfBook() const {
+  if (!epub) {
+    return false;
+  }
+  const int total = epub->getSpineItemsCount();
+  return total > 0 && currentSpineIndex >= total;
+}
+
 /**
  * @brief Handles page turning logic
  * @param forward True for forward page turn, false for backward
@@ -1558,7 +1713,15 @@ void EpubActivity::pageTurn(bool forward) {
   }
 
   if (!section) {
-    updateRequired = true;
+    if (showingEndOfBook()) {
+      if (!forward) {
+        currentSpineIndex = lastGoodSpineIndex_;
+        nextPageNumber = lastGoodPageNumber_;
+        updateRequired = true;
+      } else {
+        goHome();
+      }
+    }
     return;
   }
 
@@ -1625,7 +1788,9 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
   if (currentSpineIndex >= totalSpine) {
     renderer.clearScreen(0xFF);
     displayBookStats();
-    BOOK_STATE.setFinished(epub->getPath(), true);
+    if (!dictUi_.isActive() && !annUi_.isActive()) {
+      markBookFinished();
+    }
     return;
   }
 
@@ -1648,7 +1813,9 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
       if (currentSpineIndex >= totalSpine) {
         renderer.clearScreen(0xFF);
         displayBookStats();
-        BOOK_STATE.setFinished(epub->getPath(), true);
+        if (!dictUi_.isActive() && !annUi_.isActive()) {
+          markBookFinished();
+        }
         return;
       }
       if (wasLayoutReload) {
@@ -2357,5 +2524,6 @@ void EpubActivity::saveBookStats() {
 void EpubActivity::displayBookStats() {
   if (epub) {
     readingStats_.display(renderer, *epub);
+    markBookFinished();
   }
 }

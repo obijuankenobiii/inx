@@ -6,6 +6,7 @@
 #include "RecentActivity.h"
 
 #include <Bitmap.h>
+#include <EpdFontFamily.h>
 #include <GfxRenderer.h>
 #include <HalGPIO.h>
 #include <HardwareSerial.h>
@@ -41,6 +42,7 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/UiTheme.h"
+#include "util/BookDisplayTitle.h"
 #include "util/StringUtils.h"
 
 extern bool sdCardAvailable;
@@ -80,10 +82,20 @@ static std::string formatTitle(const std::string& title) {
 }
 
 static std::string bookDisplayTitle(const RecentBook& book) {
-  if (!book.title.empty()) {
-    return book.title;
+  const std::string fallback = book.title.empty() ? book.path : book.title;
+  return BookDisplayTitle::resolve(book.path, fallback);
+}
+
+static bool recentBookFinished(const RecentBook& book) {
+  if (book.progress >= 0.995f) {
+    return true;
   }
-  return formatTitle(getBaseFilename(book.path));
+  BookState::Book state;
+  return BOOK_STATE.findBook(book.path, state) && state.isFinished;
+}
+
+static float recentDisplayProgress(const RecentBook& book) {
+  return recentBookFinished(book) ? 1.0f : book.progress;
 }
 
 constexpr unsigned long GO_HOME_MS = 1000;
@@ -218,8 +230,12 @@ static void drawProgressBadge(const GfxRenderer& renderer, const IconRect& cover
   if (progress < 0.0f || progress > 1.0f) {
     return;
   }
-  char label[8];
-  snprintf(label, sizeof(label), "%d%%", static_cast<int>(progress * 100.0f + 0.5f));
+  char label[12];
+  if (progress >= 0.995f) {
+    snprintf(label, sizeof(label), "100%%");
+  } else {
+    snprintf(label, sizeof(label), "%d%%", static_cast<int>(progress * 100.0f + 0.5f));
+  }
   constexpr int font = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
   const int textW = renderer.text.getWidth(font, label);
   const int textH = renderer.text.getLineHeight(font);
@@ -472,9 +488,6 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
 
   for (size_t i = 0; i < allBooks.size() && addedCount < maxShow; ++i) {
     const auto& book = allBooks[i];
-    if (!SdMan.exists(book.path.c_str())) {
-      continue;
-    }
     recentBooks.push_back(book);
     recentStats_.push_back(CachedRecentStats{});
     addedCount++;
@@ -806,14 +819,18 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
                         ATKINSON_HYPERLEGIBLE_10_FONT_ID, selected);
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
+    const float prog = recentDisplayProgress(book);
     int barX = drawX + 15;
     constexpr int kGridProgressBottomInset = 16;
     int barY = drawY + drawH - kGridProgressBottomInset;
     int barW = drawW - 30;
     int barH = 6;
-    char pText[8];
-    int percent = static_cast<int>(book.progress * 100.0f + 0.5f);
-    snprintf(pText, sizeof(pText), "%d%%", percent);
+    char pText[12];
+    if (recentBookFinished(book)) {
+      snprintf(pText, sizeof(pText), "Finished");
+    } else {
+      snprintf(pText, sizeof(pText), "%d%%", static_cast<int>(prog * 100.0f + 0.5f));
+    }
     constexpr int kPctFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
     const int pW = renderer.text.getWidth(kPctFont, pText);
     const int pH = renderer.text.getLineHeight(kPctFont);
@@ -825,8 +842,8 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     renderer.rectangle.fill(barX, barY, barW, barH, false);
     renderer.rectangle.render(barX, barY, barW, barH, true);
 
-    if (book.progress > 0.0f) {
-      int fillW = static_cast<int>(barW * book.progress + 0.5f);
+    if (prog > 0.0f) {
+      int fillW = static_cast<int>(barW * prog + 0.5f);
       renderer.rectangle.fill(barX, barY, fillW, barH);
     }
     renderer.text.render(kPctFont, pX, pY, pText);

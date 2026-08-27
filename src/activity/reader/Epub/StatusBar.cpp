@@ -476,6 +476,6 @@ std::string StatusBar::getChapterTitle(int currentSpineIndex) const {
  */
 float StatusBar::calculateBookProgress(const Section* section, int currentSpineIndex) const {
   if (!section || section->pageCount == 0) return 0;
-  float spineProgress = static_cast<float>(section->currentPage) / section->pageCount;
+  const float spineProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
   return m_epub.calculateProgress(currentSpineIndex, spineProgress) * 100;
 }

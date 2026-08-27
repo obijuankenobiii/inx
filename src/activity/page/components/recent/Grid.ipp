@@ -75,7 +75,7 @@ void RecentActivity::renderIcons(int startY) {
       const RecentBook& b = recentBooks[static_cast<size_t>(bookIdx)];
       drawRecentCoverFitAt(fittedCover.x, fittedCover.y, fittedCover.w, fittedCover.h, b.cachePath, bookDisplayTitle(b),
                            ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-      drawProgressBadge(renderer, fittedCover, b.progress);
+      drawProgressBadge(renderer, fittedCover, recentDisplayProgress(b));
       const IconRect coverFrame = inflateIconRect(fittedCover, 5);
       if (selected) {
         renderThickIconRect(renderer, coverFrame, rr, 3);

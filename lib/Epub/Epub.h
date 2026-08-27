@@ -108,3 +108,17 @@ class Epub {
   size_t getBookSize() const;
   float calculateProgress(int currentSpineIndex, float currentSpineRead) const;
 };
+
+/** Fraction of the current spine that has been read. Last page is 1.0, not (n-1)/n. */
+inline float epubSpineReadFraction(int currentPage, int pageCount) {
+  if (pageCount <= 0) {
+    return 0.0f;
+  }
+  if (currentPage < 0) {
+    currentPage = 0;
+  }
+  if (currentPage + 1 >= pageCount) {
+    return 1.0f;
+  }
+  return static_cast<float>(currentPage + 1) / static_cast<float>(pageCount);
+}

@@ -61,12 +61,16 @@ void RecentActivity::renderList(int startY) {
       lastTextBottom = tyA + lhA;
     }
 
-    float prog = book.progress;
+    float prog = recentDisplayProgress(book);
     if (prog < 0.f || prog > 1.f) {
       prog = 0.f;
     }
     char pctBuf[12];
-    snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", static_cast<double>(prog * 100.f));
+    if (recentBookFinished(book)) {
+      snprintf(pctBuf, sizeof(pctBuf), "Finished");
+    } else {
+      snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", static_cast<double>(prog * 100.f));
+    }
     const int fontPct = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
     const int pctW = renderer.text.getWidth(fontPct, pctBuf);
     constexpr int barH = 6;
