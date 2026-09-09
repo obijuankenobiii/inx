@@ -15,6 +15,7 @@
 #include <string>
 
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "network/OtaUpdater.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -275,7 +276,8 @@ void OtaUpdateActivity::render() {
   const int pageWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   const int startY = 0;
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "Update", startY);
+  (void)startY;
+  const int dividerY = SubPage::header(renderer, "Update");
 
   const int bodyTop = dividerY;
 

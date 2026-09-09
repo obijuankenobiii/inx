@@ -11,6 +11,7 @@
 #include <SPI.h>
 
 #include <cstring>
+#include <functional>
 #include <new>
 #include <string>
 
@@ -35,6 +36,7 @@
 #include "activity/page/Library.h"
 #include "activity/page/LibraryActivity.h"
 #include "activity/page/RecentActivity.h"
+#include "activity/page/Search.h"
 #include "activity/page/Settings.h"
 #include "activity/page/StatisticActivity.h"
 #include "activity/page/SyncActivity.h"
@@ -79,6 +81,7 @@ void onGoToStatistics();
 void onGoToFileTransfer();
 void onGoToSettings();
 void onGoToLibrary(const std::string& path = "/");
+void openSearchFromCallback(std::function<void()> returnToCaller);
 void setupDisplayAndFonts();
 void onNetworkModeSelected(NetworkMode mode);
 void openReaderFromCallback(const std::string& path);
@@ -157,6 +160,10 @@ void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecen
  */
 void onGoToRecent() {
   switchTo<Home>(render, input);
+}
+
+void openSearchFromCallback(std::function<void()> returnToCaller) {
+  switchTo<Search>(render, input, std::move(returnToCaller));
 }
 
 /**

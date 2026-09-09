@@ -11,6 +11,7 @@
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncClient.h"
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/UiTheme.h"
@@ -119,7 +120,7 @@ void KOReaderAuthActivity::render() {
   }
 
   renderer.clearScreen();
-  INX_THEME.drawPageHeader(renderer, "KOReader Auth");
+  SubPage::header(renderer, "KOReader Auth");
 
   if (state == AUTHENTICATING) {
     renderer.text.centered(MONTSERRAT_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);

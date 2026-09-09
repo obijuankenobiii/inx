@@ -32,11 +32,10 @@ std::string folderName(const std::string& path) {
   return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
-bool matches(const std::string& query, const LibraryIndex::Book& book) {
-  if (query.empty()) {
+bool matches(const std::string& needle, const LibraryIndex::Book& book) {
+  if (needle.empty()) {
     return true;
   }
-  const std::string needle = lower(query);
   return lower(book.title).find(needle) != std::string::npos ||
          lower(book.folder).find(needle) != std::string::npos ||
          lower(book.path).find(needle) != std::string::npos;
@@ -136,6 +135,15 @@ bool LibraryIndex::search(const std::string& query, std::vector<Book>& results, 
     return false;
   }
 
+  // Search is used by the on-device search page with a small result limit. Keep
+  // only the sorted top results while scanning instead of accumulating the
+  // entire library and trimming it afterward. The unbounded path remains
+  // available for the library browser and maintenance operations.
+  const std::string needle = lower(query);
+  if (limit != all) {
+    results.reserve(limit);
+  }
+
   while (file.available()) {
     uint8_t marker = 0;
     if (file.read(&marker, sizeof(marker)) != sizeof(marker)) {
@@ -150,17 +158,26 @@ bool LibraryIndex::search(const std::string& query, std::vector<Book>& results, 
       results.clear();
       return false;
     }
-    if (found && matches(query, book)) {
-      results.push_back(std::move(book));
+    if (found && matches(needle, book)) {
+      if (limit == all) {
+        results.push_back(std::move(book));
+      } else {
+        const auto position = std::lower_bound(
+            results.begin(), results.end(), book,
+            [](const Book& left, const Book& right) { return lower(left.title) < lower(right.title); });
+        results.insert(position, std::move(book));
+        if (results.size() > limit) {
+          results.pop_back();
+        }
+      }
     }
   }
   file.close();
 
-  std::sort(results.begin(), results.end(), [](const Book& left, const Book& right) {
-    return lower(left.title) < lower(right.title);
-  });
-  if (limit != all && results.size() > limit) {
-    results.resize(limit);
+  if (limit == all) {
+    std::sort(results.begin(), results.end(), [](const Book& left, const Book& right) {
+      return lower(left.title) < lower(right.title);
+    });
   }
   return true;
 }

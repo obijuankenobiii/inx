@@ -6,6 +6,7 @@
 #include <cstring>
 #include <vector>
 
+#include "activity/page/SubPage.h"
 #include "ReaderFontSettingsDraw.h"
 #include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
@@ -86,7 +87,7 @@ void QuickActionsSettingsActivity::render() {
   renderer.clearScreen();
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int bodyTop = INX_THEME.drawPageHeader(renderer, "Quick Actions");
+  const int bodyTop = SubPage::header(renderer, "Quick Actions");
 
   const std::vector<uint8_t> actions = eligibleActions();
   const int total = static_cast<int>(actions.size());

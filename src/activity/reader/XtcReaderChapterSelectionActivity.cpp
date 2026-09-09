@@ -7,15 +7,17 @@
 
 #include <GfxRenderer.h>
 
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
 namespace {
 constexpr int SKIP_PAGE_MS = 700;
+constexpr int CHAPTER_LIST_TOP = 80;
 }
 
 int XtcReaderChapterSelectionActivity::getPageItems() const {
-  constexpr int startY = 60;
+  constexpr int startY = CHAPTER_LIST_TOP;
   constexpr int lineHeight = 30;
 
   const int screenHeight = renderer.getScreenHeight();
@@ -133,7 +135,7 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
-  renderer.text.centered(MONTSERRAT_12_FONT_ID, 15, "Select Chapter", true, EpdFontFamily::BOLD);
+  const int listTop = SubPage::header(renderer, "Select Chapter");
 
   const auto& chapters = xtc->getChapters();
   if (chapters.empty()) {
@@ -143,12 +145,12 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
   }
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
-  renderer.rectangle.fill(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30,
+  renderer.rectangle.fill(0, listTop + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30,
                           static_cast<int>(GfxRenderer::FillTone::Ink));
   for (int i = pageStartIndex; i < static_cast<int>(chapters.size()) && i < pageStartIndex + pageItems; i++) {
     const auto& chapter = chapters[i];
     const char* title = chapter.name.empty() ? "Unnamed" : chapter.name.c_str();
-    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, listTop + (i % pageItems) * 30, title, i != selectorIndex);
   }
 
   if (renderer.getOrientation() != GfxRenderer::LandscapeClockwise) {

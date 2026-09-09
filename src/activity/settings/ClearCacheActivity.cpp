@@ -14,6 +14,7 @@
 #include <string>
 
 #include "ReaderFontSettingsDraw.h"
+#include "activity/page/SubPage.h"
 #include "state/BookState.h"
 #include "state/NetworkCredential.h"
 #include "state/RecentBooks.h"
@@ -75,7 +76,7 @@ void ClearCacheActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  const int bodyTop = INX_THEME.drawPageHeader(renderer, "Clear cache");
+  const int bodyTop = SubPage::header(renderer, "Clear cache");
 
   if (state == WARNING) {
     constexpr const char* names[GROUP_COUNT] = {"Display", "Book", "Recent", "Network"};

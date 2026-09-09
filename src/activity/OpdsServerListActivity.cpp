@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 
+#include "activity/page/SubPage.h"
 #include "browser/OpdsBookBrowserActivity.h"
 #include "state/OpdsServerStore.h"
 #include "system/Fonts.h"
@@ -114,7 +115,7 @@ void OpdsServerListActivity::render() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const int listTop = INX_THEME.drawPageHeader(renderer, "OPDS Server");
+  const int listTop = SubPage::header(renderer, "OPDS Server");
 
   const auto& servers = OPDS_STORE.getAllServers();
 

@@ -25,7 +25,7 @@
 extern void onGoToRecent();
 extern void onGoToLibrary(const std::string& path);
 extern void onGoToFileTransfer();
-extern void onGoToStatistics();
+extern void openSearchFromCallback(std::function<void()> returnToCaller);
 
 namespace {
 
@@ -190,20 +190,22 @@ void Settings::openPanel() {
   const auto navigateHome = [this] { deferExternalNavigation([] { onGoToRecent(); }); };
   const auto navigateLibrary = [this] { deferExternalNavigation([] { onGoToLibrary("/"); }); };
   const auto navigateSync = [this] { deferExternalNavigation([] { onGoToFileTransfer(); }); };
-  const auto navigateStats = [this] { deferExternalNavigation([] { onGoToStatistics(); }); };
+  const auto navigateSearch = [this] {
+    deferExternalNavigation([] { openSearchFromCallback([] { onGoToRecent(); }); });
+  };
 
   if (currentPanel == SettingsPanel::System) {
     auto* category = new CategorySettingsActivity(
         renderer, mappedInput, "System settings", buildSystemSettings(renderer.deviceIsX3()),
         [this] { requestPanelSwitch(); }, nullptr, nullptr, nullptr, navigateHome, navigateLibrary, navigateSync,
-        navigateStats, true);
+        navigateSearch, true);
     categoryPanel = category;
     panel.reset(category);
   } else {
     // The current inx reader activity owns the global reader controls. Presets mode asks that same
     // activity to expose only its preset rows, preserving the existing preset editor/storage.
     auto* reader = new ReaderPresetsActivity(renderer, mappedInput, [this] { requestPanelSwitch(); }, navigateHome,
-                                             navigateLibrary, navigateSync, navigateStats, true,
+                                             navigateLibrary, navigateSync, navigateSearch, true,
                                              currentPanel == SettingsPanel::Presets);
     if (currentPanel == SettingsPanel::Reader) {
       readerPanel = reader;

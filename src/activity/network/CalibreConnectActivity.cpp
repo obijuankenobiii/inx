@@ -16,6 +16,7 @@
 #include <lwip/sockets.h>
 
 #include "WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -91,7 +92,8 @@ const char* CDP_RESPONSE =
  * @param subtitle Optional subtitle text
  */
 int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
-  return INX_THEME.drawPageHeader(renderer, title, startY, subtitle, CONTENT_MARGIN);
+  (void)startY;
+  return ScreenComponents::drawSubPageHeader(renderer, title, subtitle);
 }
 
 /**

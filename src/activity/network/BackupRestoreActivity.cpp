@@ -12,6 +12,7 @@
 #include <cstring>
 #include <string>
 
+#include "activity/page/SubPage.h"
 #include "KOReaderCredentialStore.h"
 #include "state/NetworkCredential.h"
 #include "state/OpdsServerStore.h"
@@ -202,7 +203,7 @@ void BackupRestoreActivity::loop() {
 
 void BackupRestoreActivity::render() {
   renderer.clearScreen();
-  const int bodyTop = INX_THEME.drawPageHeader(renderer, "Backup and restore");
+  const int bodyTop = SubPage::header(renderer, "Backup and restore");
   if (state_ == State::Working) {
     renderWorking();
   } else if (state_ == State::Done) {

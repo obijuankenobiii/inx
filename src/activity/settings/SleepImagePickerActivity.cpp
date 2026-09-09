@@ -15,6 +15,7 @@
 #include <cstring>
 #include <iterator>
 
+#include "activity/page/SubPage.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -29,7 +30,7 @@ constexpr int GRID_ITEMS = GRID_COLS * GRID_ROWS;
 constexpr int GRID_MARGIN_X = 18;
 constexpr int GRID_GAP_X = 12;
 constexpr int GRID_GAP_Y = 12;
-constexpr int GRID_TOP = 12;
+constexpr int GRID_TOP = 88;
 constexpr int THUMB_INSET_X = 18;
 constexpr int THUMB_INSET_Y = 12;
 constexpr int RANDOM_BUTTON_W = 178;
@@ -119,6 +120,7 @@ void SleepImagePickerActivity::drawPickerChrome(const int pageStart, const int r
                                                 const bool localRandomEnabled, const bool drawCells) {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
+  SubPage::header(renderer, "Choose sleep image");
   const int buttonX = pageWidth - RANDOM_BUTTON_W - FOOTER_SIDE_PAD;
   const int buttonY = pageHeight - 76;
   const int gridBottom = buttonY - 14;

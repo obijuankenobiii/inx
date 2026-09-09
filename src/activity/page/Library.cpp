@@ -40,6 +40,7 @@
 extern void onGoToRecent();
 extern void onGoToLibrary(const std::string& path);
 extern void openReaderFromCallback(const std::string& path);
+extern void openSearchFromCallback(std::function<void()> returnToCaller);
 extern void onGoToSettings();
 extern void onGoToFileTransfer();
 
@@ -161,6 +162,12 @@ void Library::onEnter() {
   indexingPopupVisible_ = false;
   indexingDisplayedProgress_ = -1;
   loadIndexedItems();
+  if (!indexLoaded_) {
+    // With no usable index, make the recovery action obvious and immediately
+    // actionable: the refresh control owns focus when the page opens.
+    headerFocused_ = true;
+    selectedHeaderButton_ = 3;
+  }
 }
 
 void Library::onExit() {
@@ -1293,8 +1300,15 @@ void Library::navigateToSelectedMenu() {
     case 3:
       onGoToFileTransfer();
       break;
+    case 4:
+      search();
+      break;
     default:
-      // The fifth slot is the visual search control; search will be wired in later.
       break;
   }
+}
+
+void Library::search() {
+  const std::string libraryPath = path_;
+  openSearchFromCallback([libraryPath] { onGoToLibrary(libraryPath); });
 }

@@ -16,6 +16,7 @@
 
 #include "images/Battery.h"
 #include "images/Charging.h"
+#include "images/Close.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 
@@ -103,6 +104,32 @@ void ScreenComponents::drawMenuClockAndBattery(const GfxRenderer& renderer, cons
   }
 
   drawBattery(renderer, batteryLeft, top, showBatteryPercentage);
+}
+
+int ScreenComponents::drawSubPageHeader(const GfxRenderer& renderer, const char* name,
+                                         const char* trailingText, const int titleX) {
+  constexpr int top = 20;
+  constexpr int size = 40;
+  constexpr int font = MONTSERRAT_16_FONT_ID;
+  const char* title = name ? name : "";
+  const int textY = top + (size - renderer.text.getLineHeight(font)) / 2;
+  renderer.text.render(font, titleX, textY, title, true, EpdFontFamily::BOLD);
+  renderer.bitmap.icon(Close, renderer.getScreenWidth() - 60, top, size, size);
+
+  // Preserve the small state label used by network subpages when it fits before
+  // the close button. The title/close geometry remains identical for every page.
+  if (trailingText && trailingText[0] != '\0') {
+    const int trailingFont = MONTSERRAT_10_FONT_ID;
+    const int trailingWidth = renderer.text.getWidth(trailingFont, trailingText);
+    const int trailingX = renderer.getScreenWidth() - 80 - trailingWidth;
+    const int titleWidth = renderer.text.getWidth(font, title);
+    if (trailingX > titleX + titleWidth + 12) {
+      const int trailingY = top + (size - renderer.text.getLineHeight(trailingFont)) / 2;
+      renderer.text.render(trailingFont, trailingX, trailingY, trailingText, true);
+    }
+  }
+
+  return top + size + 20;
 }
 
 ScreenComponents::PopupLayout ScreenComponents::drawPopup(const GfxRenderer& renderer, const char* message) {

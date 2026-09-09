@@ -32,6 +32,7 @@ class Library final : public Page {
   void center() const override;
   bool showBattery() const override { return false; }
   void content() override;
+  void search() override;
   void navigateToSelectedMenu() override;
 
  private:

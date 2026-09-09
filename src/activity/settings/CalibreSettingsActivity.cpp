@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "activity/util/KeyboardEntryActivity.h"
+#include "activity/page/SubPage.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -157,7 +158,7 @@ void CalibreSettingsActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
+  const int dividerY = SubPage::header(renderer, "OPDS Browser");
 
   for (int i = 0; i < MENU_ITEMS; i++) {
     const int itemY = dividerY + i * kListItemHeight;

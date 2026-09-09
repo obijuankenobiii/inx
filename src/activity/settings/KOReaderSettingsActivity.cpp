@@ -12,6 +12,7 @@
 #include "KOReaderAuthActivity.h"
 #include "KOReaderCredentialStore.h"
 #include "activity/util/KeyboardEntryActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
@@ -163,7 +164,7 @@ void KOReaderSettingsActivity::render() {
   const auto screenHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "KOReader Sync");
+  const int dividerY = SubPage::header(renderer, "KOReader Sync");
 
   int startY = dividerY;
   int visibleAreaHeight = screenHeight - startY - 60;

@@ -8,6 +8,7 @@
 #include <GfxRenderer.h>
 
 extern void onGoToRecent();
+extern void openSearchFromCallback(std::function<void()> returnToCaller);
 
 Page::Page(const char* pageName, GfxRenderer& renderer, MappedInputManager& mappedInput)
     : Activity(pageName, renderer, mappedInput), navigation::Menu(renderer) {}
@@ -41,6 +42,8 @@ bool Page::back() {
   onGoToRecent();
   return true;
 }
+
+void Page::search() { openSearchFromCallback([] { onGoToRecent(); }); }
 
 void Page::content() {}
 

@@ -122,27 +122,9 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 
 int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, const int startY, const char* trailingText,
                             const int titleX) const {
-  const int pageWidth = renderer.getScreenWidth();
-  const int headerH = drawerPageHeaderHeight();
-  renderer.rectangle.fill(0, startY, pageWidth, headerH, false);
-  const int dividerY = startY + headerH;
-  renderer.rectangle.fill(0, dividerY, pageWidth, UiLayout::PAGE_HEADER_DIVIDER_THICKNESS, true);
-
-  const int paddedHeaderH = headerH - UiLayout::PAGE_HEADER_TOP_PADDING - UiLayout::PAGE_HEADER_BOTTOM_PADDING;
-  const int titleY = startY + UiLayout::PAGE_HEADER_TOP_PADDING +
-                     (paddedHeaderH - renderer.text.getLineHeight(MONTSERRAT_14_FONT_ID)) / 2 + 4;
-  renderer.text.render(MONTSERRAT_14_FONT_ID, titleX, titleY, title, true, EpdFontFamily::BOLD);
-
-  if (trailingText && trailingText[0] != '\0') {
-    const int trailingFont = MONTSERRAT_10_FONT_ID;
-    const int trailingW = renderer.text.getWidth(trailingFont, trailingText);
-    const int trailingY =
-        startY + UiLayout::PAGE_HEADER_TOP_PADDING +
-        (paddedHeaderH - renderer.text.getLineHeight(trailingFont)) / 2;
-    renderer.text.render(trailingFont, pageWidth - titleX - trailingW, trailingY, trailingText, true);
-  }
-
-  return dividerY;
+  (void)startY;
+  (void)titleX;
+  return ScreenComponents::drawSubPageHeader(renderer, title, trailingText);
 }
 
 void UiTheme::drawButtonHints(const GfxRenderer& renderer, const int fontId, const char* btn1, const char* btn2,

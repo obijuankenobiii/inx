@@ -8,6 +8,8 @@
 #include "../Activity.h"
 #include "navigation/Menu.h"
 
+#include <functional>
+
 /**
  * Empty page foundation.
  *
@@ -26,6 +28,7 @@ class Page : public Activity, public navigation::Menu {
 
  protected:
   virtual bool back();
+  virtual void search();
   virtual void content();
   virtual void menu();
   void requestRender() { updateRequired = true; }

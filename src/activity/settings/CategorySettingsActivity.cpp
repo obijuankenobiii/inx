@@ -20,7 +20,7 @@
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
 #include "activity/page/components/global/PopUp.h"
-#include "images/Close.h"
+#include "activity/page/SubPage.h"
 #include "ReaderFontSettingsDraw.h"
 #include "SleepImagePickerActivity.h"
 #include "ThumbnailGeneratorActivity.h"
@@ -243,15 +243,10 @@ void CategorySettingsActivity::renderGroupPage() {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   constexpr int rowHeight = UiLayout::LIST_ITEM_HEIGHT;
-  constexpr int titleFont = MONTSERRAT_16_FONT_ID;
   const int itemFont = systemFontId();
-  const int listTop = navigation::Menu::height + 20;
-  const int visible = std::max(1, (pageHeight - listTop - 10) / rowHeight);
 
   std::vector<int> rows;
   detailRows(rows);
-  const int maxScroll = std::max(0, static_cast<int>(rows.size()) - visible);
-  detailScroll = std::max(0, std::min(detailScroll, maxScroll));
 
   const char* title = "Settings";
   for (const MenuEntry& entry : menuItems) {
@@ -260,9 +255,10 @@ void CategorySettingsActivity::renderGroupPage() {
       break;
     }
   }
-  renderer.text.render(titleFont, 20, 20, title, true, EpdFontFamily::BOLD);
-  renderer.bitmap.icon(Close, pageWidth - 60, 20, 40, 40);
-
+  const int listTop = SubPage::header(renderer, title);
+  const int visible = std::max(1, (pageHeight - listTop - 10) / rowHeight);
+  const int maxScroll = std::max(0, static_cast<int>(rows.size()) - visible);
+  detailScroll = std::max(0, std::min(detailScroll, maxScroll));
   for (int i = 0; i < visible && detailScroll + i < static_cast<int>(rows.size()); ++i) {
     const int index = rows[static_cast<size_t>(detailScroll + i)];
     const MenuEntry& entry = menuItems[static_cast<size_t>(index)];

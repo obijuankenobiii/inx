@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "activity/util/KeyboardEntryActivity.h"
+#include "activity/page/SubPage.h"
 #include "state/NetworkCredential.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -469,7 +470,8 @@ void WifiSelectionActivity::render() const {
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderScanning(const int screenWidth, const int screenHeight, const int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
+  (void)startY;
+  const int dividerY = SubPage::header(renderer, "WiFi Networks");
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
   renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Scanning...");
@@ -485,7 +487,8 @@ void WifiSelectionActivity::renderScanning(const int screenWidth, const int scre
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight, int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
+  (void)startY;
+  const int dividerY = SubPage::header(renderer, "WiFi Networks");
 
   const int listStartY = dividerY;
   const int visibleAreaHeight = screenHeight - listStartY - 80;
@@ -566,7 +569,8 @@ void WifiSelectionActivity::renderNetworkList(int screenWidth, int screenHeight,
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderConnecting(const int screenWidth, const int screenHeight, const int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY);
+  (void)startY;
+  const int dividerY = SubPage::header(renderer, "WiFi Networks");
 
   const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
 
@@ -590,7 +594,8 @@ void WifiSelectionActivity::renderConnecting(const int screenWidth, const int sc
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int screenHeight, const int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connected successfully!");
+  (void)startY;
+  const int dividerY = ScreenComponents::drawSubPageHeader(renderer, "WiFi Networks", "Connected successfully!");
 
   const int promptY = dividerY + 30;
   renderer.text.centered(MONTSERRAT_10_FONT_ID, promptY, "Save password for next time?");
@@ -625,7 +630,8 @@ void WifiSelectionActivity::renderSavePrompt(const int screenWidth, const int sc
  */
 void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const int screenHeight,
                                                    const int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connection Failed");
+  (void)startY;
+  const int dividerY = ScreenComponents::drawSubPageHeader(renderer, "WiFi Networks", "Connection Failed");
 
   const int errorY = dividerY + 40;
   renderer.text.centered(MONTSERRAT_10_FONT_ID, errorY - 20, connectionError.c_str());
@@ -647,7 +653,8 @@ void WifiSelectionActivity::renderConnectionFailed(const int screenWidth, const 
  * @param startY Starting Y coordinate for content
  */
 void WifiSelectionActivity::renderForgetPrompt(const int screenWidth, const int screenHeight, const int startY) const {
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "WiFi Networks", startY, "Connection Failed");
+  (void)startY;
+  const int dividerY = ScreenComponents::drawSubPageHeader(renderer, "WiFi Networks", "Connection Failed");
 
   const int promptY = dividerY + 30;
   renderer.text.centered(MONTSERRAT_10_FONT_ID, promptY, "Forget network and remove saved password?");

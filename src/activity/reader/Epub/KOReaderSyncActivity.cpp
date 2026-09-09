@@ -12,6 +12,7 @@
 #include "KOReaderCredentialStore.h"
 #include "KOReaderDocumentId.h"
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -251,7 +252,7 @@ void KOReaderSyncActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.text.centered(MONTSERRAT_12_FONT_ID, 15, "KOReader Sync", true, EpdFontFamily::BOLD);
+  SubPage::header(renderer, "KOReader Sync");
 
   if (state == NO_CREDENTIALS) {
     renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "No credentials configured", true,

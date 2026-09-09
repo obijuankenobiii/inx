@@ -38,6 +38,10 @@ class ScreenComponents {
                                       bool showBatteryPercentage = true);
   static void drawBookProgressBar(const GfxRenderer& renderer, size_t bookProgress);
 
+  /** Shared Pro-style subpage header with title and close icon. Returns the body start Y. */
+  static int drawSubPageHeader(const GfxRenderer& renderer, const char* name,
+                               const char* trailingText = nullptr, int titleX = 20);
+
   /** Centered filled modal used for short blocking work and progress feedback. */
   static PopupLayout drawPopup(const GfxRenderer& renderer, const char* message);
 

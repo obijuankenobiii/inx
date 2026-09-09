@@ -200,7 +200,9 @@ void SyncActivity::navigateToSelectedMenu() {
       if (onSettingsOpen) onSettingsOpen();
       break;
     case 4:
-      if (onStatisticsOpen) onStatisticsOpen();
+      // The fifth shell slot is the shared Search action, not the legacy
+      // statistics destination used by the old tab bar.
+      search();
       break;
     default:
       break;

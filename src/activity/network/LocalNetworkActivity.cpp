@@ -11,6 +11,7 @@
 #include <esp_task_wdt.h>
 
 #include "WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -33,7 +34,8 @@ constexpr int BOTTOM_AREA_HEIGHT = 80;
  * @param subtitle Optional subtitle text
  */
 int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
-  return INX_THEME.drawPageHeader(renderer, title, startY, nullptr, CONTENT_MARGIN);
+  (void)startY;
+  return SubPage::header(renderer, title);
 }
 
 /**

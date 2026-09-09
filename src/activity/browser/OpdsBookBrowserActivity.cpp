@@ -12,6 +12,7 @@
 #include <WiFi.h>
 
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "network/HttpDownloader.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -167,7 +168,7 @@ void OpdsBookBrowserActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  const int bodyTop = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
+  const int bodyTop = SubPage::header(renderer, "OPDS Browser");
 
   if (state == BrowserState::CHECK_WIFI) {
     renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2, statusMessage.c_str());

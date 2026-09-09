@@ -14,6 +14,7 @@
 #include <ctime>
 
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -46,7 +47,7 @@ void TimeSyncActivity::render() {
   renderer.clearScreen();
   const int h = renderer.getScreenHeight();
 
-  const int contentTop = INX_THEME.drawPageHeader(renderer, "Sync time");
+  const int contentTop = SubPage::header(renderer, "Sync time");
   const int centerY = contentTop + (h - contentTop - 80) / 2;
   const int titleY = centerY - 36;
   const int bodyY = centerY;

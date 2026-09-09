@@ -19,7 +19,7 @@
 #include "ReaderPresetEditorActivity.h"
 #include "activity/page/components/global/PopUp.h"
 #include "activity/page/components/global/Toggle.h"
-#include "images/Close.h"
+#include "activity/page/SubPage.h"
 #include "images/Download.h"
 #include "state/ReaderPreset.h"
 #include "state/ReaderSetting.h"
@@ -533,15 +533,12 @@ void ReaderPresetsActivity::renderDetail() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
   const int itemFont = systemFontId();
-  const int listTop = navigation::Menu::height + 20;
+  const char* title = detailSection_ == DetailSection::System ? "System" : "Buttons";
+  const int listTop = SubPage::header(renderer, title);
   const int visible = std::max(1, (screenH - listTop - 10) / kListItemHeight);
   const int rows = detailRowCount();
   const int maxScroll = std::max(0, rows - visible);
   detailScrollOffset_ = std::max(0, std::min(detailScrollOffset_, maxScroll));
-
-  const char* title = detailSection_ == DetailSection::System ? "System" : "Buttons";
-  renderer.text.render(MONTSERRAT_16_FONT_ID, 20, 20, title, true, EpdFontFamily::BOLD);
-  renderer.bitmap.icon(Close, screenW - 60, 20, 40, 40);
 
   for (int i = 0; i < visible && detailScrollOffset_ + i < rows; ++i) {
     const int localRow = detailScrollOffset_ + i;

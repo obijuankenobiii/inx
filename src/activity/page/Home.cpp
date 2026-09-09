@@ -34,9 +34,19 @@ Home::Home(GfxRenderer& renderer, MappedInputManager& mappedInput) : Page("Home"
 void Home::onEnter() {
   Page::onEnter();
   sidebarOpen = false;
+  ignoreBackReleaseOnEnter_ = mappedInput.isPressed(MappedInputManager::Button::Back);
 }
 
 void Home::loop() {
+  if (ignoreBackReleaseOnEnter_) {
+    if (mappedInput.isPressed(MappedInputManager::Button::Back)) return;
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      ignoreBackReleaseOnEnter_ = false;
+      return;
+    }
+    ignoreBackReleaseOnEnter_ = false;
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     const unsigned long now = millis();
     const bool doubleBack = lastBackReleaseMs != 0 && now - lastBackReleaseMs <= kDoubleBackWindowMs;
@@ -96,8 +106,10 @@ void Home::navigateToSelectedMenu() {
     case 3:
       onGoToFileTransfer();
       break;
+    case 4:
+      search();
+      break;
     default:
-      // Home is the first tab; the fifth slot is the visual search control for now.
       break;
   }
 }

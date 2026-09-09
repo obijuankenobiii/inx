@@ -26,4 +26,5 @@ class Home final : public Page {
 
  private:
   bool sidebarOpen = false;
+  bool ignoreBackReleaseOnEnter_ = false;
 };
