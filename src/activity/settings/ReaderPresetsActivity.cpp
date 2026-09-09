@@ -239,13 +239,13 @@ void ReaderPresetsActivity::render() {
 
   const int headerY = mainContentTop();
   const int headerHeight = mainHeaderHeight();
-  const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
+  const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
 
   const char* back = "\xC2\xAB Back";
-  const int backW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, back);
-  const int backY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
+  const int backW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, back);
+  const int backY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - 20 - backW, backY, back, true);
   const int headerDividerY = mainHeaderDividerY();
   const int listTop = headerDividerY;
 
@@ -255,16 +255,16 @@ void ReaderPresetsActivity::render() {
     const int rowIndex = i + scrollOffset_;
     const int itemY = listTop + i * kListItemHeight;
     const bool isSelected = (rowIndex == selectedRow_);
-    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
     if (rowIndex == systemHeaderRow()) {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "System", isSelected ? 0 : 1);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "System", isSelected ? 0 : 1);
       const char* tag = systemExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, tag);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -300,13 +300,13 @@ void ReaderPresetsActivity::render() {
         value = "Configure >";
         isToggle = false;
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
       if (isToggle) {
         ReaderFontSettingsDraw::drawToggleCheckbox(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight,
                                                    isSelected, toggleChecked);
       } else {
-        const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+        const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
+        renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
                              isSelected ? 0 : 1);
       }
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
@@ -318,10 +318,10 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "Buttons", isSelected ? 0 : 1);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "Buttons", isSelected ? 0 : 1);
       const char* tag = buttonsExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, tag);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -335,9 +335,9 @@ void ReaderPresetsActivity::render() {
       const int idx = rowIndex - buttonsHeaderRow() - 1;  // 0-7
       const char* label = buttonActionRowLabel(idx, renderer.deviceIsX3());
       const char* value = readerButtonActionLabel(READER_SETTINGS.*(kButtonActionFields[idx]));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -350,9 +350,9 @@ void ReaderPresetsActivity::render() {
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "  Power Button (short)";
       const char* value = readerButtonActionLabel(READER_SETTINGS.btnPowerShortAction);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -363,10 +363,10 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1);
       const char* tag = xtcExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, tag);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -390,9 +390,9 @@ void ReaderPresetsActivity::render() {
         label = "  Power Button";
         value = xtcPowerLabel();
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
@@ -405,7 +405,7 @@ void ReaderPresetsActivity::render() {
       } else {
         renderer.rectangle.fill(0, itemY, screenW, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Paper));
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
@@ -418,11 +418,11 @@ void ReaderPresetsActivity::render() {
         isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int presetIndex = presetIndexForRow(rowIndex);
     const std::string name = READER_PRESETS.nameOf(presetIndex);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, name.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, name.c_str(), isSelected ? 0 : 1);
     if (presetIndex == 0) {
       const char* tag = "Default";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, tag);
+      renderer.text.render(MONTSERRAT_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
     }
     renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
@@ -435,7 +435,7 @@ void ReaderPresetsActivity::render() {
     // goes, so redraw that same row just above the tab bar instead — matches CategorySettingsActivity.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "", hintsY);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "\xC2\xAB System", "Open", "", "", hintsY);
   }
 
   renderButtonHints(renderer, "\xC2\xAB Back", "Open", "", "");
@@ -459,8 +459,8 @@ void ReaderPresetsActivity::renderOverlay() {
   renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
 
   const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
 
   for (int i = 0; i < optionCount; i++) {
     const int rowY = boxY + overlayHeaderH + i * rowH;
@@ -468,8 +468,8 @@ void ReaderPresetsActivity::renderOverlay() {
     if (sel) {
       renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
+    const int textY = rowY + (rowH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
                          sel ? 0 : 1);
     if (i + 1 < optionCount) {
       renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
@@ -666,9 +666,9 @@ void ReaderPresetsActivity::renderActionSelectorOverlay() {
   renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
 
   const std::string shownTitle =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, selectorTitle_.c_str(), boxW - 32, EpdFontFamily::BOLD);
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, shownTitle.c_str(), true,
+      renderer.text.truncate(MONTSERRAT_10_FONT_ID, selectorTitle_.c_str(), boxW - 32, EpdFontFamily::BOLD);
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 16, titleY, shownTitle.c_str(), true,
                        EpdFontFamily::BOLD);
 
   const int maxScroll = std::max(0, optionCount - rows);
@@ -684,8 +684,8 @@ void ReaderPresetsActivity::renderActionSelectorOverlay() {
     if (sel) {
       renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, selectorOptions_[optionIdx].c_str(),
+    const int textY = rowY + (rowH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 20, textY, selectorOptions_[optionIdx].c_str(),
                          sel ? 0 : 1);
     if (i + 1 < rows) {
       renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);

@@ -166,7 +166,7 @@ void MenuDrawer::syncLayoutFromRenderer() {
 void MenuDrawer::relayoutForRendererChange() { syncLayoutFromRenderer(); }
 
 void MenuDrawer::drawDrawerHintRow(const char* btn1, const char* btn2, const char* btn3, const char* btn4) {
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, btn1, btn2, btn3, btn4);
 }
 
 void MenuDrawer::drawMappedButtonHints(const char* back, const char* confirm, const char* previous, const char* next) {
@@ -298,8 +298,8 @@ void MenuDrawer::drawBackground() {
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
   const int headerH = drawerHeaderHeight();
-  const int titleY = drawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true,
+  const int titleY = drawerY + (headerH - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, drawerX + 20, titleY, "Reader Menu", true,
                        EpdFontFamily::BOLD);
 
   // Sit the divider on the last row of the header band; the first list item starts at drawerY+headerH and
@@ -332,10 +332,10 @@ void MenuDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
       isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
 
   const int textX = drawerX + 23;
-  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, item.label.c_str(), isSelected ? 0 : 1);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, drawerX + drawerWidth - 30, textY, "›", isSelected ? 0 : 1);
   renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
                        LineRender::Style::Dotted);
 }
@@ -532,8 +532,8 @@ void MenuDrawer::renderToc() {
 
   // Header band is the same height as a list item, title vertically centered, with a divider beneath it.
   const int headerH = drawerHeaderHeight();
-  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, tocDrawerX + 20, headerY, "Table of Contents", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = tocDrawerY + headerH;
@@ -544,9 +544,9 @@ void MenuDrawer::renderToc() {
 
   if (totalItems == 0) {
     const int msgY = drawY + 24;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY, "No table of contents in this book.",
+    renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + 20, msgY, "No table of contents in this book.",
                          true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, msgY + 22,
+    renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + 20, msgY + 22,
                          "Try Delete Cache and reopen to rebuild.", true);
   } else {
     for (int i = 0; i < pageItems; i++) {
@@ -561,7 +561,7 @@ void MenuDrawer::renderToc() {
                                 static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
       const int rawTocIndex = visibleTocIndexes[static_cast<size_t>(itemIndex)];
       auto item = epub->getTocItem(rawTocIndex);
@@ -574,11 +574,11 @@ void MenuDrawer::renderToc() {
       const int indentSize = tocDrawerX + relIndent;
       const int maxTitleW = std::max(40, panelW - 70 - relIndent);
       const std::string truncatedName =
-          renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.title.c_str(), maxTitleW);
+          renderer.text.truncate(MONTSERRAT_10_FONT_ID, item.title.c_str(), maxTitleW);
 
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indentSize, textY, truncatedName.c_str(),
+      renderer.text.render(MONTSERRAT_10_FONT_ID, indentSize, textY, truncatedName.c_str(),
                            isSelected ? 0 : 1);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, rowIndicator,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + panelW - 30, textY, rowIndicator,
                            isSelected ? 0 : 1);
       renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                            true, LineRender::Style::Dotted);
@@ -608,8 +608,8 @@ void MenuDrawer::renderBookmarks() {
   drawTocBackground();
 
   const int headerH = drawerHeaderHeight();
-  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, tocDrawerX + 20, headerY, "Bookmarks", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = tocDrawerY + headerH;
@@ -618,14 +618,14 @@ void MenuDrawer::renderBookmarks() {
   if (totalItems == 0) {
     const char* line1 = "No bookmarks yet";
     const char* line2 = "Long press confirm to bookmark";
-    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+    const int lh = renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID);
     const int msgY = dividerY + 48;
-    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line2);
+    const int w1 = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, line1);
+    const int w2 = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, line2);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x2, msgY + lh + 6, line2, true);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, x1, msgY, line1, true);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, x2, msgY + lh + 6, line2, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
@@ -648,13 +648,13 @@ void MenuDrawer::renderBookmarks() {
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
     const int kIndent = tocDrawerX + 20;
     const std::string truncated =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+        renderer.text.truncate(MONTSERRAT_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                          true, LineRender::Style::Dotted);
   }
@@ -665,7 +665,7 @@ void MenuDrawer::renderBookmarks() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kBookmarkFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kBookmarkFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "Del");
 }
@@ -678,8 +678,8 @@ void MenuDrawer::renderAnnotations() {
   drawTocBackground();
 
   const int headerH = drawerHeaderHeight();
-  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, tocDrawerX + 20, headerY, "Annotations", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = tocDrawerY + headerH;
@@ -689,18 +689,18 @@ void MenuDrawer::renderAnnotations() {
     const char* line1 = "No highlights yet";
     const char* line2 = "Front right + side Down/Right";
     const char* line3 = "to start annotating.";
-    const int lh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-    const int subLh = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID);
+    const int lh = renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID);
+    const int subLh = renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID);
     const int msgY = dividerY + 48;
-    const int w1 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line2);
-    const int w3 = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line3);
+    const int w1 = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, line1);
+    const int w2 = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, line2);
+    const int w3 = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, line3);
     const int x1 = tocDrawerX + (panelW - w1) / 2;
     const int x2 = tocDrawerX + (panelW - w2) / 2;
     const int x3 = tocDrawerX + (panelW - w3) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, x1, msgY, line1, true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, x2, msgY + lh + 8, line2, true);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, x3, msgY + lh + 8 + subLh + 4, line3, true);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, x1, msgY, line1, true);
+    renderer.text.render(MONTSERRAT_8_FONT_ID, x2, msgY + lh + 8, line2, true);
+    renderer.text.render(MONTSERRAT_8_FONT_ID, x3, msgY + lh + 8 + subLh + 4, line3, true);
     drawMappedButtonHints("\xC2\xAB Back", "", "", "");
     return;
   }
@@ -723,13 +723,13 @@ void MenuDrawer::renderAnnotations() {
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
-    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
     const int kIndent = tocDrawerX + 20;
     const std::string truncated =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
+        renderer.text.truncate(MONTSERRAT_10_FONT_ID, row.label.c_str(), panelW - 60 - 20);
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, kIndent, textY, truncated.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + panelW - 30, textY, "›", isSelected ? 0 : 1);
     renderer.line.render(tocDrawerX, itemY + LIST_ITEM_HEIGHT - 1, tocDrawerX + panelW, itemY + LIST_ITEM_HEIGHT - 1,
                          true, LineRender::Style::Dotted);
   }
@@ -740,7 +740,7 @@ void MenuDrawer::renderAnnotations() {
   snprintf(pageStr, sizeof(pageStr), "Page %d of %d", currentPageNum, totalPages);
   constexpr int kAnnotationFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kAnnotationFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, tocDrawerX + 20, footerY, pageStr, true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "Up", "");
 }
@@ -755,8 +755,8 @@ void MenuDrawer::renderPercent() {
 
   // Header band matches TOC/Bookmarks/Annotations exactly.
   const int headerH = drawerHeaderHeight();
-  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tocDrawerX + 20, headerY, "Go to Percent", true,
+  const int headerY = tocDrawerY + (headerH - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, tocDrawerX + 20, headerY, "Go to Percent", true,
                        EpdFontFamily::BOLD);
 
   const int dividerY = tocDrawerY + headerH;
@@ -766,9 +766,9 @@ void MenuDrawer::renderPercent() {
 
   const std::string percentText = std::to_string(percentValue_) + "%";
   const int pctWidth =
-      renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, percentText.c_str(), EpdFontFamily::BOLD);
+      renderer.text.getWidth(MONTSERRAT_12_FONT_ID, percentText.c_str(), EpdFontFamily::BOLD);
   const int pctY = dividerY + 40;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerX - pctWidth / 2, pctY, percentText.c_str(), true,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, centerX - pctWidth / 2, pctY, percentText.c_str(), true,
                        EpdFontFamily::BOLD);
 
   // Slider track, sized to fit the drawer panel (narrower in landscape's half-screen layout).
@@ -789,11 +789,11 @@ void MenuDrawer::renderPercent() {
 
   // Hint text for step sizes, positioned like TOC/Bookmarks/Annotations' footer page counter.
   const std::string hintText =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Left/Right: +/-1%  Up/Down: +/-10%", panelW - 40);
-  const int hintWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, hintText.c_str());
+      renderer.text.truncate(MONTSERRAT_10_FONT_ID, "Left/Right: +/-1%  Up/Down: +/-10%", panelW - 40);
+  const int hintWidth = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, hintText.c_str());
   constexpr int kPercentFooterAboveHints = 75;
   const int footerY = std::max(tocDrawerY + 8, tocDrawerY + tocDrawerHeight - kPercentFooterAboveHints);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerX - hintWidth / 2, footerY, hintText.c_str(), true);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, centerX - hintWidth / 2, footerY, hintText.c_str(), true);
 
   drawMappedButtonHints("\xC2\xAB Back", "Select", "-", "+");
 }

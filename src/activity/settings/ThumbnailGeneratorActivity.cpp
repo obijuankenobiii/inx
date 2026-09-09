@@ -73,12 +73,12 @@ void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth,
                       : success   ? "Thumbnails complete"
                       : cancelled ? "Stopped"
                                   : "Thumbnail generation failed";
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, eyebrow, true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, title, true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY - 92, eyebrow, true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_14_FONT_ID, centerY - 54, title, true, EpdFontFamily::BOLD);
 
   char line[80];
   snprintf(line, sizeof(line), "Processed %d books", processedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, line, true, EpdFontFamily::REGULAR);
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 10, line, true, EpdFontFamily::REGULAR);
 
   const int barW = std::min(300, pageWidth - 72);
   constexpr int barH = 6;
@@ -97,11 +97,11 @@ void drawThumbnailProgressView(const GfxRenderer& renderer, const int pageWidth,
   drawThinProgressBar(renderer, barX, barY, barW, barH, fillX, fillW);
 
   snprintf(line, sizeof(line), "Generated %d   Skipped %d   Failed %d", generatedCount, skippedCount, failedCount);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, line, true, EpdFontFamily::REGULAR);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, barY + 26, line, true, EpdFontFamily::REGULAR);
 
   if (running && currentPath && currentPath[0] != '\0') {
-    const std::string path = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, currentPath, pageWidth - 60);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 54, path.c_str(), true, EpdFontFamily::REGULAR);
+    const std::string path = renderer.text.truncate(MONTSERRAT_8_FONT_ID, currentPath, pageWidth - 60);
+    renderer.text.centered(MONTSERRAT_8_FONT_ID, barY + 54, path.c_str(), true, EpdFontFamily::REGULAR);
   }
 }
 }  // namespace
@@ -339,11 +339,11 @@ void ThumbnailGeneratorActivity::render() {
   if (state == READY) {
     const int contentTop = INX_THEME.drawPageHeader(renderer, "Thumbnails");
     const int centerY = contentTop + (screenHeight - contentTop - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "GENERATE THUMBNAILS", true,
+    renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY - 92, "GENERATE THUMBNAILS", true,
                            EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Build missing covers", true,
+    renderer.text.centered(MONTSERRAT_14_FONT_ID, centerY - 54, "Build missing covers", true,
                            EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, "Existing thumbnails are skipped.", true,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 10, "Existing thumbnails are skipped.", true,
                            EpdFontFamily::REGULAR);
 
     const int barW = std::min(300, pageWidth - 72);
@@ -351,11 +351,11 @@ void ThumbnailGeneratorActivity::render() {
     const int barX = (pageWidth - barW) / 2;
     const int barY = centerY + 28;
     drawThinProgressBar(renderer, barX, barY, barW, barH, 0, 0);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, "Ready to scan EPUB and XTC books", true,
+    renderer.text.centered(MONTSERRAT_8_FONT_ID, barY + 26, "Ready to scan EPUB and XTC books", true,
                            EpdFontFamily::REGULAR);
 
     const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Start", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
@@ -364,7 +364,7 @@ void ThumbnailGeneratorActivity::render() {
     drawThumbnailProgressView(renderer, pageWidth, screenHeight, true, false, false, processedCount, generatedCount,
                               skippedCount, failedCount, currentPath);
     const auto labels = mappedInput.mapLabels("Stop", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
@@ -373,7 +373,7 @@ void ThumbnailGeneratorActivity::render() {
                             processedCount, generatedCount, skippedCount, failedCount, nullptr);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
 

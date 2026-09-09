@@ -67,7 +67,7 @@ void Carousel::render(const int index, const int x, const int y, const int width
   const auto& books = RECENT_BOOKS.getBooks();
   if (books.empty()) {
     if (width > 0 && height > 0) {
-      renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, y + height / 2, "No recent books");
+      renderer_.text.centered(MONTSERRAT_12_FONT_ID, y + height / 2, "No recent books");
     }
     return;
   }
@@ -136,19 +136,19 @@ void Carousel::render(const std::vector<RecentBook>& books, const int index, con
   if (currentIndex > 0) {
     const RecentBook& leftBook = books[static_cast<size_t>(currentIndex - 1)];
     renderer_.rectangle.fill(leftX, sideY, sideWidth, sideHeight, false, roundedCorners);
-    thumbnailRenderer(context, leftBook, leftX, sideY, sideWidth, sideHeight, ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
+    thumbnailRenderer(context, leftBook, leftX, sideY, sideWidth, sideHeight, MONTSERRAT_10_FONT_ID, true);
   }
 
   if (currentIndex + 1 < static_cast<int>(books.size())) {
     const RecentBook& rightBook = books[static_cast<size_t>(currentIndex + 1)];
     renderer_.rectangle.fill(rightX, sideY, sideWidth, sideHeight, false, roundedCorners);
-    thumbnailRenderer(context, rightBook, rightX, sideY, sideWidth, sideHeight, ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
+    thumbnailRenderer(context, rightBook, rightX, sideY, sideWidth, sideHeight, MONTSERRAT_10_FONT_ID, true);
   }
 
   const RecentBook& currentBook = books[static_cast<size_t>(currentIndex)];
   renderer_.rectangle.fill(centerX, centerY, centerWidth, centerHeight, false, roundedCorners);
   thumbnailRenderer(context, currentBook, centerX, centerY, centerWidth, centerHeight,
-                    ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);
+                    MONTSERRAT_14_FONT_ID, true);
 }
 
 }  // namespace widget

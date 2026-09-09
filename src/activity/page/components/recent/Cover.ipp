@@ -8,7 +8,7 @@ void RecentActivity::renderCoverMode() {
   const int bodyH = std::max(1, bodyBottom - bodyTop);
 
   if (recentBooks.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bodyTop + bodyH / 2 - 8, "No recent books", true);
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, bodyTop + bodyH / 2 - 8, "No recent books", true);
     return;
   }
 
@@ -65,7 +65,7 @@ void RecentActivity::renderCoverMode() {
   }
   if (!coverDrawn) {
     drawRecentNoCoverPlaceholder(renderer, coverX, coverY, coverW, coverH, bookDisplayTitle(b),
-                                 ATKINSON_HYPERLEGIBLE_14_FONT_ID);
+                                 MONTSERRAT_14_FONT_ID);
   }
   renderer.rectangle.render(coverX - 2, coverY - 2, coverW + 4, coverH + 4, true, rr);
 

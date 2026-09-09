@@ -266,8 +266,8 @@ struct BookSettings {
 
     fontFamily = data[offset++];
     if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
-      /** Legacy enum had a removed first slot; map non-Atkinson values to Literata (0). */
-      if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
+      /** Preserve the legacy Literata slot; the former Atkinson slot now resolves to Montserrat. */
+      if (fontFamily != SystemSetting::MONTSERRAT) {
         fontFamily = SystemSetting::LITERATA;
       }
     }

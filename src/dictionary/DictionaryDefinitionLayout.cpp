@@ -164,15 +164,15 @@ std::vector<DefinitionStyledLine> wrapAtomsToWidth(const GfxRenderer& renderer,
 
 int fontIdForBlock(const DefinitionBlock& block) {
   if (block.kind != DefinitionBlockKind::Heading) {
-    return ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    return MONTSERRAT_10_FONT_ID;
   }
   if (block.headingLevel <= 1) {
-    return ATKINSON_HYPERLEGIBLE_16_FONT_ID;
+    return MONTSERRAT_16_FONT_ID;
   }
   if (block.headingLevel == 2) {
-    return ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    return MONTSERRAT_14_FONT_ID;
   }
-  return ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  return MONTSERRAT_12_FONT_ID;
 }
 
 std::string asciiLowerCopy(std::string s) {

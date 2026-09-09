@@ -60,7 +60,7 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
   const bool charging = gpio.isUsbConnected();
 #endif
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + BATTERY_ICON_WIDTH + BATTERY_TEXT_GAP, top,
+  renderer.text.render(MONTSERRAT_8_FONT_ID, left + BATTERY_ICON_WIDTH + BATTERY_TEXT_GAP, top,
                        percentageText.c_str());
   renderer.bitmap.icon(BatteryIcon, left, top + BATTERY_ICON_TOP_OFFSET, BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT);
 
@@ -87,7 +87,7 @@ bool ScreenComponents::drawMenuClock(const GfxRenderer& renderer, const int left
     return false;
   }
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left, top, clockText, true);
+  renderer.text.render(MONTSERRAT_8_FONT_ID, left, top, clockText, true);
   return true;
 }
 
@@ -97,7 +97,7 @@ void ScreenComponents::drawMenuClockAndBattery(const GfxRenderer& renderer, cons
 
   char clockText[10] = {};
   if (formatMenuClock(clockText, sizeof(clockText))) {
-    const int clockFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int clockFont = MONTSERRAT_8_FONT_ID;
     const int clockW = renderer.text.getWidth(clockFont, clockText);
     renderer.text.render(clockFont, batteryLeft - kClockBatteryGap - clockW, top, clockText, true);
   }
@@ -111,7 +111,7 @@ ScreenComponents::PopupLayout ScreenComponents::drawPopup(const GfxRenderer& ren
   constexpr int marginX = 14;
   constexpr int marginY = 10;
   constexpr int bottomGap = 18;
-  constexpr int fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int fontId = MONTSERRAT_10_FONT_ID;
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
@@ -184,7 +184,7 @@ ScreenComponents::LoadingProgressLayout ScreenComponents::LoadingProgress::show(
   const int clamped = std::max(0, std::min(100, progressPercent0to100));
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  constexpr int labelFontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int labelFontId = MONTSERRAT_10_FONT_ID;
   const int lhLabel = renderer.text.getLineHeight(labelFontId);
 
   constexpr int kMinBarW = 80;
@@ -249,16 +249,16 @@ int ScreenComponents::drawTabBar(const GfxRenderer& renderer, const int y, const
   constexpr int underlineHeight = 2;
   constexpr int underlineGap = 4;
 
-  const int lineHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID);
+  const int lineHeight = renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID);
   const int tabBarHeight = lineHeight + underlineGap + underlineHeight;
 
   int currentX = leftMargin;
 
   for (const auto& tab : tabs) {
-    const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, tab.label,
+    const int textWidth = renderer.text.getWidth(MONTSERRAT_12_FONT_ID, tab.label,
                                                  tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, currentX, y, tab.label, true,
+    renderer.text.render(MONTSERRAT_12_FONT_ID, currentX, y, tab.label, true,
                          tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     if (tab.selected) {
@@ -300,12 +300,12 @@ void ScreenComponents::drawScrollIndicator(const GfxRenderer& renderer, const in
   }
 
   const std::string pageText = std::to_string(currentPage) + "/" + std::to_string(totalPages);
-  const int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageText.c_str());
+  const int textWidth = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, pageText.c_str());
   const int textX = centerX - textWidth / 2;
   const int textY =
-      (indicatorTop + indicatorBottom) / 2 - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) / 2;
+      (indicatorTop + indicatorBottom) / 2 - renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID) / 2;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, textY, pageText.c_str());
+  renderer.text.render(MONTSERRAT_8_FONT_ID, textX, textY, pageText.c_str());
 }
 
 void ScreenComponents::drawProgressBar(const GfxRenderer& renderer, const int x, const int y, const int width,
@@ -324,5 +324,5 @@ void ScreenComponents::drawProgressBar(const GfxRenderer& renderer, const int x,
   }
 
   const std::string percentText = std::to_string(percent) + "%";
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, y + height + 15, percentText.c_str());
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, y + height + 15, percentText.c_str());
 }

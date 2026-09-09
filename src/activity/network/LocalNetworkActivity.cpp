@@ -238,18 +238,18 @@ void LocalNetworkActivity::render() const {
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Please wait...");
   } else if (state == LocalNetworkState::ERROR) {
     const int contentStart = renderActivityHeader(renderer, startY, "Local Network");
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 20, "Could not start server");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY + 10, "Press Back to try again");
   }
 
   auto labels = mappedInput.mapLabels("« Back", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }
@@ -266,9 +266,9 @@ void LocalNetworkActivity::renderServerRunning() const {
   std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
 
   const int bodyTop = contentStart + 56;
-  const int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  const int titleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
-  const int bodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int labelFont = MONTSERRAT_8_FONT_ID;
+  const int titleFont = MONTSERRAT_14_FONT_ID;
+  const int bodyFont = MONTSERRAT_10_FONT_ID;
 
   renderer.text.centered(labelFont, bodyTop, "LOCAL TRANSFER", true, EpdFontFamily::BOLD);
   renderer.text.centered(titleFont, bodyTop + 34, "Ready on WiFi", true, EpdFontFamily::BOLD);
@@ -276,9 +276,9 @@ void LocalNetworkActivity::renderServerRunning() const {
 
   const int urlY = bodyTop + 136;
   renderer.text.centered(labelFont, urlY, "OPEN IN BROWSER", true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, urlY + 32, ipUrl.c_str(), true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, urlY + 64, hostnameUrl.c_str());
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, urlY + 32, ipUrl.c_str(), true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, urlY + 64, hostnameUrl.c_str());
 
   const int hintY = renderer.getScreenHeight() - 92;
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, hintY, "Keep this screen open while transferring");
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, hintY, "Keep this screen open while transferring");
 }

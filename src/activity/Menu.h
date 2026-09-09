@@ -59,7 +59,7 @@ class Menu {
   void renderButtonHints(const GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                          const char* btn4) const {
     // Button-hint suppression is global (UiRender policy from SETTINGS.hideButtonHints).
-    INX_THEME.drawButtonHints(renderer, ATKINSON_HYPERLEGIBLE_10_FONT_ID, btn1, btn2, btn3, btn4);
+    INX_THEME.drawButtonHints(renderer, MONTSERRAT_10_FONT_ID, btn1, btn2, btn3, btn4);
     if (INX_THEME.mainTabsAtBottom()) {
       renderTabBar(renderer);
     }

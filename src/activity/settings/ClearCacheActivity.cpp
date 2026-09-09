@@ -25,8 +25,8 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-constexpr int kMetaFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int kBodyFont = MONTSERRAT_10_FONT_ID;
+constexpr int kMetaFont = MONTSERRAT_8_FONT_ID;
 constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 }  // namespace
 

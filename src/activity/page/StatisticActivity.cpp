@@ -29,8 +29,8 @@ namespace {
 
 constexpr unsigned long GO_HOME_MS = 1000;
 
-constexpr int FONT_SANS = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-constexpr int FONT_SANS_SM = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int FONT_SANS = MONTSERRAT_10_FONT_ID;
+constexpr int FONT_SANS_SM = MONTSERRAT_8_FONT_ID;
 constexpr int FONT_SERIF = LITERATA_14_FONT_ID;
 constexpr int FONT_SERIF_MD = LITERATA_16_FONT_ID;
 constexpr int FONT_SERIF_LG = LITERATA_18_FONT_ID;

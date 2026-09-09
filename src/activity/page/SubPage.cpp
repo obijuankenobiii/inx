@@ -17,5 +17,5 @@ SubPage::SubPage(GfxRenderer& renderer, MappedInputManager& mappedInput) : SubPa
 
 void SubPage::title() const {
   renderer.bitmap.icon(Close, 20, 15, 40, 40);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_16_FONT_ID, 72, 26, name(), true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_16_FONT_ID, 72, 26, name(), true, EpdFontFamily::BOLD);
 }

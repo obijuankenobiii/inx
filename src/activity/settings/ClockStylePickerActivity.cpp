@@ -81,15 +81,15 @@ void ClockStylePickerActivity::render() {
 
   const char* name = SleepClockRenderer::styleName(selectedIndex);
   renderer.rectangle.fill(0, 0, pageWidth, 24, false);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 8, 6, name, true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_8_FONT_ID, 8, 6, name, true, EpdFontFamily::BOLD);
   char countText[8];
   std::snprintf(countText, sizeof(countText), "%d/%d", selectedIndex + 1, SleepClockRenderer::styleCount());
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
-                       pageWidth - renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, countText) - 8, 6, countText,
+  renderer.text.render(MONTSERRAT_8_FONT_ID,
+                       pageWidth - renderer.text.getWidth(MONTSERRAT_8_FONT_ID, countText) - 8, 6, countText,
                        true);
 
   const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Select", "Prev", "Next");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
 

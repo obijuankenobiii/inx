@@ -165,9 +165,9 @@ void CalibreSettingsActivity::render() {
     if (isSelected) {
       renderer.rectangle.fill(0, itemY, pageWidth, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    const int settingY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int settingY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
     const char* status = "[Not Set]";
     if (i == 0) {
@@ -177,14 +177,14 @@ void CalibreSettingsActivity::render() {
     } else if (i == 2) {
       status = (strlen(SETTINGS.opdsPassword) > 0) ? "[Set]" : "[Not Set]";
     }
-    const auto width = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
+    const auto width = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, status);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
     renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
                          LineRender::Style::Dotted);
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

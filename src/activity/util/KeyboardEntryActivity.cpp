@@ -239,10 +239,10 @@ void KeyboardEntryActivity::render() const {
 
   renderer.clearScreen();
 
-  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-  constexpr int inputFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-  constexpr int keyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int hintFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int titleFont = MONTSERRAT_16_FONT_ID;
+  constexpr int inputFont = MONTSERRAT_12_FONT_ID;
+  constexpr int keyFont = MONTSERRAT_10_FONT_ID;
+  constexpr int hintFont = MONTSERRAT_10_FONT_ID;
 
   renderer.text.render(titleFont, PAGE_MARGIN, 22, title.c_str(), true, EpdFontFamily::BOLD);
 
@@ -349,7 +349,7 @@ void KeyboardEntryActivity::render() const {
   }
 
   const auto labels = mappedInput.mapLabels("Back", "Select", "Prev", "Next");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

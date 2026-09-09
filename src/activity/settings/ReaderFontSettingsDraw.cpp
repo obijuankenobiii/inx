@@ -51,7 +51,7 @@ void drawFontFamilyRowValue(const GfxRenderer& renderer, uint8_t fontFamily, int
   if (!familyLabel || familyLabel[0] == '\0') {
     return;
   }
-  constexpr int previewFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  constexpr int previewFont = MONTSERRAT_8_FONT_ID;
   const bool black = !rowSelected;
   const int valW = renderer.text.getWidth(previewFont, familyLabel, EpdFontFamily::REGULAR);
   const int lh = renderer.text.getLineHeight(previewFont);
@@ -66,9 +66,9 @@ void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily,
   const bool ink = !rowSelected;
   const uint8_t sel = std::min<uint8_t>(fontSizeIndex, 4);
   constexpr int kN = 5;
-  constexpr int fidSel = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int fidMin = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  constexpr int fidMax = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  constexpr int fidSel = MONTSERRAT_10_FONT_ID;
+  constexpr int fidMin = MONTSERRAT_8_FONT_ID;
+  constexpr int fidMax = MONTSERRAT_12_FONT_ID;
 
   const int trackY = itemY + itemHeight - 9;
   const int maxPreviewW = std::max(24, valueAreaRight - valueAreaLeft - 8);

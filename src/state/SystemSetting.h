@@ -207,7 +207,7 @@ class SystemSetting {
    */
   enum FONT_FAMILY {
     LITERATA = 0,               ///< Literata (default body font)
-    ATKINSON_HYPERLEGIBLE = 1,  ///< Atkinson Hyperlegible
+    MONTSERRAT = 1,              ///< Montserrat (replaces the former Atkinson built-in slot)
     FONT_FAMILY_BUILTIN_COUNT,
     FONT_FAMILY_COUNT = FONT_FAMILY_BUILTIN_COUNT  ///< Built-in count; reader option count includes SD families
   };

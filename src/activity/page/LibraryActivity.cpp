@@ -567,18 +567,18 @@ int LibraryActivity::drawHeaderButton(const std::string& text, int headerY, int 
   int buttonX = rightX - BUTTON_WIDTH;
   int buttonY = headerY;
 
-  int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, text.c_str());
+  int textWidth = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, text.c_str());
   int textX = buttonX + (BUTTON_WIDTH - textWidth) / 2;
-  int textY = buttonY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  int textY = buttonY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
   if (isSelected) {
     renderer.rectangle.fill(buttonX, buttonY, BUTTON_WIDTH, headerHeight);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str(), false);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, text.c_str(), false);
     return buttonX - BUTTON_PADDING;
   }
 
   renderer.line.render(buttonX, buttonY, buttonX, buttonY + headerHeight - 1);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str());
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, text.c_str());
   return buttonX - BUTTON_PADDING;
 }
 
@@ -1638,7 +1638,7 @@ void LibraryActivity::render() const {
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
   const bool showIndexButton = shouldShowIndexButton();
   int containerWidth = screenWidth - 110;
   if (showIndexButton) {
@@ -1649,7 +1649,7 @@ void LibraryActivity::render() const {
   if (headerSelected)
     renderer.rectangle.fill(0, headerY, containerWidth, headerHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                        EpdFontFamily::BOLD);
   int headerButtonRightX = drawSortButton(headerY, headerHeight, screenWidth);
   if (showIndexButton) {
@@ -1660,9 +1660,9 @@ void LibraryActivity::render() const {
   renderLibrarySubheading(dividerY);
 
   if (isInitialLoading_) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Loading library");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, gridStartY + 130, "Loading library");
   } else if (isIndexing_) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Refreshing library");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, gridStartY + 130, "Refreshing library");
   } else {
     suppressShelfSelectionHighlight_ = canUseShelfBuffer;
     renderLibraryList(gridStartY);
@@ -1712,7 +1712,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
   renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
   renderer.rectangle.render(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true);
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, panelY + pad + 3, "Filter", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, panelY + pad + 3, "Filter", true, EpdFontFamily::BOLD);
 
   for (int i = 0; i < 9; ++i) {
     const int col = i % 3;
@@ -1732,7 +1732,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
     if (selected) {
       renderer.rectangle.fill(selectorX, selectorY, selectorSize, selectorSize, true, true, true);
     }
-    const int fontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    const int fontId = MONTSERRAT_12_FONT_ID;
     const int textW = renderer.text.getWidth(fontId, label, EpdFontFamily::BOLD);
     const int textY = y + (cellH - renderer.text.getLineHeight(fontId)) / 2;
     renderer.text.render(fontId, x + (cellW - textW) / 2, textY, label, !selected, EpdFontFamily::BOLD);
@@ -1745,7 +1745,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
     renderer.rectangle.fill(allX, allY, selectorSize, selectorSize, true, true, true);
   }
   constexpr const char* allLabel = "All";
-  const int fontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int fontId = MONTSERRAT_12_FONT_ID;
   const int allTextW = renderer.text.getWidth(fontId, allLabel, EpdFontFamily::BOLD);
   const int allTextY = allY + (selectorSize - renderer.text.getLineHeight(fontId)) / 2;
   renderer.text.render(fontId, panelX + (panelW - allTextW) / 2, allTextY, allLabel, !allSelected, EpdFontFamily::BOLD);
@@ -2819,7 +2819,7 @@ int LibraryActivity::librarySubheadingHeight() const {
 int LibraryActivity::renderLibrarySubheading(int startY) const {
   const int screenWidth = renderer.getScreenWidth() - 1;
   const int height = librarySubheadingHeight();
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int fontId = MONTSERRAT_8_FONT_ID;
   const int textY = startY + (height - renderer.text.getLineHeight(fontId)) / 2 + 1;
   std::string leftText;
 
@@ -2867,7 +2867,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
   if (items.empty()) {
     int messageY = startY + 150;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, messageY,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, messageY,
                            libraryLetterFilter_ == 0 ? "No books found" : "No matching items");
     return;
   }
@@ -3130,7 +3130,7 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
       // Books without a cover show their title centered in the card, same fallback as the Recent page
       // thumbnails (drawRecentNoCoverPlaceholder) instead of a generic book icon.
       drawShelfNoCoverTitle(renderer, coverX + 4, coverY, coverW - 8, coverH, item.displayName,
-                            ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                            MONTSERRAT_10_FONT_ID);
     }
   }
 
@@ -3142,7 +3142,7 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   // label lines up with the cover instead of the slot's own padding. Vertical position stays pinned
   // to the slot's bottom edge so label rows line up across cards whose covers differ in height.
   drawShelfCardLabel(renderer, boxX, coverY + coverH + 3, boxW, LIB_SHELF_LABEL_HEIGHT - 3, item.displayName,
-                     labelSubtitle, ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+                     labelSubtitle, MONTSERRAT_10_FONT_ID);
 
   int badgeY = boxY + 3;
   const int badgeX = boxX + boxW - LIB_SHELF_BADGE_SIZE - 3;
@@ -3301,10 +3301,10 @@ void LibraryActivity::renderLibraryGrid(int startY) const {
 
     const int labelY = iconY + iconH + LIB_GRID_LABEL_GAP;
     const std::string label =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, items[i].displayName.c_str(), frameW - 10);
-    const int labelW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, label.c_str());
+        renderer.text.truncate(MONTSERRAT_10_FONT_ID, items[i].displayName.c_str(), frameW - 10);
+    const int labelW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, label.c_str());
     const int labelX = boxX + std::max(4, (frameW - labelW) / 2);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labelX, labelY - 10, label.c_str(), !selected);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, labelX, labelY - 10, label.c_str(), !selected);
   }
 }
 
@@ -3380,10 +3380,10 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
                                                                   (badgeCount - 1) * LIB_BOOK_LIST_BADGE_GAP + 10
                                                             : 15;
   const int textWidth = std::max(40, screenWidth - textX - badgeReserve);
-  const int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  const int textY = drawY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
   std::string displayText =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
+      renderer.text.truncate(MONTSERRAT_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
 
   if (showBookBadges) {
     renderBookListBadges(item, drawY, itemHeight, isSelected, screenWidth);

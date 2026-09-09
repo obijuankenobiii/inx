@@ -5,15 +5,29 @@
 
 #include "Home.h"
 
+#include <Arduino.h>
 #include <GfxRenderer.h>
 
 #include <algorithm>
+#include <functional>
+#include <string>
 
 #include "components/widget/Carousel.h"
 #include "images/Hamburger.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/UiLayout.h"
+
+extern void onGoToLibrary(const std::string& path);
+extern void onGoToSettings();
+extern void onGoToFileTransfer();
+
+namespace {
+
+constexpr unsigned long kDoubleBackWindowMs = 450;
+unsigned long lastBackReleaseMs = 0;
+
+}  // namespace
 
 Home::Home(GfxRenderer& renderer, MappedInputManager& mappedInput) : Page("Home", renderer, mappedInput) {}
 
@@ -23,9 +37,21 @@ void Home::onEnter() {
 }
 
 void Home::loop() {
-  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-    sidebarOpen = !sidebarOpen;
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    const unsigned long now = millis();
+    const bool doubleBack = lastBackReleaseMs != 0 && now - lastBackReleaseMs <= kDoubleBackWindowMs;
+    lastBackReleaseMs = doubleBack ? 0 : now;
+    if (doubleBack) {
+      sidebarOpen = true;
+    } else {
+      sidebarOpen = !sidebarOpen;
+    }
     requestRender();
+    return;
+  }
+
+  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
+    return;
   }
 
   Page::loop();
@@ -39,7 +65,7 @@ void Home::menu() {
 void Home::title() const {
   renderer.bitmap.icon(Hamburger, UiLayout::MENU_LEFT_MARGIN, UiLayout::MENU_TOP_PADDING, UiLayout::MENU_ICON_SIZE,
                        UiLayout::MENU_ICON_SIZE);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_16_FONT_ID,
+  renderer.text.render(MONTSERRAT_16_FONT_ID,
                        UiLayout::MENU_LEFT_MARGIN + UiLayout::MENU_ICON_SIZE + 12, UiLayout::MENU_TOP_PADDING, name(), true,
                        EpdFontFamily::BOLD);
 }
@@ -57,4 +83,21 @@ void Home::content() {
   widget::Carousel carousel(renderer);
   // Hardcoded to the first recent book until Home navigation/state is migrated.
   carousel.render(0, 0, top(), renderer.getScreenWidth(), std::min(widget::Carousel::kHeight, contentHeight));
+}
+
+void Home::navigateToSelectedMenu() {
+  switch (tabSelectorIndex) {
+    case 1:
+      onGoToLibrary("/");
+      break;
+    case 2:
+      onGoToSettings();
+      break;
+    case 3:
+      onGoToFileTransfer();
+      break;
+    default:
+      // Home is the first tab; the fifth slot is the visual search control for now.
+      break;
+  }
 }

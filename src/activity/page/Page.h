@@ -25,9 +25,11 @@ class Page : public Activity, public navigation::Menu {
   void loop() override;
 
  protected:
+  virtual bool back();
   virtual void content();
   virtual void menu();
   void requestRender() { updateRequired = true; }
+  void renderIfNeeded();
 
  private:
   void render();

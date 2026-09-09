@@ -736,7 +736,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   const int panelBottom = screenH - margin - 40;  // leave room for the button-hint row below
   const int minPanelTop = margin;
 
-  const int titleFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int titleFontId = MONTSERRAT_12_FONT_ID;
   const int titleH = act.renderer.text.getLineHeight(titleFontId);
   const auto& styledLines = definitionLines_;
 
@@ -760,7 +760,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
 
   int y = panelTop + pad + titleH;
   {
-    const int tagFontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int tagFontId = MONTSERRAT_8_FONT_ID;
     std::string tag;
     if (wordAlreadySaved_) {
       tag = "\xE2\x98\x85 Saved";
@@ -788,7 +788,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
     x += act.renderer.text.getWidth(titleFontId, title, EpdFontFamily::BOLD);
 
     if (!matchedHeadword_.empty() && !sameWordIgnoreCase(lookedUpWord_, matchedHeadword_)) {
-      const int lemmaFontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+      const int lemmaFontId = MONTSERRAT_8_FONT_ID;
       const int lemmaY = y - titleH + (titleH - act.renderer.text.getLineHeight(lemmaFontId)) / 2;
       const char* sep = "  <  ";
       const int sepW = act.renderer.text.getWidth(lemmaFontId, sep);
@@ -847,9 +847,9 @@ void EpubDictionaryUi::drawUiOverlay(EpubActivity& act) {
   const char* leftHint = showingDefinition_ ? "Lang" : "Prev";
   const char* rightHint = showingDefinition_ ? "Lang" : "Next";
   const auto labels = act.mappedInput.mapLabels(back, mid, leftHint, rightHint);
-  act.renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  act.renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   const bool showUpDown = !showingDefinition_ || definitionScrollable_;
-  act.renderer.ui.sideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
+  act.renderer.ui.sideButtonHints(MONTSERRAT_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
   act.renderer.setOrientation(o);
   act.renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

@@ -80,15 +80,15 @@ bool readValueIncrease(const MappedInputManager& in, const GfxRenderer& r) {
 
 void drawModePill(const GfxRenderer& renderer, const int right, const int centerY, const char* label,
                   const bool filled) {
-  const int labelW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, label);
+  const int labelW = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, label);
   const int pillW = labelW + kDrawerHeaderPillPadX * 2;
   const int pillX = right - pillW;
   const int pillY = centerY - kDrawerHeaderPillHeight / 2;
   renderer.rectangle.fill(pillX, pillY, pillW, kDrawerHeaderPillHeight, filled, /*rounded=*/true, /*subtle=*/true);
   renderer.rectangle.render(pillX, pillY, pillW, kDrawerHeaderPillHeight, true, /*rounded=*/true, /*subtle=*/true);
   const int textY =
-      pillY + (kDrawerHeaderPillHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pillX + kDrawerHeaderPillPadX, textY, label, !filled,
+      pillY + (kDrawerHeaderPillHeight - renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_8_FONT_ID, pillX + kDrawerHeaderPillPadX, textY, label, !filled,
                        EpdFontFamily::BOLD);
 }
 
@@ -616,9 +616,9 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   if (!isLandscapeReader(renderer)) {
     if (mappedInputForHints_ != nullptr) {
       const auto labels = mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
     }
   }
   renderer.displayBuffer(mode);
@@ -632,8 +632,8 @@ void SettingsDrawer::drawBackground() {
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   const int headerCenterY = drawerY + drawerHeaderHeight() / 2;
-  const int titleY = headerCenterY - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + kDrawerHeaderHPad, titleY, "Book Settings", true,
+  const int titleY = headerCenterY - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) / 2;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, drawerX + kDrawerHeaderHPad, titleY, "Book Settings", true,
                        EpdFontFamily::BOLD);
 
   drawModePill(renderer, drawerX + drawerWidth - kDrawerHeaderHPad, headerCenterY, drawerModeLabel(settings),
@@ -668,13 +668,13 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   if (entry.item == MenuItem::Separator || entry.item == MenuItem::StatusBarSeparator ||
       entry.item == MenuItem::StatusBarFullSeparator) {
     const int textX = drawerX + 15;
-    const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+    const int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
     const char* indicator = entry.getValueText(settings);
     if (indicator && indicator[0] != '\0') {
-      const int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY, indicator,
+      const int indicatorW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, indicator);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, drawerX + drawerWidth - indicatorW - 30, textY, indicator,
                            isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
@@ -684,8 +684,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   }
 
   const int textX = drawerX + 23;
-  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
+  const int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, isSelected ? 0 : 1);
 
   const int valueColumnRight = drawerX + drawerWidth - 24;
   if (entry.item == MenuItem::FontFamily) {
@@ -737,8 +737,8 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     } else {
       const char* val = entry.getValueText(settings);
       if (val && val[0] != '\0') {
-        const int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, valueColumnRight - valW, textY, val, isSelected ? 0 : 1);
+        const int valW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, val);
+        renderer.text.render(MONTSERRAT_10_FONT_ID, valueColumnRight - valW, textY, val, isSelected ? 0 : 1);
       }
     }
   }

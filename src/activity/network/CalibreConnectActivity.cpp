@@ -465,20 +465,20 @@ void CalibreConnectActivity::render() const {
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Please wait...");
 
     auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == CalibreConnectState::ERROR) {
     const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Setup Failed");
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Exit to try again");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 20, "Could not start server");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY + 10, "Press Exit to try again");
 
     auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   renderer.displayBuffer();
@@ -495,40 +495,40 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
 
   int currentY = contentStart + SECTION_SPACING - 10;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true,
                        EpdFontFamily::BOLD);
   currentY += LINE_SPACING;
 
   std::string ssidInfo = connectedSSID;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY,
                        truncateString(ssidInfo, 34).c_str());
   currentY += LINE_SPACING;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, connectedIP.c_str());
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY, connectedIP.c_str());
   currentY += LINE_SPACING * 2;
 
   renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
   currentY += SECTION_SPACING;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Setup", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_12_FONT_ID, CONTENT_MARGIN, currentY, "Setup", true, EpdFontFamily::BOLD);
   currentY += LINE_SPACING;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY,
                        "1.) Install CrossPoint Reader plugin");
   currentY += SMALL_SPACING;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, "2.) Be on the same WiFi network");
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY, "2.) Be on the same WiFi network");
   currentY += SMALL_SPACING;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY,
                        "3.) In Calibre: \"Send to device\"");
   currentY += SMALL_SPACING + 20;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, CONTENT_MARGIN, currentY,
                        "Keep this screen open while sending");
   currentY += SMALL_SPACING * 2;
 
   renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
   currentY += SECTION_SPACING;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Status", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_12_FONT_ID, CONTENT_MARGIN, currentY, "Status", true, EpdFontFamily::BOLD);
   currentY += LINE_SPACING;
 
   if (lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal) {
@@ -536,7 +536,7 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
     if (!currentUploadName.empty()) {
       label += ": " + truncateString(currentUploadName, 30);
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, label.c_str());
+    renderer.text.render(MONTSERRAT_8_FONT_ID, CONTENT_MARGIN, currentY, label.c_str());
 
     constexpr int barWidth = 300;
     constexpr int barHeight = 16;
@@ -548,9 +548,9 @@ void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeig
 
   if (lastCompleteAt > 0 && (millis() - lastCompleteAt) < 6000) {
     std::string msg = "Received: " + truncateString(lastCompleteName, 30);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, msg.c_str());
+    renderer.text.render(MONTSERRAT_8_FONT_ID, CONTENT_MARGIN, currentY, msg.c_str());
   }
 
   auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

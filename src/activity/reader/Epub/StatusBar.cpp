@@ -71,7 +71,7 @@ void StatusBar::render(const Section* section, int currentSpineIndex, int orient
   const int screenHeight = m_renderer.getScreenHeight();
   const int screenWidth = m_renderer.getScreenWidth();
   const int fullHeight = reservedFullBarHeight();
-  const int lineHeight = m_renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID);
+  const int lineHeight = m_renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID);
   int textY = screenHeight - lineHeight - 5;
   if (fullHeight > 0) {
     int oT, oR, oB, oL;
@@ -138,7 +138,7 @@ void StatusBar::renderFullBar(const int barHeight, const Section* section, const
   const bool withPercent = style == StatusBarItem::PROGRESS_BAR_WITH_PERCENT;
   const std::string percentStr = withPercent ? getPercentString(bookProgress) : std::string();
   const int percentWidth =
-      withPercent ? m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentStr.c_str()) : 0;
+      withPercent ? m_renderer.text.getWidth(MONTSERRAT_8_FONT_ID, percentStr.c_str()) : 0;
 
   constexpr int barThickness = kFullProgressBarThickness;
   const int barY = barBottom - barThickness;
@@ -153,9 +153,9 @@ void StatusBar::renderFullBar(const int barHeight, const Section* section, const
   }
 
   if (withPercent) {
-    const int lineHeight = m_renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID);
+    const int lineHeight = m_renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID);
     const int textY = barBottom - lineHeight + barThickness;
-    m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, x1 - 2 - percentWidth, textY, percentStr.c_str());
+    m_renderer.text.render(MONTSERRAT_8_FONT_ID, x1 - 2 - percentWidth, textY, percentStr.c_str());
   }
 }
 
@@ -184,12 +184,12 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
   const std::string batteryPercentStr = getBatteryPercentString();
 
   auto getRightAlignedX = [&](const char* text) -> int {
-    int textWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
+    int textWidth = m_renderer.text.getWidth(MONTSERRAT_8_FONT_ID, text);
     return sectionStart + sectionWidth - textWidth - 5;
   };
 
   auto getCenteredX = [&](const char* text) -> int {
-    int textWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, text);
+    int textWidth = m_renderer.text.getWidth(MONTSERRAT_8_FONT_ID, text);
     return sectionCenter - (textWidth / 2);
   };
 
@@ -209,21 +209,21 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
   switch (config.item) {
     case StatusBarItem::PAGE_NUMBERS: {
       int xPos = getPositionX(pageStr.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, pageStr.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, pageStr.c_str());
       break;
     }
 
     case StatusBarItem::PERCENTAGE: {
       int xPos = getPositionX(percentStr.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, percentStr.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, percentStr.c_str());
       break;
     }
 
     case StatusBarItem::CHAPTER_TITLE: {
       int maxWidth = sectionWidth - 10;
-      std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, chapterTitle.c_str(), maxWidth);
+      std::string truncated = m_renderer.text.truncate(MONTSERRAT_8_FONT_ID, chapterTitle.c_str(), maxWidth);
       int xPos = getPositionX(truncated.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, truncated.c_str());
       break;
     }
 
@@ -242,7 +242,7 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
 
     case StatusBarItem::BATTERY_PERCENTAGE: {
       int xPos = getPositionX(batteryPercentStr.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, batteryPercentStr.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, batteryPercentStr.c_str());
       break;
     }
 
@@ -273,7 +273,7 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
     }
 
     case StatusBarItem::PROGRESS_BAR_WITH_PERCENT: {
-      int percentWidth = m_renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentStr.c_str());
+      int percentWidth = m_renderer.text.getWidth(MONTSERRAT_8_FONT_ID, percentStr.c_str());
       int barWidth = std::min(80, sectionWidth - percentWidth - 20);
 
       int barX, percentX;
@@ -292,7 +292,7 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
       if (fillWidth > 0) {
         m_renderer.rectangle.fill(barX + 1, barY + 1, fillWidth, 4, true);
       }
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, percentX, textY, percentStr.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, percentX, textY, percentStr.c_str());
       break;
     }
 
@@ -303,41 +303,41 @@ void StatusBar::renderSection(int position, int sectionStart, int sectionCenter,
     case StatusBarItem::BOOK_TITLE: {
       std::string bookTitle = m_epub.getTitle();
       int maxWidth = sectionWidth - 10;
-      std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, bookTitle.c_str(), maxWidth);
+      std::string truncated = m_renderer.text.truncate(MONTSERRAT_8_FONT_ID, bookTitle.c_str(), maxWidth);
       int xPos = getPositionX(truncated.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, truncated.c_str());
       break;
     }
 
     case StatusBarItem::AUTHOR_NAME: {
       std::string author = m_epub.getAuthor();
       int maxWidth = sectionWidth - 10;
-      std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, author.c_str(), maxWidth);
+      std::string truncated = m_renderer.text.truncate(MONTSERRAT_8_FONT_ID, author.c_str(), maxWidth);
       int xPos = getPositionX(truncated.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, truncated.c_str());
       break;
     }
 
     case StatusBarItem::PAGE_NUMBERS_WITH_PERCENT: {
       std::string combined = pageStr + " " + percentStr;
       int maxWidth = sectionWidth - 10;
-      std::string truncated = m_renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, combined.c_str(), maxWidth);
+      std::string truncated = m_renderer.text.truncate(MONTSERRAT_8_FONT_ID, combined.c_str(), maxWidth);
       int xPos = getPositionX(truncated.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, truncated.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, truncated.c_str());
       break;
     }
 
     case StatusBarItem::TIME_LEFT_CHAPTER: {
       const std::string timeLeft = m_readingStats ? m_readingStats->chapterTimeLeftString(section) : "-";
       int xPos = getPositionX(timeLeft.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, timeLeft.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, timeLeft.c_str());
       break;
     }
 
     case StatusBarItem::TIME_LEFT_BOOK: {
       const std::string timeLeft = m_readingStats ? m_readingStats->bookTimeLeftString() : "-";
       int xPos = getPositionX(timeLeft.c_str());
-      m_renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, xPos, textY, timeLeft.c_str());
+      m_renderer.text.render(MONTSERRAT_8_FONT_ID, xPos, textY, timeLeft.c_str());
       break;
     }
 

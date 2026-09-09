@@ -495,7 +495,7 @@ void EpubFootnoteUi::drawBodyPanel(EpubActivity& act) {
   const int defaultPanelTop = screenH * 2 / 5;
   const int minPanelTop = margin;
 
-  const int titleFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int titleFontId = MONTSERRAT_12_FONT_ID;
   const int titleH = act.renderer.text.getLineHeight(titleFontId);
   const auto& styledLines = bodyLines_;
 
@@ -557,9 +557,9 @@ void EpubFootnoteUi::drawUiOverlay(EpubActivity& act) {
   const char* back = showingBody_ ? "Close" : "Exit";
   const char* mid = showingBody_ ? "" : "View";
   const auto labels = act.mappedInput.mapLabels(back, mid, "Prev", "Next");
-  act.renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  act.renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   const bool showUpDown = !showingBody_ || bodyScrollable_;
-  act.renderer.ui.sideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
+  act.renderer.ui.sideButtonHints(MONTSERRAT_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
   act.renderer.setOrientation(o);
   act.renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

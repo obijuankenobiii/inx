@@ -170,33 +170,33 @@ void OpdsBookBrowserActivity::render() const {
   const int bodyTop = INX_THEME.drawPageHeader(renderer, "OPDS Browser");
 
   if (state == BrowserState::CHECK_WIFI) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::LOADING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::ERROR) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 20, "Error:");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 + 10, errorMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2 - 20, "Error:");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2 + 10, errorMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "Retry", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == BrowserState::DOWNLOADING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 40, "Downloading...");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2 - 40, "Downloading...");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
     if (downloadTotal > 0) {
       const int barWidth = pageWidth - 100;
       constexpr int barHeight = 20;
@@ -213,10 +213,10 @@ void OpdsBookBrowserActivity::render() const {
     confirmLabel = "Download";
   }
   const auto labels = mappedInput.mapLabels("« Back", confirmLabel, "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (entries.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyTop + (pageHeight - bodyTop - 80) / 2,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, bodyTop + (pageHeight - bodyTop - 80) / 2,
                            "No entries found");
     renderer.displayBuffer();
     return;
@@ -244,9 +244,9 @@ void OpdsBookBrowserActivity::render() const {
     }
 
     auto item =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
-    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, item.c_str(), !isSelected);
+        renderer.text.truncate(MONTSERRAT_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, item.c_str(), !isSelected);
     renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
                          LineRender::Style::Dotted);
   }

@@ -130,11 +130,11 @@ int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, cons
 
   const int paddedHeaderH = headerH - UiLayout::PAGE_HEADER_TOP_PADDING - UiLayout::PAGE_HEADER_BOTTOM_PADDING;
   const int titleY = startY + UiLayout::PAGE_HEADER_TOP_PADDING +
-                     (paddedHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_14_FONT_ID)) / 2 + 4;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_14_FONT_ID, titleX, titleY, title, true, EpdFontFamily::BOLD);
+                     (paddedHeaderH - renderer.text.getLineHeight(MONTSERRAT_14_FONT_ID)) / 2 + 4;
+  renderer.text.render(MONTSERRAT_14_FONT_ID, titleX, titleY, title, true, EpdFontFamily::BOLD);
 
   if (trailingText && trailingText[0] != '\0') {
-    const int trailingFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+    const int trailingFont = MONTSERRAT_10_FONT_ID;
     const int trailingW = renderer.text.getWidth(trailingFont, trailingText);
     const int trailingY =
         startY + UiLayout::PAGE_HEADER_TOP_PADDING +

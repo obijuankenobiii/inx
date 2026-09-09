@@ -20,6 +20,7 @@ class Home final : public Page {
   void menu() override;
   void title() const override;
   void content() override;
+  void navigateToSelectedMenu() override;
   int top() const;
   int bottom() const;
 

@@ -25,9 +25,9 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-constexpr int kTitleFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-constexpr int kMetaFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int kBodyFont = MONTSERRAT_10_FONT_ID;
+constexpr int kTitleFont = MONTSERRAT_12_FONT_ID;
+constexpr int kMetaFont = MONTSERRAT_8_FONT_ID;
 constexpr int kRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr const char* kBackupRoot = "/.system/backup";
 

@@ -377,7 +377,7 @@ void SettingsActivity::showIndexingProgress() {
   } else {
     snprintf(countMsg, sizeof(countMsg), "Found %d files...", indexingProgress);
   }
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
 
   renderer.displayBuffer();
 }

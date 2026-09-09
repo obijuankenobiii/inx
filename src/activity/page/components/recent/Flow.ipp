@@ -2,7 +2,7 @@ void recent::Flow::render(RecentActivity& self) { self.renderFlow(); }
 
 void RecentActivity::renderFlow() {
   if (recentBooks.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, "No recent books");
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2, "No recent books");
     return;
   }
 
@@ -21,8 +21,8 @@ void RecentActivity::renderFlow() {
   const BookReadingStats& stats = cachedStats.stats;
   const bool hasStats = cachedStats.loaded;
 
-  const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int VALUE_FONT = MONTSERRAT_16_FONT_ID;
+  const int LABEL_FONT = MONTSERRAT_10_FONT_ID;
 
   int statsX = 30;
   int statsY = carouselY + widget::Carousel::kHeight + 25;
@@ -35,16 +35,16 @@ void RecentActivity::renderFlow() {
     title = formatTitle(getBaseFilename(currentBook.path));
   }
   std::string truncatedTitle =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_18_FONT_ID, title.c_str(), screenW - 60, EpdFontFamily::BOLD);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY, truncatedTitle.c_str(), true,
+      renderer.text.truncate(MONTSERRAT_18_FONT_ID, title.c_str(), screenW - 60, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY, truncatedTitle.c_str(), true,
                        EpdFontFamily::BOLD);
 
-  int authorY = statsY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_18_FONT_ID) - 5;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
+  int authorY = statsY + renderer.text.getLineHeight(MONTSERRAT_18_FONT_ID) - 5;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
 
   float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
   if (progress >= 0) {
-    int barY = authorY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) + 20;
+    int barY = authorY + renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) + 20;
     int barW = (screenW - 60) * 0.5;
     int barH = 6;
 
@@ -58,7 +58,7 @@ void RecentActivity::renderFlow() {
     char percentText[8];
     int percent = (int)(progress + 0.5f);
     snprintf(percentText, sizeof(percentText), "%d%%", percent);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
+    renderer.text.render(MONTSERRAT_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
   }
 
   if (hasStats) {

@@ -104,7 +104,7 @@ void ImageViewerActivity::loadImages() {
 void ImageViewerActivity::render() {
   renderer.clearScreen();
   if (images_.empty() || currentIndex_ < 0 || currentIndex_ >= static_cast<int>(images_.size())) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, renderer.getScreenHeight() / 2, "Image unavailable");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, renderer.getScreenHeight() / 2, "Image unavailable");
     renderer.displayBuffer();
     return;
   }
@@ -126,7 +126,7 @@ void ImageViewerActivity::render() {
       image.displayGrayscale(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), options, /*quality=*/true);
   if (!rendered) {
     renderer.clearScreen();
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, renderer.getScreenHeight() / 2, "Image unavailable");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, renderer.getScreenHeight() / 2, "Image unavailable");
     renderer.displayBuffer();
   }
 }

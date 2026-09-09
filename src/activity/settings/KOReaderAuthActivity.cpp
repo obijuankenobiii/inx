@@ -122,27 +122,27 @@ void KOReaderAuthActivity::render() {
   INX_THEME.drawPageHeader(renderer, "KOReader Auth");
 
   if (state == AUTHENTICATING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Success!", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "KOReader sync is ready to use");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "Success!", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 320, "KOReader sync is ready to use");
 
     const auto labels = mappedInput.mapLabels("Done", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, errorMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 320, errorMessage.c_str());
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }

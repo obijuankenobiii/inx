@@ -186,7 +186,7 @@ ViewportInfo EpubActivity::calculateViewport() {
                                         ? (fullBarHeight > 0 ? statusBarCombinedTopGap : statusBarTopGap)
                                         : 0;
     const int mainStatusBarReserve =
-        renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_8_FONT_ID) + statusBarMargin + mainStatusBarTopGap;
+        renderer.text.getLineHeight(MONTSERRAT_8_FONT_ID) + statusBarMargin + mainStatusBarTopGap;
     info.totalMarginBottom +=
         mainStatusBarReserve - bookSettings.screenMargin +
         (showProgressBar ? (ScreenComponents::BOOK_PROGRESS_BAR_HEIGHT + progressBarMarginTop) : 0);
@@ -2196,13 +2196,13 @@ void EpubActivity::displayBookTitle() {
 
   int maxWidth = renderer.getScreenWidth() * 0.6;
 
-  int titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str());
+  int titleWidth = renderer.text.getWidth(MONTSERRAT_12_FONT_ID, bookTitle.c_str());
 
   if (titleWidth > maxWidth) {
-    bookTitle = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_12_FONT_ID, bookTitle.c_str(), maxWidth);
+    bookTitle = renderer.text.truncate(MONTSERRAT_12_FONT_ID, bookTitle.c_str(), maxWidth);
   }
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, bookTitle.c_str(), true,
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2, bookTitle.c_str(), true,
                          EpdFontFamily::BOLD);
   renderer.displayBuffer();
 }

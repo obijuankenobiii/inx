@@ -251,27 +251,27 @@ void KOReaderSyncActivity::render() {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "KOReader Sync", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, 15, "KOReader Sync", true, EpdFontFamily::BOLD);
 
   if (state == NO_CREDENTIALS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "No credentials configured", true,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "No credentials configured", true,
                            EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "Set up KOReader account in Settings");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 320, "Set up KOReader account in Settings");
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SYNCING || state == UPLOADING) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SHOWING_RESULT) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 120, "Progress found!", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 120, "Progress found!", true, EpdFontFamily::BOLD);
 
     const int remoteTocIndex = epub->getTocIndexForSpineIndex(remotePosition.spineIndex);
     const std::string remoteChapter = (remoteTocIndex >= 0)
@@ -280,29 +280,29 @@ void KOReaderSyncActivity::render() {
     const std::string localChapter =
         !localChapterName.empty() ? localChapterName : ("Section " + std::to_string(currentSpineIndex + 1));
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 160, "Remote:", true);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 160, "Remote:", true);
     char remoteChapterStr[128];
     snprintf(remoteChapterStr, sizeof(remoteChapterStr), "  %s", remoteChapter.c_str());
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 185, remoteChapterStr);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 185, remoteChapterStr);
     char remotePageStr[64];
     snprintf(remotePageStr, sizeof(remotePageStr), "  Page %d, %.2f%% overall", remotePosition.pageNumber + 1,
              remoteProgress.percentage * 100);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 210, remotePageStr);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 210, remotePageStr);
 
     if (!remoteProgress.device.empty()) {
       char deviceStr[64];
       snprintf(deviceStr, sizeof(deviceStr), "  From: %s", remoteProgress.device.c_str());
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 235, deviceStr);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 235, deviceStr);
     }
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 270, "Local:", true);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 270, "Local:", true);
     char localChapterStr[128];
     snprintf(localChapterStr, sizeof(localChapterStr), "  %s", localChapter.c_str());
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 295, localChapterStr);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 295, localChapterStr);
     char localPageStr[64];
     snprintf(localPageStr, sizeof(localPageStr), "  Page %d/%d, %.2f%% overall", currentPage + 1, totalPagesInSpine,
              localProgress.percentage * 100);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 320, localPageStr);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 320, localPageStr);
 
     const int optionY = 350;
     const int optionHeight = 30;
@@ -311,47 +311,47 @@ void KOReaderSyncActivity::render() {
       renderer.rectangle.fill(0, optionY - 2, pageWidth - 1, optionHeight,
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY, "Apply remote progress", selectedOption != 0);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, optionY, "Apply remote progress", selectedOption != 0);
 
     if (selectedOption == 1) {
       renderer.rectangle.fill(0, optionY + optionHeight - 2, pageWidth - 1, optionHeight,
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, optionY + optionHeight, "Upload local progress",
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, optionY + optionHeight, "Upload local progress",
                          selectedOption != 1);
 
     const auto labels = mappedInput.mapLabels("Back", "Select", "Dir Up", "Dir Down");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == NO_REMOTE_PROGRESS) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "No remote progress found", true,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "No remote progress found", true,
                            EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, "Upload current position?");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 320, "Upload current position?");
 
     const auto labels = mappedInput.mapLabels("Cancel", "Upload", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == UPLOAD_COMPLETE) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 300, "Progress uploaded!", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 300, "Progress uploaded!", true, EpdFontFamily::BOLD);
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SYNC_FAILED) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 280, "Sync failed", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 320, statusMessage.c_str());
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 280, "Sync failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 320, statusMessage.c_str());
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }

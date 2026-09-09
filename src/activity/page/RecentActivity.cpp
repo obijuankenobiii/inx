@@ -256,7 +256,7 @@ static void drawProgressBadge(const GfxRenderer& renderer, const IconRect& cover
   } else {
     snprintf(label, sizeof(label), "%d%%", static_cast<int>(progress * 100.0f + 0.5f));
   }
-  constexpr int font = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  constexpr int font = MONTSERRAT_8_FONT_ID;
   const int textW = renderer.text.getWidth(font, label);
   const int textH = renderer.text.getLineHeight(font);
   const int badgeW = std::max(22, textW + 8);
@@ -590,16 +590,16 @@ void RecentActivity::renderRemoveConfirmation() {
   if (removeConfirmIndex_ >= 0 && removeConfirmIndex_ < static_cast<int>(recentBooks.size())) {
     title = bookDisplayTitle(recentBooks[static_cast<size_t>(removeConfirmIndex_)]);
   }
-  title = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, title.c_str(), screenW - 64);
+  title = renderer.text.truncate(MONTSERRAT_10_FONT_ID, title.c_str(), screenW - 64);
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "RECENT BOOK", true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Remove from recent?", true,
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY - 92, "RECENT BOOK", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_14_FONT_ID, centerY - 54, "Remove from recent?", true,
                          EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, title.c_str(), true, EpdFontFamily::REGULAR);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 26, "The book file and reading progress will stay.",
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 10, title.c_str(), true, EpdFontFamily::REGULAR);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY + 26, "The book file and reading progress will stay.",
                          true, EpdFontFamily::REGULAR);
   const auto labels = mappedInput.mapLabels("Cancel", "Remove", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
   updateRequired = false;
 }
@@ -676,7 +676,7 @@ void RecentActivity::renderInitialLoadingFrame() {
   const int top = mainContentTop();
   const int bottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 42;
   const int centerY = top + std::max(1, bottom - top) / 2 - 12;
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Loading recents");
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Loading recents");
 
   renderer.displayBuffer();
 }
@@ -684,12 +684,12 @@ void RecentActivity::renderInitialLoadingFrame() {
 void RecentActivity::renderSdCardUnavailableMessage() {
   const int top = mainContentTop();
   const int bottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : renderer.getScreenHeight() - 42;
-  const int lineHeight = renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+  const int lineHeight = renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID);
   const int centerY = top + std::max(1, bottom - top) / 2;
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - lineHeight, "SD card not available", true,
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - lineHeight, "SD card not available", true,
                          EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 8, "Storage features are disabled");
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY + 8, "Storage features are disabled");
 }
 
 void RecentActivity::openHomeMenuDrawer() {
@@ -812,7 +812,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     }
   }
   drawRecentThumbnailAt(drawX, drawY, drawW, drawH, book.cachePath, bookDisplayTitle(book),
-                        ATKINSON_HYPERLEGIBLE_10_FONT_ID, selected);
+                        MONTSERRAT_10_FONT_ID, selected);
 
   if (book.progress >= 0.0f && book.progress <= 1.0f) {
     const float prog = recentDisplayProgress(book);
@@ -827,7 +827,7 @@ void RecentActivity::renderGridItem(int gridX, int gridY, int startY, const Rece
     } else {
       snprintf(pText, sizeof(pText), "%d%%", static_cast<int>(prog * 100.0f + 0.5f));
     }
-    constexpr int kPctFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    constexpr int kPctFont = MONTSERRAT_8_FONT_ID;
     const int pW = renderer.text.getWidth(kPctFont, pText);
     const int pH = renderer.text.getLineHeight(kPctFont);
     const int pX = barX + barW - pW;

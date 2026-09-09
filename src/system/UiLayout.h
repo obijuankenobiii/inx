@@ -25,11 +25,16 @@ constexpr int MENU_ITEM_COUNT = 5;
 constexpr int MENU_TOP_PADDING = 20;
 constexpr int MENU_ICON_SIZE = 40;
 constexpr int MENU_LEFT_MARGIN = 20;
-constexpr int MENU_BOTTOM_PADDING = 10;
+constexpr int MENU_BOTTOM_PADDING = 15;
 constexpr int MENU_BOTTOM_SIZE = 70;
 constexpr int MENU_BOTTOM_HEIGHT = MENU_BOTTOM_SIZE + MENU_BOTTOM_PADDING;
 constexpr int MENU_HEIGHT = MENU_TOP_PADDING + MENU_ICON_SIZE + MENU_BOTTOM_PADDING;
 constexpr int SHELL_BATTERY_RIGHT_MARGIN = 10;
+
+// Library header controls.
+constexpr int LIBRARY_HEADER_BUTTON_SIZE = 40;
+constexpr int LIBRARY_HEADER_BUTTON_GAP = 25;
+constexpr int LIBRARY_HEADER_BUTTON_PADDING = 10;
 
 // Recent Flow carousel geometry.
 constexpr int FLOW_CAROUSEL_HEIGHT = 340;

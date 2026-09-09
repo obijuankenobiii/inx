@@ -711,8 +711,8 @@ void EpubAnnotationUi::drawUiOverlay(EpubActivity& act) {
   const char* backHint = hasSaveableContent() ? "Save" : "Exit";
   const char* mid = selectingStarted_ ? "Stop" : "Start";
   const auto labels = act.mappedInput.mapLabels(backHint, mid, "Prev", "Next");
-  act.renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  act.renderer.ui.sideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Reset", "Up", "Down");
+  act.renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  act.renderer.ui.sideButtonHints(MONTSERRAT_10_FONT_ID, "Reset", "Up", "Down");
   act.renderer.setOrientation(o);
   act.renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

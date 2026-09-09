@@ -8,6 +8,7 @@
 class GfxRenderer;
 
 #include "system/UiLayout.h"
+#include "system/MenuNav.h"
 
 namespace navigation {
 
@@ -34,6 +35,30 @@ class Menu {
 
   virtual const char* name() const { return ""; }
   virtual void title() const {}
+  virtual void center() const {}
+  virtual bool showBattery() const { return true; }
+
+ protected:
+  static constexpr int tabCount = UiLayout::MENU_ITEM_COUNT;
+  int tabSelectorIndex = 0;
+
+  MappedInputManager::Button tabPrevButton() const { return MenuNav::tabPrev(); }
+  MappedInputManager::Button tabNextButton() const { return MenuNav::tabNext(); }
+  MappedInputManager::Button itemPrevButton() const { return MenuNav::itemPrev(); }
+  MappedInputManager::Button itemNextButton() const { return MenuNav::itemNext(); }
+
+  void handleTabNavigation(bool leftPressed, bool rightPressed) {
+    if (leftPressed) {
+      tabSelectorIndex = (tabSelectorIndex - 1 + tabCount) % tabCount;
+      navigateToSelectedMenu();
+    }
+    if (rightPressed) {
+      tabSelectorIndex = (tabSelectorIndex + 1) % tabCount;
+      navigateToSelectedMenu();
+    }
+  }
+
+  virtual void navigateToSelectedMenu() {}
 
  void render() const;
 

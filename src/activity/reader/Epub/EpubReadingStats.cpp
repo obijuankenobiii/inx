@@ -242,15 +242,15 @@ void EpubReadingStats::display(GfxRenderer& renderer, const Epub& epub) const {
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  constexpr int valueFont = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-  constexpr int labelFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int valueFont = MONTSERRAT_18_FONT_ID;
+  constexpr int labelFont = MONTSERRAT_10_FONT_ID;
 
   const int statsX = (screenW - 250) / 2;
   const int statsY = (screenH - 300) / 2;
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatTime(stats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);

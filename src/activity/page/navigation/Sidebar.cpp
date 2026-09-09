@@ -39,12 +39,12 @@ void Sidebar::render(const GfxRenderer& renderer, const char* title) {
   const int width = std::min(UiLayout::SIDEBAR_WIDTH_LIMIT, renderer.getScreenWidth() / 2);
   renderer.rectangle.fill(0, 0, width, renderer.getScreenHeight(), false);
   renderer.line.render(width - 1, 0, width - 1, renderer.getScreenHeight(), true);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_16_FONT_ID, UiLayout::MENU_LEFT_MARGIN, 25, title ? title : "", true,
+  renderer.text.render(MONTSERRAT_16_FONT_ID, UiLayout::MENU_LEFT_MARGIN, 25, title ? title : "", true,
                        EpdFontFamily::BOLD);
   renderer.line.render(UiLayout::MENU_LEFT_MARGIN, UiLayout::HEADER_HEIGHT + 14,
                        width - UiLayout::MENU_LEFT_MARGIN, UiLayout::HEADER_HEIGHT + 14, true);
 
-  constexpr int font = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  constexpr int font = MONTSERRAT_12_FONT_ID;
   const int lineHeight = renderer.text.getLineHeight(font);
   for (size_t i = 0; i < kItemCount; ++i) {
     const int rowY = UiLayout::SIDEBAR_LIST_TOP + UiLayout::SIDEBAR_TOP_PADDING +

@@ -133,11 +133,11 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 15, "Select Chapter", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, 15, "Select Chapter", true, EpdFontFamily::BOLD);
 
   const auto& chapters = xtc->getChapters();
   if (chapters.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 120, "No chapters");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, 120, "No chapters");
     renderer.displayBuffer();
     return;
   }
@@ -148,12 +148,12 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
   for (int i = pageStartIndex; i < static_cast<int>(chapters.size()) && i < pageStartIndex + pageItems; i++) {
     const auto& chapter = chapters[i];
     const char* title = chapter.name.empty() ? "Unnamed" : chapter.name.c_str();
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
   }
 
   if (renderer.getOrientation() != GfxRenderer::LandscapeClockwise) {
     const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   renderer.displayBuffer();

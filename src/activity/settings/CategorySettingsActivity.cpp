@@ -778,8 +778,8 @@ void CategorySettingsActivity::renderSelectorOverlay() {
 
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
-  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int titleFont = MONTSERRAT_10_FONT_ID;
+  constexpr int itemFont = MONTSERRAT_10_FONT_ID;
   constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
   const int headerHeight = INX_THEME.drawerHeaderHeight() - 4;
   constexpr int visibleRows = 5;
@@ -851,12 +851,12 @@ void CategorySettingsActivity::render() {
 
   const int headerY = mainContentTop();
   const int headerHeight = mainHeaderHeight();
-  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
 
   // Version shown as a small rounded tag: black rounded background with white text.
-  const int verFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int verFont = MONTSERRAT_8_FONT_ID;
   const int verPadX = 8;
   const int versionW = renderer.text.getWidth(verFont, INX_VERSION);
   const int verLineH = renderer.text.getLineHeight(verFont);
@@ -898,14 +898,14 @@ void CategorySettingsActivity::render() {
       }
 
       int textX = 20;
-      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+      renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
+        int indicatorW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, indicator);
+        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+        renderer.text.render(MONTSERRAT_10_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
                              !isSelected);
       }
 
@@ -920,9 +920,9 @@ void CategorySettingsActivity::render() {
     }
 
     int textX = entry.group == GroupType::NONE ? 20 : 28;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, !isSelected);
 
     const bool useCheckbox = (entry.type == SettingType::TOGGLE && entry.valuePtr);
     if (useCheckbox) {
@@ -941,9 +941,9 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
+        int valW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, val);
+        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+        renderer.text.render(MONTSERRAT_10_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
       }
     }
 
@@ -964,7 +964,7 @@ void CategorySettingsActivity::render() {
     // other bottom-tabs screens rely on the tab bar alone.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
                            hintsY);
   }
 

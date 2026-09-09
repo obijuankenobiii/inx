@@ -29,7 +29,7 @@ Menu::Menu(GfxRenderer& renderer) : menuRenderer(renderer) {}
 
 void Menu::drawBattery() const {
   const bool showPercentage = SETTINGS.hideBatteryPercentage != SystemSetting::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-  const int textWidth = showPercentage ? menuRenderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, "100%") : 0;
+  const int textWidth = showPercentage ? menuRenderer.text.getWidth(MONTSERRAT_8_FONT_ID, "100%") : 0;
   const int width = showPercentage ? ScreenComponents::BATTERY_ICON_WIDTH + ScreenComponents::BATTERY_TEXT_GAP + textWidth
                                    : ScreenComponents::BATTERY_ICON_WIDTH;
   const int x = menuRenderer.getScreenWidth() - UiLayout::SHELL_BATTERY_RIGHT_MARGIN - width;
@@ -39,7 +39,10 @@ void Menu::drawBattery() const {
 
 void Menu::render() const {
   title();
-  drawBattery();
+  center();
+  if (showBattery()) {
+    drawBattery();
+  }
 
   const int screenWidth = menuRenderer.getScreenWidth();
   const int screenHeight = menuRenderer.getScreenHeight();
