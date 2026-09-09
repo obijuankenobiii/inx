@@ -191,6 +191,18 @@ class SystemSetting {
   };
 
   /**
+   * @brief System UI text size options.
+   *
+   * These affect device UI text only; reader text sizing remains in ReaderSetting.
+   */
+  enum SYSTEM_TEXT_SIZE {
+    SYSTEM_TEXT_SMALL = 0,
+    SYSTEM_TEXT_MEDIUM = 1,
+    SYSTEM_TEXT_LARGE = 2,
+    SYSTEM_TEXT_SIZE_COUNT
+  };
+
+  /**
    * @brief Reader menu button assignment
    */
   enum READER_MENU_BUTTON {
@@ -465,6 +477,8 @@ class SystemSetting {
   uint8_t shakePageTurn = 0;
   /** X3 gyro threshold: 0=low, 1=normal, 2=high sensitivity. */
   uint8_t shakePageTurnSensitivity = 1;
+  /** System UI text size: Small=10pt, Medium=12pt, Large=14pt. */
+  uint8_t systemTextSize = SYSTEM_TEXT_SMALL;
 
   ~SystemSetting() = default;
 

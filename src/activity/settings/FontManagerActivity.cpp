@@ -11,10 +11,10 @@
 #include "activity/page/SubPage.h"
 #include "activity/network/WifiSelectionActivity.h"
 #include "activity/page/components/global/Button.h"
+#include "activity/page/components/global/PopUp.h"
 #include "images/Check.h"
 #include "images/Download.h"
 #include "images/LibraryFilterRight.h"
-#include "images/Trash.h"
 #include "state/ReaderSetting.h"
 #include "system/FontManager.h"
 #include "system/Fonts.h"
@@ -27,7 +27,6 @@ constexpr uint32_t kInstallTaskStack = 8192;
 constexpr int kBottomMargin = 44;
 constexpr int kSideMargin = 20;
 constexpr int kActionIconSize = 40;
-constexpr int kActionIconGap = 12;
 constexpr int kScrollCaretSize = 40;
 constexpr int kTabWidth = 120;
 constexpr int kTabHeight = Button::height - 10;
@@ -147,7 +146,7 @@ void FontManagerActivity::installTaskTrampoline(void* param) {
 
 void FontManagerActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
-  state_ = State::Loading;
+  state_ = State::Ready;
   status_.clear();
   selectedIndex_ = 0;
   scrollOffset_ = 0;
@@ -157,13 +156,15 @@ void FontManagerActivity::onEnter() {
   packages_.clear();
   activeVariant_ = 1;
   installingPackageIndex_ = -1;
+  installedPopupOpen_ = false;
+  installedPopupPackageIndex_ = -1;
+  installedPopupActionIndex_ = 0;
   progressDownloaded_ = 0;
   progressTotal_ = 0;
   updateRequired_ = false;
   shuttingDown_ = false;
   lastProgressPercent_ = -1;
   lastProgressUpdateMs_ = 0;
-  render();
   loadPackages();
 }
 
@@ -307,7 +308,7 @@ void FontManagerActivity::installSelected() {
   if (packageIndex < 0) return;
 
   if (FontPackageManager::isInstalled(packages_[static_cast<size_t>(packageIndex)])) {
-    selectInstalled();
+    openInstalledPopup();
     return;
   }
 
@@ -326,30 +327,8 @@ void FontManagerActivity::installSelected() {
   startInstallation();
 }
 
-void FontManagerActivity::selectInstalled() {
-  const int packageIndex = packageIndexAt(selectedIndex_);
-  if (packageIndex < 0) return;
-
-  const FontPackageManager::Package& package = packages_[static_cast<size_t>(packageIndex)];
-  const std::string family = StringUtils::sanitizeFilename(package.installFamily, 48);
-  const std::vector<std::string> families = FontManager::readerFontFamilyEnumLabels();
-  const auto familyIt = std::find(families.begin(), families.end(), family);
-  if (familyIt == families.end()) {
-    status_ = "Installed font is unavailable.";
-    selectedVisible_ = false;
-    updateDisplay();
-    return;
-  }
-
-  READER_SETTINGS.fontFamily = static_cast<uint8_t>(std::distance(families.begin(), familyIt));
-  READER_SETTINGS.saveToFile();
-  status_ = "Font selected.";
-  selectedVisible_ = false;
-  updateDisplay();
-}
-
 void FontManagerActivity::removeSelected() {
-  const int packageIndex = packageIndexAt(selectedIndex_);
+  const int packageIndex = installedPopupPackageIndex_ >= 0 ? installedPopupPackageIndex_ : packageIndexAt(selectedIndex_);
   if (packageIndex < 0) return;
 
   const FontPackageManager::Package& package = packages_[static_cast<size_t>(packageIndex)];
@@ -362,6 +341,8 @@ void FontManagerActivity::removeSelected() {
   std::string error;
   if (!FontPackageManager::remove(package, error)) {
     status_ = error.empty() ? "Font removal failed." : error;
+    installedPopupOpen_ = false;
+    installedPopupPackageIndex_ = -1;
     updateDisplay();
     return;
   }
@@ -370,9 +351,65 @@ void FontManagerActivity::removeSelected() {
     READER_SETTINGS.fontFamily = SystemSetting::MONTSERRAT;
     READER_SETTINGS.saveToFile();
   }
+  installedPopupOpen_ = false;
+  installedPopupPackageIndex_ = -1;
   selectedVisible_ = false;
   status_ = "Font removed.";
   updateDisplay();
+}
+
+void FontManagerActivity::openInstalledPopup() {
+  const int packageIndex = packageIndexAt(selectedIndex_);
+  if (packageIndex < 0) return;
+  installedPopupPackageIndex_ = packageIndex;
+  installedPopupActionIndex_ = 0;
+  installedPopupOpen_ = true;
+  updateDisplay();
+}
+
+bool FontManagerActivity::handleInstalledPopupInput() {
+  if (!installedPopupOpen_) return false;
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    installedPopupOpen_ = false;
+    installedPopupPackageIndex_ = -1;
+    updateDisplay();
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    installedPopupActionIndex_ = (installedPopupActionIndex_ + 1) % 2;
+    updateDisplay();
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    installedPopupActionIndex_ = (installedPopupActionIndex_ + 1) % 2;
+    updateDisplay();
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    if (installedPopupActionIndex_ == 0) {
+      removeSelected();
+    } else {
+      installedPopupOpen_ = false;
+      installedPopupPackageIndex_ = -1;
+      updateDisplay();
+    }
+    return true;
+  }
+  return true;
+}
+
+void FontManagerActivity::renderInstalledPopup() const {
+  if (!installedPopupOpen_ || installedPopupPackageIndex_ < 0 ||
+      installedPopupPackageIndex_ >= static_cast<int>(packages_.size())) {
+    return;
+  }
+  const std::vector<std::string> actions = {"Delete", "Cancel"};
+  const PopUpBounds box = PopUp::bounds(renderer, static_cast<int>(actions.size()));
+  PopUp::background(renderer, box);
+  PopUp::title(renderer, box, displayFontName(packages_[static_cast<size_t>(installedPopupPackageIndex_)].name));
+  PopUp::list(renderer, box, actions, installedPopupActionIndex_, 0);
+  PopUp::border(renderer, box);
 }
 
 void FontManagerActivity::startInstallation() {
@@ -488,14 +525,6 @@ void FontManagerActivity::render() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
 
-  if (state_ == State::Loading) {
-    renderer.text.centered(font, screenH / 2 - 16, "Loading fonts...", true, EpdFontFamily::BOLD);
-    renderer.text.centered(font, screenH / 2 + 18, "Please wait", true, EpdFontFamily::REGULAR);
-    mappedInput.mapLabels("\xC2\xAB Back", "", "", "");
-    renderer.displayBuffer();
-    return;
-  }
-
   if (state_ == State::Downloading) {
     const int centerY = bodyTop + (screenH - bodyTop - 80) / 2;
     renderer.text.centered(font, centerY - 72, "DOWNLOADING FONT", true, EpdFontFamily::BOLD);
@@ -553,9 +582,8 @@ void FontManagerActivity::render() {
       const bool selected = selectedVisible_ && index == selectedIndex_;
       if (selected) renderer.rectangle.fill(0, y, screenW, kRowHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       const int textY = y + (kRowHeight - renderer.text.getLineHeight(font)) / 2;
-      const int deleteIconX = screenW - kSideMargin - kActionIconSize;
-      const int actionIconX = deleteIconX - kActionIconGap - kActionIconSize;
-      const int maxNameWidth = screenW - (kSideMargin * 2) - (kActionIconSize * 2) - kActionIconGap - 20;
+      const int actionIconX = screenW - kSideMargin - kActionIconSize;
+      const int maxNameWidth = screenW - (kSideMargin * 2) - kActionIconSize - 20;
       const std::string displayName = displayFontName(packages_[static_cast<size_t>(packageIndex)].name);
       const std::string packageName = renderer.text.truncate(font, displayName.c_str(), maxNameWidth,
                                                               EpdFontFamily::REGULAR);
@@ -571,10 +599,8 @@ void FontManagerActivity::render() {
       if (installed) {
         renderer.bitmap.icon(Check, actionIconX, iconY, kActionIconSize, kActionIconSize,
                              BitmapRender::Orientation::None, selected);
-        renderer.bitmap.icon(Trash, deleteIconX, iconY, kActionIconSize, kActionIconSize,
-                             BitmapRender::Orientation::None, selected);
       } else {
-        renderer.bitmap.icon(Download, deleteIconX, iconY, kActionIconSize, kActionIconSize,
+        renderer.bitmap.icon(Download, actionIconX, iconY, kActionIconSize, kActionIconSize,
                              BitmapRender::Orientation::None, selected);
       }
       if (index + 1 < end) {
@@ -597,12 +623,18 @@ void FontManagerActivity::render() {
     }
     mappedInput.mapLabels("\xC2\xAB Back", state_ == State::Failed ? "Retry" : "", "", "");
   }
+  renderInstalledPopup();
   renderer.displayBuffer();
 }
 
 void FontManagerActivity::loop() {
   if (subActivity) {
     ActivityWithSubactivity::loop();
+    return;
+  }
+
+  if (installedPopupOpen_) {
+    handleInstalledPopupInput();
     return;
   }
 
@@ -642,8 +674,6 @@ void FontManagerActivity::loop() {
       return;
     }
   } else if (state_ == State::Failed && mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-    state_ = State::Loading;
-    updateDisplay();
     loadPackages();
   }
 }

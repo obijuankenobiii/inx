@@ -107,13 +107,23 @@ std::string Grid::displayTitle(const LibraryIndex::Book& item) {
 void Grid::drawItem(const LibraryIndex::Book& item, const int x, const int y, const int width, const int height,
                     const bool selected) const {
   constexpr int iconPadding = 8;
-  const int iconX = x + iconPadding;
-  const int iconY = y + iconPadding;
-  const int iconWidth = std::max(8, width - iconPadding * 2);
-  const int iconHeight = std::max(8, height - labelHeight - labelGap - iconPadding * 2);
-  const int iconSize = std::min(72, std::max(32, std::min(iconWidth, iconHeight) - 12));
-  const int drawX = iconX + (iconWidth - iconSize) / 2;
-  const int drawY = iconY + (iconHeight - iconSize) / 2;
+  constexpr int iconSize = 72;
+  const int font = systemFontId();
+  const int lineHeight = renderer_.text.getLineHeight(font);
+
+  const int available = std::max(20, width - 10);
+  std::string first;
+  std::string second;
+  titleLines(renderer_, displayTitle(item), font, available, first, second);
+  // Reserve the same two-line label area for every cell. Without this fixed
+  // area, one-line titles make their whole icon/label group shorter and shift
+  // the icon down relative to neighboring folders or books with two lines.
+  const int labelHeight = 2 * lineHeight;
+  const int iconAreaHeight = std::max(iconSize, height - labelHeight - labelGap - 2 * iconPadding);
+  const int groupHeight = iconAreaHeight + labelGap + labelHeight;
+  const int groupY = y + std::max(iconPadding, (height - groupHeight) / 2);
+  const int drawX = x + (width - iconSize) / 2;
+  const int drawY = groupY + (iconAreaHeight - iconSize) / 2;
   const uint8_t* icon = item.type == LibraryIndex::Book::Type::FOLDER ? FolderLarge
                                                                         : (isImage(item.path) ? ImageLarge : BookLarge);
   if (selected) {
@@ -121,15 +131,9 @@ void Grid::drawItem(const LibraryIndex::Book& item, const int x, const int y, co
   }
   renderer_.bitmap.icon(icon, drawX, drawY, iconSize, iconSize, BitmapRender::Orientation::None, selected);
 
-  constexpr int font = MONTSERRAT_10_FONT_ID;
-  const int available = std::max(20, width - 10);
-  std::string first;
-  std::string second;
-  titleLines(renderer_, displayTitle(item), font, available, first, second);
-  const int lineHeight = renderer_.text.getLineHeight(font);
-  // Keep the label a little closer to the icon than the legacy baseline while
-  // retaining the same responsive icon area and X3 row spacing.
-  const int labelY = iconY + iconHeight + labelGap - 14;
+  // Keep the label's first baseline at the same distance from the icon even
+  // when the second line is unused.
+  const int labelY = groupY + iconAreaHeight + labelGap;
   const int firstWidth = renderer_.text.getWidth(font, first.c_str());
   renderer_.text.render(font, x + (width - firstWidth) / 2, labelY, first.c_str(), !selected);
   if (!second.empty()) {

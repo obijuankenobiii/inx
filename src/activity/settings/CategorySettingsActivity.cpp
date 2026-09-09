@@ -244,7 +244,7 @@ void CategorySettingsActivity::renderGroupPage() {
   const int pageHeight = renderer.getScreenHeight();
   constexpr int rowHeight = UiLayout::LIST_ITEM_HEIGHT;
   constexpr int titleFont = MONTSERRAT_16_FONT_ID;
-  constexpr int itemFont = MONTSERRAT_10_FONT_ID;
+  const int itemFont = systemFontId();
   const int listTop = navigation::Menu::height + 20;
   const int visible = std::max(1, (pageHeight - listTop - 10) / rowHeight);
 
@@ -309,7 +309,7 @@ void CategorySettingsActivity::setupMenu() {
       entry.setting = settingPtr;
       const GroupType sepGroup = setting.group;
       if (embedded) {
-        entry.getValueText = []() -> const char* { return "\xC2\xBB"; };
+        entry.getValueText = []() -> const char* { return "›"; };
       } else {
         entry.getValueText = [this, sepGroup]() -> const char* {
           static char indicator[4];
@@ -955,6 +955,7 @@ void CategorySettingsActivity::render() {
   }
 
   const auto pageWidth = renderer.getScreenWidth();
+  const int itemFont = systemFontId();
 
   if (embedded && groupOpen) {
     renderer.clearScreen();
@@ -1000,6 +1001,16 @@ void CategorySettingsActivity::render() {
   constexpr int itemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
   int visibleCount = 0;
+  const auto hasNextRenderedRow = [&](const int currentOffset) {
+    for (int nextOffset = currentOffset + 1;
+         nextOffset < itemsPerPage && nextOffset + scrollOffset < static_cast<int>(menuItems.size()); ++nextOffset) {
+      const auto& nextEntry = menuItems[static_cast<size_t>(nextOffset + scrollOffset)];
+      if (nextEntry.type != SettingType::SEPARATOR || (nextEntry.name != nullptr && nextEntry.name[0] != '\0')) {
+        return true;
+      }
+    }
+    return false;
+  };
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < (int)menuItems.size(); i++) {
     int index = i + scrollOffset;
     const auto& entry = menuItems[index];
@@ -1010,6 +1021,7 @@ void CategorySettingsActivity::render() {
 
     int itemY = startY + (visibleCount * itemHeight);
     bool isSelected = (index == selectedIndex);
+    const bool hasNextRow = hasNextRenderedRow(i);
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
@@ -1017,19 +1029,21 @@ void CategorySettingsActivity::render() {
       }
 
       int textX = 20;
-      int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
-      renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, !isSelected);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+      renderer.text.render(itemFont, textX, textY, entry.name, !isSelected);
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, indicator);
-        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
-        renderer.text.render(MONTSERRAT_10_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
+        int indicatorW = renderer.text.getWidth(itemFont, indicator);
+        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+        renderer.text.render(itemFont, pageWidth - indicatorW - 30, indicatorY, indicator,
                              !isSelected);
       }
 
-      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       visibleCount++;
       continue;
     }
@@ -1039,9 +1053,9 @@ void CategorySettingsActivity::render() {
     }
 
     int textX = entry.group == GroupType::NONE ? 20 : 28;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
 
-    renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, entry.name, !isSelected);
+    renderer.text.render(itemFont, textX, textY, entry.name, !isSelected);
 
     const bool useCheckbox = (entry.type == SettingType::TOGGLE && entry.valuePtr);
     if (useCheckbox) {
@@ -1060,13 +1074,16 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, val);
-        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
-        renderer.text.render(MONTSERRAT_10_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
+        int valW = renderer.text.getWidth(itemFont, val);
+        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+        renderer.text.render(itemFont, pageWidth - valW - 30, valY, val, !isSelected);
       }
     }
 
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true, LineRender::Style::Dotted);
+    if (hasNextRow) {
+      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
+    }
     visibleCount++;
   }
 
@@ -1083,7 +1100,7 @@ void CategorySettingsActivity::render() {
     // other bottom-tabs screens rely on the tab bar alone.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
+    renderer.ui.buttonHints(itemFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
                            hintsY);
   }
 

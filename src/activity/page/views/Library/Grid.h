@@ -24,10 +24,7 @@ class Grid final {
   static constexpr int margin = 8;
   static constexpr int gapX = 8;
   static constexpr int minGapY = 6;
-  static constexpr int labelGap = 4;
-  // Match the legacy LibraryActivity grid: the label band is 28 px and the
-  // text is positioned with the same small upward font offset.
-  static constexpr int labelHeight = 28;
+  static constexpr int labelGap = 10;
   static constexpr int maxFrame = 148;
 
   GfxRenderer& renderer_;

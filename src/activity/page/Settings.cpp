@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "activity/page/navigation/Menu.h"
+#include "activity/page/components/global/Button.h"
 #include "activity/settings/CategorySettingsActivity.h"
 #include "activity/settings/ReaderPresetsActivity.h"
 #include "state/SystemSetting.h"
@@ -29,7 +30,7 @@ extern void onGoToStatistics();
 namespace {
 
 constexpr int kPanelTabY = navigation::Menu::height + 20;
-constexpr int kPanelTabHeight = UiLayout::LIST_ITEM_HEIGHT - 10;
+constexpr int kPanelTabHeight = Button::height - 10;
 constexpr int kPanelTabWidth = 120;
 constexpr int kPanelTabRight = 20;
 constexpr int kPanelTabCorner = 4;
@@ -74,7 +75,7 @@ void renderPanelTab(const GfxRenderer& renderer, int x, int y, int width, int he
     clearOutsideCorner(x + width - kPanelTabCorner - 1, y + height - kPanelTabCorner - 1, false, false);
   }
 
-  const int font = MONTSERRAT_10_FONT_ID;
+  const int font = systemFontId();
   const int textWidth = renderer.text.getWidth(font, label, EpdFontFamily::REGULAR);
   const int textY = y + (height - renderer.text.getLineHeight(font)) / 2;
   renderer.text.render(font, x + (width - textWidth) / 2, textY, label, !selected, EpdFontFamily::REGULAR);
@@ -96,6 +97,8 @@ std::vector<SettingInfo> buildSystemSettings(const bool x3) {
                                        {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
                                         GroupType::DEVICE_DISPLAY));
+  settings.push_back(SettingInfo::Enum("Text size", &SystemSetting::systemTextSize,
+                                       {"Small", "Medium", "Large"}, GroupType::DEVICE_DISPLAY));
 
   if (x3) {
     settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));
@@ -263,8 +266,10 @@ bool Settings::panelOverlayOpen() const {
 }
 
 void Settings::title() const {
-  renderer.text.render(MONTSERRAT_16_FONT_ID, UiLayout::MENU_LEFT_MARGIN, UiLayout::MENU_TOP_PADDING, name(), true,
-                       EpdFontFamily::BOLD);
+  const int font = MONTSERRAT_16_FONT_ID;
+  const int textY = navigation::Menu::topPadding +
+                    (navigation::Menu::iconSize - renderer.text.getLineHeight(font)) / 2;
+  renderer.text.render(font, navigation::Menu::leftMargin, textY, name(), true, EpdFontFamily::BOLD);
 }
 
 void Settings::panelTabs() {
@@ -277,16 +282,25 @@ void Settings::panelTabs() {
 }
 
 void Settings::content() {
+  // Keep the Settings tab strip visible while a child selector popup is open.
+  // Sub-pages are full-screen and intentionally replace the strip, but popups
+  // are overlays on the current tab and must not remove its navigation.
+  if (!panelSubPageOpen()) panelTabs();
   if (categoryPanel) categoryPanel->renderEmbedded();
   if (readerPanel) readerPanel->renderEmbedded();
   if (presetsPanel) presetsPanel->renderEmbedded();
-  if (!panelSubPageOpen() && !panelOverlayOpen()) panelTabs();
 }
 
 void Settings::menu() {
-  // Selector popups are overlays, not subpages: keep the shared header and
-  // bottom navigation visible after the popup draws in the single framebuffer.
-  if (!panelSubPageOpen() || panelOverlayOpen()) Page::menu();
+  // A detail subpage owns the full screen and draws its own header. Do not
+  // redraw the parent Settings shell afterward, otherwise its title is
+  // painted over the child header at the same coordinates.
+  if (panelSubPageOpen()) return;
+
+  // Settings owns the page shell. Draw it last for normal settings frames so a
+  // child panel's single-buffer clear or popup paper fill cannot erase the
+  // bottom navigation.
+  Page::menu();
 }
 
 bool Settings::back() {

@@ -303,6 +303,7 @@ void ReaderPresetsActivity::render() {
     updateRequired_ = true;
   }
   const int screenW = renderer.getScreenWidth();
+  const int itemFont = systemFontId();
   if (!embedded_) {
     renderer.clearScreen(0xFF);
   }
@@ -323,13 +324,13 @@ void ReaderPresetsActivity::render() {
 
     const int headerY = mainContentTop();
     const int headerHeight = mainHeaderHeight();
-    const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
-    renderer.text.render(MONTSERRAT_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
+    const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    renderer.text.render(itemFont, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
 
     const char* back = "\xC2\xAB Back";
-    const int backW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, back);
-    const int backY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
-    renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - 20 - backW, backY, back, true);
+    const int backW = renderer.text.getWidth(itemFont, back);
+    const int backY = headerY + (headerHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    renderer.text.render(itemFont, screenW - 20 - backW, backY, back, true);
     listTop = mainHeaderDividerY();
   }
   const int headerDividerY = listTop;
@@ -339,19 +340,22 @@ void ReaderPresetsActivity::render() {
     const int rowIndex = i + scrollOffset_;
     const int itemY = listTop + i * kListItemHeight;
     const bool isSelected = (rowIndex == selectedRow_);
-    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    const bool hasNextRow = i + 1 < itemsPerPage_ && rowIndex + 1 < rows;
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(itemFont)) / 2;
 
     if (!embedded_ && !presetsOnly_ && rowIndex == systemHeaderRow()) {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "System", isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, "System", isSelected ? 0 : 1);
       const char* tag = systemExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, tag);
-      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(itemFont, tag);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -384,16 +388,18 @@ void ReaderPresetsActivity::render() {
         value = "Configure >";
         isToggle = false;
       }
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
       if (isToggle) {
         Toggle::render(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight, toggleChecked, isSelected);
       } else {
-        const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
-        renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+        const int valueW = renderer.text.getWidth(itemFont, value);
+        renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                              isSelected ? 0 : 1);
       }
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -401,10 +407,12 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "Font Manager", isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, "Font Manager", isSelected ? 0 : 1);
       renderOpenNavigationIcon(renderer, screenW, itemY, kListItemHeight, isSelected);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -412,17 +420,19 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "Button & Action", isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, "Button & Action", isSelected ? 0 : 1);
       if (embedded_) {
         renderOpenNavigationIcon(renderer, screenW, itemY, kListItemHeight, isSelected);
       } else {
         const char* tag = buttonsExpanded_ ? "-" : "+";
-        const int tagW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, tag);
-        renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+        const int tagW = renderer.text.getWidth(itemFont, tag);
+        renderer.text.render(itemFont, screenW - kRowValueRightInset - tagW, textY, tag,
                              isSelected ? 0 : 1);
       }
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -433,12 +443,14 @@ void ReaderPresetsActivity::render() {
       const int idx = rowIndex - buttonsHeaderRow() - 1;  // 0-7
       const char* label = buttonActionRowLabel(idx, renderer.deviceIsX3());
       const char* value = readerButtonActionLabel(READER_SETTINGS.*(kButtonActionFields[idx]));
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
-      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -448,12 +460,14 @@ void ReaderPresetsActivity::render() {
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
       const char* label = "Power Button (short)";
       const char* value = readerButtonActionLabel(READER_SETTINGS.btnPowerShortAction);
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
-      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -463,11 +477,13 @@ void ReaderPresetsActivity::render() {
       } else {
         renderer.rectangle.fill(0, itemY, screenW, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Paper));
       }
-      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
+      renderer.text.render(itemFont, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -476,15 +492,17 @@ void ReaderPresetsActivity::render() {
         isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int presetIndex = presetIndexForRow(rowIndex);
     const std::string name = READER_PRESETS.nameOf(presetIndex);
-    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, name.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(itemFont, 20, textY, name.c_str(), isSelected ? 0 : 1);
     if (presetIndex == 0) {
       const char* tag = "Default";
       const int tagW = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, tag);
       renderer.text.render(MONTSERRAT_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
     }
-    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                         LineRender::Style::Dotted);
+    if (hasNextRow) {
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
+    }
   }
   if (!embedded_) renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
@@ -493,7 +511,7 @@ void ReaderPresetsActivity::render() {
     // goes, so redraw that same row just above the tab bar instead — matches CategorySettingsActivity.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "\xC2\xAB System", "Open", "", "", hintsY);
+    renderer.ui.buttonHints(itemFont, "\xC2\xAB System", "Open", "", "", hintsY);
   }
 
   if (!embedded_) {
@@ -514,6 +532,7 @@ void ReaderPresetsActivity::render() {
 void ReaderPresetsActivity::renderDetail() {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
+  const int itemFont = systemFontId();
   const int listTop = navigation::Menu::height + 20;
   const int visible = std::max(1, (screenH - listTop - 10) / kListItemHeight);
   const int rows = detailRowCount();
@@ -528,7 +547,7 @@ void ReaderPresetsActivity::renderDetail() {
     const int localRow = detailScrollOffset_ + i;
     const int itemY = listTop + i * kListItemHeight;
     const bool selected = localRow == detailSelectedRow_;
-    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(itemFont)) / 2;
     const char* label = "";
     const char* value = nullptr;
     bool toggle = false;
@@ -572,12 +591,12 @@ void ReaderPresetsActivity::renderDetail() {
     renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
                            selected ? static_cast<int>(GfxRenderer::FillTone::Ink)
                                     : static_cast<int>(GfxRenderer::FillTone::Paper));
-    renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label, !selected);
+    renderer.text.render(itemFont, 20, textY, label, !selected);
     if (toggle) {
       Toggle::render(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight, checked, selected);
     } else if (value) {
-      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, value);
-      renderer.text.render(MONTSERRAT_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value, !selected);
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value, !selected);
     }
     if (i + 1 < visible && detailScrollOffset_ + i + 1 < rows) {
       renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, !selected,

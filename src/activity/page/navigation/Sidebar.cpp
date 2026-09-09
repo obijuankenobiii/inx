@@ -33,9 +33,10 @@ constexpr Item kItems[] = {
 
 constexpr size_t kItemCount = sizeof(kItems) / sizeof(kItems[0]);
 
-}  // namespace
+constexpr int kInnerPadding = UiLayout::SIDEBAR_INNER_PADDING;
+constexpr int kTopPadding = UiLayout::SIDEBAR_TOP_PADDING;
 
-void Sidebar::render(const GfxRenderer& renderer, const char* title) {
+void renderFrame(const GfxRenderer& renderer, const char* title) {
   const int width = std::min(UiLayout::SIDEBAR_WIDTH_LIMIT, renderer.getScreenWidth() / 2);
   renderer.rectangle.fill(0, 0, width, renderer.getScreenHeight(), false);
   renderer.line.render(width - 1, 0, width - 1, renderer.getScreenHeight(), true);
@@ -43,8 +44,33 @@ void Sidebar::render(const GfxRenderer& renderer, const char* title) {
                        EpdFontFamily::BOLD);
   renderer.line.render(UiLayout::MENU_LEFT_MARGIN, UiLayout::HEADER_HEIGHT + 14,
                        width - UiLayout::MENU_LEFT_MARGIN, UiLayout::HEADER_HEIGHT + 14, true);
+}
 
-  constexpr int font = MONTSERRAT_12_FONT_ID;
+void renderTextList(const GfxRenderer& renderer, const char* const* labels, const size_t count,
+                    const int selected = -1) {
+  const int font = systemFontId();
+  const int lineHeight = renderer.text.getLineHeight(font);
+  const int x = kInnerPadding + 16;
+  const int drawerWidth = std::min(UiLayout::SIDEBAR_WIDTH_LIMIT, renderer.getScreenWidth() / 2);
+  for (size_t i = 0; i < count; ++i) {
+    const int rowY = UiLayout::SIDEBAR_LIST_TOP + kTopPadding +
+                     static_cast<int>(i) * (UiLayout::SIDEBAR_ROW_HEIGHT + UiLayout::SIDEBAR_ROW_GAP);
+    const bool isSelected = static_cast<int>(i) == selected;
+    if (isSelected) {
+      renderer.rectangle.fill(kInnerPadding, rowY, drawerWidth - kInnerPadding * 2,
+                              UiLayout::SIDEBAR_ROW_HEIGHT, true, true, true);
+    }
+    renderer.text.render(font, x, rowY + (UiLayout::SIDEBAR_ROW_HEIGHT - lineHeight) / 2,
+                         labels[i] ? labels[i] : "", !isSelected);
+  }
+}
+
+}  // namespace
+
+void Sidebar::render(const GfxRenderer& renderer, const char* title) {
+  renderFrame(renderer, title);
+
+  const int font = systemFontId();
   const int lineHeight = renderer.text.getLineHeight(font);
   for (size_t i = 0; i < kItemCount; ++i) {
     const int rowY = UiLayout::SIDEBAR_LIST_TOP + UiLayout::SIDEBAR_TOP_PADDING +
@@ -55,6 +81,25 @@ void Sidebar::render(const GfxRenderer& renderer, const char* title) {
     renderer.text.render(font, iconX + UiLayout::SIDEBAR_ICON_SIZE + 16,
                          rowY + (UiLayout::SIDEBAR_ROW_HEIGHT - lineHeight) / 2, kItems[i].label, true);
   }
+}
+
+void Sidebar::renderLibrary(const GfxRenderer& renderer, const bool allBooksMode, const int selected) {
+  const char* labels[] = {allBooksMode ? "Folders" : "All books", "Favorites", "Reading", "Finished", "Author"};
+  renderFrame(renderer, "Library");
+  renderTextList(renderer, labels, sizeof(labels) / sizeof(labels[0]), selected);
+}
+
+int Sidebar::hitTest(const GfxRenderer& renderer, const int tapX, const int tapY, const size_t count) {
+  const int width = std::min(UiLayout::SIDEBAR_WIDTH_LIMIT, renderer.getScreenWidth() / 2);
+  const int contentTop = UiLayout::SIDEBAR_LIST_TOP + kTopPadding;
+  const int contentBottom = renderer.getScreenHeight() - kInnerPadding;
+  if (tapX < kInnerPadding || tapX >= width - kInnerPadding || tapY < contentTop || tapY >= contentBottom) {
+    return -1;
+  }
+  const int index = (tapY - contentTop) / (UiLayout::SIDEBAR_ROW_HEIGHT + UiLayout::SIDEBAR_ROW_GAP);
+  if (index < 0 || static_cast<size_t>(index) >= count) return -1;
+  const int rowY = contentTop + index * (UiLayout::SIDEBAR_ROW_HEIGHT + UiLayout::SIDEBAR_ROW_GAP);
+  return tapY < rowY + UiLayout::SIDEBAR_ROW_HEIGHT ? index : -1;
 }
 
 }  // namespace navigation

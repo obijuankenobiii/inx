@@ -44,7 +44,7 @@ constexpr int FLOW_CAROUSEL_SIDE_SCALE_PERCENT = 90;
 constexpr int FLOW_CAROUSEL_CARD_GAP = 20;
 
 // Sidebar geometry.
-constexpr int SIDEBAR_WIDTH_LIMIT = 320;
+constexpr int SIDEBAR_WIDTH_LIMIT = 350;
 constexpr int SIDEBAR_LIST_TOP = MENU_HEIGHT + 34;
 constexpr int SIDEBAR_INNER_PADDING = 16;
 constexpr int SIDEBAR_TOP_PADDING = 24;

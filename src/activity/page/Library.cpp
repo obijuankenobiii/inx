@@ -7,11 +7,16 @@
 
 #include <Arduino.h>
 #include <GfxRenderer.h>
+#include <SDCardManager.h>
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
+
+#include <esp_task_wdt.h>
 
 #include "../settings/LibraryIndexer.h"
 #include "BitmapRender.h"
@@ -22,10 +27,15 @@
 #include "images/Refresh.h"
 #include "images/SortAsc.h"
 #include "state/BookState.h"
+#include "state/EpubNotesIndex.h"
+#include "state/RecentBooks.h"
+#include "state/Session.h"
 #include "system/Fonts.h"
 #include "system/ScreenComponents.h"
 #include "state/SystemSetting.h"
 #include "system/UiLayout.h"
+#include "activity/page/components/global/PopUp.h"
+#include "util/SdIoMutex.h"
 
 extern void onGoToRecent();
 extern void onGoToLibrary(const std::string& path);
@@ -40,12 +50,61 @@ constexpr unsigned long kDoubleBackWindowMs = 450;
 constexpr int kHeaderButtonCount = 4;
 constexpr unsigned long kItemJumpHoldMs = 500;
 constexpr unsigned long kItemJumpRepeatMs = 250;
+constexpr unsigned long kItemLongPressMs = 500;
 
 unsigned long lastBackReleaseMs = 0;
 
 std::string parentPath(const std::string& value);
 std::string lower(std::string value);
 bool endsWith(const std::string& value, const char* suffix);
+
+bool isDeletableFolder(const LibraryIndex::Book& item) {
+  if (item.type != LibraryIndex::Book::Type::FOLDER || item.path.empty() || item.path == "/") return false;
+  return item.path.compare(0, std::string("/.metadata/").size(), "/.metadata/") != 0;
+}
+
+std::string dataPath(const std::string& bookPath) {
+  const std::string value = lower(bookPath);
+  const std::string hash = std::to_string(std::hash<std::string>{}(bookPath));
+  if (endsWith(value, ".xtc") || endsWith(value, ".xtch")) return "/.metadata/xtc/" + hash;
+  if (endsWith(value, ".txt") || endsWith(value, ".md")) return "/.system/txt_" + hash;
+  if (endsWith(value, ".pdf")) return "/.metadata/pdf/" + hash;
+  return "/.metadata/epub/" + hash;
+}
+
+bool removeTree(const std::string& path, int& removed) {
+  if (!SdMan.exists(path.c_str())) return true;
+  FsFile directory = SdMan.open(path.c_str());
+  if (!directory) return false;
+  if (!directory.isDirectory()) {
+    directory.close();
+    if (!SdMan.remove(path.c_str())) return false;
+    ++removed;
+    return true;
+  }
+
+  char name[128] = {};
+  while (true) {
+    FsFile entry = directory.openNextFile();
+    if (!entry) break;
+    const bool isDirectory = entry.isDirectory();
+    entry.getName(name, sizeof(name));
+    entry.close();
+    const std::string child = path + "/" + name;
+    const bool done = isDirectory ? removeTree(child, removed) : SdMan.remove(child.c_str());
+    if (!done) {
+      directory.close();
+      return false;
+    }
+    ++removed;
+    if ((removed & 7) == 0) {
+      esp_task_wdt_reset();
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+  directory.close();
+  return SdMan.removeDir(path.c_str());
+}
 
 }  // namespace
 
@@ -82,14 +141,25 @@ void Library::onEnter() {
   typeFilter_.clear();
   hideFinished_ = false;
   letterFilter_ = 0;
+  stateFilter_ = StateFilter::NONE;
+  allBooksMode_ = false;
+  authorFolder_.clear();
   viewMode_ = SETTINGS.libraryMode == SystemSetting::LIBRARY_LIST ? ViewMode::LIST : ViewMode::GRID;
   sortMode_ = SETTINGS.librarySortEnabled && SETTINGS.librarySortMode <= static_cast<uint8_t>(SortMode::AUTHOR_ZA)
                   ? static_cast<SortMode>(SETTINGS.librarySortMode)
                   : SortMode::TITLE_AZ;
   sortIndex_ = static_cast<int>(sortMode_);
   sidebarOpen_ = false;
+  selectedSidebarItem_ = 0;
   selectedItemIndex_ = 0;
   nextItemJumpMs_ = 0;
+  popupItemIndex_ = -1;
+  popupActionIndex_ = 0;
+  popupDeleteConfirm_ = false;
+  confirmLongPressProcessed_ = false;
+  popupConfirmReleaseIgnored_ = false;
+  indexingPopupVisible_ = false;
+  indexingDisplayedProgress_ = -1;
   loadIndexedItems();
 }
 
@@ -103,6 +173,12 @@ void Library::onExit() {
 }
 
 void Library::loop() {
+  if (popupItemIndex_ >= 0) {
+    handleItemPopupInput();
+    renderIfNeeded();
+    return;
+  }
+
   if (filterOpen_) {
     handleFilterInput();
     renderIfNeeded();
@@ -116,8 +192,29 @@ void Library::loop() {
 
   if (indexReloadRequested_ && !isIndexing_) {
     indexReloadRequested_ = false;
+    indexingPopupVisible_ = false;
     loadIndexedItems();
     requestRender();
+  }
+
+  if (isIndexing_) {
+    if (indexingPopupVisible_ && indexingTotal_ > 0) {
+      const int total = static_cast<int>(indexingTotal_);
+      const int current = static_cast<int>(indexingProgress_);
+      const int progress = std::max(0, std::min(100, static_cast<int>((static_cast<int64_t>(current) * 100) /
+                                                                        std::max(1, total))));
+      if (progress != indexingDisplayedProgress_) {
+        indexingDisplayedProgress_ = progress;
+        ScreenComponents::fillPopupProgress(renderer, indexingPopupLayout_, progress);
+      }
+    }
+    return;
+  }
+
+  if (sidebarOpen_) {
+    if (handleSidebarInput()) return;
+    renderIfNeeded();
+    return;
   }
 
   if (!sidebarOpen_ && mappedInput.isPressed(MappedInputManager::Button::Back) && !backLongPressProcessed_ &&
@@ -140,12 +237,20 @@ void Library::loop() {
     lastBackReleaseMs = doubleBack ? 0 : now;
     if (doubleBack) {
       sidebarOpen_ = true;
+      selectedSidebarItem_ = 0;
       headerFocused_ = false;
       requestRender();
       return;
     }
     if (headerFocused_) {
       headerFocused_ = false;
+      requestRender();
+      return;
+    }
+    if (stateFilter_ == StateFilter::AUTHOR && !authorFolder_.empty()) {
+      authorFolder_.clear();
+      selectedItemIndex_ = 0;
+      loadIndexedItems();
       requestRender();
       return;
     }
@@ -165,12 +270,20 @@ void Library::loop() {
     return;
   }
 
-  if (sidebarOpen_) {
-    renderIfNeeded();
-    return;
-  }
-
   if (headerFocused_) {
+    // Header controls are laid out horizontally. Always consume the physical
+    // Left/Right buttons here so they move between view/sort/filter/refresh
+    // instead of falling through to Page::loop() and changing the bottom menu.
+    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+      selectedHeaderButton_ = (selectedHeaderButton_ + kHeaderButtonCount - 1) % kHeaderButtonCount;
+      requestRender();
+      return;
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      selectedHeaderButton_ = (selectedHeaderButton_ + 1) % kHeaderButtonCount;
+      requestRender();
+      return;
+    }
     if (mappedInput.wasPressed(itemPrevButton())) {
       selectedHeaderButton_ = (selectedHeaderButton_ + kHeaderButtonCount - 1) % kHeaderButtonCount;
       requestRender();
@@ -225,9 +338,37 @@ void Library::loop() {
     nextItemJumpMs_ = 0;
   }
 
+  if (!headerFocused_ && !confirmLongPressProcessed_ && mappedInput.isPressed(MappedInputManager::Button::Confirm) &&
+      mappedInput.getHeldTime() >= kItemLongPressMs && indexLoaded_ && selectedItemIndex_ >= 0 &&
+      selectedItemIndex_ < static_cast<int>(items_.size())) {
+    const LibraryIndex::Book& selected = items_[static_cast<size_t>(selectedItemIndex_)];
+    if (selected.type == LibraryIndex::Book::Type::BOOK || isDeletableFolder(selected)) {
+      popupItemIndex_ = selectedItemIndex_;
+      popupActionIndex_ = 0;
+      popupDeleteConfirm_ = false;
+      popupConfirmReleaseIgnored_ = true;
+      confirmLongPressProcessed_ = true;
+      sortOpen_ = false;
+      filterOpen_ = false;
+      requestRender();
+      return;
+    }
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && indexLoaded_ &&
       selectedItemIndex_ >= 0 && selectedItemIndex_ < static_cast<int>(items_.size())) {
+    if (confirmLongPressProcessed_) {
+      confirmLongPressProcessed_ = false;
+      return;
+    }
     const LibraryIndex::Book& selected = items_[static_cast<size_t>(selectedItemIndex_)];
+    if (stateFilter_ == StateFilter::AUTHOR && selected.type == LibraryIndex::Book::Type::FOLDER) {
+      authorFolder_ = selected.title;
+      selectedItemIndex_ = 0;
+      loadIndexedItems();
+      requestRender();
+      return;
+    }
     if (selected.type == LibraryIndex::Book::Type::FOLDER) {
       onGoToLibrary(selected.path);
     } else {
@@ -249,7 +390,10 @@ void Library::menu() {
     renderFilterPicker();
   }
   if (sidebarOpen_) {
-    navigation::Sidebar::render(renderer);
+    drawSidebar();
+  }
+  if (popupItemIndex_ >= 0 && popupItemIndex_ < static_cast<int>(items_.size())) {
+    renderItemPopup();
   }
 }
 
@@ -435,7 +579,7 @@ void Library::loadIndexedItems() {
   items_.clear();
   favoritePaths_.clear();
   for (const BookState::Book& favorite : BOOK_STATE.getFavoriteBooks()) {
-    favoritePaths_.insert(favorite.path);
+    favoritePaths_.insert(cleanPath(favorite.path));
   }
   indexLoaded_ = false;
 
@@ -448,25 +592,68 @@ void Library::loadIndexedItems() {
   std::unordered_set<std::string> finishedPaths;
   if (hideFinished_) {
     for (const BookState::Book& finished : BOOK_STATE.getFinishedBooks()) {
-      finishedPaths.insert(finished.path);
+      finishedPaths.insert(cleanPath(finished.path));
     }
   }
-  for (const LibraryIndex::Book& item : indexedItems) {
-    const bool inCurrentFolder = (item.type == LibraryIndex::Book::Type::FOLDER && isImmediateChild(item.path, path_)) ||
-                                 (item.type == LibraryIndex::Book::Type::BOOK && parentPath(item.path) == path_);
-    if (!inCurrentFolder) {
-      continue;
+
+  std::unordered_set<std::string> statePaths;
+  if (stateFilter_ == StateFilter::FAVORITES) {
+    statePaths = favoritePaths_;
+  } else if (stateFilter_ == StateFilter::READING || stateFilter_ == StateFilter::FINISHED) {
+    const std::vector<BookState::Book> stateBooks =
+        stateFilter_ == StateFilter::READING ? BOOK_STATE.getReadingBooks() : BOOK_STATE.getFinishedBooks();
+    statePaths.reserve(stateBooks.size());
+    for (const BookState::Book& book : stateBooks) {
+      statePaths.insert(cleanPath(book.path));
     }
+  }
+
+  std::unordered_map<std::string, std::pair<std::string, int>> authors;
+  for (const LibraryIndex::Book& item : indexedItems) {
+    bool include = false;
+    if (stateFilter_ == StateFilter::AUTHOR) {
+      if (item.type == LibraryIndex::Book::Type::BOOK && !item.author.empty()) {
+        if (authorFolder_.empty()) {
+          const std::string key = lower(item.author);
+          auto& author = authors[key];
+          author.first = author.first.empty() || item.author.size() < author.first.size() ? item.author : author.first;
+          ++author.second;
+        } else {
+          include = lower(item.author) == lower(authorFolder_);
+        }
+      }
+    } else if (stateFilter_ != StateFilter::NONE) {
+      include = item.type == LibraryIndex::Book::Type::BOOK && statePaths.find(cleanPath(item.path)) != statePaths.end();
+    } else if (allBooksMode_) {
+      include = item.type == LibraryIndex::Book::Type::BOOK;
+    } else {
+      include = (item.type == LibraryIndex::Book::Type::FOLDER && isImmediateChild(item.path, path_)) ||
+                (item.type == LibraryIndex::Book::Type::BOOK && parentPath(item.path) == path_);
+    }
+    if (!include) continue;
     if (letterFilter_ != 0 && leadingLetter(item.title.empty() ? item.path : item.title) != letterFilter_) {
       continue;
     }
     if (item.type == LibraryIndex::Book::Type::BOOK && !matchesTypeFilter(item.path, typeFilter_)) {
       continue;
     }
-    if (item.type == LibraryIndex::Book::Type::BOOK && finishedPaths.find(item.path) != finishedPaths.end()) {
+    if (item.type == LibraryIndex::Book::Type::BOOK && finishedPaths.find(cleanPath(item.path)) != finishedPaths.end()) {
       continue;
     }
     items_.push_back(item);
+  }
+
+  if (stateFilter_ == StateFilter::AUTHOR && authorFolder_.empty()) {
+    items_.clear();
+    for (const auto& entry : authors) {
+      LibraryIndex::Book folder;
+      folder.type = LibraryIndex::Book::Type::FOLDER;
+      folder.title = entry.second.first;
+      folder.author = entry.second.first;
+      folder.bookCount = static_cast<uint16_t>(std::min(entry.second.second, 65535));
+      folder.hasMetadata = true;
+      items_.push_back(std::move(folder));
+    }
   }
   const bool ascending = sortMode_ == SortMode::TITLE_AZ || sortMode_ == SortMode::GROUP_AZ ||
                          sortMode_ == SortMode::AUTHOR_AZ;
@@ -494,16 +681,6 @@ void Library::loadIndexedItems() {
 }
 
 void Library::content() {
-  if (isIndexing_) {
-    renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2 - 14,
-                           "Refreshing library", true, EpdFontFamily::BOLD);
-    if (indexingTotal_ > 0) {
-      ScreenComponents::drawProgressBar(renderer, renderer.getScreenWidth() / 2 - 120,
-                                         renderer.getScreenHeight() / 2 + 12, 240, 6, indexingProgress_,
-                                         indexingTotal_);
-    }
-    return;
-  }
   if (!indexLoaded_) {
     renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2,
                            LibraryIndex::hasIndex() ? "Unable to read library index" : "Build the library index first");
@@ -822,6 +999,246 @@ void Library::renderFilterPicker() const {
   }
 }
 
+bool Library::handleItemPopupInput() {
+  if (popupItemIndex_ < 0 || popupItemIndex_ >= static_cast<int>(items_.size())) {
+    popupItemIndex_ = -1;
+    popupDeleteConfirm_ = false;
+    confirmLongPressProcessed_ = false;
+    requestRender();
+    return true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    popupItemIndex_ = -1;
+    popupDeleteConfirm_ = false;
+    confirmLongPressProcessed_ = false;
+    popupConfirmReleaseIgnored_ = false;
+    requestRender();
+    return true;
+  }
+
+  if (popupConfirmReleaseIgnored_ && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    popupConfirmReleaseIgnored_ = false;
+    confirmLongPressProcessed_ = false;
+    return true;
+  }
+
+  const LibraryIndex::Book& book = items_[static_cast<size_t>(popupItemIndex_)];
+  const bool folder = book.type == LibraryIndex::Book::Type::FOLDER;
+  const int actionCount = popupDeleteConfirm_ ? 2 : (folder ? 1 : 3);
+  if (mappedInput.wasPressed(itemPrevButton())) {
+    popupActionIndex_ = (popupActionIndex_ + actionCount - 1) % actionCount;
+    requestRender();
+    return true;
+  }
+  if (mappedInput.wasPressed(itemNextButton())) {
+    popupActionIndex_ = (popupActionIndex_ + 1) % actionCount;
+    requestRender();
+    return true;
+  }
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return true;
+
+  if (popupDeleteConfirm_) {
+    if (popupActionIndex_ == 0) {
+      eraseFolder(book);
+    } else {
+      popupDeleteConfirm_ = false;
+      popupActionIndex_ = 0;
+      requestRender();
+    }
+    return true;
+  }
+
+  if (folder) {
+    popupDeleteConfirm_ = true;
+    popupActionIndex_ = 0;
+    requestRender();
+    return true;
+  }
+
+  if (popupActionIndex_ == 0) {
+    markFavorite(book);
+  } else if (popupActionIndex_ == 1) {
+    eraseBook(book);
+  } else {
+    resetBook(book);
+  }
+  return true;
+}
+
+void Library::renderItemPopup() const {
+  const LibraryIndex::Book& book = items_[static_cast<size_t>(popupItemIndex_)];
+  const bool folder = book.type == LibraryIndex::Book::Type::FOLDER;
+  std::vector<std::string> actions;
+  std::string title;
+  if (popupDeleteConfirm_) {
+    title = "Delete " + book.title + "?";
+    actions = {"Yes", "No"};
+  } else if (folder) {
+    title = book.title.empty() ? "Folder" : book.title;
+    actions = {"Delete"};
+  } else {
+    title = book.title.empty() ? "Book" : book.title;
+    actions = {favoritePaths_.find(book.path) == favoritePaths_.end() ? "Mark as favorite" : "Remove favorite",
+               "Delete Book", "Reset"};
+  }
+
+  const PopUpBounds box = PopUp::bounds(renderer, static_cast<int>(actions.size()));
+  PopUp::background(renderer, box);
+  PopUp::title(renderer, box, title);
+  PopUp::list(renderer, box, actions, popupActionIndex_, 0);
+  PopUp::border(renderer, box);
+}
+
+void Library::markFavorite(const LibraryIndex::Book& book) {
+  const std::string path = book.path;
+  BOOK_STATE.toggleFavorite(path, book.title);
+  if (favoritePaths_.find(path) == favoritePaths_.end()) {
+    favoritePaths_.insert(path);
+  } else {
+    favoritePaths_.erase(path);
+  }
+  popupItemIndex_ = -1;
+  popupDeleteConfirm_ = false;
+  requestRender();
+}
+
+void Library::resetBook(const LibraryIndex::Book& book) {
+  int removed = 0;
+  {
+    SdIoMutex::Lock lock;
+    removeTree(dataPath(book.path), removed);
+  }
+  RECENT_BOOKS.removeBook(book.path);
+  BOOK_STATE.setReading(book.path, false);
+  BOOK_STATE.setFinished(book.path, false);
+  if (APP_STATE.lastRead == book.path) {
+    APP_STATE.lastRead.clear();
+    APP_STATE.saveToFile();
+  }
+  EpubNotesIndex::invalidate();
+  popupItemIndex_ = -1;
+  popupDeleteConfirm_ = false;
+  loadIndexedItems();
+  requestRender();
+}
+
+void Library::eraseBook(const LibraryIndex::Book& book) {
+  bool deleted = false;
+  {
+    SdIoMutex::Lock lock;
+    deleted = !SdMan.exists(book.path.c_str()) || SdMan.remove(book.path.c_str());
+  }
+  if (!deleted) {
+    popupItemIndex_ = -1;
+    popupDeleteConfirm_ = false;
+    requestRender();
+    return;
+  }
+
+  resetBook(book);
+  BOOK_STATE.removeBook(book.path);
+  favoritePaths_.erase(book.path);
+  startIndexing();
+}
+
+void Library::eraseFolder(const LibraryIndex::Book& folder) {
+  if (!isDeletableFolder(folder)) {
+    popupItemIndex_ = -1;
+    popupDeleteConfirm_ = false;
+    requestRender();
+    return;
+  }
+
+  int removed = 0;
+  bool deleted = false;
+  {
+    SdIoMutex::Lock lock;
+    deleted = removeTree(folder.path, removed);
+  }
+  if (!deleted) {
+    popupItemIndex_ = -1;
+    popupDeleteConfirm_ = false;
+    requestRender();
+    return;
+  }
+
+  const std::string prefix = folder.path + "/";
+  std::vector<LibraryIndex::Book> indexedItems;
+  if (LibraryIndex::search("", indexedItems, LibraryIndex::all)) {
+    for (const LibraryIndex::Book& item : indexedItems) {
+      if (item.type == LibraryIndex::Book::Type::BOOK && item.path.compare(0, prefix.size(), prefix) == 0) {
+        BOOK_STATE.removeBook(item.path);
+        RECENT_BOOKS.removeBook(item.path);
+        favoritePaths_.erase(item.path);
+      }
+    }
+  }
+  EpubNotesIndex::invalidate();
+  popupItemIndex_ = -1;
+  popupDeleteConfirm_ = false;
+  loadIndexedItems();
+  startIndexing();
+}
+
+bool Library::handleSidebarInput() {
+  // Consume Back on release while the drawer is open. Closing on press would
+  // let the subsequent release fall through to the page handler and reopen it.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    sidebarOpen_ = false;
+    requestRender();
+    return true;
+  }
+  if (mappedInput.wasPressed(itemPrevButton())) {
+    selectedSidebarItem_ = (selectedSidebarItem_ + 4) % 5;
+    requestRender();
+    return true;
+  }
+  if (mappedInput.wasPressed(itemNextButton())) {
+    selectedSidebarItem_ = (selectedSidebarItem_ + 1) % 5;
+    requestRender();
+    return true;
+  }
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return false;
+
+  sortOpen_ = false;
+  filterOpen_ = false;
+  selectedItemIndex_ = 0;
+  authorFolder_.clear();
+  if (selectedSidebarItem_ == 0) {
+    stateFilter_ = StateFilter::NONE;
+    allBooksMode_ = !allBooksMode_;
+    SETTINGS.libraryViewMode = allBooksMode_ ? SystemSetting::LIBRARY_VIEW_BOOKS
+                                             : SystemSetting::LIBRARY_VIEW_FOLDERS;
+    SETTINGS.saveToFile();
+  } else if (selectedSidebarItem_ == 1) {
+    stateFilter_ = StateFilter::FAVORITES;
+    allBooksMode_ = false;
+  } else if (selectedSidebarItem_ == 2) {
+    stateFilter_ = StateFilter::READING;
+    allBooksMode_ = false;
+  } else if (selectedSidebarItem_ == 3) {
+    stateFilter_ = StateFilter::FINISHED;
+    allBooksMode_ = false;
+  } else {
+    stateFilter_ = StateFilter::AUTHOR;
+    allBooksMode_ = false;
+    sortMode_ = SortMode::AUTHOR_AZ;
+    sortIndex_ = static_cast<int>(sortMode_);
+    SETTINGS.librarySortMode = static_cast<uint8_t>(sortMode_);
+    SETTINGS.saveToFile();
+  }
+
+  sidebarOpen_ = false;
+  loadIndexedItems();
+  requestRender();
+  return true;
+}
+
+void Library::drawSidebar() const {
+  navigation::Sidebar::renderLibrary(renderer, allBooksMode_, selectedSidebarItem_);
+}
+
 void Library::startIndexing() {
   if (isIndexing_) {
     return;
@@ -831,7 +1248,10 @@ void Library::startIndexing() {
   indexReloadRequested_ = false;
   indexingProgress_ = 0;
   indexingTotal_ = 0;
-  requestRender();
+  indexingPopupLayout_ = ScreenComponents::drawPopup(renderer, "Updating");
+  indexingDisplayedProgress_ = 0;
+  indexingPopupVisible_ = true;
+  ScreenComponents::fillPopupProgress(renderer, indexingPopupLayout_, 0);
 
   constexpr uint32_t taskStackSize = 6144;
   const BaseType_t created = xTaskCreate(
@@ -857,6 +1277,7 @@ void Library::startIndexing() {
 
   if (created != pdPASS) {
     isIndexing_ = false;
+    indexingPopupVisible_ = false;
     requestRender();
   }
 }

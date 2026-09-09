@@ -11,6 +11,7 @@
 
 #include "Page.h"
 #include "navigation/Sidebar.h"
+#include "system/ScreenComponents.h"
 #include "util/LibraryIndex.h"
 #include "views/Library/Grid.h"
 #include "views/Library/List.h"
@@ -46,6 +47,7 @@ class Library final : public Page {
   enum class ViewMode { GRID, LIST };
   enum class SortMode { TITLE_AZ, TITLE_ZA, GROUP_AZ, GROUP_ZA, AUTHOR_AZ, AUTHOR_ZA };
   enum class FilterTab { TITLE, TYPE, OPTIONS };
+  enum class StateFilter { NONE, FAVORITES, READING, FINISHED, AUTHOR };
 
   // Header order is view, sort, filter, refresh. Header focus starts on Refresh
   // after a long Back press; it is not selected during normal grid browsing.
@@ -62,15 +64,27 @@ class Library final : public Page {
   std::string typeFilter_;
   bool hideFinished_ = false;
   char letterFilter_ = 0;
+  StateFilter stateFilter_ = StateFilter::NONE;
+  bool allBooksMode_ = false;
+  std::string authorFolder_;
   SortMode sortMode_ = SortMode::TITLE_AZ;
   ViewMode viewMode_ = ViewMode::GRID;
   volatile bool isIndexing_ = false;
   volatile bool indexReloadRequested_ = false;
   volatile int indexingProgress_ = 0;
   volatile int indexingTotal_ = 0;
+  ScreenComponents::PopupLayout indexingPopupLayout_{};
+  int indexingDisplayedProgress_ = -1;
+  bool indexingPopupVisible_ = false;
   bool sidebarOpen_ = false;
+  int selectedSidebarItem_ = 0;
   int selectedItemIndex_ = 0;
   unsigned long nextItemJumpMs_ = 0;
+  int popupItemIndex_ = -1;
+  int popupActionIndex_ = 0;
+  bool popupDeleteConfirm_ = false;
+  bool confirmLongPressProcessed_ = false;
+  bool popupConfirmReleaseIgnored_ = false;
 
   void loadIndexedItems();
   void startIndexing();
@@ -87,6 +101,15 @@ class Library final : public Page {
   void toggleFinishedFilter();
   void moveFilterSelection(int delta);
   void renderFilterPicker() const;
+  bool handleSidebarInput();
+  bool handleItemPopupInput();
+  void renderItemPopup() const;
+  void markFavorite(const LibraryIndex::Book& book);
+  void resetBook(const LibraryIndex::Book& book);
+  void eraseBook(const LibraryIndex::Book& book);
+  void eraseFolder(const LibraryIndex::Book& folder);
+
+  void drawSidebar() const;
   static char filterLetter(int page, int index);
   static char leadingLetter(const std::string& value);
   static const char* typeFilterLabel(int index);

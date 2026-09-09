@@ -29,6 +29,8 @@
 #include "font/montserrat_clock_70_bold.h"
 #include "font/montserrat_clock_70_regular.h"
 
+#include "state/SystemSetting.h"
+
 #define MONTSERRAT_8_FONT_ID (2501)
 #define MONTSERRAT_10_FONT_ID (2502)
 #define MONTSERRAT_12_FONT_ID (2503)
@@ -38,5 +40,19 @@
 
 #define MONTSERRAT_CLOCK_70_FONT_ID (4001)
 
-/** @brief Font used by the native settings activities. */
-inline int systemFontId() { return MONTSERRAT_10_FONT_ID; }
+/**
+ * @brief Returns the configured bitmap font used by the device UI.
+ *
+ * Reader text uses its own ReaderSetting font size and does not use this helper.
+ */
+inline int systemFontId() {
+  switch (SETTINGS.systemTextSize) {
+    case SystemSetting::SYSTEM_TEXT_MEDIUM:
+      return MONTSERRAT_12_FONT_ID;
+    case SystemSetting::SYSTEM_TEXT_LARGE:
+      return MONTSERRAT_14_FONT_ID;
+    case SystemSetting::SYSTEM_TEXT_SMALL:
+    default:
+      return MONTSERRAT_10_FONT_ID;
+  }
+}

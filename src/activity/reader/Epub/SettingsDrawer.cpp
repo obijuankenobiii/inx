@@ -28,7 +28,9 @@ constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
 namespace {
 constexpr int kPresetTabSize = 40;
-constexpr int kPresetTabPadding = 14;
+// Keep the preset editor tab strip compact so the book-settings list gets the
+// same usable height as the Pro layout.
+constexpr int kPresetTabPadding = 10;
 constexpr int kPresetTabHeight = kPresetTabSize + kPresetTabPadding * 2;
 
 const char* statusBarItemName(const StatusBarItem item) {
@@ -49,7 +51,7 @@ constexpr int kDrawerListBottomPadding = UiTheme::DRAWER_LIST_BOTTOM_PADDING;
 constexpr int kDrawerHeaderHPad = 20;
 constexpr int kDrawerHeaderPillPadX = 10;
 constexpr int kDrawerHeaderPillHeight = 24;
-constexpr int kPortraitDrawerHeightPercent = 65;
+constexpr int kPortraitDrawerHeightPercent = 50;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
   const auto o = gfx.getOrientation();
@@ -830,10 +832,10 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   }
   if (!isLandscapeReader(renderer)) {
     if (mappedInputForHints_ != nullptr) {
-      const auto labels = mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      const auto labels = mappedInputForHints_->mapLabels("\xC2\xAB Back", "Open", "\xC2\xAB", "›");
       renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "\xC2\xBB");
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "\xC2\xAB Back", "Open", "\xC2\xAB", "›");
     }
   }
   renderer.displayBuffer(mode);
@@ -912,6 +914,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
+  const bool hasNextRow = visibleRow + 1 < itemsPerPage && menuIndex + 1 < static_cast<int>(menuItems.size());
 
   renderer.rectangle.fill(
       drawerX, itemY, drawerWidth, itemHeight,
@@ -930,8 +933,10 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
                            isSelected ? 0 : 1, EpdFontFamily::BOLD);
     }
 
-    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
-                         LineRender::Style::Dotted);
+    if (hasNextRow) {
+      renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
+    }
     return;
   }
 
@@ -995,8 +1000,10 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     }
   }
 
-  renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
-                       LineRender::Style::Dotted);
+  if (hasNextRow) {
+    renderer.line.render(drawerX, itemY + itemHeight - 1, drawerX + drawerWidth, itemY + itemHeight - 1, true,
+                         LineRender::Style::Dotted);
+  }
 }
 
 /**

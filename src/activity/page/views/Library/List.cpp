@@ -36,7 +36,7 @@ void List::render(const int selectedIndex) const {
 
   const int count = std::min(itemsPerPage(), static_cast<int>(items_.size()) - start);
   const int width = renderer_.getScreenWidth();
-  const int font = MONTSERRAT_12_FONT_ID;
+  const int font = systemFontId();
   const int top = UiLayout::MENU_HEIGHT;
 
   for (int row = 0; row < count; ++row) {

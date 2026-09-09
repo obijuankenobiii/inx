@@ -27,7 +27,7 @@ class FontManagerActivity final : public ActivityWithSubactivity {
   bool preventAutoSleep() override { return state_ == State::Downloading; }
 
  private:
-  enum class State : uint8_t { Loading, Ready, Downloading, Failed };
+  enum class State : uint8_t { Ready, Downloading, Failed };
   enum class CategoryFilter : uint8_t { All, SansSerif, Serif };
 
   static constexpr int kRowHeight = UiLayout::LIST_ITEM_HEIGHT;
@@ -45,10 +45,13 @@ class FontManagerActivity final : public ActivityWithSubactivity {
   bool categoryFilterOpen_ = false;
   CategoryFilter categoryFilter_ = CategoryFilter::All;
   int installingPackageIndex_ = -1;
+  bool installedPopupOpen_ = false;
+  int installedPopupPackageIndex_ = -1;
+  int installedPopupActionIndex_ = 0;
   volatile size_t progressDownloaded_ = 0;
   volatile size_t progressTotal_ = 0;
   volatile bool updateRequired_ = false;
-  volatile State state_ = State::Loading;
+  volatile State state_ = State::Ready;
   TaskHandle_t displayTaskHandle_ = nullptr;
   TaskHandle_t installTaskHandle_ = nullptr;
   SemaphoreHandle_t renderingMutex_ = nullptr;
@@ -59,7 +62,9 @@ class FontManagerActivity final : public ActivityWithSubactivity {
   void loadPackages();
   void installSelected();
   void removeSelected();
-  void selectInstalled();
+  void openInstalledPopup();
+  bool handleInstalledPopupInput();
+  void renderInstalledPopup() const;
   void startInstallation();
   void launchWifiSelection();
   void onWifiSelectionComplete(bool connected);

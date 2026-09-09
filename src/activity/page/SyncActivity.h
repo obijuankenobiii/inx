@@ -42,6 +42,7 @@ class SyncActivity final : public Page {
   const std::function<void()> onSettingsOpen;
 
   void title() const override;
+  bool showBattery() const override { return false; }
   void content() override;
   void enter(Activity* activity);
   void exit();

@@ -157,9 +157,9 @@ void ReaderPresetEditorActivity::onEnter() {
     FontManager::ensureFontReady(working_.getReaderFontId(), renderer);
   }));
 
-  // Aim for ~65% drawer height, then snap it to a whole number of rows so the menu has no dead space
-  // at the bottom; the preview absorbs whatever remains.
-  const int drawerRegionHeight = drawer_->snapEmbeddedHeight(screenH * 65 / 100);
+  // Keep the preset settings drawer to about half the display, then snap it to
+  // a whole number of rows so the menu has no dead space at the bottom.
+  const int drawerRegionHeight = drawer_->snapEmbeddedHeight(screenH * 55 / 100);
   previewHeight_ = screenH - drawerRegionHeight;
   drawer_->setEmbeddedRegion(0, previewHeight_, screenW, drawerRegionHeight);
   drawer_->setEmbeddedInvalidate([this]() {

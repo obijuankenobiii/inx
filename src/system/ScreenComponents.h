@@ -38,15 +38,12 @@ class ScreenComponents {
                                       bool showBatteryPercentage = true);
   static void drawBookProgressBar(const GfxRenderer& renderer, size_t bookProgress);
 
-  /**
-   * Compact bottom status chip for short blocking work (e.g. "Opening dictionary...", "Closing book").
-   * Uses a fast refresh so it feels like a toast rather than a full-page modal.
-   */
+  /** Centered filled modal used for short blocking work and progress feedback. */
   static PopupLayout drawPopup(const GfxRenderer& renderer, const char* message);
 
   static void fillPopupProgress(const GfxRenderer& renderer, const PopupLayout& layout, int progress);
 
-  /** Geometry for {@link LoadingProgress}: bottom strip with label + slim progress bar. */
+  /** Geometry for {@link LoadingProgress}: modal with label + progress bar. */
   struct LoadingProgressLayout {
     int panelX = 0;
     int panelY = 0;
@@ -58,10 +55,7 @@ class ScreenComponents {
     int barH = 0;
   };
 
-  /**
-   * Bottom status strip with a progress bar (layout rebuilds, chapter loads, stats, etc.).
-   * Intentionally not a center modal — keeps the page context visible during longer work.
-   */
+  /** Centered modal with a progress bar (layout rebuilds, chapter loads, stats, etc.). */
   struct LoadingProgress {
     static LoadingProgressLayout show(const GfxRenderer& renderer, const char* message, int progressPercent0to100);
     static void setProgress(const GfxRenderer& renderer, const LoadingProgressLayout& layout,
