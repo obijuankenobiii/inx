@@ -67,7 +67,12 @@ void titleLines(const GfxRenderer& renderer, const std::string& value, const int
 
 Grid::Grid(GfxRenderer& renderer, const std::vector<LibraryIndex::Book>& items) : renderer_(renderer), items_(items) {}
 
-int Grid::top() const { return UiLayout::MENU_HEIGHT; }
+int Grid::top() const {
+  // The legacy top chrome is two pixels shorter on X3. Keep the grid's
+  // available height in step with that chrome so its dynamic row gap remains
+  // consistent across X3/X4 instead of hard-coding a second grid layout.
+  return UiLayout::MENU_HEIGHT - (renderer_.deviceIsX3() ? 2 : 0);
+}
 
 int Grid::visibleHeight() const {
   return std::max(1, renderer_.getScreenHeight() - top() - UiLayout::MENU_BOTTOM_HEIGHT - 10);
@@ -122,8 +127,9 @@ void Grid::drawItem(const LibraryIndex::Book& item, const int x, const int y, co
   std::string second;
   titleLines(renderer_, displayTitle(item), font, available, first, second);
   const int lineHeight = renderer_.text.getLineHeight(font);
-  const int lineCount = second.empty() ? 1 : 2;
-  const int labelY = iconY + iconHeight + labelGap + (labelHeight - lineCount * lineHeight) / 2;
+  // Keep the label a little closer to the icon than the legacy baseline while
+  // retaining the same responsive icon area and X3 row spacing.
+  const int labelY = iconY + iconHeight + labelGap - 14;
   const int firstWidth = renderer_.text.getWidth(font, first.c_str());
   renderer_.text.render(font, x + (width - firstWidth) / 2, labelY, first.c_str(), !selected);
   if (!second.empty()) {

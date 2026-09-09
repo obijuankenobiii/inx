@@ -35,7 +35,7 @@
 #include "activity/page/Library.h"
 #include "activity/page/LibraryActivity.h"
 #include "activity/page/RecentActivity.h"
-#include "activity/page/SettingsActivity.h"
+#include "activity/page/Settings.h"
 #include "activity/page/StatisticActivity.h"
 #include "activity/page/SyncActivity.h"
 #include "activity/reader/ImageViewerActivity.h"
@@ -190,8 +190,7 @@ void onGoToFileTransfer() {
  * @brief Navigates to the settings activity.
  */
 void onGoToSettings() {
-  switchTo<SettingsActivity>(
-      render, input, onGoToRecent, []() { onGoToLibrary("/"); }, onGoToFileTransfer, onGoToStatistics);
+  switchTo<Settings>(render, input);
 }
 
 /**

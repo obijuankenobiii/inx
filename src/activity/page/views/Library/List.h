@@ -21,7 +21,7 @@ class List final {
   void render(int selectedIndex = -1) const;
 
  private:
-  static constexpr int rowHeight = 66;
+  static constexpr int rowHeight = 64;
 
   GfxRenderer& renderer_;
   const std::vector<LibraryIndex::Book>& items_;

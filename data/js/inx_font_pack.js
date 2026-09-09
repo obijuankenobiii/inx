@@ -8,8 +8,8 @@
   var MAGIC = 0x45504446;
   var VERSION = 1;
   /**
-   * Reader steps (10–18) use Literata regular advanceY (31…56) as a px baseline, then scaled.
-   * ~0.87 was still ~one reader size larger than built-in Literata; ~0.74 aligns steps with system fonts.
+   * Reader steps (10–18) use a bundled regular-face advanceY (31…56) as a px baseline, then scaled.
+   * ~0.87 was still larger than the built-in UI face; ~0.74 aligns steps with system fonts.
    */
   var SIZES = [10, 12, 14, 16, 18];
   var RASTER_CALIBRATION = 0.74;
@@ -48,7 +48,7 @@
   }
   /**
    * Codepoint ranges packed into SD .bin fonts (BMP; device uses uint32 CP search).
-   * Keep roughly aligned with built-in Literata/Atkinson coverage: Latin + punctuation +
+   * Keep roughly aligned with bundled reader-font coverage: Latin + punctuation +
    * Greek (π…), arrows, letterlike/number forms, math operators, technical & shapes.
    */
   var CP_RANGES = [

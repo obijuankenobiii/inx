@@ -26,26 +26,6 @@
 #include "font/montserrat_18_italic.h"
 #include "font/montserrat_18_regular.h"
 #include "font/montserrat_8_regular.h"
-#include "font/literata_10_bold.h"
-#include "font/literata_10_bolditalic.h"
-#include "font/literata_10_italic.h"
-#include "font/literata_10_regular.h"
-#include "font/literata_12_bold.h"
-#include "font/literata_12_bolditalic.h"
-#include "font/literata_12_italic.h"
-#include "font/literata_12_regular.h"
-#include "font/literata_14_bold.h"
-#include "font/literata_14_bolditalic.h"
-#include "font/literata_14_italic.h"
-#include "font/literata_14_regular.h"
-#include "font/literata_16_bold.h"
-#include "font/literata_16_bolditalic.h"
-#include "font/literata_16_italic.h"
-#include "font/literata_16_regular.h"
-#include "font/literata_18_bold.h"
-#include "font/literata_18_bolditalic.h"
-#include "font/literata_18_italic.h"
-#include "font/literata_18_regular.h"
 #include "font/montserrat_clock_70_bold.h"
 #include "font/montserrat_clock_70_regular.h"
 
@@ -56,10 +36,7 @@
 #define MONTSERRAT_16_FONT_ID (2505)
 #define MONTSERRAT_18_FONT_ID (2506)
 
-#define LITERATA_10_FONT_ID (3001)
-#define LITERATA_12_FONT_ID (3002)
-#define LITERATA_14_FONT_ID (3003)
-#define LITERATA_16_FONT_ID (3004)
-#define LITERATA_18_FONT_ID (3005)
-
 #define MONTSERRAT_CLOCK_70_FONT_ID (4001)
+
+/** @brief Font used by the native settings activities. */
+inline int systemFontId() { return MONTSERRAT_10_FONT_ID; }

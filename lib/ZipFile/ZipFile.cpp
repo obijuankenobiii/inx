@@ -172,6 +172,13 @@ bool ZipFile::loadFileStatSlim(const char* filename, FileStatSlim* fileStat) {
   return found;
 }
 
+std::vector<std::string> ZipFile::fileNames() const {
+  std::vector<std::string> names;
+  names.reserve(fileStatSlimCache.size());
+  for (const auto& entry : fileStatSlimCache) names.push_back(entry.first);
+  return names;
+}
+
 long ZipFile::getDataOffset(const FileStatSlim& fileStat) {
   const bool wasOpen = isOpen();
   if (!wasOpen && !open()) {

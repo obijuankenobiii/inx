@@ -8,6 +8,7 @@
 #include <GfxRenderer.h>
 
 #include <array>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -19,8 +20,8 @@
  * @class SettingsDrawer
  * @brief A drawer UI component for modifying book reading settings
  *
- * Provides an expandable/collapsible menu interface for adjusting font,
- * layout, system, and status bar settings while reading.
+ * Provides the Pro-style tabbed menu used by the preset editor, plus the
+ * existing expandable menu used by the in-book reader drawer.
  */
 class SettingsDrawer {
  public:
@@ -197,6 +198,7 @@ class SettingsDrawer {
   bool settingsUpdated = false;  ///< Flag indicating settings were changed
 
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
+  GroupType selectedGroup_ = GroupType::FONT;      ///< Active preset-editor tab.
   std::vector<MenuEntry> menuItems;                ///< Current menu items
 
   /**
@@ -219,6 +221,9 @@ class SettingsDrawer {
    * @brief Draws all menu items
    */
   void drawMenuItems();
+
+  /** Draw the preset editor's Font, Layout, Bar, and Controls tabs. */
+  void drawTabs();
 
   void drawMenuItemRow(int visibleRow, int menuIndex);
 
@@ -244,4 +249,9 @@ class SettingsDrawer {
    * @param group Group to toggle
    */
   void toggleGroup(GroupType group);
+
+  /** Select a preset-editor tab and rebuild its visible rows. */
+  void selectGroup(GroupType group);
+
+  int contentListTop() const;
 };

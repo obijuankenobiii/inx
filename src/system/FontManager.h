@@ -26,7 +26,7 @@ class FontManager {
     bool isBuiltin;
   };
 
-  /** SD streaming font IDs (must not overlap built-in Literata / Montserrat / system utility font ranges). */
+  /** SD streaming font IDs (must not overlap built-in Montserrat / system utility font ranges). */
   static constexpr int SD_FONT_START_ID = 5000;
 
   static void initialize(GfxRenderer& renderer);
@@ -39,7 +39,7 @@ class FontManager {
 
   /**
    * Reader "Font Family" slot encoding stored in SystemSetting::fontFamily / BookSettings::fontFamily:
-   * 0 = Literata, 1 = Montserrat, 2+ = SD folder names (sorted), see readerFontFamilyOptionCount().
+   * 0 = Montserrat, 1+ = SD folder names (sorted), see readerFontFamilyOptionCount().
    */
   static uint32_t readerFontFamilyOptionCount();
   static std::vector<std::string> readerFontFamilyEnumLabels();

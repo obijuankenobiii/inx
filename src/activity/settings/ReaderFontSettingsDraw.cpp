@@ -11,21 +11,10 @@
 #include <cmath>
 #include <string>
 
+#include "activity/page/components/global/Toggle.h"
 #include "system/Fonts.h"
 
 namespace {
-
-void drawCheckboxCheckWithPolygons(const GfxRenderer& renderer, int cbX, int cbY, int kCb, bool ink) {
-  const int oX = cbX;
-  const int oY = cbY;
-  const int shortLegX[] = {oX + 2, oX + 8, oX + 5};
-  const int shortLegY[] = {oY + kCb / 2, oY + kCb - 2, oY + kCb - 2};
-  renderer.polygon.render(shortLegX, shortLegY, 3, true, ink);
-
-  const int longLegX[] = {oX + 5, oX + 9, oX + kCb - 2, oX + kCb - 5};
-  const int longLegY[] = {oY + kCb - 2, oY + kCb - 5, oY + 3, oY + 5};
-  renderer.polygon.render(longLegX, longLegY, 4, true, ink);
-}
 
 /** Filled circle (octagon) for the slider thumb. */
 void drawSliderThumb(const GfxRenderer& renderer, int cx, int cy, bool ink) {
@@ -122,14 +111,7 @@ void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily,
 
 void drawToggleCheckbox(const GfxRenderer& renderer, int valueColumnRight, int itemY, int itemHeight, bool rowSelected,
                         bool checked) {
-  constexpr int kCb = 16;
-  const int cbX = valueColumnRight - kCb;
-  const int cbY = itemY + (itemHeight - kCb) / 2;
-  const bool ink = !rowSelected;
-  renderer.rectangle.render(cbX, cbY, kCb, kCb, ink, false);
-  if (checked) {
-    drawCheckboxCheckWithPolygons(renderer, cbX, cbY, kCb, ink);
-  }
+  Toggle::render(renderer, valueColumnRight, itemY, itemHeight, checked, rowSelected);
 }
 
 }  // namespace ReaderFontSettingsDraw

@@ -254,10 +254,14 @@ void Library::menu() {
 }
 
 void Library::title() const {
-  renderer.bitmap.icon(Hamburger, UiLayout::MENU_LEFT_MARGIN, UiLayout::MENU_TOP_PADDING, UiLayout::MENU_ICON_SIZE,
-                       UiLayout::MENU_ICON_SIZE);
-  renderer.text.render(MONTSERRAT_16_FONT_ID,
-                       UiLayout::MENU_LEFT_MARGIN + UiLayout::MENU_ICON_SIZE + 12, UiLayout::MENU_TOP_PADDING, name(), true,
+  // Match the Pro header: center the title within the hamburger icon's row
+  // instead of using Home's top-aligned text baseline.
+  renderer.bitmap.icon(Hamburger, navigation::Menu::leftMargin, navigation::Menu::topPadding,
+                       navigation::Menu::iconSize, navigation::Menu::iconSize);
+  const int font = MONTSERRAT_16_FONT_ID;
+  const int textY = navigation::Menu::topPadding +
+                    (navigation::Menu::iconSize - renderer.text.getLineHeight(font)) / 2;
+  renderer.text.render(font, navigation::Menu::leftMargin + navigation::Menu::iconSize + 12, textY, name(), true,
                        EpdFontFamily::BOLD);
 }
 

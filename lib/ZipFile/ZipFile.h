@@ -66,6 +66,8 @@ class ZipFile {
   bool open();
   bool close();
   bool loadAllFileStatSlims();
+  /** Returns the central-directory entry names after loadAllFileStatSlims(). */
+  std::vector<std::string> fileNames() const;
   bool getInflatedFileSize(const char* filename, size_t* size);
 
   int fillUncompressedSizes(std::vector<SizeTarget>& targets, std::vector<uint32_t>& sizes);

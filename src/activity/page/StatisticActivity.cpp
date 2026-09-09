@@ -31,10 +31,10 @@ constexpr unsigned long GO_HOME_MS = 1000;
 
 constexpr int FONT_SANS = MONTSERRAT_10_FONT_ID;
 constexpr int FONT_SANS_SM = MONTSERRAT_8_FONT_ID;
-constexpr int FONT_SERIF = LITERATA_14_FONT_ID;
-constexpr int FONT_SERIF_MD = LITERATA_16_FONT_ID;
-constexpr int FONT_SERIF_LG = LITERATA_18_FONT_ID;
-constexpr int FONT_SERIF_SM = LITERATA_12_FONT_ID;
+constexpr int FONT_SERIF = MONTSERRAT_14_FONT_ID;
+constexpr int FONT_SERIF_MD = MONTSERRAT_16_FONT_ID;
+constexpr int FONT_SERIF_LG = MONTSERRAT_18_FONT_ID;
+constexpr int FONT_SERIF_SM = MONTSERRAT_12_FONT_ID;
 constexpr float kPi = 3.14159265f;
 
 static std::string epubCachePathForBookPath(const std::string& bookPath) {

@@ -11,6 +11,10 @@
 
 #include "../../settings/ReaderFontSettingsDraw.h"
 #include "StatusBar.h"
+#include "images/PresetBars.h"
+#include "images/PresetFont.h"
+#include "images/PresetLayout.h"
+#include "images/PresetSettings.h"
 #include "state/ReaderPreset.h"
 #include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
@@ -23,6 +27,10 @@
 constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
 namespace {
+constexpr int kPresetTabSize = 40;
+constexpr int kPresetTabPadding = 14;
+constexpr int kPresetTabHeight = kPresetTabSize + kPresetTabPadding * 2;
+
 const char* statusBarItemName(const StatusBarItem item) {
   static const char* names[] = {"None",       "Page Numbers",   "Percentage",   "Chapter Title",      "Battery Icon",
                                 "Battery %",  "Battery Icon+%", "Progress Bar", "Progress Bar+%",     "Page Bars",
@@ -139,27 +147,32 @@ SettingsDrawer::SettingsDrawer(GfxRenderer& renderer, BookSettings& settings, st
  */
 SettingsDrawer::~SettingsDrawer() {}
 
+int SettingsDrawer::contentListTop() const { return embedded_ ? kPresetTabHeight + 1 : drawerListTop(); }
+
 void SettingsDrawer::setEmbeddedRegion(int x, int y, int w, int h) {
   embedded_ = true;
   drawerX = x;
   drawerY = y;
   drawerWidth = w;
   drawerHeight = h;
-  itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
+  setupMenu();
 }
 
 int SettingsDrawer::snapEmbeddedHeight(int maxHeight) const {
   // Largest height <= maxHeight that fits a whole number of rows under the header, so the embedded
-  // drawer has no dead space below the last row.
-  const int usable = maxHeight - drawerListTop() - kDrawerListBottomPadding;
+  // drawer has no dead space below the last row. This runs just before setEmbeddedRegion(), so use
+  // the preset-editor tab header even though embedded_ is not set yet.
+  const int listTop = kPresetTabHeight + 1;
+  const int usable = maxHeight - listTop - kDrawerListBottomPadding;
   const int rows = std::max(1, usable / itemHeight);
-  return drawerListTop() + rows * itemHeight + kDrawerListBottomPadding;
+  return listTop + rows * itemHeight + kDrawerListBottomPadding;
 }
 
 void SettingsDrawer::syncLayoutFromRenderer() {
   if (embedded_) {
     // Keep the host-provided region; just recompute how many rows fit.
-    itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
+    itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
     return;
   }
   const int sw = renderer.getScreenWidth();
@@ -175,7 +188,7 @@ void SettingsDrawer::syncLayoutFromRenderer() {
     drawerHeight = sh * kPortraitDrawerHeightPercent / 100;
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - drawerListTop() - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
 }
 
 /**
@@ -183,6 +196,202 @@ void SettingsDrawer::syncLayoutFromRenderer() {
  */
 void SettingsDrawer::setupMenu() {
   menuItems.clear();
+
+  if (embedded_) {
+    // Preset editing follows the Pro layout: each tab is a short, flat list. The global reader-only
+    // settings remain in ReaderPresetsActivity and are intentionally not duplicated here.
+    auto addToggle = [&](const MenuItem item, const GroupType group, const char* name,
+                         std::function<bool(const BookSettings&)> get, std::function<void(BookSettings&)> set) {
+      MenuEntry entry;
+      entry.item = item;
+      entry.group = group;
+      entry.name = name;
+      entry.getValueText = [get](const BookSettings& s) -> const char* { return get(s) ? "On" : "Off"; };
+      entry.change = [set](BookSettings& s, int) {
+        set(s);
+        s.markCustomSettings();
+      };
+      menuItems.push_back(std::move(entry));
+    };
+
+    if (selectedGroup_ == GroupType::FONT) {
+      MenuEntry style;
+      style.item = MenuItem::FontFamily;
+      style.group = GroupType::FONT;
+      style.name = "Style";
+      style.getValueText = [](const BookSettings& s) -> const char* {
+        thread_local std::string label;
+        label = FontManager::readerFontFamilyLabel(s.fontFamily);
+        return label.c_str();
+      };
+      style.change = [](BookSettings& s, int delta) {
+        const int count = static_cast<int>(FontManager::readerFontFamilyOptionCount());
+        if (count <= 0) return;
+        int next = static_cast<int>(s.fontFamily) + delta;
+        if (next < 0) next = count - 1;
+        if (next >= count) next = 0;
+        s.fontFamily = static_cast<uint8_t>(next);
+        FontManager::clampReaderFontFamilySlot(s.fontFamily);
+        s.markCustomSettings();
+      };
+      menuItems.push_back(std::move(style));
+
+      MenuEntry size;
+      size.item = MenuItem::FontSize;
+      size.group = GroupType::FONT;
+      size.name = "Size";
+      size.getValueText = [](const BookSettings& s) -> const char* {
+        static const char* values[] = {"Extra Small", "Small", "Medium", "Large", "X Large"};
+        return values[s.fontSize <= 4 ? s.fontSize : 1];
+      };
+      size.change = [](BookSettings& s, int delta) {
+        const int next = static_cast<int>(s.fontSize) + delta;
+        if (next >= 0 && next <= 4) {
+          s.fontSize = static_cast<uint8_t>(next);
+          s.markCustomSettings();
+        }
+      };
+      menuItems.push_back(std::move(size));
+
+      MenuEntry alignment;
+      alignment.item = MenuItem::Alignment;
+      alignment.group = GroupType::FONT;
+      alignment.name = "Alignment";
+      alignment.getValueText = [](const BookSettings& s) -> const char* {
+        static const char* values[] = {"Justify", "Left", "Center", "Right", "Book's style"};
+        return values[s.paragraphAlignment <= 4 ? s.paragraphAlignment : 0];
+      };
+      alignment.change = [](BookSettings& s, int delta) {
+        const int next = static_cast<int>(s.paragraphAlignment) + delta;
+        if (next >= 0 && next <= 4) {
+          s.paragraphAlignment = static_cast<uint8_t>(next);
+          s.markCustomSettings();
+        }
+      };
+      menuItems.push_back(std::move(alignment));
+      addToggle(MenuItem::Hyphenation, GroupType::FONT, "Hyphenation",
+                [](const BookSettings& s) { return s.hyphenationEnabled != 0; },
+                [](BookSettings& s) { s.hyphenationEnabled = s.hyphenationEnabled ? 0 : 1; });
+    } else if (selectedGroup_ == GroupType::LAYOUT) {
+      MenuEntry lineHeight;
+      lineHeight.item = MenuItem::LineHeight;
+      lineHeight.group = GroupType::LAYOUT;
+      lineHeight.name = "Line height";
+      lineHeight.getValueText = [](const BookSettings& s) -> const char* {
+        static char value[8];
+        snprintf(value, sizeof(value), "%u%%", s.lineHeight);
+        return value;
+      };
+      lineHeight.change = [](BookSettings& s, int delta) {
+        const int next = std::max(10, std::min(200, static_cast<int>(s.lineHeight) + delta * 5));
+        s.lineHeight = static_cast<uint8_t>(next);
+        s.markCustomSettings();
+      };
+      menuItems.push_back(std::move(lineHeight));
+
+      MenuEntry textSpace;
+      textSpace.item = MenuItem::TextSpace;
+      textSpace.group = GroupType::LAYOUT;
+      textSpace.name = "Word spacing";
+      textSpace.getValueText = [](const BookSettings& s) -> const char* {
+        static char value[8];
+        snprintf(value, sizeof(value), "%u%%", s.textSpace);
+        return value;
+      };
+      textSpace.change = [](BookSettings& s, int delta) {
+        const int next = std::max(10, std::min(200, static_cast<int>(s.textSpace) + delta * 5));
+        s.textSpace = static_cast<uint8_t>(next);
+        s.markCustomSettings();
+      };
+      menuItems.push_back(std::move(textSpace));
+
+      addToggle(MenuItem::ExtraParagraphSpacing, GroupType::LAYOUT, "Extra Paragraph Spacing",
+                [](const BookSettings& s) { return s.extraParagraphSpacing != 0; },
+                [](BookSettings& s) { s.extraParagraphSpacing = s.extraParagraphSpacing ? 0 : 1; });
+      addToggle(MenuItem::ParagraphCssIndent, GroupType::LAYOUT, "Indent",
+                [](const BookSettings& s) { return s.paragraphCssIndentEnabled != 0; },
+                [](BookSettings& s) { s.paragraphCssIndentEnabled = s.paragraphCssIndentEnabled ? 0 : 1; });
+
+      MenuEntry margin;
+      margin.item = MenuItem::ScreenMargin;
+      margin.group = GroupType::LAYOUT;
+      margin.name = "Screen Margin";
+      margin.getValueText = [](const BookSettings& s) -> const char* {
+        static char value[10];
+        snprintf(value, sizeof(value), "%u px", s.screenMargin);
+        return value;
+      };
+      margin.change = [](BookSettings& s, int delta) {
+        const int next = std::max(0, std::min(80, static_cast<int>(s.screenMargin) + delta * 5));
+        s.screenMargin = static_cast<uint8_t>(next);
+        s.markCustomSettings();
+      };
+      menuItems.push_back(std::move(margin));
+    } else if (selectedGroup_ == GroupType::CONTROLS) {
+      MenuEntry orientation;
+      orientation.item = MenuItem::ReadingOrientation;
+      orientation.group = GroupType::CONTROLS;
+      orientation.name = "Orientation";
+      orientation.getValueText = [](const BookSettings& s) -> const char* {
+        static const char* values[] = {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"};
+        return values[s.orientation <= 3 ? s.orientation : 0];
+      };
+      orientation.change = [](BookSettings& s, int delta) {
+        const int next = static_cast<int>(s.orientation) + delta;
+        if (next >= 0 && next <= 3) {
+          s.orientation = static_cast<uint8_t>(next);
+          s.markCustomSettings();
+        }
+      };
+      menuItems.push_back(std::move(orientation));
+      addToggle(MenuItem::BionicReading, GroupType::CONTROLS, "Bionic Reading",
+                [](const BookSettings& s) { return s.bionicReadingEnabled != 0; },
+                [](BookSettings& s) { s.bionicReadingEnabled = s.bionicReadingEnabled ? 0 : 1; });
+      MenuEntry guide;
+      guide.item = MenuItem::ReadingGuideLines;
+      guide.group = GroupType::CONTROLS;
+      guide.name = "Guide Lines";
+      guide.getValueText = [](const BookSettings& s) -> const char* {
+        static const char* values[] = {"Off", "Grid", "Notebook"};
+        return values[s.readingGuideLinesEnabled <= 2 ? s.readingGuideLinesEnabled : 0];
+      };
+      guide.change = [](BookSettings& s, int delta) {
+        const int next = static_cast<int>(s.readingGuideLinesEnabled) + delta;
+        if (next >= 0 && next <= 2) {
+          s.readingGuideLinesEnabled = static_cast<uint8_t>(next);
+          s.markCustomSettings();
+        }
+      };
+      menuItems.push_back(std::move(guide));
+    } else if (selectedGroup_ == GroupType::STATUS_BAR) {
+      const auto addStatus = [&](const MenuItem item, const char* name, uint8_t& value) {
+        MenuEntry entry;
+        entry.item = item;
+        entry.group = GroupType::STATUS_BAR;
+        entry.name = name;
+        entry.getValueText = [item](const BookSettings&) -> const char* {
+          const uint8_t value = item == MenuItem::StatusBarLeft
+                                    ? READER_SETTINGS.statusBarLeft
+                                    : item == MenuItem::StatusBarMiddle ? READER_SETTINGS.statusBarMiddle
+                                                                         : READER_SETTINGS.statusBarRight;
+          return statusBarItemName(static_cast<StatusBarItem>(value));
+        };
+        entry.change = [&value](BookSettings& s, int delta) {
+          (void)s;
+          const int next = static_cast<int>(value) + delta;
+          if (next >= 0 && next < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT)) {
+            value = static_cast<uint8_t>(next);
+            READER_SETTINGS.saveToFile();
+          }
+        };
+        menuItems.push_back(std::move(entry));
+      };
+      addStatus(MenuItem::StatusBarLeft, "Left Section", READER_SETTINGS.statusBarLeft);
+      addStatus(MenuItem::StatusBarMiddle, "Middle Section", READER_SETTINGS.statusBarMiddle);
+      addStatus(MenuItem::StatusBarRight, "Right Section", READER_SETTINGS.statusBarRight);
+    }
+    return;
+  }
 
   // Per-book preset picker (hidden inside the preset editor, where settings ARE the preset being edited).
   if (!embedded_) {
@@ -570,6 +779,10 @@ void SettingsDrawer::show() {
   }
   visible = true;
   dismissed = false;
+  if (embedded_) {
+    selectedGroup_ = GroupType::FONT;
+    setupMenu();
+  }
   selectedIndex = 0;
   scrollOffset = 0;
   renderWithRefresh(HalDisplay::FAST_REFRESH);
@@ -609,6 +822,8 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
   drawMenuItems();
   drawScrollIndicator();
   if (embedded_) {
+    renderer.line.render(drawerX, drawerY + drawerHeight - 1, drawerX + drawerWidth, drawerY + drawerHeight - 1,
+                         true);
     // Host owns the rest of the screen and the display push.
     if (onEmbeddedInvalidate_) onEmbeddedInvalidate_();
     return;
@@ -629,6 +844,13 @@ void SettingsDrawer::renderWithRefresh(HalDisplay::RefreshMode mode) {
  */
 void SettingsDrawer::drawBackground() {
   renderer.rectangle.fill(drawerX, drawerY, drawerWidth, drawerHeight, false);
+  if (embedded_) {
+    renderer.line.render(drawerX, drawerY, drawerX + drawerWidth, drawerY, true);
+    drawTabs();
+    renderer.line.render(drawerX, drawerY + drawerHeight - 1, drawerX + drawerWidth, drawerY + drawerHeight - 1,
+                         true);
+    return;
+  }
   renderer.rectangle.render(drawerX, drawerY, drawerWidth, drawerHeight, true);
 
   const int headerCenterY = drawerY + drawerHeaderHeight() / 2;
@@ -640,6 +862,36 @@ void SettingsDrawer::drawBackground() {
                hasPresetSource(settings));
   const int dividerY = drawerY + drawerHeaderHeight();
   renderer.line.render(drawerX, dividerY, drawerX + drawerWidth, dividerY, true);
+}
+
+void SettingsDrawer::drawTabs() {
+  struct Tab {
+    GroupType group;
+    const uint8_t* icon;
+  };
+  static constexpr Tab tabs[] = {
+      {GroupType::FONT, PresetFont},
+      {GroupType::LAYOUT, PresetBars},
+      {GroupType::STATUS_BAR, PresetLayout},
+      {GroupType::CONTROLS, PresetSettings},
+  };
+
+  const int count = static_cast<int>(sizeof(tabs) / sizeof(tabs[0]));
+  const int y = drawerY + 1;
+  const int width = std::max(1, drawerWidth / count);
+  for (int i = 0; i < count; ++i) {
+    const int x = drawerX + i * width;
+    const int w = i == count - 1 ? drawerX + drawerWidth - x : width;
+    const bool selected = tabs[i].group == selectedGroup_;
+    renderer.rectangle.fill(x, y, w, kPresetTabHeight, selected, false);
+    renderer.bitmap.icon(tabs[i].icon, x + std::max(0, (w - kPresetTabSize) / 2), y + kPresetTabPadding,
+                         kPresetTabSize, kPresetTabSize, BitmapRender::Orientation::None, selected);
+  }
+  for (int i = 1; i < count; ++i) {
+    const int dividerX = drawerX + i * width;
+    renderer.line.render(dividerX, y, dividerX, y + kPresetTabHeight, true, LineRender::Style::Dotted);
+  }
+  renderer.line.render(drawerX, y + kPresetTabHeight - 1, drawerX + drawerWidth, y + kPresetTabHeight - 1, true);
 }
 
 /**
@@ -656,7 +908,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
     return;
   }
 
-  const int startY = drawerY + drawerListTop();
+  const int startY = drawerY + contentListTop();
   const int itemY = startY + (visibleRow * itemHeight);
   const auto& entry = menuItems[static_cast<size_t>(menuIndex)];
   const bool isSelected = (menuIndex == selectedIndex);
@@ -754,7 +1006,7 @@ void SettingsDrawer::drawScrollIndicator() {
   int totalItems = static_cast<int>(menuItems.size());
   if (totalItems <= itemsPerPage) return;
 
-  int startY = drawerY + drawerListTop();
+  int startY = drawerY + contentListTop();
   int listHeight = itemsPerPage * itemHeight;
   int thumbH = (itemsPerPage * listHeight) / totalItems;
   int thumbY = startY + (scrollOffset * listHeight) / totalItems;
@@ -763,7 +1015,7 @@ void SettingsDrawer::drawScrollIndicator() {
 }
 
 void SettingsDrawer::clearScrollIndicatorArea() {
-  const int startY = drawerY + drawerListTop();
+  const int startY = drawerY + contentListTop();
   const int listHeight = itemsPerPage * itemHeight;
   renderer.rectangle.fill(drawerX + drawerWidth - 5, startY, 4, listHeight, false);
 }
@@ -816,6 +1068,14 @@ void SettingsDrawer::toggleGroup(GroupType group) {
   }
 }
 
+void SettingsDrawer::selectGroup(const GroupType group) {
+  if (selectedGroup_ == group) return;
+  selectedGroup_ = group;
+  selectedIndex = -1;
+  scrollOffset = 0;
+  setupMenu();
+}
+
 /**
  * @brief Handles input for the settings drawer
  * @param input Reference to the input manager
@@ -825,6 +1085,69 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
 
   uint32_t currentTime = xTaskGetTickCount();
   if (currentTime - lastInputTime < pdMS_TO_TICKS(150)) {
+    return;
+  }
+
+  if (embedded_) {
+    const bool previousTab = input.wasPressed(MappedInputManager::Button::Left);
+    const bool nextTab = input.wasPressed(MappedInputManager::Button::Right);
+    if (previousTab || nextTab) {
+      static constexpr GroupType tabs[] = {
+          GroupType::FONT,
+          GroupType::LAYOUT,
+          GroupType::STATUS_BAR,
+          GroupType::CONTROLS,
+      };
+      int tab = 0;
+      for (int i = 0; i < static_cast<int>(sizeof(tabs) / sizeof(tabs[0])); ++i) {
+        if (tabs[i] == selectedGroup_) {
+          tab = i;
+          break;
+        }
+      }
+      const int count = static_cast<int>(sizeof(tabs) / sizeof(tabs[0]));
+      tab = previousTab ? (tab - 1 + count) % count : (tab + 1) % count;
+      selectGroup(tabs[tab]);
+      lastInputTime = currentTime;
+      renderWithRefresh(HalDisplay::FAST_REFRESH);
+      return;
+    }
+
+    const bool previousItem = input.wasPressed(MappedInputManager::Button::Up);
+    const bool nextItem = input.wasPressed(MappedInputManager::Button::Down);
+    if (previousItem || nextItem) {
+      const int totalItems = static_cast<int>(menuItems.size());
+      if (totalItems > 0) {
+        if (selectedIndex < 0) {
+          selectedIndex = previousItem ? totalItems - 1 : 0;
+        } else {
+          selectedIndex = previousItem ? (selectedIndex - 1 + totalItems) % totalItems
+                                       : (selectedIndex + 1) % totalItems;
+        }
+        const int maxScroll = std::max(0, totalItems - itemsPerPage);
+        if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
+        if (selectedIndex >= scrollOffset + itemsPerPage) scrollOffset = selectedIndex - itemsPerPage + 1;
+        scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+      }
+      lastInputTime = currentTime;
+      renderWithRefresh(HalDisplay::FAST_REFRESH);
+      return;
+    }
+
+    if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+      if (selectedIndex >= 0 && selectedIndex < static_cast<int>(menuItems.size())) {
+        applyChange(1);
+        lastInputTime = currentTime;
+        renderWithRefresh(HalDisplay::FAST_REFRESH);
+      }
+      return;
+    }
+
+    if (input.wasReleased(MappedInputManager::Button::Back)) {
+      hide();
+      lastInputTime = currentTime;
+      return;
+    }
     return;
   }
 

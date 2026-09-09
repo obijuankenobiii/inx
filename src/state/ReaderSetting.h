@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "state/SystemSetting.h"
+
 class GfxRenderer;
 
 /**
@@ -85,7 +87,7 @@ class ReaderSetting {
   uint8_t readerDirectionMapping = 4;  ///< SystemSetting::MAP_NONE
   uint8_t readerMenuButton = 0;        ///< SystemSetting::MENU_UP
 
-  uint8_t fontFamily = 0;                   ///< SystemSetting::LITERATA
+  uint8_t fontFamily = SystemSetting::MONTSERRAT;
   uint8_t fontSize = 1;                     ///< SystemSetting::SMALL
   uint8_t lineHeight = 100;                 ///< Reader line height, % of natural (10-200)
   uint8_t textSpace = 100;                  ///< Reader word spacing, % of natural (10-200)

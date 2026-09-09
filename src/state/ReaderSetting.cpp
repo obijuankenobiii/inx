@@ -29,7 +29,7 @@ void readAndValidate(FsFile& file, uint8_t& member, uint8_t maxValue);
 ReaderSetting ReaderSetting::instance;
 
 namespace {
-constexpr uint8_t READER_SETTINGS_FILE_VERSION = 1;
+constexpr uint8_t READER_SETTINGS_FILE_VERSION = 2;
 // Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 40,
 // through readingGuideLinesEnabled) - NOT counting the version/count header fields read separately
 // before the loop. See SystemSetting.cpp's SETTINGS_COUNT comment for how this header is used.
@@ -340,7 +340,11 @@ bool ReaderSetting::loadFromFile() {
     {
       uint8_t rawFontFamily = 0;
       serialization::readPod(inputFile, rawFontFamily);
-      fontFamily = rawFontFamily;
+      // Version 1 stored two built-in slots followed by custom SD families.
+      // Version 2 keeps Montserrat as the only built-in and shifts custom slots down.
+      fontFamily = version < 2 ? (rawFontFamily == 0 ? SystemSetting::MONTSERRAT
+                                                     : static_cast<uint8_t>(rawFontFamily - 1))
+                               : rawFontFamily;
 #ifndef INX_SIMULATOR_WEB_ONLY
       FontManager::clampReaderFontFamilySlot(fontFamily);
 #endif
@@ -502,9 +506,8 @@ int ReaderSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
 
   if (family >= SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
     const std::string sdName = FontManager::readerFontFamilyLabel(family);
-    if (sdName == "Literata" || sdName == "Montserrat") {
-      return getReaderFontIdForFamilyAndSize(
-          sdName == "Montserrat" ? SystemSetting::MONTSERRAT : SystemSetting::LITERATA, size);
+    if (sdName == "Montserrat") {
+      return getReaderFontIdForFamilyAndSize(SystemSetting::MONTSERRAT, size);
     }
     return FontManager::getFontIdNearestPointSize(sdName, preferredPt);
   }
@@ -524,20 +527,19 @@ int ReaderSetting::getReaderFontIdForFamilyAndSize(uint8_t family, uint8_t size)
         case SystemSetting::EXTRA_LARGE:
           return MONTSERRAT_18_FONT_ID;
       }
-    case SystemSetting::LITERATA:
     default:
       switch (size) {
         case SystemSetting::EXTRA_SMALL:
-          return LITERATA_10_FONT_ID;
+          return MONTSERRAT_10_FONT_ID;
         case SystemSetting::SMALL:
-          return LITERATA_12_FONT_ID;
+          return MONTSERRAT_12_FONT_ID;
         case SystemSetting::MEDIUM:
         default:
-          return LITERATA_14_FONT_ID;
+          return MONTSERRAT_14_FONT_ID;
         case SystemSetting::LARGE:
-          return LITERATA_16_FONT_ID;
+          return MONTSERRAT_16_FONT_ID;
         case SystemSetting::EXTRA_LARGE:
-          return LITERATA_18_FONT_ID;
+          return MONTSERRAT_18_FONT_ID;
       }
   }
 #endif

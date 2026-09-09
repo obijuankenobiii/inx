@@ -170,7 +170,7 @@ Only uncompressed `.dict` files are supported. Compressed `.dict.dz` dictionarie
 
 ## Fonts
 
-Inx includes built-in **Literata** and **Atkinson Hyperlegible** reader fonts.
+Inx includes Montserrat system fonts and supports downloadable reader fonts.
 
 You can also install fonts on the SD card:
 

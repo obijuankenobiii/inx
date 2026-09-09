@@ -13,7 +13,7 @@ namespace UiLayout {
 
 // Shared page/list geometry.
 constexpr int LIST_ITEM_HEIGHT = 66;
-constexpr int HEADER_HEIGHT = 75;
+constexpr int HEADER_HEIGHT = 66;
 constexpr int PAGE_HEADER_HEIGHT = 79;
 constexpr int TAB_BAR_HEIGHT = 60;
 constexpr int CONTENT_TOP = 36;

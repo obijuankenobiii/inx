@@ -1,10 +1,11 @@
 /**
  * @file SyncActivity.cpp
- * @brief Definitions for SyncActivity.
+ * @brief Definitions for the redesigned Device Management page.
  */
 
-#include "../page/SyncActivity.h"
+#include "SyncActivity.h"
 
+#include <Arduino.h>
 #include <GfxRenderer.h>
 
 #include "activity/network/BackupRestoreActivity.h"
@@ -15,47 +16,33 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/MenuNav.h"
-#include "system/UiTheme.h"
+#include "system/UiLayout.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 9;
-const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Manage via wifi",   "Connect to calibre", "Create hotspot",
-                                           "OPDS Browser",      "Backup and restore", "KOReader Sync",
-                                           "Check for updates", "Choose dictionary",  "Device"};
-constexpr int LIST_ITEM_HEIGHT = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+constexpr int kMenuItemCount = 9;
+const char* kMenuItems[kMenuItemCount] = {
+    "Manage via wifi",       "Calibre File Transfer", "Create hotspot",     "OPDS Browser",
+    "Backup and restore",    "KOReader Sync",         "Check for updates",   "Choose dictionary",
+    "Device Information",
+};
+constexpr int kListItemHeight = UiLayout::LIST_ITEM_HEIGHT;
+constexpr int kHeaderTop = 20;
+constexpr int kHeaderHeight = 40;
+constexpr int kListGap = 30;
 }  // namespace
 
-/**
- * Lifecycle hook called when entering the activity.
- */
 void SyncActivity::onEnter() {
-  Activity::onEnter();
-
+  Page::onEnter();
   selectedIndex = 0;
-
-  render();
+  selectedVisible = false;
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Sync);
 }
 
-/**
- * Main loop for handling user input and updating the display state.
- * Processes button presses for menu navigation and tab switching.
- */
 void SyncActivity::loop() {
   if (subActivity) {
-    ActivityWithSubactivity::loop();
+    subActivity->loop();
     return;
   }
-
-  if (tabSelectorIndex == 3 && updateRequired) {
-    updateRequired = false;
-    render();
-  }
-
-  const bool confirmPressed = mappedInput.wasPressed(MappedInputManager::Button::Confirm);
-  const bool upPressed = mappedInput.wasPressed(MenuNav::itemPrev());
-  const bool downPressed = mappedInput.wasPressed(MenuNav::itemNext());
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     if (mappedInput.getHeldTime() >= 300 && onRecentOpen) {
@@ -65,154 +52,157 @@ void SyncActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasPressed(MenuNav::tabPrev())) {
-    tabSelectorIndex = 2;
-    navigateToSelectedMenu();
+  if (mappedInput.wasPressed(tabPrevButton())) {
+    handleTabNavigation(true, false);
     return;
   }
 
-  if (mappedInput.wasPressed(MenuNav::tabNext())) {
-    tabSelectorIndex = 4;
-    navigateToSelectedMenu();
+  if (mappedInput.wasPressed(tabNextButton())) {
+    handleTabNavigation(false, true);
     return;
   }
 
   if (tabSelectorIndex != 3) {
+    renderIfNeeded();
     return;
   }
 
-  if (confirmPressed) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     NetworkMode mode = NetworkMode::JOIN_NETWORK;
-
-    if (selectedIndex == 1) {
-      mode = NetworkMode::CONNECT_CALIBRE;
-    }
-
-    if (selectedIndex == 2) {
-      mode = NetworkMode::CREATE_HOTSPOT;
-    }
-
-    if (selectedIndex == 3) {
-      mode = NetworkMode::OPDS_BROWSER;
-    }
+    if (selectedIndex == 1) mode = NetworkMode::CONNECT_CALIBRE;
+    if (selectedIndex == 2) mode = NetworkMode::CREATE_HOTSPOT;
+    if (selectedIndex == 3) mode = NetworkMode::OPDS_BROWSER;
 
     if (selectedIndex == 4) {
-      enterNewActivity(new BackupRestoreActivity(renderer, mappedInput, [this] {
-        exitActivity();
-        updateRequired = true;
+      enter(new BackupRestoreActivity(renderer, mappedInput, [this] {
+        exit();
+        selectedVisible = false;
+        requestRender();
       }));
       return;
     }
 
     if (selectedIndex == 5) {
-      enterNewActivity(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
-        exitActivity();
-        updateRequired = true;
+      enter(new KOReaderSettingsActivity(renderer, mappedInput, [this] {
+        exit();
+        selectedVisible = false;
+        requestRender();
       }));
       return;
     }
 
     if (selectedIndex == 6) {
-      enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
-        exitActivity();
-        updateRequired = true;
+      enter(new OtaUpdateActivity(renderer, mappedInput, [this] {
+        exit();
+        selectedVisible = false;
+        requestRender();
       }));
       return;
     }
 
     if (selectedIndex == 7) {
-      enterNewActivity(new DictionaryPickerActivity(renderer, mappedInput, [this] {
-        exitActivity();
-        updateRequired = true;
+      enter(new DictionaryPickerActivity(renderer, mappedInput, [this] {
+        exit();
+        selectedVisible = false;
+        requestRender();
       }));
       return;
     }
 
     if (selectedIndex == 8) {
-      enterNewActivity(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
-        exitActivity();
-        updateRequired = true;
+      // Keep this device's existing device-identity action until its Pro-style
+      // Device Information subpage is migrated into this repository.
+      enter(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
+        exit();
+        requestRender();
       }));
       return;
     }
 
-    if (onModeSelected) {
-      onModeSelected(mode);
-    }
+    if (onModeSelected) onModeSelected(mode);
     return;
   }
 
   bool needUpdate = false;
-
-  if (upPressed) {
-    selectedIndex = (selectedIndex + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
+  if (mappedInput.wasPressed(itemPrevButton())) {
+    selectedIndex = (selectedIndex + kMenuItemCount - 1) % kMenuItemCount;
+    selectedVisible = true;
+    needUpdate = true;
+  }
+  if (mappedInput.wasPressed(itemNextButton())) {
+    selectedIndex = (selectedIndex + 1) % kMenuItemCount;
+    selectedVisible = true;
     needUpdate = true;
   }
 
-  if (downPressed) {
-    selectedIndex = (selectedIndex + 1) % MENU_ITEM_COUNT;
-    needUpdate = true;
-  }
-
-  if (needUpdate) {
-    updateRequired = true;
-  }
+  if (needUpdate) requestRender();
+  renderIfNeeded();
 }
 
-/**
- * Renders the complete sync activity view including menu items and tab bar.
- */
-void SyncActivity::render() const {
-  renderer.clearScreen();
+void SyncActivity::title() const {
+  const int font = MONTSERRAT_16_FONT_ID;
+  const int textY = navigation::Menu::topPadding +
+                    (navigation::Menu::iconSize - renderer.text.getLineHeight(font)) / 2;
+  renderer.text.render(font, navigation::Menu::leftMargin, textY, name(), true, EpdFontFamily::BOLD);
+}
+
+void SyncActivity::content() {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
-  const int contentBottom = mainContentBottom(renderer);
+  const int listStartY = kHeaderTop + kHeaderHeight + kListGap;
+  const int contentBottom = screenHeight - navigation::Menu::bottomHeight - 10;
 
-  renderTabBar(renderer);
+  for (int index = 0; index < kMenuItemCount; ++index) {
+    const int itemY = listStartY + index * kListItemHeight;
+    if (itemY >= contentBottom || itemY + kListItemHeight <= listStartY) continue;
 
-  const int headerY = mainContentTop();
-  const int headerHeight = mainHeaderHeight();
-  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
-  renderer.text.render(MONTSERRAT_12_FONT_ID, 20, headerTextY, "Device Management", true,
-                       EpdFontFamily::BOLD);
+    const bool selected = selectedVisible && index == selectedIndex;
+    if (selected) {
+      renderer.rectangle.fill(0, itemY, screenWidth, kListItemHeight,
+                              static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
 
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, screenWidth, dividerY);
+    const int titleY = itemY + (kListItemHeight - renderer.text.getLineHeight(systemFontId())) / 2;
+    renderer.text.render(systemFontId(), 20, titleY, kMenuItems[index], !selected);
+    const int caretWidth = renderer.text.getWidth(systemFontId(), "›");
+    renderer.text.render(systemFontId(), screenWidth - caretWidth - 30, titleY, "›", !selected);
 
-  const int listStartY = dividerY;
-  const int visibleAreaHeight = (INX_THEME.mainTabsAtBottom() ? contentBottom : screenHeight - 80) - listStartY;
-
-  for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-    const int itemY = listStartY + i * LIST_ITEM_HEIGHT;
-
-    if (itemY < listStartY + visibleAreaHeight && itemY + LIST_ITEM_HEIGHT > listStartY) {
-      const bool isSelected = (i == selectedIndex);
-
-      if (isSelected) {
-        renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
-      }
-
-      const int textX = 20;
-      const int titleY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
-
-      renderer.text.render(MONTSERRAT_10_FONT_ID, textX, titleY, MENU_ITEMS[i], !isSelected);
-      const int caretW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, "›");
-      renderer.text.render(MONTSERRAT_10_FONT_ID, screenWidth - caretW - 30, titleY, "›", !isSelected);
-
-      if (i < MENU_ITEM_COUNT - 1) {
-        renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
-                             LineRender::Style::Dotted);
-      }
+    if (index + 1 < kMenuItemCount) {
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenWidth, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
     }
   }
-
-  const auto labels = mappedInput.mapLabels("« Recent", "Select", "", "");
-  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-
-  renderer.displayBuffer();
 }
 
-/**
- * Lifecycle hook called when exiting the activity.
- */
-void SyncActivity::onExit() { ActivityWithSubactivity::onExit(); }
+void SyncActivity::onExit() {
+  exit();
+  Page::onExit();
+}
+
+void SyncActivity::enter(Activity* activity) {
+  if (!activity) return;
+  subActivity.reset(activity);
+  subActivity->onEnter();
+}
+
+void SyncActivity::exit() {
+  if (!subActivity) return;
+  subActivity->onExit();
+  subActivity.reset();
+}
+
+void SyncActivity::navigateToSelectedMenu() {
+  switch (tabSelectorIndex) {
+    case 0:
+      if (onRecentOpen) onRecentOpen();
+      break;
+    case 2:
+      if (onSettingsOpen) onSettingsOpen();
+      break;
+    case 4:
+      if (onStatisticsOpen) onStatisticsOpen();
+      break;
+    default:
+      break;
+  }
+}
