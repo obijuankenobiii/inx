@@ -31,6 +31,7 @@
 #include "activity/network/CalibreConnectActivity.h"
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
+#include "activity/page/Home.h"
 #include "activity/page/LibraryActivity.h"
 #include "activity/page/RecentActivity.h"
 #include "activity/page/SettingsActivity.h"
@@ -154,7 +155,7 @@ void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecen
  * @brief Navigates to the recent books activity.
  */
 void onGoToRecent() {
-  switchTo<RecentActivity>(render, input, []() { onGoToLibrary("/"); }, onGoToStatistics, onSelectBook, onGoToRecent);
+  switchTo<Home>(render, input);
 }
 
 /**

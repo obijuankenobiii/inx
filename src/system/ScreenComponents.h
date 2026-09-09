@@ -20,6 +20,11 @@ class ScreenComponents {
  public:
   static const int BOOK_PROGRESS_BAR_HEIGHT = 4;
 
+  static constexpr int BATTERY_ICON_WIDTH = 28;
+  static constexpr int BATTERY_ICON_HEIGHT = 14;
+  static constexpr int BATTERY_TEXT_GAP = 5;
+  static constexpr int BATTERY_ICON_TOP_OFFSET = 3;
+
   struct PopupLayout {
     int x;
     int y;

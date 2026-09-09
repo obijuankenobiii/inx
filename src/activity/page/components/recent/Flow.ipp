@@ -9,54 +9,13 @@ void RecentActivity::renderFlow() {
   const int screenW = renderer.getScreenWidth();
   const int startY = mainContentTop() + 5;
 
-  int currentIndex = selectorIndex;
-  int totalBooks = (int)recentBooks.size();
-  if (currentIndex < 0) {
-    currentIndex = 0;
-  }
-  if (currentIndex >= totalBooks) {
-    currentIndex = totalBooks - 1;
-  }
+  const int currentIndex = std::max(0, std::min(selectorIndex, static_cast<int>(recentBooks.size()) - 1));
+  const int carouselY = startY;
+  widget::Carousel carousel(renderer);
+  carousel.render(recentBooks, currentIndex, 0, carouselY, screenW, widget::Carousel::kHeight,
+                  &RecentActivity::renderFlowThumbnail, this);
 
-  int carouselW = screenW;
-  int carouselH = 340;
-  int carouselX = 0;
-  int carouselY = startY;
-
-  drawFlowCarouselBackdrop(renderer, carouselX, carouselY, carouselW, carouselH);
-
-  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-
-  int centerW = 210;
-  int centerH = 318;
-  int centerX = carouselX + (carouselW - centerW) / 2;
-  int centerY = carouselY + (carouselH - centerH) / 2 + 4;
-
-  float scale = 0.9f;
-  int sideW = (int)(centerW * scale);
-  int sideH = (int)(centerH * scale);
-  int leftX = centerX - sideW - 20;
-  int rightX = centerX + centerW + 20;
-  int sideY = centerY + (centerH - sideH) / 2;
-
-  if (totalBooks > 1) {
-    const int leftIndex = (currentIndex + totalBooks - 1) % totalBooks;
-    const int rightIndex = (currentIndex + 1) % totalBooks;
-    const RecentBook& leftBook = recentBooks[leftIndex];
-    renderer.rectangle.fill(leftX, sideY, sideW, sideH, false, rr);
-    drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
-    const RecentBook& rightBook = recentBooks[rightIndex];
-    renderer.rectangle.fill(rightX, sideY, sideW, sideH, false, rr);
-    drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
-  }
-
-  const RecentBook& currentBook = recentBooks[currentIndex];
-
-  renderer.rectangle.fill(centerX, centerY, centerW, centerH, false, rr);
-  drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
-                        ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);
+  const RecentBook& currentBook = recentBooks[static_cast<size_t>(currentIndex)];
 
   const CachedRecentStats& cachedStats = statsForRecentIndex(currentIndex);
   const BookReadingStats& stats = cachedStats.stats;
@@ -66,8 +25,9 @@ void RecentActivity::renderFlow() {
   const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
 
   int statsX = 30;
-  int statsY = carouselY + carouselH + 25;
-  renderer.line.render(0, carouselY + carouselH + 10, screenW, carouselY + carouselH + 10, true);
+  int statsY = carouselY + widget::Carousel::kHeight + 25;
+  renderer.line.render(0, carouselY + widget::Carousel::kHeight + 10, screenW,
+                       carouselY + widget::Carousel::kHeight + 10, true);
   std::string title;
   if (!currentBook.title.empty()) {
     title = currentBook.title;
@@ -82,25 +42,22 @@ void RecentActivity::renderFlow() {
   int authorY = statsY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_18_FONT_ID) - 5;
   renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
 
-  const float prog = recentDisplayProgress(currentBook);
-  if (prog >= 0) {
+  float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
+  if (progress >= 0) {
     int barY = authorY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) + 20;
     int barW = (screenW - 60) * 0.5;
     int barH = 6;
 
     renderer.rectangle.fill(statsX, barY, barW, barH, false);
     renderer.rectangle.render(statsX, barY, barW, barH, true);
-    if (prog > 0) {
-      int fillW = (int)(barW * prog);
+    if (progress > 0) {
+      int fillW = (int)(barW * (progress / 100.0f));
       renderer.rectangle.fill(statsX, barY, fillW, barH);
     }
 
-    char percentText[12];
-    if (recentBookFinished(currentBook)) {
-      snprintf(percentText, sizeof(percentText), "Finished");
-    } else {
-      snprintf(percentText, sizeof(percentText), "%d%%", (int)(prog * 100.0f + 0.5f));
-    }
+    char percentText[8];
+    int percent = (int)(progress + 0.5f);
+    snprintf(percentText, sizeof(percentText), "%d%%", percent);
     renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
   }
 

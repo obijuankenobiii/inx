@@ -29,6 +29,7 @@
 #include "Epub/Page.h"
 #include "Epub/Section.h"
 #include "components/recent/RecentLayouts.h"
+#include "components/widget/Carousel.h"
 #include "dictionary/DictionaryDefinitionLayout.h"
 #include "images/Star.h"
 #include "state/BookProgress.h"
@@ -226,6 +227,25 @@ static void drawRecentThumbnailPlaceholder(GfxRenderer& renderer, const int x, c
   }
 }
 
+/** Flow-style dither strictly inside a list row (does not bleed into adjacent rows). */
+static void drawFlowCarouselBackdropInRect(const GfxRenderer& renderer, const int rx, const int ry, const int rw,
+                                           const int rh) {
+  if (rw <= 0 || rh <= 0) {
+    return;
+  }
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int x1 = std::max(0, rx);
+  const int y1 = std::max(0, ry);
+  const int x2 = std::min(screenW, rx + rw);
+  const int y2 = std::min(screenH, ry + rh);
+  for (int y = (y1 + 1) & ~1; y < y2; y += 2) {
+    for (int x = (x1 + 1) & ~1; x < x2; x += 2) {
+      renderer.drawPixel(x, y, true);
+    }
+  }
+}
+
 static void drawProgressBadge(const GfxRenderer& renderer, const IconRect& coverRect, float progress) {
   if (progress < 0.0f || progress > 1.0f) {
     return;
@@ -245,41 +265,6 @@ static void drawProgressBadge(const GfxRenderer& renderer, const IconRect& cover
   const int badgeY = coverRect.y + 2;
   renderer.rectangle.fill(badgeX, badgeY, badgeW, badgeH, true);
   renderer.text.render(font, badgeX + (badgeW - textW) / 2, badgeY + 1, label, false, EpdFontFamily::BOLD);
-}
-
-/** Same light “gray” as `renderFlow` carousel: sparse ink checker (not `FillTone::Gray`). */
-static void drawFlowCarouselBackdrop(const GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
-  // Same even-even 1/4 ink lattice as GfxRenderer corner mask (SparseInkAlignedOutside) for seamless edges.
-  for (int y = (ry - 5 + 1) & ~1; y < ry + rh + 10; y += 2) {
-    if (y < 0 || y >= screenH) {
-      continue;
-    }
-    for (int x = ((rx - 5) + 1) & ~1; x < rx + rw + 10; x += 2) {
-      if (x >= 0 && x < screenW) {
-        renderer.drawPixel(x, y, true);
-      }
-    }
-  }
-}
-
-/** Flow-style dither strictly inside the rectangle (does not bleed into the white bottom pane). */
-static void drawFlowCarouselBackdropInRect(const GfxRenderer& renderer, int rx, int ry, int rw, int rh) {
-  if (rw <= 0 || rh <= 0) {
-    return;
-  }
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
-  const int x1 = std::max(0, rx);
-  const int y1 = std::max(0, ry);
-  const int x2 = std::min(screenW, rx + rw);
-  const int y2 = std::min(screenH, ry + rh);
-  for (int y = (y1 + 1) & ~1; y < y2; y += 2) {
-    for (int x = (x1 + 1) & ~1; x < x2; x += 2) {
-      renderer.drawPixel(x, y, true);
-    }
-  }
 }
 
 }  // namespace
@@ -351,6 +336,17 @@ void RecentActivity::drawRecentThumbnailAt(int x, int y, int w, int h, const std
   }
 
   drawRecentNoCoverPlaceholder(renderer, x, y, w, h, placeholderTitle, placeholderFontId);
+}
+
+void RecentActivity::renderFlowThumbnail(void* context, const RecentBook& book, const int x, const int y, const int w,
+                                         const int h, const int placeholderFontId,
+                                         const bool roundedCornerBackdropIsDither) {
+  if (context == nullptr) {
+    return;
+  }
+  auto* self = static_cast<RecentActivity*>(context);
+  self->drawRecentThumbnailAt(x, y, w, h, book.cachePath, bookDisplayTitle(book), placeholderFontId,
+                              roundedCornerBackdropIsDither);
 }
 
 void RecentActivity::drawRecentCoverFitAt(int x, int y, int w, int h, const std::string& cacheDir,

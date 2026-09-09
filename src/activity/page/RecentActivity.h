@@ -166,6 +166,8 @@ class RecentActivity final : public Activity, public Menu {
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                              const std::string& placeholderTitle, int placeholderFontId,
                              bool roundedCornerBackdropIsDither = false);
+  static void renderFlowThumbnail(void* context, const RecentBook& book, int x, int y, int w, int h,
+                                  int placeholderFontId, bool roundedCornerBackdropIsDither);
   void drawRecentCoverFitAt(int x, int y, int w, int h, const std::string& cacheDir,
                             const std::string& placeholderTitle, int placeholderFontId);
 

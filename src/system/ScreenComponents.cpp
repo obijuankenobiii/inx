@@ -14,23 +14,14 @@
 #include <cstdio>
 #include <string>
 
+#include "images/Battery.h"
+#include "images/Charging.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 
 extern HalGPIO gpio;
 
 namespace {
-
-void drawBatteryLightningBolt(const GfxRenderer& renderer, const int boltX, const int boltY) {
-  renderer.line.render(boltX + 4, boltY + 0, boltX + 5, boltY + 0, false);
-  renderer.line.render(boltX + 3, boltY + 1, boltX + 4, boltY + 1, false);
-  renderer.line.render(boltX + 2, boltY + 2, boltX + 5, boltY + 2, false);
-  renderer.line.render(boltX + 3, boltY + 3, boltX + 4, boltY + 3, false);
-  renderer.line.render(boltX + 2, boltY + 4, boltX + 3, boltY + 4, false);
-  renderer.line.render(boltX + 1, boltY + 5, boltX + 4, boltY + 5, false);
-  renderer.line.render(boltX + 2, boltY + 6, boltX + 3, boltY + 6, false);
-  renderer.line.render(boltX + 1, boltY + 7, boltX + 2, boltY + 7, false);
-}
 
 bool formatMenuClock(char* out, const size_t outSize) {
   if (!out || outSize == 0 || !gpio.deviceIsX3() || !SETTINGS.showMenuClock) {
@@ -69,35 +60,24 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
   const bool charging = gpio.isUsbConnected();
 #endif
   const auto percentageText = showPercentage ? std::to_string(percentage) + "%" : "";
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + 20, top, percentageText.c_str());
+  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, left + BATTERY_ICON_WIDTH + BATTERY_TEXT_GAP, top,
+                       percentageText.c_str());
+  renderer.bitmap.icon(BatteryIcon, left, top + BATTERY_ICON_TOP_OFFSET, BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT);
 
-  constexpr int batteryWidth = 15;
-  constexpr int batteryHeight = 12;
-  const int x = left;
-  const int y = top + 6;
+  const int bars = percentage >= 75 ? 4 : percentage >= 50 ? 3 : percentage >= 25 ? 2 : 1;
+  constexpr int barHeight = 6;
+  constexpr int firstBarX = 4;
+  constexpr int fillWidth = 17;
+  const int barY = top + BATTERY_ICON_TOP_OFFSET + 4;
+  const int filledWidth = (fillWidth * bars + 3) / 4;
+  renderer.rectangle.fill(left + firstBarX, barY, filledWidth, barHeight, true);
 
-  renderer.line.render(x + 1, y, x + batteryWidth - 3, y);
-
-  renderer.line.render(x + 1, y + batteryHeight - 1, x + batteryWidth - 3, y + batteryHeight - 1);
-
-  renderer.line.render(x, y + 1, x, y + batteryHeight - 2);
-
-  renderer.line.render(x + batteryWidth - 2, y + 1, x + batteryWidth - 2, y + batteryHeight - 2);
-  renderer.drawPixel(x + batteryWidth - 1, y + 3);
-  renderer.drawPixel(x + batteryWidth - 1, y + batteryHeight - 4);
-  renderer.line.render(x + batteryWidth - 0, y + 4, x + batteryWidth - 0, y + batteryHeight - 5);
-
-  int filledWidth = percentage * (batteryWidth - 5) / 100 + 1;
-  if (filledWidth > batteryWidth - 5) {
-    filledWidth = batteryWidth - 5;
-  }
-  if (charging && filledWidth < 8) {
-    filledWidth = std::min(8, batteryWidth - 5);
-  }
-
-  renderer.rectangle.fill(x + 2, y + 2, filledWidth, batteryHeight - 4);
   if (charging) {
-    drawBatteryLightningBolt(renderer, x + 4, y + 2);
+    constexpr int chargingIconSize = 40;
+    constexpr int chargingIconGap = 30;
+    renderer.bitmap.icon(Charging, left - chargingIconGap,
+                         top + BATTERY_ICON_TOP_OFFSET + (BATTERY_ICON_HEIGHT - chargingIconSize) / 2,
+                         chargingIconSize, chargingIconSize);
   }
 }
 
