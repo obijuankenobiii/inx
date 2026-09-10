@@ -9,11 +9,14 @@
 #include <HardwareSerial.h>
 #include <Serialization.h>
 
+#include <algorithm>
+
 #include "../BookMetadataCache.h"
 
 namespace {
 constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char itemCacheFile[] = "/.items.bin";
+constexpr size_t kMaxDescriptionLength = 1024;
 }  // namespace
 
 bool ContentOpfParser::setup() {
@@ -109,6 +112,13 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_METADATA && strcmp(name, "dc:creator") == 0) {
     self->state = IN_BOOK_AUTHOR;
+    return;
+  }
+
+  if (self->state == IN_METADATA &&
+      (strcmp(name, "dc:description") == 0 || strcmp(name, "description") == 0 ||
+       strcmp(name, "opf:description") == 0)) {
+    self->state = IN_BOOK_DESCRIPTION;
     return;
   }
 
@@ -276,6 +286,12 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
     return;
   }
 
+  if (self->state == IN_BOOK_DESCRIPTION && self->description.size() < kMaxDescriptionLength) {
+    const size_t remaining = kMaxDescriptionLength - self->description.size();
+    self->description.append(s, std::min(static_cast<size_t>(len), remaining));
+    return;
+  }
+
   if (self->state == IN_BOOK_LANGUAGE) {
     self->language.append(s, len);
     return;
@@ -310,6 +326,13 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
   }
 
   if (self->state == IN_BOOK_AUTHOR && strcmp(name, "dc:creator") == 0) {
+    self->state = IN_METADATA;
+    return;
+  }
+
+  if (self->state == IN_BOOK_DESCRIPTION &&
+      (strcmp(name, "dc:description") == 0 || strcmp(name, "description") == 0 ||
+       strcmp(name, "opf:description") == 0)) {
     self->state = IN_METADATA;
     return;
   }

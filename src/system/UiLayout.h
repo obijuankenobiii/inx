@@ -43,6 +43,13 @@ constexpr int FLOW_CAROUSEL_CENTER_HEIGHT = 300;
 constexpr int FLOW_CAROUSEL_SIDE_SCALE_PERCENT = 90;
 constexpr int FLOW_CAROUSEL_CARD_GAP = 20;
 
+// inx-pro Left-layout carousel widget geometry.
+constexpr int CAROUSEL_LEFT_CARD_MARGIN = 20;
+constexpr int CAROUSEL_LEFT_CARD_GAP = 20;
+constexpr int CAROUSEL_TOP_PADDING = 20;
+constexpr int CAROUSEL_BOTTOM_PADDING = 20;
+constexpr int CAROUSEL_MAX_VISIBLE = 4;
+
 // Sidebar geometry.
 constexpr int SIDEBAR_WIDTH_LIMIT = 350;
 constexpr int SIDEBAR_LIST_TOP = MENU_HEIGHT + 34;

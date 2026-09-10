@@ -5,6 +5,7 @@
 #include "flow/Flow.h"
 #include "grid/Grid.h"
 #include "list/List.h"
+#include "carousel/Carousel.h"
 #include "state/SystemSetting.h"
 
 namespace widget {
@@ -15,6 +16,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
       return Mode::Grid;
     case SystemSetting::RECENT_BOOK_LIST:
       return Mode::List;
+    case SystemSetting::RECENT_CAROUSEL:
+      return Mode::Carousel;
     case SystemSetting::RECENT_FLOW:
     case SystemSetting::RECENT_LIST_DEPRECATED:
     case SystemSetting::RECENT_SIMPLE:
@@ -29,6 +32,8 @@ const char* Recent::modeLabel(const Mode mode) {
       return "Grid";
     case Mode::List:
       return "List";
+    case Mode::Carousel:
+      return "Carousel";
     case Mode::Flow:
     default:
       return "Flow";
@@ -45,6 +50,13 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
     case Mode::List:
       list::List::render(renderer_, x, y, width, height, selectedIndex);
       return;
+    case Mode::Carousel: {
+      const int topHeight = std::max(1, height / 2);
+      carousel::Carousel::render(renderer_, x, y, width, topHeight, selectedIndex);
+      renderer_.rectangle.fill(x, y + topHeight, width, 1, static_cast<int>(GfxRenderer::FillTone::Gray));
+      carousel::Carousel::renderBottom(renderer_, x, y + topHeight, width, height - topHeight, selectedIndex);
+      return;
+    }
     case Mode::Flow:
     default:
       flow::Flow::render(renderer_, x, y, width, height, selectedIndex);
@@ -62,6 +74,13 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
     case Mode::List:
       list::List::preview(renderer_, x, y, width, height);
       return;
+    case Mode::Carousel: {
+      const int topHeight = std::max(1, height / 2);
+      carousel::Carousel::preview(renderer_, x, y, width, topHeight);
+      renderer_.rectangle.fill(x, y + topHeight, width, 1, static_cast<int>(GfxRenderer::FillTone::Gray));
+      carousel::Carousel::previewBottom(renderer_, x, y + topHeight, width, height - topHeight);
+      return;
+    }
     case Mode::Flow:
     default:
       flow::Flow::preview(renderer_, x, y, width, height);

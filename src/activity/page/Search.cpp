@@ -54,6 +54,23 @@ int Search::maxScroll() const {
   return std::max(0, total - visible);
 }
 
+void Search::keepSelectedVisible() {
+  if (results_.empty()) return;
+
+  const int rowHeight = resultHeight();
+  const int visibleRows = std::max(1, (keyboardTop() - resultsTop()) / rowHeight);
+  const int firstVisible = scroll_ / rowHeight;
+  const int lastVisible = firstVisible + visibleRows - 1;
+  const int selected = static_cast<int>(selectedResult_);
+
+  if (selected < firstVisible) {
+    scroll_ = selected * rowHeight;
+  } else if (selected > lastVisible) {
+    scroll_ = (selected - visibleRows + 1) * rowHeight;
+  }
+  scroll_ = std::min(maxScroll(), std::max(0, scroll_));
+}
+
 void Search::updateResults() {
   if (query_.empty()) {
     results_.clear();
@@ -103,7 +120,7 @@ void Search::loop() {
       selectedResult_ = 0;
       scroll_ = 0;
     } else {
-      scroll_ = std::min(maxScroll(), static_cast<int>(selectedResult_) * resultHeight());
+      keepSelectedVisible();
     }
     requestRender();
     return;
@@ -117,7 +134,7 @@ void Search::loop() {
       if (keyboardCollapsed_) {
         if (!results_.empty()) {
           selectedResult_ = (selectedResult_ + 1) % results_.size();
-          scroll_ = std::min(maxScroll(), static_cast<int>(selectedResult_) * resultHeight());
+          keepSelectedVisible();
         }
       } else {
         keyboard_.moveVertical(1);
@@ -130,7 +147,7 @@ void Search::loop() {
   if (keyboardCollapsed_) {
     if (!results_.empty() && mappedInput.wasPressed(itemPrevButton())) {
       selectedResult_ = selectedResult_ == 0 ? results_.size() - 1 : selectedResult_ - 1;
-      scroll_ = std::min(maxScroll(), static_cast<int>(selectedResult_) * resultHeight());
+      keepSelectedVisible();
       requestRender();
       return;
     }

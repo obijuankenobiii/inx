@@ -33,6 +33,7 @@
 #include "activity/network/HotspotActivity.h"
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/Home.h"
+#include "activity/page/HomeDescription.h"
 #include "activity/page/Library.h"
 #include "activity/page/LibraryActivity.h"
 #include "activity/page/RecentActivity.h"
@@ -75,6 +76,7 @@ void waitForPowerRelease();
 void normalizeUnavailableClockSettings();
 void enterDeepSleep();
 void onGoToReader(const std::string& path);
+void onGoToDescription(const std::string& path);
 void onSelectBook(const std::string& path);
 void onGoToRecent();
 void onGoToStatistics();
@@ -112,6 +114,10 @@ void switchTo(Args&&... args) {
  */
 void onGoToReader(const std::string& path) {
   switchTo<ReaderActivity>(render, input, path, [](const std::string&) { onGoToRecent(); });
+}
+
+void onGoToDescription(const std::string& path) {
+  switchTo<HomeDescription>(render, input, path, onGoToRecent);
 }
 
 bool isExportedNoteImage(const std::string& path) {

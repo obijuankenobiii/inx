@@ -60,6 +60,7 @@ class Epub {
   const std::string& getPath() const;
   const std::string& getTitle() const;
   const std::string& getAuthor() const;
+  const std::string& getDescription() const;
   const std::string& getLanguage() const;
   std::string& getBasePath() { return contentBasePath; }
 

@@ -41,6 +41,7 @@ class Search final : public Page {
   int resultsTop() const;
   int resultHeight() const;
   int maxScroll() const;
+  void keepSelectedVisible();
   void updateResults();
   void openSelected();
   void drawResults() const;

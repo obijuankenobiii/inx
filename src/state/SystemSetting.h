@@ -351,6 +351,7 @@ class SystemSetting {
     RECENT_BOOK_LIST = 4,        ///< Vertical list: thumb left, title/author/progress (5 visible, scrollable)
     RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
     RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress
+    RECENT_CAROUSEL = 7,         ///< Left-layout recent carousel widget
     RECENT_LIBRARY_MODE_COUNT
   };
 
