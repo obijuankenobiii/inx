@@ -43,7 +43,6 @@
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/UiTheme.h"
-#include "util/BookDisplayTitle.h"
 #include "util/StringUtils.h"
 
 extern bool sdCardAvailable;
@@ -83,8 +82,10 @@ static std::string formatTitle(const std::string& title) {
 }
 
 static std::string bookDisplayTitle(const RecentBook& book) {
-  const std::string fallback = book.title.empty() ? book.path : book.title;
-  return BookDisplayTitle::resolve(book.path, fallback);
+  if (!book.title.empty()) {
+    return book.title;
+  }
+  return formatTitle(getBaseFilename(book.path));
 }
 
 static bool recentBookFinished(const RecentBook& book) {

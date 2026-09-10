@@ -110,7 +110,7 @@ void DictionaryPickerActivity::render() {
     renderer.text.centered(kBodyFont, centerY, "No dictionaries found.", true, EpdFontFamily::BOLD);
     renderer.text.centered(kBodyFont, centerY + 32, "Put StarDict folders under /dictionaries/", true,
                            EpdFontFamily::REGULAR);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 56, "One folder per language. All of them are used.",
+    renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY + 56, "One folder per language. All of them are used.",
                            true, EpdFontFamily::REGULAR);
     const auto hints = mappedInput.mapLabels("\xC2\xAB Back", "", "", "");
     renderer.ui.buttonHints(kBodyFont, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
@@ -144,7 +144,7 @@ void DictionaryPickerActivity::render() {
     }
     renderer.text.render(kBodyFont, 20, titleY, label.c_str(), !selected, EpdFontFamily::REGULAR);
     const std::string langLine = DictionaryRegistry::langLabel(entries_[static_cast<size_t>(i)].lang);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, 20, subY, langLine.c_str(), !selected, EpdFontFamily::REGULAR);
+    renderer.text.render(MONTSERRAT_8_FONT_ID, 20, subY, langLine.c_str(), !selected, EpdFontFamily::REGULAR);
     renderer.line.render(0, y + kRowH - 1, screenW, y + kRowH - 1, true, LineRender::Style::Dotted);
   }
 

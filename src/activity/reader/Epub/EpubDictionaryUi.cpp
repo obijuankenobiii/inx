@@ -327,9 +327,9 @@ void EpubDictionaryUi::layoutCurrentDefinition(EpubActivity& act, const bool tru
     }
     if (!plain.empty()) {
       const std::string clipped =
-          act.renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, plain.c_str(), std::max(1, textWidth));
+          act.renderer.text.truncate(MONTSERRAT_10_FONT_ID, plain.c_str(), std::max(1, textWidth));
       DefinitionStyledLine line;
-      line.fontId = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+      line.fontId = MONTSERRAT_10_FONT_ID;
       line.atoms.push_back(DefinitionTextAtom(clipped.empty() ? plain : clipped, EpdFontFamily::REGULAR, false, false));
       definitionLines_.push_back(std::move(line));
     }
@@ -748,7 +748,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   constexpr int kTitleGapPx = 8;
   const int neededPanelH = pad * 2 + titleH + kTitleGapPx * 2 + contentH;
   const int minPanelH =
-      pad * 2 + titleH + kTitleGapPx * 2 + act.renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) * 2;
+      pad * 2 + titleH + kTitleGapPx * 2 + act.renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID) * 2;
   const int maxPanelH = panelBottom - minPanelTop;
   const int panelH = std::min(maxPanelH, std::max(minPanelH, neededPanelH));
   const int panelTop = panelBottom - panelH;

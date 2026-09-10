@@ -3017,8 +3017,8 @@ std::vector<DefinitionStyledLine> layoutDictionaryCard(const GfxRenderer& render
     return layoutDefinitionBlocks(renderer, blocks, maxWidth);
   }
 
-  constexpr int kPosFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  constexpr int kBodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int kPosFont = MONTSERRAT_8_FONT_ID;
+  constexpr int kBodyFont = MONTSERRAT_10_FONT_ID;
   constexpr int kExampleIndent = 14;
   std::vector<DefinitionStyledLine> out;
 

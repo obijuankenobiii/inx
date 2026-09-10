@@ -301,33 +301,6 @@ std::vector<std::string> StarDictLookup::alternateForms(const std::string& query
   return queryVariants(toLowerCopy(cleaned), true);
 }
 
-namespace {
-
-void pushUnique(std::vector<std::string>& list, const std::string& s) {
-  if (s.empty()) {
-    return;
-  }
-  if (std::find(list.begin(), list.end(), s) == list.end()) {
-    list.push_back(s);
-  }
-}
-
-bool writeLe32(FsFile& file, const uint32_t value) {
-  return file.write(reinterpret_cast<const uint8_t*>(&value), 4) == 4;
-}
-
-bool readLe32(FsFile& file, uint32_t& value) {
-  return file.read(reinterpret_cast<uint8_t*>(&value), 4) == 4;
-}
-
-// Same layout as CrossPoint 1.5 .qidx, plus a flags word (version 2) for sort-order.
-constexpr uint32_t kQidxMagic = 0x58444951;  // "QIDX" little-endian
-constexpr uint32_t kQidxVersion = 2;
-constexpr uint32_t kQidxHeaderWords = 6;
-constexpr uint32_t kDefinitionHeapHeadroomBytes = 8 * 1024;
-
-}  // namespace
-
 constexpr uint32_t StarDictLookup::kMaxDefinitionBytes;
 
 // ---------------------------------------------------------------------------
