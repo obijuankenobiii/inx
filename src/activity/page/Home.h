@@ -6,6 +6,7 @@
  */
 
 #include "Page.h"
+#include "components/widget/Recent.h"
 #include "navigation/Sidebar.h"
 
 /** Home page with inx-pro header, carousel content, and bottom navigation chrome. */
@@ -27,4 +28,6 @@ class Home final : public Page {
  private:
   bool sidebarOpen = false;
   bool ignoreBackReleaseOnEnter_ = false;
+  int recentIndex_ = 0;
+  widget::Recent recentWidget;
 };

@@ -99,6 +99,8 @@ std::vector<SettingInfo> buildSystemSettings(const bool x3) {
                                         GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Text size", &SystemSetting::systemTextSize,
                                        {"Small", "Medium", "Large"}, GroupType::DEVICE_DISPLAY));
+  // Theme is a separate top-level settings page, not a Display option.
+  settings.push_back(SettingInfo::Separator("Theme", GroupType::THEME));
 
   if (x3) {
     settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));

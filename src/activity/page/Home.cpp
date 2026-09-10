@@ -12,13 +12,15 @@
 #include <functional>
 #include <string>
 
-#include "components/widget/Carousel.h"
 #include "images/Hamburger.h"
+#include "state/RecentBooks.h"
+#include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/UiLayout.h"
 
 extern void onGoToLibrary(const std::string& path);
+extern void onGoToReader(const std::string& path);
 extern void onGoToSettings();
 extern void onGoToFileTransfer();
 
@@ -29,11 +31,14 @@ unsigned long lastBackReleaseMs = 0;
 
 }  // namespace
 
-Home::Home(GfxRenderer& renderer, MappedInputManager& mappedInput) : Page("Home", renderer, mappedInput) {}
+Home::Home(GfxRenderer& renderer, MappedInputManager& mappedInput)
+    : Page("Home", renderer, mappedInput), recentWidget(renderer) {}
 
 void Home::onEnter() {
   Page::onEnter();
   sidebarOpen = false;
+  tabSelectorIndex = 0;
+  recentIndex_ = 0;
   ignoreBackReleaseOnEnter_ = mappedInput.isPressed(MappedInputManager::Button::Back);
 }
 
@@ -64,6 +69,27 @@ void Home::loop() {
     return;
   }
 
+  // These are the same item controls used by RecentActivity's Flow/Grid/List
+  // views in the linked inx source. The bottom menu keeps left/right for tab
+  // navigation, while up/down select a recent book and Confirm opens it.
+  const auto& books = RECENT_BOOKS.getBooks();
+  const int recentCount = std::min(static_cast<int>(books.size()), std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
+  if (recentCount > 0 && mappedInput.wasPressed(itemNextButton())) {
+    recentIndex_ = (recentIndex_ + 1) % recentCount;
+    requestRender();
+    return;
+  }
+  if (recentCount > 0 && mappedInput.wasPressed(itemPrevButton())) {
+    recentIndex_ = (recentIndex_ + recentCount - 1) % recentCount;
+    requestRender();
+    return;
+  }
+  if (recentCount > 0 && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    const int index = std::max(0, std::min(recentIndex_, recentCount - 1));
+    onGoToReader(books[static_cast<size_t>(index)].path);
+    return;
+  }
+
   Page::loop();
 }
 
@@ -90,9 +116,8 @@ void Home::content() {
     return;
   }
 
-  widget::Carousel carousel(renderer);
-  // Hardcoded to the first recent book until Home navigation/state is migrated.
-  carousel.render(0, 0, top(), renderer.getScreenWidth(), std::min(widget::Carousel::kHeight, contentHeight));
+  recentWidget.render(widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode), 0, top(), renderer.getScreenWidth(),
+                      contentHeight, recentIndex_);
 }
 
 void Home::navigateToSelectedMenu() {

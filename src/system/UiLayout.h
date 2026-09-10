@@ -37,9 +37,9 @@ constexpr int LIBRARY_HEADER_BUTTON_GAP = 25;
 constexpr int LIBRARY_HEADER_BUTTON_PADDING = 10;
 
 // Recent Flow carousel geometry.
-constexpr int FLOW_CAROUSEL_HEIGHT = 340;
+constexpr int FLOW_CAROUSEL_HEIGHT = 310;
 constexpr int FLOW_CAROUSEL_CENTER_WIDTH = 210;
-constexpr int FLOW_CAROUSEL_CENTER_HEIGHT = 318;
+constexpr int FLOW_CAROUSEL_CENTER_HEIGHT = 300;
 constexpr int FLOW_CAROUSEL_SIDE_SCALE_PERCENT = 90;
 constexpr int FLOW_CAROUSEL_CARD_GAP = 20;
 

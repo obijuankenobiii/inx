@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <functional>
 #include <string>
 
 #include "state/SystemSetting.h"
@@ -84,7 +85,11 @@ void Carousel::renderDefaultThumbnail(void* context, const RecentBook& book, con
   }
   GfxRenderer& renderer = self->renderer_;
 
-  const std::string path = thumbnailPath(book.cachePath);
+  std::string cacheDir = book.cachePath;
+  if (cacheDir.empty()) {
+    cacheDir = "/.metadata/epub/" + std::to_string(std::hash<std::string>{}(book.path));
+  }
+  const std::string path = thumbnailPath(cacheDir);
   if (!path.empty()) {
     ImageRender::Options options;
     options.cropToFill = true;
@@ -133,14 +138,16 @@ void Carousel::render(const std::vector<RecentBook>& books, const int index, con
   renderBackdrop(renderer_, x, y, width, carouselHeight);
   const bool roundedCorners = SETTINGS.bitmapRoundedCorners != 0;
 
-  if (currentIndex > 0) {
-    const RecentBook& leftBook = books[static_cast<size_t>(currentIndex - 1)];
+  if (books.size() > 1) {
+    // RecentActivity's legacy Flow wraps at both ends, so the preview remains
+    // a real carousel instead of disappearing when the first/last book is selected.
+    const int leftIndex = currentIndex == 0 ? static_cast<int>(books.size()) - 1 : currentIndex - 1;
+    const RecentBook& leftBook = books[static_cast<size_t>(leftIndex)];
     renderer_.rectangle.fill(leftX, sideY, sideWidth, sideHeight, false, roundedCorners);
     thumbnailRenderer(context, leftBook, leftX, sideY, sideWidth, sideHeight, MONTSERRAT_10_FONT_ID, true);
-  }
 
-  if (currentIndex + 1 < static_cast<int>(books.size())) {
-    const RecentBook& rightBook = books[static_cast<size_t>(currentIndex + 1)];
+    const int rightIndex = currentIndex + 1 >= static_cast<int>(books.size()) ? 0 : currentIndex + 1;
+    const RecentBook& rightBook = books[static_cast<size_t>(rightIndex)];
     renderer_.rectangle.fill(rightX, sideY, sideWidth, sideHeight, false, roundedCorners);
     thumbnailRenderer(context, rightBook, rightX, sideY, sideWidth, sideHeight, MONTSERRAT_10_FONT_ID, true);
   }

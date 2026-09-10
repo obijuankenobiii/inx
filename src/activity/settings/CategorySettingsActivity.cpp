@@ -23,6 +23,7 @@
 #include "activity/page/SubPage.h"
 #include "ReaderFontSettingsDraw.h"
 #include "SleepImagePickerActivity.h"
+#include "ThemePickerActivity.h"
 #include "ThumbnailGeneratorActivity.h"
 #include "TimeSyncActivity.h"
 #include "state/ReaderSetting.h"
@@ -136,6 +137,14 @@ void CategorySettingsActivity::navigateToSelectedMenu() {
  * @brief Toggles expansion state of a group
  */
 void CategorySettingsActivity::toggleGroup(GroupType group) {
+  if (group == GroupType::THEME) {
+    exitActivity();
+    enterNewActivity(new ThemePickerActivity(renderer, mappedInput, [this] {
+      exitActivity();
+      updateRequired = true;
+    }));
+    return;
+  }
   if (embedded) {
     openGroup(group);
     return;
@@ -486,6 +495,7 @@ void CategorySettingsActivity::setupMenu() {
                 exitActivity();
                 updateRequired = true;
               }));
+              return;
             }
             if (strcmp(settingPtr->name, "Sync time via WiFi") == 0 || strcmp(settingPtr->name, "Sync") == 0) {
               exitActivity();
