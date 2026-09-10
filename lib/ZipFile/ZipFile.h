@@ -73,5 +73,11 @@ class ZipFile {
   int fillUncompressedSizes(std::vector<SizeTarget>& targets, std::vector<uint32_t>& sizes);
 
   uint8_t* readFileToMemory(const char* filename, size_t* size = nullptr, bool trailingNullByte = false);
-  bool readFileToStream(const char* filename, Print& out, size_t chunkSize);
+  /**
+   * Streams an entry using optional caller-owned work buffers. Supplying all three buffers lets a
+   * multi-entry installer reuse its inflater, input buffer, and 32 KiB deflate dictionary.
+   */
+  bool readFileToStream(const char* filename, Print& out, size_t chunkSize,
+                        uint8_t* dictionaryBuffer = nullptr, void* inflatorBuffer = nullptr,
+                        uint8_t* inputBuffer = nullptr);
 };

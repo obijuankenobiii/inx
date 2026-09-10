@@ -75,6 +75,7 @@ constexpr int kSyncActionBottomMargin = 20;
 constexpr int kSyncIconSize = 72;
 constexpr int kSyncIconGap = 28;
 constexpr int kResultLabelHeight = 26;
+constexpr int kResultLabelTopMargin = 20;
 constexpr int kResultLabelBottomMargin = 20;
 constexpr int kResultDetailSpacing = 30;
 
@@ -92,10 +93,11 @@ ButtonBounds singleUploadButton(const GfxRenderer& renderer) {
 }
 
 void renderSyncActionIcon(const GfxRenderer& renderer, const ButtonBounds& bounds,
-                          const BitmapRender::Orientation iconOrientation, const int yOffset = 0) {
+                          const BitmapRender::Orientation iconOrientation, const int yOffset = 0,
+                          const bool invert = false) {
   const int iconX = bounds.x + bounds.width - kSyncActionRightMargin - kSyncActionIconSize;
   const int iconY = bounds.y + std::max(0, (bounds.height - kSyncActionIconSize) / 2) + yOffset;
-  renderer.bitmap.icon(Download, iconX, iconY, kSyncActionIconSize, kSyncActionIconSize, iconOrientation);
+  renderer.bitmap.icon(Download, iconX, iconY, kSyncActionIconSize, kSyncActionIconSize, iconOrientation, invert);
 }
 
 int renderSyncChrome(const GfxRenderer& renderer) {
@@ -120,9 +122,9 @@ void renderCenteredListRow(const GfxRenderer& renderer, const int y, const int h
 
 constexpr int kResultLeft = 20;
 void renderLeftListRow(const GfxRenderer& renderer, const int y, const int height, const int font,
-                       const char* text, const bool bold = false) {
+                       const char* text, const bool bold = false, const bool ink = true) {
   const int textY = y + (height - renderer.text.getLineHeight(font)) / 2;
-  renderer.text.render(font, kResultLeft, textY, text, true,
+  renderer.text.render(font, kResultLeft, textY, text, ink,
                        bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 }
 }  // namespace
@@ -374,56 +376,69 @@ void KOReaderSyncActivity::render() {
         !localChapterName.empty() ? localChapterName : ("Section " + std::to_string(currentSpineIndex + 1));
 
     const bool hasDevice = !remoteProgress.device.empty();
-    const int localOffset = hasDevice ? 169 : 149;
-    const int localContentHeight = kResultLabelHeight + kResultLabelBottomMargin +
-                                   kResultDetailSpacing * 3 + renderer.text.getLineHeight(font);
-    const int blockHeight = localOffset + localContentHeight;
-    const int sectionsBottom = renderer.getScreenHeight() - kSyncActionBottomMargin;
-    const int available = sectionsBottom - chromeBottom;
-    const int remoteY = chromeBottom + (available > blockHeight ? (available - blockHeight) / 2 : 24);
-    const int downloadY = remoteY - kResultLabelBottomMargin;
+    (void)hasDevice;
+    const int sectionHeight = kResultLabelTopMargin + kResultLabelHeight + kResultLabelBottomMargin +
+                              kResultDetailSpacing * 3 + renderer.text.getLineHeight(font) +
+                              kResultLabelBottomMargin;
+    const int sectionGap = 12;
+    const int sectionsBottom = pageHeight - kSyncActionBottomMargin;
+    const int available = std::max(0, sectionsBottom - chromeBottom);
+    const int totalSectionsHeight = sectionHeight * 2 + sectionGap;
+    const int downloadY = chromeBottom + std::max(0, (available - totalSectionsHeight) / 2);
+    const bool downloadSelected = selectedOption == 0;
+    const bool uploadSelected = !downloadSelected;
+    const bool downloadInk = !downloadSelected;
+    const bool uploadInk = !uploadSelected;
 
-    renderLeftListRow(renderer, downloadY, kResultLabelHeight, font, "Download", true);
-    renderer.text.render(font, kResultLeft, downloadY + kResultLabelHeight + kResultLabelBottomMargin,
-                         remoteChapter.c_str(), true);
+    const int localY = downloadY + sectionHeight + sectionGap;
+    const int dividerY = localY - sectionGap;
+    const int downloadLabelY = downloadY + kResultLabelTopMargin;
+    const int uploadLabelY = localY + kResultLabelTopMargin;
+    const SyncActionButtons actions = {
+        {kSyncActionRightMargin, downloadY, pageWidth - kSyncActionRightMargin * 2, sectionHeight},
+        {kSyncActionRightMargin, localY, pageWidth - kSyncActionRightMargin * 2, sectionHeight}};
+    if (downloadSelected) {
+      renderer.rectangle.fill(0, downloadY, pageWidth, sectionHeight,
+                              static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
+    renderLeftListRow(renderer, downloadLabelY, kResultLabelHeight, font, "Download", true, downloadInk);
+    renderer.text.render(font, kResultLeft, downloadLabelY + kResultLabelHeight + kResultLabelBottomMargin,
+                         remoteChapter.c_str(), downloadInk);
     char remotePageStr[64];
     snprintf(remotePageStr, sizeof(remotePageStr), "Page %d", remotePosition.pageNumber + 1);
-    const int remotePageY = downloadY + kResultLabelHeight + kResultLabelBottomMargin + kResultDetailSpacing;
-    renderer.text.render(font, kResultLeft, remotePageY, remotePageStr, true);
+    const int remotePageY = downloadLabelY + kResultLabelHeight + kResultLabelBottomMargin + kResultDetailSpacing;
+    renderer.text.render(font, kResultLeft, remotePageY, remotePageStr, downloadInk);
     char remotePercentStr[64];
     snprintf(remotePercentStr, sizeof(remotePercentStr), "%.2f%% overall", remoteProgress.percentage * 100);
-    renderer.text.render(font, kResultLeft, remotePageY + kResultDetailSpacing, remotePercentStr, true);
+    renderer.text.render(font, kResultLeft, remotePageY + kResultDetailSpacing, remotePercentStr, downloadInk);
 
     if (hasDevice) {
       char deviceStr[64];
       snprintf(deviceStr, sizeof(deviceStr), "From: %s", remoteProgress.device.c_str());
-      renderer.text.render(font, kResultLeft, remotePageY + kResultDetailSpacing * 2, deviceStr, true);
+      renderer.text.render(font, kResultLeft, remotePageY + kResultDetailSpacing * 2, deviceStr, downloadInk);
     }
 
-    const int localY = remoteY + localOffset;
-    const int dividerY = localY - 12;
     renderer.line.render(20, dividerY, pageWidth - 20, dividerY, true, LineRender::Style::Dotted);
     renderer.line.render(20, dividerY + 1, pageWidth - 20, dividerY + 1, true, LineRender::Style::Dotted);
-    renderLeftListRow(renderer, localY, kResultLabelHeight, font, "Upload", true);
-    renderer.text.render(font, kResultLeft, localY + kResultLabelHeight + kResultLabelBottomMargin,
-                         localChapter.c_str(), true);
+    if (uploadSelected) {
+      renderer.rectangle.fill(0, localY, pageWidth, sectionHeight,
+                              static_cast<int>(GfxRenderer::FillTone::Ink));
+    }
+    renderLeftListRow(renderer, uploadLabelY, kResultLabelHeight, font, "Upload", true, uploadInk);
+    renderer.text.render(font, kResultLeft, uploadLabelY + kResultLabelHeight + kResultLabelBottomMargin,
+                         localChapter.c_str(), uploadInk);
     char localPageStr[64];
     snprintf(localPageStr, sizeof(localPageStr), "Page %d/%d", currentPage + 1, totalPagesInSpine);
-    const int localPageY = localY + kResultLabelHeight + kResultLabelBottomMargin + kResultDetailSpacing;
-    renderer.text.render(font, kResultLeft, localPageY, localPageStr, true);
+    const int localPageY = uploadLabelY + kResultLabelHeight + kResultLabelBottomMargin + kResultDetailSpacing;
+    renderer.text.render(font, kResultLeft, localPageY, localPageStr, uploadInk);
     char localPercentStr[64];
     snprintf(localPercentStr, sizeof(localPercentStr), "%.2f%% overall", localProgress.percentage * 100);
-    renderer.text.render(font, kResultLeft, localPageY + kResultDetailSpacing, localPercentStr, true);
+    renderer.text.render(font, kResultLeft, localPageY + kResultDetailSpacing, localPercentStr, uploadInk);
     renderer.text.render(font, kResultLeft, localPageY + kResultDetailSpacing * 2,
-                         "From: Current Progress", true);
+                         "From: Current Progress", uploadInk);
 
-    const SyncActionButtons actions = syncActionButtons(renderer, downloadY, localY);
-    const int uploadContentIconY = localY + (localContentHeight - kSyncActionIconSize) / 2;
-    const int uploadDefaultIconY = actions.upload.y +
-                                   std::max(0, (actions.upload.height - kSyncActionIconSize) / 2);
-    renderSyncActionIcon(renderer, actions.upload, BitmapRender::Orientation::Rotate180,
-                         uploadContentIconY - uploadDefaultIconY);
-    renderSyncActionIcon(renderer, actions.download, BitmapRender::Orientation::None);
+    renderSyncActionIcon(renderer, actions.upload, BitmapRender::Orientation::Rotate180, 0, uploadSelected);
+    renderSyncActionIcon(renderer, actions.download, BitmapRender::Orientation::None, 0, downloadSelected);
 
     const auto labels = mappedInput.mapLabels("Back", "Select", "Dir Up", "Dir Down");
     renderer.displayBuffer();
@@ -445,7 +460,7 @@ void KOReaderSyncActivity::render() {
     renderer.text.centered(font, contentCenterY, "Progress uploaded!", true, EpdFontFamily::BOLD);
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    renderer.displayBuffer();
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     return;
   }
 

@@ -52,6 +52,8 @@ bool readHeader(FsFile& file, uint8_t& version) {
 
 bool LibraryIndex::hasIndex() { return SdMan.exists(kIndexPath); }
 
+bool LibraryIndex::deleteIndex() { return !hasIndex() || SdMan.remove(kIndexPath); }
+
 bool LibraryIndex::readText(FsFile& file, const size_t length, std::string& value) {
   value.clear();
   if (length == 0) {

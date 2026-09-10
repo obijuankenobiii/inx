@@ -6,7 +6,9 @@
 #include "FontManager.h"
 #include <FsHelpers.h>
 #include <ZipFile.h>
+#include <miniz.h>
 
+#include <cstdlib>
 #include <utility>
 
 #include "util/SdIoMutex.h"
@@ -31,6 +33,7 @@ constexpr StaticPackage kStaticPackages[] = {
     {"AtkinsonHL-Mono", "1-bit", "1bit/AtkinsonHL-Mono.zip", FontPackageManager::Category::SansSerif},
     {"AtkinsonHL-Next", "1-bit", "1bit/AtkinsonHL-Next.zip", FontPackageManager::Category::SansSerif},
     {"BitterPro", "1-bit", "1bit/BitterPro.zip", FontPackageManager::Category::Serif},
+    {"ChareInk7", "1-bit", "1bit/ChareInk7.zip", FontPackageManager::Category::Serif},
     {"Charis", "1-bit", "1bit/Charis.zip", FontPackageManager::Category::Serif},
     {"Inter", "1-bit", "1bit/Inter.zip", FontPackageManager::Category::SansSerif},
     {"Lexend", "1-bit", "1bit/Lexend.zip", FontPackageManager::Category::SansSerif},
@@ -48,6 +51,7 @@ constexpr StaticPackage kStaticPackages[] = {
     {"AtkinsonHL-Mono", "2-bit", "2bit/AtkinsonHL-Mono.zip", FontPackageManager::Category::SansSerif},
     {"AtkinsonHL-Next", "2-bit", "2bit/AtkinsonHL-Next.zip", FontPackageManager::Category::SansSerif},
     {"BitterPro", "2-bit", "2bit/BitterPro.zip", FontPackageManager::Category::Serif},
+    {"ChareInk7", "2-bit", "2bit/ChareInk7.zip", FontPackageManager::Category::Serif},
     {"Charis", "2-bit", "2bit/Charis.zip", FontPackageManager::Category::Serif},
     {"Inter", "2-bit", "2bit/Inter.zip", FontPackageManager::Category::SansSerif},
     {"Lexend", "2-bit", "2bit/Lexend.zip", FontPackageManager::Category::SansSerif},
@@ -194,24 +198,49 @@ bool FontPackageManager::install(const Package& package, std::string& error, Pro
     return false;
   }
 
-  ZipFile zip{std::string(kDownloadPath)};
-  if (!zip.open() || !zip.loadAllFileStatSlims()) {
-    zip.close();
-    SdMan.remove(kDownloadPath);
-    error = "Font package is not a valid ZIP";
-    return false;
+  // Keep only the entry names while indexing. The ZIP stat cache is an unordered_map and can
+  // consume fragmented internal heap; keeping it alive while readFileToStream() allocates the
+  // 32 KiB deflate dictionary is enough to make later entries fail on the no-PSRAM C3.
+  const std::string downloadPath = kDownloadPath;
+  std::vector<std::string> entryNames;
+  {
+    ZipFile indexZip(downloadPath);
+    if (!indexZip.open() || !indexZip.loadAllFileStatSlims()) {
+      indexZip.close();
+      SdMan.remove(kDownloadPath);
+      error = "Font package is not a valid ZIP";
+      return false;
+    }
+    entryNames = indexZip.fileNames();
   }
 
   SdMan.mkdir("/fonts");
   size_t extractedBytes = 0;
   int extractedFiles = 0;
-  for (const std::string& rawName : zip.fileNames()) {
+  // Allocate all inflater workspaces once. Reallocating these buffers for every .bin entry
+  // fragments the ESP32-C3 heap even though each individual extraction can succeed.
+  constexpr size_t kZipChunkSize = 1024;
+  const size_t workspaceSize = sizeof(tinfl_decompressor) + kZipChunkSize + TINFL_LZ_DICT_SIZE;
+  auto* workspace = static_cast<uint8_t*>(malloc(workspaceSize));
+  if (!workspace) {
+    SdMan.remove(kDownloadPath);
+    error = "Not enough memory to extract font package";
+    return false;
+  }
+  auto* const inflator = workspace;
+  auto* const inputBuffer = workspace + sizeof(tinfl_decompressor);
+  auto* const dictionary = inputBuffer + kZipChunkSize;
+
+  for (const std::string& rawName : entryNames) {
     const std::string entryName = FsHelpers::normalisePath(rawName);
     const std::string baseName = entryBaseName(entryName);
     if (entryName.empty() || entryName.find("__MACOSX/") == 0 || !isSafeBinName(baseName)) continue;
 
+    // Do not retain the full ZIP index during inflation. With no PSRAM this leaves the largest
+    // contiguous internal-heap block available for ZipFile's deflate dictionary.
+    ZipFile entryZip(downloadPath);
     size_t inflatedSize = 0;
-    if (!zip.getInflatedFileSize(entryName.c_str(), &inflatedSize) || inflatedSize == 0 ||
+    if (!entryZip.getInflatedFileSize(entryName.c_str(), &inflatedSize) || inflatedSize == 0 ||
         extractedBytes + inflatedSize > kMaxExtractedBytes) {
       continue;
     }
@@ -223,16 +252,17 @@ bool FontPackageManager::install(const Package& package, std::string& error, Pro
 
     FsFile output;
     if (!SdMan.openFileForWrite("FONT", outputPath, output)) {
-      zip.close();
+      free(workspace);
       SdMan.remove(kDownloadPath);
       error = "Could not create font file on SD card";
       return false;
     }
-    const bool copied = zip.readFileToStream(entryName.c_str(), output, 1024);
+    const bool copied = entryZip.readFileToStream(entryName.c_str(), output, kZipChunkSize, dictionary, inflator,
+                                                  inputBuffer);
     output.close();
     if (!copied) {
       SdMan.remove(outputPath.c_str());
-      zip.close();
+      free(workspace);
       SdMan.remove(kDownloadPath);
       error = "Could not extract font package";
       return false;
@@ -241,7 +271,7 @@ bool FontPackageManager::install(const Package& package, std::string& error, Pro
     ++extractedFiles;
   }
 
-  zip.close();
+  free(workspace);
   SdMan.remove(kDownloadPath);
   if (extractedFiles == 0) {
     error = "No compiled font files found in package";

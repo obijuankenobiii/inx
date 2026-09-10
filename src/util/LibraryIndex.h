@@ -29,6 +29,7 @@ class LibraryIndex final {
   };
 
   static bool hasIndex();
+  static bool deleteIndex();
   static bool search(const std::string& query, std::vector<Book>& results, size_t limit = 24);
 
  private:

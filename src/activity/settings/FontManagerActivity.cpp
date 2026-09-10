@@ -589,9 +589,7 @@ void FontManagerActivity::render() {
                                                               EpdFontFamily::REGULAR);
       const bool installed = FontPackageManager::isInstalled(packages_[static_cast<size_t>(packageIndex)]);
       if (installed && !selected) {
-        // The X3/X4 renderer has no gray text primitive; use the normal paper/ink treatment
-        // and reserve the selected inversion for the active row.
-        renderer.text.render(font, kSideMargin, textY, packageName.c_str(), false, EpdFontFamily::REGULAR);
+        renderer.text.render(font, kSideMargin, textY, packageName.c_str(), true, EpdFontFamily::REGULAR);
       } else {
         renderer.text.render(font, kSideMargin, textY, packageName.c_str(), !selected, EpdFontFamily::REGULAR);
       }
@@ -658,7 +656,9 @@ void FontManagerActivity::loop() {
       return;
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
-      selectedIndex_ = (selectedIndex_ + 1) % total;
+      if (selectedVisible_) {
+        selectedIndex_ = (selectedIndex_ + 1) % total;
+      }
       selectedVisible_ = true;
       updateDisplay();
       return;

@@ -24,11 +24,33 @@ namespace {
 constexpr int kVisibleRows = 6;
 }
 
+void PresetPickerUi::rebuildVisiblePresets() {
+  visiblePresetIndices_.clear();
+  const int presetCount = READER_PRESETS.count();
+  visiblePresetIndices_.reserve(static_cast<size_t>(presetCount));
+  for (int i = 0; i < presetCount; ++i) {
+    if (!READER_PRESETS.nameOf(i).empty()) {
+      visiblePresetIndices_.push_back(i);
+    }
+  }
+}
+
 void PresetPickerUi::enter(EpubActivity& act) {
   mode_ = true;
-  const int presetCount = std::max(1, READER_PRESETS.count());
-  selected_ = act.bookSettings.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : act.bookSettings.readerPresetIndex;
-  selected_ = std::max(0, std::min(selected_, presetCount - 1));
+  rebuildVisiblePresets();
+  if (visiblePresetIndices_.empty()) {
+    mode_ = false;
+    return;
+  }
+  const int currentStoreIndex =
+      act.bookSettings.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : act.bookSettings.readerPresetIndex;
+  selected_ = 0;
+  for (size_t i = 0; i < visiblePresetIndices_.size(); ++i) {
+    if (visiblePresetIndices_[i] == currentStoreIndex) {
+      selected_ = static_cast<int>(i);
+      break;
+    }
+  }
   scroll_ = std::max(0, selected_ - kVisibleRows / 2);
   clampScroll();
   render(act);
@@ -48,7 +70,7 @@ void PresetPickerUi::handleInput(EpubActivity& act) {
     mode_ = false;
     act.settingsDrawerSnapshot_ = act.bookSettings;
     act.hasSettingsDrawerSnapshot_ = true;
-    READER_PRESETS.applyToBook(selected_, act.bookSettings);
+    READER_PRESETS.applyToBook(visiblePresetIndices_[static_cast<size_t>(selected_)], act.bookSettings);
     act.saveBookSettings();
     act.applyBookSettings();
     act.startPageTimer();
@@ -83,7 +105,7 @@ void PresetPickerUi::handleInput(EpubActivity& act) {
 }
 
 void PresetPickerUi::clampScroll() {
-  const int presetCount = std::max(1, READER_PRESETS.count());
+  const int presetCount = static_cast<int>(visiblePresetIndices_.size());
   const int rows = std::min(kVisibleRows, presetCount);
   const int maxScroll = std::max(0, presetCount - rows);
   scroll_ = std::max(0, std::min(scroll_, maxScroll));
@@ -93,7 +115,7 @@ void PresetPickerUi::render(EpubActivity& act) {
   GfxRenderer& renderer = act.renderer;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int presetCount = std::max(1, READER_PRESETS.count());
+  const int presetCount = static_cast<int>(visiblePresetIndices_.size());
   const int rows = std::min(kVisibleRows, presetCount);
 
   const int boxW = std::min(screenW - 60, 320);
@@ -111,18 +133,20 @@ void PresetPickerUi::render(EpubActivity& act) {
 
   clampScroll();
   for (int i = 0; i < rows; ++i) {
-    const int presetIndex = scroll_ + i;
-    if (presetIndex >= presetCount) {
+    const int visibleIndex = scroll_ + i;
+    if (visibleIndex >= presetCount) {
       break;
     }
     const int rowY = boxY + overlayHeaderH + i * rowH;
-    const bool sel = (presetIndex == selected_);
+    const bool sel = (visibleIndex == selected_);
     if (sel) {
       renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     const std::string name =
-        renderer.text.truncate(MONTSERRAT_10_FONT_ID, READER_PRESETS.nameOf(presetIndex).c_str(), boxW - 40);
+        renderer.text.truncate(
+            MONTSERRAT_10_FONT_ID,
+            READER_PRESETS.nameOf(visiblePresetIndices_[static_cast<size_t>(visibleIndex)]).c_str(), boxW - 40);
     const int textY = rowY + (rowH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
     renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 20, textY, name.c_str(), sel ? 0 : 1);
     if (i + 1 < rows) {

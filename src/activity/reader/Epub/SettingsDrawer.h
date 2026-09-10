@@ -204,6 +204,9 @@ class SettingsDrawer {
   int selectorSelected_ = 0;
   int selectorScroll_ = 0;
   std::vector<std::string> selectorOptions_;
+  // Preset selector rows are filtered for empty stored names. Keep the store index
+  // separately so the visible row index is never passed to applyToBook().
+  std::vector<int> selectorPresetIndices_;
 
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
   GroupType selectedGroup_ = GroupType::FONT;      ///< Active preset-editor tab.

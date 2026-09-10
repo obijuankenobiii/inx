@@ -9,7 +9,7 @@
 #include <GfxRenderer.h>
 
 #include "activity/network/BackupRestoreActivity.h"
-#include "activity/reader/ImageViewerActivity.h"
+#include "activity/settings/DeviceInfoActivity.h"
 #include "activity/settings/DictionaryPickerActivity.h"
 #include "activity/settings/KOReaderSettingsActivity.h"
 #include "activity/settings/OtaUpdateActivity.h"
@@ -110,9 +110,7 @@ void SyncActivity::loop() {
     }
 
     if (selectedIndex == 8) {
-      // Keep this device's existing device-identity action until its Pro-style
-      // Device Information subpage is migrated into this repository.
-      enter(new ImageViewerActivity(renderer, mappedInput, "/sleep/device-identity.jpg", [this] {
+      enter(new DeviceInfoActivity(renderer, mappedInput, [this] {
         exit();
         requestRender();
       }));
@@ -130,7 +128,9 @@ void SyncActivity::loop() {
     needUpdate = true;
   }
   if (mappedInput.wasPressed(itemNextButton())) {
-    selectedIndex = (selectedIndex + 1) % kMenuItemCount;
+    if (selectedVisible) {
+      selectedIndex = (selectedIndex + 1) % kMenuItemCount;
+    }
     selectedVisible = true;
     needUpdate = true;
   }

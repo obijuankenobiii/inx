@@ -319,6 +319,27 @@ void SettingsDrawer::setupMenu() {
     };
 
     if (selectedGroup_ == GroupType::FONT) {
+      if (!embedded_) {
+        MenuEntry preset;
+        preset.item = MenuItem::PresetPicker;
+        preset.group = GroupType::FONT;
+        preset.name = "Preset";
+        preset.getValueText = [](const BookSettings& s) -> const char* {
+          static thread_local std::string name;
+          if (s.readerPresetIndex == BookSettings::kNoReaderPreset) return "Custom";
+          name = READER_PRESETS.nameOf(s.readerPresetIndex);
+          return name.empty() ? "Custom" : name.c_str();
+        };
+        preset.change = [](BookSettings& s, const int delta) {
+          const int count = READER_PRESETS.count();
+          if (count <= 0) return;
+          int selected = s.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : s.readerPresetIndex;
+          selected = (selected + delta + count) % count;
+          READER_PRESETS.applyToBook(selected, s);
+        };
+        menuItems.push_back(std::move(preset));
+      }
+
       MenuEntry style;
       style.item = MenuItem::FontFamily;
       style.group = GroupType::FONT;
@@ -377,26 +398,6 @@ void SettingsDrawer::setupMenu() {
                 [](const BookSettings& s) { return s.hyphenationEnabled != 0; },
                 [](BookSettings& s) { s.hyphenationEnabled = s.hyphenationEnabled ? 0 : 1; });
 
-      if (!embedded_) {
-        MenuEntry preset;
-        preset.item = MenuItem::PresetPicker;
-        preset.group = GroupType::FONT;
-        preset.name = "Preset";
-        preset.getValueText = [](const BookSettings& s) -> const char* {
-          static thread_local std::string name;
-          if (s.readerPresetIndex == BookSettings::kNoReaderPreset) return "Custom";
-          name = READER_PRESETS.nameOf(s.readerPresetIndex);
-          return name.empty() ? "Custom" : name.c_str();
-        };
-        preset.change = [](BookSettings& s, const int delta) {
-          const int count = READER_PRESETS.count();
-          if (count <= 0) return;
-          int selected = s.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : s.readerPresetIndex;
-          selected = (selected + delta + count) % count;
-          READER_PRESETS.applyToBook(selected, s);
-        };
-        menuItems.push_back(std::move(preset));
-      }
     } else if (selectedGroup_ == GroupType::LAYOUT) {
       MenuEntry lineHeight;
       lineHeight.item = MenuItem::LineHeight;
@@ -517,6 +518,31 @@ void SettingsDrawer::setupMenu() {
       addStatus(MenuItem::StatusBarLeft, "Left Section");
       addStatus(MenuItem::StatusBarMiddle, "Middle Section");
       addStatus(MenuItem::StatusBarRight, "Right Section");
+
+      // Full Bar is a global reader setting, so keep it separate from the three per-book
+      // section values above. This is the same single-style control used by the Pro UI.
+      MenuEntry fullStyle;
+      fullStyle.item = MenuItem::StatusBarFullStyle;
+      fullStyle.group = GroupType::STATUS_BAR;
+      fullStyle.name = "Full Bar";
+      fullStyle.getValueText = [](const BookSettings&) -> const char* {
+        return statusBarItemName(static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle));
+      };
+      fullStyle.change = [](BookSettings&, int delta) {
+        int current = 0;
+        for (int i = 0; i < StatusBar::kFullBarStyleCount; ++i) {
+          if (StatusBar::kFullBarStyles[i] == static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle)) {
+            current = i;
+            break;
+          }
+        }
+        const int next = current + delta;
+        if (next >= 0 && next < StatusBar::kFullBarStyleCount) {
+          READER_SETTINGS.statusBarFullStyle = static_cast<uint8_t>(StatusBar::kFullBarStyles[next]);
+          READER_SETTINGS.saveToFile();
+        }
+      };
+      menuItems.push_back(std::move(fullStyle));
     }
     return;
   }
@@ -1074,7 +1100,7 @@ void SettingsDrawer::drawMenuItemRow(int visibleRow, int menuIndex) {
   const bool dropdown = entry.item == MenuItem::FontFamily || entry.item == MenuItem::PresetPicker ||
                         entry.item == MenuItem::ReadingOrientation || entry.item == MenuItem::ReadingGuideLines ||
                         entry.item == MenuItem::StatusBarLeft || entry.item == MenuItem::StatusBarMiddle ||
-                        entry.item == MenuItem::StatusBarRight;
+                        entry.item == MenuItem::StatusBarRight || entry.item == MenuItem::StatusBarFullStyle;
   if (dropdown) {
     drawSettingsDropdown(renderer, valueAreaLeft, valueColumnRight, itemY, itemHeight,
                          entry.getValueText(settings), isSelected);
@@ -1146,6 +1172,7 @@ bool SettingsDrawer::isDropdownItem(const MenuItem item) const {
     case MenuItem::StatusBarLeft:
     case MenuItem::StatusBarMiddle:
     case MenuItem::StatusBarRight:
+    case MenuItem::StatusBarFullStyle:
       return true;
     default:
       return false;
@@ -1159,6 +1186,7 @@ void SettingsDrawer::openSelector(const int menuIndex) {
   }
 
   selectorOptions_.clear();
+  selectorPresetIndices_.clear();
   const MenuItem item = menuItems[static_cast<size_t>(menuIndex)].item;
   int current = 0;
   if (item == MenuItem::FontFamily) {
@@ -1167,14 +1195,35 @@ void SettingsDrawer::openSelector(const int menuIndex) {
   } else if (item == MenuItem::PresetPicker) {
     const int count = READER_PRESETS.count();
     selectorOptions_.reserve(static_cast<size_t>(count));
-    for (int i = 0; i < count; ++i) selectorOptions_.emplace_back(READER_PRESETS.nameOf(i));
-    current = settings.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : settings.readerPresetIndex;
+    selectorPresetIndices_.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+      const std::string name = READER_PRESETS.nameOf(i);
+      if (name.empty()) continue;
+      selectorOptions_.push_back(name);
+      selectorPresetIndices_.push_back(i);
+    }
+    const int currentStoreIndex =
+        settings.readerPresetIndex == BookSettings::kNoReaderPreset ? 0 : settings.readerPresetIndex;
+    current = 0;
+    for (size_t i = 0; i < selectorPresetIndices_.size(); ++i) {
+      if (selectorPresetIndices_[i] == currentStoreIndex) {
+        current = static_cast<int>(i);
+        break;
+      }
+    }
   } else if (item == MenuItem::ReadingOrientation) {
     selectorOptions_ = {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"};
     current = settings.orientation;
   } else if (item == MenuItem::ReadingGuideLines) {
     selectorOptions_ = {"Off", "Grid", "Notebook"};
     current = settings.readingGuideLinesEnabled;
+  } else if (item == MenuItem::StatusBarFullStyle) {
+    for (int i = 0; i < StatusBar::kFullBarStyleCount; ++i) {
+      selectorOptions_.emplace_back(statusBarItemName(StatusBar::kFullBarStyles[i]));
+      if (StatusBar::kFullBarStyles[i] == static_cast<StatusBarItem>(READER_SETTINGS.statusBarFullStyle)) {
+        current = i;
+      }
+    }
   } else {
     for (int i = 0; i < static_cast<int>(StatusBarItem::STATUS_BAR_ITEM_COUNT); ++i) {
       selectorOptions_.emplace_back(statusBarItemName(static_cast<StatusBarItem>(i)));
@@ -1190,8 +1239,9 @@ void SettingsDrawer::openSelector(const int menuIndex) {
   const int selectedRow = selectorMenuIndex_ - scrollOffset;
   const int fieldY = drawerY + contentListTop() + selectedRow * itemHeight;
   const bool openUpward = selectorOpensUpward(drawerY, drawerHeight, fieldY, itemHeight);
+  const int selectorRows = std::min(kSelectorRows, static_cast<int>(selectorOptions_.size()));
   const SelectorBounds box = selectorBounds(drawerX, drawerY, drawerWidth, drawerHeight, fieldY, itemHeight,
-                                             kSelectorRows, openUpward);
+                                             selectorRows, openUpward);
   selectorScroll_ = std::max(0, selectorSelected_ - (box.rows - 1));
   selectorOpen_ = true;
 }
@@ -1202,6 +1252,7 @@ void SettingsDrawer::closeSelector() {
   selectorSelected_ = 0;
   selectorScroll_ = 0;
   selectorOptions_.clear();
+  selectorPresetIndices_.clear();
 }
 
 void SettingsDrawer::commitSelectorSelection() {
@@ -1218,7 +1269,10 @@ void SettingsDrawer::commitSelectorSelection() {
     settings.markCustomSettings();
     settingsUpdated = true;
   } else if (item == MenuItem::PresetPicker) {
-    READER_PRESETS.applyToBook(selectorSelected_, settings);
+    const int presetIndex = selectorPresetIndices_.empty()
+                                ? selectorSelected_
+                                : selectorPresetIndices_[static_cast<size_t>(selectorSelected_)];
+    READER_PRESETS.applyToBook(presetIndex, settings);
     settingsUpdated = true;
     setupMenu();
   } else if (item == MenuItem::ReadingOrientation) {
@@ -1239,6 +1293,11 @@ void SettingsDrawer::commitSelectorSelection() {
     settings.statusBarRight.item = static_cast<StatusBarItem>(selectorSelected_);
     settings.markCustomSettings();
     settingsUpdated = true;
+  } else if (item == MenuItem::StatusBarFullStyle) {
+    if (selectorSelected_ >= 0 && selectorSelected_ < StatusBar::kFullBarStyleCount) {
+      READER_SETTINGS.statusBarFullStyle = static_cast<uint8_t>(StatusBar::kFullBarStyles[selectorSelected_]);
+      READER_SETTINGS.saveToFile();
+    }
   }
   closeSelector();
   if (onSettingsChanged) onSettingsChanged();
@@ -1253,8 +1312,9 @@ void SettingsDrawer::drawSelectorPopup() {
   const int selectedRow = selectorMenuIndex_ - scrollOffset;
   const int fieldY = drawerY + contentListTop() + selectedRow * itemHeight;
   const bool openUpward = selectorOpensUpward(drawerY, drawerHeight, fieldY, itemHeight);
+  const int selectorRows = std::min(kSelectorRows, static_cast<int>(selectorOptions_.size()));
   const SelectorBounds box = selectorBounds(drawerX, drawerY, drawerWidth, drawerHeight, fieldY, itemHeight,
-                                             kSelectorRows, openUpward);
+                                             selectorRows, openUpward);
   renderer.rectangle.fill(box.x, box.y, box.width, box.height, false);
   for (int i = 0; i < box.rows; ++i) {
     const int optionIndex = selectorScroll_ + i;
@@ -1300,8 +1360,9 @@ bool SettingsDrawer::handleSelectorInput(MappedInputManager& input) {
     const int selectedRow = selectorMenuIndex_ - scrollOffset;
     const int fieldY = drawerY + contentListTop() + selectedRow * itemHeight;
     const bool openUpward = selectorOpensUpward(drawerY, drawerHeight, fieldY, itemHeight);
+    const int selectorRows = std::min(kSelectorRows, static_cast<int>(selectorOptions_.size()));
     const SelectorBounds box = selectorBounds(drawerX, drawerY, drawerWidth, drawerHeight, fieldY, itemHeight,
-                                               kSelectorRows, openUpward);
+                                               selectorRows, openUpward);
     if (selectorSelected_ < selectorScroll_) selectorScroll_ = selectorSelected_;
     if (selectorSelected_ >= selectorScroll_ + box.rows) selectorScroll_ = selectorSelected_ - box.rows + 1;
     renderWithRefresh(HalDisplay::FAST_REFRESH);

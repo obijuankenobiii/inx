@@ -22,7 +22,7 @@
 
 namespace {
 constexpr const char* AP_SSID = "Xteink-X4";
-constexpr const char* AP_HOSTNAME = "xteink";
+constexpr const char* AP_HOSTNAME = "inx";
 constexpr uint8_t AP_CHANNEL = 1;
 constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 

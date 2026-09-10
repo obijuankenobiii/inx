@@ -24,7 +24,7 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr const char* AP_HOSTNAME = "xteink";
+constexpr const char* AP_HOSTNAME = "inx";
 
 constexpr int CONTENT_MARGIN = 25;
 constexpr int LINE_SPACING = 28;

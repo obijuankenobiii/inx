@@ -4,6 +4,7 @@
  */
 
 #include "ClearCacheActivity.h"
+#include "system/UiLayout.h"
 
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
@@ -12,9 +13,11 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <strings.h>
 
-#include "ReaderFontSettingsDraw.h"
 #include "activity/page/SubPage.h"
+#include "activity/page/components/global/Button.h"
+#include "ReaderFontSettingsDraw.h"
 #include "state/BookState.h"
 #include "state/NetworkCredential.h"
 #include "state/RecentBooks.h"
@@ -22,13 +25,25 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/MenuNav.h"
-#include "system/UiTheme.h"
+#include "util/LibraryIndex.h"
 
 namespace {
-constexpr int kBodyFont = MONTSERRAT_10_FONT_ID;
-constexpr int kMetaFont = MONTSERRAT_8_FONT_ID;
-constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+constexpr int kListItemHeight = UiLayout::LIST_ITEM_HEIGHT;
+constexpr int kActionButtonWidth = 180;
+constexpr int kActionButtonHeight = Button::height;
+constexpr int kActionButtonBottomMargin = 64;
+
+ButtonBounds actionButtonBounds(const int screenWidth, const int screenHeight) {
+  return {(screenWidth - kActionButtonWidth) / 2,
+          screenHeight - kActionButtonBottomMargin - kActionButtonHeight,
+          kActionButtonWidth,
+          kActionButtonHeight};
+}
+
+void drawActionButton(const GfxRenderer& renderer, const int screenWidth, const int screenHeight, const char* label) {
+  const ButtonBounds bounds = actionButtonBounds(screenWidth, screenHeight);
+  Button::render(renderer, bounds, label, true, systemFontId());
+}
 }  // namespace
 
 void ClearCacheActivity::taskTrampoline(void* param) {
@@ -36,27 +51,59 @@ void ClearCacheActivity::taskTrampoline(void* param) {
   self->displayTaskLoop();
 }
 
+void ClearCacheActivity::clearTaskTrampoline(void* param) {
+  auto* self = static_cast<ClearCacheActivity*>(param);
+  self->clearCache();
+  self->clearTaskHandle = nullptr;
+  vTaskDelete(nullptr);
+}
+
 void ClearCacheActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
-  
+
   renderingMutex = xSemaphoreCreateMutex();
   state = WARNING;
-  selectedGroup = 0;
+  selectedGroup = -1;
   updateRequired = true;
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   xTaskCreate(&ClearCacheActivity::taskTrampoline, "ClearCacheActivityTask", 4096, this, 1, &displayTaskHandle);
 }
 
 void ClearCacheActivity::onExit() {
   ActivityWithSubactivity::onExit();
 
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
+  if (clearTaskHandle) {
+    const unsigned long waitStart = millis();
+    while (clearTaskHandle && millis() - waitStart < 2000) {
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    if (clearTaskHandle) {
+      vTaskDelete(clearTaskHandle);
+      clearTaskHandle = nullptr;
+    }
+  }
+
+  if (renderingMutex) xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
+  if (renderingMutex) {
+    xSemaphoreGive(renderingMutex);
+    vSemaphoreDelete(renderingMutex);
+    renderingMutex = nullptr;
+  }
+}
+
+void ClearCacheActivity::startClearTask() {
+  if (clearTaskHandle) return;
+
+  // X3/X4 use a single-core ESP32 target, so use the portable task API rather
+  // than the pro's xTaskCreatePinnedToCore(..., 1) call.
+  xTaskCreate(&ClearCacheActivity::clearTaskTrampoline, "ClearCacheWorker", 8192, this, 1, &clearTaskHandle);
+  if (!clearTaskHandle) {
+    state = FAILED;
+    updateRequired = true;
+  }
 }
 
 void ClearCacheActivity::displayTaskLoop() {
@@ -79,7 +126,8 @@ void ClearCacheActivity::render() {
   const int bodyTop = SubPage::header(renderer, "Clear cache");
 
   if (state == WARNING) {
-    constexpr const char* names[GROUP_COUNT] = {"Display", "Book", "Recent", "Network"};
+    constexpr const char* names[GROUP_COUNT] = {"Display", "Book", "Thumbnails", "Recent", "Library index",
+                                                 "Network"};
     constexpr int rowH = kListItemHeight;
     const int listTop = bodyTop + 1;
     const int left = 20;
@@ -89,58 +137,46 @@ void ClearCacheActivity::render() {
       if (focused) {
         renderer.rectangle.fill(0, y, pageWidth, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
-      const int textY = y + (rowH - renderer.text.getLineHeight(kBodyFont)) / 2;
-      renderer.text.render(kBodyFont, left, textY, names[i], !focused, EpdFontFamily::REGULAR);
+      const int font = systemFontId();
+      const int textY = y + (rowH - renderer.text.getLineHeight(font)) / 2;
+      renderer.text.render(font, left, textY, names[i], !focused, EpdFontFamily::REGULAR);
       ReaderFontSettingsDraw::drawToggleCheckbox(renderer, pageWidth - 24, y, rowH, focused, selectedGroups[i]);
       renderer.line.render(0, y + rowH - 1, pageWidth, y + rowH - 1, true, LineRender::Style::Dotted);
     }
 
-    const int actionY = listTop + GROUP_COUNT * rowH;
-    const bool actionFocused = selectedGroup == GROUP_COUNT;
-    if (actionFocused) {
-      renderer.rectangle.fill(0, actionY, pageWidth, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-    const int actionTextY = actionY + (rowH - renderer.text.getLineHeight(kBodyFont)) / 2;
-    renderer.text.render(kBodyFont, left, actionTextY, "Clear selected", actionFocused ? false : anyGroupSelected(),
-                         actionFocused ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
-    renderer.line.render(0, actionY + rowH - 1, pageWidth, actionY + rowH - 1, true, LineRender::Style::Dotted);
+    const ButtonBounds actionBounds = actionButtonBounds(pageWidth, pageHeight);
+    drawActionButton(renderer, pageWidth, pageHeight, "Clear");
 
     if (!anyGroupSelected()) {
-      renderer.text.centered(kMetaFont, pageHeight - 74, "Select a cache group");
+      renderer.text.centered(systemFontId(), actionBounds.y - 28, "Select a cache group");
     }
 
-    const auto labels = mappedInput.mapLabels("\xC2\xAB Cancel", actionFocused ? "Clear" : "Toggle", "Up", "Down");
-    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == CLEARING) {
-    renderer.text.centered(kBodyFont, pageHeight / 2, "Clearing...", true, EpdFontFamily::BOLD);
+    renderer.text.centered(systemFontId(), pageHeight / 2, "Clearing...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == SUCCESS) {
-    renderer.text.centered(kBodyFont, pageHeight / 2 - 20, "Cache cleared", true, EpdFontFamily::BOLD);
+    renderer.text.centered(systemFontId(), pageHeight / 2 - 20, "Cache cleared", true, EpdFontFamily::BOLD);
     String resultText = String(clearedCount) + " items removed";
     if (failedCount > 0) {
       resultText += ", " + String(failedCount) + " failed";
     }
-    renderer.text.centered(kBodyFont, pageHeight / 2 + 10, resultText.c_str());
+    renderer.text.centered(systemFontId(), pageHeight / 2 + 10, resultText.c_str());
 
-    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.text.centered(kBodyFont, pageHeight / 2 - 20, "Clear failed", true, EpdFontFamily::BOLD);
-    renderer.text.centered(kBodyFont, pageHeight / 2 + 10, "Check serial output for details");
+    renderer.text.centered(systemFontId(), pageHeight / 2 - 20, "Clear failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(systemFontId(), pageHeight / 2 + 10, "Check serial output for details");
 
-    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(kBodyFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
@@ -191,7 +227,50 @@ void ClearCacheActivity::clearCache() {
     }
   };
 
-  const auto removeSystemTxtCaches = [&]() {
+  const auto isThumbnail = [](const char* name) {
+    return strcasecmp(name, "thumb.jpg") == 0 || strcasecmp(name, "thumb.png") == 0 ||
+           strcasecmp(name, "thumb.bmp") == 0;
+  };
+
+  std::function<void(const std::string&)> clearTreeExceptThumbnails;
+  clearTreeExceptThumbnails = [&](const std::string& path) {
+    FsFile dir = SdMan.open(path.c_str());
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
+      return;
+    }
+
+    char name[128];
+    dir.rewindDirectory();
+    while (true) {
+      FsFile entry = dir.openNextFile();
+      if (!entry) break;
+
+      entry.getName(name, sizeof(name));
+      const std::string entryPath = path + "/" + name;
+      if (entry.isDirectory()) {
+        entry.close();
+        clearTreeExceptThumbnails(entryPath);
+        continue;
+      }
+
+      const bool keep = isThumbnail(name);
+      entry.close();
+      if (keep) continue;
+
+      Serial.printf("[%lu] [CLEAR_CACHE] Removing %s\n", millis(), entryPath.c_str());
+      if (SdMan.remove(entryPath.c_str())) {
+        clearedCount++;
+      } else {
+        failedCount++;
+        Serial.printf("[%lu] [CLEAR_CACHE] Failed to remove %s\n", millis(), entryPath.c_str());
+      }
+      yield();
+    }
+    dir.close();
+  };
+
+  const auto clearSystemTxtCaches = [&]() {
     FsFile root = SdMan.open("/.system");
     if (!root || !root.isDirectory()) {
       if (root) {
@@ -211,11 +290,13 @@ void ClearCacheActivity::clearCache() {
         if (strncmp(name, "txt_", 4) == 0) {
           const std::string path = std::string("/.system/") + name;
           entry.close();
-          tryRemoveTree(path.c_str());
+          clearTreeExceptThumbnails(path);
+          yield();
           continue;
         }
       }
       entry.close();
+      yield();
     }
     root.close();
   };
@@ -225,14 +306,66 @@ void ClearCacheActivity::clearCache() {
     tryRemoveTree("/.display-cache");
   }
   if (selectedGroups[GROUP_BOOK]) {
-    tryRemoveTree("/.metadata/epub");
-    tryRemoveTree("/.metadata/xtc");
-    removeSystemTxtCaches();
+    clearTreeExceptThumbnails("/.metadata/epub");
+    clearTreeExceptThumbnails("/.metadata/xtc");
+    clearSystemTxtCaches();
+  }
+  if (selectedGroups[GROUP_THUMBNAILS]) {
+    std::function<void(const std::string&)> removeThumbnails;
+    removeThumbnails = [&](const std::string& path) {
+      FsFile dir = SdMan.open(path.c_str());
+      if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return;
+      }
+
+      char name[128];
+      dir.rewindDirectory();
+      while (true) {
+        FsFile entry = dir.openNextFile();
+        if (!entry) break;
+        entry.getName(name, sizeof(name));
+        const std::string entryPath = path + "/" + name;
+        if (entry.isDirectory()) {
+          entry.close();
+          removeThumbnails(entryPath);
+          continue;
+        }
+        const bool remove = isThumbnail(name);
+        entry.close();
+        if (!remove) continue;
+        Serial.printf("[%lu] [CLEAR_CACHE] Removing thumbnail %s\n", millis(), entryPath.c_str());
+        if (SdMan.remove(entryPath.c_str())) {
+          clearedCount++;
+        } else {
+          failedCount++;
+          Serial.printf("[%lu] [CLEAR_CACHE] Failed to remove thumbnail %s\n", millis(), entryPath.c_str());
+        }
+        yield();
+      }
+      dir.close();
+    };
+
+    removeThumbnails("/.metadata/epub");
+    removeThumbnails("/.metadata/xtc");
+    removeThumbnails("/.system");
   }
   if (selectedGroups[GROUP_RECENT]) {
     tryRemoveFile("/.metadata/recent.bin");
     tryRemoveFile("/.metadata/books.bin");
-    tryRemoveTree("/.metadata/library");
+  }
+  if (selectedGroups[GROUP_LIBRARY_INDEX]) {
+    if (LibraryIndex::hasIndex()) {
+      Serial.printf("[%lu] [CLEAR_CACHE] Removing library index\n", millis());
+      if (LibraryIndex::deleteIndex()) {
+        clearedCount++;
+      } else {
+        failedCount++;
+        Serial.printf("[%lu] [CLEAR_CACHE] Failed to remove library index\n", millis());
+      }
+    } else {
+      Serial.printf("[%lu] [CLEAR_CACHE] Library index not present\n", millis());
+    }
   }
   if (selectedGroups[GROUP_NETWORK]) {
     tryRemoveFile("/.system/wifi.bin");
@@ -259,6 +392,8 @@ void ClearCacheActivity::clearCache() {
 }
 
 void ClearCacheActivity::loop() {
+  if (SubPage::closeInput(renderer, mappedInput, goBack)) return;
+
   if (state == WARNING) {
     if (mappedInput.wasPressed(MenuNav::itemPrev())) {
       selectedGroup = (selectedGroup + GROUP_COUNT) % (GROUP_COUNT + 1);
@@ -273,12 +408,12 @@ void ClearCacheActivity::loop() {
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      if (selectedGroup < GROUP_COUNT) {
+      if (selectedGroup >= 0 && selectedGroup < GROUP_COUNT) {
         selectedGroups[selectedGroup] = !selectedGroups[selectedGroup];
         updateRequired = true;
         return;
       }
-      if (!anyGroupSelected()) {
+      if (selectedGroup != GROUP_COUNT || !anyGroupSelected()) {
         updateRequired = true;
         return;
       }
@@ -289,7 +424,7 @@ void ClearCacheActivity::loop() {
       updateRequired = true;
       vTaskDelay(10 / portTICK_PERIOD_MS);
 
-      clearCache();
+      startClearTask();
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {

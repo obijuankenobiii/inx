@@ -263,8 +263,9 @@ void renderCover(GfxRenderer& renderer, const RecentBook& book, const int x, con
                  const int height) {
   if (width <= 0 || height <= 0) return;
   // Match inx-pro's thumbnail shadow: a 6 px offset gray block is drawn first,
-  // then the cover and its normal border are drawn over it.
+  // then a paper-white thumbnail backing masks the shadow beneath the cover.
   renderer.rectangle.fill(x + 6, y + 6, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
+  renderer.rectangle.fill(x, y, width, height, false);
   support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false);
   renderer.rectangle.render(x, y, width, height, true, SETTINGS.bitmapRoundedCorners != 0,
                             SETTINGS.bitmapRoundedCorners == 2);

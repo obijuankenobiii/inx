@@ -22,7 +22,7 @@ struct KOReaderProgress {
 /**
  * HTTP client for KOReader sync API.
  *
- * Base URL: https://sync.koreader.rocks:443/
+ * Base URL: https://sync.crosspointreader.com/
  *
  * API Endpoints:
  *   GET /users/auth - Authenticate (validate credentials)
