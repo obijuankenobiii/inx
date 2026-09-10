@@ -41,6 +41,8 @@ class Settings final : public Page {
   void processPending();
   bool runExternalNavigation();
   void deferExternalNavigation(const std::function<void()>& action);
+  bool firstItemSelected() const;
+  void clearItemSelection();
   bool panelDetailOpen() const;
   bool panelSubPageOpen() const;
   bool panelOverlayOpen() const;
@@ -54,4 +56,5 @@ class Settings final : public Page {
   SettingsPanel nextPanel = SettingsPanel::System;
   Pending pending = Pending::None;
   std::function<void()> externalNavigation;
+  bool tabsFocused_ = true;
 };

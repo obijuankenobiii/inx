@@ -34,6 +34,7 @@
 #include "activity/network/LocalNetworkActivity.h"
 #include "activity/page/Home.h"
 #include "activity/page/HomeDescription.h"
+#include "activity/page/HomeSubPage.h"
 #include "activity/page/Library.h"
 #include "activity/page/LibraryActivity.h"
 #include "activity/page/RecentActivity.h"
@@ -77,6 +78,7 @@ void normalizeUnavailableClockSettings();
 void enterDeepSleep();
 void onGoToReader(const std::string& path);
 void onGoToDescription(const std::string& path);
+void openHomeSubPage(HomeSubPage::Section section);
 void onSelectBook(const std::string& path);
 void onGoToRecent();
 void onGoToStatistics();
@@ -118,6 +120,10 @@ void onGoToReader(const std::string& path) {
 
 void onGoToDescription(const std::string& path) {
   switchTo<HomeDescription>(render, input, path, onGoToRecent);
+}
+
+void openHomeSubPage(const HomeSubPage::Section section) {
+  switchTo<HomeSubPage>(render, input, section, onGoToRecent);
 }
 
 bool isExportedNoteImage(const std::string& path) {

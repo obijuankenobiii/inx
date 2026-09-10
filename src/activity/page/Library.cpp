@@ -26,6 +26,7 @@
 #include "images/LibraryViewList.h"
 #include "images/Refresh.h"
 #include "images/SortAsc.h"
+#include "images/SortDesc.h"
 #include "state/BookState.h"
 #include "state/EpubNotesIndex.h"
 #include "state/RecentBooks.h"
@@ -200,6 +201,10 @@ void Library::loop() {
   if (indexReloadRequested_ && !isIndexing_) {
     indexReloadRequested_ = false;
     indexingPopupVisible_ = false;
+    // Indexing was launched from the refresh header action. Return focus to
+    // the rebuilt library contents once the new index is available.
+    headerFocused_ = false;
+    selectedItemIndex_ = 0;
     loadIndexedItems();
     requestRender();
   }
@@ -452,7 +457,7 @@ void Library::center() const {
   drawButton(viewMode_ == ViewMode::GRID ? LibraryViewGrid : LibraryViewList, 0);
   const bool descending = sortMode_ == SortMode::TITLE_ZA || sortMode_ == SortMode::GROUP_ZA ||
                           sortMode_ == SortMode::AUTHOR_ZA;
-  drawButton(SortAsc, 1, descending ? BitmapRender::Orientation::Rotate180 : BitmapRender::Orientation::None);
+  drawButton(descending ? SortDesc : SortAsc, 1);
   drawButton(Filter, 2);
   drawButton(Refresh, 3);
 }

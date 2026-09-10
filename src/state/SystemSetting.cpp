@@ -40,7 +40,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 38;
+constexpr uint8_t SETTINGS_FILE_VERSION = 39;
 // Reader-related fields (font/layout, status bar, refresh frequency, page auto-turn, image
 // grayscale, per-button reader actions, XTC reader settings, hyphenation, bionic reading, screen
 // margin, orientation, dictionary folder...) moved out to ReaderSetting/reader_settings.bin as of
@@ -48,14 +48,14 @@ constexpr uint8_t SETTINGS_FILE_VERSION = 38;
 // parsed, so loadFromFile() discards them and starts fresh instead of attempting to read them. See
 // ReaderSetting.cpp for the new reader_settings.bin format (independently versioned from 1).
 constexpr uint8_t MIN_SUPPORTED_SETTINGS_VERSION = 37;
-// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 41,
+// Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 40,
 // through systemTextSize - NOT counting the version/count header fields read separately
 // before the loop). This is written into the file as its own "how many fields do I contain" header
 // and read back as fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to
 // know whether the tail fields are actually present. If it's wrong, either the tail fields never get
 // read back even though they were written (undercount), or the file never triggers the self-healing
 // rewrite on old-format files (overcount, since fileSettingsCount can never reach it).
-constexpr uint8_t SETTINGS_COUNT = 41;
+constexpr uint8_t SETTINGS_COUNT = 40;
 constexpr uint8_t LEGACY_IMAGE_PRESENTATION_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.system/settings.bin";
 constexpr char UI_THEME_FILE[] = "/.system/ui_theme.bin";
@@ -178,7 +178,6 @@ uint32_t settingsHash(const SystemSetting& settings) {
   hashPod(hash, settings.refreshOnLoadSync);
   hashPod(hash, settings.refreshOnLoadStatistics);
   hashPod(hash, settings.bitmapRoundedCorners);
-  hashPod(hash, settings.recentVisibleCount);
   hashPod(hash, settings.librarySortEnabled);
   hashPod(hash, settings.librarySortMode);
   hashPod(hash, settings.libraryMode);
@@ -239,7 +238,6 @@ void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
 bool SystemSetting::saveToFile() const {
   {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
-    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 9) mut->recentVisibleCount = 9;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->libraryShelfEnabled > 1) mut->libraryShelfEnabled = 0;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
@@ -299,7 +297,6 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, refreshOnLoadSync);
   serialization::writePod(outputFile, refreshOnLoadStatistics);
   serialization::writePod(outputFile, bitmapRoundedCorners);
-  serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
   serialization::writePod(outputFile, libraryMode);
@@ -451,8 +448,13 @@ bool SystemSetting::loadFromFile() {
     if (bitmapRoundedCorners > 2) bitmapRoundedCorners = 0;
     if (++settingsRead >= fileSettingsCount) break;
 
-    serialization::readPod(inputFile, recentVisibleCount);
-    if (recentVisibleCount < 1 || recentVisibleCount > 9) recentVisibleCount = 9;
+    // v37/v38 persisted the removed Recent-books-count setting here. Consume
+    // that legacy byte so existing settings files remain positionally valid,
+    // but do not retain or use the value.
+    if (version < SETTINGS_FILE_VERSION) {
+      uint8_t legacyRecentVisibleCount = 0;
+      serialization::readPod(inputFile, legacyRecentVisibleCount);
+    }
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, librarySortEnabled);
@@ -517,7 +519,6 @@ bool SystemSetting::loadFromFile() {
 
   inputFile.close();
 
-  if (recentVisibleCount < 1 || recentVisibleCount > 9) recentVisibleCount = 9;
   if (librarySortEnabled > 1) librarySortEnabled = 1;
   if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
   if (hideButtonHints > 1) hideButtonHints = 0;

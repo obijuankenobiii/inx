@@ -5,6 +5,8 @@
 
 #include "Home.h"
 
+#include "HomeSubPage.h"
+
 #include <Arduino.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
@@ -30,6 +32,8 @@ extern void onGoToReader(const std::string& path);
 extern void onGoToDescription(const std::string& path);
 extern void onGoToSettings();
 extern void onGoToFileTransfer();
+extern void openHomeSubPage(HomeSubPage::Section section);
+extern void onGoToStatistics();
 
 namespace {
 
@@ -80,6 +84,7 @@ void Home::onEnter() {
   recentIndex_ = 0;
   recentPopupAction_ = 0;
   recentPopupPath_.clear();
+  shortcutIndex_ = 0;
   confirmLongPressProcessed_ = false;
   ignoreBackReleaseAfterPopup_ = false;
   ignoreBackReleaseOnEnter_ = mappedInput.isPressed(MappedInputManager::Button::Back);
@@ -103,6 +108,8 @@ void Home::loop() {
     Page::loop();
     return;
   }
+
+  if (sidebarOpen && shortcutInput()) return;
 
   if (ignoreBackReleaseAfterPopup_ && mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     ignoreBackReleaseAfterPopup_ = false;
@@ -130,7 +137,7 @@ void Home::loop() {
   // views in the linked inx source. The bottom menu keeps left/right for tab
   // navigation, while up/down select a recent book and Confirm opens it.
   const auto& books = RECENT_BOOKS.getBooks();
-  const int recentCount = std::min(static_cast<int>(books.size()), std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
+  const int recentCount = static_cast<int>(books.size());
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     confirmLongPressProcessed_ = false;
@@ -179,7 +186,39 @@ void Home::loop() {
 
 void Home::menu() {
   Page::menu();
-  if (sidebarOpen) navigation::Sidebar::render(renderer);
+  if (sidebarOpen) navigation::Sidebar::render(renderer, "Shortcuts", shortcutIndex_);
+}
+
+bool Home::shortcutInput() {
+  if (mappedInput.wasPressed(itemPrevButton())) {
+    shortcutIndex_ = (shortcutIndex_ + navigation::Sidebar::shortcutCount - 1) % navigation::Sidebar::shortcutCount;
+    requestRender();
+    return true;
+  }
+  if (mappedInput.wasPressed(itemNextButton())) {
+    shortcutIndex_ = (shortcutIndex_ + 1) % navigation::Sidebar::shortcutCount;
+    requestRender();
+    return true;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) return handleShortcut(shortcutIndex_);
+  if (mappedInput.isPressed(MappedInputManager::Button::Confirm) ||
+      mappedInput.wasPressed(tabPrevButton()) || mappedInput.wasPressed(tabNextButton())) {
+    return true;
+  }
+  return false;
+}
+
+bool Home::handleShortcut(const int index) {
+  sidebarOpen = false;
+  requestRender();
+  switch (index) {
+    case 0: openHomeSubPage(HomeSubPage::Section::Bookmarks); return true;
+    case 1: openHomeSubPage(HomeSubPage::Section::Highlights); return true;
+    case 2: openHomeSubPage(HomeSubPage::Section::Favorites); return true;
+    case 3: onGoToStatistics(); return true;
+    case 4: openHomeSubPage(HomeSubPage::Section::Dictionary); return true;
+    default: return false;
+  }
 }
 
 void Home::title() const {

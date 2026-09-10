@@ -8,7 +8,6 @@
 #include "components/search/SearchText.h"
 #include "images/BookSmall.h"
 #include "images/Folder.h"
-#include "images/Refresh.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -19,7 +18,7 @@ extern void onGoToLibrary(const std::string& path);
 extern void onSelectBook(const std::string& path);
 
 namespace {
-constexpr unsigned long kKeyboardToggleHoldMs = 2000;
+constexpr unsigned long kKeyboardToggleHoldMs = 500;
 }
 
 Search::Search(GfxRenderer& renderer, MappedInputManager& mappedInput, std::function<void()> returnToCaller)
@@ -40,10 +39,18 @@ void Search::onEnter() {
   nextButtonPressStartedMs_ = 0;
 }
 
-int Search::resultHeight() const { return UiLayout::LIST_ITEM_HEIGHT; }
+int Search::resultHeight() const {
+  // The X3 portrait panel is 792px high. Once the keyboard is hidden, one
+  // pixel of row compression lets all 10 bounded results fit below the
+  // search field without reserving the Pro keyboard-control row.
+  return keyboardCollapsed_ ? UiLayout::LIST_ITEM_HEIGHT - 1 : UiLayout::LIST_ITEM_HEIGHT;
+}
 
 int Search::keyboardTop() const {
-  return renderer.getScreenHeight() - (keyboardCollapsed_ ? 0 : keyboard_.height(renderer));
+  // There is no keyboard-show control on the button-only search page. When
+  // the keyboard is collapsed, library results may use the entire display.
+  if (keyboardCollapsed_) return renderer.getScreenHeight();
+  return renderer.getScreenHeight() - keyboard_.height(renderer);
 }
 
 int Search::resultsTop() const { return SearchText::top() + SearchText::height + 5; }
@@ -223,9 +230,6 @@ void Search::content() {
     keyboard_.render(renderer, keyboardTop(), renderer.getScreenHeight());
   }
 
-  // Match the Pro search affordance while keeping refresh visually separate
-  // from the input box. Index refresh remains available from the Library page.
-  renderer.bitmap.icon(Refresh, renderer.getScreenWidth() - 60, SearchText::top() + 8, 40, 40);
 }
 
 void Search::drawResults() const {

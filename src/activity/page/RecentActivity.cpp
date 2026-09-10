@@ -471,10 +471,7 @@ void RecentActivity::loadRecentBooks(const bool resetScroll) {
   freeRecentPageBuffer();
   recentBooks.clear();
   recentStats_.clear();
-  const int requestedCount = std::max(1, static_cast<int>(SETTINGS.recentVisibleCount));
-  const int iconGridCount = ICON_COLS * ICON_ROWS;
-  const bool iconMode = viewModeForLibrarySetting(SETTINGS.recentLibraryMode) == ViewMode::Icons;
-  const int maxShow = std::min(MAX_RECENT_BOOKS, iconMode ? std::max(requestedCount, iconGridCount) : requestedCount);
+  const int maxShow = MAX_RECENT_BOOKS;
   if (resetScroll) {
     scrollOffset = 0;
   }

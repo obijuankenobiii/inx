@@ -312,4 +312,10 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   bool isDetailOpen() const { return isSubPageOpen() || isOverlayOpen(); }
   bool isSubPageOpen() const { return embedded && (groupOpen || subActivity != nullptr); }
   bool isOverlayOpen() const { return embedded && selectorOpen; }
+  bool isFirstItemSelected() const {
+    return embedded && !groupOpen && !selectorOpen && !subActivity && selectedIndex == 0;
+  }
+  void clearItemSelection() {
+    if (embedded && !groupOpen && !selectorOpen && !subActivity) selectedIndex = -1;
+  }
 };

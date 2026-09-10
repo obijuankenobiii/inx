@@ -28,6 +28,8 @@ class Home final : public Page {
   int top() const;
   int bottom() const;
   bool recentPopupInput();
+  bool shortcutInput();
+  bool handleShortcut(int index);
   void renderRecentPopup() const;
   void removeSelectedRecent();
   void deleteSelectedRecentCache();
@@ -39,6 +41,7 @@ class Home final : public Page {
   bool confirmLongPressProcessed_ = false;
   int recentIndex_ = 0;
   int recentPopupAction_ = 0;
+  int shortcutIndex_ = 0;
   std::string recentPopupPath_;
   widget::Recent recentWidget;
 };

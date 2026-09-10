@@ -41,6 +41,15 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
     return embedded_ && (detailSection_ != DetailSection::None || subActivity != nullptr);
   }
   bool isOverlayOpen() const { return embedded_ && (overlayOpen_ || actionSelectorOpen_); }
+  bool isFirstItemSelected() const {
+    return embedded_ && detailSection_ == DetailSection::None && !overlayOpen_ && !actionSelectorOpen_ &&
+           !subActivity && selectedRow_ == 0;
+  }
+  void clearItemSelection() {
+    if (embedded_ && detailSection_ == DetailSection::None && !overlayOpen_ && !actionSelectorOpen_ && !subActivity) {
+      selectedRow_ = -1;
+    }
+  }
 
  private:
   enum class DetailSection { None, System, Buttons };

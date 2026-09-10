@@ -241,6 +241,13 @@ void EpubActivity::drawLoadingScreen() {
   renderer.displayBuffer();
 }
 
+void EpubActivity::drawPreparingBookScreen() {
+  renderer.clearScreen(0xff);
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2,
+                         "Preparing book...", true);
+  renderer.displayBuffer();
+}
+
 void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
   pauseReadingStats();
 
@@ -814,9 +821,7 @@ void EpubActivity::onEnter() {
   const bool useFastPath = (epub->isLoaded() || epub->hasMetadataCache()) && isTracked && hasProgress;
 
   if (!useFastPath) {
-    renderer.clearScreen(0xff);
-    ScreenComponents::drawPopup(renderer, "Preparing book...");
-    renderer.displayBuffer();
+    drawPreparingBookScreen();
   }
 
   if (useFastPath) {

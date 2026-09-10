@@ -67,19 +67,31 @@ void renderTextList(const GfxRenderer& renderer, const char* const* labels, cons
 
 }  // namespace
 
-void Sidebar::render(const GfxRenderer& renderer, const char* title) {
+int Sidebar::width(const GfxRenderer& renderer) {
+  return std::min(UiLayout::SIDEBAR_WIDTH_LIMIT, renderer.getScreenWidth() / 2);
+}
+
+void Sidebar::render(const GfxRenderer& renderer, const char* title, const int selected) {
   renderFrame(renderer, title);
 
+  const int drawerWidth = Sidebar::width(renderer);
   const int font = systemFontId();
   const int lineHeight = renderer.text.getLineHeight(font);
   for (size_t i = 0; i < kItemCount; ++i) {
     const int rowY = UiLayout::SIDEBAR_LIST_TOP + UiLayout::SIDEBAR_TOP_PADDING +
                      static_cast<int>(i) * (UiLayout::SIDEBAR_ROW_HEIGHT + UiLayout::SIDEBAR_ROW_GAP);
+    const bool active = static_cast<int>(i) == selected;
+    if (active) {
+      renderer.rectangle.fill(UiLayout::SIDEBAR_INNER_PADDING, rowY,
+                              drawerWidth - UiLayout::SIDEBAR_INNER_PADDING * 2, UiLayout::SIDEBAR_ROW_HEIGHT, true,
+                              true, true);
+    }
     const int iconX = UiLayout::SIDEBAR_INNER_PADDING + 8;
     const int iconY = rowY + (UiLayout::SIDEBAR_ROW_HEIGHT - UiLayout::SIDEBAR_ICON_SIZE) / 2;
-    renderer.bitmap.icon(kItems[i].icon, iconX, iconY, UiLayout::SIDEBAR_ICON_SIZE, UiLayout::SIDEBAR_ICON_SIZE);
+    renderer.bitmap.icon(kItems[i].icon, iconX, iconY, UiLayout::SIDEBAR_ICON_SIZE, UiLayout::SIDEBAR_ICON_SIZE,
+                         BitmapRender::Orientation::None, active);
     renderer.text.render(font, iconX + UiLayout::SIDEBAR_ICON_SIZE + 16,
-                         rowY + (UiLayout::SIDEBAR_ROW_HEIGHT - lineHeight) / 2, kItems[i].label, true);
+                         rowY + (UiLayout::SIDEBAR_ROW_HEIGHT - lineHeight) / 2, kItems[i].label, !active);
   }
 }
 

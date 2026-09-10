@@ -126,7 +126,7 @@ void Grid::render(GfxRenderer& renderer, const int x, const int y, const int wid
     renderer.text.centered(MONTSERRAT_12_FONT_ID, y + height / 2, "No recent books");
     return;
   }
-  const int count = std::min(static_cast<int>(books.size()), std::max(1, static_cast<int>(SETTINGS.recentVisibleCount)));
+  const int count = static_cast<int>(books.size());
   const Geometry g = geometry(x, y, width, height, count, selectedIndex,
                               renderer.text.getLineHeight(kGridMetaFont));
   for (int row = 0; row < g.visibleRows; ++row) {

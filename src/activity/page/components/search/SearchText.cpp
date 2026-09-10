@@ -8,11 +8,9 @@ int SearchText::top() { return 80; }
 
 void SearchText::render(const GfxRenderer& renderer, const std::string& value, const char* placeholder) {
   constexpr int margin = 20;
-  constexpr int button = 40;
-  constexpr int gap = 10;
   const int x = margin;
   const int y = top();
-  const int width = renderer.getScreenWidth() - margin * 2 - button - gap;
+  const int width = renderer.getScreenWidth() - margin * 2;
 
   renderer.rectangle.fill(x, y, width, height, false, true);
   renderer.rectangle.render(x, y, width, height, true, true);

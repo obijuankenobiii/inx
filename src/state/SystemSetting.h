@@ -450,8 +450,6 @@ class SystemSetting {
   uint8_t libraryShelfEnabled = 0;                 ///< Allow cover shelf view in Library
   /** Hide on-screen button-hint chrome everywhere (hub, settings, reader overlays, side buttons). */
   uint8_t hideButtonHints = 0;
-  /** How many recent books to show on the Recent hub (1–8). */
-  uint8_t recentVisibleCount = 9;
   /** Library: 0 = folders and books A-Z only; 1 = use librarySortMode (favorites / groups / reading / tags). */
   uint8_t librarySortEnabled = 1;
   /** Library sort mode persisted when leaving Library (0=Title A–Z … 5=Read Z–A). */

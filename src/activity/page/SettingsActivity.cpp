@@ -37,9 +37,6 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage,
                                        {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
-  settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
-                                        GroupType::DEVICE_DISPLAY));
-
   if (x3) {
     settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));
     settings.push_back(SettingInfo::Toggle("Show Clock", &SystemSetting::showMenuClock, GroupType::CLOCK));

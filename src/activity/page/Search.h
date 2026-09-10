@@ -24,7 +24,7 @@ class Search final : public Page {
   bool back() override;
 
  private:
-  static constexpr size_t kMaxResults = 24;
+  static constexpr size_t kMaxResults = 10;
 
   std::function<void()> returnToCaller_;
   std::string query_;

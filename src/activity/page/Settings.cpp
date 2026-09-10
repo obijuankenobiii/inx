@@ -95,8 +95,6 @@ std::vector<SettingInfo> buildSystemSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage,
                                        {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
-  settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
-                                        GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Text size", &SystemSetting::systemTextSize,
                                        {"Small", "Medium", "Large"}, GroupType::DEVICE_DISPLAY));
   // Theme is a separate top-level settings page, not a Display option.
@@ -161,6 +159,7 @@ void Settings::onEnter() {
   nextPanel = currentPanel;
   pending = Pending::None;
   externalNavigation = nullptr;
+  tabsFocused_ = true;
   openPanel();
 }
 
@@ -171,6 +170,32 @@ void Settings::onExit() {
 
 void Settings::loop() {
   if (panel) {
+    // The three settings tabs are the first focus target. Confirm advances to
+    // the next settings tab; item navigation enters the active tab's rows.
+    if (!panelDetailOpen()) {
+      const bool upPressed = mappedInput.wasPressed(itemPrevButton());
+      const bool downPressed = mappedInput.wasPressed(itemNextButton());
+      if (tabsFocused_) {
+        if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+          requestPanelSwitch();
+          processPending();
+          return;
+        }
+        if (upPressed) {
+          requestRender();
+          return;
+        }
+        if (downPressed) {
+          tabsFocused_ = false;
+        }
+      } else if (upPressed && firstItemSelected()) {
+        clearItemSelection();
+        tabsFocused_ = true;
+        requestRender();
+        return;
+      }
+    }
+
     panel->loop();
     if (runExternalNavigation()) return;
     if (pending != Pending::None) processPending();
@@ -184,6 +209,18 @@ void Settings::loop() {
     return;
   }
   Page::loop();
+}
+
+bool Settings::firstItemSelected() const {
+  return (categoryPanel && categoryPanel->isFirstItemSelected()) ||
+         (readerPanel && readerPanel->isFirstItemSelected()) ||
+         (presetsPanel && presetsPanel->isFirstItemSelected());
+}
+
+void Settings::clearItemSelection() {
+  if (categoryPanel) categoryPanel->clearItemSelection();
+  if (readerPanel) readerPanel->clearItemSelection();
+  if (presetsPanel) presetsPanel->clearItemSelection();
 }
 
 void Settings::openPanel() {
@@ -283,6 +320,20 @@ void Settings::panelTabs() {
                  currentPanel == SettingsPanel::Reader, false, false);
   renderPanelTab(renderer, presetsX(renderer), kPanelTabY, kPanelTabWidth, kPanelTabHeight, "Presets",
                  currentPanel == SettingsPanel::Presets, false, true);
+
+  if (tabsFocused_) {
+    const int selectedX = currentPanel == SettingsPanel::System
+                              ? systemX(renderer)
+                              : currentPanel == SettingsPanel::Reader ? readerX(renderer) : presetsX(renderer);
+    const int centerX = selectedX + kPanelTabWidth / 2;
+    const int centerY = kPanelTabY + kPanelTabHeight + 6;
+    constexpr int radius = 3;
+    for (int dy = -radius; dy <= radius; ++dy) {
+      for (int dx = -radius; dx <= radius; ++dx) {
+        if (dx * dx + dy * dy <= radius * radius) renderer.drawPixel(centerX + dx, centerY + dy, true);
+      }
+    }
+  }
 }
 
 void Settings::content() {

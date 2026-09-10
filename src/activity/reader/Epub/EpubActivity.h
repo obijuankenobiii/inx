@@ -293,6 +293,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   bool isReadingActivity() const override { return true; }
 
   void displayBookTitle();
+  void drawPreparingBookScreen();
   void drawLoadingScreen();
   void preloadNextSection();
 
