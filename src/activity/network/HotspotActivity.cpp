@@ -5,6 +5,8 @@
 
 #include "HotspotActivity.h"
 
+#include <algorithm>
+
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
@@ -303,6 +305,7 @@ void HotspotActivity::render() const {
  */
 void HotspotActivity::renderServerRunning() const {
   int screenWidth = renderer.getScreenWidth();
+  int screenHeight = renderer.getScreenHeight();
   int startY = 0;
 
   const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
@@ -310,11 +313,15 @@ void HotspotActivity::renderServerRunning() const {
   std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
   std::string ipUrl = "http://" + connectedIP + "/";
 
-  const int bodyTop = contentStart + 12;
   const int textX = CONTENT_MARGIN + 2;
   const int qrX = screenWidth - QR_SIZE - CONTENT_MARGIN;
+  const int stepStride = QR_SIZE + 92;
+  const int contentHeight = stepStride + QR_SIZE;
+  const int availableBottom = screenHeight - BOTTOM_AREA_HEIGHT;
+  const int verticalOffset = std::max(0, (availableBottom - contentStart - contentHeight) / 2);
+  const int bodyTop = contentStart + verticalOffset;
   const int wifiY = bodyTop + 8;
-  const int webY = wifiY + QR_SIZE + 92;
+  const int webY = wifiY + stepStride;
   const int labelFont = MONTSERRAT_8_FONT_ID;
   const int titleFont = MONTSERRAT_14_FONT_ID;
   const int bodyFont = MONTSERRAT_10_FONT_ID;

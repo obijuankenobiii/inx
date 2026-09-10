@@ -10,13 +10,12 @@
 #include <freertos/task.h>
 
 #include <functional>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "activity/ActivityWithSubactivity.h"
-#include "activity/Menu.h"
-
-/** Forward declaration of WebServerContext structure */
-struct WebServerContext;
+#include "network/LocalServer.h"
 
 /**
  * @brief Possible states for the CalibreConnect activity
@@ -32,7 +31,7 @@ enum class CalibreConnectState {
  * @brief Activity for Calibre wireless device connection
  * @details Allows sending books from Calibre desktop app via WiFi
  */
-class CalibreConnectActivity final : public ActivityWithSubactivity, public Menu {
+class CalibreConnectActivity final : public ActivityWithSubactivity {
  public:
   /**
    * @brief Constructor for CalibreConnectActivity
@@ -42,9 +41,7 @@ class CalibreConnectActivity final : public ActivityWithSubactivity, public Menu
    */
   explicit CalibreConnectActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                   const std::function<void()>& onComplete)
-      : ActivityWithSubactivity("CalibreConnect", renderer, mappedInput), Menu(), onComplete(onComplete) {
-    tabSelectorIndex = 3; /**< Select Sync tab (index 3) by default */
-  }
+      : ActivityWithSubactivity("CalibreConnect", renderer, mappedInput), onComplete(onComplete) {}
 
   /** Destructor - cleans up web server resources */
   ~CalibreConnectActivity();
@@ -112,25 +109,23 @@ class CalibreConnectActivity final : public ActivityWithSubactivity, public Menu
   /** Stops the web server and cleans up resources */
   void stopWebServer();
 
-  /** Navigate to selected menu tab (not used in this activity) */
-  void navigateToSelectedMenu() override {}
-
   TaskHandle_t displayTaskHandle = nullptr;   /**< Handle for display update task */
   SemaphoreHandle_t renderingMutex = nullptr; /**< Mutex for thread-safe rendering */
   bool updateRequired = false;                /**< Flag indicating render update needed */
-  bool exitRequested = false;                 /**< Flag indicating exit was requested */
 
   CalibreConnectState state = CalibreConnectState::WIFI_SELECTION; /**< Current activity state */
   std::string connectedIP;                                         /**< IP address of connected WiFi */
   std::string connectedSSID;                                       /**< SSID of connected WiFi network */
 
-  WebServerContext* serverCtx = nullptr; /**< Web server context (raw pointer) */
+  std::unique_ptr<LocalServer> webServer; /**< Shared HTTP/WebSocket/discovery server */
 
   size_t lastProgressReceived = 0;  /**< Last reported bytes received for upload */
   size_t lastProgressTotal = 0;     /**< Last reported total bytes for upload */
   std::string currentUploadName;    /**< Name of file currently being uploaded */
   std::string lastCompleteName;     /**< Name of last completed upload */
   unsigned long lastCompleteAt = 0; /**< Timestamp of last completed upload */
+  unsigned long lastProcessedCompleteAt = 0; /**< Last server completion already reflected in the UI */
+  std::vector<std::string> receivedFiles; /**< Files received during this connection */
 
   const std::function<void()> onComplete; /**< Callback invoked on activity exit */
 };

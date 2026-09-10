@@ -5,13 +5,19 @@
 
 #include "LocalNetworkActivity.h"
 
+#include <algorithm>
+
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include <qrcode.h>
 
 #include "WifiSelectionActivity.h"
 #include "activity/page/SubPage.h"
+#include "images/Computer.h"
+#include "images/Phone.h"
+#include "images/Transfer.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -25,6 +31,11 @@ constexpr int LINE_SPACING = 28;
 constexpr int SMALL_SPACING = 25;
 constexpr int SECTION_SPACING = 40;
 constexpr int BOTTOM_AREA_HEIGHT = 80;
+constexpr int ICON_SIZE = 72;
+constexpr int ICON_GAP = 28;
+constexpr int QR_VERSION = 4;
+constexpr int QR_PIXEL_SIZE = 5;
+constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;
 
 /**
  * @brief Renders the header section for the activity
@@ -260,27 +271,53 @@ void LocalNetworkActivity::render() const {
  * @brief Renders the server running state UI with connection information
  */
 void LocalNetworkActivity::renderServerRunning() const {
-  int startY = 0;
-
-  const int contentStart = renderActivityHeader(renderer, startY, "Local Network");
-
-  std::string ipUrl = "http://" + connectedIP + "/";
-  std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
-
-  const int bodyTop = contentStart + 56;
+  const int contentStart = renderActivityHeader(renderer, 0, "Local Network");
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  constexpr int sideMargin = 20;
   const int labelFont = MONTSERRAT_8_FONT_ID;
-  const int titleFont = MONTSERRAT_14_FONT_ID;
-  const int bodyFont = MONTSERRAT_10_FONT_ID;
+  const int bodyFont = systemFontId();
+  const int iconGroupWidth = ICON_SIZE * 3 + ICON_GAP * 2;
+  const int iconX = (screenWidth - iconGroupWidth) / 2;
+  const int iconY = contentStart + 58;
 
-  renderer.text.centered(labelFont, bodyTop, "LOCAL TRANSFER", true, EpdFontFamily::BOLD);
-  renderer.text.centered(titleFont, bodyTop + 34, "Ready on WiFi", true, EpdFontFamily::BOLD);
-  renderer.text.centered(bodyFont, bodyTop + 74, truncateString(connectedSSID, 30).c_str());
+  renderer.bitmap.icon(Phone, iconX, iconY, ICON_SIZE, ICON_SIZE);
+  renderer.bitmap.icon(Transfer, iconX + ICON_SIZE + ICON_GAP, iconY, ICON_SIZE, ICON_SIZE);
+  renderer.bitmap.icon(Computer, iconX + (ICON_SIZE + ICON_GAP) * 2, iconY, ICON_SIZE, ICON_SIZE);
 
-  const int urlY = bodyTop + 136;
-  renderer.text.centered(labelFont, urlY, "OPEN IN BROWSER", true, EpdFontFamily::BOLD);
-  renderer.text.centered(MONTSERRAT_12_FONT_ID, urlY + 32, ipUrl.c_str(), true, EpdFontFamily::BOLD);
-  renderer.text.centered(MONTSERRAT_8_FONT_ID, urlY + 64, hostnameUrl.c_str());
+  const std::string ipUrl = "http://" + connectedIP + "/";
+  const std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
+  const int availableTop = iconY + ICON_SIZE;
+  const int availableBottom = screenHeight - BOTTOM_AREA_HEIGHT;
+  const int bodyLineHeight = renderer.text.getLineHeight(bodyFont);
+  const int labelLineHeight = renderer.text.getLineHeight(labelFont);
+  const int detailsHeight = labelLineHeight + 12 + bodyLineHeight * 2 + 8;
+  const int transferBlockHeight = QR_SIZE + 20 + detailsHeight;
+  const int qrY = availableTop + std::max(0, (availableBottom - availableTop - transferBlockHeight) / 2);
+  const int qrX = (screenWidth - QR_SIZE) / 2;
+  const int detailsTop = qrY + QR_SIZE + 20;
+
+  drawQRCode(qrX, qrY, hostnameUrl);
+  renderer.text.centered(labelFont, detailsTop, "OPEN TRANSFER", true, EpdFontFamily::BOLD);
+  renderer.text.centered(bodyFont, detailsTop + labelLineHeight + 12, hostnameUrl.c_str(), true,
+                         EpdFontFamily::BOLD);
+  renderer.text.centered(bodyFont, detailsTop + labelLineHeight + 12 + bodyLineHeight + 8, ipUrl.c_str());
 
   const int hintY = renderer.getScreenHeight() - 92;
   renderer.text.centered(MONTSERRAT_8_FONT_ID, hintY, "Keep this screen open while transferring");
+}
+
+void LocalNetworkActivity::drawQRCode(const int x, const int y, const std::string& data) const {
+  QRCode qrcode;
+  uint8_t qrcodeBytes[qrcode_getBufferSize(QR_VERSION)];
+  qrcode_initText(&qrcode, qrcodeBytes, QR_VERSION, ECC_LOW, data.c_str());
+
+  for (uint8_t cy = 0; cy < qrcode.size; ++cy) {
+    for (uint8_t cx = 0; cx < qrcode.size; ++cx) {
+      if (qrcode_getModule(&qrcode, cx, cy)) {
+        renderer.rectangle.fill(x + QR_PIXEL_SIZE * cx, y + QR_PIXEL_SIZE * cy,
+                                QR_PIXEL_SIZE, QR_PIXEL_SIZE, true);
+      }
+    }
+  }
 }

@@ -197,6 +197,14 @@ class SettingsDrawer {
 
   bool settingsUpdated = false;  ///< Flag indicating settings were changed
 
+  // X3/X4 use one display buffer, so dropdowns are redrawn in-place instead of copying a
+  // second full-screen framebuffer.
+  bool selectorOpen_ = false;
+  int selectorMenuIndex_ = -1;
+  int selectorSelected_ = 0;
+  int selectorScroll_ = 0;
+  std::vector<std::string> selectorOptions_;
+
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
   GroupType selectedGroup_ = GroupType::FONT;      ///< Active preset-editor tab.
   std::vector<MenuEntry> menuItems;                ///< Current menu items
@@ -226,6 +234,13 @@ class SettingsDrawer {
   void drawTabs();
 
   void drawMenuItemRow(int visibleRow, int menuIndex);
+
+  bool isDropdownItem(MenuItem item) const;
+  void openSelector(int menuIndex);
+  void closeSelector();
+  void commitSelectorSelection();
+  void drawSelectorPopup();
+  bool handleSelectorInput(MappedInputManager& input);
 
   /**
    * @brief Draws the scroll indicator

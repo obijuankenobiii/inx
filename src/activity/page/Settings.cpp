@@ -121,7 +121,7 @@ std::vector<SettingInfo> buildSystemSettings(const bool x3) {
 
   settings.push_back(SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS));
   settings.push_back(SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
-                                       {"Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm",
+                                       {"Back, Confirm, Left, Right", "Left, Right, Back, Confirm",
                                         "Left, Back, Confirm, Right", "Back, Confirm, Right, Left",
                                         "Left, Right, Confirm, Back"},
                                        GroupType::DEVICE_BUTTONS));

@@ -17,7 +17,6 @@
 #include <time.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -29,14 +28,11 @@
 
 #include "EpubAnnotations.h"
 #include "EpubReadingStats.h"
-#include "KOReaderCredentialStore.h"
-#include "KOReaderSyncActivity.h"
-#include "MenuDrawer.h"
+#include "EpubNavigation.h"
 #include "SettingsDrawer.h"
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "state/BookState.h"
-#include "util/BookDisplayTitle.h"
 #include "state/EpubNotesIndex.h"
 #include "state/RecentBooks.h"
 #include "state/Session.h"
@@ -48,53 +44,6 @@
 #include "system/ScreenComponents.h"
 
 namespace {
-/** Encodes spine and page for MenuDrawer::BookmarkNavItem::storageIndex (page < 100000). */
-constexpr int kAnnotationNavPack = 100000;
-
-static std::string chapterTitleForSpine(const Epub* epub, int spineIndex) {
-  if (!epub) {
-    return "";
-  }
-  const int tocIndex = epub->getTocIndexForSpineIndex(spineIndex);
-  if (tocIndex != -1) {
-    return epub->getTocItem(tocIndex).title;
-  }
-  return "Chapter " + std::to_string(spineIndex + 1);
-}
-
-bool looksLikeBackMatterTitle(const std::string& title) {
-  std::string lower;
-  lower.reserve(title.size());
-  for (unsigned char c : title) {
-    lower.push_back(static_cast<char>(std::tolower(c)));
-  }
-  static const char* kKeys[] = {
-      "about the author",  "about the authors", "also by",     "other books by", "by the same author",
-      "copyright",         "acknowledg",        "bibliography", "works cited",    "endnotes",
-      "advertisement",     "preview of",        "excerpt from", "discussion questions",
-      "reading group",     "teaser",            "sneak peek",   "about this book", "colophon",
-      "more from",         "newsletter",        "credits"};
-  for (const char* key : kKeys) {
-    if (lower.find(key) != std::string::npos) {
-      return true;
-    }
-  }
-  static const char* kExact[] = {"index", "copyright", "credits", "colophon"};
-  for (const char* key : kExact) {
-    if (lower == key) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::string cleanedEpubTitle(const Epub& book) {
-  const std::string title = BookDisplayTitle::clean(book.getTitle());
-  return title.empty() ? book.getTitle() : title;
-}
-}  // namespace
-
-namespace {
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 5;
 constexpr int statusBarTopGap = 2;
@@ -102,7 +51,7 @@ constexpr int statusBarCombinedTopGap = 1;
 constexpr int statusBarExtraPaddingMaxScreenMargin = 5;
 constexpr int statusBarFullGap = 2;
 constexpr int progressBarMarginTop = 10;
-constexpr unsigned long bookmarkHoldMs = 1000;
+constexpr unsigned long koreaderFocusHoldMs = 1000;
 constexpr bool kReaderHighQualityFastLut = true;
 
 bool pageImageFootprintAtLeastHalfScreen(const Page& page, const GfxRenderer& renderer, int marginLeft, int marginTop) {
@@ -152,10 +101,9 @@ EpubActivity::EpubActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
       bookmarkLongPressProcessed(false),
       settingsDrawer(nullptr),
       settingsDrawerVisible(false),
-      menuDrawer(nullptr),
-      menuDrawerVisible(false),
       bookProgress(nullptr) {
   loadBookSettings();
+  navigation_.reset(new EpubNavigation(*this));
 }
 
 /**
@@ -248,13 +196,8 @@ void EpubActivity::drawPreparingBookScreen() {
   renderer.displayBuffer();
 }
 
-void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
+void EpubActivity::dismissReaderOverlays(bool repaintReaderScreen) {
   pauseReadingStats();
-
-  if (menuDrawer) {
-    menuDrawerVisible = false;
-    menuDrawer->hide();
-  }
 
   if (settingsDrawer) {
     settingsDrawerVisible = false;
@@ -268,7 +211,7 @@ void EpubActivity::dismissMenuDrawerForBlockingWork(bool repaintReaderScreen) {
 
 void EpubActivity::readerPopup(const char* message) {
   pauseReadingStats();
-  dismissMenuDrawerForBlockingWork(false);
+  dismissReaderOverlays(false);
   ScreenComponents::drawPopup(renderer, message);
 }
 
@@ -289,12 +232,15 @@ void EpubActivity::handleChapterLoadFailure() {
   if (epub) {
     epub->clearCache();
   }
+  if (bookProgress) {
+    bookProgress->remove();
+  }
   onGoBack();
 }
 
 ScreenComponents::LoadingProgressLayout EpubActivity::loadingProgressShow(const char* message,
                                                                           const int progressPercent0to100) {
-  dismissMenuDrawerForBlockingWork(false);
+  dismissReaderOverlays(false);
   return ScreenComponents::LoadingProgress::show(renderer, message, progressPercent0to100);
 }
 
@@ -330,7 +276,7 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   ScreenComponents::PopupLayout chapterLoadPopup{};
   const bool useChapterLoadBar = showProgress;
   if (useChapterLoadBar) {
-    dismissMenuDrawerForBlockingWork(false);
+    dismissReaderOverlays(false);
     chapterLoadPopup = ScreenComponents::drawPopup(renderer, "Loading chapter...");
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 12);
   }
@@ -355,7 +301,9 @@ bool EpubActivity::buildSection(int spineIndex, const ViewportInfo& info, bool s
   if (useChapterLoadBar) {
     ScreenComponents::fillPopupProgress(renderer, chapterLoadPopup, 100);
     renderer.clearScreen();
-    renderer.displayBuffer();
+    // The loading screen may have covered a previous page or the book opener. Clear it with a
+    // half refresh before the newly loaded chapter is rendered to keep the page clean.
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
   return success;
@@ -471,13 +419,13 @@ void EpubActivity::loadProgress() {
   BookProgress::Data data;
   int totalSpines = epub->getSpineItemsCount();
 
-  if (bookProgress->load(data)) {
-    bookProgress->sanitize(data, totalSpines);
+  if (bookProgress->load(data) && bookProgress->validate(data, totalSpines)) {
     currentSpineIndex = data.spineIndex;
     nextPageNumber = data.pageNumber;
     cachedSpineIndex = currentSpineIndex;
     cachedChapterTotalPageCount = data.chapterPageCount;
   } else {
+    bookProgress->remove();
     currentSpineIndex = 0;
     nextPageNumber = 0;
     cachedSpineIndex = 0;
@@ -491,110 +439,8 @@ void EpubActivity::loadProgress() {
  * @param currentPage Current page number
  * @param pageCount Total pages in current chapter
  */
-int EpubActivity::lastStorySpineIndex() const {
-  if (!epub) {
-    return 0;
-  }
-  const int last = epub->getSpineItemsCount() - 1;
-  if (last < 0) {
-    return 0;
-  }
-  int storyEnd = -1;
-  const int tocCount = epub->getTocItemsCount();
-  for (int i = 0; i < tocCount; ++i) {
-    const auto toc = epub->getTocItem(i);
-    if (toc.spineIndex < 0 || toc.spineIndex > last) {
-      continue;
-    }
-    if (looksLikeBackMatterTitle(toc.title)) {
-      continue;
-    }
-    if (toc.spineIndex > storyEnd) {
-      storyEnd = toc.spineIndex;
-    }
-  }
-  // Only skip back matter when the detected story end is actually near the end of the
-  // spine. Aggressive TOC matching (e.g. "credits" in a chapter title) used to report
-  // spine 0 as "the end", which then marked mid-book positions as finished and reset
-  // progress on reopen.
-  if (storyEnd >= 0 && storyEnd >= (last * 3) / 4) {
-    return storyEnd;
-  }
-  return last;
-}
-
-bool EpubActivity::isAtEndOfStory() const {
-  if (!epub || dictUi_.isActive() || annUi_.isActive()) {
-    return false;
-  }
-  const int total = epub->getSpineItemsCount();
-  if (total <= 0) {
-    return false;
-  }
-  if (currentSpineIndex >= total) {
-    return true;
-  }
-  const int storyEnd = lastStorySpineIndex();
-  if (currentSpineIndex != storyEnd) {
-    return false;
-  }
-  return section && section->pageCount > 0 && section->currentPage >= section->pageCount - 1;
-}
-
-void EpubActivity::markBookFinished() {
-  if (!epub || dictUi_.isActive() || annUi_.isActive()) {
-    return;
-  }
-  BOOK_STATE.setFinished(epub->getPath(), true);
-
-  const int total = epub->getSpineItemsCount();
-  int spine = currentSpineIndex;
-  int page = 0;
-  int count = 1;
-  if (section && section->pageCount > 0) {
-    count = section->pageCount;
-    page = section->currentPage;
-  } else {
-    spine = lastGoodSpineIndex_;
-    page = lastGoodPageNumber_;
-    count = std::max(1, page + 1);
-  }
-  if (total > 0) {
-    if (spine < 0) {
-      spine = 0;
-    }
-    if (spine >= total) {
-      spine = total - 1;
-    }
-  }
-  if (page < 0) {
-    page = 0;
-  }
-
-  if (bookProgress) {
-    BookProgress::Data data;
-    data.spineIndex = static_cast<unsigned int>(spine);
-    data.pageNumber = static_cast<unsigned int>(page);
-    data.chapterPageCount = static_cast<unsigned int>(count);
-    data.lastReadTimestamp = millis();
-    data.progressPercent = 100.0f;
-    bookProgress->save(data);
-  }
-  readingStats_.markBookComplete(*epub);
-  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(), 1.0f);
-}
-
 void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, const bool saveRecentNow) {
   if (!bookProgress || !epub) {
-    return;
-  }
-  if (dictUi_.isActive() || annUi_.isActive()) {
-    return;
-  }
-
-  const int total = epub->getSpineItemsCount();
-  if (total > 0 && spineIndex >= total) {
-    markBookFinished();
     return;
   }
 
@@ -604,24 +450,18 @@ void EpubActivity::saveProgress(int spineIndex, int currentPage, int pageCount, 
   data.chapterPageCount = pageCount;
   data.lastReadTimestamp = millis();
 
-  float bookProgressValue = 0.0f;
   if (pageCount > 0) {
-    const float spineProgress = epubSpineReadFraction(currentPage, pageCount);
-    bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
-    data.progressPercent = bookProgressValue * 100.0f;
+    float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
+    data.progressPercent = epub->calculateProgress(spineIndex, spineProgress) * 100.0f;
   }
 
   bookProgress->save(data);
 
   if (pageCount > 0) {
-    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(),
-                         bookProgressValue, saveRecentNow);
-  }
-
-  if (isAtEndOfStory()) {
-    markBookFinished();
-  } else if (bookProgressValue < 0.98f) {
-    BOOK_STATE.setFinished(epub->getPath(), false);
+    float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
+    float bookProgressValue = epub->calculateProgress(spineIndex, spineProgress);
+    RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue,
+                         saveRecentNow);
   }
 }
 
@@ -733,18 +573,9 @@ void EpubActivity::updateExternalState() {
   APP_STATE.lastRead = "";
   APP_STATE.saveToFile();
 
-  if (!epub) {
-    return;
-  }
-  if (isAtEndOfStory()) {
-    markBookFinished();
-    return;
-  }
-
-  float spineProgress = section ? epubSpineReadFraction(section->currentPage, section->pageCount) : 0;
+  float spineProgress = section ? static_cast<float>(section->currentPage) / section->pageCount : 0;
   float bookProgressValue = epub->calculateProgress(currentSpineIndex, spineProgress);
-  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), cleanedEpubTitle(*epub), epub->getAuthor(),
-                       bookProgressValue);
+  RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(), bookProgressValue);
 }
 
 /**
@@ -754,10 +585,10 @@ void EpubActivity::fastPath() {
   loadProgress();
   FontManager::ensureReaderLayoutFonts(calculateViewport().fontId, renderer);
   int totalSpineItems = epub->getSpineItemsCount();
-  if (totalSpineItems > 0 && currentSpineIndex >= totalSpineItems) {
-    currentSpineIndex = totalSpineItems - 1;
-    nextPageNumber = static_cast<int>(UINT16_MAX);
-    cachedSpineIndex = currentSpineIndex;
+  if (currentSpineIndex >= totalSpineItems) {
+    currentSpineIndex = 0;
+    nextPageNumber = 0;
+    cachedSpineIndex = 0;
     cachedChapterTotalPageCount = 0;
   }
 
@@ -832,9 +663,9 @@ void EpubActivity::onEnter() {
     }
   }
 
-  initStats();
   updateExternalState();
   loadBookmarks();
+  initStats();
 
   updateRequired = true;
   lastAutoPageTurnTime = millis();
@@ -854,12 +685,7 @@ bool EpubActivity::preventAutoSleep() { return gpio.deviceIsX3() && SETTINGS.sha
  * @brief Called when exiting the activity
  */
 void EpubActivity::onExit() {
-  if (menuDrawer) {
-    menuDrawer->hide();
-    delete menuDrawer;
-    menuDrawer = nullptr;
-  }
-
+  if (navigation_) navigation_->reset();
   if (settingsDrawer) {
     delete settingsDrawer;
     settingsDrawer = nullptr;
@@ -872,9 +698,12 @@ void EpubActivity::onExit() {
   if (epub) {
     saveBookStats();
 
-    if (isAtEndOfStory()) {
-      markBookFinished();
-    } else if (section) {
+    if (section) {
+      float spineProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+      float bookProgressValue = epub->calculateProgress(currentSpineIndex, spineProgress);
+      RECENT_BOOKS.addBook(epub->getPath(), epub->getCachePath(), epub->getTitle(), epub->getAuthor(),
+                           bookProgressValue);
+
       saveProgress(currentSpineIndex, section->currentPage, section->pageCount, false);
     }
   }
@@ -963,8 +792,7 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (menuDrawerVisible && menuDrawer && !menuDrawer->isDismissed()) {
-    menuDrawer->handleInput(mappedInput);
+  if (navigation_ && navigation_->handleInput(mappedInput)) {
     return;
   }
 
@@ -1008,7 +836,7 @@ void EpubActivity::loop() {
     suppressBackUntilReleased_ = false;
   }
 
-  if (section && epub && !menuDrawerVisible && !settingsDrawerVisible) {
+  if (section && epub && !settingsDrawerVisible) {
     annUi_.tryChordEnter(*this);
     dictUi_.tryChordEnter(*this);
   }
@@ -1047,7 +875,8 @@ void EpubActivity::loop() {
     return;
   }
 
-  if (READER_SETTINGS.pageAutoTurnSeconds > 0 && !menuDrawerVisible && !settingsDrawerVisible) {
+  if (READER_SETTINGS.pageAutoTurnSeconds > 0 && (!navigation_ || !navigation_->isTocOpen()) &&
+      !settingsDrawerVisible) {
     if (lastAutoPageTurnTime == 0) {
       lastAutoPageTurnTime = millis();
     }
@@ -1062,20 +891,15 @@ void EpubActivity::loop() {
     }
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() < bookmarkHoldMs) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= koreaderFocusHoldMs) {
     pauseReadingStats();
-    if (showingEndOfBook()) {
-      goHome();
-      return;
-    }
-    toggleMenuDrawer();
+    openTableOfContents(true);
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= bookmarkHoldMs) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     pauseReadingStats();
-    addBookmark();
-    startPageTimer();
+    openTableOfContents();
     return;
   }
 
@@ -1093,235 +917,8 @@ void EpubActivity::loop() {
   }
 }
 
-/**
- * @brief Callback when a chapter is selected from TOC
- * @param spineIndex The spine index to navigate to
- */
-void EpubActivity::onTocChapterSelected(int spineIndex) {
-  toggleMenuDrawer();
-  currentSpineIndex = spineIndex;
-  nextPageNumber = 0;
-  section.reset();
-  updateRequired = true;
-
-  startPageTimer();
-}
-
-void EpubActivity::onBookmarkDrawerSelected(int storageIndex) {
-  toggleMenuDrawer();
-  goToBookmark(storageIndex);
-  startPageTimer();
-}
-
-void EpubActivity::onAnnotationDrawerSelected(int storageIndex) {
-  toggleMenuDrawer();
-  const int spine = storageIndex / kAnnotationNavPack;
-  const int page = storageIndex % kAnnotationNavPack;
-  goToAnnotationPage(spine, page);
-  startPageTimer();
-}
-
-void EpubActivity::onPercentDrawerSelected(int percent) {
-  toggleMenuDrawer();
-  jumpToPercent(percent);
-  updateRequired = true;
-  startPageTimer();
-}
-
-void EpubActivity::goToAnnotationPage(int spine, int page) {
-  if (currentSpineIndex != spine) {
-    currentSpineIndex = spine;
-    nextPageNumber = page;
-    section.reset();
-  } else if (section) {
-    section->currentPage = page;
-  } else {
-    nextPageNumber = page;
-  }
-  updateRequired = true;
-}
-
-/**
- * @brief Lazily constructs and wires up menuDrawer, without changing its visibility.
- */
-void EpubActivity::ensureMenuDrawer() {
-  if (!menuDrawer) {
-    menuDrawer = new MenuDrawer(
-        renderer,
-        [this](MenuDrawer::MenuAction action) {
-          switch (action) {
-            case MenuDrawer::MenuAction::SHOW_BOOKMARKS:
-              break;
-            case MenuDrawer::MenuAction::SHOW_ANNOTATIONS:
-              break;
-            case MenuDrawer::MenuAction::ENTER_DICTIONARY:
-              // The menu drawer was just hide()-n above, but that only flips its own visibility flag -
-              // the framebuffer still has its pixels in it until something repaints. dictUi_.enter()
-              // captures whatever's in the framebuffer right now as its backdrop, so without this the
-              // dictionary UI would draw its word-highlight overlay on top of the menu still showing.
-              renderScreen(true);
-              dictUi_.enter(*this);
-              break;
-            case MenuDrawer::MenuAction::SELECT_CHAPTER:
-              break;
-            case MenuDrawer::MenuAction::APPLY_PRESET:
-              renderScreen(true);
-              presetPicker_.enter(*this);
-              break;
-            case MenuDrawer::MenuAction::GO_TO_PERCENT:
-              // Handled inside MenuDrawer itself (percentProvider/percentSelectedCallback below), same
-              // as SELECT_CHAPTER/SHOW_BOOKMARKS/SHOW_ANNOTATIONS - never reaches this callback.
-              break;
-            case MenuDrawer::MenuAction::GO_HOME:
-              goHome();
-              break;
-            case MenuDrawer::MenuAction::DELETE_CACHE:
-              deleteCache();
-              break;
-            case MenuDrawer::MenuAction::DELETE_PROGRESS:
-              deleteProgress();
-              break;
-            case MenuDrawer::MenuAction::DELETE_BOOK:
-              deleteBook();
-              break;
-            case MenuDrawer::MenuAction::GENERATE_FULL_DATA:
-              generateFullData();
-              break;
-            case MenuDrawer::MenuAction::PREWARM_IMAGES:
-              prewarmCurrentSectionImages();
-              break;
-            case MenuDrawer::MenuAction::REGENERATE_THUMBNAIL:
-              regenerateThumbnail();
-              break;
-            case MenuDrawer::MenuAction::KOREADER_SYNC:
-              if (KOREADER_STORE.hasCredentials()) {
-                openKOReaderSyncFromMenu();
-              } else {
-                readerPopup("Set up KOReader in Settings");
-                updateRequired = true;
-                startPageTimer();
-              }
-              break;
-          }
-        },
-        [this]() {
-          menuDrawerVisible = false;
-          updateRequired = true;
-          startPageTimer();
-        });
-    menuDrawer->setMappedInputForHints(&mappedInput);
-    if (epub) {
-      menuDrawer->setEpub(epub.get());
-      menuDrawer->setTocSelectionCallback([this](int spineIndex) { onTocChapterSelected(spineIndex); });
-      menuDrawer->setBookmarkListProvider([this]() {
-        std::vector<MenuDrawer::BookmarkNavItem> rows;
-        for (size_t i = 0; i < bookmarks.size(); ++i) {
-          const auto& b = bookmarks[i];
-          char line[160];
-          snprintf(line, sizeof(line), "%s (%d/%d)", b.chapterTitle, static_cast<int>(b.pageNumber) + 1,
-                   static_cast<int>(b.pageCount));
-          MenuDrawer::BookmarkNavItem row;
-          row.label = line;
-          row.storageIndex = static_cast<int>(i);
-          const int curPage = section ? section->currentPage : nextPageNumber;
-          row.isCurrentPosition = (b.spineIndex == static_cast<uint16_t>(currentSpineIndex)) &&
-                                  (b.pageNumber == static_cast<uint16_t>(curPage));
-          rows.push_back(std::move(row));
-        }
-        return rows;
-      });
-      menuDrawer->setBookmarkSelectCallback([this](const int storageIndex) { onBookmarkDrawerSelected(storageIndex); });
-      menuDrawer->setBookmarkDeleteCallback([this](const int storageIndex) { removeBookmark(storageIndex); });
-      menuDrawer->setAnnotationListProvider([this]() {
-        std::vector<MenuDrawer::BookmarkNavItem> rows;
-        if (!epub) {
-          return rows;
-        }
-        const std::string annDir = epub->getCachePath() + "/ann";
-        if (!SdMan.exists(annDir.c_str())) {
-          return rows;
-        }
-        std::vector<String> files = SdMan.listFiles(annDir.c_str());
-        std::vector<std::pair<int, int>> pairs;
-        for (const String& f : files) {
-          int s = 0;
-          int p = 0;
-          if (std::sscanf(f.c_str(), "s_%d_p_%d.bin", &s, &p) != 2) {
-            continue;
-          }
-          pairs.emplace_back(s, p);
-        }
-        std::sort(pairs.begin(), pairs.end());
-        pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-        for (const auto& pr : pairs) {
-          const int spine = pr.first;
-          const int page = pr.second;
-          std::string t = chapterTitleForSpine(epub.get(), spine);
-          if (t.size() > 48) {
-            t.replace(45, std::string::npos, "...");
-          }
-          char line[160];
-          std::snprintf(line, sizeof(line), "%s (%d)", t.c_str(), page + 1);
-          MenuDrawer::BookmarkNavItem row;
-          row.label = line;
-          row.storageIndex = spine * kAnnotationNavPack + page;
-          const int curPage = section ? section->currentPage : nextPageNumber;
-          row.isCurrentPosition = (spine == currentSpineIndex) && (page == curPage);
-          rows.push_back(std::move(row));
-        }
-        return rows;
-      });
-      menuDrawer->setAnnotationSelectCallback(
-          [this](const int storageIndex) { onAnnotationDrawerSelected(storageIndex); });
-      menuDrawer->setPercentProvider([this]() -> int {
-        float bookProgressPercent = 0.0f;
-        if (epub && epub->getBookSize() > 0 && section && section->pageCount > 0) {
-          const float chapterProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
-          bookProgressPercent = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
-        }
-        int initialPercent = static_cast<int>(bookProgressPercent + 0.5f);
-        if (initialPercent < 0) initialPercent = 0;
-        if (initialPercent > 100) initialPercent = 100;
-        return initialPercent;
-      });
-      menuDrawer->setPercentSelectedCallback([this](const int percent) { onPercentDrawerSelected(percent); });
-    }
-  }
-}
-
-/**
- * @brief Toggles the menu drawer visibility
- */
-void EpubActivity::toggleMenuDrawer() {
-  ensureMenuDrawer();
-
-  menuDrawerVisible = !menuDrawerVisible;
-
-  if (menuDrawerVisible) {
-    pauseReadingStats();
-    menuDrawer->setReaderSpineIndex(currentSpineIndex);
-    menuDrawer->setBookTitle(epub->getTitle());
-    menuDrawer->show();
-  } else {
-    menuDrawer->hide();
-    updateRequired = true;
-  }
-}
-
-/**
- * @brief Opens the menu drawer directly to its Table of Contents view, skipping the main menu list.
- */
-void EpubActivity::openTableOfContents() {
-  ensureMenuDrawer();
-
-  if (!menuDrawerVisible) {
-    pauseReadingStats();
-    menuDrawer->setReaderSpineIndex(currentSpineIndex);
-    menuDrawer->setBookTitle(epub->getTitle());
-    menuDrawer->show();
-    menuDrawerVisible = true;
-  }
-  menuDrawer->showToc();
+void EpubActivity::openTableOfContents(const bool focusSync) {
+  if (navigation_) navigation_->openTableOfContents(focusSync);
 }
 
 /**
@@ -1504,7 +1101,7 @@ void EpubActivity::deleteBook() {
  * @brief Generates full book data
  */
 void EpubActivity::generateFullData() {
-  dismissMenuDrawerForBlockingWork();
+  dismissReaderOverlays();
   ViewportInfo info = calculateViewport();
   int totalSpineItems = epub->getSpineItemsCount();
   ScreenComponents::LoadingProgressLayout layout{};
@@ -1533,7 +1130,7 @@ void EpubActivity::prewarmCurrentSectionImages() {
     return;
   }
 
-  dismissMenuDrawerForBlockingWork();
+  dismissReaderOverlays();
   if (!section) {
     loadCurrentSection(false);
   }
@@ -1609,44 +1206,6 @@ void EpubActivity::regenerateThumbnail() {
   startPageTimer();
 }
 
-void EpubActivity::openKOReaderSyncFromMenu() {
-  if (!epub) {
-    return;
-  }
-  dismissMenuDrawerForBlockingWork();
-  const int curPage = section ? section->currentPage : nextPageNumber;
-  const int totalInSpine = section && section->pageCount > 0 ? section->pageCount : 1;
-  PagePosition localPos{};
-  localPos.spineIndex = currentSpineIndex;
-  localPos.pageNumber = curPage;
-  localPos.totalPages = totalInSpine;
-  KOReaderPosition localProgress =
-      ProgressMapper::toKOReader(std::shared_ptr<Epub>(epub.get(), [](Epub*) {}), localPos);
-  const std::string localChapterName = getCurrentChapterTitle();
-
-  saveProgress(currentSpineIndex, curPage, totalInSpine, false);
-  section.reset();
-  FontManager::unloadAllSDFonts();
-
-  std::shared_ptr<Epub> epubView(epub.get(), [](Epub*) {});
-  enterNewActivity(new KOReaderSyncActivity(
-      renderer, mappedInput, epubView, epub->getPath(), currentSpineIndex, curPage, totalInSpine,
-      std::move(localProgress), localChapterName,
-      [this]() {
-        exitActivity();
-        updateRequired = true;
-        startPageTimer();
-      },
-      [this](const int newSpineIndex, const int newPageNumber) {
-        exitActivity();
-        currentSpineIndex = newSpineIndex;
-        nextPageNumber = newPageNumber;
-        section.reset();
-        updateRequired = true;
-        startPageTimer();
-      }));
-}
-
 void EpubActivity::jumpToPercent(int percent) {
   if (!epub) {
     return;
@@ -1699,14 +1258,6 @@ void EpubActivity::jumpToPercent(int percent) {
   section.reset();
 }
 
-bool EpubActivity::showingEndOfBook() const {
-  if (!epub) {
-    return false;
-  }
-  const int total = epub->getSpineItemsCount();
-  return total > 0 && currentSpineIndex >= total;
-}
-
 /**
  * @brief Handles page turning logic
  * @param forward True for forward page turn, false for backward
@@ -1718,15 +1269,7 @@ void EpubActivity::pageTurn(bool forward) {
   }
 
   if (!section) {
-    if (showingEndOfBook()) {
-      if (!forward) {
-        currentSpineIndex = lastGoodSpineIndex_;
-        nextPageNumber = lastGoodPageNumber_;
-        updateRequired = true;
-      } else {
-        goHome();
-      }
-    }
+    updateRequired = true;
     return;
   }
 
@@ -1793,9 +1336,7 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
   if (currentSpineIndex >= totalSpine) {
     renderer.clearScreen(0xFF);
     displayBookStats();
-    if (!dictUi_.isActive() && !annUi_.isActive()) {
-      markBookFinished();
-    }
+    BOOK_STATE.setFinished(epub->getPath(), true);
     return;
   }
 
@@ -1818,9 +1359,7 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
       if (currentSpineIndex >= totalSpine) {
         renderer.clearScreen(0xFF);
         displayBookStats();
-        if (!dictUi_.isActive() && !annUi_.isActive()) {
-          markBookFinished();
-        }
+        BOOK_STATE.setFinished(epub->getPath(), true);
         return;
       }
       if (wasLayoutReload) {
@@ -1871,7 +1410,7 @@ void EpubActivity::renderScreen(const bool clearFramebuffer) {
                  info.totalMarginLeft);
 
   if (settingsDrawerVisible && settingsDrawer) settingsDrawer->render();
-  if (menuDrawerVisible && menuDrawer) menuDrawer->render();
+  if (navigation_) navigation_->render();
 
   saveProgress(currentSpineIndex, section->currentPage, section->pageCount, false);
   lastGoodSpineIndex_ = currentSpineIndex;
@@ -2405,7 +1944,7 @@ void EpubActivity::saveBookSettings() {
  * @brief Applies current book settings and rebuilds affected sections
  */
 void EpubActivity::applyBookSettings() {
-  dismissMenuDrawerForBlockingWork();
+  dismissReaderOverlays();
 
   int currentPage = 0;
   int currentSpine = currentSpineIndex;
@@ -2529,6 +2068,5 @@ void EpubActivity::saveBookStats() {
 void EpubActivity::displayBookStats() {
   if (epub) {
     readingStats_.display(renderer, *epub);
-    markBookFinished();
   }
 }

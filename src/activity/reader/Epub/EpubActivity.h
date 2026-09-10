@@ -17,7 +17,7 @@
 #include "EpubDictionaryUi.h"
 #include "EpubFootnoteUi.h"
 #include "EpubReadingStats.h"
-#include "MenuDrawer.h"
+#include "EpubNavigation.h"
 #include "OrientationPickerUi.h"
 #include "PresetPickerUi.h"
 #include "QuickActionsMenuUi.h"
@@ -57,6 +57,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   friend class PresetPickerUi;
   friend class QuickActionsMenuUi;
   friend class ReaderButtonBindings;
+  friend class EpubNavigation;
 #ifdef SIMULATOR
   // Diagnostic-only: lets env:selftest's headless repro driver (src/main.cpp) walk chapters and drive
   // the footnote overlay directly, without a real EpubActivity/Activity-framework boot sequence.
@@ -148,8 +149,7 @@ class EpubActivity final : public ActivityWithSubactivity {
 
   SettingsDrawer* settingsDrawer = nullptr;
   bool settingsDrawerVisible = false;
-  MenuDrawer* menuDrawer = nullptr;
-  bool menuDrawerVisible = false;
+  std::unique_ptr<EpubNavigation> navigation_;
   BookSettings bookSettings;
   BookSettings settingsDrawerSnapshot_;
   bool hasSettingsDrawerSnapshot_ = false;
@@ -220,41 +220,13 @@ class EpubActivity final : public ActivityWithSubactivity {
    */
   void loadProgress();
 
-  /**
-   * Lazily constructs and wires up menuDrawer, without changing its visibility. Shared by
-   * toggleMenuDrawer() and openTableOfContents().
-   */
-  void ensureMenuDrawer();
-
-  /**
-   * Toggles the menu drawer visibility.
-   */
-  void toggleMenuDrawer();
-
-  /**
-   * Opens the menu drawer directly to its Table of Contents view, skipping the main menu list.
-   */
-  void openTableOfContents();
+  /** Opens the reader TOC surface. */
+  void openTableOfContents(bool focusSync = false);
 
   /**
    * Toggles the settings drawer visibility.
    */
   void toggleSettingsDrawer();
-
-  /**
-   * Callback when a chapter is selected from TOC.
-   *
-   * @param spineIndex The spine index to navigate to
-   */
-  void onTocChapterSelected(int spineIndex);
-
-  /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
-  void onBookmarkDrawerSelected(int storageIndex);
-
-  /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
-  void onAnnotationDrawerSelected(int storageIndex);
-
-  void goToAnnotationPage(int spineIndex, int pageNumber);
 
   /**
    * Deletes the book cache.
@@ -283,11 +255,6 @@ class EpubActivity final : public ActivityWithSubactivity {
   void prewarmCurrentSectionImages();
   void regenerateThumbnail();
 
-  /** Opens KOReader sync as a sub-activity (from menu). */
-  void openKOReaderSyncFromMenu();
-
-  /** Callback for MenuDrawer's integrated "Go to Percent" view. */
-  void onPercentDrawerSelected(int percent);
   void jumpToPercent(int percent);
 
   bool isReadingActivity() const override { return true; }
@@ -297,8 +264,8 @@ class EpubActivity final : public ActivityWithSubactivity {
   void drawLoadingScreen();
   void preloadNextSection();
 
-  /** Hides reader menu and settings drawers (if open). Optionally repaints the reader (skip during error popups). */
-  void dismissMenuDrawerForBlockingWork(bool repaintReaderScreen = true);
+  /** Hides reader overlays and the settings drawer. Optionally repaints the reader. */
+  void dismissReaderOverlays(bool repaintReaderScreen = true);
 
   /** Close drawers (if open), then show a centered popup message. */
   void readerPopup(const char* message);

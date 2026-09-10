@@ -754,7 +754,7 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   const int panelTop = panelBottom - panelH;
 
   // Same sharp-corner white-fill + black-border panel style as the menu/settings drawers
-  // (MenuDrawer/SettingsDrawer background), not a rounded popup box.
+  // (reader/settings drawer background), not a rounded popup box.
   act.renderer.rectangle.fill(panelX, panelTop, panelW, panelH, false);
   act.renderer.rectangle.render(panelX, panelTop, panelW, panelH, true);
 

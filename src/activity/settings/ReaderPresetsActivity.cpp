@@ -13,6 +13,7 @@
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
+#include "ButtonMappingActivity.h"
 #include "FontManagerActivity.h"
 #include "QuickActionsSettingsActivity.h"
 #include "ReaderFontSettingsDraw.h"
@@ -420,7 +421,7 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(itemFont, 20, textY, "Button & Action", isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, "Button", isSelected ? 0 : 1);
       if (embedded_) {
         renderOpenNavigationIcon(renderer, screenW, itemY, kListItemHeight, isSelected);
       } else {
@@ -806,7 +807,8 @@ void ReaderPresetsActivity::activateSelectedRow() {
         openSelectorForRow(selectedRow_);
       }
     } else if (selectedRow_ == buttonsHeaderRow()) {
-      openDetail(DetailSection::Buttons);
+      enterNewActivity(new ButtonMappingActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
+      return;
     }
     render();
     return;
@@ -834,9 +836,7 @@ void ReaderPresetsActivity::activateSelectedRow() {
     return;
   }
   if (isButtonsHeaderRow(selectedRow_)) {
-    buttonsExpanded_ = !buttonsExpanded_;
-    clampSelectionToRowCount();
-    render();
+    enterNewActivity(new ButtonMappingActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
     return;
   }
   if (isButtonActionRow(selectedRow_)) {

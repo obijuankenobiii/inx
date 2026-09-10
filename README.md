@@ -4,8 +4,6 @@ Reimagined. Improved. Simplified.
 
 Inx is a community firmware for Xteink e-paper readers. It is focused on a cleaner reading experience, better EPUB support, native image rendering, SD-card fonts, and practical device tools.
 
-*This project is a fork of CrossPoint and is not affiliated with Xteink.*
-
 ---
 
 ![](./docs/images/cover.jpg)
