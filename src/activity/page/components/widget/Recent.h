@@ -9,7 +9,7 @@ namespace widget {
 /** Thin mode dispatcher for the Home recent widget. */
 class Recent final {
  public:
-  enum class Mode : uint8_t { Flow = 0, Grid = 1, List = 2, Carousel = 3, Dashboard = 4 };
+  enum class Mode : uint8_t { Flow = 0, Grid = 1, Grid2x2 = 2, List = 3, Carousel = 4, Dashboard = 5 };
 
   explicit Recent(GfxRenderer& renderer) : renderer_(renderer) {}
 

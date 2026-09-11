@@ -4,6 +4,7 @@
 
 #include "flow/Flow.h"
 #include "grid/Grid.h"
+#include "grid2x2/Grid2x2.h"
 #include "list/List.h"
 #include "carousel/Carousel.h"
 #include "dashboard/Dashboard.h"
@@ -15,6 +16,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
   switch (value) {
     case SystemSetting::RECENT_GRID:
       return Mode::Grid;
+    case SystemSetting::RECENT_GRID_2X2:
+      return Mode::Grid2x2;
     case SystemSetting::RECENT_BOOK_LIST:
       return Mode::List;
     case SystemSetting::RECENT_CAROUSEL:
@@ -33,6 +36,8 @@ const char* Recent::modeLabel(const Mode mode) {
   switch (mode) {
     case Mode::Grid:
       return "Grid";
+    case Mode::Grid2x2:
+      return "Grid 2x2";
     case Mode::List:
       return "List";
     case Mode::Carousel:
@@ -51,6 +56,9 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
   switch (mode) {
     case Mode::Grid:
       grid::Grid::render(renderer_, x, y, width, height, selectedIndex);
+      return;
+    case Mode::Grid2x2:
+      grid2x2::Grid2x2::render(renderer_, x, y, width, height, selectedIndex);
       return;
     case Mode::List:
       list::List::render(renderer_, x, y, width, height, selectedIndex);
@@ -79,6 +87,9 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
   switch (mode) {
     case Mode::Grid:
       grid::Grid::preview(renderer_, x, y, width, height);
+      return;
+    case Mode::Grid2x2:
+      grid2x2::Grid2x2::preview(renderer_, x, y, width, height);
       return;
     case Mode::List:
       list::List::preview(renderer_, x, y, width, height);

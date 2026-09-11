@@ -41,6 +41,13 @@ std::string thumbnailPath(const RecentBook& book) {
 
 CardBounds leftCardBounds(const RecentBook& book, const int cardX, const int y, const int width,
                          const int height) {
+  const LeftThumbnailSize size = Carousel::leftThumbnailSize(book, width, height);
+  return {cardX, y + height - UiLayout::CAROUSEL_BOTTOM_PADDING - size.height, size.width, size.height};
+}
+
+}  // namespace
+
+LeftThumbnailSize Carousel::leftThumbnailSize(const RecentBook& book, const int width, const int height) {
   const int contentHeight = std::max(24, height - UiLayout::CAROUSEL_TOP_PADDING - UiLayout::CAROUSEL_BOTTOM_PADDING);
   int sourceWidth = 2;
   int sourceHeight = 3;
@@ -62,8 +69,10 @@ CardBounds leftCardBounds(const RecentBook& book, const int cardX, const int y, 
   const int cardHeight = std::max(
       24, std::min(contentHeight, static_cast<int>(std::lround(
                                       static_cast<float>(cardWidth) * sourceHeight / sourceWidth))));
-  return {cardX, y + height - UiLayout::CAROUSEL_BOTTOM_PADDING - cardHeight, cardWidth, cardHeight};
+  return {cardWidth, cardHeight};
 }
+
+namespace {
 
 void renderProgress(GfxRenderer& renderer, const int x, const int y, const int width, const int percentage) {
   constexpr int barHeight = 5;
@@ -272,8 +281,8 @@ void renderCover(GfxRenderer& renderer, const RecentBook& book, const int x, con
                             SETTINGS.bitmapRoundedCorners == 2);
 }
 
-void renderProgressTag(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
-                       const int height) {
+void renderProgressTagInternal(GfxRenderer& renderer, const RecentBook& book, const int x, const int y,
+                               const int width, const int height) {
   if (width < 8 || height < 8) return;
 
   constexpr int paddingX = 6;
@@ -313,7 +322,8 @@ void renderLeft(GfxRenderer& renderer, const std::vector<RecentBook>& books, con
     const int visibleWidth = std::min(card.width, x + width - card.x);
     if (visibleWidth <= 0) break;
     renderCover(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth, card.height);
-    renderProgressTag(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth, card.height);
+    renderProgressTagInternal(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth,
+                              card.height);
     cardX += card.width + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }
@@ -329,6 +339,11 @@ void drawSelectionCaret(GfxRenderer& renderer, const RecentBook& book, const int
 }
 
 }  // namespace
+
+void Carousel::renderProgressTag(GfxRenderer& renderer, const RecentBook& book, const int x, const int y,
+                                 const int width, const int height) {
+  renderProgressTagInternal(renderer, book, x, y, width, height);
+}
 
 void Carousel::render(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
                       const int selectedIndex) {
@@ -364,7 +379,7 @@ void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const in
     const int visibleWidth = std::min(cardWidth, x + width - cardX);
     if (visibleWidth <= 0) break;
     renderCover(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
-    renderProgressTag(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
+    renderProgressTagInternal(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
     cardX += cardWidth + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }
@@ -383,7 +398,7 @@ void Carousel::previewRemaining(GfxRenderer& renderer, const int x, const int y,
     renderer.rectangle.fill(cardX + 6, cardY + 6, visibleWidth, cardHeight,
                             static_cast<int>(GfxRenderer::FillTone::Gray));
     support::drawPlaceholder(renderer, "Book title", cardX, cardY, visibleWidth, cardHeight, MONTSERRAT_10_FONT_ID);
-    renderProgressTag(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
+    renderProgressTagInternal(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
     if (showSelection) {
       constexpr int caretSize = 40;
       constexpr int caretGap = 10;
