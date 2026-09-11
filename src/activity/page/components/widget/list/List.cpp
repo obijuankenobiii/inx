@@ -83,7 +83,8 @@ void List::preview(GfxRenderer& renderer, const int x, const int y, const int wi
   static constexpr const char* titles[] = {"The Great Gatsby", "A Brief History", "Recent Book", "Another Book", "Book Five"};
   static constexpr float progress[] = {0.42f, 0.68f, 0.18f, 0.84f, 0.55f};
   constexpr int padX = 18;
-  const int contentHeight = std::max(1, height - 6);
+  constexpr int listPadY = 6;
+  const int contentHeight = std::max(1, height - listPadY);
   for (int index = 0; index < kRows; ++index) {
     const int rowY = y + (contentHeight * index) / kRows;
     const int rowBottom = y + (contentHeight * (index + 1)) / kRows;
@@ -91,16 +92,31 @@ void List::preview(GfxRenderer& renderer, const int x, const int y, const int wi
     const int thumbH = std::max(48, rowH - 10);
     const int thumbW = std::min(88, thumbH * 170 / 250);
     const int thumbY = rowY + (rowH - thumbH) / 2;
-    support::drawPlaceholder(renderer, titles[index], x + padX, thumbY, thumbW, thumbH, MONTSERRAT_8_FONT_ID);
+    support::drawPlaceholder(renderer, titles[index], x + padX, thumbY, thumbW, thumbH, MONTSERRAT_10_FONT_ID);
     const int textX = x + padX + thumbW + 14;
+    const int textRight = x + width - padX;
+    const int textW = std::max(40, textRight - textX);
+    constexpr int titleFont = MONTSERRAT_12_FONT_ID;
+    constexpr int authorFont = MONTSERRAT_8_FONT_ID;
+    const int titleLineHeight = renderer.text.getLineHeight(titleFont);
+    const int authorLineHeight = renderer.text.getLineHeight(authorFont);
+    const std::string title = renderer.text.truncate(titleFont, titles[index], textW, EpdFontFamily::BOLD);
     const int titleY = rowY + 20;
-    renderer.text.render(MONTSERRAT_12_FONT_ID, textX, titleY, titles[index], true, EpdFontFamily::BOLD);
-    renderer.text.render(MONTSERRAT_8_FONT_ID, textX,
-                         titleY + renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) + 4, "Author Name", true);
-    const int barY = rowY + rowH - 10;
-    const int barW = std::max(24, (x + width - padX - textX) * 80 / 100);
+    renderer.text.render(titleFont, textX, titleY, title.c_str(), true, EpdFontFamily::BOLD);
+    int lastTextBottom = titleY + titleLineHeight;
+    renderer.text.render(authorFont, textX, titleY + titleLineHeight + 4, "Author Name", true,
+                         EpdFontFamily::REGULAR);
+    lastTextBottom = titleY + titleLineHeight + 4 + authorLineHeight;
+
+    const int barH = 6;
+    const int barY = std::min(std::max(lastTextBottom + 20, titleY + titleLineHeight + 4), rowY + rowH - barH - 4);
+    const int percentFont = MONTSERRAT_8_FONT_ID;
+    char percent[12];
+    std::snprintf(percent, sizeof(percent), "%.0f%%", static_cast<double>(progress[index] * 100.0f));
+    const int percentW = renderer.text.getWidth(percentFont, percent);
+    const int barW = std::max(24, (textRight - percentW - 10 - textX) * 80 / 100);
     support::drawMockProgress(renderer, textX, barY, barW, progress[index]);
-    renderer.text.render(MONTSERRAT_8_FONT_ID, textX + barW + 6, barY - 7, "42%", true);
+    renderer.text.render(percentFont, textX + barW + 6, barY - 7, percent, true);
     if (index + 1 < kRows) {
       renderer.line.render(x + padX / 2, rowY + rowH - 1, x + width - padX / 2, rowY + rowH - 1, true,
                            LineRender::Style::Dotted);

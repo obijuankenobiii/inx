@@ -30,6 +30,21 @@ void drawMockProgress(const GfxRenderer& renderer, const int x, const int y, con
   support::drawMockProgress(renderer, x, y, width, progress);
 }
 
+void drawProgress(const GfxRenderer& renderer, const int x, const int y, const int width, const int percentage) {
+  constexpr int barHeight = 5;
+  constexpr int percentageFont = MONTSERRAT_8_FONT_ID;
+  constexpr int gap = 8;
+  const int barWidth = std::max(1, width / 2);
+  const std::string percentageText = std::to_string(percentage) + "%";
+  renderer.rectangle.render(x, y, barWidth, barHeight, true);
+  renderer.rectangle.fill(x + 1, y + 1, std::max(1, barWidth - 2), barHeight - 2, false);
+  if (percentage > 0) {
+    renderer.rectangle.fill(x + 1, y + 1, std::max(1, (barWidth - 2) * percentage / 100), barHeight - 2, true);
+  }
+  const int percentageY = y + (barHeight - renderer.text.getLineHeight(percentageFont)) / 2;
+  renderer.text.render(percentageFont, x + barWidth + gap, percentageY, percentageText.c_str(), true);
+}
+
 }  // namespace
 
 void Flow::render(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
@@ -46,33 +61,37 @@ void Flow::render(GfxRenderer& renderer, const int x, const int y, const int wid
   carousel.render(currentIndex, x, carouselY, width, Carousel::kHeight);
 
   const RecentBook& currentBook = books[static_cast<size_t>(currentIndex)];
-  const int statsX = 30;
+  constexpr int statsX = 20;
   const int statsY = carouselY + Carousel::kHeight + 20;
   renderer.line.render(0, carouselY + Carousel::kHeight + 10, width,
                        carouselY + Carousel::kHeight + 10, true);
-  const std::string title = renderer.text.truncate(MONTSERRAT_18_FONT_ID, support::titleFor(currentBook).c_str(),
-                                                     width - 60, EpdFontFamily::BOLD);
-  renderer.text.render(MONTSERRAT_16_FONT_ID, statsX, statsY, title.c_str(), true, EpdFontFamily::BOLD);
-  const int authorY = statsY + renderer.text.getLineHeight(MONTSERRAT_18_FONT_ID);
-  renderer.text.render(MONTSERRAT_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
+  constexpr int titleFont = MONTSERRAT_16_FONT_ID;
+  constexpr int authorFont = MONTSERRAT_12_FONT_ID;
+  const int textWidth = std::max(1, width - statsX * 2);
+  const std::string title = renderer.text.truncate(titleFont, support::titleFor(currentBook).c_str(), textWidth,
+                                                     EpdFontFamily::BOLD);
+  renderer.text.render(titleFont, statsX, statsY, title.c_str(), true, EpdFontFamily::BOLD);
+  const int titleLineHeight = renderer.text.getLineHeight(titleFont);
+  int textBottom = statsY + titleLineHeight;
+  if (!currentBook.author.empty()) {
+    const int authorY = textBottom + 6;
+    renderer.text.renderGray(authorFont, statsX, authorY, currentBook.author.c_str(), true,
+                             EpdFontFamily::REGULAR);
+    textBottom = authorY + renderer.text.getLineHeight(authorFont);
+  }
 
   BookReadingStats stats;
   const bool hasStats = loadBookStats(support::cachePathFor(currentBook).c_str(), stats);
   const float progress = hasStats ? stats.progressPercent : currentBook.progress * 100.0f;
+  const int barY = textBottom + 10;
   if (progress >= 0.0f) {
-    const int barY = authorY + renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) + 20;
-    const int barW = (width - 60) / 2;
-    renderer.rectangle.fill(statsX, barY, barW, 6, false);
-    renderer.rectangle.render(statsX, barY, barW, 6, true);
-    if (progress > 0.0f) renderer.rectangle.fill(statsX, barY, static_cast<int>(barW * progress / 100.0f + 0.5f), 6);
-    char percent[8];
-    std::snprintf(percent, sizeof(percent), "%d%%", static_cast<int>(progress + 0.5f));
-    renderer.text.render(MONTSERRAT_12_FONT_ID, statsX + barW + 12, barY - 13, percent);
+    const int percentage = std::max(0, std::min(100, static_cast<int>(progress + 0.5f)));
+    drawProgress(renderer, statsX, barY, width, percentage);
   }
 
   if (!hasStats) return;
   char buffer[32];
-  const int valueY = authorY + 100;
+  const int valueY = progress >= 0.0f ? barY + 5 + 20 : textBottom + 30;
   renderer.text.render(MONTSERRAT_16_FONT_ID, statsX, valueY, formatTime(stats.totalReadingTimeMs).c_str(), true,
                        EpdFontFamily::BOLD);
   renderer.text.render(MONTSERRAT_10_FONT_ID, statsX, valueY + 40, "Reading Time", true);
@@ -96,7 +115,7 @@ void Flow::preview(GfxRenderer& renderer, const int x, const int y, const int wi
   static constexpr const char* titles[] = {"The Great Gatsby", "A Brief History", "Recent Book"};
   static constexpr float progress[] = {0.42f, 0.68f, 0.18f};
   const int carouselY = y + 5;
-  const int carouselHeight = std::min(Carousel::kHeight, std::max(1, height - 5));
+  const int carouselHeight = Carousel::kHeight;
   support::drawDitherRect(renderer, x, carouselY, width, carouselHeight);
 
   const int centerWidth = std::min(width, UiLayout::FLOW_CAROUSEL_CENTER_WIDTH);
@@ -112,17 +131,20 @@ void Flow::preview(GfxRenderer& renderer, const int x, const int y, const int wi
   support::drawPlaceholder(renderer, titles[2], centerX + centerWidth + UiLayout::FLOW_CAROUSEL_CARD_GAP, sideY,
                            sideWidth, sideHeight, MONTSERRAT_10_FONT_ID);
 
-  const int statsX = 30;
-  const int statsY = carouselY + Carousel::kHeight + 25;
+  constexpr int statsX = 20;
+  const int statsY = carouselY + Carousel::kHeight + 20;
   renderer.line.render(0, carouselY + Carousel::kHeight + 10, width,
                        carouselY + Carousel::kHeight + 10, true);
-  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY, titles[0], true, EpdFontFamily::BOLD);
-  const int authorY = statsY + renderer.text.getLineHeight(MONTSERRAT_18_FONT_ID) - 5;
-  renderer.text.render(MONTSERRAT_12_FONT_ID, statsX, authorY, "F. Scott Fitzgerald", true);
-  const int barY = authorY + renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) + 20;
-  drawMockProgress(renderer, statsX, barY, (width - 60) / 2, progress[0]);
-  renderer.text.render(MONTSERRAT_12_FONT_ID, statsX + (width - 60) / 2 + 12, barY - 13, "42%", true);
-  const int valueY = authorY + 100;
+  constexpr int titleFont = MONTSERRAT_16_FONT_ID;
+  constexpr int authorFont = MONTSERRAT_12_FONT_ID;
+  const int textWidth = std::max(1, width - statsX * 2);
+  const std::string title = renderer.text.truncate(titleFont, titles[0], textWidth, EpdFontFamily::BOLD);
+  renderer.text.render(titleFont, statsX, statsY, title.c_str(), true, EpdFontFamily::BOLD);
+  const int authorY = statsY + renderer.text.getLineHeight(titleFont) + 6;
+  renderer.text.renderGray(authorFont, statsX, authorY, "F. Scott Fitzgerald", true, EpdFontFamily::REGULAR);
+  const int barY = authorY + renderer.text.getLineHeight(authorFont) + 10;
+  drawProgress(renderer, statsX, barY, width, 42);
+  const int valueY = barY + 5 + 20;
   renderer.text.render(MONTSERRAT_16_FONT_ID, statsX, valueY, "1.2 h", true, EpdFontFamily::BOLD);
   renderer.text.render(MONTSERRAT_10_FONT_ID, statsX, valueY + 40, "Reading Time", true);
   renderer.text.render(MONTSERRAT_16_FONT_ID, width / 2, valueY, "128", true, EpdFontFamily::BOLD);
