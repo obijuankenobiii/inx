@@ -147,13 +147,24 @@ constexpr int LIB_GRID_MIN_GAP_Y = 6;
 constexpr int LIB_GRID_OUTER_PAD = 8;
 constexpr int LIB_GRID_LABEL_GAP = 4;
 constexpr int LIB_GRID_LABEL_H = 28;
-constexpr int LIB_SHELF_COLS = 3;
-constexpr int LIB_SHELF_ROWS = 3;
+constexpr int LIB_SHELF_COLS = 2;
+constexpr int LIB_SHELF_ROWS = 2;
 constexpr int LIB_SHELF_GAP_X = 15;
 constexpr int LIB_SHELF_GAP_Y = 12;
 constexpr int LIB_SHELF_OUTER_PAD_X = 14;
 constexpr int LIB_SHELF_OUTER_PAD_Y = 10;
 constexpr int LIB_SHELF_BADGE_SIZE = 22;
+/** Height reserved below each shelf card's cover for a folder tile's name/count label. Every card's
+ * row slot reserves this space so grid rows stay a consistent height; plain book cards just leave it
+ * blank. */
+constexpr int LIB_SHELF_LABEL_HEIGHT = 32;
+/** Per-layer pixel offset (right+down) between stacked cover images on a multi-book folder tile. */
+constexpr int LIB_SHELF_STACK_OFFSET = 18;
+/** Caps a cover's contained width to this fraction of its box width, so a wide/landscape or
+ * square-ish cover doesn't stretch edge-to-edge in the now-wider 2-column grid slots - it scales
+ * down further (height shrinks to match, preserving aspect ratio) instead. Typical portrait book
+ * covers are already narrower than this and are unaffected. */
+constexpr float LIB_SHELF_COVER_MAX_WIDTH_RATIO = 0.8f;
 constexpr int LIB_BOOK_LIST_BADGE_SIZE = 32;
 constexpr int LIB_BOOK_LIST_BADGE_GAP = 8;
 constexpr int LIB_BOOK_LIST_BADGE_ICON_SIZE = 24;
@@ -310,6 +321,69 @@ void drawShelfNoCoverTitle(const GfxRenderer& renderer, int x, int y, int w, int
     lineY += lh;
     pos = end;
   }
+}
+
+/** Draws a shelf card's label below its cover: title on one line, an optional subtitle (e.g. a
+ * folder's "<N> book(s)") on the next. Both lines are left-aligned and truncated to fit; pass an
+ * empty subtitle to draw the title only (plain book cards). */
+void drawShelfCardLabel(const GfxRenderer& renderer, int x, int y, int w, int h, const std::string& title,
+                        const std::string& subtitle, int fontId) {
+  if (w <= 1 || h <= 1) {
+    return;
+  }
+  const int lh = renderer.text.getLineHeight(fontId);
+  const int innerPad = 4;
+  const int topPad = 2;
+  const int maxTextW = std::max(8, w - 2 * innerPad);
+
+  std::string titleLine = title;
+  if (renderer.text.getWidth(fontId, titleLine.c_str()) > maxTextW) {
+    titleLine = renderer.text.truncate(fontId, titleLine.c_str(), maxTextW, EpdFontFamily::REGULAR);
+  }
+  int lineY = y + topPad;
+  renderer.text.render(fontId, x + innerPad, lineY, titleLine.c_str(), true, EpdFontFamily::REGULAR);
+  lineY += lh;
+
+  if (subtitle.empty() || lineY + lh > y + h) {
+    return;
+  }
+  std::string subtitleLine = subtitle;
+  if (renderer.text.getWidth(fontId, subtitleLine.c_str()) > maxTextW) {
+    subtitleLine = renderer.text.truncate(fontId, subtitleLine.c_str(), maxTextW, EpdFontFamily::REGULAR);
+  }
+  renderer.text.render(fontId, x + innerPad, lineY, subtitleLine.c_str(), true, EpdFontFamily::REGULAR);
+}
+
+/** Computes the centered "contain" rect for an image inside a bounding box, using the image's real
+ * pixel dimensions so the drawn border/background wraps the cover itself rather than leaving visible
+ * letterbox padding inside a box sized for the box's own aspect ratio. Falls back to the full box
+ * (and returns false) if the image's dimensions can't be read. */
+bool computeContainRect(const std::string& imagePath, int boxX, int boxY, int boxW, int boxH, int& outX, int& outY,
+                        int& outW, int& outH) {
+  int imgW = 0;
+  int imgH = 0;
+  if (imagePath.empty() || !ImageRender::getDimensions(imagePath, &imgW, &imgH) || imgW <= 0 || imgH <= 0) {
+    outX = boxX;
+    outY = boxY;
+    outW = boxW;
+    outH = boxH;
+    return false;
+  }
+  const float scaleX = static_cast<float>(boxW) / static_cast<float>(imgW);
+  const float scaleY = static_cast<float>(boxH) / static_cast<float>(imgH);
+  const float scale = std::min(scaleX, scaleY);
+  outW = std::max(1, static_cast<int>(std::lround(imgW * scale)));
+  outH = std::max(1, static_cast<int>(std::lround(imgH * scale)));
+  // Cap width only, applied after the height-preserving contain fit above rather than folded into
+  // the scale calculation - folding it in would let the cap become the binding factor for covers
+  // that were previously height-bound too, shrinking their height as a side effect. This only clamps
+  // width for the (rare) wide/landscape covers that would otherwise reach the box's full width;
+  // typical portrait covers are already narrower than the cap and are untouched.
+  const int maxW = std::max(1, static_cast<int>(boxW * LIB_SHELF_COVER_MAX_WIDTH_RATIO));
+  outW = std::min(outW, maxW);
+  outX = boxX + (boxW - outW) / 2;
+  outY = boxY + (boxH - outH) / 2;
+  return true;
 }
 
 }  // namespace
@@ -493,18 +567,18 @@ int LibraryActivity::drawHeaderButton(const std::string& text, int headerY, int 
   int buttonX = rightX - BUTTON_WIDTH;
   int buttonY = headerY;
 
-  int textWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, text.c_str());
+  int textWidth = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, text.c_str());
   int textX = buttonX + (BUTTON_WIDTH - textWidth) / 2;
-  int textY = buttonY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  int textY = buttonY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
   if (isSelected) {
     renderer.rectangle.fill(buttonX, buttonY, BUTTON_WIDTH, headerHeight);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str(), false);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, text.c_str(), false);
     return buttonX - BUTTON_PADDING;
   }
 
   renderer.line.render(buttonX, buttonY, buttonX, buttonY + headerHeight - 1);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, text.c_str());
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, text.c_str());
   return buttonX - BUTTON_PADDING;
 }
 
@@ -852,8 +926,10 @@ void LibraryActivity::loadAllBooksRecursiveLocked() {
   if (SETTINGS.useLibraryIndex && currentViewMode != ViewMode::FOLDER_VIEW) {
     loadLibraryFromIndex();
   } else {
-    if (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::SHELF_VIEW) {
+    if (currentViewMode == ViewMode::BOOK_LIST_VIEW) {
       loadBooksRecursiveScan();
+    } else if (currentViewMode == ViewMode::SHELF_VIEW) {
+      loadShelfGroupedCurrentDirectory();
     } else {
       loadFoldersAndBooksCurrentDirectory();
     }
@@ -969,6 +1045,111 @@ void LibraryActivity::loadFoldersAndBooksCurrentDirectory() {
             break;
           }
           tempFolders.push_back(folderItem);
+          if ((++scanYieldCount % 48u) == 0u) {
+            yield();
+          }
+        }
+        file.close();
+        continue;
+      }
+      file.close();
+    }
+
+    root.rewindDirectory();
+    for (auto file = root.openNextFile(); file && !displayTaskStopRequested_; file = root.openNextFile()) {
+      file.getName(name, sizeof(name));
+
+      if (name[0] == '.') {
+        file.close();
+        continue;
+      }
+
+      if (!file.isDirectory()) {
+        std::string filename = name;
+        std::string fullPath = basepath;
+        if (fullPath.back() != '/') fullPath += "/";
+        fullPath += filename;
+        if (isValidBookFile(filename) || isExportedNoteImagePath(fullPath, filename)) {
+          TempBookEntry tempEntry = createTempBookEntry(fullPath, filename, basepath);
+          if (!tempBookMatchesLetterFilter(tempEntry)) {
+            file.close();
+            continue;
+          }
+          if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+            file.close();
+            break;
+          }
+          tempBooks.push_back(tempEntry);
+          if ((++scanYieldCount % 48u) == 0u) {
+            yield();
+          }
+        }
+      }
+      file.close();
+    }
+    root.close();
+  }
+
+  if (displayTaskStopRequested_) {
+    return;
+  }
+  sortFoldersAndBooks(tempFolders, tempBooks);
+  combineAndPaginateItems(tempFolders, tempBooks);
+}
+
+/**
+ * @brief Load folders and books for the current directory in Shelf mode, one level at a time
+ *
+ * Mirrors loadFoldersAndBooksCurrentDirectory's one-level scan, but each folder item is also given
+ * a recursive book count and up to 3 preview cover paths so the shelf grid can render it as a
+ * stacked-cover tile instead of a plain folder icon.
+ */
+void LibraryActivity::loadShelfGroupedCurrentDirectory() {
+  std::vector<LibraryItem> tempFolders;
+  std::vector<TempBookEntry> tempBooks;
+
+  if (displayTaskStopRequested_) {
+    return;
+  }
+
+  auto root = SdMan.open(basepath.c_str());
+  if (root && root.isDirectory()) {
+    size_t scanYieldCount = 0;
+    root.rewindDirectory();
+    char name[500];
+
+    for (auto file = root.openNextFile(); file && !displayTaskStopRequested_; file = root.openNextFile()) {
+      file.getName(name, sizeof(name));
+
+      if (shouldSkipFile(name)) {
+        file.close();
+        continue;
+      }
+
+      std::string fullPath = basepath;
+      if (fullPath.back() != '/') fullPath += "/";
+      fullPath += name;
+
+      if (file.isDirectory()) {
+        if (directoryHasBooks(fullPath + "/")) {
+          LibraryItem folderItem = createFolderItem(name, fullPath + "/");
+          if (!itemMatchesLetterFilter(folderItem)) {
+            file.close();
+            continue;
+          }
+          if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+            file.close();
+            break;
+          }
+          folderItem.shelfBookCount = countTotalBooks(fullPath + "/");
+          std::vector<LibraryItem> previewBooks;
+          int previewFoundCount = 0;
+          bool previewStop = false;
+          findBooksPaginated(fullPath + "/", previewBooks, 0, 3, previewFoundCount, previewStop);
+          for (const auto& previewBook : previewBooks) {
+            folderItem.shelfPreviewPaths.push_back(previewBook.path);
+          }
+          tempFolders.push_back(std::move(folderItem));
           if ((++scanYieldCount % 48u) == 0u) {
             yield();
           }
@@ -1457,7 +1638,7 @@ void LibraryActivity::render() const {
 
   std::string headerText = getHeaderText();
   int headerTextX = 20;
-  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
   const bool showIndexButton = shouldShowIndexButton();
   int containerWidth = screenWidth - 110;
   if (showIndexButton) {
@@ -1468,7 +1649,7 @@ void LibraryActivity::render() const {
   if (headerSelected)
     renderer.rectangle.fill(0, headerY, containerWidth, headerHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, headerTextX, headerTextY, headerText.c_str(), !headerSelected,
                        EpdFontFamily::BOLD);
   int headerButtonRightX = drawSortButton(headerY, headerHeight, screenWidth);
   if (showIndexButton) {
@@ -1479,9 +1660,9 @@ void LibraryActivity::render() const {
   renderLibrarySubheading(dividerY);
 
   if (isInitialLoading_) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Loading library");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, gridStartY + 130, "Loading library");
   } else if (isIndexing_) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, gridStartY + 130, "Refreshing library");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, gridStartY + 130, "Refreshing library");
   } else {
     suppressShelfSelectionHighlight_ = canUseShelfBuffer;
     renderLibraryList(gridStartY);
@@ -1531,7 +1712,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
   renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
   renderer.rectangle.render(panelX - 2, panelY - 2, panelW + 4, panelH + 4, true);
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, panelY + pad + 3, "Filter", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, panelY + pad + 3, "Filter", true, EpdFontFamily::BOLD);
 
   for (int i = 0; i < 9; ++i) {
     const int col = i % 3;
@@ -1551,7 +1732,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
     if (selected) {
       renderer.rectangle.fill(selectorX, selectorY, selectorSize, selectorSize, true, true, true);
     }
-    const int fontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+    const int fontId = MONTSERRAT_12_FONT_ID;
     const int textW = renderer.text.getWidth(fontId, label, EpdFontFamily::BOLD);
     const int textY = y + (cellH - renderer.text.getLineHeight(fontId)) / 2;
     renderer.text.render(fontId, x + (cellW - textW) / 2, textY, label, !selected, EpdFontFamily::BOLD);
@@ -1564,7 +1745,7 @@ void LibraryActivity::renderLetterFilterPicker() const {
     renderer.rectangle.fill(allX, allY, selectorSize, selectorSize, true, true, true);
   }
   constexpr const char* allLabel = "All";
-  const int fontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int fontId = MONTSERRAT_12_FONT_ID;
   const int allTextW = renderer.text.getWidth(fontId, allLabel, EpdFontFamily::BOLD);
   const int allTextY = allY + (selectorSize - renderer.text.getLineHeight(fontId)) / 2;
   renderer.text.render(fontId, panelX + (panelW - allTextW) / 2, allTextY, allLabel, !allSelected, EpdFontFamily::BOLD);
@@ -2266,6 +2447,13 @@ void LibraryActivity::handleConfirmAction(int itemCount) {
       return;
     }
 
+    if (currentViewMode == ViewMode::SHELF_VIEW && item.type == LibraryItem::Type::FOLDER) {
+      basepath = item.path;
+      resetNavigation();
+      beginLibraryLoadWithLoadingScreen();
+      return;
+    }
+
     if (isSupportedImageFile(item.path)) {
       onSelectBook(item.path);
       return;
@@ -2302,7 +2490,30 @@ void LibraryActivity::handleBackNavigation() {
   }
 
   if (currentViewMode == ViewMode::SHELF_VIEW) {
-    switchToFolderView();
+    if (basepath == "/") {
+      switchToFolderView();
+      return;
+    }
+
+    // Ascend one level within Shelf mode (mirrors the generic up-navigation below) rather than
+    // leaving Shelf mode outright. The reload is async (beginLibraryLoadWithLoadingScreen, same as
+    // switchToShelfView), so unlike the synchronous FOLDER_VIEW case below there's no
+    // restoreSelectionToPath here - the view resets to the first tile.
+    std::string newPath = basepath;
+    if (!newPath.empty() && newPath.back() == '/') {
+      newPath.pop_back();
+    }
+    size_t lastSlash = newPath.find_last_of('/');
+    if (lastSlash == 0) {
+      newPath = "/";
+    } else if (lastSlash != std::string::npos) {
+      newPath.resize(lastSlash);
+    } else {
+      newPath = "/";
+    }
+    basepath = newPath;
+    resetNavigation();
+    beginLibraryLoadWithLoadingScreen();
     return;
   }
 
@@ -2608,7 +2819,7 @@ int LibraryActivity::librarySubheadingHeight() const {
 int LibraryActivity::renderLibrarySubheading(int startY) const {
   const int screenWidth = renderer.getScreenWidth() - 1;
   const int height = librarySubheadingHeight();
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int fontId = MONTSERRAT_8_FONT_ID;
   const int textY = startY + (height - renderer.text.getLineHeight(fontId)) / 2 + 1;
   std::string leftText;
 
@@ -2656,7 +2867,7 @@ void LibraryActivity::renderLibraryList(int startY) const {
 
   if (items.empty()) {
     int messageY = startY + 150;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, messageY,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, messageY,
                            libraryLetterFilter_ == 0 ? "No books found" : "No matching items");
     return;
   }
@@ -2724,7 +2935,105 @@ void LibraryActivity::getShelfCoverSize(GfxRenderer& renderer, int& outCoverW, i
   // Shrunk 5% below the max-fit size so the grid has breathing room instead of feeling cramped;
   // renderShelfCard's origin centering absorbs the freed space evenly around the whole grid.
   outCoverW = std::max(90, static_cast<int>(rawW * 0.96f));
-  outCoverH = std::max(130, static_cast<int>(rawH * 0.96f));
+  // Each row's slot also reserves LIB_SHELF_LABEL_HEIGHT below the cover for a folder tile's
+  // name/count label (blank for plain book cards) - the cover itself gets whatever's left.
+  outCoverH = std::max(100, static_cast<int>(rawH * 0.96f) - LIB_SHELF_LABEL_HEIGHT);
+}
+
+/** Draws a shelf folder tile's cover art: a single cover when the folder has one preview book, or an
+ * overlapping stack of up to 3 (back to front) when it has more. Each cover's border tightly wraps
+ * its own image (via computeContainRect) rather than a box sized for the slot's own aspect ratio;
+ * the selection highlight, if selected, wraps the overall bounds of whatever was actually drawn.
+ * Returns whether anything was drawn. */
+bool LibraryActivity::renderShelfFolderCover(const LibraryItem& item, const int coverX, const int coverY,
+                                             const int coverW, const int coverH, const bool selected,
+                                             const bool rounded, const bool subtle, int& outBoundsX, int& outBoundsY,
+                                             int& outBoundsW, int& outBoundsH) const {
+  outBoundsX = coverX;
+  outBoundsY = coverY;
+  outBoundsW = coverW;
+  outBoundsH = coverH;
+  if (item.shelfPreviewPaths.empty()) {
+    return false;
+  }
+
+  ImageRender::Options options;
+  // Not cropToFill - covers show at full width/height (contained within their own tight border, not
+  // cropped).
+  options.cropToFill = false;
+  options.useDisplayCache = true;
+  options.roundedOutside = !rounded ? BitmapRender::RoundedOutside::None
+                           : subtle ? BitmapRender::RoundedOutside::SubtlePaperOutside
+                                    : BitmapRender::RoundedOutside::PaperOutside;
+
+  const int layerCount =
+      item.shelfPreviewPaths.size() == 1 ? 1 : std::min<int>(3, static_cast<int>(item.shelfPreviewPaths.size()));
+  // Nominal per-layer slot before tight-wrapping: for a single cover this is the whole card; for a
+  // stack, each layer's slot shrinks so all offset layers still fit within the card bounds.
+  const int nominalW = coverW - LIB_SHELF_STACK_OFFSET * (layerCount - 1);
+  const int nominalH = coverH - LIB_SHELF_STACK_OFFSET * (layerCount - 1);
+
+  struct LayerRect {
+    std::string imagePath;
+    int x, y, w, h;
+    bool haveImage;
+  };
+  LayerRect layers[3];
+  int minX = coverX + coverW;
+  int minY = coverY + coverH;
+  int maxX = coverX;
+  int maxY = coverY;
+  bool anyImage = false;
+
+  for (int layer = 0; layer < layerCount; ++layer) {
+    const int nx = coverX + LIB_SHELF_STACK_OFFSET * (layerCount - 1 - layer);
+    const int ny = coverY + LIB_SHELF_STACK_OFFSET * (layerCount - 1 - layer);
+    LayerRect& rect = layers[layer];
+    rect.imagePath = getShelfImagePath(item.shelfPreviewPaths[static_cast<size_t>(layer)]);
+    rect.haveImage = computeContainRect(rect.imagePath, nx, ny, nominalW, nominalH, rect.x, rect.y, rect.w, rect.h);
+    if (!rect.haveImage) {
+      // No readable image for this layer - fall back to the nominal (untrimmed) slot so it still
+      // reads as a card in the stack rather than collapsing to nothing.
+      rect.x = nx;
+      rect.y = ny;
+      rect.w = nominalW;
+      rect.h = nominalH;
+    } else {
+      anyImage = true;
+    }
+    minX = std::min(minX, rect.x);
+    minY = std::min(minY, rect.y);
+    maxX = std::max(maxX, rect.x + rect.w);
+    maxY = std::max(maxY, rect.y + rect.h);
+  }
+
+  outBoundsX = minX;
+  outBoundsY = minY;
+  outBoundsW = maxX - minX;
+  outBoundsH = maxY - minY;
+
+  if (selected) {
+    constexpr int kSelectionBorder = 4;
+    renderer.rectangle.fill(minX - kSelectionBorder, minY - kSelectionBorder, (maxX - minX) + kSelectionBorder * 2,
+                            (maxY - minY) + kSelectionBorder * 2, static_cast<int>(GfxRenderer::FillTone::Gray),
+                            rounded, subtle);
+  }
+
+  bool drewAny = false;
+  // Back layer first (furthest from front cover) so the front-most preview book ends up on top.
+  for (int layer = layerCount - 1; layer >= 0; --layer) {
+    const LayerRect& rect = layers[layer];
+    renderer.rectangle.fill(rect.x, rect.y, rect.w, rect.h, false, rounded, subtle);
+    renderer.rectangle.render(rect.x, rect.y, rect.w, rect.h, true, rounded, subtle);
+    if (!rect.haveImage) {
+      continue;
+    }
+    if (ImageRender::create(renderer, rect.imagePath)
+            .render(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, options)) {
+      drewAny = true;
+    }
+  }
+  return drewAny && anyImage;
 }
 
 /** Renders a single shelf card (cover thumbnail and selection state) at the given grid index. */
@@ -2740,8 +3049,12 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   int cardW = 0;
   int cardH = 0;
   getShelfCoverSize(renderer, cardW, cardH);
+  // Row stride includes the label band reserved below every cover (folder tiles draw into it; plain
+  // book cards leave it blank), so getShelfCoverSize's outCoverH itself stays exactly the cover's own
+  // pixel size - the size ThumbnailGeneratorActivity pre-caches thumbnails at.
+  const int rowStride = cardH + LIB_SHELF_LABEL_HEIGHT;
   const int totalW = cardW * LIB_SHELF_COLS + LIB_SHELF_GAP_X * (LIB_SHELF_COLS - 1);
-  const int totalH = cardH * LIB_SHELF_ROWS + LIB_SHELF_GAP_Y * (LIB_SHELF_ROWS - 1);
+  const int totalH = rowStride * LIB_SHELF_ROWS + LIB_SHELF_GAP_Y * (LIB_SHELF_ROWS - 1);
   const int originX = LIB_SHELF_OUTER_PAD_X + std::max(0, (availableW - totalW) / 2);
   const int originY = startY + LIB_SHELF_OUTER_PAD_Y + std::max(0, (availableH - totalH) / 2);
 
@@ -2752,46 +3065,87 @@ void LibraryActivity::renderShelfCard(const int index, const int startY, const b
   // exactly one border, at the cover's own edge. Selection is a solid thick black frame in the
   // inter-card gap (a dithered checker pattern was tried first but was too subtle to read on e-ink).
   const int coverX = originX + col * (cardW + LIB_SHELF_GAP_X);
-  const int coverY = originY + row * (cardH + LIB_SHELF_GAP_Y);
+  const int coverY = originY + row * (rowStride + LIB_SHELF_GAP_Y);
   const int coverW = cardW;
   const int coverH = cardH;
   const bool rounded = SETTINGS.bitmapRoundedCorners != 0;
   const bool subtle = SETTINGS.bitmapRoundedCorners == 2;
 
-  if (selected) {
-    constexpr int kSelectionBorder = 4;
-    renderer.rectangle.fill(coverX - kSelectionBorder, coverY - kSelectionBorder, coverW + kSelectionBorder * 2,
-                            coverH + kSelectionBorder * 2, true, rounded, subtle);
-  }
-
-  renderer.rectangle.fill(coverX, coverY, coverW, coverH, false, rounded, subtle);
-  renderer.rectangle.render(coverX, coverY, coverW, coverH, true, rounded, subtle);
-
+  // The drawn box wraps the cover's own aspect ratio (computeContainRect) rather than the full grid
+  // slot, so there's no visible letterbox padding inside the border. Only the no-cover fallback
+  // (icon/title placeholder, no real image to wrap) uses the full slot.
+  int boxX = coverX;
+  int boxY = coverY;
+  int boxW = coverW;
+  int boxH = coverH;
   bool drewCover = false;
-  const std::string imagePath = getShelfImagePath(item.path);
-  if (!imagePath.empty()) {
-    ImageRender::Options options;
-    options.cropToFill = true;
-    options.useDisplayCache = true;
-    options.roundedOutside = !rounded ? BitmapRender::RoundedOutside::None
-                             : subtle ? BitmapRender::RoundedOutside::SubtlePaperOutside
-                                      : BitmapRender::RoundedOutside::PaperOutside;
-    drewCover =
-        ImageRender::create(renderer, imagePath).render(coverX + 1, coverY + 1, coverW - 2, coverH - 2, options);
-  }
-  if (!drewCover) {
-    if (item.type == LibraryItem::Type::FOLDER) {
-      renderGridItemIcon(item, coverX, coverY, coverW, coverH, selected, true);
-    } else {
-      // Books without a cover show their title centered in the card, same fallback as the Recent page
-      // thumbnails (drawRecentNoCoverPlaceholder) instead of a generic book icon.
-      drawShelfNoCoverTitle(renderer, coverX + 4, coverY, coverW - 8, coverH, item.displayName,
-                            ATKINSON_HYPERLEGIBLE_10_FONT_ID);
+
+  if (item.type == LibraryItem::Type::FOLDER && !item.shelfPreviewPaths.empty()) {
+    drewCover = renderShelfFolderCover(item, coverX, coverY, coverW, coverH, selected, rounded, subtle, boxX, boxY,
+                                       boxW, boxH);
+  } else {
+    const std::string imagePath = getShelfImagePath(item.path);
+    int contentX, contentY, contentW, contentH;
+    if (computeContainRect(imagePath, coverX, coverY, coverW, coverH, contentX, contentY, contentW, contentH)) {
+      boxX = contentX;
+      boxY = contentY;
+      boxW = contentW;
+      boxH = contentH;
+      if (selected) {
+        constexpr int kSelectionBorder = 4;
+        renderer.rectangle.fill(boxX - kSelectionBorder, boxY - kSelectionBorder, boxW + kSelectionBorder * 2,
+                                boxH + kSelectionBorder * 2, static_cast<int>(GfxRenderer::FillTone::Gray), rounded,
+                                subtle);
+      }
+      renderer.rectangle.fill(boxX, boxY, boxW, boxH, false, rounded, subtle);
+      renderer.rectangle.render(boxX, boxY, boxW, boxH, true, rounded, subtle);
+      ImageRender::Options options;
+      // Not cropToFill - the box above already matches the cover's own aspect ratio, so this draws
+      // at full width/height with nothing to crop.
+      options.cropToFill = false;
+      options.useDisplayCache = true;
+      options.roundedOutside = !rounded ? BitmapRender::RoundedOutside::None
+                               : subtle ? BitmapRender::RoundedOutside::SubtlePaperOutside
+                                        : BitmapRender::RoundedOutside::PaperOutside;
+      drewCover = ImageRender::create(renderer, imagePath).render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, options);
     }
   }
 
-  int badgeY = coverY + 3;
-  const int badgeX = coverX + coverW - LIB_SHELF_BADGE_SIZE - 3;
+  if (!drewCover) {
+    boxX = coverX;
+    boxY = coverY;
+    boxW = coverW;
+    boxH = coverH;
+    if (item.type != LibraryItem::Type::FOLDER && selected) {
+      constexpr int kSelectionBorder = 4;
+      renderer.rectangle.fill(boxX - kSelectionBorder, boxY - kSelectionBorder, boxW + kSelectionBorder * 2,
+                              boxH + kSelectionBorder * 2, static_cast<int>(GfxRenderer::FillTone::Gray), rounded,
+                              subtle);
+    }
+    if (item.type == LibraryItem::Type::FOLDER) {
+      renderGridItemIcon(item, coverX, coverY, coverW, coverH, selected, true);
+    } else {
+      renderer.rectangle.fill(boxX, boxY, boxW, boxH, false, rounded, subtle);
+      renderer.rectangle.render(boxX, boxY, boxW, boxH, true, rounded, subtle);
+      // Books without a cover show their title centered in the card, same fallback as the Recent page
+      // thumbnails (drawRecentNoCoverPlaceholder) instead of a generic book icon.
+      drawShelfNoCoverTitle(renderer, coverX + 4, coverY, coverW - 8, coverH, item.displayName,
+                            MONTSERRAT_10_FONT_ID);
+    }
+  }
+
+  const bool isFolderWithCount = item.type == LibraryItem::Type::FOLDER && item.shelfBookCount > 0;
+  const std::string labelSubtitle =
+      isFolderWithCount ? (std::to_string(item.shelfBookCount) + (item.shelfBookCount == 1 ? " book" : " books"))
+                        : std::string();
+  // Left edge and width follow the actual drawn cover (boxX/boxW), not the full grid slot, so the
+  // label lines up with the cover instead of the slot's own padding. Vertical position stays pinned
+  // to the slot's bottom edge so label rows line up across cards whose covers differ in height.
+  drawShelfCardLabel(renderer, boxX, coverY + coverH + 3, boxW, LIB_SHELF_LABEL_HEIGHT - 3, item.displayName,
+                     labelSubtitle, MONTSERRAT_10_FONT_ID);
+
+  int badgeY = boxY + 3;
+  const int badgeX = boxX + boxW - LIB_SHELF_BADGE_SIZE - 3;
   if (isBookMarked(item.path)) {
     drawShelfFavoriteBadge(renderer, badgeX, badgeY);
     badgeY += LIB_SHELF_BADGE_SIZE + 3;
@@ -2947,10 +3301,10 @@ void LibraryActivity::renderLibraryGrid(int startY) const {
 
     const int labelY = iconY + iconH + LIB_GRID_LABEL_GAP;
     const std::string label =
-        renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, items[i].displayName.c_str(), frameW - 10);
-    const int labelW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, label.c_str());
+        renderer.text.truncate(MONTSERRAT_10_FONT_ID, items[i].displayName.c_str(), frameW - 10);
+    const int labelW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, label.c_str());
     const int labelX = boxX + std::max(4, (frameW - labelW) / 2);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labelX, labelY - 10, label.c_str(), !selected);
+    renderer.text.render(MONTSERRAT_10_FONT_ID, labelX, labelY - 10, label.c_str(), !selected);
   }
 }
 
@@ -3026,10 +3380,10 @@ void LibraryActivity::renderItemText(const LibraryItem& item, int drawY, int ite
                                                                   (badgeCount - 1) * LIB_BOOK_LIST_BADGE_GAP + 10
                                                             : 15;
   const int textWidth = std::max(40, screenWidth - textX - badgeReserve);
-  const int textY = drawY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+  const int textY = drawY + (itemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
   std::string displayText =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
+      renderer.text.truncate(MONTSERRAT_10_FONT_ID, item.displayName.c_str(), textWidth - 5);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, textX, textY, displayText.c_str(), !isSelected);
 
   if (showBookBadges) {
     renderBookListBadges(item, drawY, itemHeight, isSelected, screenWidth);
@@ -3056,8 +3410,10 @@ void LibraryActivity::loadLibraryFromIndex() {
     cleanBase.pop_back();
   }
 
-  if (currentViewMode == ViewMode::BOOK_LIST_VIEW || currentViewMode == ViewMode::SHELF_VIEW || isTagViewMode()) {
+  if (currentViewMode == ViewMode::BOOK_LIST_VIEW || isTagViewMode()) {
     loadBooksFromIndex(idxFile, cleanBase);
+  } else if (currentViewMode == ViewMode::SHELF_VIEW) {
+    loadShelfGroupedFromIndex(idxFile, cleanBase);
   } else {
     loadFoldersFromIndex(idxFile, cleanBase);
   }
@@ -3247,6 +3603,113 @@ void LibraryActivity::loadFoldersFromIndex(FsFile& idxFile, const std::string& c
         if ((++indexEntries % 64u) == 0u) {
           yield();
         }
+      }
+    }
+  }
+
+  if (displayTaskStopRequested_) {
+    return;
+  }
+
+  sortFoldersAndBooks(tempFolders, tempBooks);
+  combineAndPaginateItems(tempFolders, tempBooks);
+}
+
+/**
+ * @brief Load folders and books for Shelf mode from the index file, one level at a time
+ *
+ * First pass mirrors loadFoldersFromIndex: a single sweep of the index picks out cleanBase's
+ * immediate child folders and loose books. A second sweep over the same index then tallies each
+ * child folder's recursive book count and up to 3 preview cover paths by matching every book
+ * entry's path against each folder's path prefix - the index-backed equivalent of
+ * loadShelfGroupedCurrentDirectory's live SD scan (countTotalBooks + findBooksPaginated per folder).
+ */
+void LibraryActivity::loadShelfGroupedFromIndex(FsFile& idxFile, const std::string& cleanBase) {
+  std::vector<LibraryItem> tempFolders;
+  std::vector<TempBookEntry> tempBooks;
+  size_t indexEntries = 0;
+
+  while (idxFile.available() && !displayTaskStopRequested_) {
+    uint8_t marker;
+    if (idxFile.read(&marker, 1) != 1) break;
+
+    if (marker == 0x01) {
+      TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
+      size_t lastSlash = tempEntry.path.find_last_of('/');
+      std::string bookParent =
+          (lastSlash == 0 || lastSlash == std::string::npos) ? "/" : tempEntry.path.substr(0, lastSlash);
+      if (bookParent == cleanBase) {
+        if (!tempBookMatchesLetterFilter(tempEntry)) {
+          if ((++indexEntries % 64u) == 0u) {
+            yield();
+          }
+          continue;
+        }
+        if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+          break;
+        }
+        tempEntry.isFavorite = isBookMarked(tempEntry.path);
+        tempBooks.push_back(tempEntry);
+      }
+      if ((++indexEntries % 64u) == 0u) {
+        yield();
+      }
+    } else if (marker == 0xFF) {
+      LibraryItem folderItem = readDirectoryEntryFromIndex(idxFile);
+
+      if (shouldIncludeFolder(folderItem.path, cleanBase)) {
+        if (!itemMatchesLetterFilter(folderItem)) {
+          if ((++indexEntries % 64u) == 0u) {
+            yield();
+          }
+          continue;
+        }
+        if (!canAppendLibraryListItem(tempFolders.size() + tempBooks.size())) {
+          break;
+        }
+        tempFolders.push_back(std::move(folderItem));
+      }
+      if ((++indexEntries % 64u) == 0u) {
+        yield();
+      }
+    }
+  }
+
+  if (displayTaskStopRequested_) {
+    return;
+  }
+
+  if (!tempFolders.empty()) {
+    std::vector<std::string> folderPrefixes;
+    folderPrefixes.reserve(tempFolders.size());
+    for (const auto& folder : tempFolders) {
+      std::string prefix = folder.path;
+      if (!prefix.empty() && prefix.back() == '/') {
+        prefix.pop_back();
+      }
+      prefix += "/";
+      folderPrefixes.push_back(std::move(prefix));
+    }
+
+    idxFile.seek(5);
+    while (idxFile.available() && !displayTaskStopRequested_) {
+      uint8_t marker;
+      if (idxFile.read(&marker, 1) != 1) break;
+
+      if (marker == 0x01) {
+        TempBookEntry tempEntry = readBookEntryFromIndex(idxFile);
+        for (size_t i = 0; i < tempFolders.size(); ++i) {
+          const std::string& prefix = folderPrefixes[i];
+          if (tempEntry.path.compare(0, prefix.size(), prefix) == 0) {
+            tempFolders[i].shelfBookCount++;
+            if (tempFolders[i].shelfPreviewPaths.size() < 3) {
+              tempFolders[i].shelfPreviewPaths.push_back(tempEntry.path);
+            }
+            break;
+          }
+        }
+      } else if (marker == 0xFF) {
+        skipDirectoryMarker(idxFile);
       }
     }
   }

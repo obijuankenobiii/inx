@@ -301,7 +301,7 @@ void SleepActivity::onEnter() {
       SETTINGS.sleepScreen == SystemSetting::SLEEP_SCREEN_MODE::DATETIME && dateTimeSleepScreenAvailable();
   if (SETTINGS.sleepScreen != SystemSetting::SLEEP_SCREEN_MODE::TRANSPARENT && !renderDateTime) {
     renderer.clearScreen(0Xff);
-    renderer.displayBuffer();
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
   switch (SETTINGS.sleepScreen) {
@@ -315,7 +315,11 @@ void SleepActivity::onEnter() {
       renderCustomSleepScreen();
       break;
     case SystemSetting::SLEEP_SCREEN_MODE::COVER:
-      renderCoverSleepScreen();
+      if (fromReader_) {
+        renderCoverSleepScreen();
+      } else {
+        renderCustomSleepScreen();
+      }
       break;
     case SystemSetting::SLEEP_SCREEN_MODE::DATETIME:
       if (dateTimeSleepScreenAvailable()) {

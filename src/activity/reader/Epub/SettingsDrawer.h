@@ -8,6 +8,7 @@
 #include <GfxRenderer.h>
 
 #include <array>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -19,8 +20,8 @@
  * @class SettingsDrawer
  * @brief A drawer UI component for modifying book reading settings
  *
- * Provides an expandable/collapsible menu interface for adjusting font,
- * layout, system, and status bar settings while reading.
+ * Provides the Pro-style tabbed menu used by the preset editor, plus the
+ * existing expandable menu used by the in-book reader drawer.
  */
 class SettingsDrawer {
  public:
@@ -140,7 +141,7 @@ class SettingsDrawer {
 
     Hyphenation,        ///< Hyphenation toggle
     BionicReading,      ///< Bionic Reading toggle
-    ReadingGuideLines,  ///< Reading-guide overlay style: Off / Grid (vertical thirds) / Notebook (ruled lines)
+    ReadingGuideLines,  ///< Reading-guide overlay style: Off / Grid (vertical 25%/75%) / Notebook (ruled lines)
     AntiAliasing,       ///< Text anti-aliasing toggle
     RefreshRate,        ///< Display refresh frequency
     ReaderPowerButton,  ///< Reader short power button behavior
@@ -196,7 +197,20 @@ class SettingsDrawer {
 
   bool settingsUpdated = false;  ///< Flag indicating settings were changed
 
+  // X3/X4 use one display buffer, so dropdowns are redrawn in-place instead of copying a
+  // second full-screen framebuffer.
+  bool selectorOpen_ = false;
+  int selectorMenuIndex_ = -1;
+  int selectorSelected_ = 0;
+  int selectorScroll_ = 0;
+  std::vector<std::string> selectorOptions_;
+  // Preset selector rows are filtered for empty stored names. Keep the store index
+  // separately so the visible row index is never passed to applyToBook().
+  std::vector<int> selectorPresetIndices_;
+
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
+  GroupType selectedGroup_ = GroupType::FONT;      ///< Active preset-editor tab.
+  bool rotateTabFocused_ = false;                  ///< Header focus is on the in-book rotate command.
   std::vector<MenuEntry> menuItems;                ///< Current menu items
 
   /**
@@ -220,7 +234,17 @@ class SettingsDrawer {
    */
   void drawMenuItems();
 
+  /** Draw the preset editor's Font, Layout, Bar, and Controls tabs. */
+  void drawTabs();
+
   void drawMenuItemRow(int visibleRow, int menuIndex);
+
+  bool isDropdownItem(MenuItem item) const;
+  void openSelector(int menuIndex);
+  void closeSelector();
+  void commitSelectorSelection();
+  void drawSelectorPopup();
+  bool handleSelectorInput(MappedInputManager& input);
 
   /**
    * @brief Draws the scroll indicator
@@ -244,4 +268,9 @@ class SettingsDrawer {
    * @param group Group to toggle
    */
   void toggleGroup(GroupType group);
+
+  /** Select a preset-editor tab and rebuild its visible rows. */
+  void selectGroup(GroupType group);
+
+  int contentListTop() const;
 };

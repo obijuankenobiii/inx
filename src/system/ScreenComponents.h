@@ -20,6 +20,11 @@ class ScreenComponents {
  public:
   static const int BOOK_PROGRESS_BAR_HEIGHT = 4;
 
+  static constexpr int BATTERY_ICON_WIDTH = 28;
+  static constexpr int BATTERY_ICON_HEIGHT = 14;
+  static constexpr int BATTERY_TEXT_GAP = 5;
+  static constexpr int BATTERY_ICON_TOP_OFFSET = 3;
+
   struct PopupLayout {
     int x;
     int y;
@@ -33,11 +38,16 @@ class ScreenComponents {
                                       bool showBatteryPercentage = true);
   static void drawBookProgressBar(const GfxRenderer& renderer, size_t bookProgress);
 
+  /** Shared Pro-style subpage header with title and close icon. Returns the body start Y. */
+  static int drawSubPageHeader(const GfxRenderer& renderer, const char* name,
+                               const char* trailingText = nullptr, int titleX = 20);
+
+  /** Centered filled modal used for short blocking work and progress feedback. */
   static PopupLayout drawPopup(const GfxRenderer& renderer, const char* message);
 
   static void fillPopupProgress(const GfxRenderer& renderer, const PopupLayout& layout, int progress);
 
-  /** Geometry for {@link LoadingProgress}: label on top, full-width progress bar below. */
+  /** Geometry for {@link LoadingProgress}: modal with label + progress bar. */
   struct LoadingProgressLayout {
     int panelX = 0;
     int panelY = 0;
@@ -49,9 +59,7 @@ class ScreenComponents {
     int barH = 0;
   };
 
-  /**
-   * Bottom popup: text label and progress bar below.
-   */
+  /** Centered modal with a progress bar (layout rebuilds, chapter loads, stats, etc.). */
   struct LoadingProgress {
     static LoadingProgressLayout show(const GfxRenderer& renderer, const char* message, int progressPercent0to100);
     static void setProgress(const GfxRenderer& renderer, const LoadingProgressLayout& layout,

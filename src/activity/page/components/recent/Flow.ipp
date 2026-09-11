@@ -2,67 +2,32 @@ void recent::Flow::render(RecentActivity& self) { self.renderFlow(); }
 
 void RecentActivity::renderFlow() {
   if (recentBooks.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, renderer.getScreenHeight() / 2, "No recent books");
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2, "No recent books");
     return;
   }
 
   const int screenW = renderer.getScreenWidth();
   const int startY = mainContentTop() + 5;
 
-  int currentIndex = selectorIndex;
-  int totalBooks = (int)recentBooks.size();
+  const int currentIndex = std::max(0, std::min(selectorIndex, static_cast<int>(recentBooks.size()) - 1));
+  const int carouselY = startY;
+  widget::Carousel carousel(renderer);
+  carousel.render(recentBooks, currentIndex, 0, carouselY, screenW, widget::Carousel::kHeight,
+                  &RecentActivity::renderFlowThumbnail, this);
 
-  int carouselW = screenW;
-  int carouselH = 340;
-  int carouselX = 0;
-  int carouselY = startY;
-
-  drawFlowCarouselBackdrop(renderer, carouselX, carouselY, carouselW, carouselH);
-
-  const bool rr = SETTINGS.bitmapRoundedCorners != 0;
-
-  int centerW = 210;
-  int centerH = 318;
-  int centerX = carouselX + (carouselW - centerW) / 2;
-  int centerY = carouselY + (carouselH - centerH) / 2 + 4;
-
-  float scale = 0.9f;
-  int sideW = (int)(centerW * scale);
-  int sideH = (int)(centerH * scale);
-  int leftX = centerX - sideW - 20;
-  int rightX = centerX + centerW + 20;
-  int sideY = centerY + (centerH - sideH) / 2;
-
-  if (currentIndex > 0) {
-    const RecentBook& leftBook = recentBooks[currentIndex - 1];
-    renderer.rectangle.fill(leftX, sideY, sideW, sideH, false, rr);
-    drawRecentThumbnailAt(leftX, sideY, sideW, sideH, leftBook.cachePath, bookDisplayTitle(leftBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
-  }
-
-  if (currentIndex + 1 < totalBooks) {
-    const RecentBook& rightBook = recentBooks[currentIndex + 1];
-    renderer.rectangle.fill(rightX, sideY, sideW, sideH, false, rr);
-    drawRecentThumbnailAt(rightX, sideY, sideW, sideH, rightBook.cachePath, bookDisplayTitle(rightBook),
-                          ATKINSON_HYPERLEGIBLE_10_FONT_ID, true);
-  }
-
-  const RecentBook& currentBook = recentBooks[currentIndex];
-
-  renderer.rectangle.fill(centerX, centerY, centerW, centerH, false, rr);
-  drawRecentThumbnailAt(centerX, centerY, centerW, centerH, currentBook.cachePath, bookDisplayTitle(currentBook),
-                        ATKINSON_HYPERLEGIBLE_14_FONT_ID, true);
+  const RecentBook& currentBook = recentBooks[static_cast<size_t>(currentIndex)];
 
   const CachedRecentStats& cachedStats = statsForRecentIndex(currentIndex);
   const BookReadingStats& stats = cachedStats.stats;
   const bool hasStats = cachedStats.loaded;
 
-  const int VALUE_FONT = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-  const int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int VALUE_FONT = MONTSERRAT_16_FONT_ID;
+  const int LABEL_FONT = MONTSERRAT_10_FONT_ID;
 
   int statsX = 30;
-  int statsY = carouselY + carouselH + 25;
-  renderer.line.render(0, carouselY + carouselH + 10, screenW, carouselY + carouselH + 10, true);
+  int statsY = carouselY + widget::Carousel::kHeight + 25;
+  renderer.line.render(0, carouselY + widget::Carousel::kHeight + 10, screenW,
+                       carouselY + widget::Carousel::kHeight + 10, true);
   std::string title;
   if (!currentBook.title.empty()) {
     title = currentBook.title;
@@ -70,16 +35,16 @@ void RecentActivity::renderFlow() {
     title = formatTitle(getBaseFilename(currentBook.path));
   }
   std::string truncatedTitle =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_18_FONT_ID, title.c_str(), screenW - 60, EpdFontFamily::BOLD);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY, truncatedTitle.c_str(), true,
+      renderer.text.truncate(MONTSERRAT_18_FONT_ID, title.c_str(), screenW - 60, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY, truncatedTitle.c_str(), true,
                        EpdFontFamily::BOLD);
 
-  int authorY = statsY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_18_FONT_ID) - 5;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
+  int authorY = statsY + renderer.text.getLineHeight(MONTSERRAT_18_FONT_ID) - 5;
+  renderer.text.render(MONTSERRAT_12_FONT_ID, statsX, authorY, currentBook.author.c_str());
 
   float progress = hasStats ? stats.progressPercent : (currentBook.progress * 100.0f);
   if (progress >= 0) {
-    int barY = authorY + renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) + 20;
+    int barY = authorY + renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID) + 20;
     int barW = (screenW - 60) * 0.5;
     int barH = 6;
 
@@ -93,7 +58,7 @@ void RecentActivity::renderFlow() {
     char percentText[8];
     int percent = (int)(progress + 0.5f);
     snprintf(percentText, sizeof(percentText), "%d%%", percent);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
+    renderer.text.render(MONTSERRAT_12_FONT_ID, statsX + barW + 12, barY - 13, percentText);
   }
 
   if (hasStats) {

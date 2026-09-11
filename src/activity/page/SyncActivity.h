@@ -6,21 +6,20 @@
  */
 
 #include <functional>
+#include <memory>
 
-#include "../ActivityWithSubactivity.h"
-#include "../Menu.h"
+#include "Page.h"
 
 enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT, OPDS_BROWSER };
 
-class SyncActivity final : public ActivityWithSubactivity, public Menu {
+class SyncActivity final : public Page {
  public:
   SyncActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                const std::function<void(NetworkMode)>& onModeSelected,
                const std::function<void()>& onRecentOpen = nullptr,
                const std::function<void()>& onStatisticsOpen = nullptr,
                const std::function<void()>& onSettingsOpen = nullptr)
-      : ActivityWithSubactivity("Network Settings", renderer, mappedInput),
-        Menu(),
+      : Page("Device Management", renderer, mappedInput),
         onModeSelected(onModeSelected),
         onRecentOpen(onRecentOpen),
         onStatisticsOpen(onStatisticsOpen),
@@ -34,17 +33,19 @@ class SyncActivity final : public ActivityWithSubactivity, public Menu {
 
  private:
   int selectedIndex = 0;
-  bool updateRequired = false;
+  bool selectedVisible = false;
+  std::unique_ptr<Activity> subActivity;
 
   const std::function<void(NetworkMode)> onModeSelected;
   const std::function<void()> onRecentOpen;
   const std::function<void()> onStatisticsOpen;
   const std::function<void()> onSettingsOpen;
 
-  void render() const;
+  void title() const override;
+  bool showBattery() const override { return false; }
+  void content() override;
+  void enter(Activity* activity);
+  void exit();
 
-  void navigateToSelectedMenu() override {
-    if (tabSelectorIndex == 2 && onSettingsOpen) onSettingsOpen();
-    if (tabSelectorIndex == 4 && onStatisticsOpen) onStatisticsOpen();
-  }
+  void navigateToSelectedMenu() override;
 };

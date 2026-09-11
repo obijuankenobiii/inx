@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "dictionary/DictionaryDefinitionLayout.h"
+#include "dictionary/DictionaryRegistry.h"
 #include "dictionary/StarDictLookup.h"
 
 class EpubActivity;
@@ -41,8 +42,16 @@ class EpubDictionaryUi {
   void drawFocusHighlight(EpubActivity& act);
   void drawDefinitionPanel(EpubActivity& act);
   void performLookup(EpubActivity& act);
-  void ensureDictionaryOpen();
+  void ensureDictionaryOpen(EpubActivity& act);
+  void openFolder(const std::string& folderName);
+  bool lookupInFolder(EpubActivity& act, const std::string& folderName, const std::string& queryWord,
+                      std::string& outDefinition, bool* outTruncated, bool allowStem = true);
+  bool tryUsefulLookup(EpubActivity& act, const std::string& folderName, const std::string& queryWord, bool* outTruncated);
+  void cycleDictionary(EpubActivity& act, int delta);
   void saveCurrentWord(EpubActivity& act);
+  std::string resolvePreferredFolder(EpubActivity& act);
+  void setLangLabelFromFolder(const std::string& folderName);
+  void layoutCurrentDefinition(EpubActivity& act, bool truncated);
   /** Actually releases currentDefinition_/definitionBlocks_/definitionLines_'s heap capacity (not
    *  just .clear(), which keeps it reserved for reuse) - a big dictionary entry's parsed/laid-out
    *  form can run into the tens of KB, and .clear() alone would leave that reserved for as long as
@@ -55,9 +64,14 @@ class EpubDictionaryUi {
   size_t focus_ = 0;
 
   StarDictLookup dict_;
-  bool dictOpenAttempted_ = false;
+  std::string preferredFolder_;
+  std::string sessionFolder_;
+  std::string activeLangLabel_;
+  bool usedFallbackDict_ = false;
   bool showingDefinition_ = false;
   std::string lookedUpWord_;
+  /** Dictionary headword that actually matched (lemma after stemming). Empty when it equals lookedUpWord_. */
+  std::string matchedHeadword_;
   bool wordAlreadySaved_ = false;
   std::string currentDefinition_;
   std::vector<DefinitionBlock> definitionBlocks_;

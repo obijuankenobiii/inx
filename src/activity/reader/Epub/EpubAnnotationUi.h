@@ -14,6 +14,16 @@
 
 class EpubActivity;
 
+/** One highlight range, possibly spanning pages. Word indexes are page-local. */
+struct HighlightSpan {
+  int startSpine = 0;
+  int startPage = 0;
+  size_t startWord = 0;
+  int endSpine = 0;
+  int endPage = 0;
+  size_t endWord = 0;
+};
+
 /**
  * Highlight UI: chord entry, D-pad navigation, framebuffer capture/repaint, overlays, and persistence via
  * EpubAnnotations.
@@ -62,6 +72,7 @@ class EpubAnnotationUi {
   void drawUiOverlay(EpubActivity& act);
 
   std::string extractRangeText(size_t anchorFlat, size_t focusFlat) const;
+  std::string extractSpanText(EpubActivity& act, const HighlightSpan& span) const;
   void saveToStorage(EpubActivity& act);
 
   void prepareWordGeometry(EpubActivity& act);
@@ -73,10 +84,16 @@ class EpubAnnotationUi {
   void drawLatticeHighlightRect(EpubActivity& act, int x, int y, int width, int height);
   void drawLatticeHighlightForWordIndexRange(EpubActivity& act, size_t lo, size_t hi);
   void drawHighlights(EpubActivity& act);
+  void drawSpanOnCurrentPage(EpubActivity& act, const HighlightSpan& span);
 
   void moveFocusWord(int delta);
   void moveFocusLine(int delta);
   bool tryNavigationHoldRepeat(EpubActivity& act);
+  bool canPageTurnFromHighlight(EpubActivity& act, bool forward) const;
+  bool pageTurnFromHighlight(EpubActivity& act, bool forward);
+
+  HighlightSpan liveSelectionSpan(const EpubActivity& act) const;
+  bool fillWordsForPage(EpubActivity& act, int spine, int page, std::vector<PageWordHit>& out) const;
 
   void captureFramebuffer(EpubActivity& act);
 
@@ -86,8 +103,8 @@ class EpubAnnotationUi {
   bool hasSaveableContent() const;
   void resetSelectionToStart(EpubActivity& act);
   void clearAllStoredHighlightsOnCurrentPage(EpubActivity& act);
-  /** Sort by lo; merge overlapping or adjacent word spans. */
-  static void normalizeSpans(std::vector<std::pair<size_t, size_t>>& spans);
+  /** Sort by start; merge overlapping or adjacent word spans on the same page. */
+  static void normalizeSpans(std::vector<HighlightSpan>& spans);
 
   bool mode_ = false;
   /** While true, drawUiOverlay() is a no-op - lets a renderScreen() call rebuild the page/word-index
@@ -98,6 +115,8 @@ class EpubAnnotationUi {
   std::vector<size_t> lineFirst_;
   size_t anchor_ = 0;
   size_t focus_ = 0;
+  int selAnchorSpine_ = -1;
+  int selAnchorPage_ = -1;
 
   /** Chunked first (same as GfxRenderer::storeBwBuffer); monolithic fallback if heap shape differs. */
   static constexpr size_t kCaptureChunkBytes = 8000;
@@ -110,8 +129,8 @@ class EpubAnnotationUi {
   unsigned long chordStartMs_ = 0;
   bool chordConsumed_ = false;
   bool selectingStarted_ = false;
-  /** Completed ranges while browsing between Start/Stop cycles (same page). */
-  std::vector<std::pair<size_t, size_t>> pendingSpans_;
+  /** Completed ranges while browsing between Start/Stop cycles (absolute page coordinates). */
+  std::vector<HighlightSpan> pendingSpans_;
   /** Suppress duplicate wasPressed edges (ADC bounce) for the same direction. */
   unsigned long annLastNavEdgeMs_ = 0;
   int annLastNavEdgeDir_ = -1;  // 0 L, 1 R, 2 U, 3 D; -1 = none

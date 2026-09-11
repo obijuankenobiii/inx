@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 
+#include "activity/page/SubPage.h"
 #include "browser/OpdsBookBrowserActivity.h"
 #include "state/OpdsServerStore.h"
 #include "system/Fonts.h"
@@ -114,13 +115,13 @@ void OpdsServerListActivity::render() {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const int listTop = INX_THEME.drawPageHeader(renderer, "OPDS Server");
+  const int listTop = SubPage::header(renderer, "OPDS Server");
 
   const auto& servers = OPDS_STORE.getAllServers();
 
   if (servers.empty()) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, listTop + 40, "No servers configured", true);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, listTop + 68, "Add servers via the web interface", true);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, listTop + 40, "No servers configured", true);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, listTop + 68, "Add servers via the web interface", true);
   } else {
     for (int i = 0; i < (int)servers.size(); i++) {
       const int itemY = listTop + i * kListItemHeight;
@@ -128,15 +129,15 @@ void OpdsServerListActivity::render() {
       if (isSelected) {
         renderer.rectangle.fill(0, itemY, pageWidth, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
-      const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, servers[i].name.c_str(), !isSelected);
+      const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, servers[i].name.c_str(), !isSelected);
       renderer.line.render(0, itemY + kListItemHeight - 1, pageWidth, itemY + kListItemHeight - 1, true,
                            LineRender::Style::Dotted);
     }
   }
 
   const auto labels = mappedInput.mapLabels("« Back", !servers.empty() ? "Browse" : "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

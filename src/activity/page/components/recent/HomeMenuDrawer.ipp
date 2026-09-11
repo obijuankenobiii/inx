@@ -2,7 +2,7 @@ namespace {
 constexpr int kHomeDrawerRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 constexpr int kHomeDrawerMainRowCount = 5;  // Recents, Bookmarks, Annotations, Dictionary, Favorites
-constexpr int kHomeDrawerHeaderFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+constexpr int kHomeDrawerHeaderFont = MONTSERRAT_14_FONT_ID;
 constexpr int kHomeDrawerPageHeaderExtraH = 14;
 constexpr int kHomeDrawerPadX = 20;
 constexpr int kHomeDrawerMainBottomPad = 70;
@@ -224,8 +224,8 @@ class RecentActivity::HomeMenuDrawer {
 
     const int headerH = headerHeight();
     if (mode_ == HomeDrawerMode::Main) {
-      const int titleY = drawerY_ + (headerH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-      renderer_.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
+      const int titleY = drawerY_ + (headerH - renderer_.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+      renderer_.text.render(MONTSERRAT_12_FONT_ID, drawerX_ + kHomeDrawerPadX, titleY, title(), true,
                             EpdFontFamily::BOLD);
     } else {
       const int titleY = drawerY_ + (headerH - renderer_.text.getLineHeight(kHomeDrawerHeaderFont)) / 2 + 4;
@@ -420,7 +420,7 @@ class RecentActivity::HomeMenuDrawer {
                           : mode_ == HomeDrawerMode::Dictionary     ? "No saved words"
                                                                     : "";
       const int msgY = drawerY_ + headerHeight() + 42;
-      renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, msgY, empty, true);
+      renderer_.text.centered(MONTSERRAT_10_FONT_ID, msgY, empty, true);
       return;
     }
 
@@ -449,13 +449,13 @@ class RecentActivity::HomeMenuDrawer {
 
     const std::string label = mode_ == HomeDrawerMode::Main ? mainLabel(itemIndex) : rows_[itemIndex].label;
     const int textX = drawerX_ + kHomeDrawerPadX;
-    const int textY = itemY + (rowH - renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = itemY + (rowH - renderer_.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
     const int maxW = drawerW_ - kHomeDrawerPadX * 2 - 18;
-    const std::string clipped = renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, label.c_str(), maxW);
-    renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, clipped.c_str(), selected ? 0 : 1,
+    const std::string clipped = renderer_.text.truncate(MONTSERRAT_10_FONT_ID, label.c_str(), maxW);
+    renderer_.text.render(MONTSERRAT_10_FONT_ID, textX, textY, clipped.c_str(), selected ? 0 : 1,
                           EpdFontFamily::REGULAR);
 
-    renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX_ + drawerW_ - 30, textY, "›", selected ? 0 : 1);
+    renderer_.text.render(MONTSERRAT_10_FONT_ID, drawerX_ + drawerW_ - 30, textY, "›", selected ? 0 : 1);
     renderer_.line.render(drawerX_, itemY + rowH - 1, drawerX_ + drawerW_, itemY + rowH - 1, true,
                           LineRender::Style::Dotted);
   }
@@ -479,8 +479,8 @@ class RecentActivity::HomeMenuDrawer {
     renderer_.line.render(0, headerH, renderer_.getScreenWidth(), headerH, true);
 
     const int y = headerH + (renderer_.getScreenHeight() - headerH) / 2 -
-                  renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID) / 2;
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, y, message, true, EpdFontFamily::BOLD);
+                  renderer_.text.getLineHeight(MONTSERRAT_12_FONT_ID) / 2;
+    renderer_.text.centered(MONTSERRAT_12_FONT_ID, y, message, true, EpdFontFamily::BOLD);
     renderer_.displayBuffer(HalDisplay::FAST_REFRESH);
   }
 
@@ -494,11 +494,11 @@ class RecentActivity::HomeMenuDrawer {
     const int textX = drawerX_ + kHomeDrawerPadX;
     const int maxW = drawerW_ - kHomeDrawerPadX * 2;
     std::string remaining = detailText_;
-    const int lineH = renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 4;
+    const int lineH = renderer_.text.getLineHeight(MONTSERRAT_10_FONT_ID) + 4;
     while (!remaining.empty() && y + lineH < drawerY_ + drawerH_ - 50) {
       size_t take = remaining.size();
       while (take > 0 &&
-             renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, remaining.substr(0, take).c_str()) > maxW) {
+             renderer_.text.getWidth(MONTSERRAT_10_FONT_ID, remaining.substr(0, take).c_str()) > maxW) {
         const size_t space = remaining.rfind(' ', take - 1);
         take = (space == std::string::npos || space == 0) ? take - 1 : space;
       }
@@ -506,7 +506,7 @@ class RecentActivity::HomeMenuDrawer {
         break;
       }
       std::string line = trimDrawerText(remaining.substr(0, take));
-      renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, y, line.c_str(), true);
+      renderer_.text.render(MONTSERRAT_10_FONT_ID, textX, y, line.c_str(), true);
       remaining.erase(0, take);
       remaining = trimDrawerText(remaining);
       y += lineH;
@@ -535,14 +535,14 @@ class RecentActivity::HomeMenuDrawer {
     const int contentTop = drawerY_ + headerHeight();
     const int centerY = contentTop + (drawerH_ - headerHeight() - 46) / 2;
     const std::string title =
-        selectedBookRow_.label.empty() ? "Selected item" : renderer_.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+        selectedBookRow_.label.empty() ? "Selected item" : renderer_.text.truncate(MONTSERRAT_10_FONT_ID,
                                                                                     selectedBookRow_.label.c_str(),
                                                                                     drawerW_ - kHomeDrawerPadX * 2);
 
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, centerY - 34, heading, true, EpdFontFamily::BOLD);
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 4, title.c_str(), true,
+    renderer_.text.centered(MONTSERRAT_12_FONT_ID, centerY - 34, heading, true, EpdFontFamily::BOLD);
+    renderer_.text.centered(MONTSERRAT_10_FONT_ID, centerY - 4, title.c_str(), true,
                             EpdFontFamily::REGULAR);
-    renderer_.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 24, subtext, true, EpdFontFamily::REGULAR);
+    renderer_.text.centered(MONTSERRAT_8_FONT_ID, centerY + 24, subtext, true, EpdFontFamily::REGULAR);
   }
 
   void renderQuickDeleteConfirmOnly(const char* heading, const char* subtext) {
@@ -560,7 +560,7 @@ class RecentActivity::HomeMenuDrawer {
     }
 
     const DrawerRow& row = rows_[selected_];
-    int fontId = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
+    int fontId = MONTSERRAT_14_FONT_ID;
     Section previewSection(row.cachePath, row.spine, renderer_);
     if (!previewSection.loadSectionFileForPreview(&fontId)) {
       renderPreviewUnavailable();
@@ -620,28 +620,28 @@ class RecentActivity::HomeMenuDrawer {
     const char* line1 = "Page preview unavailable";
     const char* line2 = "Open the book once to rebuild cache.";
     const int msgY = drawerY_ + 44;
-    const int w1 = renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, line1);
-    const int w2 = renderer_.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, line2);
-    renderer_.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX_ + (drawerW_ - w1) / 2, msgY, line1, true);
-    renderer_.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX_ + (drawerW_ - w2) / 2,
-                          msgY + renderer_.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID) + 8, line2, true);
+    const int w1 = renderer_.text.getWidth(MONTSERRAT_10_FONT_ID, line1);
+    const int w2 = renderer_.text.getWidth(MONTSERRAT_8_FONT_ID, line2);
+    renderer_.text.render(MONTSERRAT_10_FONT_ID, drawerX_ + (drawerW_ - w1) / 2, msgY, line1, true);
+    renderer_.text.render(MONTSERRAT_8_FONT_ID, drawerX_ + (drawerW_ - w2) / 2,
+                          msgY + renderer_.text.getLineHeight(MONTSERRAT_10_FONT_ID) + 8, line2, true);
   }
 
   void drawHints() {
     const auto labels = owner_.mappedInput.mapLabels("Back", "Select", "Up", "");
     if (mode_ == HomeDrawerMode::Recents || mode_ == HomeDrawerMode::Dictionary) {
       const auto recentLabels = owner_.mappedInput.mapLabels("Back", "Select", "Remove", "");
-      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
+      renderer_.ui.buttonHints(MONTSERRAT_10_FONT_ID, recentLabels.btn1, recentLabels.btn2,
                                recentLabels.btn3, recentLabels.btn4);
       return;
     }
     if (mode_ == HomeDrawerMode::RecentsDeleteConfirm || mode_ == HomeDrawerMode::DictionaryDeleteConfirm) {
       const auto confirmLabels = owner_.mappedInput.mapLabels("Cancel", "Remove", "", "");
-      renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
+      renderer_.ui.buttonHints(MONTSERRAT_10_FONT_ID, confirmLabels.btn1, confirmLabels.btn2,
                                confirmLabels.btn3, confirmLabels.btn4);
       return;
     }
-    renderer_.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer_.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   void activateSelected() {

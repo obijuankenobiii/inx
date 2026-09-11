@@ -19,8 +19,11 @@
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockStylePickerActivity.h"
+#include "activity/page/components/global/PopUp.h"
+#include "activity/page/SubPage.h"
 #include "ReaderFontSettingsDraw.h"
 #include "SleepImagePickerActivity.h"
+#include "ThemePickerActivity.h"
 #include "ThumbnailGeneratorActivity.h"
 #include "TimeSyncActivity.h"
 #include "state/ReaderSetting.h"
@@ -64,7 +67,7 @@ void CategorySettingsActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   halfRefreshOnLoadApplied_ = false;
-  selectedIndex = 0;
+  selectedIndex = embedded ? -1 : 0;
   scrollOffset = 0;
   updateRequired = true;
 
@@ -74,6 +77,12 @@ void CategorySettingsActivity::onEnter() {
   }
 
   setupMenu();
+
+  if (embedded) {
+    render();
+    updateRequired = false;
+    return;
+  }
 
   xTaskCreate(&CategorySettingsActivity::taskTrampoline, "CategorySettingsActivityTask", 4096, this, 1,
               &displayTaskHandle);
@@ -128,6 +137,19 @@ void CategorySettingsActivity::navigateToSelectedMenu() {
  * @brief Toggles expansion state of a group
  */
 void CategorySettingsActivity::toggleGroup(GroupType group) {
+  if (group == GroupType::THEME) {
+    exitActivity();
+    enterNewActivity(new ThemePickerActivity(renderer, mappedInput, [this] {
+      exitActivity();
+      updateRequired = true;
+    }));
+    return;
+  }
+  if (embedded) {
+    openGroup(group);
+    return;
+  }
+
   groupExpanded_[groupIndex(group)] = !groupExpanded_[groupIndex(group)];
   setupMenu();
 
@@ -143,6 +165,133 @@ void CategorySettingsActivity::toggleGroup(GroupType group) {
     }
   }
   updateRequired = true;
+}
+
+void CategorySettingsActivity::openGroup(const GroupType group) {
+  detailGroup = group;
+  groupOpen = true;
+  detailScroll = 0;
+  groupExpanded_.fill(false);
+  groupExpanded_[groupIndex(group)] = true;
+  setupMenu();
+  selectedIndex = -1;
+  updateRequired = true;
+}
+
+void CategorySettingsActivity::closeGroup() {
+  groupOpen = false;
+  detailGroup = GroupType::NONE;
+  detailScroll = 0;
+  groupExpanded_.fill(false);
+  setupMenu();
+  selectedIndex = -1;
+  scrollOffset = 0;
+  updateRequired = true;
+}
+
+void CategorySettingsActivity::detailRows(std::vector<int>& rows) const {
+  rows.clear();
+  for (int i = 0; i < static_cast<int>(menuItems.size()); ++i) {
+    const MenuEntry& entry = menuItems[static_cast<size_t>(i)];
+    if (entry.group == detailGroup && entry.type != SettingType::SEPARATOR) {
+      rows.push_back(i);
+    }
+  }
+}
+
+bool CategorySettingsActivity::groupInput() {
+  if (!groupOpen || selectorOpen || subActivity) return false;
+
+  std::vector<int> rows;
+  detailRows(rows);
+  const int rowHeight = UiLayout::LIST_ITEM_HEIGHT;
+  const int listTop = navigation::Menu::height + 20;
+  const int visible = std::max(1, (renderer.getScreenHeight() - listTop - 10) / rowHeight);
+  const int maxScroll = std::max(0, static_cast<int>(rows.size()) - visible);
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    closeGroup();
+    return true;
+  }
+
+  const bool upPressed = mappedInput.wasPressed(itemPrevButton());
+  const bool downPressed = mappedInput.wasPressed(itemNextButton());
+  if (upPressed || downPressed) {
+    if (rows.empty()) return true;
+    int position = -1;
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
+      if (rows[static_cast<size_t>(i)] == selectedIndex) {
+        position = i;
+        break;
+      }
+    }
+    position = upPressed ? (position <= 0 ? static_cast<int>(rows.size()) - 1 : position - 1)
+                  : (position < 0 || position + 1 >= static_cast<int>(rows.size()) ? 0 : position + 1);
+    selectedIndex = rows[static_cast<size_t>(position)];
+    detailScroll = std::max(0, std::min(maxScroll, position - visible + 1));
+    updateRequired = true;
+    return true;
+  }
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && selectedIndex >= 0) {
+    const MenuEntry& selected = menuItems[static_cast<size_t>(selectedIndex)];
+    if (selected.type == SettingType::TOGGLE) {
+      selected.change(0);
+    } else if (selected.type == SettingType::ENUM || selected.type == SettingType::VALUE) {
+      openSelectorForSelected();
+    } else if (selected.type == SettingType::ACTION) {
+      selected.change(0);
+    }
+    selectedIndex = -1;
+    return true;
+  }
+  return false;
+}
+
+void CategorySettingsActivity::renderGroupPage() {
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  constexpr int rowHeight = UiLayout::LIST_ITEM_HEIGHT;
+  const int itemFont = systemFontId();
+
+  std::vector<int> rows;
+  detailRows(rows);
+
+  const char* title = "Settings";
+  for (const MenuEntry& entry : menuItems) {
+    if (entry.type == SettingType::SEPARATOR && entry.group == detailGroup && entry.name) {
+      title = entry.name;
+      break;
+    }
+  }
+  const int listTop = SubPage::header(renderer, title);
+  const int visible = std::max(1, (pageHeight - listTop - 10) / rowHeight);
+  const int maxScroll = std::max(0, static_cast<int>(rows.size()) - visible);
+  detailScroll = std::max(0, std::min(detailScroll, maxScroll));
+  for (int i = 0; i < visible && detailScroll + i < static_cast<int>(rows.size()); ++i) {
+    const int index = rows[static_cast<size_t>(detailScroll + i)];
+    const MenuEntry& entry = menuItems[static_cast<size_t>(index)];
+    const int itemY = listTop + i * rowHeight;
+    const bool selected = index == selectedIndex;
+    if (selected) renderer.rectangle.fill(0, itemY, pageWidth, rowHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+    const int textY = itemY + (rowHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    renderer.text.render(itemFont, 20, textY, entry.name ? entry.name : "", !selected, EpdFontFamily::REGULAR);
+    if (entry.type == SettingType::TOGGLE && entry.valuePtr) {
+      ReaderFontSettingsDraw::drawToggleCheckbox(renderer, pageWidth - 24, itemY, rowHeight, selected,
+                                                 SETTINGS.*(entry.valuePtr) != 0);
+    } else {
+      const char* value = entry.getValueText ? entry.getValueText() : "";
+      if (value && value[0] != '\0') {
+        const int valueWidth = renderer.text.getWidth(itemFont, value);
+        renderer.text.render(itemFont, pageWidth - valueWidth - 30, textY, value, !selected,
+                             EpdFontFamily::REGULAR);
+      }
+    }
+    if (i + 1 < visible && detailScroll + i + 1 < static_cast<int>(rows.size())) {
+      renderer.line.render(0, itemY + rowHeight - 1, pageWidth, itemY + rowHeight - 1, !selected,
+                           LineRender::Style::Dotted);
+    }
+  }
 }
 
 /**
@@ -164,11 +313,15 @@ void CategorySettingsActivity::setupMenu() {
       entry.valueRange = {0, 0, 0};
       entry.setting = settingPtr;
       const GroupType sepGroup = setting.group;
-      entry.getValueText = [this, sepGroup]() -> const char* {
-        static char indicator[4];
-        snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(sepGroup) ? "-" : "+");
-        return indicator;
-      };
+      if (embedded) {
+        entry.getValueText = []() -> const char* { return "›"; };
+      } else {
+        entry.getValueText = [this, sepGroup]() -> const char* {
+          static char indicator[4];
+          snprintf(indicator, sizeof(indicator), "%s", isGroupExpanded(sepGroup) ? "-" : "+");
+          return indicator;
+        };
+      }
       entry.change = [](int) {};
       menuItems.push_back(entry);
     } else {
@@ -342,6 +495,7 @@ void CategorySettingsActivity::setupMenu() {
                 exitActivity();
                 updateRequired = true;
               }));
+              return;
             }
             if (strcmp(settingPtr->name, "Sync time via WiFi") == 0 || strcmp(settingPtr->name, "Sync") == 0) {
               exitActivity();
@@ -588,7 +742,8 @@ void CategorySettingsActivity::moveSelector(const int delta) {
   if (selectorSelectedIndex >= static_cast<int>(selectorOptions.size())) {
     selectorSelectedIndex = 0;
   }
-  constexpr int visibleRows = 5;
+  const int contentTop = 0;
+  const int visibleRows = PopUp::bounds(renderer, static_cast<int>(selectorOptions.size()), contentTop).rows;
   if (selectorSelectedIndex < selectorScrollOffset) {
     selectorScrollOffset = selectorSelectedIndex;
   } else if (selectorSelectedIndex >= selectorScrollOffset + visibleRows) {
@@ -598,7 +753,8 @@ void CategorySettingsActivity::moveSelector(const int delta) {
 }
 
 void CategorySettingsActivity::selectorPage(const int delta) {
-  constexpr int pageRows = 5;
+  const int contentTop = 0;
+  const int pageRows = PopUp::bounds(renderer, static_cast<int>(selectorOptions.size()), contentTop).rows;
   moveSelector(delta * pageRows);
 }
 
@@ -664,6 +820,11 @@ void CategorySettingsActivity::loop() {
     return;
   }
 
+  if (embedded && groupOpen) {
+    groupInput();
+    return;
+  }
+
   // Tab vs item nav buttons depend on the main-menu nav setting (front: L/R tabs, U/D items; side: swapped).
   const bool upPressed = mappedInput.wasPressed(itemPrevButton());
   const bool downPressed = mappedInput.wasPressed(itemNextButton());
@@ -707,7 +868,7 @@ void CategorySettingsActivity::loop() {
   if (upPressed) {
     const int totalItems = static_cast<int>(menuItems.size());
     if (totalItems > 0) {
-      selectedIndex = (selectedIndex - 1 + totalItems) % totalItems;
+      selectedIndex = selectedIndex < 0 ? totalItems - 1 : (selectedIndex - 1 + totalItems) % totalItems;
       const int maxScroll = std::max(0, totalItems - itemsPerPage);
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
       if (selectedIndex >= scrollOffset + itemsPerPage) scrollOffset = std::min(selectedIndex - itemsPerPage + 1, maxScroll);
@@ -717,7 +878,7 @@ void CategorySettingsActivity::loop() {
   } else if (downPressed) {
     const int totalItems = static_cast<int>(menuItems.size());
     if (totalItems > 0) {
-      selectedIndex = (selectedIndex + 1) % totalItems;
+      selectedIndex = selectedIndex < 0 ? 0 : (selectedIndex + 1) % totalItems;
       int maxScroll = std::max(0, totalItems - itemsPerPage);
       if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
       if (selectedIndex > scrollOffset + itemsPerPage - 1) {
@@ -775,88 +936,52 @@ void CategorySettingsActivity::renderSelectorOverlay() {
   if (!selectorOpen || selectorOptions.empty()) {
     return;
   }
-
-  const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
-  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int itemFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int rowHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  const int headerHeight = INX_THEME.drawerHeaderHeight() - 4;
-  constexpr int visibleRows = 5;
-
-  const int rows = std::min(visibleRows, static_cast<int>(selectorOptions.size()));
-  const int panelW = std::min(pageWidth - 24, 360);
-  const int panelH = headerHeight + rows * rowHeight;
-  const int panelX = (pageWidth - panelW) / 2;
-  const int panelY = std::max(mainContentTop() + 8, (pageHeight - panelH) / 2);
-
-  renderer.rectangle.fill(panelX, panelY, panelW, panelH, false);
+  const int contentTop = 0;
+  const PopUpBounds box = PopUp::bounds(renderer, static_cast<int>(selectorOptions.size()), contentTop);
+  const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - box.rows);
+  selectorScrollOffset = std::max(0, std::min(selectorScrollOffset, maxScroll));
 
   const char* title = "Select";
   if (selectorSourceIndex >= 0 && selectorSourceIndex < static_cast<int>(menuItems.size()) &&
       menuItems[selectorSourceIndex].name) {
     title = menuItems[selectorSourceIndex].name;
   }
-  const std::string shownTitle = renderer.text.truncate(titleFont, title, panelW - 32, EpdFontFamily::BOLD);
-  const int titleY = panelY + (headerHeight - renderer.text.getLineHeight(titleFont)) / 2;
-  renderer.text.render(titleFont, panelX + 16, titleY, shownTitle.c_str(), true, EpdFontFamily::BOLD);
-  renderer.line.render(panelX, panelY + headerHeight, panelX + panelW, panelY + headerHeight, true);
-
-  const int maxScroll = std::max(0, static_cast<int>(selectorOptions.size()) - rows);
-  selectorScrollOffset = std::max(0, std::min(selectorScrollOffset, maxScroll));
-  for (int i = 0; i < rows; ++i) {
-    const int optionIndex = selectorScrollOffset + i;
-    if (optionIndex >= static_cast<int>(selectorOptions.size())) {
-      break;
-    }
-    const int rowY = panelY + headerHeight + i * rowHeight;
-    const bool selected = optionIndex == selectorSelectedIndex;
-    if (selected) {
-      renderer.rectangle.fill(panelX + 1, rowY, panelW - 2, rowHeight, true);
-    }
-
-    const std::string option = renderer.text.truncate(itemFont, selectorOptions[optionIndex].c_str(), panelW - 44);
-    const int textY = rowY + (rowHeight - renderer.text.getLineHeight(itemFont)) / 2;
-    renderer.text.render(itemFont, panelX + 18, textY, option.c_str(), !selected,
-                         selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
-    if (i + 1 < rows) {
-      renderer.line.render(panelX, rowY + rowHeight, panelX + panelW, rowY + rowHeight, !selected,
-                           LineRender::Style::Dotted);
-    }
-  }
-
-  if (static_cast<int>(selectorOptions.size()) > rows) {
-    const int trackX = panelX + panelW - 10;
-    const int trackY = panelY + headerHeight;
-    const int trackH = rows * rowHeight;
-    const int thumbH = std::max(8, trackH * rows / static_cast<int>(selectorOptions.size()));
-    const int thumbY = trackY + selectorScrollOffset * std::max(1, trackH - thumbH) / maxScroll;
-    renderer.rectangle.fill(trackX, trackY, 2, trackH, true);
-    renderer.rectangle.fill(trackX - 2, thumbY, 6, thumbH, true);
-  }
-
-  renderer.rectangle.render(panelX, panelY, panelW, panelH, true);
-  renderer.rectangle.render(panelX + 1, panelY + 1, panelW - 2, panelH - 2, true);
+  PopUp::background(renderer, box);
+  PopUp::title(renderer, box, title);
+  PopUp::list(renderer, box, selectorOptions, selectorSelectedIndex, selectorScrollOffset);
+  PopUp::border(renderer, box);
 }
 
 /**
  * @brief Render the category settings screen
  */
 void CategorySettingsActivity::render() {
-  renderer.clearScreen();
+  if (!embedded) {
+    renderer.clearScreen();
+  }
 
   const auto pageWidth = renderer.getScreenWidth();
+  const int itemFont = systemFontId();
 
-  renderTabBar(renderer);
+  if (embedded && groupOpen) {
+    renderer.clearScreen();
+    renderGroupPage();
+    if (selectorOpen) renderSelectorOverlay();
+    return;
+  }
 
-  const int headerY = mainContentTop();
-  const int headerHeight = mainHeaderHeight();
-  const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
+  int dividerY = navigation::Menu::height + 20 + UiLayout::LIST_ITEM_HEIGHT + 10 + 30;
+  if (!embedded) {
+    renderTabBar(renderer);
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
+    const int headerY = mainContentTop();
+    const int headerHeight = mainHeaderHeight();
+    const int headerTextY = headerY + (headerHeight - renderer.text.getLineHeight(MONTSERRAT_12_FONT_ID)) / 2;
+
+    renderer.text.render(MONTSERRAT_12_FONT_ID, 20, headerTextY, categoryName, true, EpdFontFamily::BOLD);
 
   // Version shown as a small rounded tag: black rounded background with white text.
-  const int verFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int verFont = MONTSERRAT_8_FONT_ID;
   const int verPadX = 8;
   const int versionW = renderer.text.getWidth(verFont, INX_VERSION);
   const int verLineH = renderer.text.getLineHeight(verFont);
@@ -868,8 +993,9 @@ void CategorySettingsActivity::render() {
   const int versionY = verTagY + (verTagH - verLineH) / 2;
   renderer.text.render(verFont, verTagX + verPadX, versionY, INX_VERSION, false, EpdFontFamily::REGULAR);  // white text
 
-  const int dividerY = headerY + headerHeight;
-  renderer.line.render(0, dividerY, pageWidth, dividerY, true);
+    dividerY = headerY + headerHeight;
+    renderer.line.render(0, dividerY, pageWidth, dividerY, true);
+  }
 
   const char* backLbl = selectorOpen ? "Cancel" : (backButtonLabel ? backButtonLabel : "\xC2\xAB Back");
   const char* confirmLbl = selectorOpen ? "Select" : "Open";
@@ -881,6 +1007,16 @@ void CategorySettingsActivity::render() {
   constexpr int itemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
 
   int visibleCount = 0;
+  const auto hasNextRenderedRow = [&](const int currentOffset) {
+    for (int nextOffset = currentOffset + 1;
+         nextOffset < itemsPerPage && nextOffset + scrollOffset < static_cast<int>(menuItems.size()); ++nextOffset) {
+      const auto& nextEntry = menuItems[static_cast<size_t>(nextOffset + scrollOffset)];
+      if (nextEntry.type != SettingType::SEPARATOR || (nextEntry.name != nullptr && nextEntry.name[0] != '\0')) {
+        return true;
+      }
+    }
+    return false;
+  };
   for (int i = 0; i < itemsPerPage && (i + scrollOffset) < (int)menuItems.size(); i++) {
     int index = i + scrollOffset;
     const auto& entry = menuItems[index];
@@ -891,6 +1027,7 @@ void CategorySettingsActivity::render() {
 
     int itemY = startY + (visibleCount * itemHeight);
     bool isSelected = (index == selectedIndex);
+    const bool hasNextRow = hasNextRenderedRow(i);
 
     if (entry.type == SettingType::SEPARATOR) {
       if (isSelected) {
@@ -898,19 +1035,21 @@ void CategorySettingsActivity::render() {
       }
 
       int textX = 20;
-      int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+      int textY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+      renderer.text.render(itemFont, textX, textY, entry.name, !isSelected);
 
       const char* indicator = entry.getValueText();
       if (indicator && indicator[0] != '\0') {
-        int indicatorW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, indicator);
-        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - indicatorW - 30, indicatorY, indicator,
+        int indicatorW = renderer.text.getWidth(itemFont, indicator);
+        const int indicatorY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+        renderer.text.render(itemFont, pageWidth - indicatorW - 30, indicatorY, indicator,
                              !isSelected);
       }
 
-      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       visibleCount++;
       continue;
     }
@@ -920,9 +1059,9 @@ void CategorySettingsActivity::render() {
     }
 
     int textX = entry.group == GroupType::NONE ? 20 : 28;
-    int textY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    int textY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, textX, textY, entry.name, !isSelected);
+    renderer.text.render(itemFont, textX, textY, entry.name, !isSelected);
 
     const bool useCheckbox = (entry.type == SettingType::TOGGLE && entry.valuePtr);
     if (useCheckbox) {
@@ -941,13 +1080,16 @@ void CategorySettingsActivity::render() {
     } else {
       const char* val = entry.getValueText();
       if (val && val[0] != '\0') {
-        int valW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, val);
-        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, pageWidth - valW - 30, valY, val, !isSelected);
+        int valW = renderer.text.getWidth(itemFont, val);
+        const int valY = itemY + (itemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+        renderer.text.render(itemFont, pageWidth - valW - 30, valY, val, !isSelected);
       }
     }
 
-    renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true, LineRender::Style::Dotted);
+    if (hasNextRow) {
+      renderer.line.render(0, itemY + itemHeight - 1, pageWidth, itemY + itemHeight - 1, true,
+                           LineRender::Style::Dotted);
+    }
     visibleCount++;
   }
 
@@ -958,13 +1100,13 @@ void CategorySettingsActivity::render() {
     renderer.rectangle.fill(pageWidth - 4, thumbY, 2, thumbH, true);
   }
 
-  if (INX_THEME.mainTabsAtBottom()) {
+  if (!embedded && INX_THEME.mainTabsAtBottom()) {
     // Bottom-tabs mode moves the tab bar to the screen bottom, where the classic button-hints row normally
     // goes, so redraw that same row just above the tab bar instead — only for this settings screen, since
     // other bottom-tabs screens rely on the tab bar alone.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
+    renderer.ui.buttonHints(itemFont, labels.btn1, labels.btn2, labels.btn3, labels.btn4,
                            hintsY);
   }
 
@@ -972,7 +1114,23 @@ void CategorySettingsActivity::render() {
     renderSelectorOverlay();
   }
 
-  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (!embedded) {
+    renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
 
-  renderer.displayBuffer();
+  if (!embedded) {
+    renderer.displayBuffer();
+  }
+}
+
+void CategorySettingsActivity::renderEmbedded() {
+  if (!embedded || subActivity) return;
+  render();
+  updateRequired = false;
+}
+
+bool CategorySettingsActivity::takeRenderRequest() {
+  if (!embedded || subActivity || !updateRequired) return false;
+  updateRequired = false;
+  return true;
 }

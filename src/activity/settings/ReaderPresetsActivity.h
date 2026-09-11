@@ -2,11 +2,9 @@
 
 /**
  * @file ReaderPresetsActivity.h
- * @brief Reader-settings panel: a collapsible "System" section (Text Anti-Aliasing, Refresh
- *        Frequency, Page Auto Turn - pulled out of the per-preset "═══ System ═══" group that used
- *        to live nested inside the preset editor's embedded SettingsDrawer, and made a single global
- *        SystemSetting instead of a per-book override), a collapsible "XTC" section, then a list of
- *        named presets plus an "Add new preset" action.
+ * @brief Reader-settings panel with Pro-style top-level sections. System and Buttons are
+ *        flattened into a short root list and open as dedicated detail pages; the Presets tab owns
+ *        the named presets and "Add new preset" action.
  *
  * Selecting "Add new" or a preset opens the ReaderPresetEditorActivity (live preview + categorized
  * settings). Confirm on an existing preset opens a small action overlay (Edit / Rename / Delete;
@@ -19,6 +17,8 @@
 
 #include "../Menu.h"
 #include "activity/ActivityWithSubactivity.h"
+#include "activity/page/navigation/Menu.h"
+#include "system/UiLayout.h"
 #include "system/UiTheme.h"
 
 class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu {
@@ -27,40 +27,65 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
                         std::function<void()> tabNavigateRecent = nullptr,
                         std::function<void()> tabNavigateLibrary = nullptr,
                         std::function<void()> tabNavigateSync = nullptr,
-                        std::function<void()> tabNavigateStatistics = nullptr);
+                        std::function<void()> tabNavigateStatistics = nullptr,
+                        bool embeddedMode = false,
+                        bool presetsOnlyMode = false);
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  void renderEmbedded();
+  bool takeRenderRequest();
+  bool isDetailOpen() const { return isSubPageOpen() || isOverlayOpen(); }
+  bool isSubPageOpen() const {
+    return embedded_ && (detailSection_ != DetailSection::None || subActivity != nullptr);
+  }
+  bool isOverlayOpen() const { return embedded_ && (overlayOpen_ || actionSelectorOpen_); }
+  bool isFirstItemSelected() const {
+    return embedded_ && detailSection_ == DetailSection::None && !overlayOpen_ && !actionSelectorOpen_ &&
+           !subActivity && selectedRow_ == 0;
+  }
+  void clearItemSelection() {
+    if (embedded_ && detailSection_ == DetailSection::None && !overlayOpen_ && !actionSelectorOpen_ && !subActivity) {
+      selectedRow_ = -1;
+    }
+  }
 
  private:
+  enum class DetailSection { None, System, Buttons };
+
   void navigateToSelectedMenu() override;
 
   void render();
   void renderOverlay();
-  int rowCount() const;  ///< System section + XTC section + Add-new + preset count
-  int systemHeaderRow() const { return 0; }  ///< System is the very first row - order is System, XTC, then presets
-  bool isSystemSettingRow(int row) const;  ///< True for the 3 fixed rows only (not the nested Buttons group)
-  int buttonsHeaderRow() const;  ///< "Buttons" top-level header, a sibling of System/XTC, between them
+  int rowCount() const;  ///< System section + Buttons section + Add-new + preset count
+  int systemHeaderRow() const { return 0; }  ///< System is the very first row.
+  bool isSystemSettingRow(int row) const;  ///< Flat system rows in embedded mode; legacy rows when expanded.
+  bool isFontManagerRow(int row) const;    ///< Native Pro-style font download manager entry.
+  int buttonsHeaderRow() const;  ///< "Buttons" top-level header, alongside System
   bool isButtonsHeaderRow(int row) const;
   bool isButtonActionRow(int row) const;  ///< True for the 8 many-option rows that open the action selector
   bool isPowerButtonRow(int row) const;  ///< True for the Power Button row - short-press only, no long-press pair
   void changeSystemSetting(int row, int delta);
-  int xtcHeaderRow() const;
   int addPresetRow() const;  ///< "+ Add new preset" row, immediately before the preset list
   int presetRowsStart() const;
   int presetIndexForRow(int row) const;  ///< store index for a preset row, or -1 for the Add-new row
-  bool isXtcSettingRow(int row) const;
   void activateSelectedRow();
   void openEditor(int presetIndex);
   void openRenameKeyboard(int presetIndex);
-  void openQuickActionsScreen();  ///< "Quick Actions" row - checklist of actions for the in-reader popup
+  void openQuickActionsScreen();  ///< Buttons > Quick Actions - checklist used by the in-reader popup
   void handleOverlayInput();
   void handleListInput();
+  void handleDetailInput();
   void finishSubActivity();
   void clampSelectionToRowCount();
+  void openDetail(DetailSection section);
+  void closeDetail();
+  void renderDetail();
+  int detailRowCount() const;
+  int detailGlobalRow(int row) const;
 
-  // Generic popup selector - every multi-option System/XTC row (everything except the plain
+  // Generic popup selector - every multi-option System row (everything except the plain
   // Text-Anti-Aliasing toggle) opens this via Confirm instead of cycling with Left/Right, same shape
   // as the preset Edit/Rename/Delete overlay. onCommit is called with the chosen option index.
   void openGenericSelector(std::string title, std::vector<std::string> options, int currentIndex,
@@ -74,18 +99,23 @@ class ReaderPresetsActivity final : public ActivityWithSubactivity, public Menu 
   const std::function<void()> onTabLibrary_;
   const std::function<void()> onTabSync_;
   const std::function<void()> onTabStatistics_;
+  bool embedded_ = false;
+  bool presetsOnly_ = false;
+  bool updateRequired_ = false;
 
   static constexpr int kListItemHeight = UiTheme::DRAWER_LIST_ITEM_HEIGHT;
   // In bottom-tabs mode, the tab bar sits at the screen bottom where the classic button-hints row normally
   // goes, so that row is redrawn just above the tab bar instead (see render()). This reserves that space.
   static constexpr int kBottomButtonHintsHeight = 50;
 
-  int selectedRow_ = 0;
+  int selectedRow_ = -1;
   int scrollOffset_ = 0;
   int itemsPerPage_ = 1;
   bool systemExpanded_ = false;
-  bool buttonsExpanded_ = false;  ///< "Buttons" sub-group, nested inside System
-  bool xtcExpanded_ = false;
+  bool buttonsExpanded_ = false;  ///< Legacy expandable state; embedded mode opens a Buttons detail page.
+  int detailSelectedRow_ = -1;
+  int detailScrollOffset_ = 0;
+  DetailSection detailSection_ = DetailSection::None;
 
   bool overlayOpen_ = false;
   int overlayPresetIndex_ = -1;

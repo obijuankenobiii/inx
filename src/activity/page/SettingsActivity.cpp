@@ -37,21 +37,6 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Action("Choose sleep image", GroupType::DEVICE_DISPLAY));
   settings.push_back(SettingInfo::Enum("Hide Battery %", &SystemSetting::hideBatteryPercentage,
                                        {"Never", "In Reader", "Always"}, GroupType::DEVICE_DISPLAY));
-  settings.push_back(
-      SettingInfo::Enum("Theme", &SystemSetting::uiTheme, {"Classic", "Bottom Tabs"}, GroupType::DEVICE_DISPLAY));
-  settings.push_back(SettingInfo::Enum(
-      "Recent Library Mode", &SystemSetting::recentLibraryMode, {"Grid", "Flow", "List", "Icons", "Cover"},
-      {SystemSetting::RECENT_GRID, SystemSetting::RECENT_FLOW, SystemSetting::RECENT_BOOK_LIST,
-       SystemSetting::RECENT_ICONS, SystemSetting::RECENT_COVER},
-      GroupType::DEVICE_DISPLAY));
-  settings.push_back(
-      SettingInfo::Enum("Library Mode", &SystemSetting::libraryMode, {"List", "Grid"}, GroupType::DEVICE_DISPLAY));
-  settings.push_back(SettingInfo::Toggle("Shelf mode", &SystemSetting::libraryShelfEnabled, GroupType::DEVICE_DISPLAY));
-  settings.push_back(
-      SettingInfo::Toggle("Hide button hints", &SystemSetting::hideButtonHints, GroupType::DEVICE_DISPLAY));
-  settings.push_back(SettingInfo::Value("Recent books shown", &SystemSetting::recentVisibleCount, {1, 9, 1},
-                                        GroupType::DEVICE_DISPLAY));
-
   if (x3) {
     settings.push_back(SettingInfo::Separator("Clock", GroupType::CLOCK));
     settings.push_back(SettingInfo::Toggle("Show Clock", &SystemSetting::showMenuClock, GroupType::CLOCK));
@@ -73,7 +58,7 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
 
   settings.push_back(SettingInfo::Separator("Buttons", GroupType::DEVICE_BUTTONS));
   settings.push_back(SettingInfo::Enum("Front Button", &SystemSetting::frontButtonLayout,
-                                       {"Back, Ccnfirm, Left, Right", "Left, Right, Back, Confirm",
+                                       {"Back, Confirm, Left, Right", "Left, Right, Back, Confirm",
                                         "Left, Back, Confirm, Right", "Back, Confirm, Right, Left",
                                         "Left, Right, Confirm, Back"},
                                        GroupType::DEVICE_BUTTONS));
@@ -91,29 +76,13 @@ std::vector<SettingInfo> buildSystemPageSettings(const bool x3) {
   settings.push_back(SettingInfo::Separator("Device ", GroupType::DEVICE_ADVANCED));
   settings.push_back(SettingInfo::Enum("Time to Sleep", &SystemSetting::sleepTimeout,
                                        {"1 min", "5 min", "10 min", "15 min", "30 min"}, GroupType::DEVICE_ADVANCED));
-  settings.push_back(
-      SettingInfo::Toggle("Use Index for Library", &SystemSetting::useLibraryIndex, GroupType::DEVICE_ADVANCED));
-  settings.push_back(
-      SettingInfo::Toggle("Library custom sort", &SystemSetting::librarySortEnabled, GroupType::DEVICE_ADVANCED));
   settings.push_back(SettingInfo::Enum("Boot Mode", &SystemSetting::bootSetting, {"Recent Books", "Home Page"},
                                        GroupType::DEVICE_ADVANCED));
-  settings.push_back(
-      SettingInfo::Toggle("Refresh on load (Recent)", &SystemSetting::refreshOnLoadRecent, GroupType::DEVICE_ADVANCED));
-  settings.push_back(SettingInfo::Toggle("Refresh on load (Library)", &SystemSetting::refreshOnLoadLibrary,
-                                         GroupType::DEVICE_ADVANCED));
-  settings.push_back(SettingInfo::Toggle("Refresh on load (Settings)", &SystemSetting::refreshOnLoadSettings,
-                                         GroupType::DEVICE_ADVANCED));
-  settings.push_back(
-      SettingInfo::Toggle("Refresh on load (Sync)", &SystemSetting::refreshOnLoadSync, GroupType::DEVICE_ADVANCED));
-  settings.push_back(SettingInfo::Toggle("Refresh on load (Stats)", &SystemSetting::refreshOnLoadStatistics,
-                                         GroupType::DEVICE_ADVANCED));
 
   settings.push_back(SettingInfo::Separator("Actions", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Delete Cache", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Index your library", GroupType::DEVICE_ACTIONS));
   settings.push_back(SettingInfo::Action("Generate thumbnails", GroupType::DEVICE_ACTIONS));
-  settings.push_back(SettingInfo::Action("About", GroupType::NONE));
-
   return settings;
 }
 
@@ -377,7 +346,7 @@ void SettingsActivity::showIndexingProgress() {
   } else {
     snprintf(countMsg, sizeof(countMsg), "Found %d files...", indexingProgress);
   }
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
+  renderer.text.render(MONTSERRAT_10_FONT_ID, popupX + 20, progressBarY + 50, countMsg);
 
   renderer.displayBuffer();
 }

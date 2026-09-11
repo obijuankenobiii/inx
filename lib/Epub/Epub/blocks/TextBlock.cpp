@@ -148,7 +148,7 @@ std::vector<TextBlock::WordSlot> TextBlock::makeWordSlots(std::vector<std::strin
 void TextBlock::initExtra(std::list<uint8_t> bionic_prefix_bytes, std::list<uint8_t> word_small_caps,
                           std::list<uint8_t> word_underline, std::list<uint8_t> word_vertical_align,
                           std::list<std::string> word_image_paths, std::list<uint16_t> word_image_w,
-                          std::list<uint16_t> word_image_h) {
+                          std::list<uint16_t> word_image_h, std::list<std::string> word_footnote_targets) {
   bionicPrefixDefault = compactByteList(bionic_prefix_bytes, 0);
   smallCapsDefault = compactByteList(word_small_caps, 0);
   underlineDefault = compactByteList(word_underline, 0);
@@ -159,7 +159,7 @@ void TextBlock::initExtra(std::list<uint8_t> bionic_prefix_bytes, std::list<uint
   }
 
   if (bionic_prefix_bytes.empty() && word_small_caps.empty() && word_underline.empty() &&
-      word_vertical_align.empty() && word_image_paths.empty()) {
+      word_vertical_align.empty() && word_image_paths.empty() && word_footnote_targets.empty()) {
     return;
   }
 
@@ -171,12 +171,13 @@ void TextBlock::initExtra(std::list<uint8_t> bionic_prefix_bytes, std::list<uint
   extraRef.wordImagePaths = moveListToVector(word_image_paths);
   extraRef.wordImageW = moveListToVector(word_image_w);
   extraRef.wordImageH = moveListToVector(word_image_h);
+  extraRef.wordFootnoteTargets = moveListToVector(word_footnote_targets);
 }
 
 void TextBlock::initExtra(std::vector<uint8_t> bionic_prefix_bytes, std::vector<uint8_t> word_small_caps,
                           std::vector<uint8_t> word_underline, std::vector<uint8_t> word_vertical_align,
                           std::vector<std::string> word_image_paths, std::vector<uint16_t> word_image_w,
-                          std::vector<uint16_t> word_image_h) {
+                          std::vector<uint16_t> word_image_h, std::vector<std::string> word_footnote_targets) {
   bionicPrefixDefault = compactByteVector(bionic_prefix_bytes, 0);
   smallCapsDefault = compactByteVector(word_small_caps, 0);
   underlineDefault = compactByteVector(word_underline, 0);
@@ -187,7 +188,7 @@ void TextBlock::initExtra(std::vector<uint8_t> bionic_prefix_bytes, std::vector<
   }
 
   if (bionic_prefix_bytes.empty() && word_small_caps.empty() && word_underline.empty() &&
-      word_vertical_align.empty() && word_image_paths.empty()) {
+      word_vertical_align.empty() && word_image_paths.empty() && word_footnote_targets.empty()) {
     return;
   }
 
@@ -199,18 +200,20 @@ void TextBlock::initExtra(std::vector<uint8_t> bionic_prefix_bytes, std::vector<
   extraRef.wordImagePaths = std::move(word_image_paths);
   extraRef.wordImageW = std::move(word_image_w);
   extraRef.wordImageH = std::move(word_image_h);
+  extraRef.wordFootnoteTargets = std::move(word_footnote_targets);
 }
 
 TextBlock::TextBlock(std::vector<std::string> words, std::vector<int16_t> word_xpos,
                      std::vector<EpdFontFamily::Style> word_styles, std::vector<uint8_t> bionic_prefix_bytes,
                      std::vector<uint8_t> word_small_caps, const Style style, std::vector<uint8_t> word_underline,
                      std::vector<uint8_t> word_vertical_align, std::vector<std::string> word_image_paths,
-                     std::vector<uint16_t> word_image_w, std::vector<uint16_t> word_image_h)
+                     std::vector<uint16_t> word_image_w, std::vector<uint16_t> word_image_h,
+                     std::vector<std::string> word_footnote_targets)
     : wordSlots(makeWordSlots(std::move(words), std::move(word_xpos))),
       style(style) {
   initExtra(std::move(bionic_prefix_bytes), std::move(word_small_caps), std::move(word_underline),
             std::move(word_vertical_align), std::move(word_image_paths), std::move(word_image_w),
-            std::move(word_image_h));
+            std::move(word_image_h), std::move(word_footnote_targets));
   initWordStyles(std::move(word_styles));
 }
 
@@ -220,7 +223,8 @@ TextBlock::TextBlock(std::vector<std::string> words, std::vector<int16_t> word_x
                      std::vector<uint8_t> word_small_caps, const Style style, const uint8_t underline_default,
                      std::vector<uint8_t> word_underline, const uint8_t vertical_align_default,
                      std::vector<uint8_t> word_vertical_align, std::vector<std::string> word_image_paths,
-                     std::vector<uint16_t> word_image_w, std::vector<uint16_t> word_image_h)
+                     std::vector<uint16_t> word_image_w, std::vector<uint16_t> word_image_h,
+                     std::vector<std::string> word_footnote_targets)
     : wordSlots(makeWordSlots(std::move(words), std::move(word_xpos))),
       bionicPrefixDefault(bionic_prefix_default),
       smallCapsDefault(small_caps_default),
@@ -232,7 +236,7 @@ TextBlock::TextBlock(std::vector<std::string> words, std::vector<int16_t> word_x
     word_image_h.clear();
   }
   if (bionic_prefix_bytes.empty() && word_small_caps.empty() && word_underline.empty() &&
-      word_vertical_align.empty() && word_image_paths.empty()) {
+      word_vertical_align.empty() && word_image_paths.empty() && word_footnote_targets.empty()) {
     initWordStyles(std::move(word_styles));
     return;
   }
@@ -244,6 +248,7 @@ TextBlock::TextBlock(std::vector<std::string> words, std::vector<int16_t> word_x
   extraRef.wordImagePaths = std::move(word_image_paths);
   extraRef.wordImageW = std::move(word_image_w);
   extraRef.wordImageH = std::move(word_image_h);
+  extraRef.wordFootnoteTargets = std::move(word_footnote_targets);
   initWordStyles(std::move(word_styles));
 }
 
@@ -383,6 +388,7 @@ bool TextBlock::serialize(FsFile& file) const {
   const auto* wordImagePaths = extra ? &extra->wordImagePaths : nullptr;
   const auto* wordImageW = extra ? &extra->wordImageW : nullptr;
   const auto* wordImageH = extra ? &extra->wordImageH : nullptr;
+  const auto* wordFootnoteTargets = extra ? &extra->wordFootnoteTargets : nullptr;
 
   const size_t wordCount = wordSlots.size();
   if ((wordStyles && wordCount != wordStyles->size()) ||
@@ -444,6 +450,13 @@ bool TextBlock::serialize(FsFile& file) const {
       for (size_t i = 0; i < wordCount; ++i) serialization::writePod(file, static_cast<uint16_t>(0));
     }
   }
+  // Footnote/endnote link targets, parallel to words - same "one flag, skip entirely when absent" shape as
+  // the image fields above, so plain text (the overwhelming majority of lines) pays nothing extra on disk.
+  const uint8_t hasFootnoteLinks = (wordFootnoteTargets && !wordFootnoteTargets->empty()) ? 1 : 0;
+  serialization::writePod(file, hasFootnoteLinks);
+  if (hasFootnoteLinks) {
+    for (const auto& t : *wordFootnoteTargets) serialization::writeString(file, t);
+  }
   serialization::writePod(file, style);
 
   return true;
@@ -461,6 +474,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   std::list<std::string> wordImagePaths;
   std::list<uint16_t> wordImageW;
   std::list<uint16_t> wordImageH;
+  std::list<std::string> wordFootnoteTargets;
   Style style;
 
   serialization::readPod(file, wc);
@@ -498,10 +512,17 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
     for (auto& v : wordImageW) serialization::readPod(file, v);
     for (auto& v : wordImageH) serialization::readPod(file, v);
   }
+  uint8_t hasFootnoteLinks = 0;
+  serialization::readPod(file, hasFootnoteLinks);
+  if (hasFootnoteLinks) {
+    wordFootnoteTargets.resize(wc);
+    for (auto& t : wordFootnoteTargets) serialization::readString(file, t);
+  }
   serialization::readPod(file, style);
 
   return std::unique_ptr<TextBlock>(
       new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), std::move(bionicPrefixBytes),
                     std::move(wordSmallCaps), style, std::move(wordUnderline), std::move(wordVerticalAlign),
-                    std::move(wordImagePaths), std::move(wordImageW), std::move(wordImageH)));
+                    std::move(wordImagePaths), std::move(wordImageW), std::move(wordImageH),
+                    std::move(wordFootnoteTargets)));
 }

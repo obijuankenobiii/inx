@@ -556,12 +556,12 @@ void BitmapRender::iconScaled(const uint8_t bitmap[], const int x, const int y, 
           sy = sourceHeight - 1 - oy;
           break;
         case BitmapRender::Orientation::Rotate90CW:
-          sx = sourceHeight - 1 - ox;
-          sy = oy;
+          sx = oy;
+          sy = sourceHeight - 1 - ox;
           break;
         case BitmapRender::Orientation::Rotate270CW:
-          sx = ox;
-          sy = sourceWidth - 1 - oy;
+          sx = sourceWidth - 1 - oy;
+          sy = ox;
           break;
       }
 

@@ -28,6 +28,8 @@ struct EpubAnnotationRecord {
 class EpubAnnotations {
  public:
   static constexpr uint16_t kWildcard = 0xFFFF;
+  /** First page of a multi-page span: highlight from startPageWordLo through the last word. */
+  static constexpr uint16_t kThroughEndOfPage = 0xFFFE;
   static constexpr int kMaxPerPage = 100;
   static constexpr const char* kSubdir = "ann";
 

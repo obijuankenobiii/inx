@@ -85,13 +85,13 @@ void AboutPage::renderWithRefresh() {
   renderer.rectangle.render(popupX, popupY, popupWidth, popupHeight, true);
 
   int yPos = popupY + 28;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, popupX + 24, yPos, "Inx", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, popupX + 24, yPos, "Inx", true, EpdFontFamily::BOLD);
   yPos += 36;
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "Current version", true,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, popupX + 24, yPos, "Current version", true,
                        EpdFontFamily::BOLD);
   yPos += 22;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, INX_VERSION, true, EpdFontFamily::REGULAR);
+  renderer.text.render(MONTSERRAT_12_FONT_ID, popupX + 24, yPos, INX_VERSION, true, EpdFontFamily::REGULAR);
   yPos += 36;
 
   const size_t totalHeap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
@@ -106,13 +106,13 @@ void AboutPage::renderWithRefresh() {
   const unsigned heapPercent = totalHeap > 0 ? static_cast<unsigned>((usedHeap * 100) / totalHeap) : 0;
   std::snprintf(heapLine, sizeof(heapLine), "%s / %s (%u%%)", usedBuffer, totalBuffer, heapPercent);
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, popupX + 24, yPos, "RAM used / total", true,
+  renderer.text.render(MONTSERRAT_10_FONT_ID, popupX + 24, yPos, "RAM used / total", true,
                        EpdFontFamily::BOLD);
   yPos += 22;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, popupX + 24, yPos, heapLine, true, EpdFontFamily::REGULAR);
+  renderer.text.render(MONTSERRAT_12_FONT_ID, popupX + 24, yPos, heapLine, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Close", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

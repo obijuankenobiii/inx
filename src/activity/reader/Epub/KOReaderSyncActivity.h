@@ -57,6 +57,7 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
 
  private:
   enum State {
+    IDLE,
     WIFI_SELECTION,
     CONNECTING,
     SYNCING,
@@ -95,6 +96,7 @@ class KOReaderSyncActivity final : public ActivityWithSubactivity {
   OnSyncCompleteCallback onSyncComplete;
 
   void onWifiSelectionComplete(bool success);
+  void startSync();
   void performSync();
   void performUpload();
 

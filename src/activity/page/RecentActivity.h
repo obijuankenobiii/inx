@@ -33,7 +33,7 @@ class List;
  * Shows book covers, titles, authors, and reading progress.
  *
  * Complexity contract:
- * - Loops over `recentBooks` are O(1) in total library size: at most min(MAX_RECENT_BOOKS, recentVisibleCount).
+ * - Loops over `recentBooks` are O(1) in total library size: at most MAX_RECENT_BOOKS.
  * - Per-call work that touches favorites scales with the global favorite list (SD exists checks), not with
  *   recent count; “is this path in recents?” is O(8) string compares (constant bound, no heap).
  * - Mapping settings → ViewMode and layout engine sync are O(1) (bounded enum / switch).
@@ -166,6 +166,8 @@ class RecentActivity final : public Activity, public Menu {
   void drawRecentThumbnailAt(int x, int y, int w, int h, const std::string& cacheDir,
                              const std::string& placeholderTitle, int placeholderFontId,
                              bool roundedCornerBackdropIsDither = false);
+  static void renderFlowThumbnail(void* context, const RecentBook& book, int x, int y, int w, int h,
+                                  int placeholderFontId, bool roundedCornerBackdropIsDither);
   void drawRecentCoverFitAt(int x, int y, int w, int h, const std::string& cacheDir,
                             const std::string& placeholderTitle, int placeholderFontId);
 

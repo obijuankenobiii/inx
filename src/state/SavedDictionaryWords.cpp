@@ -125,6 +125,45 @@ std::string SavedDictionaryWordStore::definitionAt(int index) {
   return definition;
 }
 
+std::string SavedDictionaryWordStore::languageAt(int index) {
+  load();
+  if (index < 0 || index >= static_cast<int>(entries_.size())) {
+    return "";
+  }
+  const std::string path = std::string(kDir) + "/" + entries_[index].filename;
+  FsFile f;
+  if (!SdMan.openFileForRead("SDW", path, f)) {
+    return "";
+  }
+  uint8_t wordLen = 0;
+  if (f.read(&wordLen, sizeof(wordLen)) != sizeof(wordLen) || f.seekCur(wordLen) == false) {
+    f.close();
+    return "";
+  }
+  uint16_t defLen = 0;
+  if (f.read(&defLen, sizeof(defLen)) != sizeof(defLen) || f.seekCur(defLen) == false) {
+    f.close();
+    return "";
+  }
+  uint8_t langLen = 0;
+  if (f.read(&langLen, sizeof(langLen)) != sizeof(langLen)) {
+    f.close();
+    return "";
+  }
+  char buf[16] = {0};
+  const uint8_t readLen = std::min<uint8_t>(langLen, 15);
+  if (readLen > 0 && f.read(buf, readLen) != readLen) {
+    f.close();
+    return "";
+  }
+  if (langLen > readLen) {
+    f.seekCur(langLen - readLen);
+  }
+  f.close();
+  buf[readLen] = '\0';
+  return buf;
+}
+
 bool SavedDictionaryWordStore::contains(const std::string& word) {
   load();
   const std::string lower = toLowerCopy(word);
@@ -132,7 +171,7 @@ bool SavedDictionaryWordStore::contains(const std::string& word) {
                      [&lower](const SavedWordEntry& e) { return toLowerCopy(e.word) == lower; });
 }
 
-bool SavedDictionaryWordStore::add(const std::string& word, const std::string& definition) {
+bool SavedDictionaryWordStore::add(const std::string& word, const std::string& definition, const std::string& language) {
   load();
   if (word.empty() || word.size() > kMaxWordLen) {
     return false;
@@ -154,11 +193,16 @@ bool SavedDictionaryWordStore::add(const std::string& word, const std::string& d
   }
   const uint8_t wordLen = static_cast<uint8_t>(std::min(word.size(), kMaxWordLen));
   const uint16_t defLen = static_cast<uint16_t>(std::min(definition.size(), kMaxDefinitionLen));
+  const uint8_t langLen = static_cast<uint8_t>(std::min(language.size(), static_cast<size_t>(15)));
   f.write(&wordLen, sizeof(wordLen));
   f.write(reinterpret_cast<const uint8_t*>(word.data()), wordLen);
   f.write(&defLen, sizeof(defLen));
   if (defLen > 0) {
     f.write(reinterpret_cast<const uint8_t*>(definition.data()), defLen);
+  }
+  f.write(&langLen, sizeof(langLen));
+  if (langLen > 0) {
+    f.write(reinterpret_cast<const uint8_t*>(language.data()), langLen);
   }
   f.close();
 

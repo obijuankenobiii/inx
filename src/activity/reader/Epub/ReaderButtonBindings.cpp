@@ -113,6 +113,10 @@ void ReaderButtonBindings::dispatch(EpubActivity& act, const uint8_t action) {
       act.pauseReadingStats();
       act.dictUi_.enter(act);
       break;
+    case SystemSetting::BTN_ACTION_FOOTNOTE:
+      act.pauseReadingStats();
+      act.footnoteUi_.enter(act);
+      break;
     case SystemSetting::BTN_ACTION_PAGE_REFRESH:
       act.renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
       act.updateRequired = true;

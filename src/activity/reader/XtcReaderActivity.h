@@ -72,4 +72,5 @@ class XtcReaderActivity final : public ActivityWithSubactivity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  bool isReadingActivity() const override { return true; }
 };

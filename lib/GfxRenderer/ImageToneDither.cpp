@@ -129,7 +129,11 @@ ImageToneSample FourToneImageDitherer::process(const int gray, const int x) {
   }
 
   const ImageToneSample out = quantize(adjusted);
-  const int spread = (adjusted - static_cast<int>(out.value)) >> 3;
+  const int error = adjusted - static_cast<int>(out.value);
+  const int spread = error >= 0 ? (error + 4) / 8 : (error - 4) / 8;
+  if (spread == 0) {
+    return out;
+  }
 
   if (x + 1 < width_) errorRows_[0][0][x + 3] += static_cast<int16_t>(spread);
   if (x + 2 < width_) errorRows_[0][0][x + 4] += static_cast<int16_t>(spread);
