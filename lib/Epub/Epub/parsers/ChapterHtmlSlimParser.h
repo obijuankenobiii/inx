@@ -372,8 +372,8 @@ class ChapterHtmlSlimParser {
   TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,
                                                   TextBlock::Style inheritedStyle) const;
 
-  /** Picks a block element's paragraph alignment: in FOLLOW_CSS mode the element's own text-align (else
-   *  justified); otherwise the user's fixed alignment, with an explicit element text-align still honored. */
+  /** Picks a block element's paragraph alignment: FOLLOW_CSS uses the EPUB cascade; otherwise use the user's
+   *  fixed alignment and ignore paragraph-level CSS text-align. */
   TextBlock::Style resolveBlockStyle(const XML_Char* elementName, const XML_Char** atts,
                                      bool elementHasExplicitTextAlign, TextBlock::Style elementCssStyle,
                                      TextBlock::Style inheritedCssStyle) const;

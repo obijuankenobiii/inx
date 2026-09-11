@@ -309,6 +309,10 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   applyParagraphIndent(renderer, fontId);
 
+  // A streaming pass is still inside the same paragraph even when it cannot extract a complete line yet.
+  // Set this before the early-return cases so the next pass never resolves a new first-line indent.
+  paragraphContinues_ = !includeLastLine;
+
   const int pageWidth = viewportWidth;
   // The word-spacing setting scales the natural inter-word space; it is baked into the line layout (xpos).
   const int spaceWidth =
@@ -332,10 +336,6 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   for (size_t i = 0; i < lineCount; ++i) {
     extractLine(i, pageWidth, spaceWidth, wordWidths, lineBreakIndices, joinPreviousSnapshot, processLine);
   }
-
-  // A partial pass leaves the trailing line's words for the parser to keep appending to; only a full pass ends
-  // the paragraph.
-  paragraphContinues_ = !includeLastLine;
 }
 
 std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {

@@ -22,6 +22,7 @@
 #include "images/PresetFont.h"
 #include "images/PresetLayout.h"
 #include "images/PresetSettings.h"
+#include "images/Rotate.h"
 #include "state/ReaderPreset.h"
 #include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
@@ -59,6 +60,7 @@ constexpr int kDrawerHeaderHPad = 20;
 constexpr int kDrawerHeaderPillPadX = 10;
 constexpr int kDrawerHeaderPillHeight = 24;
 constexpr int kPortraitDrawerHeightPercent = 50;
+constexpr int kVisibleMenuRows = 5;
 constexpr int kSelectorRows = 5;
 
 bool isLandscapeReader(const GfxRenderer& gfx) {
@@ -256,7 +258,8 @@ void SettingsDrawer::setEmbeddedRegion(int x, int y, int w, int h) {
   drawerY = y;
   drawerWidth = w;
   drawerHeight = h;
-  itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::min(kVisibleMenuRows,
+                          std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight));
   setupMenu();
 }
 
@@ -266,14 +269,15 @@ int SettingsDrawer::snapEmbeddedHeight(int maxHeight) const {
   // the preset-editor tab header even though embedded_ is not set yet.
   const int listTop = kPresetTabHeight + 1;
   const int usable = maxHeight - listTop - kDrawerListBottomPadding;
-  const int rows = std::max(1, usable / itemHeight);
+  const int rows = std::min(kVisibleMenuRows, std::max(1, usable / itemHeight));
   return listTop + rows * itemHeight + kDrawerListBottomPadding;
 }
 
 void SettingsDrawer::syncLayoutFromRenderer() {
   if (embedded_) {
     // Keep the host-provided region; just recompute how many rows fit.
-    itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
+    itemsPerPage = std::min(kVisibleMenuRows,
+                            std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight));
     return;
   }
   const int sw = renderer.getScreenWidth();
@@ -288,10 +292,15 @@ void SettingsDrawer::syncLayoutFromRenderer() {
   } else {
     drawerX = 0;
     drawerWidth = sw;
-    drawerHeight = sh * kPortraitDrawerHeightPercent / 100;
+    // Keep the book settings surface as a bottom drawer, but make it tall
+    // enough for the same five visible rows as the preset editor. The old
+    // fixed 50% height only fit four rows on the X3/X4 portrait display.
+    const int fiveRowHeight = contentListTop() + kVisibleMenuRows * itemHeight + kDrawerListBottomPadding;
+    drawerHeight = std::min(sh, std::max(sh * kPortraitDrawerHeightPercent / 100, fiveRowHeight));
     drawerY = sh - drawerHeight;
   }
-  itemsPerPage = std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight);
+  itemsPerPage = std::min(kVisibleMenuRows,
+                          std::max(1, (drawerHeight - contentListTop() - kDrawerListBottomPadding) / itemHeight));
 }
 
 /**
@@ -935,6 +944,7 @@ void SettingsDrawer::show() {
   dismissed = false;
   closeSelector();
   selectedGroup_ = GroupType::FONT;
+  rotateTabFocused_ = false;
   setupMenu();
   selectedIndex = -1;
   scrollOffset = 0;
@@ -1001,21 +1011,32 @@ void SettingsDrawer::drawTabs() {
   struct Tab {
     GroupType group;
     const uint8_t* icon;
+    bool rotateControl;
   };
-  static constexpr Tab tabs[] = {
-      {GroupType::FONT, PresetFont},
-      {GroupType::LAYOUT, PresetBars},
-      {GroupType::STATUS_BAR, PresetLayout},
-      {GroupType::CONTROLS, PresetSettings},
+  static constexpr Tab regularTabs[] = {
+      {GroupType::FONT, PresetFont, false},
+      {GroupType::LAYOUT, PresetBars, false},
+      {GroupType::STATUS_BAR, PresetLayout, false},
+      {GroupType::CONTROLS, PresetSettings, false},
+  };
+  static constexpr Tab inBookTabs[] = {
+      {GroupType::FONT, PresetFont, false},
+      {GroupType::LAYOUT, PresetBars, false},
+      {GroupType::STATUS_BAR, PresetLayout, false},
+      {GroupType::CONTROLS, PresetSettings, false},
+      {GroupType::FONT, Rotate, true},
   };
 
-  const int count = static_cast<int>(sizeof(tabs) / sizeof(tabs[0]));
+  const Tab* tabs = embedded_ ? regularTabs : inBookTabs;
+  const int count = embedded_ ? static_cast<int>(sizeof(regularTabs) / sizeof(regularTabs[0]))
+                              : static_cast<int>(sizeof(inBookTabs) / sizeof(inBookTabs[0]));
   const int y = drawerY + 1;
   const int width = std::max(1, drawerWidth / count);
   for (int i = 0; i < count; ++i) {
     const int x = drawerX + i * width;
     const int w = i == count - 1 ? drawerX + drawerWidth - x : width;
-    const bool selected = tabs[i].group == selectedGroup_;
+    const bool selected = tabs[i].rotateControl ? rotateTabFocused_ :
+                                                   (!rotateTabFocused_ && tabs[i].group == selectedGroup_);
     renderer.rectangle.fill(x, y, w, kPresetTabHeight, selected, false);
     renderer.bitmap.icon(tabs[i].icon, x + std::max(0, (w - kPresetTabSize) / 2), y + kPresetTabPadding,
                          kPresetTabSize, kPresetTabSize, BitmapRender::Orientation::None, selected);
@@ -1031,7 +1052,11 @@ void SettingsDrawer::drawTabs() {
   if (selectedIndex < 0) {
     int selectedTab = 0;
     for (int i = 0; i < count; ++i) {
-      if (tabs[i].group == selectedGroup_) {
+      if (tabs[i].rotateControl && !embedded_) {
+        // The rotate tab is a command rather than a settings group.
+        // Its focus is tracked separately from selectedGroup_.
+        if (rotateTabFocused_) selectedTab = i;
+      } else if (!rotateTabFocused_ && tabs[i].group == selectedGroup_) {
         selectedTab = i;
         break;
       }
@@ -1446,6 +1471,7 @@ void SettingsDrawer::toggleGroup(GroupType group) {
 }
 
 void SettingsDrawer::selectGroup(const GroupType group) {
+  rotateTabFocused_ = false;
   if (selectedGroup_ == group) return;
   selectedGroup_ = group;
   selectedIndex = -1;
@@ -1490,16 +1516,24 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
           GroupType::STATUS_BAR,
           GroupType::CONTROLS,
       };
-      int tab = 0;
-      for (int i = 0; i < static_cast<int>(sizeof(tabs) / sizeof(tabs[0])); ++i) {
-        if (tabs[i] == selectedGroup_) {
-          tab = i;
-          break;
+      int tab = rotateTabFocused_ ? 4 : 0;
+      if (!rotateTabFocused_) {
+        for (int i = 0; i < static_cast<int>(sizeof(tabs) / sizeof(tabs[0])); ++i) {
+          if (tabs[i] == selectedGroup_) {
+            tab = i;
+            break;
+          }
         }
       }
-      const int count = static_cast<int>(sizeof(tabs) / sizeof(tabs[0]));
+      const int count = embedded_ ? static_cast<int>(sizeof(tabs) / sizeof(tabs[0])) : 5;
       tab = previousTab ? (tab - 1 + count) % count : (tab + 1) % count;
-      selectGroup(tabs[tab]);
+      if (!embedded_ && tab == 4) {
+        rotateTabFocused_ = true;
+        selectedIndex = -1;
+        closeSelector();
+      } else {
+        selectGroup(tabs[tab]);
+      }
       lastInputTime = currentTime;
       renderWithRefresh(HalDisplay::FAST_REFRESH);
       return;
@@ -1508,6 +1542,13 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
     const bool previousItem = input.wasPressed(MappedInputManager::Button::Up);
     const bool nextItem = input.wasPressed(MappedInputManager::Button::Down);
     if (previousItem || nextItem) {
+      // Rotate is a command tab with no rows behind it; keep Up/Down on the
+      // header instead of falling through to the currently selected group.
+      if (rotateTabFocused_) {
+        lastInputTime = currentTime;
+        renderWithRefresh(HalDisplay::FAST_REFRESH);
+        return;
+      }
       const int totalItems = static_cast<int>(menuItems.size());
       if (totalItems > 0) {
         if (selectedIndex < 0) {
@@ -1544,14 +1585,29 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
             GroupType::STATUS_BAR,
             GroupType::CONTROLS,
         };
-        int tab = 0;
-        for (int i = 0; i < static_cast<int>(sizeof(tabs) / sizeof(tabs[0])); ++i) {
-          if (tabs[i] == selectedGroup_) {
-            tab = i;
-            break;
+        int tab = rotateTabFocused_ ? 4 : 0;
+        if (!rotateTabFocused_) {
+          for (int i = 0; i < static_cast<int>(sizeof(tabs) / sizeof(tabs[0])); ++i) {
+            if (tabs[i] == selectedGroup_) {
+              tab = i;
+              break;
+            }
           }
         }
-        selectGroup(tabs[(tab + 1) % (sizeof(tabs) / sizeof(tabs[0]))]);
+        const int count = embedded_ ? static_cast<int>(sizeof(tabs) / sizeof(tabs[0])) : 5;
+        const int nextTab = (tab + 1) % count;
+        if (!embedded_ && rotateTabFocused_) {
+          settings.orientation = SystemSetting::LANDSCAPE_CCW;
+          settings.markCustomSettings();
+          settingsUpdated = true;
+          hide();
+        } else if (!embedded_ && nextTab == 4) {
+          rotateTabFocused_ = true;
+          selectedIndex = -1;
+          closeSelector();
+        } else {
+          selectGroup(tabs[nextTab]);
+        }
         lastInputTime = currentTime;
         renderWithRefresh(HalDisplay::FAST_REFRESH);
       } else if (selectedIndex < static_cast<int>(menuItems.size())) {
@@ -1567,6 +1623,14 @@ void SettingsDrawer::handleInput(MappedInputManager& input) {
     }
 
     if (input.wasReleased(MappedInputManager::Button::Back)) {
+      if (!embedded_ && rotateTabFocused_) {
+        settings.orientation = SystemSetting::LANDSCAPE_CCW;
+        settings.markCustomSettings();
+        settingsUpdated = true;
+        hide();
+        lastInputTime = currentTime;
+        return;
+      }
       if (selectedIndex >= 0) {
         // Back first returns focus to the active tab. The dot under its icon
         // then makes the header focus visible before the drawer is dismissed.

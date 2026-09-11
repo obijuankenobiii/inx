@@ -210,6 +210,7 @@ class SettingsDrawer {
 
   std::array<bool, kGroupCount> groupExpanded_{};  ///< Expansion state for each group, no heap nodes.
   GroupType selectedGroup_ = GroupType::FONT;      ///< Active preset-editor tab.
+  bool rotateTabFocused_ = false;                  ///< Header focus is on the in-book rotate command.
   std::vector<MenuEntry> menuItems;                ///< Current menu items
 
   /**

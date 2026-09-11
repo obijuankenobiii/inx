@@ -1413,9 +1413,8 @@ TextBlock::Style ChapterHtmlSlimParser::resolveBlockStyle(const XML_Char* elemen
     // Own text-align wins; otherwise inherit the ancestor's alignment (text-align is an inherited property).
     return elementHasExplicitTextAlign ? elementCssStyle : inheritedCssStyle;
   }
-  if (elementHasExplicitTextAlign) {
-    return resolveTextAlignFromAttributes(elementName, atts, inheritedCssStyle);
-  }
+  // A fixed reader alignment overrides paragraph CSS. Do not let an EPUB block's text-align
+  // silently switch the reader back to the book's layout when the user chose a setting.
   return static_cast<TextBlock::Style>(paragraphAlignment);
 }
 
@@ -2378,6 +2377,24 @@ void ChapterHtmlSlimParser::addLineToPage(TextBlock&& line) {
   }
 
   if (!currentPage) currentPage.reset(new Page());
+
+  // Drop caps are stored as a separate page element, so their initial x position cannot be resolved until
+  // the first body line has been laid out.  Use that line's resolved word position instead of leaving the
+  // drop cap at the block's left edge; this keeps it aligned with centered and right-aligned paragraphs too.
+  if (!currentPage->elements.empty() && currentPage->elements.back()->getTag() == TAG_PageDropCap &&
+      line.getWordCount() > 0) {
+    auto* dropCap = static_cast<PageDropCap*>(currentPage->elements.back().get());
+    size_t firstTextWord = 0;
+    while (firstTextWord < line.getWordCount() && line.getWordAt(firstTextWord).empty()) {
+      ++firstTextWord;
+    }
+    if (firstTextWord < line.getWordCount()) {
+      const int dropCapWidth = renderer.text.getWidth(dropCap->getDropCapFontId(), dropCap->getDropCapText().c_str(),
+                                                      EpdFontFamily::BOLD) + 3;
+      const int firstWordX = currentTextBlockContentX + line.getWordXAt(firstTextWord);
+      dropCap->xPos = static_cast<int16_t>(std::max(0, firstWordX - dropCapWidth));
+    }
+  }
 
   // A header, or a block with a large-font override, renders as a PageHeader carrying its own font id.
   if (inHeader || currentBlockFontId >= 0) {

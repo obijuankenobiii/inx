@@ -111,6 +111,7 @@ class Library final : public Page {
   void eraseFolder(const LibraryIndex::Book& folder);
 
   void drawSidebar() const;
+  void drawBuildLibraryToast() const;
   static char filterLetter(int page, int index);
   static char leadingLetter(const std::string& value);
   static const char* typeFilterLabel(int index);

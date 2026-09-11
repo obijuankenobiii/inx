@@ -24,6 +24,7 @@
 #include "images/Hamburger.h"
 #include "images/LibraryViewGrid.h"
 #include "images/LibraryViewList.h"
+#include "images/CarretFilled.h"
 #include "images/Refresh.h"
 #include "images/SortAsc.h"
 #include "images/SortDesc.h"
@@ -407,6 +408,37 @@ void Library::menu() {
   if (popupItemIndex_ >= 0 && popupItemIndex_ < static_cast<int>(items_.size())) {
     renderItemPopup();
   }
+  drawBuildLibraryToast();
+}
+
+void Library::drawBuildLibraryToast() const {
+  // Keep this prompt persistent while the index is absent, but do not cover
+  // another active overlay. It is anchored to the refresh button so the
+  // already-focused recovery action remains obvious.
+  if (LibraryIndex::hasIndex() || isIndexing_ || sidebarOpen_ || sortOpen_ || filterOpen_ || popupItemIndex_ >= 0) {
+    return;
+  }
+
+  constexpr const char* message = "Build library";
+  constexpr int horizontalPadding = 20;
+  constexpr int verticalPadding = 20;
+  constexpr int caretSize = 40;
+  const int font = MONTSERRAT_10_FONT_ID;
+  const int textWidth = renderer.text.getWidth(font, message, EpdFontFamily::REGULAR);
+  const int textHeight = renderer.text.getLineHeight(font);
+  const int toastWidth = textWidth + horizontalPadding * 2;
+  const int toastHeight = textHeight + verticalPadding * 2;
+  const int refreshCenter = buttonX(3) + buttonSize / 2;
+  const int screenWidth = renderer.getScreenWidth();
+  const int toastX = std::max(8, std::min(screenWidth - toastWidth - 8, refreshCenter - toastWidth / 2));
+  const int toastY = buttonY() + buttonSize + 30;
+  const int caretX = refreshCenter - caretSize / 2;
+
+  renderer.bitmap.icon(CarretFilled, caretX, toastY - 25, caretSize, caretSize);
+  renderer.rectangle.fill(toastX, toastY, toastWidth, toastHeight, true, true);
+  const int textX = toastX + (toastWidth - textWidth) / 2;
+  const int textY = toastY + (toastHeight - textHeight) / 2;
+  renderer.text.render(font, textX, textY, message, false, EpdFontFamily::REGULAR);
 }
 
 void Library::title() const {
@@ -695,7 +727,7 @@ void Library::loadIndexedItems() {
 void Library::content() {
   if (!indexLoaded_) {
     renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2,
-                           LibraryIndex::hasIndex() ? "Unable to read library index" : "Build the library index first");
+                           LibraryIndex::hasIndex() ? "Unable to read library index" : "No books found.");
     return;
   }
   if (items_.empty()) {

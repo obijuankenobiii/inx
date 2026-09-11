@@ -21,7 +21,7 @@
 #include "system/UiTheme.h"
 
 namespace {
-constexpr int kVisibleRows = 6;
+constexpr int kVisibleRows = 5;
 }
 
 void PresetPickerUi::rebuildVisiblePresets() {
