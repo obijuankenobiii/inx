@@ -39,6 +39,7 @@ class Home final : public Page {
   bool ignoreBackReleaseOnEnter_ = false;
   bool ignoreBackReleaseAfterPopup_ = false;
   bool confirmLongPressProcessed_ = false;
+  bool dashboardCarouselFocused_ = false;
   int recentIndex_ = 0;
   int recentPopupAction_ = 0;
   int shortcutIndex_ = 0;

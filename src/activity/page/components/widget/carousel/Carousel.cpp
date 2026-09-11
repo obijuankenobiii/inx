@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "../WidgetRender.h"
+#include "images/CarretFilled.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/UiLayout.h"
@@ -271,26 +272,60 @@ void renderCover(GfxRenderer& renderer, const RecentBook& book, const int x, con
                             SETTINGS.bitmapRoundedCorners == 2);
 }
 
+void renderProgressTag(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
+                       const int height) {
+  if (width < 8 || height < 8) return;
+
+  constexpr int paddingX = 6;
+  constexpr int paddingY = 4;
+  constexpr int margin = 5;
+  constexpr int font = MONTSERRAT_8_FONT_ID;
+  const int percentage = book.progress < 0.0f
+                             ? 0
+                             : std::max(0, std::min(100, static_cast<int>(book.progress * 100.0f + 0.5f)));
+  const std::string label = std::to_string(percentage) + "%";
+  const int tagWidth = renderer.text.getWidth(font, label.c_str()) + paddingX * 2;
+  const int tagHeight = renderer.text.getLineHeight(font) + paddingY * 2;
+  const int tagX = x + std::max(0, width - tagWidth - margin);
+  const int tagY = y + margin;
+  renderer.rectangle.fill(tagX, tagY, tagWidth, tagHeight, static_cast<int>(GfxRenderer::FillTone::Ink), true);
+  renderer.rectangle.render(tagX, tagY, tagWidth, tagHeight, false, true);
+  renderer.text.render(font, tagX + paddingX, tagY + paddingY, label.c_str(), false);
+}
+
 void renderLeft(GfxRenderer& renderer, const std::vector<RecentBook>& books, const int index, const int x,
-                const int y, const int width, const int height) {
-  if (books.empty()) {
+                const int y, const int width, const int height, const bool excludeMostRecent) {
+  const int firstBook = excludeMostRecent ? 1 : 0;
+  const int bookCount = static_cast<int>(books.size()) - firstBook;
+  if (bookCount <= 0) {
     renderer.text.centered(systemFontId(), y + height / 2, "No recent");
     return;
   }
 
-  const int current = ((index % static_cast<int>(books.size())) + static_cast<int>(books.size())) %
-                      static_cast<int>(books.size());
-  const int visible = std::min(UiLayout::CAROUSEL_MAX_VISIBLE, static_cast<int>(books.size()));
+  const int selectedOffset = excludeMostRecent ? std::max(0, index - firstBook) : index;
+  const int current = ((selectedOffset % bookCount) + bookCount) % bookCount;
+  const int visible = std::min(UiLayout::CAROUSEL_MAX_VISIBLE, bookCount);
   int cardX = x + UiLayout::CAROUSEL_LEFT_CARD_MARGIN;
   for (int offset = 0; offset < visible; ++offset) {
-    const int bookIndex = (current + offset) % static_cast<int>(books.size());
+    const int bookIndex = firstBook + (current + offset) % bookCount;
     const CardBounds card = leftCardBounds(books[static_cast<size_t>(bookIndex)], cardX, y, width, height);
     if (card.x >= x + width) break;
     const int visibleWidth = std::min(card.width, x + width - card.x);
     if (visibleWidth <= 0) break;
     renderCover(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth, card.height);
+    renderProgressTag(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth, card.height);
     cardX += card.width + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
+}
+
+void drawSelectionCaret(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
+                        const int height) {
+  const CardBounds card = leftCardBounds(book, x + UiLayout::CAROUSEL_LEFT_CARD_MARGIN, y, width, height);
+  constexpr int caretSize = 40;
+  constexpr int caretGap = 5;
+  const int caretX = card.x + (card.width - caretSize) / 2;
+  const int caretY = card.y + card.height + caretGap;
+  renderer.bitmap.icon(CarretFilled, caretX, caretY, caretSize, caretSize);
 }
 
 }  // namespace
@@ -299,13 +334,27 @@ void Carousel::render(GfxRenderer& renderer, const int x, const int y, const int
                       const int selectedIndex) {
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
-  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height);
+  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height, false);
+}
+
+void Carousel::renderRemaining(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                               const int selectedIndex, const bool showSelection) {
+  if (width <= 0 || height <= 0) return;
+  renderer.rectangle.fill(x, y, width, height, false);
+  const auto& books = RECENT_BOOKS.getBooks();
+  renderLeft(renderer, books, selectedIndex, x, y, width, height, true);
+  if (showSelection && books.size() > 1) {
+    const int selectedOffset = std::max(0, selectedIndex - 1);
+    const int bookCount = static_cast<int>(books.size()) - 1;
+    const int current = ((selectedOffset % bookCount) + bookCount) % bookCount;
+    drawSelectionCaret(renderer, books[static_cast<size_t>(1 + current)], x, y, width, height);
+  }
 }
 
 void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
-  const RecentBook placeholder;
+  const RecentBook placeholder("", "", "Book title", "Author", 0.65f);
   const int cardHeight = std::max(24, height - UiLayout::CAROUSEL_TOP_PADDING - UiLayout::CAROUSEL_BOTTOM_PADDING);
   const CardBounds first = leftCardBounds(placeholder, x + UiLayout::CAROUSEL_LEFT_CARD_MARGIN, y, width, height);
   const int cardWidth = first.width;
@@ -315,7 +364,42 @@ void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const in
     const int visibleWidth = std::min(cardWidth, x + width - cardX);
     if (visibleWidth <= 0) break;
     renderCover(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
+    renderProgressTag(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
     cardX += cardWidth + UiLayout::CAROUSEL_LEFT_CARD_GAP;
+  }
+}
+
+void Carousel::previewRemaining(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                                const bool showSelection) {
+  if (width <= 0 || height <= 0) return;
+  renderer.rectangle.fill(x, y, width, height, false);
+  const RecentBook placeholder("", "", "Book title", "Author", 0.65f);
+  const int cardHeight = std::max(24, height - UiLayout::CAROUSEL_TOP_PADDING - UiLayout::CAROUSEL_BOTTOM_PADDING);
+  int cardX = x + UiLayout::CAROUSEL_LEFT_CARD_MARGIN;
+  const CardBounds first = leftCardBounds(placeholder, cardX, y, width, height);
+  const int visibleWidth = std::min(first.width, x + width - cardX);
+  if (visibleWidth > 0) {
+    const int cardY = y + height - UiLayout::CAROUSEL_BOTTOM_PADDING - cardHeight;
+    renderer.rectangle.fill(cardX + 6, cardY + 6, visibleWidth, cardHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Gray));
+    support::drawPlaceholder(renderer, "Book title", cardX, cardY, visibleWidth, cardHeight, MONTSERRAT_10_FONT_ID);
+    renderProgressTag(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
+    if (showSelection) {
+      constexpr int caretSize = 40;
+      constexpr int caretGap = 10;
+      renderer.bitmap.icon(CarretFilled, cardX + (visibleWidth - caretSize) / 2,
+                           cardY + cardHeight + caretGap, caretSize, caretSize);
+    }
+  }
+  cardX += first.width + UiLayout::CAROUSEL_LEFT_CARD_GAP;
+  for (int offset = 1; offset < 3; ++offset) {
+    const int cardY = y + height - UiLayout::CAROUSEL_BOTTOM_PADDING - cardHeight;
+    const int currentWidth = std::min(first.width, x + width - cardX);
+    if (currentWidth <= 0) break;
+    renderer.rectangle.fill(cardX + 6, cardY + 6, currentWidth, cardHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Gray));
+    support::drawPlaceholder(renderer, "Book title", cardX, cardY, currentWidth, cardHeight, MONTSERRAT_10_FONT_ID);
+    cardX += first.width + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }
 

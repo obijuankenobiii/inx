@@ -82,6 +82,7 @@ void Home::onEnter() {
   sidebarOpen = false;
   tabSelectorIndex = 0;
   recentIndex_ = 0;
+  dashboardCarouselFocused_ = false;
   recentPopupAction_ = 0;
   recentPopupPath_.clear();
   shortcutIndex_ = 0;
@@ -138,6 +139,7 @@ void Home::loop() {
   // navigation, while up/down select a recent book and Confirm opens it.
   const auto& books = RECENT_BOOKS.getBooks();
   const int recentCount = static_cast<int>(books.size());
+  const bool dashboard = widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode) == widget::Recent::Mode::Dashboard;
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     confirmLongPressProcessed_ = false;
@@ -153,12 +155,32 @@ void Home::loop() {
   }
 
   if (recentCount > 0 && mappedInput.wasPressed(itemNextButton())) {
-    recentIndex_ = (recentIndex_ + 1) % recentCount;
+    if (dashboard) {
+      if (!dashboardCarouselFocused_ && recentCount > 1) {
+        dashboardCarouselFocused_ = true;
+        recentIndex_ = 1;
+      } else if (dashboardCarouselFocused_ && recentCount > 1) {
+        recentIndex_ = recentIndex_ + 1 < recentCount ? recentIndex_ + 1 : 1;
+      }
+    } else {
+      recentIndex_ = (recentIndex_ + 1) % recentCount;
+    }
     requestRender();
     return;
   }
   if (recentCount > 0 && mappedInput.wasPressed(itemPrevButton())) {
-    recentIndex_ = (recentIndex_ + recentCount - 1) % recentCount;
+    if (dashboard) {
+      if (dashboardCarouselFocused_) {
+        if (recentIndex_ <= 1) {
+          dashboardCarouselFocused_ = false;
+          recentIndex_ = 0;
+        } else {
+          --recentIndex_;
+        }
+      }
+    } else {
+      recentIndex_ = (recentIndex_ + recentCount - 1) % recentCount;
+    }
     requestRender();
     return;
   }
@@ -240,7 +262,7 @@ void Home::content() {
   }
 
   recentWidget.render(widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode), 0, top(), renderer.getScreenWidth(),
-                      contentHeight, recentIndex_);
+                      contentHeight, recentIndex_, dashboardCarouselFocused_);
   if (!recentPopupPath_.empty()) renderRecentPopup();
 }
 

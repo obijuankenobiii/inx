@@ -352,6 +352,7 @@ class SystemSetting {
     RECENT_ICONS = 5,            ///< 3×3 icon grid; scroll for more books
     RECENT_COVER = 6,            ///< Latest recent book cover with title, author, and progress
     RECENT_CAROUSEL = 7,         ///< Left-layout recent carousel widget
+    RECENT_DASHBOARD = 8,         ///< inx-pro Recent widget above a left recent carousel
     RECENT_LIBRARY_MODE_COUNT
   };
 

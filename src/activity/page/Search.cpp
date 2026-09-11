@@ -158,7 +158,7 @@ void Search::loop() {
       requestRender();
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       openSelected();
       return;
     }

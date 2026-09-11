@@ -6,6 +6,7 @@
 #include "grid/Grid.h"
 #include "list/List.h"
 #include "carousel/Carousel.h"
+#include "dashboard/Dashboard.h"
 #include "state/SystemSetting.h"
 
 namespace widget {
@@ -18,6 +19,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
       return Mode::List;
     case SystemSetting::RECENT_CAROUSEL:
       return Mode::Carousel;
+    case SystemSetting::RECENT_DASHBOARD:
+      return Mode::Dashboard;
     case SystemSetting::RECENT_FLOW:
     case SystemSetting::RECENT_LIST_DEPRECATED:
     case SystemSetting::RECENT_SIMPLE:
@@ -34,6 +37,8 @@ const char* Recent::modeLabel(const Mode mode) {
       return "List";
     case Mode::Carousel:
       return "Carousel";
+    case Mode::Dashboard:
+      return "Recent + Carousel";
     case Mode::Flow:
     default:
       return "Flow";
@@ -41,7 +46,7 @@ const char* Recent::modeLabel(const Mode mode) {
 }
 
 void Recent::render(const Mode mode, const int x, const int y, const int width, const int height,
-                    const int selectedIndex) const {
+                    const int selectedIndex, const bool dashboardCarouselFocused) const {
   if (width <= 0 || height <= 0) return;
   switch (mode) {
     case Mode::Grid:
@@ -57,6 +62,9 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
       carousel::Carousel::renderBottom(renderer_, x, y + topHeight, width, height - topHeight, selectedIndex);
       return;
     }
+    case Mode::Dashboard:
+      dashboard::Dashboard::render(renderer_, x, y, width, height, selectedIndex, dashboardCarouselFocused);
+      return;
     case Mode::Flow:
     default:
       flow::Flow::render(renderer_, x, y, width, height, selectedIndex);
@@ -64,7 +72,8 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
   }
 }
 
-void Recent::preview(const Mode mode, const int x, const int y, const int width, const int height) const {
+void Recent::preview(const Mode mode, const int x, const int y, const int width, const int height,
+                     const bool dashboardCarouselFocused) const {
   if (width <= 0 || height <= 0) return;
   renderer_.rectangle.fill(x, y, width, height, false);
   switch (mode) {
@@ -81,6 +90,9 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
       carousel::Carousel::previewBottom(renderer_, x, y + topHeight, width, height - topHeight);
       return;
     }
+    case Mode::Dashboard:
+      dashboard::Dashboard::preview(renderer_, x, y, width, height, dashboardCarouselFocused);
+      return;
     case Mode::Flow:
     default:
       flow::Flow::preview(renderer_, x, y, width, height);
