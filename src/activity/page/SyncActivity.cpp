@@ -62,6 +62,15 @@ void SyncActivity::loop() {
     return;
   }
 
+  if (tabSelectorIndex == 4) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      search();
+      return;
+    }
+    renderIfNeeded();
+    return;
+  }
+
   if (tabSelectorIndex != 3) {
     renderIfNeeded();
     return;
@@ -202,9 +211,10 @@ void SyncActivity::navigateToSelectedMenu() {
     case 4:
       // The fifth shell slot is the shared Search action, not the legacy
       // statistics destination used by the old tab bar.
-      search();
+      requestRender();
       break;
     default:
+      requestRender();
       break;
   }
 }

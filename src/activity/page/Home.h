@@ -21,9 +21,11 @@ class Home final : public Page {
  protected:
   void onEnter() override;
   void loop() override;
+  void onExit() override;
   void menu() override;
   void title() const override;
   void content() override;
+  void afterRender() override;
   void navigateToSelectedMenu() override;
   int top() const;
   int bottom() const;
@@ -33,6 +35,12 @@ class Home final : public Page {
   void renderRecentPopup() const;
   void removeSelectedRecent();
   void deleteSelectedRecentCache();
+  bool tryFastGridSelection(int nextIndex);
+  bool storeGridPageBuffer();
+  bool storeShortcutPageBuffer();
+  bool restoreShortcutPageBuffer();
+  void invalidateShortcutPageBuffer();
+  void invalidateGridPageBuffer();
 
  private:
   bool sidebarOpen = false;
@@ -45,4 +53,11 @@ class Home final : public Page {
   int shortcutIndex_ = 0;
   std::string recentPopupPath_;
   widget::Recent recentWidget;
+  uint8_t* gridPageBuffer_ = nullptr;
+  bool gridPageBufferValid_ = false;
+  bool shortcutPageBufferValid_ = false;
+  bool gridBufferBuilding_ = false;
+  int gridPageBufferBookCount_ = -1;
+  int gridPageBufferStartIndex_ = -1;
+  int gridPageBufferPageSize_ = -1;
 };

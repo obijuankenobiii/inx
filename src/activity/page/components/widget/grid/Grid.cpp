@@ -31,7 +31,7 @@ struct Geometry {
   int cellHeight;
   int lineHeight;
   int visibleRows;
-  int startRow;
+  int startIndex;
 };
 
 Geometry geometry(const int x, const int y, const int width, const int height, const int count,
@@ -42,10 +42,10 @@ Geometry geometry(const int x, const int y, const int width, const int height, c
   const int contentHeight = std::max(1, height - kMarginY * 2);
   const int cellHeight = std::max(1, (contentHeight - kGapY) / kRows);
   const int visibleRows = kRows;
-  const int totalRows = std::max(1, (count + kColumns - 1) / kColumns);
-  const int selectedRow = std::max(0, std::min(selectedIndex, std::max(0, count - 1))) / kColumns;
-  const int startRow = std::max(0, std::min(selectedRow, std::max(0, totalRows - visibleRows)));
-  return {startY, contentWidth, cellWidth, cellHeight, lineHeight, visibleRows, startRow};
+  const int selected = std::max(0, std::min(selectedIndex, std::max(0, count - 1)));
+  const int pageSize = kColumns * visibleRows;
+  const int startIndex = (selected / pageSize) * pageSize;
+  return {startY, contentWidth, cellWidth, cellHeight, lineHeight, visibleRows, startIndex};
 }
 
 int cellX(const Geometry& g, const int x, const int column) {
@@ -96,6 +96,41 @@ void drawThumbnailBorder(const GfxRenderer& renderer, const int x, const int y, 
   }
 }
 
+// The normal grid renderer paints this highlight before the card contents. For
+// a restored framebuffer, paint only the visible highlight bands and repaint
+// the labels that sit on the dithered band; never paint over the cover itself.
+void drawSelectionOverlay(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                          const int selectedIndex) {
+  const auto& books = RECENT_BOOKS.getBooks();
+  if (books.empty() || selectedIndex < 0 || selectedIndex >= static_cast<int>(books.size())) return;
+  const int count = static_cast<int>(books.size());
+  const Geometry g = geometry(x, y, width, height, count, selectedIndex,
+                              renderer.text.getLineHeight(kGridMetaFont));
+  const int pageIndex = selectedIndex - g.startIndex;
+  if (pageIndex < 0 || pageIndex >= g.visibleRows * kColumns) return;
+  const int column = pageIndex % kColumns;
+  const int row = pageIndex / kColumns;
+  int coverX, coverY, coverW, coverH, labelY;
+  coverRect(g, x, column, row, coverX, coverY, coverW, coverH, labelY);
+  const int lineHeight = renderer.text.getLineHeight(kGridMetaFont);
+  const int percentageY = labelY + lineHeight + kTitleToPercentageGap;
+  const int selectionX = coverX - 8;
+  const int selectionWidth = coverW + 16;
+  const int selectionTop = coverY - 8;
+  const int selectionBottom = percentageY + lineHeight + 8;
+
+  support::drawDitherRect(renderer, selectionX, selectionTop, selectionWidth, coverY - selectionTop);
+  support::drawDitherRect(renderer, selectionX, coverY, coverX - selectionX, selectionBottom - coverY);
+  support::drawDitherRect(renderer, coverX + coverW, coverY, selectionX + selectionWidth - coverX - coverW,
+                          selectionBottom - coverY);
+  const int labelTop = coverY + coverH;
+  support::drawDitherRect(renderer, selectionX, labelTop, selectionWidth, selectionBottom - labelTop);
+  renderTitle(renderer, books[static_cast<size_t>(selectedIndex)], coverX, labelY, coverW);
+  renderPercentage(renderer, coverX, percentageY, coverW, books[static_cast<size_t>(selectedIndex)].progress);
+  renderer.rectangle.render(selectionX, selectionTop, selectionWidth, selectionBottom - selectionTop, true, false,
+                            false);
+}
+
 void renderMockCard(const GfxRenderer& renderer, const char* title, const int index, const Geometry& g, const int x) {
   const int column = index % kColumns;
   const int row = index / kColumns;
@@ -120,7 +155,7 @@ void renderMockCard(const GfxRenderer& renderer, const char* title, const int in
 }  // namespace
 
 void Grid::render(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                  const int selectedIndex) {
+                  const int selectedIndex, const bool drawSelection) {
   const auto& books = RECENT_BOOKS.getBooks();
   if (books.empty()) {
     renderer.text.centered(MONTSERRAT_12_FONT_ID, y + height / 2, "No recent books");
@@ -131,17 +166,16 @@ void Grid::render(GfxRenderer& renderer, const int x, const int y, const int wid
                               renderer.text.getLineHeight(kGridMetaFont));
   for (int row = 0; row < g.visibleRows; ++row) {
     for (int column = 0; column < kColumns; ++column) {
-      const int index = (g.startRow + row) * kColumns + column;
+      const int index = g.startIndex + row * kColumns + column;
       if (index >= count) break;
       int coverX, coverY, coverW, coverH, labelY;
       coverRect(g, x, column, row, coverX, coverY, coverW, coverH, labelY);
       const bool selected = index == selectedIndex;
       const int percentageY = labelY + renderer.text.getLineHeight(kGridMetaFont) + kTitleToPercentageGap;
-      if (selected) {
+      if (selected && drawSelection) {
         const int selectionTop = coverY - 8;
         const int selectionBottom = percentageY + renderer.text.getLineHeight(kGridMetaFont) + 8;
-        support::drawDitherRect(renderer, coverX - 8, selectionTop, coverW + 16,
-                                selectionBottom - selectionTop);
+        support::drawDitherRect(renderer, coverX - 8, selectionTop, coverW + 16, selectionBottom - selectionTop);
         renderer.rectangle.render(coverX - 8, selectionTop, coverW + 16, selectionBottom - selectionTop, true, false,
                                   false);
       }
@@ -152,6 +186,11 @@ void Grid::render(GfxRenderer& renderer, const int x, const int y, const int wid
       renderPercentage(renderer, coverX, percentageY, coverW, books[static_cast<size_t>(index)].progress);
     }
   }
+}
+
+void Grid::renderSelection(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                           const int selectedIndex) {
+  drawSelectionOverlay(renderer, x, y, width, height, selectedIndex);
 }
 
 void Grid::preview(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {

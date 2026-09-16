@@ -51,6 +51,7 @@ void Menu::render() const {
   const int step = (right - left) / (UiLayout::MENU_ITEM_COUNT - 1);
   const int centerY = screenHeight - UiLayout::MENU_BOTTOM_PADDING - UiLayout::MENU_BOTTOM_SIZE / 2;
   const int iconY = centerY - UiLayout::MENU_ICON_SIZE / 2;
+  const bool searchFocused = tabSelectorIndex == 4;
 
   const uint8_t* icons[] = {Recent, Library, Setting, Sync};
   for (int i = 0; i < UiLayout::MENU_ITEM_COUNT - 1; ++i) {
@@ -64,7 +65,7 @@ void Menu::render() const {
                                  (i == 3 && (std::strcmp(page, "Sync") == 0 ||
                                              std::strcmp(page, "Device Management") == 0 ||
                                              std::strcmp(page, "Network Settings") == 0)));
-    if (active) {
+    if (active && !searchFocused) {
       constexpr int underlineWidth = 36;
       constexpr int underlineHeight = 4;
       menuRenderer.rectangle.fill(left + i * step - underlineWidth / 2, iconY + UiLayout::MENU_ICON_SIZE + 5,
@@ -78,6 +79,19 @@ void Menu::render() const {
     for (int dx = -searchRadius; dx <= searchRadius; ++dx) {
       if (dx * dx + dy * dy <= searchRadius * searchRadius) {
         menuRenderer.drawPixel(searchCenterX + dx, centerY + dy);
+      }
+    }
+  }
+  if (searchFocused) {
+    constexpr int cursorRadius = searchRadius - 2;
+    constexpr int cursorThickness = 5;
+    constexpr int innerRadius = cursorRadius - cursorThickness;
+    for (int dy = -cursorRadius; dy <= cursorRadius; ++dy) {
+      for (int dx = -cursorRadius; dx <= cursorRadius; ++dx) {
+        const int distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared <= cursorRadius * cursorRadius && distanceSquared >= innerRadius * innerRadius) {
+          menuRenderer.drawPixel(searchCenterX + dx, centerY + dy, false);
+        }
       }
     }
   }

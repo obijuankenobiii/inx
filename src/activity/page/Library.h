@@ -51,7 +51,8 @@ class Library final : public Page {
   enum class StateFilter { NONE, FAVORITES, READING, FINISHED, AUTHOR };
 
   // Header order is view, sort, filter, refresh. Header focus starts on Refresh
-  // after a long Back press; it is not selected during normal grid browsing.
+  // after a long Back press or when moving up from the first library item; it is
+  // not selected during normal grid browsing.
   bool headerFocused_ = false;
   int selectedHeaderButton_ = 3;
   bool backLongPressProcessed_ = false;

@@ -303,7 +303,8 @@ void renderProgressTagInternal(GfxRenderer& renderer, const RecentBook& book, co
 }
 
 void renderLeft(GfxRenderer& renderer, const std::vector<RecentBook>& books, const int index, const int x,
-                const int y, const int width, const int height, const bool excludeMostRecent) {
+                const int y, const int width, const int height, const bool excludeMostRecent,
+                const bool showProgressTag) {
   const int firstBook = excludeMostRecent ? 1 : 0;
   const int bookCount = static_cast<int>(books.size()) - firstBook;
   if (bookCount <= 0) {
@@ -322,8 +323,10 @@ void renderLeft(GfxRenderer& renderer, const std::vector<RecentBook>& books, con
     const int visibleWidth = std::min(card.width, x + width - card.x);
     if (visibleWidth <= 0) break;
     renderCover(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth, card.height);
-    renderProgressTagInternal(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth,
-                              card.height);
+    if (showProgressTag) {
+      renderProgressTagInternal(renderer, books[static_cast<size_t>(bookIndex)], card.x, card.y, visibleWidth,
+                                card.height);
+    }
     cardX += card.width + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }
@@ -349,7 +352,7 @@ void Carousel::render(GfxRenderer& renderer, const int x, const int y, const int
                       const int selectedIndex) {
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
-  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height, false);
+  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height, false, false);
 }
 
 void Carousel::renderRemaining(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
@@ -357,7 +360,7 @@ void Carousel::renderRemaining(GfxRenderer& renderer, const int x, const int y, 
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
   const auto& books = RECENT_BOOKS.getBooks();
-  renderLeft(renderer, books, selectedIndex, x, y, width, height, true);
+  renderLeft(renderer, books, selectedIndex, x, y, width, height, true, true);
   if (showSelection && books.size() > 1) {
     const int selectedOffset = std::max(0, selectedIndex - 1);
     const int bookCount = static_cast<int>(books.size()) - 1;
@@ -379,7 +382,6 @@ void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const in
     const int visibleWidth = std::min(cardWidth, x + width - cardX);
     if (visibleWidth <= 0) break;
     renderCover(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
-    renderProgressTagInternal(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
     cardX += cardWidth + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }

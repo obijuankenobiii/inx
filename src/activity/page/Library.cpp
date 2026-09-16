@@ -293,6 +293,15 @@ void Library::loop() {
       return;
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      // In side-button navigation mode, Right is also the logical next-item
+      // control. Treat the last header control as the bridge back to the list.
+      if (itemNextButton() == MappedInputManager::Button::Right &&
+          selectedHeaderButton_ == kHeaderButtonCount - 1 && !items_.empty()) {
+        headerFocused_ = false;
+        selectedItemIndex_ = 0;
+        requestRender();
+        return;
+      }
       selectedHeaderButton_ = (selectedHeaderButton_ + 1) % kHeaderButtonCount;
       requestRender();
       return;
@@ -303,6 +312,12 @@ void Library::loop() {
       return;
     }
     if (mappedInput.wasPressed(itemNextButton())) {
+      if (selectedHeaderButton_ == kHeaderButtonCount - 1 && !items_.empty()) {
+        headerFocused_ = false;
+        selectedItemIndex_ = 0;
+        requestRender();
+        return;
+      }
       selectedHeaderButton_ = (selectedHeaderButton_ + 1) % kHeaderButtonCount;
       requestRender();
       return;
@@ -319,6 +334,13 @@ void Library::loop() {
     const auto previousItemButton = itemPrevButton();
     const auto nextItemButton = itemNextButton();
     if (mappedInput.wasPressed(previousItemButton)) {
+      if (selectedItemIndex_ == 0) {
+        headerFocused_ = true;
+        selectedHeaderButton_ = kHeaderButtonCount - 1;
+        nextItemJumpMs_ = 0;
+        requestRender();
+        return;
+      }
       moveSelectedItem(-1);
       nextItemJumpMs_ = millis() + kItemJumpHoldMs;
       requestRender();
@@ -612,6 +634,54 @@ std::string lower(std::string value) {
   return value;
 }
 
+// Compare text in the way users expect for numbered titles: "Volume 2" comes
+// before "Volume 10". Non-numeric portions remain case-insensitive.
+int naturalCompare(const std::string& left, const std::string& right) {
+  size_t leftIndex = 0;
+  size_t rightIndex = 0;
+  while (leftIndex < left.size() && rightIndex < right.size()) {
+    const unsigned char leftChar = static_cast<unsigned char>(left[leftIndex]);
+    const unsigned char rightChar = static_cast<unsigned char>(right[rightIndex]);
+    if (std::isdigit(leftChar) && std::isdigit(rightChar)) {
+      const size_t leftEnd = [&] {
+        size_t end = leftIndex;
+        while (end < left.size() && std::isdigit(static_cast<unsigned char>(left[end]))) ++end;
+        return end;
+      }();
+      const size_t rightEnd = [&] {
+        size_t end = rightIndex;
+        while (end < right.size() && std::isdigit(static_cast<unsigned char>(right[end]))) ++end;
+        return end;
+      }();
+
+      size_t leftSignificant = leftIndex;
+      while (leftSignificant + 1 < leftEnd && left[leftSignificant] == '0') ++leftSignificant;
+      size_t rightSignificant = rightIndex;
+      while (rightSignificant + 1 < rightEnd && right[rightSignificant] == '0') ++rightSignificant;
+
+      const size_t leftDigits = leftEnd - leftSignificant;
+      const size_t rightDigits = rightEnd - rightSignificant;
+      if (leftDigits != rightDigits) return leftDigits < rightDigits ? -1 : 1;
+      for (size_t offset = 0; offset < leftDigits; ++offset) {
+        if (left[leftSignificant + offset] != right[rightSignificant + offset]) {
+          return left[leftSignificant + offset] < right[rightSignificant + offset] ? -1 : 1;
+        }
+      }
+      leftIndex = leftEnd;
+      rightIndex = rightEnd;
+      continue;
+    }
+
+    const char leftFolded = static_cast<char>(std::tolower(leftChar));
+    const char rightFolded = static_cast<char>(std::tolower(rightChar));
+    if (leftFolded != rightFolded) return leftFolded < rightFolded ? -1 : 1;
+    ++leftIndex;
+    ++rightIndex;
+  }
+  if (leftIndex == left.size() && rightIndex == right.size()) return 0;
+  return leftIndex == left.size() ? -1 : 1;
+}
+
 bool endsWith(const std::string& value, const char* suffix) {
   const size_t length = std::char_traits<char>::length(suffix);
   return value.size() >= length && value.compare(value.size() - length, length, suffix) == 0;
@@ -708,16 +778,18 @@ void Library::loadIndexedItems() {
     if (authorSort) {
       const std::string leftAuthor = lower(left.author);
       const std::string rightAuthor = lower(right.author);
-      if (leftAuthor != rightAuthor) {
-        return ascending ? leftAuthor < rightAuthor : leftAuthor > rightAuthor;
+      const int authorComparison = naturalCompare(leftAuthor, rightAuthor);
+      if (authorComparison != 0) {
+        return ascending ? authorComparison < 0 : authorComparison > 0;
       }
     }
     const std::string leftKey = lower(groupSort ? left.folder : left.title);
     const std::string rightKey = lower(groupSort ? right.folder : right.title);
-    if (leftKey == rightKey) {
-      return lower(left.title) < lower(right.title);
+    const int keyComparison = naturalCompare(leftKey, rightKey);
+    if (keyComparison != 0) {
+      return ascending ? keyComparison < 0 : keyComparison > 0;
     }
-    return ascending ? leftKey < rightKey : leftKey > rightKey;
+    return naturalCompare(left.title, right.title) < 0;
   });
   const int visibleCount = static_cast<int>(items_.size());
   selectedItemIndex_ = visibleCount > 0 ? std::min(selectedItemIndex_, visibleCount - 1) : 0;

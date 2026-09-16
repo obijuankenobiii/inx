@@ -60,5 +60,6 @@ void Page::render() {
   renderer.clearScreen();
   content();
   menu();
+  afterRender();
   renderer.displayBuffer();
 }

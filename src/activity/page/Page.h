@@ -31,6 +31,7 @@ class Page : public Activity, public navigation::Menu {
   virtual void search();
   virtual void content();
   virtual void menu();
+  virtual void afterRender() {}
   void requestRender() { updateRequired = true; }
   void renderIfNeeded();
 

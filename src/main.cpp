@@ -165,7 +165,7 @@ void onSelectBook(const std::string& path) { onGoToReader(path); }
 /**
  * @brief Navigates to the statistics activity.
  */
-void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecent, onGoToFileTransfer); }
+void onGoToStatistics() { switchTo<StatisticActivity>(render, input, onGoToRecent); }
 
 /**
  * @brief Navigates to the recent books activity.

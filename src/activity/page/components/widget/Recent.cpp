@@ -51,14 +51,14 @@ const char* Recent::modeLabel(const Mode mode) {
 }
 
 void Recent::render(const Mode mode, const int x, const int y, const int width, const int height,
-                    const int selectedIndex, const bool dashboardCarouselFocused) const {
+                    const int selectedIndex, const bool dashboardCarouselFocused, const bool drawSelection) const {
   if (width <= 0 || height <= 0) return;
   switch (mode) {
     case Mode::Grid:
-      grid::Grid::render(renderer_, x, y, width, height, selectedIndex);
+      grid::Grid::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::Grid2x2:
-      grid2x2::Grid2x2::render(renderer_, x, y, width, height, selectedIndex);
+      grid2x2::Grid2x2::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::List:
       list::List::render(renderer_, x, y, width, height, selectedIndex);

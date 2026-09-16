@@ -17,7 +17,7 @@ class Recent final {
   static const char* modeLabel(Mode mode);
 
   void render(Mode mode, int x, int y, int width, int height, int selectedIndex = 0,
-              bool dashboardCarouselFocused = false) const;
+              bool dashboardCarouselFocused = false, bool drawSelection = true) const;
   void preview(Mode mode, int x, int y, int width, int height, bool dashboardCarouselFocused = false) const;
 
  private:
