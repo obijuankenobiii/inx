@@ -354,6 +354,7 @@ class SystemSetting {
     RECENT_CAROUSEL = 7,         ///< Left-layout recent carousel widget
     RECENT_DASHBOARD = 8,         ///< inx-pro Recent widget above a left recent carousel
     RECENT_GRID_2X2 = 9,          ///< Two-column, two-row recent widget
+    RECENT_DESCRIPTION = 10,      ///< Left cover carousel with title, author, and description
     RECENT_LIBRARY_MODE_COUNT
   };
 

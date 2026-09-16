@@ -8,6 +8,7 @@
 #include "list/List.h"
 #include "carousel/Carousel.h"
 #include "dashboard/Dashboard.h"
+#include "description/Description.h"
 #include "state/SystemSetting.h"
 
 namespace widget {
@@ -24,6 +25,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
       return Mode::Carousel;
     case SystemSetting::RECENT_DASHBOARD:
       return Mode::Dashboard;
+    case SystemSetting::RECENT_DESCRIPTION:
+      return Mode::Description;
     case SystemSetting::RECENT_FLOW:
     case SystemSetting::RECENT_LIST_DEPRECATED:
     case SystemSetting::RECENT_SIMPLE:
@@ -44,6 +47,8 @@ const char* Recent::modeLabel(const Mode mode) {
       return "Carousel";
     case Mode::Dashboard:
       return "Recent + Carousel";
+    case Mode::Description:
+      return "Description";
     case Mode::Flow:
     default:
       return "Flow";
@@ -61,7 +66,7 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
       grid2x2::Grid2x2::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::List:
-      list::List::render(renderer_, x, y, width, height, selectedIndex);
+      list::List::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::Carousel: {
       const int topHeight = std::max(1, height / 2);
@@ -72,6 +77,9 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
     }
     case Mode::Dashboard:
       dashboard::Dashboard::render(renderer_, x, y, width, height, selectedIndex, dashboardCarouselFocused);
+      return;
+    case Mode::Description:
+      description::Description::render(renderer_, x, y, width, height, selectedIndex);
       return;
     case Mode::Flow:
     default:
@@ -103,6 +111,9 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
     }
     case Mode::Dashboard:
       dashboard::Dashboard::preview(renderer_, x, y, width, height, dashboardCarouselFocused);
+      return;
+    case Mode::Description:
+      description::Description::preview(renderer_, x, y, width, height);
       return;
     case Mode::Flow:
     default:

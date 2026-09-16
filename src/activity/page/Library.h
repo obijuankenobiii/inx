@@ -32,6 +32,7 @@ class Library final : public Page {
   void center() const override;
   bool showBattery() const override { return false; }
   void content() override;
+  void afterRender() override;
   void search() override;
   void navigateToSelectedMenu() override;
 
@@ -87,6 +88,12 @@ class Library final : public Page {
   bool popupDeleteConfirm_ = false;
   bool confirmLongPressProcessed_ = false;
   bool popupConfirmReleaseIgnored_ = false;
+  uint8_t* pageBuffer_ = nullptr;
+  bool pageBufferValid_ = false;
+  bool pageBufferBuilding_ = false;
+  int pageBufferItemCount_ = -1;
+  int pageBufferStartIndex_ = -1;
+  ViewMode pageBufferViewMode_ = ViewMode::GRID;
 
   void loadIndexedItems();
   void startIndexing();
@@ -122,6 +129,13 @@ class Library final : public Page {
   static const char* sortDirection(int index);
   static bool matchesTypeFilter(const std::string& path, const std::string& category);
   bool moveSelectedItem(int delta);
+  void requestRender();
+  bool tryFastSelection(int nextIndex);
+  int pageJumpIndex(int direction) const;
+  bool storePageBuffer();
+  bool restorePageBuffer();
+  void invalidatePageBuffer();
+  bool canBufferPage() const;
   int buttonX(int index) const;
   int buttonY() const;
 };

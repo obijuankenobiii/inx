@@ -159,5 +159,18 @@ void Grid::render(const int selectedIndex, const int page) const {
   }
 }
 
+void Grid::renderSelection(const int selectedIndex, const int page) const {
+  const int start = std::max(0, page) * itemsPerPage();
+  const int localIndex = selectedIndex - start;
+  if (localIndex < 0 || localIndex >= itemsPerPage() || selectedIndex >= static_cast<int>(items_.size())) return;
+
+  int x = 0;
+  int y = 0;
+  int width = 0;
+  int height = 0;
+  itemBounds(localIndex, x, y, width, height);
+  drawItem(items_[static_cast<size_t>(selectedIndex)], x, y, width, height, true);
+}
+
 }  // namespace library
 }  // namespace views

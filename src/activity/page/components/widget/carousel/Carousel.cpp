@@ -214,8 +214,8 @@ std::vector<DescriptionRun> parseDescription(const std::string& rawDescription) 
   return runs;
 }
 
-void renderDescription(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                       const std::string& rawDescription) {
+void renderDescriptionText(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                           const std::string& rawDescription) {
   if (width <= 0 || height <= 0 || rawDescription.empty()) return;
   const int font = MONTSERRAT_12_FONT_ID;
   const int lineHeight = renderer.text.getLineHeight(font);
@@ -270,13 +270,13 @@ void renderDescription(const GfxRenderer& renderer, const int x, const int y, co
 }
 
 void renderCover(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
-                 const int height) {
+                 const int height, const bool cropFromTop = false) {
   if (width <= 0 || height <= 0) return;
   // Match inx-pro's thumbnail shadow: a 6 px offset gray block is drawn first,
   // then a paper-white thumbnail backing masks the shadow beneath the cover.
   renderer.rectangle.fill(x + 6, y + 6, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
   renderer.rectangle.fill(x, y, width, height, false);
-  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false);
+  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, cropFromTop);
   renderer.rectangle.render(x, y, width, height, true, SETTINGS.bitmapRoundedCorners != 0,
                             SETTINGS.bitmapRoundedCorners == 2);
 }
@@ -348,11 +348,17 @@ void Carousel::renderProgressTag(GfxRenderer& renderer, const RecentBook& book, 
   renderProgressTagInternal(renderer, book, x, y, width, height);
 }
 
+void Carousel::renderThumbnail(GfxRenderer& renderer, const RecentBook& book, const int x, const int y,
+                               const int width, const int height, const bool showProgressTag, const bool cropFromTop) {
+  renderCover(renderer, book, x, y, width, height, cropFromTop);
+  if (showProgressTag) renderProgressTagInternal(renderer, book, x, y, width, height);
+}
+
 void Carousel::render(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                      const int selectedIndex) {
+                      const int selectedIndex, const bool showProgressTag) {
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
-  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height, false, false);
+  renderLeft(renderer, RECENT_BOOKS.getBooks(), selectedIndex, x, y, width, height, false, showProgressTag);
 }
 
 void Carousel::renderRemaining(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
@@ -369,7 +375,8 @@ void Carousel::renderRemaining(GfxRenderer& renderer, const int x, const int y, 
   }
 }
 
-void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                       const bool showProgressTag) {
   if (width <= 0 || height <= 0) return;
   renderer.rectangle.fill(x, y, width, height, false);
   const RecentBook placeholder("", "", "Book title", "Author", 0.65f);
@@ -382,6 +389,7 @@ void Carousel::preview(GfxRenderer& renderer, const int x, const int y, const in
     const int visibleWidth = std::min(cardWidth, x + width - cardX);
     if (visibleWidth <= 0) break;
     renderCover(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
+    if (showProgressTag) renderProgressTagInternal(renderer, placeholder, cardX, cardY, visibleWidth, cardHeight);
     cardX += cardWidth + UiLayout::CAROUSEL_LEFT_CARD_GAP;
   }
 }
@@ -456,8 +464,8 @@ void Carousel::renderBottom(GfxRenderer& renderer, const int x, const int y, con
   renderProgress(renderer, x + marginX, barY, width, percentage);
   constexpr int descriptionGap = 40;
   const int descriptionY = barY + 5 + descriptionGap;
-  renderDescription(renderer, x + marginX, descriptionY, width - marginX * 2,
-                    height - (descriptionY - y), descriptionFor(book));
+  renderDescriptionText(renderer, x + marginX, descriptionY, width - marginX * 2,
+                        height - (descriptionY - y), descriptionFor(book));
 }
 
 void Carousel::previewBottom(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
@@ -475,8 +483,13 @@ void Carousel::previewBottom(GfxRenderer& renderer, const int x, const int y, co
   renderProgress(renderer, x + marginX, barY, width, 65);
   constexpr int descriptionGap = 40;
   const int descriptionY = barY + 5 + descriptionGap;
-  renderDescription(renderer, x + marginX, descriptionY, width - marginX * 2, height - (descriptionY - y),
-                    "A recent book description appears here.");
+  renderDescriptionText(renderer, x + marginX, descriptionY, width - marginX * 2, height - (descriptionY - y),
+                        "A recent book description appears here.");
+}
+
+void Carousel::renderDescription(GfxRenderer& renderer, const std::string& rawDescription, const int x, const int y,
+                                 const int width, const int height) {
+  renderDescriptionText(renderer, x, y, width, height, rawDescription);
 }
 
 }  // namespace widget::carousel

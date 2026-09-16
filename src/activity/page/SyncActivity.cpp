@@ -8,6 +8,9 @@
 #include <Arduino.h>
 #include <GfxRenderer.h>
 
+#include <cstdlib>
+#include <cstring>
+
 #include "activity/network/BackupRestoreActivity.h"
 #include "activity/settings/DeviceInfoActivity.h"
 #include "activity/settings/DictionaryPickerActivity.h"
@@ -31,8 +34,16 @@ constexpr int kHeaderHeight = 40;
 constexpr int kListGap = 30;
 }  // namespace
 
+void SyncActivity::requestRender() {
+  pageBufferValid_ = false;
+  pageBufferBuilding_ = false;
+  Page::requestRender();
+}
+
 void SyncActivity::onEnter() {
   Page::onEnter();
+  pageBufferValid_ = false;
+  pageBufferBuilding_ = false;
   selectedIndex = 0;
   selectedVisible = false;
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Sync);
@@ -132,16 +143,29 @@ void SyncActivity::loop() {
 
   bool needUpdate = false;
   if (mappedInput.wasPressed(itemPrevButton())) {
-    selectedIndex = (selectedIndex + kMenuItemCount - 1) % kMenuItemCount;
+    const int nextIndex = (selectedIndex + kMenuItemCount - 1) % kMenuItemCount;
+    if (tryFastSelection(nextIndex)) {
+      selectedIndex = nextIndex;
+    } else {
+      selectedIndex = nextIndex;
+      needUpdate = true;
+    }
     selectedVisible = true;
-    needUpdate = true;
   }
   if (mappedInput.wasPressed(itemNextButton())) {
     if (selectedVisible) {
-      selectedIndex = (selectedIndex + 1) % kMenuItemCount;
+      const int nextIndex = (selectedIndex + 1) % kMenuItemCount;
+      if (tryFastSelection(nextIndex)) {
+        selectedIndex = nextIndex;
+      } else {
+        selectedIndex = nextIndex;
+        needUpdate = true;
+      }
+    } else {
+      selectedIndex = 0;
+      if (!tryFastSelection(selectedIndex)) needUpdate = true;
     }
     selectedVisible = true;
-    needUpdate = true;
   }
 
   if (needUpdate) requestRender();
@@ -156,6 +180,15 @@ void SyncActivity::title() const {
 }
 
 void SyncActivity::content() {
+  if (canBufferPage()) {
+    renderItems(false);
+    pageBufferBuilding_ = true;
+    return;
+  }
+  renderItems(selectedVisible);
+}
+
+void SyncActivity::renderItems(const bool selected) const {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   const int listStartY = kHeaderTop + kHeaderHeight + kListGap;
@@ -165,16 +198,16 @@ void SyncActivity::content() {
     const int itemY = listStartY + index * kListItemHeight;
     if (itemY >= contentBottom || itemY + kListItemHeight <= listStartY) continue;
 
-    const bool selected = selectedVisible && index == selectedIndex;
-    if (selected) {
+    const bool itemSelected = selected && selectedVisible && index == selectedIndex;
+    if (itemSelected) {
       renderer.rectangle.fill(0, itemY, screenWidth, kListItemHeight,
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
     const int titleY = itemY + (kListItemHeight - renderer.text.getLineHeight(systemFontId())) / 2;
-    renderer.text.render(systemFontId(), 20, titleY, kMenuItems[index], !selected);
+    renderer.text.render(systemFontId(), 20, titleY, kMenuItems[index], !itemSelected);
     const int caretWidth = renderer.text.getWidth(systemFontId(), "›");
-    renderer.text.render(systemFontId(), screenWidth - caretWidth - 30, titleY, "›", !selected);
+    renderer.text.render(systemFontId(), screenWidth - caretWidth - 30, titleY, "›", !itemSelected);
 
     if (index + 1 < kMenuItemCount) {
       renderer.line.render(0, itemY + kListItemHeight - 1, screenWidth, itemY + kListItemHeight - 1, true,
@@ -183,8 +216,84 @@ void SyncActivity::content() {
   }
 }
 
+void SyncActivity::afterRender() {
+  if (!pageBufferBuilding_) return;
+  pageBufferBuilding_ = false;
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer || !storePageBuffer()) {
+    pageBufferValid_ = false;
+    renderItems(true);
+    return;
+  }
+
+  memcpy(pageBuffer_, frameBuffer, renderer.getBufferSize());
+  pageBufferValid_ = true;
+  if (selectedVisible) renderSelection();
+}
+
+bool SyncActivity::canBufferPage() const {
+  return !subActivity && tabSelectorIndex == 3;
+}
+
+bool SyncActivity::storePageBuffer() {
+  if (!renderer.getFrameBuffer()) return false;
+  if (!pageBuffer_) {
+    pageBuffer_ = static_cast<uint8_t*>(std::malloc(renderer.getBufferSize()));
+    if (!pageBuffer_) return false;
+  }
+  return true;
+}
+
+bool SyncActivity::restorePageBuffer() {
+  if (!pageBufferValid_ || !pageBuffer_) return false;
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) return false;
+  memcpy(frameBuffer, pageBuffer_, renderer.getBufferSize());
+  return true;
+}
+
+void SyncActivity::renderSelection() const {
+  if (!selectedVisible || selectedIndex < 0 || selectedIndex >= kMenuItemCount) return;
+
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  const int listStartY = kHeaderTop + kHeaderHeight + kListGap;
+  const int contentBottom = screenHeight - navigation::Menu::bottomHeight - 10;
+  const int itemY = listStartY + selectedIndex * kListItemHeight;
+  if (itemY >= contentBottom || itemY + kListItemHeight <= listStartY) return;
+
+  const bool selected = true;
+  renderer.rectangle.fill(0, itemY, screenWidth, kListItemHeight,
+                          static_cast<int>(GfxRenderer::FillTone::Ink));
+  const int titleY = itemY + (kListItemHeight - renderer.text.getLineHeight(systemFontId())) / 2;
+  renderer.text.render(systemFontId(), 20, titleY, kMenuItems[selectedIndex], !selected);
+  const int caretWidth = renderer.text.getWidth(systemFontId(), "›");
+  renderer.text.render(systemFontId(), screenWidth - caretWidth - 30, titleY, "›", !selected);
+  if (selectedIndex + 1 < kMenuItemCount && itemY + kListItemHeight < contentBottom) {
+    renderer.line.render(0, itemY + kListItemHeight - 1, screenWidth, itemY + kListItemHeight - 1, true,
+                         LineRender::Style::Dotted);
+  }
+}
+
+bool SyncActivity::tryFastSelection(const int nextIndex) {
+  if (!canBufferPage() || !pageBufferValid_ || !pageBuffer_) return false;
+  if (!restorePageBuffer()) return false;
+  selectedIndex = nextIndex;
+  selectedVisible = true;
+  renderSelection();
+  renderer.displayBuffer();
+  return true;
+}
+
 void SyncActivity::onExit() {
   exit();
+  pageBufferValid_ = false;
+  pageBufferBuilding_ = false;
+  if (pageBuffer_) {
+    std::free(pageBuffer_);
+    pageBuffer_ = nullptr;
+  }
   Page::onExit();
 }
 

@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -48,12 +50,12 @@ extern void onGoToFileTransfer();
 
 namespace {
 
-constexpr unsigned long kHeaderHoldMs = 650;
+constexpr unsigned long kHeaderHoldMs = 300;
 constexpr unsigned long kDoubleBackWindowMs = 450;
 constexpr int kHeaderButtonCount = 4;
-constexpr unsigned long kItemJumpHoldMs = 500;
+constexpr unsigned long kItemJumpHoldMs = 300;
 constexpr unsigned long kItemJumpRepeatMs = 250;
-constexpr unsigned long kItemLongPressMs = 500;
+constexpr unsigned long kItemLongPressMs = 650;
 
 unsigned long lastBackReleaseMs = 0;
 
@@ -122,8 +124,14 @@ Library::Library(GfxRenderer& renderer, MappedInputManager& mappedInput, std::st
   selectedHeaderButton_ = 3;
 }
 
+void Library::requestRender() {
+  invalidatePageBuffer();
+  Page::requestRender();
+}
+
 void Library::onEnter() {
   Page::onEnter();
+  invalidatePageBuffer();
   tabSelectorIndex = 1;
   if (path_.empty()) {
     path_ = "/";
@@ -177,6 +185,11 @@ void Library::onExit() {
   // activity is destroyed so a quick tab change cannot leave a dangling callback.
   while (isIndexing_) {
     vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  invalidatePageBuffer();
+  if (pageBuffer_) {
+    std::free(pageBuffer_);
+    pageBuffer_ = nullptr;
   }
   Page::onExit();
 }
@@ -252,6 +265,7 @@ void Library::loop() {
       sidebarOpen_ = true;
       selectedSidebarItem_ = 0;
       headerFocused_ = false;
+      invalidatePageBuffer();
       requestRender();
       return;
     }
@@ -273,6 +287,7 @@ void Library::loop() {
     }
     sidebarOpen_ = !sidebarOpen_;
     headerFocused_ = false;
+    invalidatePageBuffer();
     requestRender();
     return;
   }
@@ -284,34 +299,18 @@ void Library::loop() {
   }
 
   if (headerFocused_) {
-    // Header controls are laid out horizontally. Always consume the physical
-    // Left/Right buttons here so they move between view/sort/filter/refresh
-    // instead of falling through to Page::loop() and changing the bottom menu.
-    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    // Horizontal buttons belong to the shared main-menu navigation. Only the
+    // configured vertical item buttons may move through the Library header.
+    const bool itemButtonsAreHorizontal = itemPrevButton() == MappedInputManager::Button::Left ||
+                                          itemPrevButton() == MappedInputManager::Button::Right ||
+                                          itemNextButton() == MappedInputManager::Button::Left ||
+                                          itemNextButton() == MappedInputManager::Button::Right;
+    if (!itemButtonsAreHorizontal && mappedInput.wasPressed(itemPrevButton())) {
       selectedHeaderButton_ = (selectedHeaderButton_ + kHeaderButtonCount - 1) % kHeaderButtonCount;
       requestRender();
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-      // In side-button navigation mode, Right is also the logical next-item
-      // control. Treat the last header control as the bridge back to the list.
-      if (itemNextButton() == MappedInputManager::Button::Right &&
-          selectedHeaderButton_ == kHeaderButtonCount - 1 && !items_.empty()) {
-        headerFocused_ = false;
-        selectedItemIndex_ = 0;
-        requestRender();
-        return;
-      }
-      selectedHeaderButton_ = (selectedHeaderButton_ + 1) % kHeaderButtonCount;
-      requestRender();
-      return;
-    }
-    if (mappedInput.wasPressed(itemPrevButton())) {
-      selectedHeaderButton_ = (selectedHeaderButton_ + kHeaderButtonCount - 1) % kHeaderButtonCount;
-      requestRender();
-      return;
-    }
-    if (mappedInput.wasPressed(itemNextButton())) {
+    if (!itemButtonsAreHorizontal && mappedInput.wasPressed(itemNextButton())) {
       if (selectedHeaderButton_ == kHeaderButtonCount - 1 && !items_.empty()) {
         headerFocused_ = false;
         selectedItemIndex_ = 0;
@@ -338,33 +337,64 @@ void Library::loop() {
         headerFocused_ = true;
         selectedHeaderButton_ = kHeaderButtonCount - 1;
         nextItemJumpMs_ = 0;
+        invalidatePageBuffer();
         requestRender();
         return;
       }
-      moveSelectedItem(-1);
+      const int count = static_cast<int>(items_.size());
+      const int nextIndex = (selectedItemIndex_ + count - 1) % count;
+      if (tryFastSelection(nextIndex)) {
+        selectedItemIndex_ = nextIndex;
+      } else {
+        selectedItemIndex_ = nextIndex;
+        invalidatePageBuffer();
+        requestRender();
+      }
       nextItemJumpMs_ = millis() + kItemJumpHoldMs;
-      requestRender();
       return;
     }
     if (mappedInput.wasPressed(nextItemButton)) {
-      moveSelectedItem(1);
+      const int count = static_cast<int>(items_.size());
+      const int nextIndex = (selectedItemIndex_ + 1) % count;
+      if (tryFastSelection(nextIndex)) {
+        selectedItemIndex_ = nextIndex;
+      } else {
+        selectedItemIndex_ = nextIndex;
+        invalidatePageBuffer();
+        requestRender();
+      }
       nextItemJumpMs_ = millis() + kItemJumpHoldMs;
-      requestRender();
       return;
     }
     if (mappedInput.isPressed(previousItemButton)) {
       if (mappedInput.getHeldTime() >= kItemJumpHoldMs && millis() >= nextItemJumpMs_) {
-        moveSelectedItem(-5);
+        const int nextIndex = pageJumpIndex(-1);
+        if (nextIndex != selectedItemIndex_) {
+          if (tryFastSelection(nextIndex)) {
+            selectedItemIndex_ = nextIndex;
+          } else {
+            selectedItemIndex_ = nextIndex;
+            invalidatePageBuffer();
+            requestRender();
+          }
+        }
         nextItemJumpMs_ = millis() + kItemJumpRepeatMs;
-        requestRender();
       }
       return;
     }
     if (mappedInput.isPressed(nextItemButton)) {
       if (mappedInput.getHeldTime() >= kItemJumpHoldMs && millis() >= nextItemJumpMs_) {
-        moveSelectedItem(5);
+        const int nextIndex = pageJumpIndex(1);
+        if (nextIndex != selectedItemIndex_) {
+          if (tryFastSelection(nextIndex)) {
+            selectedItemIndex_ = nextIndex;
+          } else {
+            selectedItemIndex_ = nextIndex;
+            invalidatePageBuffer();
+            requestRender();
+          }
+        }
         nextItemJumpMs_ = millis() + kItemJumpRepeatMs;
-        requestRender();
       }
       return;
     }
@@ -806,12 +836,107 @@ void Library::content() {
     renderer.text.centered(MONTSERRAT_12_FONT_ID, renderer.getScreenHeight() / 2, "No books in this folder");
     return;
   }
+  if (canBufferPage()) {
+    const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                     : views::library::List::itemsPerPage();
+    const int page = selectedItemIndex_ / pageSize;
+    if (viewMode_ == ViewMode::LIST) {
+      list_.render(-1, page);
+    } else {
+      grid_.render(-1, page);
+    }
+    pageBufferBuilding_ = true;
+    return;
+  }
   const int selectedIndex = headerFocused_ ? -1 : selectedItemIndex_;
   if (viewMode_ == ViewMode::LIST) {
-    list_.render(selectedIndex);
+    list_.render(selectedIndex, selectedItemIndex_ / views::library::List::itemsPerPage());
   } else {
     grid_.render(selectedIndex, selectedItemIndex_ / views::library::Grid::itemsPerPage());
   }
+}
+
+void Library::afterRender() {
+  if (!pageBufferBuilding_) return;
+  pageBufferBuilding_ = false;
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer || !storePageBuffer()) {
+    pageBufferValid_ = false;
+    if (viewMode_ == ViewMode::LIST) {
+      list_.render(selectedItemIndex_, selectedItemIndex_ / views::library::List::itemsPerPage());
+    } else {
+      grid_.render(selectedItemIndex_, selectedItemIndex_ / views::library::Grid::itemsPerPage());
+    }
+    return;
+  }
+
+  memcpy(pageBuffer_, frameBuffer, renderer.getBufferSize());
+  pageBufferValid_ = true;
+  pageBufferItemCount_ = static_cast<int>(items_.size());
+  pageBufferViewMode_ = viewMode_;
+  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                   : views::library::List::itemsPerPage();
+  pageBufferStartIndex_ = (selectedItemIndex_ / pageSize) * pageSize;
+  if (viewMode_ == ViewMode::LIST) {
+    list_.renderSelection(selectedItemIndex_);
+  } else {
+    grid_.renderSelection(selectedItemIndex_, selectedItemIndex_ / pageSize);
+  }
+}
+
+bool Library::canBufferPage() const {
+  return indexLoaded_ && !items_.empty() && !headerFocused_ && !sidebarOpen_ && !sortOpen_ && !filterOpen_ &&
+         popupItemIndex_ < 0 && !isIndexing_;
+}
+
+bool Library::storePageBuffer() {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) return false;
+
+  if (!pageBuffer_) {
+    pageBuffer_ = static_cast<uint8_t*>(std::malloc(renderer.getBufferSize()));
+    if (!pageBuffer_) return false;
+  }
+  return true;
+}
+
+bool Library::restorePageBuffer() {
+  if (!pageBufferValid_ || !pageBuffer_) return false;
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) return false;
+  memcpy(frameBuffer, pageBuffer_, renderer.getBufferSize());
+  return true;
+}
+
+void Library::invalidatePageBuffer() {
+  pageBufferValid_ = false;
+  pageBufferBuilding_ = false;
+  pageBufferItemCount_ = -1;
+  pageBufferStartIndex_ = -1;
+}
+
+bool Library::tryFastSelection(const int nextIndex) {
+  if (!canBufferPage() || !pageBufferValid_ || !pageBuffer_ || pageBufferItemCount_ != static_cast<int>(items_.size()) ||
+      pageBufferViewMode_ != viewMode_) {
+    return false;
+  }
+
+  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                   : views::library::List::itemsPerPage();
+  const int currentPageStart = (selectedItemIndex_ / pageSize) * pageSize;
+  const int nextPageStart = (nextIndex / pageSize) * pageSize;
+  if (pageBufferStartIndex_ != currentPageStart || currentPageStart != nextPageStart) return false;
+
+  if (!restorePageBuffer()) return false;
+  if (viewMode_ == ViewMode::LIST) {
+    list_.renderSelection(nextIndex);
+  } else {
+    grid_.renderSelection(nextIndex, nextIndex / pageSize);
+  }
+  renderer.displayBuffer();
+  return true;
 }
 
 bool Library::moveSelectedItem(const int delta) {
@@ -826,6 +951,19 @@ bool Library::moveSelectedItem(const int delta) {
     selectedItemIndex_ += count;
   }
   return selectedItemIndex_ != oldIndex;
+}
+
+int Library::pageJumpIndex(const int direction) const {
+  const int count = static_cast<int>(items_.size());
+  if (count <= 0 || direction == 0) return selectedItemIndex_;
+
+  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                   : views::library::List::itemsPerPage();
+  const int currentPage = selectedItemIndex_ / pageSize;
+  const int lastPage = (count - 1) / pageSize;
+  const int targetPage = std::max(0, std::min(lastPage, currentPage + (direction < 0 ? -1 : 1)));
+  const int slot = selectedItemIndex_ % pageSize;
+  return std::min(count - 1, targetPage * pageSize + slot);
 }
 
 void Library::handleHeaderConfirm() {

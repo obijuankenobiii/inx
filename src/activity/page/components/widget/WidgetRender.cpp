@@ -67,12 +67,13 @@ void drawPlaceholder(const GfxRenderer& renderer, const std::string& title, cons
 }
 
 void drawThumbnail(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
-                   const int height, const int font, const bool roundedCornerBackdropIsDither) {
+                   const int height, const int font, const bool roundedCornerBackdropIsDither, const bool cropFromTop) {
   if (width <= 0 || height <= 0) return;
   const std::string path = thumbnailPath(book);
   if (!path.empty()) {
     ImageRender::Options options;
     options.cropToFill = true;
+    options.cropFromTop = cropFromTop;
     options.useDisplayCache = true;
     if (SETTINGS.bitmapRoundedCorners == 0) {
       options.roundedOutside = BitmapRender::RoundedOutside::None;

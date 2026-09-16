@@ -17,6 +17,7 @@ class Grid final {
 
   static constexpr int itemsPerPage() { return 12; }
   void render(int selectedIndex = -1, int page = 0) const;
+  void renderSelection(int selectedIndex, int page = 0) const;
 
  private:
   static constexpr int columns = 3;

@@ -30,40 +30,50 @@ std::string List::displayTitle(const LibraryIndex::Book& item) {
   return item.author.empty() ? title : item.author + " - " + title;
 }
 
-void List::render(const int selectedIndex) const {
-  const int start = std::max(0, selectedIndex < 0 ? 0 : selectedIndex / itemsPerPage()) * itemsPerPage();
-  if (start >= static_cast<int>(items_.size())) return;
-
-  const int count = std::min(itemsPerPage(), static_cast<int>(items_.size()) - start);
+void List::drawRow(const LibraryIndex::Book& item, const int row, const int count, const bool selected) const {
   const int width = renderer_.getScreenWidth();
   const int font = systemFontId();
   const int top = UiLayout::MENU_HEIGHT;
+  const int y = top + row * rowHeight;
 
+  if (selected) {
+    renderer_.rectangle.fill(0, y, width, rowHeight, true);
+  }
+
+  const uint8_t* icon = item.type == LibraryIndex::Book::Type::FOLDER ? Folder : BookSmall;
+  renderer_.bitmap.icon(icon, 20, y + (rowHeight - 24) / 2, 24, 24, BitmapRender::Orientation::None, selected);
+
+  const bool favorite = isFavorite_ && isFavorite_(item);
+  const int favoriteSize = 24;
+  const int available = std::max(40, width - 54 - 20 - (favorite ? favoriteSize + 10 : 0));
+  const std::string label = renderer_.text.truncate(font, displayTitle(item).c_str(), available);
+  renderer_.text.render(font, 54, y + (rowHeight - renderer_.text.getLineHeight(font)) / 2, label.c_str(), !selected);
+  if (favorite) {
+    renderer_.bitmap.icon(Star, width - 20 - favoriteSize, y + (rowHeight - favoriteSize) / 2, favoriteSize,
+                          favoriteSize, BitmapRender::Orientation::None, selected);
+  }
+  if (row + 1 < count) {
+    renderer_.line.render(0, y + rowHeight - 1, width, y + rowHeight - 1, true, LineRender::Style::Dotted);
+  }
+}
+
+void List::render(const int selectedIndex, const int page) const {
+  const int start = std::max(0, page) * itemsPerPage();
+  if (start >= static_cast<int>(items_.size())) return;
+
+  const int count = std::min(itemsPerPage(), static_cast<int>(items_.size()) - start);
   for (int row = 0; row < count; ++row) {
     const int itemIndex = start + row;
-    const LibraryIndex::Book& item = items_[static_cast<size_t>(itemIndex)];
-    const int y = top + row * rowHeight;
-    const bool selected = itemIndex == selectedIndex;
-    if (selected) {
-      renderer_.rectangle.fill(0, y, width, rowHeight, true);
-    }
-
-    const uint8_t* icon = item.type == LibraryIndex::Book::Type::FOLDER ? Folder : BookSmall;
-    renderer_.bitmap.icon(icon, 20, y + (rowHeight - 24) / 2, 24, 24, BitmapRender::Orientation::None, selected);
-
-    const bool favorite = isFavorite_ && isFavorite_(item);
-    const int favoriteSize = 24;
-    const int available = std::max(40, width - 54 - 20 - (favorite ? favoriteSize + 10 : 0));
-    const std::string label = renderer_.text.truncate(font, displayTitle(item).c_str(), available);
-    renderer_.text.render(font, 54, y + (rowHeight - renderer_.text.getLineHeight(font)) / 2, label.c_str(), !selected);
-    if (favorite) {
-      renderer_.bitmap.icon(Star, width - 20 - favoriteSize, y + (rowHeight - favoriteSize) / 2, favoriteSize,
-                            favoriteSize, BitmapRender::Orientation::None, selected);
-    }
-    if (row + 1 < count) {
-      renderer_.line.render(0, y + rowHeight - 1, width, y + rowHeight - 1, true, LineRender::Style::Dotted);
-    }
+    drawRow(items_[static_cast<size_t>(itemIndex)], row, count, itemIndex == selectedIndex);
   }
+}
+
+void List::renderSelection(const int selectedIndex) const {
+  if (selectedIndex < 0 || selectedIndex >= static_cast<int>(items_.size())) return;
+  const int row = selectedIndex % itemsPerPage();
+  const int start = selectedIndex - row;
+  const int count = std::min(itemsPerPage(), static_cast<int>(items_.size()) - start);
+  drawRow(items_[static_cast<size_t>(selectedIndex)], row, count, true);
 }
 
 }  // namespace library

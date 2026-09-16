@@ -83,8 +83,8 @@ void Menu::render() const {
     }
   }
   if (searchFocused) {
-    constexpr int cursorRadius = searchRadius - 2;
-    constexpr int cursorThickness = 5;
+    constexpr int cursorRadius = searchRadius - 1;
+    constexpr int cursorThickness = 4;
     constexpr int innerRadius = cursorRadius - cursorThickness;
     for (int dy = -cursorRadius; dy <= cursorRadius; ++dy) {
       for (int dx = -cursorRadius; dx <= cursorRadius; ++dx) {

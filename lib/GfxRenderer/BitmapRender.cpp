@@ -185,7 +185,7 @@ bool readIconBitMsbFirst(const uint8_t* bitmap, const int width, const int heigh
 
 void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                           const float cropX, const float cropY, const RoundedOutside roundedOutside,
-                          const ImageRenderMode mode) const {
+                          const ImageRenderMode mode, const bool cropFromTop) const {
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     oneBit(bitmap, x, y, maxWidth, maxHeight, roundedOutside);
     return;
@@ -195,6 +195,9 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   bool isScaled = false;
   const int cropPixX = static_cast<int>(std::floor(bitmap.getWidth() * cropX / 2.0f));
   const int cropPixY = static_cast<int>(std::floor(bitmap.getHeight() * cropY / 2.0f));
+  const int cropTotalY = static_cast<int>(std::floor(bitmap.getHeight() * cropY));
+  const int cropTopY = cropFromTop ? cropTotalY : cropPixY;
+  const int cropBottomY = cropFromTop ? 0 : cropPixY;
 
   const float croppedWidth = (1.0f - cropX) * static_cast<float>(bitmap.getWidth());
   const float croppedHeight = (1.0f - cropY) * static_cast<float>(bitmap.getHeight());
@@ -220,7 +223,7 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
   const int tFirstY = -cropPixY + (bitmap.isTopDown() ? cropPixY : bitmap.getHeight() - 1 - cropPixY);
 
   const int contentW = bitmap.getWidth() - 2 * cropPixX;
-  const int contentH = bitmap.getHeight() - 2 * cropPixY;
+  const int contentH = bitmap.getHeight() - cropTopY - cropBottomY;
 
   const int drawnW = contentW > 0 ? static_cast<int>(std::floor(static_cast<float>(contentW) * scale)) : 0;
   const int drawnH = contentH > 0 ? static_cast<int>(std::floor(static_cast<float>(contentH) * scale)) : 0;
@@ -267,6 +270,57 @@ void BitmapRender::render(const Bitmap& bitmap, const int x, const int y, const 
       gfx.drawPixel(screenX, screenY, true);
     }
   };
+
+  // The normal renderer centers a crop vertically. The description carousel's
+  // final peek needs the top of the cover through its midpoint instead, so
+  // select that source range explicitly for all BMP orientations.
+  if (cropFromTop && cropTotalY > 0) {
+    for (int bmpY = 0; bmpY < bitmap.getHeight(); ++bmpY) {
+      if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {
+        free(outRow);
+        free(rowBufBytes);
+        return;
+      }
+
+      const int sourceY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
+      if (sourceY < cropTopY || sourceY >= bitmap.getHeight() - cropBottomY) continue;
+      const int uY = sourceY - cropTopY;
+
+      if (replicateUpscale) {
+        const int y0 = y + static_cast<int>(std::floor(static_cast<float>(uY) * scale));
+        const int y1 = y + static_cast<int>(std::floor(static_cast<float>(uY + 1) * scale));
+        for (int sy = y0; sy < y1 && sy < gfx.getScreenHeight(); ++sy) {
+          if (sy < 0) continue;
+          for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; ++bmpX) {
+            const int srcCol = bmpX - cropPixX;
+            const int x0 = x + static_cast<int>(std::floor(static_cast<float>(srcCol) * scale));
+            const int x1 = x + static_cast<int>(std::floor(static_cast<float>(srcCol + 1) * scale));
+            const uint8_t val = pixel2bpp(outRow, bmpX);
+            for (int sx = x0; sx < x1 && sx < gfx.getScreenWidth(); ++sx) {
+              if (sx >= 0) emitPixel(sx, sy, val);
+            }
+          }
+        }
+      } else {
+        const int screenY = y + static_cast<int>(std::floor(static_cast<float>(uY) * scale));
+        if (screenY < 0 || screenY >= gfx.getScreenHeight()) continue;
+        for (int bmpX = cropPixX; bmpX < bitmap.getWidth() - cropPixX; ++bmpX) {
+          int screenX = x + (bmpX - cropPixX);
+          if (isScaled) screenX = x + static_cast<int>(std::floor(static_cast<float>(bmpX - cropPixX) * scale));
+          if (screenX < 0) continue;
+          if (screenX >= gfx.getScreenWidth()) break;
+          emitPixel(screenX, screenY, pixel2bpp(outRow, bmpX));
+        }
+      }
+    }
+
+    if (roundedOutside != RoundedOutside::None && contentW > 0 && contentH > 0 && maskW > 0 && maskH > 0) {
+      maskBitmapCornersOutsideRounded(gfx, x, y, maskW, maskH, roundedOutside);
+    }
+    free(outRow);
+    free(rowBufBytes);
+    return;
+  }
 
   for (int bmpY = 0; bmpY < (bitmap.getHeight() - cropPixY); bmpY++) {
     if (bitmap.readNextRow(outRow, rowBufBytes) != BmpReaderError::Ok) {

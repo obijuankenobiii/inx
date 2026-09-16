@@ -18,7 +18,8 @@ class List final {
        std::function<bool(const LibraryIndex::Book&)> isFavorite);
 
   static constexpr int itemsPerPage() { return 10; }
-  void render(int selectedIndex = -1) const;
+  void render(int selectedIndex = -1, int page = 0) const;
+  void renderSelection(int selectedIndex) const;
 
  private:
   static constexpr int rowHeight = 64;
@@ -28,6 +29,7 @@ class List final {
   std::function<bool(const LibraryIndex::Book&)> isFavorite_;
 
   static std::string displayTitle(const LibraryIndex::Book& item);
+  void drawRow(const LibraryIndex::Book& item, int row, int count, bool selected) const;
 };
 
 }  // namespace library

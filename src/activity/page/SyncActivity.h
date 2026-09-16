@@ -44,8 +44,21 @@ class SyncActivity final : public Page {
   void title() const override;
   bool showBattery() const override { return false; }
   void content() override;
+  void afterRender() override;
   void enter(Activity* activity);
   void exit();
 
+  void requestRender();
+  bool canBufferPage() const;
+  bool storePageBuffer();
+  bool restorePageBuffer();
+  void renderItems(bool selected) const;
+  void renderSelection() const;
+  bool tryFastSelection(int nextIndex);
+
   void navigateToSelectedMenu() override;
+
+  uint8_t* pageBuffer_ = nullptr;
+  bool pageBufferValid_ = false;
+  bool pageBufferBuilding_ = false;
 };
