@@ -82,6 +82,9 @@ class Library final : public Page {
   bool sidebarOpen_ = false;
   int selectedSidebarItem_ = 0;
   int selectedItemIndex_ = 0;
+  int currentPage_ = 0;
+  int totalItemCount_ = 0;
+  std::vector<LibraryIndex::Book> pageBoundaries_;
   unsigned long nextItemJumpMs_ = 0;
   int popupItemIndex_ = -1;
   int popupActionIndex_ = 0;
@@ -95,7 +98,7 @@ class Library final : public Page {
   int pageBufferStartIndex_ = -1;
   ViewMode pageBufferViewMode_ = ViewMode::GRID;
 
-  void loadIndexedItems();
+  void loadIndexedItems(bool resetPaging = true);
   void startIndexing();
   void handleHeaderConfirm();
   void toggleViewMode();
@@ -129,9 +132,9 @@ class Library final : public Page {
   static const char* sortDirection(int index);
   static bool matchesTypeFilter(const std::string& path, const std::string& category);
   bool moveSelectedItem(int delta);
+  bool movePage(int direction);
   void requestRender();
   bool tryFastSelection(int nextIndex);
-  int pageJumpIndex(int direction) const;
   bool storePageBuffer();
   bool restorePageBuffer();
   void invalidatePageBuffer();

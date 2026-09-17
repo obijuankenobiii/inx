@@ -6,6 +6,7 @@
  */
 
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -30,6 +31,8 @@ class LibraryIndex final {
 
   static bool hasIndex();
   static bool deleteIndex();
+  /** Visit indexed entries one at a time without materializing the whole library in RAM. */
+  static bool visit(const std::function<bool(Book&)>& visitor);
   static bool search(const std::string& query, std::vector<Book>& results, size_t limit = 24);
 
  private:

@@ -95,7 +95,7 @@ void Menu::render() const {
       }
     }
   }
-  menuRenderer.bitmap.icon(Search, searchCenterX - UiLayout::MENU_ICON_SIZE / 2, iconY + 5,
+  menuRenderer.bitmap.icon(Search, searchCenterX - UiLayout::MENU_ICON_SIZE / 2, iconY,
                             UiLayout::MENU_ICON_SIZE, UiLayout::MENU_ICON_SIZE,
                             BitmapRender::Orientation::None, true);
 }

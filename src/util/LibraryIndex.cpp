@@ -54,6 +54,44 @@ bool LibraryIndex::hasIndex() { return SdMan.exists(kIndexPath); }
 
 bool LibraryIndex::deleteIndex() { return !hasIndex() || SdMan.remove(kIndexPath); }
 
+bool LibraryIndex::visit(const std::function<bool(Book&)>& visitor) {
+  if (!visitor || !hasIndex()) {
+    return false;
+  }
+
+  FsFile file = SdMan.open(kIndexPath, O_READ);
+  if (!file) {
+    return false;
+  }
+
+  uint8_t version = 0;
+  if (!readHeader(file, version)) {
+    file.close();
+    return false;
+  }
+
+  while (file.available()) {
+    uint8_t marker = 0;
+    if (file.read(&marker, sizeof(marker)) != sizeof(marker)) {
+      file.close();
+      return false;
+    }
+
+    Book book;
+    bool found = false;
+    if (!readEntry(file, marker, version, book, found)) {
+      file.close();
+      return false;
+    }
+    if (found && !visitor(book)) {
+      break;
+    }
+  }
+
+  file.close();
+  return true;
+}
+
 bool LibraryIndex::readText(FsFile& file, const size_t length, std::string& value) {
   value.clear();
   if (length == 0) {

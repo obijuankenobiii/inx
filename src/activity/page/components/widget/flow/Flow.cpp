@@ -91,7 +91,7 @@ void Flow::render(GfxRenderer& renderer, const int x, const int y, const int wid
 
   if (!hasStats) return;
   char buffer[32];
-  const int valueY = progress >= 0.0f ? barY + 5 + 20 : textBottom + 30;
+  const int valueY = progress >= 0.0f ? barY + 5 + 20 : textBottom + 50;
   renderer.text.render(MONTSERRAT_16_FONT_ID, statsX, valueY, formatTime(stats.totalReadingTimeMs).c_str(), true,
                        EpdFontFamily::BOLD);
   renderer.text.render(MONTSERRAT_10_FONT_ID, statsX, valueY + 40, "Reading Time", true);

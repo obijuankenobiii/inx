@@ -334,15 +334,21 @@ void Library::loop() {
     const auto nextItemButton = itemNextButton();
     if (mappedInput.wasPressed(previousItemButton)) {
       if (selectedItemIndex_ == 0) {
-        headerFocused_ = true;
-        selectedHeaderButton_ = kHeaderButtonCount - 1;
+        if (currentPage_ > 0) {
+          movePage(-1);
+          selectedItemIndex_ = std::max(0, static_cast<int>(items_.size()) - 1);
+        } else {
+          headerFocused_ = true;
+          selectedHeaderButton_ = kHeaderButtonCount - 1;
+        }
         nextItemJumpMs_ = 0;
-        invalidatePageBuffer();
-        requestRender();
+        if (currentPage_ == 0 && headerFocused_) {
+          invalidatePageBuffer();
+          requestRender();
+        }
         return;
       }
-      const int count = static_cast<int>(items_.size());
-      const int nextIndex = (selectedItemIndex_ + count - 1) % count;
+      const int nextIndex = selectedItemIndex_ - 1;
       if (tryFastSelection(nextIndex)) {
         selectedItemIndex_ = nextIndex;
       } else {
@@ -355,28 +361,42 @@ void Library::loop() {
     }
     if (mappedInput.wasPressed(nextItemButton)) {
       const int count = static_cast<int>(items_.size());
-      const int nextIndex = (selectedItemIndex_ + 1) % count;
-      if (tryFastSelection(nextIndex)) {
-        selectedItemIndex_ = nextIndex;
+      const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                        : views::library::List::itemsPerPage();
+      const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
+      if (selectedItemIndex_ + 1 >= count) {
+        if (currentPage_ + 1 < pageCount) {
+          movePage(1);
+          selectedItemIndex_ = 0;
+        } else {
+          currentPage_ = 0;
+          selectedItemIndex_ = 0;
+          loadIndexedItems(false);
+          invalidatePageBuffer();
+          requestRender();
+        }
       } else {
-        selectedItemIndex_ = nextIndex;
-        invalidatePageBuffer();
-        requestRender();
+        const int nextIndex = selectedItemIndex_ + 1;
+        if (tryFastSelection(nextIndex)) {
+          selectedItemIndex_ = nextIndex;
+        } else {
+          selectedItemIndex_ = nextIndex;
+          invalidatePageBuffer();
+          requestRender();
+        }
       }
       nextItemJumpMs_ = millis() + kItemJumpHoldMs;
       return;
     }
     if (mappedInput.isPressed(previousItemButton)) {
       if (mappedInput.getHeldTime() >= kItemJumpHoldMs && millis() >= nextItemJumpMs_) {
-        const int nextIndex = pageJumpIndex(-1);
-        if (nextIndex != selectedItemIndex_) {
-          if (tryFastSelection(nextIndex)) {
-            selectedItemIndex_ = nextIndex;
-          } else {
-            selectedItemIndex_ = nextIndex;
-            invalidatePageBuffer();
-            requestRender();
-          }
+        if (currentPage_ > 0) {
+          movePage(-1);
+          selectedItemIndex_ = std::max(0, static_cast<int>(items_.size()) - 1);
+        } else if (selectedItemIndex_ != 0) {
+          selectedItemIndex_ = 0;
+          invalidatePageBuffer();
+          requestRender();
         }
         nextItemJumpMs_ = millis() + kItemJumpRepeatMs;
       }
@@ -384,15 +404,16 @@ void Library::loop() {
     }
     if (mappedInput.isPressed(nextItemButton)) {
       if (mappedInput.getHeldTime() >= kItemJumpHoldMs && millis() >= nextItemJumpMs_) {
-        const int nextIndex = pageJumpIndex(1);
-        if (nextIndex != selectedItemIndex_) {
-          if (tryFastSelection(nextIndex)) {
-            selectedItemIndex_ = nextIndex;
-          } else {
-            selectedItemIndex_ = nextIndex;
-            invalidatePageBuffer();
-            requestRender();
-          }
+        const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                          : views::library::List::itemsPerPage();
+        const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
+        if (currentPage_ + 1 < pageCount) {
+          movePage(1);
+          selectedItemIndex_ = 0;
+        } else if (selectedItemIndex_ != static_cast<int>(items_.size()) - 1) {
+          selectedItemIndex_ = static_cast<int>(items_.size()) - 1;
+          invalidatePageBuffer();
+          requestRender();
         }
         nextItemJumpMs_ = millis() + kItemJumpRepeatMs;
       }
@@ -719,18 +740,17 @@ bool endsWith(const std::string& value, const char* suffix) {
 
 }  // namespace
 
-void Library::loadIndexedItems() {
+void Library::loadIndexedItems(const bool resetPaging) {
+  if (resetPaging) {
+    currentPage_ = 0;
+    pageBoundaries_.clear();
+  }
   items_.clear();
   favoritePaths_.clear();
   for (const BookState::Book& favorite : BOOK_STATE.getFavoriteBooks()) {
     favoritePaths_.insert(cleanPath(favorite.path));
   }
   indexLoaded_ = false;
-
-  std::vector<LibraryIndex::Book> indexedItems;
-  if (!LibraryIndex::search("", indexedItems, LibraryIndex::all)) {
-    return;
-  }
 
   path_ = cleanPath(path_);
   std::unordered_set<std::string> finishedPaths;
@@ -752,19 +772,32 @@ void Library::loadIndexedItems() {
     }
   }
 
-  std::unordered_map<std::string, std::pair<std::string, int>> authors;
-  for (const LibraryIndex::Book& item : indexedItems) {
+  const int visiblePageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
+                                                          : views::library::List::itemsPerPage();
+  const bool ascending = sortMode_ == SortMode::TITLE_AZ || sortMode_ == SortMode::GROUP_AZ ||
+                         sortMode_ == SortMode::AUTHOR_AZ;
+  const bool groupSort = sortMode_ == SortMode::GROUP_AZ || sortMode_ == SortMode::GROUP_ZA;
+  const bool authorSort = sortMode_ == SortMode::AUTHOR_AZ || sortMode_ == SortMode::AUTHOR_ZA;
+  const auto itemLess = [ascending, groupSort, authorSort](const LibraryIndex::Book& left,
+                                                             const LibraryIndex::Book& right) {
+    if (authorSort) {
+      const int authorComparison = naturalCompare(lower(left.author), lower(right.author));
+      if (authorComparison != 0) return ascending ? authorComparison < 0 : authorComparison > 0;
+    }
+    const int keyComparison = naturalCompare(lower(groupSort ? left.folder : left.title),
+                                             lower(groupSort ? right.folder : right.title));
+    if (keyComparison != 0) return ascending ? keyComparison < 0 : keyComparison > 0;
+    const int titleComparison = naturalCompare(lower(left.title), lower(right.title));
+    if (titleComparison != 0) return ascending ? titleComparison < 0 : titleComparison > 0;
+    return ascending ? naturalCompare(lower(left.path), lower(right.path)) < 0
+                     : naturalCompare(lower(left.path), lower(right.path)) > 0;
+  };
+
+  auto matchesItem = [&](const LibraryIndex::Book& item) {
     bool include = false;
     if (stateFilter_ == StateFilter::AUTHOR) {
       if (item.type == LibraryIndex::Book::Type::BOOK && !item.author.empty()) {
-        if (authorFolder_.empty()) {
-          const std::string key = lower(item.author);
-          auto& author = authors[key];
-          author.first = author.first.empty() || item.author.size() < author.first.size() ? item.author : author.first;
-          ++author.second;
-        } else {
-          include = lower(item.author) == lower(authorFolder_);
-        }
+        include = !authorFolder_.empty() && lower(item.author) == lower(authorFolder_);
       }
     } else if (stateFilter_ != StateFilter::NONE) {
       include = item.type == LibraryIndex::Book::Type::BOOK && statePaths.find(cleanPath(item.path)) != statePaths.end();
@@ -774,21 +807,47 @@ void Library::loadIndexedItems() {
       include = (item.type == LibraryIndex::Book::Type::FOLDER && isImmediateChild(item.path, path_)) ||
                 (item.type == LibraryIndex::Book::Type::BOOK && parentPath(item.path) == path_);
     }
-    if (!include) continue;
+    if (!include) return false;
     if (letterFilter_ != 0 && leadingLetter(item.title.empty() ? item.path : item.title) != letterFilter_) {
-      continue;
+      return false;
     }
     if (item.type == LibraryIndex::Book::Type::BOOK && !matchesTypeFilter(item.path, typeFilter_)) {
-      continue;
+      return false;
     }
     if (item.type == LibraryIndex::Book::Type::BOOK && finishedPaths.find(cleanPath(item.path)) != finishedPaths.end()) {
-      continue;
+      return false;
     }
-    items_.push_back(item);
-  }
+    return true;
+  };
 
+  auto addToPage = [&](std::vector<LibraryIndex::Book>& pageItems, LibraryIndex::Book item,
+                       const LibraryIndex::Book* boundary) {
+    if (boundary && !itemLess(*boundary, item)) return;
+    const auto position = std::lower_bound(pageItems.begin(), pageItems.end(), item, itemLess);
+    pageItems.insert(position, std::move(item));
+    if (pageItems.size() > static_cast<size_t>(visiblePageSize)) pageItems.pop_back();
+  };
+
+  std::unordered_map<std::string, std::pair<std::string, int>> authors;
   if (stateFilter_ == StateFilter::AUTHOR && authorFolder_.empty()) {
-    items_.clear();
+    if (!LibraryIndex::visit([&](LibraryIndex::Book& item) {
+          if (item.type == LibraryIndex::Book::Type::BOOK && !item.author.empty()) {
+            const std::string key = lower(item.author);
+            auto& author = authors[key];
+            author.first = author.first.empty() || item.author.size() < author.first.size() ? item.author : author.first;
+            ++author.second;
+          }
+          return true;
+        })) {
+      return;
+    }
+    totalItemCount_ = static_cast<int>(authors.size());
+    const int pageCount = (totalItemCount_ + visiblePageSize - 1) / visiblePageSize;
+    currentPage_ = pageCount == 0 ? 0 : std::min(currentPage_, pageCount - 1);
+    std::vector<LibraryIndex::Book> pageItems;
+    const LibraryIndex::Book* boundary = currentPage_ > 0 && pageBoundaries_.size() >= static_cast<size_t>(currentPage_)
+                                             ? &pageBoundaries_[static_cast<size_t>(currentPage_ - 1)]
+                                             : nullptr;
     for (const auto& entry : authors) {
       LibraryIndex::Book folder;
       folder.type = LibraryIndex::Book::Type::FOLDER;
@@ -796,31 +855,46 @@ void Library::loadIndexedItems() {
       folder.author = entry.second.first;
       folder.bookCount = static_cast<uint16_t>(std::min(entry.second.second, 65535));
       folder.hasMetadata = true;
-      items_.push_back(std::move(folder));
+      addToPage(pageItems, std::move(folder), boundary);
+    }
+    items_ = std::move(pageItems);
+    if (!items_.empty()) {
+      if (pageBoundaries_.size() <= static_cast<size_t>(currentPage_)) pageBoundaries_.resize(currentPage_ + 1);
+      pageBoundaries_[static_cast<size_t>(currentPage_)] = items_.back();
+    }
+  } else {
+    if (!LibraryIndex::visit([&](LibraryIndex::Book& item) {
+          if (matchesItem(item)) ++totalItemCount_;
+          return true;
+        })) {
+      return;
+    }
+    const int pageCount = (totalItemCount_ + visiblePageSize - 1) / visiblePageSize;
+    currentPage_ = pageCount == 0 ? 0 : std::min(currentPage_, pageCount - 1);
+
+    // Keep only one visible page. Page boundaries let sequential navigation load the
+    // next page with one index pass, without retaining all preceding books.
+    size_t firstPage = currentPage_ == 0 ? 0 : pageBoundaries_.size();
+    if (firstPage > static_cast<size_t>(currentPage_)) firstPage = static_cast<size_t>(currentPage_);
+    for (size_t page = firstPage; page <= static_cast<size_t>(currentPage_); ++page) {
+      std::vector<LibraryIndex::Book> pageItems;
+      const LibraryIndex::Book* boundary = page == 0 ? nullptr : &pageBoundaries_[page - 1];
+      if (!LibraryIndex::visit([&](LibraryIndex::Book& item) {
+            if (matchesItem(item)) addToPage(pageItems, std::move(item), boundary);
+            return true;
+          })) {
+        return;
+      }
+      if (pageItems.empty()) {
+        items_.clear();
+        break;
+      }
+      if (pageBoundaries_.size() <= page) pageBoundaries_.resize(page + 1);
+      pageBoundaries_[page] = pageItems.back();
+      if (page == static_cast<size_t>(currentPage_)) items_ = std::move(pageItems);
     }
   }
-  const bool ascending = sortMode_ == SortMode::TITLE_AZ || sortMode_ == SortMode::GROUP_AZ ||
-                         sortMode_ == SortMode::AUTHOR_AZ;
-  const bool groupSort = sortMode_ == SortMode::GROUP_AZ || sortMode_ == SortMode::GROUP_ZA;
-  const bool authorSort = sortMode_ == SortMode::AUTHOR_AZ || sortMode_ == SortMode::AUTHOR_ZA;
-  std::stable_sort(items_.begin(), items_.end(), [ascending, groupSort, authorSort](const LibraryIndex::Book& left,
-                                                                                     const LibraryIndex::Book& right) {
-    if (authorSort) {
-      const std::string leftAuthor = lower(left.author);
-      const std::string rightAuthor = lower(right.author);
-      const int authorComparison = naturalCompare(leftAuthor, rightAuthor);
-      if (authorComparison != 0) {
-        return ascending ? authorComparison < 0 : authorComparison > 0;
-      }
-    }
-    const std::string leftKey = lower(groupSort ? left.folder : left.title);
-    const std::string rightKey = lower(groupSort ? right.folder : right.title);
-    const int keyComparison = naturalCompare(leftKey, rightKey);
-    if (keyComparison != 0) {
-      return ascending ? keyComparison < 0 : keyComparison > 0;
-    }
-    return naturalCompare(left.title, right.title) < 0;
-  });
+
   const int visibleCount = static_cast<int>(items_.size());
   selectedItemIndex_ = visibleCount > 0 ? std::min(selectedItemIndex_, visibleCount - 1) : 0;
   indexLoaded_ = true;
@@ -837,22 +911,19 @@ void Library::content() {
     return;
   }
   if (canBufferPage()) {
-    const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                     : views::library::List::itemsPerPage();
-    const int page = selectedItemIndex_ / pageSize;
     if (viewMode_ == ViewMode::LIST) {
-      list_.render(-1, page);
+      list_.render(-1, 0);
     } else {
-      grid_.render(-1, page);
+      grid_.render(-1, 0);
     }
     pageBufferBuilding_ = true;
     return;
   }
   const int selectedIndex = headerFocused_ ? -1 : selectedItemIndex_;
   if (viewMode_ == ViewMode::LIST) {
-    list_.render(selectedIndex, selectedItemIndex_ / views::library::List::itemsPerPage());
+    list_.render(selectedIndex, 0);
   } else {
-    grid_.render(selectedIndex, selectedItemIndex_ / views::library::Grid::itemsPerPage());
+    grid_.render(selectedIndex, 0);
   }
 }
 
@@ -864,9 +935,9 @@ void Library::afterRender() {
   if (!frameBuffer || !storePageBuffer()) {
     pageBufferValid_ = false;
     if (viewMode_ == ViewMode::LIST) {
-      list_.render(selectedItemIndex_, selectedItemIndex_ / views::library::List::itemsPerPage());
+      list_.render(selectedItemIndex_, 0);
     } else {
-      grid_.render(selectedItemIndex_, selectedItemIndex_ / views::library::Grid::itemsPerPage());
+      grid_.render(selectedItemIndex_, 0);
     }
     return;
   }
@@ -875,13 +946,11 @@ void Library::afterRender() {
   pageBufferValid_ = true;
   pageBufferItemCount_ = static_cast<int>(items_.size());
   pageBufferViewMode_ = viewMode_;
-  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                   : views::library::List::itemsPerPage();
-  pageBufferStartIndex_ = (selectedItemIndex_ / pageSize) * pageSize;
+  pageBufferStartIndex_ = currentPage_;
   if (viewMode_ == ViewMode::LIST) {
     list_.renderSelection(selectedItemIndex_);
   } else {
-    grid_.renderSelection(selectedItemIndex_, selectedItemIndex_ / pageSize);
+    grid_.renderSelection(selectedItemIndex_, 0);
   }
 }
 
@@ -923,17 +992,15 @@ bool Library::tryFastSelection(const int nextIndex) {
     return false;
   }
 
-  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                   : views::library::List::itemsPerPage();
-  const int currentPageStart = (selectedItemIndex_ / pageSize) * pageSize;
-  const int nextPageStart = (nextIndex / pageSize) * pageSize;
-  if (pageBufferStartIndex_ != currentPageStart || currentPageStart != nextPageStart) return false;
+  if (pageBufferStartIndex_ != currentPage_ || nextIndex < 0 || nextIndex >= static_cast<int>(items_.size())) {
+    return false;
+  }
 
   if (!restorePageBuffer()) return false;
   if (viewMode_ == ViewMode::LIST) {
     list_.renderSelection(nextIndex);
   } else {
-    grid_.renderSelection(nextIndex, nextIndex / pageSize);
+    grid_.renderSelection(nextIndex, 0);
   }
   renderer.displayBuffer();
   return true;
@@ -953,17 +1020,19 @@ bool Library::moveSelectedItem(const int delta) {
   return selectedItemIndex_ != oldIndex;
 }
 
-int Library::pageJumpIndex(const int direction) const {
-  const int count = static_cast<int>(items_.size());
-  if (count <= 0 || direction == 0) return selectedItemIndex_;
-
+bool Library::movePage(const int direction) {
+  if (direction == 0) return false;
   const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
                                                    : views::library::List::itemsPerPage();
-  const int currentPage = selectedItemIndex_ / pageSize;
-  const int lastPage = (count - 1) / pageSize;
-  const int targetPage = std::max(0, std::min(lastPage, currentPage + (direction < 0 ? -1 : 1)));
-  const int slot = selectedItemIndex_ % pageSize;
-  return std::min(count - 1, targetPage * pageSize + slot);
+  const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
+  const int targetPage = currentPage_ + (direction < 0 ? -1 : 1);
+  if (targetPage < 0 || targetPage >= pageCount) return false;
+  currentPage_ = targetPage;
+  loadIndexedItems(false);
+  selectedItemIndex_ = direction < 0 ? std::max(0, static_cast<int>(items_.size()) - 1) : 0;
+  invalidatePageBuffer();
+  requestRender();
+  return true;
 }
 
 void Library::handleHeaderConfirm() {
@@ -992,6 +1061,8 @@ void Library::toggleViewMode() {
   viewMode_ = viewMode_ == ViewMode::GRID ? ViewMode::LIST : ViewMode::GRID;
   SETTINGS.libraryMode = viewMode_ == ViewMode::LIST ? SystemSetting::LIBRARY_LIST : SystemSetting::LIBRARY_GRID;
   SETTINGS.saveToFile();
+  selectedItemIndex_ = 0;
+  loadIndexedItems();
   requestRender();
 }
 
@@ -1418,16 +1489,14 @@ void Library::eraseFolder(const LibraryIndex::Book& folder) {
   }
 
   const std::string prefix = folder.path + "/";
-  std::vector<LibraryIndex::Book> indexedItems;
-  if (LibraryIndex::search("", indexedItems, LibraryIndex::all)) {
-    for (const LibraryIndex::Book& item : indexedItems) {
-      if (item.type == LibraryIndex::Book::Type::BOOK && item.path.compare(0, prefix.size(), prefix) == 0) {
-        BOOK_STATE.removeBook(item.path);
-        RECENT_BOOKS.removeBook(item.path);
-        favoritePaths_.erase(item.path);
-      }
+  LibraryIndex::visit([&](LibraryIndex::Book& item) {
+    if (item.type == LibraryIndex::Book::Type::BOOK && item.path.compare(0, prefix.size(), prefix) == 0) {
+      BOOK_STATE.removeBook(item.path);
+      RECENT_BOOKS.removeBook(item.path);
+      favoritePaths_.erase(item.path);
     }
-  }
+    return true;
+  });
   EpubNotesIndex::invalidate();
   popupItemIndex_ = -1;
   popupDeleteConfirm_ = false;
