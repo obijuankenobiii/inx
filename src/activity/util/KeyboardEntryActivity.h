@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "../Activity.h"
+#include "activity/page/components/search/SearchKeyboard.h"
 
 /**
  * Reusable keyboard entry activity for text input.
@@ -70,31 +71,12 @@ class KeyboardEntryActivity : public Activity {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
-
-  int selectedRow = 0;
-  int selectedCol = 0;
-  bool shiftActive = false;
-  bool capsLockActive = false;
+  SearchKeyboard keyboard;
 
   OnCompleteCallback onComplete;
   OnCancelCallback onCancel;
 
-  static constexpr int NUM_ROWS = 5;
-  static constexpr int KEYS_PER_ROW = 13;
-  static const char* const keyboard[NUM_ROWS];
-  static const char* const keyboardShift[NUM_ROWS];
-
-  static constexpr int SPECIAL_ROW = 4;
-  static constexpr int SHIFT_COL = 0;
-  static constexpr int SPACE_COL = 2;
-  static constexpr int BACKSPACE_COL = 7;
-  static constexpr int DONE_COL = 9;
-
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
-  char getSelectedChar() const;
-  void handleKeyPress();
-  int getRowLength(int row) const;
   void render() const;
-  void renderItemWithSelector(int x, int y, const char* item, bool isSelected) const;
 };

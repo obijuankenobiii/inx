@@ -136,8 +136,8 @@ void drawEnter(const GfxRenderer& renderer, const int x, const int y, const int 
                        BitmapRender::Orientation::None, selected);
 }
 
-void append(std::string& value, const char character) {
-  if (value.size() < kMaxQueryLength) value.push_back(character);
+void append(std::string& value, const char character, const size_t maxLength) {
+  if (maxLength == 0 || value.size() < maxLength) value.push_back(character);
 }
 
 }  // namespace
@@ -153,6 +153,11 @@ void SearchKeyboard::reset() {
   column_ = 0;
   caps_ = false;
   mode_ = 0;
+  maxLength_ = kMaxQueryLength;
+}
+
+void SearchKeyboard::setMaxLength(const size_t maxLength) {
+  maxLength_ = maxLength;
 }
 
 void SearchKeyboard::render(const GfxRenderer& renderer, const int top, const int bottom) const {
@@ -229,7 +234,7 @@ SearchKeyboard::Action SearchKeyboard::activate(std::string& value) {
   const int count = rowCount(row_, mode_);
   if (row_ < 2) {
     const char* keys = rowKeys(row_, mode_);
-    append(value, displayCharacter(caps_, keys[column_]));
+    append(value, displayCharacter(caps_, keys[column_]), maxLength_);
     if (caps_) caps_ = false;
     return Action::None;
   }
@@ -241,7 +246,7 @@ SearchKeyboard::Action SearchKeyboard::activate(std::string& value) {
     } else if (column_ == count - 1) {
       if (!value.empty()) value.pop_back();
     } else {
-      append(value, displayCharacter(caps_, keys[column_ - 1]));
+      append(value, displayCharacter(caps_, keys[column_ - 1]), maxLength_);
       if (caps_) caps_ = false;
     }
     return Action::None;
@@ -254,12 +259,12 @@ SearchKeyboard::Action SearchKeyboard::activate(std::string& value) {
         column_ = 0;
         break;
       case 1:
-        append(value, ' ');
+        append(value, ' ', maxLength_);
         break;
       case 2:
         return Action::Collapse;
       case 3:
-        append(value, '.');
+        append(value, '.', maxLength_);
         break;
       case 4:
         return Action::Go;
@@ -272,7 +277,7 @@ SearchKeyboard::Action SearchKeyboard::activate(std::string& value) {
         caps_ = false;
         break;
       case 1:
-        append(value, ' ');
+        append(value, ' ', maxLength_);
         break;
       case 2:
         return Action::Collapse;

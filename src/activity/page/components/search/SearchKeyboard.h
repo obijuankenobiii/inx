@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 class GfxRenderer;
@@ -17,6 +18,7 @@ class SearchKeyboard {
 
   int height(const GfxRenderer& renderer) const;
   void reset();
+  void setMaxLength(size_t maxLength);
   void render(const GfxRenderer& renderer, int top, int bottom) const;
   void moveHorizontal(int delta);
   void moveVertical(int delta);
@@ -27,4 +29,5 @@ class SearchKeyboard {
   int column_ = 0;
   bool caps_ = false;
   int mode_ = 0;
+  size_t maxLength_ = 64;
 };

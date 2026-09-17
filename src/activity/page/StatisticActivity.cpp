@@ -782,7 +782,6 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int y0 = contentTop;
   const int yEnd = contentBottom - 24;
 
-  const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
   const int lhSerif = renderer.text.getLineHeight(FONT_SERIF);
   const int lhSans = renderer.text.getLineHeight(FONT_SANS);
   /** Title and author below cover row; sessions/chapters are in the bottom stats grid (same style as hours). */
@@ -794,13 +793,9 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   const int yStatsTop = yEnd - hStats - kSingleBookStatsGridLiftPx;
   const int maxTitleY = yStatsTop - gapMetaStats - metaSpan;
 
-  constexpr int kTitlePad = 10;
-  const char* screenTitle = "Reading stats";
-  const int maxTitleW = std::max(8, innerW - kTitlePad * 2);
-  const std::string titleShown = renderer.text.truncate(FONT_SERIF_LG, screenTitle, maxTitleW);
-  renderer.text.render(FONT_SERIF_LG, innerLeft, y0, titleShown.c_str());
-  int y = y0 + lhLG + 4;
-  y += g8;
+  // The shared sub-page header already identifies this page as Statistics;
+  // do not add a second "Reading stats" heading above the book details.
+  int y = y0 + g8;
   const int yCoverTop = y;
 
   /** Donut anchored toward the right margin with a wide gap from the cover. */
