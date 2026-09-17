@@ -8,7 +8,7 @@ void recent::Grid3x3::render(RecentActivity& self, int startY) { self.renderIcon
 void RecentActivity::renderGrid(int startY) {
   int totalBooks = static_cast<int>(recentBooks.size());
   if (totalBooks == 0) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, startY + 150, "No recent books");
     return;
   }
 
@@ -30,7 +30,7 @@ void RecentActivity::renderGrid(int startY) {
 void RecentActivity::renderIcons(int startY) {
   const int totalBooks = static_cast<int>(recentBooks.size());
   if (totalBooks == 0) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, startY + 150, "No recent books");
     return;
   }
 
@@ -74,8 +74,8 @@ void RecentActivity::renderIcons(int startY) {
       const IconRect fittedCover = fitBookCoverRect(innerX, innerY, innerW, innerH);
       const RecentBook& b = recentBooks[static_cast<size_t>(bookIdx)];
       drawRecentCoverFitAt(fittedCover.x, fittedCover.y, fittedCover.w, fittedCover.h, b.cachePath, bookDisplayTitle(b),
-                           ATKINSON_HYPERLEGIBLE_10_FONT_ID);
-      drawProgressBadge(renderer, fittedCover, b.progress);
+                           MONTSERRAT_10_FONT_ID);
+      drawProgressBadge(renderer, fittedCover, recentDisplayProgress(b));
       const IconRect coverFrame = inflateIconRect(fittedCover, 5);
       if (selected) {
         renderThickIconRect(renderer, coverFrame, rr, 3);

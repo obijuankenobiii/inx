@@ -17,7 +17,7 @@ void drawFontFamilyRowValue(const GfxRenderer& renderer, uint8_t fontFamily, int
 void drawFontSizeSliderRowValue(const GfxRenderer& renderer, uint8_t fontFamily, uint8_t fontSizeIndex,
                                 int valueAreaLeft, int valueAreaRight, int itemY, int itemHeight, bool rowSelected);
 
-/** 16px square + polygon check (same as system Reader settings toggles). */
+/** Backward-compatible wrapper around the shared Pro-style Toggle component. */
 void drawToggleCheckbox(const GfxRenderer& renderer, int valueColumnRight, int itemY, int itemHeight, bool rowSelected,
                         bool checked);
 

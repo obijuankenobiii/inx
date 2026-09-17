@@ -1857,9 +1857,18 @@ bool CssParser::resolveFontItalic(const std::string& elementTagLower, const std:
   if (inlineIt != inlineMap.end()) {
     return mapStyle(inlineIt->second, inheritedItalic);
   }
-  const std::string sheet = getCascadedPropertyValue("font-style", className, id, styleAttr, elementTagLower);
-  if (!sheet.empty()) {
-    return mapStyle(sheet, inheritedItalic);
+  // Contextual selectors (for example ".copyright-page blockquote p") cannot be verified here because this
+  // resolver receives only the current element's attributes. Applying their final component to every matching
+  // element leaks scoped styles into unrelated content, as in Appendix B of Through the Brazilian Wilderness.
+  // Direct selectors and inline styles remain supported; explicit <i>/<em> tags are handled separately by the
+  // chapter parser's italic depth state.
+  const CssRule* winner = winningRuleForProperty("font-style", className, id, elementTagLower,
+                                                 /*ignoreContextual=*/true);
+  if (winner != nullptr) {
+    const std::string* sheet = rulePropertyValue(*winner, "font-style");
+    if (sheet != nullptr) {
+      return mapStyle(*sheet, inheritedItalic);
+    }
   }
   return inheritedItalic;
 }

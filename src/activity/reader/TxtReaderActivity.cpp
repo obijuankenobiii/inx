@@ -367,7 +367,7 @@ void TxtReaderActivity::renderScreen() {
 
   if (pageOffsets.empty()) {
     renderer.clearScreen();
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Empty file", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, 300, "Empty file", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
@@ -495,8 +495,8 @@ void TxtReaderActivity::renderStatusBar(const int orientedMarginRight, const int
       snprintf(progressStr, sizeof(progressStr), "%d/%d", currentPage + 1, totalPages);
     }
 
-    progressTextWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, progressStr);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID,
+    progressTextWidth = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, progressStr);
+    renderer.text.render(MONTSERRAT_8_FONT_ID,
                          renderer.getScreenWidth() - orientedMarginRight - progressTextWidth, textY, progressStr);
   }
 
@@ -514,13 +514,13 @@ void TxtReaderActivity::renderStatusBar(const int orientedMarginRight, const int
     const int availableTextWidth = renderer.getScreenWidth() - titleMarginLeft - titleMarginRight;
 
     std::string title = txt->getTitle();
-    int titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
+    int titleWidth = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, title.c_str());
     if (titleWidth > availableTextWidth) {
-      title = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str(), availableTextWidth);
-      titleWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, title.c_str());
+      title = renderer.text.truncate(MONTSERRAT_8_FONT_ID, title.c_str(), availableTextWidth);
+      titleWidth = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, title.c_str());
     }
 
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, titleMarginLeft + (availableTextWidth - titleWidth) / 2,
+    renderer.text.render(MONTSERRAT_8_FONT_ID, titleMarginLeft + (availableTextWidth - titleWidth) / 2,
                          textY, title.c_str());
   }
 }

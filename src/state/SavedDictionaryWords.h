@@ -35,13 +35,15 @@ class SavedDictionaryWordStore {
   std::string wordAt(int index);
   /** Reads the stored (already-HTML-formatted) definition for a saved word from disk. */
   std::string definitionAt(int index);
+  /** ISO language tag stored at save time (empty on older files). */
+  std::string languageAt(int index);
 
   /** Case-insensitive membership check. */
   bool contains(const std::string& word);
 
   /** Writes word+definition to disk immediately and adds it to the in-RAM list. Returns false if
    *  already saved (case-insensitive), at the capacity limit, or the write failed. */
-  bool add(const std::string& word, const std::string& definition);
+  bool add(const std::string& word, const std::string& definition, const std::string& language = "");
 
   /** Deletes a saved word's file and removes it from the in-RAM list (case-insensitive match).
    *  Returns false if no such word was saved. */

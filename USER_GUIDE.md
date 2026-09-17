@@ -17,6 +17,7 @@ Welcome to the **Inx** firmware. This guide outlines the hardware controls, navi
     - [3.6 Sleep Screen](#36-sleep-screen)
   - [4. Reading Mode](#4-reading-mode)
     - [Page Turning](#page-turning)
+    - [Dictionary](#dictionary)
     - [Chapter Navigation](#chapter-navigation)
     - [System Navigation](#system-navigation)
   - [5. Chapter Selection Screen](#5-chapter-selection-screen)
@@ -139,8 +140,8 @@ The Settings screen allows you to configure the device's behavior. There are a f
   - "Page Scroll" - Long-pressing scrolls a page up/down
 - Swap the order of the up and down volume buttons from Previous/Next to Next/Previous. This change is only in effect when reading.
 - **Reader Font Family**: Choose the font used for reading:
-  - "Literata" (default)
-  - "Atkinson Hyperlegible"
+  - "Montserrat" (default)
+  - Downloaded SD font families
 - **Reader Font Size**: Adjust the text size for reading; options are "Small", "Medium", "Large", or "X Large".
 - **Reader Line Spacing**: Adjust the spacing between lines; options are "Tight", "Normal", or "Wide".
 - **Reader Screen Margin**: Controls the screen margins in reader mode between 5 and 40 pixels in 5 pixel increments.
@@ -180,6 +181,16 @@ Once you have opened a book, the button layout changes to facilitate reading.
 The role of the volume (side) buttons can be swapped in **[Settings](#35-settings)**.
 
 If the **Short Power Button Click** setting is set to "Page Turn", you can also turn to the next page by briefly pressing the Power button.
+
+### Dictionary
+
+Hold **Down + Left** while reading, then Confirm to look up the highlighted word. On a definition, Confirm saves the word; Left/Right cycles installed dictionaries if the first pick was wrong.
+
+Put StarDict folders in `/dictionaries` on the SD card — one folder per dictionary. Each folder needs uncompressed `.ifo`, `.idx`, and `.dict` files. Inx does **not** read `.dict.dz`; decompress that first (`dictunzip file.dict.dz`, or `gunzip -c file.dict.dz > file.dict`).
+
+Lookup uses the surrounding sentence and the book's language to choose among installed packs, then nearby headwords in the sorted index when the typed form is not itself an entry. Inflection stubs ("past participle of …") are skipped in favour of the lemma. **Sync → Choose dictionary** sets the fallback pack; Left/Right there assigns a source language when the folder name or `.ifo` `lang=` field is not enough.
+
+Saved words live under Home → Dictionary.
 
 ### Chapter Navigation
 * **Next Chapter:** Press and **hold** the **Right** (or **Volume Down**) button briefly, then release.

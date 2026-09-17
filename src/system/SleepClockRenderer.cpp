@@ -15,11 +15,11 @@ constexpr const char* MONTHS_SHORT[] = {"",    "Jan", "Feb", "Mar", "Apr", "May"
                                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 constexpr int TIME_FONT = MONTSERRAT_CLOCK_70_FONT_ID;
-constexpr int LARGE_SYSTEM_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-constexpr int DATE_FONT = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-constexpr int LABEL_FONT = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-constexpr int LABEL_LARGE_FONT = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-constexpr int TINY_FONT = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+constexpr int LARGE_SYSTEM_FONT = MONTSERRAT_18_FONT_ID;
+constexpr int DATE_FONT = MONTSERRAT_12_FONT_ID;
+constexpr int LABEL_FONT = MONTSERRAT_10_FONT_ID;
+constexpr int LABEL_LARGE_FONT = MONTSERRAT_18_FONT_ID;
+constexpr int TINY_FONT = MONTSERRAT_8_FONT_ID;
 constexpr int CLOCK_VISIBLE_HEIGHT = 106;
 constexpr int CLOCK_GLYPH_TOP = 104;
 

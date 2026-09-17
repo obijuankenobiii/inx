@@ -174,7 +174,23 @@ bool enumeratePagesForRecord(const EpubAnnotationRecord& rec, const std::string&
     return false;
   }
   if (ss == es) {
-    return appendPagesForSpine(cachePath, ss, sp, ep, out) && !out.empty();
+    if (appendPagesForSpine(cachePath, ss, sp, ep, out) && !out.empty()) {
+      return true;
+    }
+    // Section page-count unread (common right after a cache rebuild): still persist every page in the
+    // span so the start page is not dropped when Save is pressed on the end page.
+    out.clear();
+    const int lo = std::min(sp, ep);
+    const int hi = std::max(sp, ep);
+    if (hi - lo > 64) {
+      out.emplace_back(ss, sp);
+      out.emplace_back(ss, ep);
+      return true;
+    }
+    for (int p = lo; p <= hi; ++p) {
+      out.emplace_back(ss, p);
+    }
+    return !out.empty();
   }
   constexpr int kHuge = 0x7fffffff;
   if (!appendPagesForSpine(cachePath, ss, sp, kHuge, out)) {
@@ -328,6 +344,27 @@ void EpubAnnotations::ensurePageLoaded(const std::string& cachePath, const int s
   if (SdMan.exists(path.c_str())) {
     loadAnn3(path, records_);
   }
+  // Older saves wrote a multi-page highlight only to the page where Save was pressed (usually the
+  // end page). Peek at the next shard so the start page can still paint its half.
+  const std::string nextPath = pageShardPath(cachePath, spine, page + 1);
+  if (SdMan.exists(nextPath.c_str())) {
+    std::vector<EpubAnnotationRecord> nextRecs;
+    if (loadAnn3(nextPath, nextRecs)) {
+      for (EpubAnnotationRecord& rec : nextRecs) {
+        if (!recordTouchesPage(rec, spine, page)) {
+          continue;
+        }
+        const bool dup = std::any_of(records_.begin(), records_.end(), [&](const EpubAnnotationRecord& have) {
+          return have.timestamp == rec.timestamp && have.startSpine == rec.startSpine &&
+                 have.startPage == rec.startPage && have.endSpine == rec.endSpine && have.endPage == rec.endPage &&
+                 have.text == rec.text;
+        });
+        if (!dup) {
+          records_.push_back(std::move(rec));
+        }
+      }
+    }
+  }
   cacheSpine_ = spine;
   cachePage_ = page;
 }
@@ -353,6 +390,13 @@ bool EpubAnnotations::appendHighlight(const std::string& cachePath, const int sp
   std::vector<std::pair<int, int>> pages;
   if (!enumeratePagesForRecord(rec, cachePath, spineItemsCount, pages) || pages.empty()) {
     pages.clear();
+    if (rec.startSpine != EpubAnnotations::kWildcard) {
+      pages.emplace_back(static_cast<int>(rec.startSpine), static_cast<int>(rec.startPage));
+    }
+    if (rec.endSpine != EpubAnnotations::kWildcard &&
+        (rec.endSpine != rec.startSpine || rec.endPage != rec.startPage)) {
+      pages.emplace_back(static_cast<int>(rec.endSpine), static_cast<int>(rec.endPage));
+    }
     pages.emplace_back(fallbackSpine, fallbackPage);
   }
   SdMan.mkdir((cachePath + "/" + std::string(kSubdir)).c_str());
@@ -399,56 +443,62 @@ bool EpubAnnotations::recordTouchesPage(const EpubAnnotationRecord& r, const int
 bool EpubAnnotations::tryAppendPreciseHighlightRanges(const EpubAnnotationRecord& r, const int cs, const int cp,
                                                       const std::vector<PageWordHit>& annWords,
                                                       std::vector<std::pair<size_t, size_t>>& raw) {
-  if (r.pageWordLo == EpubAnnotations::kWildcard) {
-    return false;
-  }
   const int ss = static_cast<int>(r.startSpine);
   const int es = static_cast<int>(r.endSpine);
   const int sp = static_cast<int>(r.startPage);
   const int ep = static_cast<int>(r.endPage);
   const size_t n = annWords.size();
+  if (n == 0) {
+    return false;
+  }
+  const size_t last = n - 1;
 
-  auto appendRange = [&](const size_t wordLo, const size_t wordHi) {
-    if (n == 0 || wordLo >= n || wordHi >= n || wordLo > wordHi) {
-      return;
+  auto clampAppend = [&](size_t wordLo, size_t wordHi) -> bool {
+    if (wordLo > last) {
+      return false;
+    }
+    wordHi = std::min(wordHi, last);
+    if (wordLo > wordHi) {
+      return false;
     }
     raw.emplace_back(wordLo, wordHi);
+    return true;
   };
 
-  if (ss == es && sp == ep) {
-    if (cs == ss && cp == ep) {
-      const size_t lo = static_cast<size_t>(r.pageWordLo);
-      const size_t hi = static_cast<size_t>(r.pageWordHi);
-      if (!wordRangeMatchesStoredText(annWords, lo, hi, r.text)) {
-        // Stale index from a repagination (e.g. a font change) - let the caller fall back to searching
-        // for the stored phrase text instead of highlighting whatever now sits at that old position.
-        return false;
-      }
-      appendRange(lo, hi);
+  const bool samePage = ss == es && sp == ep;
+  if (samePage) {
+    if (cs != ss || cp != sp || r.pageWordLo == EpubAnnotations::kWildcard) {
+      return false;
     }
-    return true;
+    const size_t lo = static_cast<size_t>(r.pageWordLo);
+    const size_t hi = r.pageWordHi == EpubAnnotations::kWildcard ? last : static_cast<size_t>(r.pageWordHi);
+    if (!wordRangeMatchesStoredText(annWords, lo, hi, r.text)) {
+      return false;
+    }
+    return clampAppend(lo, hi);
   }
 
-  if (ss != es || cs != ss) {
-    return false;
-  }
-
-  if (cp == sp && cp < ep) {
-    if (r.startPageWordLo != EpubAnnotations::kWildcard) {
-      appendRange(static_cast<size_t>(r.startPageWordLo), static_cast<size_t>(r.startPageWordHi));
-      return true;
+  if (cs == ss && cp == sp) {
+    if (r.startPageWordLo == EpubAnnotations::kWildcard) {
+      return false;
     }
-    return false;
+    size_t hi = last;
+    if (r.startPageWordHi != EpubAnnotations::kThroughEndOfPage && r.startPageWordHi != EpubAnnotations::kWildcard) {
+      hi = static_cast<size_t>(r.startPageWordHi);
+    }
+    return clampAppend(static_cast<size_t>(r.startPageWordLo), hi);
   }
-  if (cp == ep && cp > sp) {
-    appendRange(static_cast<size_t>(r.pageWordLo), static_cast<size_t>(r.pageWordHi));
-    return true;
+  if (cs == es && cp == ep) {
+    if (r.pageWordLo == EpubAnnotations::kWildcard) {
+      return false;
+    }
+    const size_t hi = r.pageWordHi == EpubAnnotations::kWildcard ? last : static_cast<size_t>(r.pageWordHi);
+    return clampAppend(static_cast<size_t>(r.pageWordLo), hi);
   }
-  if (cp > sp && cp < ep && n > 0) {
-    appendRange(0, n - 1);
-    return true;
+  if (recordTouchesPage(r, cs, cp)) {
+    return clampAppend(0, last);
   }
-  return true;
+  return false;
 }
 
 void EpubAnnotations::mergeStoredRangesForPage(const std::vector<EpubAnnotationRecord>& diskRecs,

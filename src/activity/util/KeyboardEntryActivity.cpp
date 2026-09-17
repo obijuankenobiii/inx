@@ -5,6 +5,7 @@
 
 #include "KeyboardEntryActivity.h"
 
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -239,12 +240,11 @@ void KeyboardEntryActivity::render() const {
 
   renderer.clearScreen();
 
-  constexpr int titleFont = ATKINSON_HYPERLEGIBLE_16_FONT_ID;
-  constexpr int inputFont = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-  constexpr int keyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-  constexpr int hintFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int inputFont = MONTSERRAT_12_FONT_ID;
+  constexpr int keyFont = MONTSERRAT_10_FONT_ID;
+  constexpr int hintFont = MONTSERRAT_10_FONT_ID;
 
-  renderer.text.render(titleFont, PAGE_MARGIN, 22, title.c_str(), true, EpdFontFamily::BOLD);
+  const int bodyTop = SubPage::header(renderer, title.c_str());
 
   std::string displayText;
   if (isPassword) {
@@ -256,7 +256,7 @@ void KeyboardEntryActivity::render() const {
   displayText += "_";
 
   const int inputX = PAGE_MARGIN;
-  const int inputY = 62;
+  const int inputY = bodyTop + 2;
   const int inputW = pageWidth - PAGE_MARGIN * 2;
   constexpr int inputH = 56;
   renderer.rectangle.render(inputX, inputY, inputW, inputH, true, true);
@@ -349,7 +349,7 @@ void KeyboardEntryActivity::render() const {
   }
 
   const auto labels = mappedInput.mapLabels("Back", "Select", "Prev", "Next");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_12_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

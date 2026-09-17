@@ -44,6 +44,12 @@ class LibraryActivity final : public Activity, public Menu {
     std::string displayName;  ///< Formatted display name
     std::string path;         ///< Full filesystem path
     std::string folderPath;   ///< Parent folder path (for books)
+
+    /** Recursive book count under this folder; only populated for Shelf-mode folder tiles. */
+    int shelfBookCount = 0;
+    /** Up to 3 book paths (front-first) used to render a folder tile's stacked cover preview in
+     * Shelf mode; empty for books and for non-Shelf folder items. */
+    std::vector<std::string> shelfPreviewPaths;
   };
 
   /**
@@ -76,7 +82,7 @@ class LibraryActivity final : public Activity, public Menu {
   static constexpr int BOOK_ITEMS_PER_PAGE = 9;                              ///< Items per page for book view
   static constexpr int FOLDER_ITEMS_PER_PAGE = 9;                            ///< Items per page for folder view
   static constexpr int GRID_ITEMS_PER_PAGE = 12;                             ///< Items per page for grid folder view
-  static constexpr int SHELF_ITEMS_PER_PAGE = 9;  ///< Items per page for shelf view (3x3 grid)
+  static constexpr int SHELF_ITEMS_PER_PAGE = 4;  ///< Items per page for shelf view (2x2 grid)
   static constexpr int GRID_ICON_SIZE = 148;      ///< Icon frame size for grid folders
 
   /**
@@ -443,6 +449,13 @@ class LibraryActivity final : public Activity, public Menu {
   void loadFoldersAndBooksCurrentDirectory();
 
   /**
+   * @brief Load folders and books for the current directory in Shelf mode, one level at a time.
+   * Folder items are additionally populated with shelfBookCount and shelfPreviewPaths so the shelf
+   * grid can render a stacked-cover tile instead of a plain folder icon.
+   */
+  void loadShelfGroupedCurrentDirectory();
+
+  /**
    * @brief Load books from index file for book list view
    * @param idxFile Open index file
    * @param cleanBase Cleaned base path
@@ -455,6 +468,15 @@ class LibraryActivity final : public Activity, public Menu {
    * @param cleanBase Cleaned base path
    */
   void loadFoldersFromIndex(FsFile& idxFile, const std::string& cleanBase);
+
+  /**
+   * @brief Load folders and books for Shelf mode from the index file, one level at a time. Index-backed
+   * equivalent of loadShelfGroupedCurrentDirectory: folder items are additionally populated with
+   * shelfBookCount and shelfPreviewPaths via a second pass over the same index file.
+   * @param idxFile Open index file
+   * @param cleanBase Cleaned base path
+   */
+  void loadShelfGroupedFromIndex(FsFile& idxFile, const std::string& cleanBase);
 
   /**
    * @brief Read a book entry from the index file
@@ -606,6 +628,15 @@ class LibraryActivity final : public Activity, public Menu {
    * Shared by the full renderLibraryShelf() pass and the fast selection-only overlay redraw.
    */
   void renderShelfCard(int index, int startY, bool selected) const;
+  /** Draws a shelf folder tile's cover art: a single cover when the folder has one preview book, or
+   * an overlapping stack of up to 3 when it has more. Each cover's border tightly wraps its own
+   * image (no letterbox padding) and the selection highlight, if selected, wraps the overall bounds.
+   * The overall bounds actually drawn are written to outBoundsX/Y/W/H (falling back to the full
+   * coverX/Y/W/H slot when nothing could be drawn) so the caller can align the card's label to them.
+   * Returns whether anything was drawn. */
+  bool renderShelfFolderCover(const LibraryItem& item, int coverX, int coverY, int coverW, int coverH, bool selected,
+                              bool rounded, bool subtle, int& outBoundsX, int& outBoundsY, int& outBoundsW,
+                              int& outBoundsH) const;
   /** Returns whether the stored shelf page buffer can be reused for the current page/selection. */
   bool canUseLibraryShelfBuffer() const;
   /** Snapshots the current framebuffer into the shelf page buffer. */

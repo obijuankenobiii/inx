@@ -40,10 +40,10 @@ class JpegRender {
 
   bool render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
               ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false,
-              JpegLevelCapture* capture = nullptr) const;
+              JpegLevelCapture* capture = nullptr, bool cropFromTop = false) const;
   bool fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill = false,
                 ImageRenderMode mode = ImageRenderMode::OneBit, bool quality = false,
-                JpegLevelCapture* capture = nullptr) const;
+                JpegLevelCapture* capture = nullptr, bool cropFromTop = false) const;
 
   // Redraws a capture made by an earlier render() call for a different plane, without touching the file.
   void replayCapture(const JpegLevelCapture& capture, ImageRenderMode mode) const;

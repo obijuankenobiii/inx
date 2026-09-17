@@ -15,6 +15,7 @@ class GfxRenderer;
 
 struct ImageDisplayCacheOptions {
   bool cropToFill = false;
+  bool cropFromTop = false;
   ImageRenderMode mode = ImageRenderMode::OneBit;
   uint8_t renderPlane = 0;
   BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;

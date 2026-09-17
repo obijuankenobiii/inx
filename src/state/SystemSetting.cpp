@@ -40,7 +40,7 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 }
 
 namespace {
-constexpr uint8_t SETTINGS_FILE_VERSION = 37;
+constexpr uint8_t SETTINGS_FILE_VERSION = 39;
 // Reader-related fields (font/layout, status bar, refresh frequency, page auto-turn, image
 // grayscale, per-button reader actions, XTC reader settings, hyphenation, bionic reading, screen
 // margin, orientation, dictionary folder...) moved out to ReaderSetting/reader_settings.bin as of
@@ -49,7 +49,7 @@ constexpr uint8_t SETTINGS_FILE_VERSION = 37;
 // ReaderSetting.cpp for the new reader_settings.bin format (independently versioned from 1).
 constexpr uint8_t MIN_SUPPORTED_SETTINGS_VERSION = 37;
 // Must equal the number of data fields read by the do-while loop in loadFromFile() (currently 40,
-// through showMenuClock - NOT counting the version/count header fields read separately
+// through systemTextSize - NOT counting the version/count header fields read separately
 // before the loop). This is written into the file as its own "how many fields do I contain" header
 // and read back as fileSettingsCount; the loop's `settingsRead < fileSettingsCount` checks use it to
 // know whether the tail fields are actually present. If it's wrong, either the tail fields never get
@@ -178,7 +178,6 @@ uint32_t settingsHash(const SystemSetting& settings) {
   hashPod(hash, settings.refreshOnLoadSync);
   hashPod(hash, settings.refreshOnLoadStatistics);
   hashPod(hash, settings.bitmapRoundedCorners);
-  hashPod(hash, settings.recentVisibleCount);
   hashPod(hash, settings.librarySortEnabled);
   hashPod(hash, settings.librarySortMode);
   hashPod(hash, settings.libraryMode);
@@ -194,6 +193,7 @@ uint32_t settingsHash(const SystemSetting& settings) {
   hashPod(hash, settings.libraryShelfEnabled);
   hashPod(hash, settings.hideButtonHints);
   hashPod(hash, settings.showMenuClock);
+  hashPod(hash, settings.systemTextSize);
   return hash;
 }
 
@@ -213,7 +213,8 @@ const char* SystemSetting::readerButtonActionLabel(const uint8_t action) {
                                         "Table of Contents",
                                         "Change Orientation",
                                         "Apply Preset",
-                                        "Quick Actions"};
+                                        "Quick Actions",
+                                        "Footnotes"};
   if (action >= SystemSetting::READER_BUTTON_ACTION_COUNT) {
     return "None";
   }
@@ -237,7 +238,6 @@ void SystemSetting::setSleepCustomBmpFromInput(const char* s) {
 bool SystemSetting::saveToFile() const {
   {
     SystemSetting* mut = const_cast<SystemSetting*>(this);
-    if (mut->recentVisibleCount < 1 || mut->recentVisibleCount > 9) mut->recentVisibleCount = 9;
     if (mut->librarySortEnabled > 1) mut->librarySortEnabled = 1;
     if (mut->libraryShelfEnabled > 1) mut->libraryShelfEnabled = 0;
     if (mut->librarySortMode > 7) mut->librarySortMode = 0;
@@ -254,6 +254,7 @@ bool SystemSetting::saveToFile() const {
     if (mut->shakePageTurn > 2) mut->shakePageTurn = 0;
     if (mut->shakePageTurnSensitivity > 2) mut->shakePageTurnSensitivity = 1;
     if (mut->uiTheme >= UI_THEME_COUNT) mut->uiTheme = UI_THEME_CLASSIC;
+    if (mut->systemTextSize >= SYSTEM_TEXT_SIZE_COUNT) mut->systemTextSize = SYSTEM_TEXT_SMALL;
   }
 
   const uint32_t currentHash = settingsHash(*this);
@@ -296,7 +297,6 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, refreshOnLoadSync);
   serialization::writePod(outputFile, refreshOnLoadStatistics);
   serialization::writePod(outputFile, bitmapRoundedCorners);
-  serialization::writePod(outputFile, recentVisibleCount);
   serialization::writePod(outputFile, librarySortEnabled);
   serialization::writePod(outputFile, librarySortMode);
   serialization::writePod(outputFile, libraryMode);
@@ -312,6 +312,7 @@ bool SystemSetting::saveToFile() const {
   serialization::writePod(outputFile, libraryShelfEnabled);
   serialization::writePod(outputFile, hideButtonHints);
   serialization::writePod(outputFile, showMenuClock);
+  serialization::writePod(outputFile, systemTextSize);
 
   outputFile.close();
   saveUiThemeSetting(uiTheme);
@@ -447,8 +448,13 @@ bool SystemSetting::loadFromFile() {
     if (bitmapRoundedCorners > 2) bitmapRoundedCorners = 0;
     if (++settingsRead >= fileSettingsCount) break;
 
-    serialization::readPod(inputFile, recentVisibleCount);
-    if (recentVisibleCount < 1 || recentVisibleCount > 9) recentVisibleCount = 9;
+    // v37/v38 persisted the removed Recent-books-count setting here. Consume
+    // that legacy byte so existing settings files remain positionally valid,
+    // but do not retain or use the value.
+    if (version < SETTINGS_FILE_VERSION) {
+      uint8_t legacyRecentVisibleCount = 0;
+      serialization::readPod(inputFile, legacyRecentVisibleCount);
+    }
     if (++settingsRead >= fileSettingsCount) break;
 
     serialization::readPod(inputFile, librarySortEnabled);
@@ -504,15 +510,20 @@ bool SystemSetting::loadFromFile() {
     if (showMenuClock > 1) showMenuClock = 1;
     ++settingsRead;
 
+    if (settingsRead < fileSettingsCount) {
+      readAndValidate(inputFile, systemTextSize, SYSTEM_TEXT_SIZE_COUNT);
+      ++settingsRead;
+    }
+
   } while (false);
 
   inputFile.close();
 
-  if (recentVisibleCount < 1 || recentVisibleCount > 9) recentVisibleCount = 9;
   if (librarySortEnabled > 1) librarySortEnabled = 1;
   if (libraryShelfEnabled > 1) libraryShelfEnabled = 0;
   if (hideButtonHints > 1) hideButtonHints = 0;
   if (showMenuClock > 1) showMenuClock = 1;
+  if (systemTextSize >= SYSTEM_TEXT_SIZE_COUNT) systemTextSize = SYSTEM_TEXT_SMALL;
   if (librarySortMode > 7) librarySortMode = 0;
   if (sleepClockStyle >= SLEEP_CLOCK_STYLE_COUNT) sleepClockStyle = CLOCK_CENTERED_DATE;
   if (sleepClockTimeFormat >= CLOCK_TIME_FORMAT_COUNT) sleepClockTimeFormat = CLOCK_24_HOUR;

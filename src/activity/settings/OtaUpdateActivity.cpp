@@ -15,6 +15,7 @@
 #include <string>
 
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "network/OtaUpdater.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -80,10 +81,10 @@ void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, co
                             const float progress, const size_t processedBytes, const size_t totalBytes) {
   const int centerY = bodyTop + (screenHeight - bodyTop - 80) / 2;
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "INSTALLING UPDATE", true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Installing firmware", true,
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY - 92, "INSTALLING UPDATE", true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_14_FONT_ID, centerY - 54, "Installing firmware", true,
                          EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, "Please keep the device powered on.", true,
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 10, "Please keep the device powered on.", true,
                          EpdFontFamily::REGULAR);
 
   const int barW = std::min(300, pageWidth - 72);
@@ -106,7 +107,7 @@ void drawUpdateProgressCard(const GfxRenderer& renderer, const int pageWidth, co
   } else {
     metaLine = "Preparing package";
   }
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, barY + 26, metaLine.c_str(), true, EpdFontFamily::REGULAR);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, barY + 26, metaLine.c_str(), true, EpdFontFamily::REGULAR);
 }
 
 void drawUpdateListRow(const GfxRenderer& renderer, const int pageWidth, const int itemY, const char* title,
@@ -115,8 +116,8 @@ void drawUpdateListRow(const GfxRenderer& renderer, const int pageWidth, const i
     renderer.rectangle.fill(0, itemY, pageWidth, kFirmwareItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
   }
 
-  constexpr int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  constexpr int valueFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int labelFont = MONTSERRAT_8_FONT_ID;
+  constexpr int valueFont = MONTSERRAT_10_FONT_ID;
   const int labelY = itemY + 7;
   const int valueY = itemY + 25;
   const int valueMaxW = pageWidth - 40;
@@ -275,7 +276,8 @@ void OtaUpdateActivity::render() {
   const int pageWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   const int startY = 0;
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "Update", startY);
+  (void)startY;
+  const int dividerY = SubPage::header(renderer, "Update");
 
   const int bodyTop = dividerY;
 
@@ -287,22 +289,22 @@ void OtaUpdateActivity::render() {
       if (selected) {
         renderer.rectangle.fill(0, itemY, pageWidth, kSourceItemHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
-      const int textY = itemY + (kSourceItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, items[i], !selected, EpdFontFamily::REGULAR);
+      const int textY = itemY + (kSourceItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, items[i], !selected, EpdFontFamily::REGULAR);
       renderer.line.render(0, itemY + kSourceItemHeight - 1, pageWidth, itemY + kSourceItemHeight - 1, true,
                            LineRender::Style::Dotted);
     }
     const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == WIFI_SELECTION) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Choose a network above.", true,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Choose a network above.", true,
                            EpdFontFamily::REGULAR);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == CHECKING_FOR_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "This may take a moment.", true,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "This may take a moment.", true,
                            EpdFontFamily::REGULAR);
   } else if (state == WAITING_CONFIRMATION) {
     const std::string sizeLine =
@@ -312,16 +314,16 @@ void OtaUpdateActivity::render() {
                       updater.getLatestVersion().c_str(), true);
     drawUpdateListRow(renderer, pageWidth, bodyTop + kFirmwareItemHeight * 2, "PACKAGE", sizeLine.c_str(), false);
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == WAITING_SD_SELECTION) {
     const int totalFiles = static_cast<int>(sdFirmwareFiles.size());
     if (totalFiles == 0) {
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop, "No firmware .bin files found.", true,
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, bodyTop, "No firmware .bin files found.", true,
                            EpdFontFamily::BOLD);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, bodyTop + 32, "Put .bin files in / or /firmware.",
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, bodyTop + 32, "Put .bin files in / or /firmware.",
                            true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       const int listBottom = screenHeight - 44;
       const int visibleRows = std::max(1, (listBottom - bodyTop) / kFirmwareItemHeight);
@@ -342,16 +344,16 @@ void OtaUpdateActivity::render() {
                                   static_cast<int>(GfxRenderer::FillTone::Ink));
         }
         const std::string label = renderer.text.truncate(
-            ATKINSON_HYPERLEGIBLE_10_FONT_ID, sdFirmwareFiles[static_cast<size_t>(i)].c_str(), pageWidth - 40);
+            MONTSERRAT_10_FONT_ID, sdFirmwareFiles[static_cast<size_t>(i)].c_str(), pageWidth - 40);
         const int textY =
-            itemY + (kFirmwareItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label.c_str(), !selected,
+            itemY + (kFirmwareItemHeight - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+        renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, label.c_str(), !selected,
                              EpdFontFamily::REGULAR);
         renderer.line.render(0, itemY + kFirmwareItemHeight - 1, pageWidth, itemY + kFirmwareItemHeight - 1, true,
                              LineRender::Style::Dotted);
       }
       const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == WAITING_SD_CONFIRMATION) {
     const std::string& firmwarePath = selectedSdFirmwarePath();
@@ -363,48 +365,48 @@ void OtaUpdateActivity::render() {
         file.close();
       }
       const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-      const std::string fileName = renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+      const std::string fileName = renderer.text.truncate(MONTSERRAT_10_FONT_ID,
                                                           fileNameFromPath(firmwarePath).c_str(), pageWidth - 56);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY - 92, "SD FIRMWARE", true, EpdFontFamily::BOLD);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_14_FONT_ID, centerY - 54, "Install update?", true,
+      renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY - 92, "SD FIRMWARE", true, EpdFontFamily::BOLD);
+      renderer.text.centered(MONTSERRAT_14_FONT_ID, centerY - 54, "Install update?", true,
                              EpdFontFamily::BOLD);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 10, fileName.c_str(), true,
+      renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 10, fileName.c_str(), true,
                              EpdFontFamily::REGULAR);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 18, formatBytes(firmwareSize).c_str(), true,
+      renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY + 18, formatBytes(firmwareSize).c_str(), true,
                              EpdFontFamily::REGULAR);
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, centerY + 58,
+      renderer.text.centered(MONTSERRAT_8_FONT_ID, centerY + 58,
                              "Keep the device powered on during install.", true, EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("Cancel", "Install", "", "");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-      renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Firmware file is missing.", true,
+      renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Firmware file is missing.", true,
                              EpdFontFamily::REGULAR);
       const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-      renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == UPDATE_IN_PROGRESS) {
     drawUpdateProgressCard(renderer, pageWidth, bodyTop, screenHeight, updaterProgress, updater.getProcessedSize(),
                            updater.getTotalSize());
   } else if (state == NO_UPDATE) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "No update available", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "No update available", true, EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FAILED) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update failed", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Update failed", true, EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FINISHED) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY + 50,
                            "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
   } else if (state == SHUTTING_DOWN) {
     const int centerY = dividerY + (screenHeight - dividerY - 80) / 2;
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 50,
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Update complete", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY + 50,
                            "Press and hold power button to turn back on", true, EpdFontFamily::REGULAR);
   }
 

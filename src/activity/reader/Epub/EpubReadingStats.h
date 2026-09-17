@@ -18,6 +18,7 @@ class EpubReadingStats {
   void pausePageTimer(const Epub& epub, const Section* section, int currentSpineIndex);
   void endPageTimer(const Epub& epub, const Section* section, int currentSpineIndex);
   void addChapterRead();
+  void markBookComplete(const Epub& epub);
   void save(const Epub& epub);
   void display(GfxRenderer& renderer, const Epub& epub) const;
 

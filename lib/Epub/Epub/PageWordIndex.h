@@ -20,6 +20,9 @@ struct PageWordHit {
   int fontId = 0;
   std::string text;
   bool isDropCap = false;
+  /** Footnote/endnote link target ("<resolvedPath>#<fragmentId>", empty path = same file), or empty if
+   * this word is not a footnote marker. */
+  std::string footnoteTarget;
 };
 
 /**

@@ -5,127 +5,29 @@
 
 #include "CalibreConnectActivity.h"
 
+#include <algorithm>
+
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
-#include <SDCardManager.h>
 #include <WiFi.h>
-#include <errno.h>
-#include <esp_task_wdt.h>
-#include <fcntl.h>
-#include <lwip/netdb.h>
-#include <lwip/sockets.h>
 
+#include "activity/page/SubPage.h"
 #include "WifiSelectionActivity.h"
+#include "images/Computer.h"
+#include "images/Check.h"
+#include "images/Phone.h"
+#include "images/Transfer.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/ScreenComponents.h"
-#include "system/UiTheme.h"
+#include "system/UiLayout.h"
 
 namespace {
 
 /**
  * @brief mDNS hostname for device discovery on local network
  */
-constexpr const char* HOSTNAME = "crosspoint";
-
-/**
- * @brief HTTP port for Calibre wireless connection
- */
-constexpr uint16_t HTTP_PORT = 8080;
-
-/**
- * @brief Left/right margin for text content
- */
-constexpr int CONTENT_MARGIN = 25;
-
-/**
- * @brief Vertical spacing between text lines
- */
-constexpr int LINE_SPACING = 28;
-
-/**
- * @brief Small vertical spacing between elements
- */
-constexpr int SMALL_SPACING = 25;
-
-/**
- * @brief Large vertical spacing between sections
- */
-constexpr int SECTION_SPACING = 40;
-
-/**
- * @brief Height of bottom area for button hints
- */
-constexpr int BOTTOM_AREA_HEIGHT = 80;
-
-/**
- * @brief HTML response for Calibre web interface root page
- */
-const char* HTML_HEADER =
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "Connection: close\r\n"
-    "\r\n"
-    "<!DOCTYPE html><html><head><title>CrossPoint Reader</title>"
-    "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-    "<style>body{font-family:sans-serif;padding:2rem;text-align:center}</style></head>"
-    "<body><h1>CrossPoint Reader</h1><p>Calibre wireless device connection active</p>"
-    "<p>Use the Calibre desktop app to send books</p></body></html>";
-
-/**
- * @brief Response for Calibre device protocol (CDP) endpoint
- */
-const char* CDP_RESPONSE =
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/plain\r\n"
-    "Content-Length: 2\r\n"
-    "Connection: close\r\n"
-    "\r\n"
-    "OK";
-
-/**
- * @brief Renders the header section for the activity
- * @param renderer Graphics renderer instance
- * @param startY Starting Y coordinate
- * @param title Header title text
- * @param subtitle Optional subtitle text
- */
-int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title, const char* subtitle = nullptr) {
-  return INX_THEME.drawPageHeader(renderer, title, startY, subtitle, CONTENT_MARGIN);
+constexpr const char* HOSTNAME = "inx";
 }
-
-/**
- * @brief Truncates a string to a maximum length, adding ellipsis if needed
- * @param str Input string to truncate
- * @param maxLength Maximum allowed length
- * @return Truncated string with ellipsis if original exceeds maxLength
- */
-std::string truncateString(const std::string& str, int maxLength) {
-  if (str.length() <= maxLength) return str;
-  std::string result = str;
-  result.replace(maxLength - 3, result.length() - (maxLength - 3), "...");
-  return result;
-}
-}  // namespace
-
-/**
- * @brief Web server context structure managing connection state and upload progress
- */
-struct WebServerContext {
-  int serverSocket = -1; /**< Server socket file descriptor */
-  int clientSocket = -1; /**< Client socket file descriptor */
-  bool running = false;  /**< Flag indicating if server is running */
-
-  bool uploadInProgress = false;    /**< Flag indicating if upload is active */
-  size_t uploadReceived = 0;        /**< Bytes received so far */
-  size_t uploadTotal = 0;           /**< Total bytes expected */
-  std::string uploadFilename;       /**< Name of file being uploaded */
-  unsigned long lastActivity = 0;   /**< Timestamp of last network activity */
-  unsigned long lastCompleteAt = 0; /**< Timestamp of last completed upload */
-  std::string lastCompleteName;     /**< Name of last completed upload */
-
-  FsFile uploadFile; /**< File handle for writing upload data */
-};
 
 /**
  * @brief Destructor - stops web server and cleans up resources
@@ -157,16 +59,21 @@ void CalibreConnectActivity::onEnter() {
   currentUploadName.clear();
   lastCompleteName.clear();
   lastCompleteAt = 0;
-  exitRequested = false;
+  lastProcessedCompleteAt = 0;
+  receivedFiles.clear();
 
-  xTaskCreate(&CalibreConnectActivity::taskTrampoline, "CalibreConnectTask", 3072, this, 1, &displayTaskHandle);
-
-  if (WiFi.status() != WL_CONNECTED) {
+  const bool alreadyConnected = WiFi.status() == WL_CONNECTED;
+  if (!alreadyConnected) {
     enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                                [this](const bool connected) { onWifiSelectionComplete(connected); }));
   } else {
     connectedIP = WiFi.localIP().toString().c_str();
     connectedSSID = WiFi.SSID().c_str();
+  }
+
+  xTaskCreate(&CalibreConnectActivity::taskTrampoline, "CalibreConnectTask", 8192, this, 1, &displayTaskHandle);
+
+  if (alreadyConnected) {
     startWebServer();
   }
 }
@@ -225,70 +132,33 @@ void CalibreConnectActivity::startWebServer() {
   updateRequired = true;
 
   if (MDNS.begin(HOSTNAME)) {
-    MDNS.addService("http", "tcp", HTTP_PORT);
-    Serial.printf("[CAL] mDNS started: http://%s.local:%d/\n", HOSTNAME, HTTP_PORT);
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("[CAL] mDNS started: http://%s.local/\n", HOSTNAME);
   }
 
-  serverCtx = new WebServerContext();
+  webServer.reset(new LocalServer());
+  webServer->begin();
 
-  serverCtx->serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-  if (serverCtx->serverSocket < 0) {
+  if (webServer->isRunning()) {
+    lastProcessedCompleteAt = webServer->getWsUploadStatus().lastCompleteAt;
+    state = CalibreConnectState::SERVER_RUNNING;
+    updateRequired = true;
+    Serial.printf("[CAL] Compatible web server started on HTTP 80, WebSocket 81\n");
+  } else {
+    webServer.reset();
     state = CalibreConnectState::ERROR;
     updateRequired = true;
-    return;
+    Serial.printf("[CAL] Failed to start compatible web server\n");
   }
-
-  int opt = 1;
-  setsockopt(serverCtx->serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-  struct sockaddr_in serverAddr;
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_addr.s_addr = INADDR_ANY;
-  serverAddr.sin_port = htons(HTTP_PORT);
-
-  if (bind(serverCtx->serverSocket, reinterpret_cast<struct sockaddr*>(&serverAddr), sizeof(serverAddr)) < 0) {
-    close(serverCtx->serverSocket);
-    serverCtx->serverSocket = -1;
-    state = CalibreConnectState::ERROR;
-    updateRequired = true;
-    return;
-  }
-
-  if (listen(serverCtx->serverSocket, 5) < 0) {
-    close(serverCtx->serverSocket);
-    serverCtx->serverSocket = -1;
-    state = CalibreConnectState::ERROR;
-    updateRequired = true;
-    return;
-  }
-
-  int flags = fcntl(serverCtx->serverSocket, F_GETFL, 0);
-  fcntl(serverCtx->serverSocket, F_SETFL, flags | O_NONBLOCK);
-
-  serverCtx->running = true;
-  serverCtx->lastActivity = millis();
-  state = CalibreConnectState::SERVER_RUNNING;
-  updateRequired = true;
-
-  Serial.printf("[CAL] Web server started on port %d\n", HTTP_PORT);
 }
 
 /**
  * @brief Stops the web server and cleans up all related resources
  */
 void CalibreConnectActivity::stopWebServer() {
-  if (serverCtx) {
-    if (serverCtx->clientSocket >= 0) {
-      close(serverCtx->clientSocket);
-    }
-    if (serverCtx->serverSocket >= 0) {
-      close(serverCtx->serverSocket);
-    }
-    if (serverCtx->uploadFile) {
-      serverCtx->uploadFile.close();
-    }
-    delete serverCtx;
-    serverCtx = nullptr;
+  if (webServer) {
+    webServer->stop();
+    webServer.reset();
   }
 }
 
@@ -301,135 +171,43 @@ void CalibreConnectActivity::loop() {
     return;
   }
 
-  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
-    exitRequested = true;
-    return;
-  }
+  if (SubPage::closeInput(renderer, mappedInput, onComplete)) return;
 
-  if (serverCtx && serverCtx->running && state == CalibreConnectState::SERVER_RUNNING) {
-    esp_task_wdt_reset();
+  if (webServer && webServer->isRunning() && state == CalibreConnectState::SERVER_RUNNING) {
+    webServer->handleClient();
 
-    if (serverCtx->clientSocket < 0) {
-      struct sockaddr_in clientAddr;
-      socklen_t clientLen = sizeof(clientAddr);
-      serverCtx->clientSocket =
-          accept(serverCtx->serverSocket, reinterpret_cast<struct sockaddr*>(&clientAddr), &clientLen);
-
-      if (serverCtx->clientSocket >= 0) {
-        int flags = fcntl(serverCtx->clientSocket, F_GETFL, 0);
-        fcntl(serverCtx->clientSocket, F_SETFL, flags | O_NONBLOCK);
-        serverCtx->lastActivity = millis();
+    const LocalServer::WsUploadStatus status = webServer->getWsUploadStatus();
+    bool changed = false;
+    if (status.inProgress) {
+      if (status.received != lastProgressReceived || status.total != lastProgressTotal ||
+          status.filename != currentUploadName) {
+        lastProgressReceived = status.received;
+        lastProgressTotal = status.total;
+        currentUploadName = status.filename;
+        changed = true;
       }
+    } else if (lastProgressReceived != 0 || lastProgressTotal != 0 || !currentUploadName.empty()) {
+      lastProgressReceived = 0;
+      lastProgressTotal = 0;
+      currentUploadName.clear();
+      changed = true;
     }
 
-    if (serverCtx->clientSocket >= 0) {
-      char buffer[512];
-      int bytesRead = recv(serverCtx->clientSocket, buffer, sizeof(buffer) - 1, 0);
-
-      if (bytesRead > 0) {
-        buffer[bytesRead] = '\0';
-        serverCtx->lastActivity = millis();
-
-        if (strstr(buffer, "GET / ") || strstr(buffer, "GET /index.html")) {
-          send(serverCtx->clientSocket, HTML_HEADER, strlen(HTML_HEADER), 0);
-          close(serverCtx->clientSocket);
-          serverCtx->clientSocket = -1;
-        } else if (strstr(buffer, "POST /cdp")) {
-          send(serverCtx->clientSocket, CDP_RESPONSE, strlen(CDP_RESPONSE), 0);
-          close(serverCtx->clientSocket);
-          serverCtx->clientSocket = -1;
-        } else if (strstr(buffer, "POST /upload")) {
-          const char* filenameStart = strstr(buffer, "filename=\"");
-          if (filenameStart) {
-            filenameStart += 10;
-            const char* filenameEnd = strchr(filenameStart, '"');
-            if (filenameEnd) {
-              serverCtx->uploadFilename = std::string(filenameStart, filenameEnd - filenameStart);
-              serverCtx->uploadInProgress = true;
-              serverCtx->uploadReceived = 0;
-              serverCtx->uploadTotal = 0;
-
-              std::string savePath = "/" + serverCtx->uploadFilename;
-              if (SdMan.openFileForWrite("CAL", savePath.c_str(), serverCtx->uploadFile)) {
-                Serial.printf("[CAL] Saving upload to: %s\n", savePath.c_str());
-              }
-
-              const char* dataStart = strstr(buffer, "\r\n\r\n");
-              if (dataStart) {
-                dataStart += 4;
-                size_t headerLen = dataStart - buffer;
-                size_t dataLen = bytesRead - headerLen;
-
-                if (dataLen > 0 && serverCtx->uploadFile) {
-                  serverCtx->uploadFile.write(reinterpret_cast<const uint8_t*>(dataStart), dataLen);
-                  serverCtx->uploadReceived += dataLen;
-                }
-              }
-
-              lastProgressReceived = serverCtx->uploadReceived;
-              lastProgressTotal = serverCtx->uploadTotal;
-              currentUploadName = serverCtx->uploadFilename;
-              updateRequired = true;
-            }
-          }
-
-          const char* response =
-              "HTTP/1.1 200 OK\r\n"
-              "Content-Type: text/plain\r\n"
-              "Transfer-Encoding: chunked\r\n"
-              "\r\n";
-          send(serverCtx->clientSocket, response, strlen(response), 0);
-        } else {
-          if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
-            serverCtx->uploadFile.write(reinterpret_cast<const uint8_t*>(buffer), bytesRead);
-            serverCtx->uploadReceived += bytesRead;
-
-            lastProgressReceived = serverCtx->uploadReceived;
-            updateRequired = true;
-
-            if (bytesRead < static_cast<int>(sizeof(buffer)) || strstr(buffer, "0\r\n\r\n")) {
-              serverCtx->uploadInProgress = false;
-              serverCtx->uploadFile.close();
-              serverCtx->lastCompleteAt = millis();
-              serverCtx->lastCompleteName = serverCtx->uploadFilename;
-
-              lastCompleteAt = serverCtx->lastCompleteAt;
-              lastCompleteName = serverCtx->lastCompleteName;
-              lastProgressReceived = 0;
-              lastProgressTotal = 0;
-              currentUploadName.clear();
-              updateRequired = true;
-
-              const char* finalResp = "0\r\n\r\n";
-              send(serverCtx->clientSocket, finalResp, strlen(finalResp), 0);
-              close(serverCtx->clientSocket);
-              serverCtx->clientSocket = -1;
-            }
-          }
-        }
-      } else if (bytesRead == 0 || errno != EAGAIN) {
-        if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
-          serverCtx->uploadFile.close();
-        }
-        close(serverCtx->clientSocket);
-        serverCtx->clientSocket = -1;
-        serverCtx->uploadInProgress = false;
-      }
+    if (status.lastCompleteAt != 0 && status.lastCompleteAt != lastProcessedCompleteAt) {
+      lastCompleteAt = status.lastCompleteAt;
+      lastCompleteName = status.lastCompleteName;
+      lastProcessedCompleteAt = status.lastCompleteAt;
+      if (!lastCompleteName.empty()) receivedFiles.push_back(lastCompleteName);
+      changed = true;
     }
-
-    if (serverCtx->clientSocket >= 0 && millis() - serverCtx->lastActivity > 30000) {
-      if (serverCtx->uploadInProgress && serverCtx->uploadFile) {
-        serverCtx->uploadFile.close();
-      }
-      close(serverCtx->clientSocket);
-      serverCtx->clientSocket = -1;
-      serverCtx->uploadInProgress = false;
+    if (lastCompleteAt > 0 && millis() - lastCompleteAt >= 6000) {
+      lastCompleteAt = 0;
+      lastCompleteName.clear();
+      changed = true;
     }
+    if (changed) updateRequired = true;
   }
 
-  if (exitRequested) {
-    onComplete();
-  }
 }
 
 /**
@@ -439,6 +217,10 @@ void CalibreConnectActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
       updateRequired = false;
+      if (state == CalibreConnectState::WIFI_SELECTION) {
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+        continue;
+      }
       if (renderingMutex && xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         render();
         xSemaphoreGive(renderingMutex);
@@ -461,24 +243,22 @@ void CalibreConnectActivity::render() const {
   if (state == CalibreConnectState::SERVER_RUNNING) {
     renderServerRunning(screenWidth, screenHeight, startY);
   } else if (state == CalibreConnectState::SERVER_STARTING) {
-    const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Starting server...");
+    const int contentStart = SubPage::header(renderer, "Calibre File Transfer");
 
-    int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
+    int centerY = contentStart + (screenHeight - contentStart) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+    renderer.text.centered(systemFontId(), centerY, "Please wait...");
 
-    auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    auto labels = mappedInput.mapLabels("« Back", "", "", "");
   } else if (state == CalibreConnectState::ERROR) {
-    const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Setup Failed");
+    const int contentStart = SubPage::header(renderer, "Calibre File Transfer");
 
-    int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
+    int centerY = contentStart + (screenHeight - contentStart) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start server");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Exit to try again");
+    renderer.text.centered(systemFontId(), centerY - 20, "Could not start server");
+    renderer.text.centered(systemFontId(), centerY + 10, "Press Back to return");
 
-    auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    auto labels = mappedInput.mapLabels("« Back", "", "", "");
   }
 
   renderer.displayBuffer();
@@ -491,66 +271,78 @@ void CalibreConnectActivity::render() const {
  * @param startY Starting Y coordinate for content
  */
 void CalibreConnectActivity::renderServerRunning(int screenWidth, int screenHeight, int startY) const {
-  const int contentStart = renderActivityHeader(renderer, startY, "Connect to Calibre", "Server Running");
+  (void)startY;
 
-  int currentY = contentStart + SECTION_SPACING - 10;
+  const int contentStart = SubPage::header(renderer, "Calibre File Transfer");
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Network", true,
-                       EpdFontFamily::BOLD);
-  currentY += LINE_SPACING;
+  constexpr int iconSize = 72;
+  constexpr int iconGap = 28;
+  constexpr int rowHeight = UiLayout::LIST_ITEM_HEIGHT;
+  constexpr int sideMargin = 20;
+  constexpr int actionIconSize = 40;
+  const int labelFont = MONTSERRAT_8_FONT_ID;
+  const int bodyFont = systemFontId();
 
-  std::string ssidInfo = connectedSSID;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                       truncateString(ssidInfo, 34).c_str());
-  currentY += LINE_SPACING;
+  const int iconGroupWidth = iconSize * 3 + iconGap * 2;
+  const int iconX = (screenWidth - iconGroupWidth) / 2;
+  const int iconY = contentStart + 58;
+  renderer.bitmap.icon(Phone, iconX, iconY, iconSize, iconSize);
+  renderer.bitmap.icon(Transfer, iconX + iconSize + iconGap, iconY, iconSize, iconSize);
+  renderer.bitmap.icon(Computer, iconX + (iconSize + iconGap) * 2, iconY, iconSize, iconSize);
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, connectedIP.c_str());
-  currentY += LINE_SPACING * 2;
+  const int detailsY = iconY + iconSize + 12;
+  renderer.text.centered(labelFont, detailsY, "CALIBRE", true, EpdFontFamily::BOLD);
 
-  renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
-  currentY += SECTION_SPACING;
+  const bool uploadActive = lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal;
+  if (uploadActive || !receivedFiles.empty()) {
+    const int listTop = std::max(iconY + iconSize + 40, detailsY + 26 + 40);
+    const int listBottom = screenHeight - 76;
+    const int visibleRows = std::max(0, (listBottom - listTop) / rowHeight);
+    const int totalFiles = static_cast<int>(receivedFiles.size()) + (uploadActive ? 1 : 0);
+    const int visibleFiles = std::min(visibleRows, totalFiles);
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Setup", true, EpdFontFamily::BOLD);
-  currentY += LINE_SPACING;
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                       "1.) Install CrossPoint Reader plugin");
-  currentY += SMALL_SPACING;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY, "2.) Be on the same WiFi network");
-  currentY += SMALL_SPACING;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                       "3.) In Calibre: \"Send to device\"");
-  currentY += SMALL_SPACING + 20;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, CONTENT_MARGIN, currentY,
-                       "Keep this screen open while sending");
-  currentY += SMALL_SPACING * 2;
-
-  renderer.line.render(CONTENT_MARGIN, currentY - 10, screenWidth - CONTENT_MARGIN, currentY - 10);
-  currentY += SECTION_SPACING;
-
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, CONTENT_MARGIN, currentY, "Status", true, EpdFontFamily::BOLD);
-  currentY += LINE_SPACING;
-
-  if (lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal) {
-    std::string label = "Receiving";
-    if (!currentUploadName.empty()) {
-      label += ": " + truncateString(currentUploadName, 30);
+    for (int row = 0; row < visibleFiles; ++row) {
+      const bool isCurrentUpload = uploadActive && row == 0;
+      const int rowY = listTop + row * rowHeight;
+      const int textY = rowY + (rowHeight - renderer.text.getLineHeight(bodyFont)) / 2;
+      const int iconXRight = screenWidth - sideMargin - actionIconSize;
+      const int percent = uploadActive
+                              ? std::min(100, static_cast<int>((static_cast<uint64_t>(lastProgressReceived) * 100) /
+                                                               lastProgressTotal))
+                              : 0;
+      const std::string progressText = std::to_string(percent) + "%";
+      const int rightContentWidth = isCurrentUpload ? renderer.text.getWidth(bodyFont, progressText.c_str())
+                                                     : actionIconSize;
+      const int maxNameWidth = screenWidth - (sideMargin * 2) - rightContentWidth - 20;
+      const char* fileName = currentUploadName.c_str();
+      size_t fileIndex = 0;
+      if (!isCurrentUpload) {
+        const int completedRow = uploadActive ? row - 1 : row;
+        fileIndex = receivedFiles.size() - 1 - static_cast<size_t>(completedRow);
+        fileName = receivedFiles[fileIndex].c_str();
+      }
+      const std::string displayName = renderer.text.truncate(bodyFont, fileName, maxNameWidth);
+      renderer.text.render(bodyFont, sideMargin, textY, displayName.c_str());
+      if (!isCurrentUpload) {
+        renderer.bitmap.icon(Check, iconXRight, rowY + (rowHeight - actionIconSize) / 2, actionIconSize,
+                             actionIconSize);
+      } else {
+        renderer.text.render(bodyFont, screenWidth - sideMargin - renderer.text.getWidth(bodyFont, progressText.c_str()),
+                             textY, progressText.c_str());
+      }
+      if (row + 1 < visibleFiles) {
+        renderer.line.render(0, rowY + rowHeight - 1, screenWidth, rowY + rowHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
     }
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, label.c_str());
-
-    constexpr int barWidth = 300;
-    constexpr int barHeight = 16;
-    constexpr int barX = (480 - barWidth) / 2;
-    ScreenComponents::drawProgressBar(renderer, barX, currentY + 22, barWidth, barHeight, lastProgressReceived,
-                                      lastProgressTotal);
-    currentY += 50;
+  } else {
+    const int instructionCenterY = detailsY + (screenHeight - detailsY - 76) / 2;
+    renderer.text.centered(bodyFont, instructionCenterY - 24, "Download and install");
+    renderer.text.centered(bodyFont, instructionCenterY, "CrossPoint Calibre");
+    renderer.text.centered(bodyFont, instructionCenterY + 24, "plugin");
   }
 
-  if (lastCompleteAt > 0 && (millis() - lastCompleteAt) < 6000) {
-    std::string msg = "Received: " + truncateString(lastCompleteName, 30);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, CONTENT_MARGIN, currentY, msg.c_str());
-  }
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, screenHeight - 30, "Choose Send to device in Calibre");
 
-  auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  auto labels = mappedInput.mapLabels("« Back", "", "", "");
 }

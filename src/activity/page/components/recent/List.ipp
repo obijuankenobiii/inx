@@ -3,7 +3,7 @@ void recent::List::render(RecentActivity& self, int startY) { self.renderList(st
 void RecentActivity::renderList(int startY) {
   const int totalBooks = static_cast<int>(recentBooks.size());
   if (totalBooks == 0) {
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, startY + 150, "No recent books");
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, startY + 150, "No recent books");
     return;
   }
 
@@ -38,15 +38,15 @@ void RecentActivity::renderList(int startY) {
     if (thumbRound) {
       renderer.rectangle.fill(tx, ty, thumbW, thumbH, false, true);
     }
-    drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), ATKINSON_HYPERLEGIBLE_10_FONT_ID,
+    drawRecentThumbnailAt(tx, ty, thumbW, thumbH, cacheDir, bookDisplayTitle(book), MONTSERRAT_10_FONT_ID,
                           false);
 
     const int textX = tx + thumbW + 14;
     const int textRight = screenW - padX;
     const int textW = std::max(40, textRight - textX);
 
-    const int fontTitle = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
-    const int fontAuthor = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    const int fontTitle = MONTSERRAT_12_FONT_ID;
+    const int fontAuthor = MONTSERRAT_8_FONT_ID;
     const int lhT = renderer.text.getLineHeight(fontTitle);
     const int lhA = renderer.text.getLineHeight(fontAuthor);
     const int tyT = y + 20;
@@ -61,13 +61,17 @@ void RecentActivity::renderList(int startY) {
       lastTextBottom = tyA + lhA;
     }
 
-    float prog = book.progress;
+    float prog = recentDisplayProgress(book);
     if (prog < 0.f || prog > 1.f) {
       prog = 0.f;
     }
     char pctBuf[12];
-    snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", static_cast<double>(prog * 100.f));
-    const int fontPct = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+    if (recentBookFinished(book)) {
+      snprintf(pctBuf, sizeof(pctBuf), "Finished");
+    } else {
+      snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", static_cast<double>(prog * 100.f));
+    }
+    const int fontPct = MONTSERRAT_8_FONT_ID;
     const int pctW = renderer.text.getWidth(fontPct, pctBuf);
     constexpr int barH = 6;
     int barY = lastTextBottom + 20;

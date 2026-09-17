@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include "system/Fonts.h"
+#include "state/Statistics.h"
 
 namespace {
 constexpr unsigned long kStatsSaveIntervalMs = 30000;
@@ -78,7 +79,7 @@ void EpubReadingStats::pausePageTimer(const Epub& epub, const Section* section, 
     stats_.lastPageNumber = section->currentPage;
 
     if (section->pageCount > 0) {
-      const float spineProgress = static_cast<float>(section->currentPage) / section->pageCount;
+      const float spineProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
       stats_.progressPercent = epub.calculateProgress(currentSpineIndex, spineProgress) * 100.0f;
     }
 
@@ -115,7 +116,7 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
     stats_.lastPageNumber = section->currentPage;
 
     if (section->pageCount > 0) {
-      const float spineProgress = static_cast<float>(section->currentPage) / section->pageCount;
+      const float spineProgress = epubSpineReadFraction(section->currentPage, section->pageCount);
       stats_.progressPercent = epub.calculateProgress(currentSpineIndex, spineProgress) * 100.0f;
     }
 
@@ -134,6 +135,32 @@ void EpubReadingStats::endPageTimer(const Epub& epub, const Section* section, co
 }
 
 void EpubReadingStats::addChapterRead() { stats_.totalChaptersRead++; }
+
+void EpubReadingStats::markBookComplete(const Epub& epub) {
+  BookReadingStats onDisk;
+  if (loadBookStats(epub.getCachePath().c_str(), onDisk)) {
+    if (stats_.totalReadingTimeMs < onDisk.totalReadingTimeMs) {
+      stats_ = onDisk;
+    }
+    if (stats_.totalPagesRead < onDisk.totalPagesRead) {
+      stats_.totalPagesRead = onDisk.totalPagesRead;
+    }
+    if (stats_.totalChaptersRead < onDisk.totalChaptersRead) {
+      stats_.totalChaptersRead = onDisk.totalChaptersRead;
+    }
+    if (stats_.avgPageTimeMs == 0) {
+      stats_.avgPageTimeMs = onDisk.avgPageTimeMs;
+    }
+    if (stats_.sessionCount < onDisk.sessionCount) {
+      stats_.sessionCount = onDisk.sessionCount;
+    }
+  } else if (stats_.totalReadingTimeMs == 0 && stats_.totalPagesRead == 0) {
+    // Stats were never loaded this session; do not overwrite a real file with zeros.
+    return;
+  }
+  stats_.progressPercent = 100.0f;
+  save(epub);
+}
 
 std::string EpubReadingStats::chapterTimeLeftString(const Section* section) const {
   if (!section || section->pageCount == 0) {
@@ -215,15 +242,15 @@ void EpubReadingStats::display(GfxRenderer& renderer, const Epub& epub) const {
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  constexpr int valueFont = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-  constexpr int labelFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int valueFont = MONTSERRAT_18_FONT_ID;
+  constexpr int labelFont = MONTSERRAT_10_FONT_ID;
 
   const int statsX = (screenW - 250) / 2;
   const int statsY = (screenH - 300) / 2;
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatTime(stats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);

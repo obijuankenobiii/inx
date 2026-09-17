@@ -15,8 +15,9 @@
 
 #include "EpubAnnotationUi.h"
 #include "EpubDictionaryUi.h"
+#include "EpubFootnoteUi.h"
 #include "EpubReadingStats.h"
-#include "MenuDrawer.h"
+#include "EpubNavigation.h"
 #include "OrientationPickerUi.h"
 #include "PresetPickerUi.h"
 #include "QuickActionsMenuUi.h"
@@ -27,6 +28,10 @@
 #include "state/BookProgress.h"
 #include "state/BookSetting.h"
 #include "system/ScreenComponents.h"
+
+#ifdef SIMULATOR
+void runFootnoteSelftestIfRequested();
+#endif
 
 struct ViewportInfo {
   int totalMarginTop;
@@ -47,10 +52,17 @@ struct ViewportInfo {
 class EpubActivity final : public ActivityWithSubactivity {
   friend class EpubAnnotationUi;
   friend class EpubDictionaryUi;
+  friend class EpubFootnoteUi;
   friend class OrientationPickerUi;
   friend class PresetPickerUi;
   friend class QuickActionsMenuUi;
   friend class ReaderButtonBindings;
+  friend class EpubNavigation;
+#ifdef SIMULATOR
+  // Diagnostic-only: lets env:selftest's headless repro driver (src/main.cpp) walk chapters and drive
+  // the footnote overlay directly, without a real EpubActivity/Activity-framework boot sequence.
+  friend void ::runFootnoteSelftestIfRequested();
+#endif
 
  public:
   /**
@@ -137,8 +149,7 @@ class EpubActivity final : public ActivityWithSubactivity {
 
   SettingsDrawer* settingsDrawer = nullptr;
   bool settingsDrawerVisible = false;
-  MenuDrawer* menuDrawer = nullptr;
-  bool menuDrawerVisible = false;
+  std::unique_ptr<EpubNavigation> navigation_;
   BookSettings bookSettings;
   BookSettings settingsDrawerSnapshot_;
   bool hasSettingsDrawerSnapshot_ = false;
@@ -162,6 +173,9 @@ class EpubActivity final : public ActivityWithSubactivity {
    */
   void pageTurn(bool forward);
 
+  /** True while the post-last-page "End of book" stats screen is showing. */
+  bool showingEndOfBook() const;
+
   /**
    * Renders page contents with margins and status bar.
    *
@@ -184,7 +198,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void renderStatusBar(int orientedMarginRight, int orientedMarginBottom, int orientedMarginLeft) const;
 
   /**
-   * Draws the reading-guide overlay when enabled: Grid (vertical lines at 1/3 and 2/3 of the content width)
+   * Draws the reading-guide overlay when enabled: Grid (vertical lines at 25% and 75% of the content width)
    * or Notebook (one horizontal ruled line under each actual text line on the page, so blank space - end of
    * page, gaps around images - never gets a stray line and every line lands exactly under real text).
    * Pure overlay — does not affect layout or page cache.
@@ -206,41 +220,13 @@ class EpubActivity final : public ActivityWithSubactivity {
    */
   void loadProgress();
 
-  /**
-   * Lazily constructs and wires up menuDrawer, without changing its visibility. Shared by
-   * toggleMenuDrawer() and openTableOfContents().
-   */
-  void ensureMenuDrawer();
-
-  /**
-   * Toggles the menu drawer visibility.
-   */
-  void toggleMenuDrawer();
-
-  /**
-   * Opens the menu drawer directly to its Table of Contents view, skipping the main menu list.
-   */
-  void openTableOfContents();
+  /** Opens the reader TOC surface. */
+  void openTableOfContents(bool focusSync = false);
 
   /**
    * Toggles the settings drawer visibility.
    */
   void toggleSettingsDrawer();
-
-  /**
-   * Callback when a chapter is selected from TOC.
-   *
-   * @param spineIndex The spine index to navigate to
-   */
-  void onTocChapterSelected(int spineIndex);
-
-  /** User picked a bookmark from the reader menu drawer (same UX as TOC). */
-  void onBookmarkDrawerSelected(int storageIndex);
-
-  /** User picked an annotated page from the reader menu drawer (storageIndex encodes spine/page). */
-  void onAnnotationDrawerSelected(int storageIndex);
-
-  void goToAnnotationPage(int spineIndex, int pageNumber);
 
   /**
    * Deletes the book cache.
@@ -269,19 +255,17 @@ class EpubActivity final : public ActivityWithSubactivity {
   void prewarmCurrentSectionImages();
   void regenerateThumbnail();
 
-  /** Opens KOReader sync as a sub-activity (from menu). */
-  void openKOReaderSyncFromMenu();
-
-  /** Callback for MenuDrawer's integrated "Go to Percent" view. */
-  void onPercentDrawerSelected(int percent);
   void jumpToPercent(int percent);
 
+  bool isReadingActivity() const override { return true; }
+
   void displayBookTitle();
+  void drawPreparingBookScreen();
   void drawLoadingScreen();
   void preloadNextSection();
 
-  /** Hides reader menu and settings drawers (if open). Optionally repaints the reader (skip during error popups). */
-  void dismissMenuDrawerForBlockingWork(bool repaintReaderScreen = true);
+  /** Hides reader overlays and the settings drawer. Optionally repaints the reader. */
+  void dismissReaderOverlays(bool repaintReaderScreen = true);
 
   /** Close drawers (if open), then show a centered popup message. */
   void readerPopup(const char* message);
@@ -304,6 +288,7 @@ class EpubActivity final : public ActivityWithSubactivity {
 
   EpubAnnotationUi annUi_;
   EpubDictionaryUi dictUi_;
+  EpubFootnoteUi footnoteUi_;
   OrientationPickerUi orientationPicker_;
   PresetPickerUi presetPicker_;
   QuickActionsMenuUi quickActionsUi_;
@@ -370,4 +355,7 @@ class EpubActivity final : public ActivityWithSubactivity {
   void fastPath();
   bool slowPath();
   void displayBookStats();
+  int lastStorySpineIndex() const;
+  bool isAtEndOfStory() const;
+  void markBookFinished();
 };

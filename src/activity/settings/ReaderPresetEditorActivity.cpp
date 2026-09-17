@@ -157,9 +157,9 @@ void ReaderPresetEditorActivity::onEnter() {
     FontManager::ensureFontReady(working_.getReaderFontId(), renderer);
   }));
 
-  // Aim for ~65% drawer height, then snap it to a whole number of rows so the menu has no dead space
-  // at the bottom; the preview absorbs whatever remains.
-  const int drawerRegionHeight = drawer_->snapEmbeddedHeight(screenH * 65 / 100);
+  // Keep the preset settings drawer to about half the display, then snap it to
+  // a whole number of rows so the menu has no dead space at the bottom.
+  const int drawerRegionHeight = drawer_->snapEmbeddedHeight(screenH * 55 / 100);
   previewHeight_ = screenH - drawerRegionHeight;
   drawer_->setEmbeddedRegion(0, previewHeight_, screenW, drawerRegionHeight);
   drawer_->setEmbeddedInvalidate([this]() {
@@ -355,7 +355,7 @@ void ReaderPresetEditorActivity::renderPreview() {
 void ReaderPresetEditorActivity::renderPreviewStatusBar(int barTop, int barHeight) {
   const int screenW = renderer.getScreenWidth();
   const int margin = std::max<int>(6, working_.screenMargin);
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int fontId = MONTSERRAT_8_FONT_ID;
 
   const int textY = barTop + (barHeight - renderer.text.getLineHeight(fontId)) / 2 + 2;
 
@@ -386,7 +386,7 @@ void ReaderPresetEditorActivity::renderPreviewFullBar(int barTop, int barHeight)
   }
 
   const int screenW = renderer.getScreenWidth();
-  const int fontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
+  const int fontId = MONTSERRAT_8_FONT_ID;
   const int textY = barTop + (barHeight - renderer.text.getLineHeight(fontId)) / 2 + 2;
 
   if (style == StatusBarItem::PAGE_BARS) {

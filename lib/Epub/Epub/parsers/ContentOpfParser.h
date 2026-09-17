@@ -21,6 +21,7 @@ class ContentOpfParser final : public Print {
     IN_METADATA,
     IN_BOOK_TITLE,
     IN_BOOK_AUTHOR,
+    IN_BOOK_DESCRIPTION,
     IN_BOOK_LANGUAGE,
     IN_MANIFEST,
     IN_SPINE,
@@ -43,6 +44,7 @@ class ContentOpfParser final : public Print {
  public:
   std::string title;
   std::string author;
+  std::string description;
   std::string language;
   std::string tocNcxPath;
   std::string tocNavPath;

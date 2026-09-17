@@ -55,6 +55,10 @@ class ChapterHtmlSlimParser {
   int underlineUntilDepth = INT_MAX;
   int superscriptUntilDepth = INT_MAX;
   int subscriptUntilDepth = INT_MAX;
+  // Set when the currently-open <a> is classified as a footnote/endnote reference; words added while
+  // footnoteLinkUntilDepth < depth carry currentFootnoteTarget (see flushPartWordBuffer).
+  int footnoteLinkUntilDepth = INT_MAX;
+  std::string currentFootnoteTarget;
   // Depths of every currently-open <ul>/<ol> (a stack, so nested lists close out correctly). While non-empty,
   // cancels any first-line text-indent - CSS text-indent or the reader's own default paragraph indent - on
   // the <li> itself or anything nested inside it (e.g. <li><p>...</p></li>). List items must always line up
@@ -272,7 +276,12 @@ class ChapterHtmlSlimParser {
   void applyDropCapHint(const XML_Char* name, const std::string& tagLower, const std::string& classAttr,
                         const std::string& idAttr, const std::string& styleAttr);
   /** Marks bold/italic/anchor-underline runs active for this element's subtree (until its end depth). */
-  void applyInlineFormattingTags(const XML_Char* name);
+  void applyInlineFormattingTags(const XML_Char* name, const XML_Char** atts);
+  /** Classifies an <a> element's href as a footnote/endnote reference. Returns "" if not a footnote
+   * link (no href, no #fragment, or an external scheme); otherwise returns the encoded target
+   * "<S|F>:<resolvedPath>#<fragmentId>" - S for high-confidence semantic markup (epub:type="noteref" or
+   * a footnote/noteref/fnref class token), F for the permissive fallback (any other #fragment anchor). */
+  std::string classifyFootnoteLink(const XML_Char** atts) const;
   /** Captures <table>/<tr>/<td>/<th> structure during the main pass. Returns true if the tag was consumed
    *  (the caller should then return), false if it is not table-related. */
   bool handleTableStartElement(const XML_Char* name, const XML_Char** atts, const std::string& tagLower,
@@ -363,8 +372,8 @@ class ChapterHtmlSlimParser {
   TextBlock::Style resolveTextAlignFromAttributes(const XML_Char* elementName, const XML_Char** atts,
                                                   TextBlock::Style inheritedStyle) const;
 
-  /** Picks a block element's paragraph alignment: in FOLLOW_CSS mode the element's own text-align (else
-   *  justified); otherwise the user's fixed alignment, with an explicit element text-align still honored. */
+  /** Picks a block element's paragraph alignment: FOLLOW_CSS uses the EPUB cascade; otherwise use the user's
+   *  fixed alignment and ignore paragraph-level CSS text-align. */
   TextBlock::Style resolveBlockStyle(const XML_Char* elementName, const XML_Char** atts,
                                      bool elementHasExplicitTextAlign, TextBlock::Style elementCssStyle,
                                      TextBlock::Style inheritedCssStyle) const;

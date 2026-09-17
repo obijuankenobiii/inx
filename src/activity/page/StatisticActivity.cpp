@@ -23,18 +23,16 @@
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
-#include "system/MenuNav.h"
 #include "system/ScreenComponents.h"
+#include "system/UiLayout.h"
 namespace {
 
-constexpr unsigned long GO_HOME_MS = 1000;
-
-constexpr int FONT_SANS = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-constexpr int FONT_SANS_SM = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-constexpr int FONT_SERIF = LITERATA_14_FONT_ID;
-constexpr int FONT_SERIF_MD = LITERATA_16_FONT_ID;
-constexpr int FONT_SERIF_LG = LITERATA_18_FONT_ID;
-constexpr int FONT_SERIF_SM = LITERATA_12_FONT_ID;
+constexpr int FONT_SANS = MONTSERRAT_10_FONT_ID;
+constexpr int FONT_SANS_SM = MONTSERRAT_8_FONT_ID;
+constexpr int FONT_SERIF = MONTSERRAT_14_FONT_ID;
+constexpr int FONT_SERIF_MD = MONTSERRAT_16_FONT_ID;
+constexpr int FONT_SERIF_LG = MONTSERRAT_18_FONT_ID;
+constexpr int FONT_SERIF_SM = MONTSERRAT_12_FONT_ID;
 constexpr float kPi = 3.14159265f;
 
 static std::string epubCachePathForBookPath(const std::string& bookPath) {
@@ -664,30 +662,20 @@ std::pair<int, int> StatisticActivity::drawGlobalRecentThumbBlock(int boxX, int 
 }
 
 void StatisticActivity::onEnter() {
-  Activity::onEnter();
+  Page::onEnter();
 
   hydrateFromStorage();
   viewIndex = 0;
 
-  render();
+  renderIfNeeded();
   SETTINGS.runHalfRefreshOnLoadIfEnabled(renderer, SystemSetting::RefreshOnLoadPage::Statistics);
 }
 
 void StatisticActivity::onExit() {
-  Activity::onExit();
+  Page::onExit();
 
   std::vector<BookReadingStats>().swap(allBooksStats);
   std::vector<uint8_t>().swap(loadedBookStatsFlags_);
-}
-
-int StatisticActivity::renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const {
-  (void)innerRight;
-  const int lhLG = renderer.text.getLineHeight(FONT_SERIF_LG);
-  const char* screenTitle = "Reading stats";
-  const int maxTitleW = std::max(8, innerW - Margin * 2);
-  const std::string titleShown = renderer.text.truncate(FONT_SERIF_LG, screenTitle, maxTitleW);
-  renderer.text.render(FONT_SERIF_LG, innerLeft, y, titleShown.c_str());
-  return y + lhLG + Margin;
 }
 
 int StatisticActivity::renderRecent(int y, int innerLeft, int innerRight, int innerW, int Margin) const {
@@ -881,13 +869,11 @@ void StatisticActivity::renderSingleBookView(int bookIdx, int contentTop, int co
   renderer.text.centered(FONT_SANS_SM, contentBottom - 5, footer);
 }
 
-void StatisticActivity::render() {
-  renderer.clearScreen();
-  renderTabBar(renderer);
+void StatisticActivity::menu() { ScreenComponents::drawSubPageHeader(renderer, name()); }
 
-  const int screenH = renderer.getScreenHeight();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) : screenH - 54;
-  const int contentTopSingle = mainContentTop();
+void StatisticActivity::content() {
+  const int contentTop = UiLayout::PAGE_HEADER_HEIGHT;
+  const int contentBottom = renderer.getScreenHeight() - 24;
 
   const int totalViews = 1 + static_cast<int>(allBooksStats.size());
   int v = viewIndex;
@@ -904,9 +890,7 @@ void StatisticActivity::render() {
     const int innerRight = renderer.getScreenWidth() - kMarginX;
     const int innerW = innerRight - innerLeft;
 
-    int GAP = 0;
-    GAP = mainContentTop() + GAP;
-    GAP = renderHeader(GAP, innerLeft, innerRight, innerW, Margin);
+    int GAP = contentTop + 8;
     GAP = renderRecent(GAP, innerLeft, innerRight, innerW, Margin);
     constexpr int kMainStatsLiftPx = 10;
     GAP = renderFirstGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerW, Margin);
@@ -914,69 +898,44 @@ void StatisticActivity::render() {
     renderSecondGrid(GAP + kMarginX - kMainStatsLiftPx, innerLeft, innerRight, contentBottom);
   } else {
     ensureBookStatsLoaded(v - 1);
-    renderSingleBookView(v - 1, contentTopSingle, contentBottom);
+    renderSingleBookView(v - 1, contentTop + 8, contentBottom);
   }
-
-  const auto labels = mappedInput.mapLabels("\xC2\xAB Recent", "Refresh", "", "");
-  renderButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-
-  renderer.displayBuffer();
 }
 
 void StatisticActivity::loop() {
-  if (tabSelectorIndex == 4 && updateRequired) {
-    updateRequired = false;
-    render();
-  }
-
-  if (Activity::mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    if (Activity::mappedInput.getHeldTime() >= GO_HOME_MS) return;
-    onGoToRecent();
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    back();
     return;
   }
 
-  const bool leftPressed = Activity::mappedInput.wasPressed(MenuNav::tabPrev());
-  const bool rightPressed = Activity::mappedInput.wasPressed(MenuNav::tabNext());
-  const bool upPressed = Activity::mappedInput.wasPressed(MenuNav::itemPrev());
-  const bool downPressed = Activity::mappedInput.wasPressed(MenuNav::itemNext());
-  const bool confirmPressed = Activity::mappedInput.wasPressed(MappedInputManager::Button::Confirm);
-
-  if (leftPressed) {
-    tabSelectorIndex = 3;
-    navigateToSelectedMenu();
+  if (mappedInput.wasPressed(itemPrevButton())) {
+    const int totalViews = 1 + static_cast<int>(allBooksStats.size());
+    if (totalViews > 1) {
+      viewIndex = (viewIndex + totalViews - 1) % totalViews;
+      requestRender();
+    }
     return;
   }
 
-  if (rightPressed) {
-    tabSelectorIndex = 0;
-    navigateToSelectedMenu();
+  if (mappedInput.wasPressed(itemNextButton())) {
+    const int totalViews = 1 + static_cast<int>(allBooksStats.size());
+    if (totalViews > 1) {
+      viewIndex = (viewIndex + 1) % totalViews;
+      requestRender();
+    }
     return;
   }
 
-  if (tabSelectorIndex != 4) {
-    return;
-  }
-
-  if (confirmPressed) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     loadStats();
-    updateRequired = true;
+    requestRender();
     return;
   }
 
-  const int totalViews = 1 + static_cast<int>(allBooksStats.size());
-  if (totalViews <= 1) {
-    return;
-  }
+  Page::loop();
+}
 
-  if (upPressed) {
-    viewIndex = (viewIndex + totalViews - 1) % totalViews;
-    updateRequired = true;
-    return;
-  }
-
-  if (downPressed) {
-    viewIndex = (viewIndex + 1) % totalViews;
-    updateRequired = true;
-    return;
-  }
+bool StatisticActivity::back() {
+  if (onGoToRecent) onGoToRecent();
+  return true;
 }

@@ -505,7 +505,7 @@ void XtcReaderActivity::renderMenuMain() {
 
   renderer.rectangle.fill(drawerX, drawerY, drawerW, drawerH, false);
   renderer.rectangle.render(drawerX, drawerY, drawerW, drawerH, true);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 18, drawerY + 18, "XTC Menu", true,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, drawerX + 18, drawerY + 18, "XTC Menu", true,
                        EpdFontFamily::BOLD);
   renderer.line.render(drawerX, drawerY + headerH - 1, drawerX + drawerW, drawerY + headerH - 1, true);
 
@@ -521,19 +521,19 @@ void XtcReaderActivity::renderMenuMain() {
     renderer.rectangle.fill(
         drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
         selected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-    const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 18, textY, labels[idx], selected ? 0 : 1,
+    const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, drawerX + 18, textY, labels[idx], selected ? 0 : 1,
                          idx == 0 ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
     if (values[idx][0] != '\0') {
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, values[idx]);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + drawerW - 18 - valueW, textY, values[idx],
+      const int valueW = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, values[idx]);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, drawerX + drawerW - 18 - valueW, textY, values[idx],
                            selected ? 0 : 1);
     }
     renderer.line.render(drawerX, rowY + XTC_MENU_ITEM_HEIGHT - 1, drawerX + drawerW, rowY + XTC_MENU_ITEM_HEIGHT - 1,
                          true);
   }
 
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Back", "Select", "", "");
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "Back", "Select", "", "");
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -562,7 +562,7 @@ void XtcReaderActivity::renderMenuChapters() {
 
   renderer.rectangle.fill(drawerX, drawerY, drawerW, drawerH, false);
   renderer.rectangle.render(drawerX, drawerY, drawerW, drawerH, true);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, drawerX + 18, drawerY + 18, "Chapters", true,
+  renderer.text.render(MONTSERRAT_12_FONT_ID, drawerX + 18, drawerY + 18, "Chapters", true,
                        EpdFontFamily::BOLD);
   renderer.line.render(drawerX, drawerY + headerH - 1, drawerX + drawerW, drawerY + headerH - 1, true);
 
@@ -574,20 +574,20 @@ void XtcReaderActivity::renderMenuChapters() {
     renderer.rectangle.fill(
         drawerX + 1, rowY, drawerW - 2, XTC_MENU_ITEM_HEIGHT,
         selected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-    const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const int textY = rowY + (XTC_MENU_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
     const std::string& title = chapters[idx].name;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, drawerX + 18, textY,
+    renderer.text.render(MONTSERRAT_10_FONT_ID, drawerX + 18, textY,
                          title.empty() ? "Chapter" : title.c_str(), selected ? 0 : 1);
     char pageLabel[16];
     snprintf(pageLabel, sizeof(pageLabel), "%d", chapters[idx].startPage + 1);
-    const int labelW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, pageLabel);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, drawerX + drawerW - 18 - labelW, textY + 2, pageLabel,
+    const int labelW = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, pageLabel);
+    renderer.text.render(MONTSERRAT_8_FONT_ID, drawerX + drawerW - 18 - labelW, textY + 2, pageLabel,
                          selected ? 0 : 1);
     renderer.line.render(drawerX, rowY + XTC_MENU_ITEM_HEIGHT - 1, drawerX + drawerW, rowY + XTC_MENU_ITEM_HEIGHT - 1,
                          true);
   }
 
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "Menu", "Open", "", "");
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, "Menu", "Open", "", "");
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -629,15 +629,15 @@ void XtcReaderActivity::renderEndOfBookStats() {
 
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  constexpr int valueFont = ATKINSON_HYPERLEGIBLE_18_FONT_ID;
-  constexpr int labelFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  constexpr int valueFont = MONTSERRAT_18_FONT_ID;
+  constexpr int labelFont = MONTSERRAT_10_FONT_ID;
 
   const int statsX = (screenW - 250) / 2;
   const int statsY = (screenH - 300) / 2;
   int currentY = statsY;
   char buffer[32];
 
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
+  renderer.text.render(MONTSERRAT_18_FONT_ID, statsX, statsY - 90, "End of book", true, EpdFontFamily::BOLD);
 
   const std::string timeStr = formatReadingTime(bookStats.totalReadingTimeMs);
   renderer.text.render(valueFont, statsX, currentY, timeStr.c_str(), true, EpdFontFamily::BOLD);
@@ -686,7 +686,7 @@ void XtcReaderActivity::renderPage() {
   if (!pageBuffer) {
     Serial.printf("[%lu] [XTR] Failed to allocate page buffer (%lu bytes)\n", millis(), pageBufferSize);
     renderer.clearScreen();
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Memory error", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, 300, "Memory error", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
@@ -696,7 +696,7 @@ void XtcReaderActivity::renderPage() {
     Serial.printf("[%lu] [XTR] Failed to load page %lu\n", millis(), currentPage);
     free(pageBuffer);
     renderer.clearScreen();
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 300, "Page load error", true, EpdFontFamily::BOLD);
+    renderer.text.centered(MONTSERRAT_12_FONT_ID, 300, "Page load error", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }

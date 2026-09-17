@@ -79,3 +79,24 @@ std::vector<DefinitionStyledLine> layoutDefinitionBlocks(const GfxRenderer& rend
  *  (for scrollable panels like EpubDictionaryUi's) and stopping once a line would cross bottomLimit. */
 void renderStyledLines(GfxRenderer& renderer, const std::vector<DefinitionStyledLine>& lines, int x, int startY,
                        int bottomLimit, size_t startIndex = 0);
+
+/**
+ * Compact card: quiet POS line, then numbered senses with short glosses and indented examples.
+ * Parses shared StarDict structures (POS class tags, heading sections, numbered HTML senses, XDXF
+ * tags, ordered lists, numbered plaintext) rather than flattening HTML. @p targetLang is the
+ * dictionary's gloss language (used for POS abbreviations). @p queryWord is the on-screen word.
+ * Falls back to layoutDefinitionBlocks only when no sense can be extracted at all.
+ */
+std::vector<DefinitionStyledLine> layoutDictionaryCard(const GfxRenderer& renderer, const std::string& html,
+                                                       int maxWidth, const char* targetLang = nullptr,
+                                                       const char* queryWord = nullptr);
+
+/**
+ * True when a StarDict HTML definition contains a real gloss, not just a part-of-speech tag and/or
+ * "past participle of X" / "voltooid deelwoord van X" inflection stub. Translation Wiktionary dumps
+ * often store inflected forms as those stubs; callers should then look up the lemma or another dict.
+ */
+bool definitionHasUsefulGloss(const std::string& html);
+
+/** Lemma hinted by an inflection stub ("returning" → "return"), or empty when the entry isn't one. */
+std::string lemmaFromDefinition(const std::string& html);

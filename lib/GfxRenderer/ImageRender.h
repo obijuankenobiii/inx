@@ -20,6 +20,7 @@ class ImageRender {
   struct Options {
     ImageRenderMode mode = ImageRenderMode::OneBit;
     bool cropToFill = false;
+    bool cropFromTop = false;
     BitmapRender::RoundedOutside roundedOutside = BitmapRender::RoundedOutside::None;
     bool useDisplayCache = true;
     bool quality = false;

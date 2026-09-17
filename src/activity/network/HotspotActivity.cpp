@@ -5,6 +5,8 @@
 
 #include "HotspotActivity.h"
 
+#include <algorithm>
+
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
@@ -12,6 +14,7 @@
 #include <esp_task_wdt.h>
 #include <qrcode.h>
 
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/ScreenComponents.h"
@@ -19,7 +22,7 @@
 
 namespace {
 constexpr const char* AP_SSID = "Xteink-X4";
-constexpr const char* AP_HOSTNAME = "xteink";
+constexpr const char* AP_HOSTNAME = "inx";
 constexpr uint8_t AP_CHANNEL = 1;
 constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 
@@ -44,7 +47,8 @@ constexpr int QR_SIZE = QR_PIXEL_SIZE * 33;
  * @param subtitle Optional subtitle text
  */
 int renderActivityHeader(const GfxRenderer& renderer, int startY, const char* title) {
-  return INX_THEME.drawPageHeader(renderer, title, startY, nullptr, CONTENT_MARGIN);
+  (void)startY;
+  return SubPage::header(renderer, title);
 }
 
 /**
@@ -274,20 +278,20 @@ void HotspotActivity::render() const {
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY, "Please wait...");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY, "Please wait...");
 
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == HotspotState::ERROR) {
     const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
 
     int centerY = contentStart + (screenHeight - contentStart - BOTTOM_AREA_HEIGHT) / 2;
 
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY - 20, "Could not start hotspot");
-    renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, centerY + 10, "Press Back to try again");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY - 20, "Could not start hotspot");
+    renderer.text.centered(MONTSERRAT_10_FONT_ID, centerY + 10, "Press Back to try again");
 
     auto labels = mappedInput.mapLabels("« Back", "", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   renderer.displayBuffer();
@@ -301,6 +305,7 @@ void HotspotActivity::render() const {
  */
 void HotspotActivity::renderServerRunning() const {
   int screenWidth = renderer.getScreenWidth();
+  int screenHeight = renderer.getScreenHeight();
   int startY = 0;
 
   const int contentStart = renderActivityHeader(renderer, startY, "Hotspot");
@@ -308,27 +313,31 @@ void HotspotActivity::renderServerRunning() const {
   std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
   std::string ipUrl = "http://" + connectedIP + "/";
 
-  const int bodyTop = contentStart + 12;
   const int textX = CONTENT_MARGIN + 2;
   const int qrX = screenWidth - QR_SIZE - CONTENT_MARGIN;
+  const int stepStride = QR_SIZE + 92;
+  const int contentHeight = stepStride + QR_SIZE;
+  const int availableBottom = screenHeight - BOTTOM_AREA_HEIGHT;
+  const int verticalOffset = std::max(0, (availableBottom - contentStart - contentHeight) / 2);
+  const int bodyTop = contentStart + verticalOffset;
   const int wifiY = bodyTop + 8;
-  const int webY = wifiY + QR_SIZE + 92;
-  const int labelFont = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-  const int titleFont = ATKINSON_HYPERLEGIBLE_14_FONT_ID;
-  const int bodyFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
+  const int webY = wifiY + stepStride;
+  const int labelFont = MONTSERRAT_8_FONT_ID;
+  const int titleFont = MONTSERRAT_14_FONT_ID;
+  const int bodyFont = MONTSERRAT_10_FONT_ID;
 
   renderer.text.render(labelFont, textX, wifiY, "STEP 1", true, EpdFontFamily::BOLD);
   renderer.text.render(titleFont, textX, wifiY + 24, "Join WiFi", true, EpdFontFamily::BOLD);
   renderer.text.render(bodyFont, textX, wifiY + 61, truncateString(connectedSSID, 20).c_str(), true);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, wifiY + 86, connectedIP.c_str());
+  renderer.text.render(MONTSERRAT_8_FONT_ID, textX, wifiY + 86, connectedIP.c_str());
   drawQRCode(qrX, wifiY, "WIFI:S:" + connectedSSID + ";;");
 
   renderer.text.render(labelFont, textX, webY, "STEP 2", true, EpdFontFamily::BOLD);
   renderer.text.render(titleFont, textX, webY + 24, "Open Transfer", true, EpdFontFamily::BOLD);
   renderer.text.render(bodyFont, textX, webY + 61, hostnameUrl.c_str(), true);
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, textX, webY + 86, ipUrl.c_str());
+  renderer.text.render(MONTSERRAT_8_FONT_ID, textX, webY + 86, ipUrl.c_str());
   drawQRCode(qrX, webY, hostnameUrl);
 
   auto labels = mappedInput.mapLabels("« Back", "", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

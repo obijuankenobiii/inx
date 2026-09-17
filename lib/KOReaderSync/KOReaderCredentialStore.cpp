@@ -16,7 +16,7 @@ namespace {
 
 constexpr uint8_t KOREADER_FILE_VERSION = 1;
 
-constexpr char DEFAULT_SERVER_URL[] = "https://sync.koreader.rocks:443";
+constexpr char DEFAULT_SERVER_URL[] = "https://sync.crosspointreader.com";
 
 constexpr uint8_t OBFUSCATION_KEY[] = {0x4B, 0x4F, 0x52, 0x65, 0x61, 0x64, 0x65, 0x72};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);

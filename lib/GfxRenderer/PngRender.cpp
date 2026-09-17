@@ -560,7 +560,7 @@ bool decodeAndRender(FsFile& pngFile, RenderContext& renderCtx, int outW, int ou
 }  // namespace
 
 bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                       const ImageRenderMode mode) const {
+                       const ImageRenderMode mode, const bool cropFromTop) const {
   if (!pngFile || targetWidth <= 0 || targetHeight <= 0) return false;
 
   int sourceW = 0;
@@ -580,7 +580,7 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
     srcW = std::max(1, static_cast<int>(targetWidth / scale));
     srcH = std::max(1, static_cast<int>(targetHeight / scale));
     srcX = std::max(0, (sourceW - srcW) / 2);
-    srcY = std::max(0, (sourceH - srcH) / 2);
+    srcY = cropFromTop ? 0 : std::max(0, (sourceH - srcH) / 2);
   } else {
     const float sx = static_cast<float>(targetWidth) / static_cast<float>(sourceW);
     const float sy = static_cast<float>(targetHeight) / static_cast<float>(sourceH);
@@ -619,10 +619,10 @@ bool PngRender::render(FsFile& pngFile, int x, int y, int targetWidth, int targe
 }
 
 bool PngRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                         const ImageRenderMode mode) const {
+                         const ImageRenderMode mode, const bool cropFromTop) const {
   FsFile file;
   if (!SdMan.openFileForRead("PNG", path, file)) return false;
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, cropFromTop);
   file.close();
   return ok;
 }

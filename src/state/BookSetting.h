@@ -89,7 +89,7 @@ struct StatusBarLayout {
  * @brief Per-book reading settings
  */
 struct BookSettings {
-  uint8_t fontFamily = SystemSetting::LITERATA;            ///< Font family
+  uint8_t fontFamily = SystemSetting::MONTSERRAT;          ///< Font family
   uint8_t fontSize = SystemSetting::SMALL;                 ///< Font size
   uint8_t lineHeight = 100;                                ///< Line height, % of natural (10-200)
   uint8_t textSpace = 100;                                 ///< Word spacing, % of natural (10-200)
@@ -163,7 +163,8 @@ struct BookSettings {
   static constexpr size_t kLegacySerializedSize = 18;
   static constexpr size_t kSerializedSizeV2 = 20;
   static constexpr size_t kSerializedSizeV3 = 21;
-  static constexpr size_t kSerializedSize = 22;
+  static constexpr uint8_t kFontFamilySlotVersionMarker = 0xA5;
+  static constexpr size_t kSerializedSize = 23;
 
   void markCustomSettings() {
     useCustomSettings = true;
@@ -250,6 +251,7 @@ struct BookSettings {
     data[offset++] = readerSmartRefreshOnImages;
     data[offset++] = readerPresetIndex;
     data[offset++] = readingGuideLinesEnabled;
+    data[offset++] = kFontFamilySlotVersionMarker;
   }
 
   /**
@@ -264,13 +266,14 @@ struct BookSettings {
       return false;
     }
 
-    fontFamily = data[offset++];
-    if (fontFamily < SystemSetting::FONT_FAMILY_BUILTIN_COUNT) {
-      /** Legacy enum had a removed first slot; map non-Atkinson values to Literata (0). */
-      if (fontFamily != SystemSetting::ATKINSON_HYPERLEGIBLE) {
-        fontFamily = SystemSetting::LITERATA;
-      }
-    }
+    const bool usesCurrentFontFamilySlots =
+        bytesAvailable >= kSerializedSize && data[kSerializedSize - 1] == kFontFamilySlotVersionMarker;
+    const uint8_t rawFontFamily = data[offset++];
+    // Legacy records used two built-in slots and custom families from slot 2.
+    fontFamily = usesCurrentFontFamilySlots
+                     ? rawFontFamily
+                     : (rawFontFamily == 0 ? SystemSetting::MONTSERRAT
+                                           : static_cast<uint8_t>(rawFontFamily - 1));
     FontManager::clampReaderFontFamilySlot(fontFamily);
     fontSize = data[offset++];
     // Legacy files stored the lineSpacing enum (0-4) in this slot; migrate those to default 100.

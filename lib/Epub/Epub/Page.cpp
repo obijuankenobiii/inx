@@ -1114,7 +1114,8 @@ std::string Page::extractPlainText(const size_t maxChars) const {
     if (block == nullptr) {
       continue;
     }
-    block->forEachWord([&](size_t, const std::string& word, int16_t, EpdFontFamily::Style) { appendText(word); });
+    block->forEachWord(
+        [&](size_t, const std::string& word, int16_t, EpdFontFamily::Style, const std::string&) { appendText(word); });
   }
   return out;
 }
@@ -1148,27 +1149,37 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
   for (uint16_t i = 0; i < count; i++) {
     uint8_t tag;
     serialization::readPod(file, tag);
+    std::unique_ptr<PageElement> element;
     if (tag == TAG_PageLine) {
-      page->elements.push_back(PageLine::deserialize(file));
+      element = PageLine::deserialize(file);
     } else if (tag == TAG_PageSmallCaps) {
-      page->elements.push_back(PageSmallCaps::deserialize(file));
+      element = PageSmallCaps::deserialize(file);
     } else if (tag == TAG_PageHeader) {
-      page->elements.push_back(PageHeader::deserialize(file));
+      element = PageHeader::deserialize(file);
     } else if (tag == TAG_PageImage) {
-      page->elements.push_back(PageImage::deserialize(file));
+      element = PageImage::deserialize(file);
     } else if (tag == TAG_PageDropCap) {
-      page->elements.push_back(PageDropCap::deserialize(file));
+      element = PageDropCap::deserialize(file);
     } else if (tag == TAG_PageTable) {
-      page->elements.push_back(PageTable::deserialize(file));
+      element = PageTable::deserialize(file);
     } else if (tag == TAG_PageHorizontalRule) {
-      page->elements.push_back(PageHorizontalRule::deserialize(file));
+      element = PageHorizontalRule::deserialize(file);
     } else if (tag == TAG_PageCssBorderLine) {
-      page->elements.push_back(PageCssBorderLine::deserialize(file));
+      element = PageCssBorderLine::deserialize(file);
     } else if (tag == TAG_PageCssBorderBox) {
-      page->elements.push_back(PageCssBorderBox::deserialize(file));
+      element = PageCssBorderBox::deserialize(file);
     } else if (tag == TAG_PageListMarker) {
-      page->elements.push_back(PageListMarker::deserialize(file));
+      element = PageListMarker::deserialize(file);
     }
+    // A null element here means either an unrecognized tag or a failed sub-deserialize (e.g.
+    // TextBlock::deserialize's word-count sanity check) - either way the stream position is no longer
+    // trustworthy for the remaining elements, so stop rather than keep reading whatever garbage follows.
+    if (!element) {
+      Serial.printf("[%lu] [PGE] deserialize: element %u/%u failed (tag=%u) - stopping page early\n", millis(), i,
+                    count, tag);
+      break;
+    }
+    page->elements.push_back(std::move(element));
   }
   return page;
 }
