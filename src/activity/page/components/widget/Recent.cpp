@@ -9,6 +9,7 @@
 #include "carousel/Carousel.h"
 #include "dashboard/Dashboard.h"
 #include "description/Description.h"
+#include "bookshelf/Bookshelf.h"
 #include "state/SystemSetting.h"
 
 namespace widget {
@@ -27,6 +28,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
       return Mode::Dashboard;
     case SystemSetting::RECENT_DESCRIPTION:
       return Mode::Description;
+    case SystemSetting::RECENT_BOOKSHELF:
+      return Mode::Bookshelf;
     case SystemSetting::RECENT_FLOW:
     case SystemSetting::RECENT_LIST_DEPRECATED:
     case SystemSetting::RECENT_SIMPLE:
@@ -49,6 +52,8 @@ const char* Recent::modeLabel(const Mode mode) {
       return "Recent + Carousel";
     case Mode::Description:
       return "Description";
+    case Mode::Bookshelf:
+      return "Bookshelf";
     case Mode::Flow:
     default:
       return "Flow";
@@ -80,6 +85,9 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
       return;
     case Mode::Description:
       description::Description::render(renderer_, x, y, width, height, selectedIndex);
+      return;
+    case Mode::Bookshelf:
+      bookshelf::Bookshelf::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::Flow:
     default:
@@ -114,6 +122,9 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
       return;
     case Mode::Description:
       description::Description::preview(renderer_, x, y, width, height);
+      return;
+    case Mode::Bookshelf:
+      bookshelf::Bookshelf::preview(renderer_, x, y, width, height);
       return;
     case Mode::Flow:
     default:

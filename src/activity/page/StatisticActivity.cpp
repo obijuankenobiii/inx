@@ -265,7 +265,7 @@ static void drawGlobalAllItemsGaugeRow(const GfxRenderer& renderer, int innerLef
                                        float finishedRatio01, const GlobalAllItemsGeom& g) {
   const int innerW = innerRight - innerLeft;
   const int cx = innerLeft + innerW / 2;
-  const int cy = y + kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR;
+  const int cy = y + kGlobalAllItemsDonutPadT + kGlobalAllItemsDonutR + 40;
 
   char pct[16];
   snprintf(pct, sizeof(pct), "%.0f%%", finishedRatio01 * 100.f);
@@ -297,7 +297,7 @@ static int drawGlobalAllItemsSecondBand(const GfxRenderer& renderer, int innerLe
    * which stole the gap under the gauge). */
   const int capPref = std::min(yRulePreferred, yMaxRule);
   // Lift the whole finished/opened band so it clears the button hints below.
-  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) - 10;
+  int yRule = std::min(yMaxRule, std::max(yRuleMin, capPref)) + 10;
   renderer.line.render(innerLeft, yRule, innerRight, yRule, true, LineRender::Style::Dotted);
   const int midX = innerLeft + innerW / 2;
   drawVertRule(renderer, midX, yRule, g.kMetricsH);

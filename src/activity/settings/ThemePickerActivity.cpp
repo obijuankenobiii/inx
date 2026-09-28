@@ -13,7 +13,7 @@ namespace {
 int modeIndex(const widget::Recent::Mode mode) { return static_cast<int>(mode); }
 
 widget::Recent::Mode modeAt(const int index) {
-  const int normalized = (index % 7 + 7) % 7;
+  const int normalized = (index % 8 + 8) % 8;
   return static_cast<widget::Recent::Mode>(normalized);
 }
 
@@ -53,6 +53,9 @@ void ThemePickerActivity::applySelection() {
       break;
     case widget::Recent::Mode::Description:
       SETTINGS.recentLibraryMode = SystemSetting::RECENT_DESCRIPTION;
+      break;
+    case widget::Recent::Mode::Bookshelf:
+      SETTINGS.recentLibraryMode = SystemSetting::RECENT_BOOKSHELF;
       break;
     case widget::Recent::Mode::Flow:
     default:

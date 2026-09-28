@@ -41,7 +41,7 @@ class List;
  */
 class RecentActivity final : public Activity, public Menu {
  public:
-  static constexpr int MAX_RECENT_BOOKS = 9;
+  static constexpr int MAX_RECENT_BOOKS = 12;
   static constexpr int GRID_COLS = 2;
   static constexpr int ICON_COLS = 3;
   static constexpr int ICON_ROWS = 3;

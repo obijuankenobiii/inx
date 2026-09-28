@@ -53,9 +53,9 @@ std::string cachePathFor(const RecentBook& book) {
 }
 
 void drawPlaceholder(const GfxRenderer& renderer, const std::string& title, const int x, const int y, const int width,
-                     const int height, const int font) {
+                     const int height, const int font, const bool forceSquare) {
   if (width <= 0 || height <= 0) return;
-  const bool rounded = SETTINGS.bitmapRoundedCorners != 0;
+  const bool rounded = !forceSquare && SETTINGS.bitmapRoundedCorners != 0;
   renderer.rectangle.fill(x, y, width, height, false, rounded, SETTINGS.bitmapRoundedCorners == 2);
   renderer.rectangle.render(x, y, width, height, true, rounded, SETTINGS.bitmapRoundedCorners == 2);
   const std::string shown = renderer.text.truncate(font, title.c_str(), std::max(1, width - 10));
@@ -67,15 +67,16 @@ void drawPlaceholder(const GfxRenderer& renderer, const std::string& title, cons
 }
 
 void drawThumbnail(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
-                   const int height, const int font, const bool roundedCornerBackdropIsDither, const bool cropFromTop) {
+                   const int height, const int font, const bool roundedCornerBackdropIsDither, const bool cropFromTop,
+                   const bool forceSquare, const bool cropToFill) {
   if (width <= 0 || height <= 0) return;
   const std::string path = thumbnailPath(book);
   if (!path.empty()) {
     ImageRender::Options options;
-    options.cropToFill = true;
+    options.cropToFill = cropToFill;
     options.cropFromTop = cropFromTop;
     options.useDisplayCache = true;
-    if (SETTINGS.bitmapRoundedCorners == 0) {
+    if (forceSquare || SETTINGS.bitmapRoundedCorners == 0) {
       options.roundedOutside = BitmapRender::RoundedOutside::None;
     } else if (SETTINGS.bitmapRoundedCorners == 2) {
       options.roundedOutside = roundedCornerBackdropIsDither
@@ -87,7 +88,7 @@ void drawThumbnail(GfxRenderer& renderer, const RecentBook& book, const int x, c
     }
     if (ImageRender::create(renderer, path).render(x, y, width, height, options)) return;
   }
-  drawPlaceholder(renderer, titleFor(book), x, y, width, height, font);
+  drawPlaceholder(renderer, titleFor(book), x, y, width, height, font, forceSquare);
 }
 
 void drawDitherRect(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
