@@ -356,6 +356,7 @@ class SystemSetting {
     RECENT_GRID_2X2 = 9,          ///< Two-column, two-row recent widget
     RECENT_DESCRIPTION = 10,      ///< Left cover carousel with title, author, and description
     RECENT_BOOKSHELF = 11,        ///< Two-tier bookshelf of recent covers
+    RECENT_VERTICAL_BOOKSHELF = 12,  ///< Two-tier vertical-spine shelf with newest cover facing forward
     RECENT_LIBRARY_MODE_COUNT
   };
 

@@ -18,6 +18,7 @@ class Recent final {
     Dashboard = 5,
     Description = 6,
     Bookshelf = 7,
+    VerticalBookshelf = 8,
   };
 
   explicit Recent(GfxRenderer& renderer) : renderer_(renderer) {}

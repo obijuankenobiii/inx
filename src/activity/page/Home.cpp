@@ -25,6 +25,8 @@
 #include "components/widget/grid/Grid.h"
 #include "components/widget/grid2x2/Grid2x2.h"
 #include "components/widget/list/List.h"
+#include "components/widget/bookshelf/Bookshelf.h"
+#include "components/widget/verticalbookshelf/VerticalBookshelf.h"
 #include "images/Hamburger.h"
 #include "state/RecentBooks.h"
 #include "state/SystemSetting.h"
@@ -47,6 +49,7 @@ constexpr unsigned long kConfirmLongPressMs = 500;
 constexpr int kGrid3x2PageSize = 6;
 constexpr int kGrid2x2PageSize = 4;
 constexpr int kRecentListVisibleRows = 5;
+constexpr int kRecentShelfPageSize = 12;
 unsigned long lastBackReleaseMs = 0;
 
 std::string cachePath(const RecentBook& book) {
@@ -172,7 +175,9 @@ void Home::loop() {
   // navigation, while up/down select a recent book and Confirm opens it.
   const auto& books = RECENT_BOOKS.getBooks();
   const int recentCount = static_cast<int>(books.size());
-  const bool dashboard = widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode) == widget::Recent::Mode::Dashboard;
+  const widget::Recent::Mode recentMode = widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode);
+  const bool dashboard = recentMode == widget::Recent::Mode::Dashboard;
+  const bool verticalShelf = recentMode == widget::Recent::Mode::VerticalBookshelf;
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     confirmLongPressProcessed_ = false;
@@ -196,7 +201,9 @@ void Home::loop() {
         recentIndex_ = recentIndex_ + 1 < recentCount ? recentIndex_ + 1 : 1;
       }
     } else {
-      const int nextIndex = (recentIndex_ + 1) % recentCount;
+      const int nextIndex = verticalShelf
+                                ? widget::verticalbookshelf::VerticalBookshelf::nextSelectionIndex(recentIndex_, recentCount)
+                                : (recentIndex_ + 1) % recentCount;
       if (!tryFastGridSelection(nextIndex)) {
         recentIndex_ = nextIndex;
         invalidateGridPageBuffer();
@@ -219,7 +226,10 @@ void Home::loop() {
         }
       }
     } else {
-      const int nextIndex = (recentIndex_ + recentCount - 1) % recentCount;
+      const int nextIndex = verticalShelf
+                                ? widget::verticalbookshelf::VerticalBookshelf::previousSelectionIndex(recentIndex_,
+                                                                                                          recentCount)
+                                : (recentIndex_ + recentCount - 1) % recentCount;
       if (!tryFastGridSelection(nextIndex)) {
         recentIndex_ = nextIndex;
         invalidateGridPageBuffer();
@@ -332,7 +342,8 @@ void Home::content() {
 
   const widget::Recent::Mode mode = widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode);
   const bool canBufferRecentGrid = (mode == widget::Recent::Mode::Grid || mode == widget::Recent::Mode::Grid2x2 ||
-                                    mode == widget::Recent::Mode::List) &&
+                                    mode == widget::Recent::Mode::List || mode == widget::Recent::Mode::Bookshelf ||
+                                    mode == widget::Recent::Mode::VerticalBookshelf) &&
                                    tabSelectorIndex == 0 && !sidebarOpen && recentPopupPath_.empty();
   if (canBufferRecentGrid) {
     // Build the page without its selection highlight. afterRender() snapshots
@@ -370,7 +381,10 @@ void Home::afterRender() {
   const widget::Recent::Mode mode = widget::Recent::modeFromSetting(SETTINGS.recentLibraryMode);
   gridPageBufferPageSize_ = mode == widget::Recent::Mode::Grid
                                 ? kGrid3x2PageSize
-                                : (mode == widget::Recent::Mode::Grid2x2 ? kGrid2x2PageSize : kRecentListVisibleRows);
+                                : (mode == widget::Recent::Mode::Grid2x2
+                                       ? kGrid2x2PageSize
+                                       : (mode == widget::Recent::Mode::List ? kRecentListVisibleRows
+                                                                              : kRecentShelfPageSize));
   gridPageBufferStartIndex_ = mode == widget::Recent::Mode::List
                                   ? widget::list::List::visibleStartIndex(recentIndex_, RECENT_BOOKS.getCount())
                                   : (recentIndex_ / gridPageBufferPageSize_) * gridPageBufferPageSize_;
@@ -379,8 +393,14 @@ void Home::afterRender() {
   } else if (mode == widget::Recent::Mode::Grid2x2) {
     widget::grid2x2::Grid2x2::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(),
                                                recentIndex_);
-  } else {
+  } else if (mode == widget::Recent::Mode::List) {
     widget::list::List::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(), recentIndex_);
+  } else if (mode == widget::Recent::Mode::Bookshelf) {
+    widget::bookshelf::Bookshelf::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(),
+                                                  recentIndex_);
+  } else {
+    widget::verticalbookshelf::VerticalBookshelf::renderSelection(
+        renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(), recentIndex_);
   }
   gridBufferBuilding_ = false;
 }
@@ -428,14 +448,19 @@ bool Home::tryFastGridSelection(const int nextIndex) {
   const bool is3x2Grid = mode == widget::Recent::Mode::Grid;
   const bool is2x2Grid = mode == widget::Recent::Mode::Grid2x2;
   const bool isList = mode == widget::Recent::Mode::List;
-  const int pageSize = is3x2Grid ? kGrid3x2PageSize : (is2x2Grid ? kGrid2x2PageSize : kRecentListVisibleRows);
+  const bool isBookshelf = mode == widget::Recent::Mode::Bookshelf;
+  const bool isVerticalBookshelf = mode == widget::Recent::Mode::VerticalBookshelf;
+  const int pageSize = is3x2Grid ? kGrid3x2PageSize
+                                 : (is2x2Grid ? kGrid2x2PageSize
+                                              : (isList ? kRecentListVisibleRows : kRecentShelfPageSize));
   const int currentPageStart = isList
                                    ? widget::list::List::visibleStartIndex(recentIndex_, static_cast<int>(books.size()))
                                    : (recentIndex_ / pageSize) * pageSize;
   const int nextPageStart = isList
                                 ? widget::list::List::visibleStartIndex(nextIndex, static_cast<int>(books.size()))
                                 : (nextIndex / pageSize) * pageSize;
-  if ((!is3x2Grid && !is2x2Grid && !isList) || tabSelectorIndex != 0 || sidebarOpen || !recentPopupPath_.empty() ||
+  if ((!is3x2Grid && !is2x2Grid && !isList && !isBookshelf && !isVerticalBookshelf) || tabSelectorIndex != 0 ||
+      sidebarOpen || !recentPopupPath_.empty() ||
       !gridPageBufferValid_ || !gridPageBuffer_ || gridPageBufferBookCount_ != static_cast<int>(books.size()) ||
       gridPageBufferPageSize_ != pageSize || gridPageBufferStartIndex_ != currentPageStart ||
       currentPageStart != nextPageStart) {
@@ -451,7 +476,15 @@ bool Home::tryFastGridSelection(const int nextIndex) {
     widget::grid2x2::Grid2x2::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(),
                                                nextIndex);
   } else {
-    widget::list::List::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(), nextIndex);
+    if (isList) {
+      widget::list::List::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(), nextIndex);
+    } else if (isBookshelf) {
+      widget::bookshelf::Bookshelf::renderSelection(renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(),
+                                                    nextIndex);
+    } else {
+      widget::verticalbookshelf::VerticalBookshelf::renderSelection(
+          renderer, 0, top(), renderer.getScreenWidth(), bottom() - top(), nextIndex);
+    }
   }
   renderer.displayBuffer();
   return true;

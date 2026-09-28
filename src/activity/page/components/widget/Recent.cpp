@@ -10,6 +10,7 @@
 #include "dashboard/Dashboard.h"
 #include "description/Description.h"
 #include "bookshelf/Bookshelf.h"
+#include "verticalbookshelf/VerticalBookshelf.h"
 #include "state/SystemSetting.h"
 
 namespace widget {
@@ -30,6 +31,8 @@ Recent::Mode Recent::modeFromSetting(const uint8_t value) {
       return Mode::Description;
     case SystemSetting::RECENT_BOOKSHELF:
       return Mode::Bookshelf;
+    case SystemSetting::RECENT_VERTICAL_BOOKSHELF:
+      return Mode::VerticalBookshelf;
     case SystemSetting::RECENT_FLOW:
     case SystemSetting::RECENT_LIST_DEPRECATED:
     case SystemSetting::RECENT_SIMPLE:
@@ -54,6 +57,8 @@ const char* Recent::modeLabel(const Mode mode) {
       return "Description";
     case Mode::Bookshelf:
       return "Bookshelf";
+    case Mode::VerticalBookshelf:
+      return "Vertical Shelf";
     case Mode::Flow:
     default:
       return "Flow";
@@ -88,6 +93,9 @@ void Recent::render(const Mode mode, const int x, const int y, const int width, 
       return;
     case Mode::Bookshelf:
       bookshelf::Bookshelf::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
+      return;
+    case Mode::VerticalBookshelf:
+      verticalbookshelf::VerticalBookshelf::render(renderer_, x, y, width, height, selectedIndex, drawSelection);
       return;
     case Mode::Flow:
     default:
@@ -125,6 +133,9 @@ void Recent::preview(const Mode mode, const int x, const int y, const int width,
       return;
     case Mode::Bookshelf:
       bookshelf::Bookshelf::preview(renderer_, x, y, width, height);
+      return;
+    case Mode::VerticalBookshelf:
+      verticalbookshelf::VerticalBookshelf::preview(renderer_, x, y, width, height);
       return;
     case Mode::Flow:
     default:

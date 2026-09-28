@@ -156,6 +156,59 @@ void renderBookshelf(GfxRenderer& renderer, const int x, const int y, const int 
   }
 }
 
+void renderShelfSelection(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                          const int count, const int selectedIndex) {
+  if (width <= 0 || height <= 0 || selectedIndex < 0 || selectedIndex >= count) return;
+  const Geometry g = geometry(x, y, width, height);
+
+  for (int shelf = 0; shelf < kShelfCount; ++shelf) {
+    const int slots = shelfBookSlots(shelf);
+    std::array<int, kBottomBookSlots> indices{};
+    std::array<int, kBottomBookSlots> widths{};
+    std::array<int, kBottomBookSlots> heights{};
+    int rowWidth = 0;
+    int visibleBooks = 0;
+    for (int slot = 0; slot < slots; ++slot) {
+      const int index = bookIndexForSlot(shelf, slot, count);
+      indices[static_cast<size_t>(slot)] = index;
+      if (index < 0) continue;
+      const int coverH = std::min(g.maxBookHeight, bookHeight(g, shelf, slot) + 10);
+      const int coverW = std::max(18, coverH * 2 / 3);
+      widths[static_cast<size_t>(slot)] = coverW;
+      heights[static_cast<size_t>(slot)] = coverH;
+      rowWidth += coverW;
+      ++visibleBooks;
+    }
+    if (visibleBooks > 1) rowWidth += kBookGap * (visibleBooks - 1);
+    const int gapWidth = visibleBooks > 1 ? kBookGap * (visibleBooks - 1) : 0;
+    const int maxBookRowWidth = std::max(1, g.width - 12);
+    if (rowWidth > maxBookRowWidth && visibleBooks > 0) {
+      const int targetCoverWidth = std::max(1, maxBookRowWidth - gapWidth);
+      const int sourceCoverWidth = std::max(1, rowWidth - gapWidth);
+      for (int slot = 0; slot < slots; ++slot) {
+        if (indices[static_cast<size_t>(slot)] < 0) continue;
+        const int scaledHeight = std::max(24, heights[static_cast<size_t>(slot)] * targetCoverWidth /
+                                                   sourceCoverWidth);
+        heights[static_cast<size_t>(slot)] = scaledHeight;
+        widths[static_cast<size_t>(slot)] = std::max(18, scaledHeight * 2 / 3);
+      }
+      rowWidth = gapWidth;
+      for (int slot = 0; slot < slots; ++slot) {
+        if (indices[static_cast<size_t>(slot)] >= 0) rowWidth += widths[static_cast<size_t>(slot)];
+      }
+    }
+    int cursorX = g.left + 6 + std::max(0, (g.width - 12 - rowWidth) / 2);
+    for (int slot = 0; slot < slots; ++slot) {
+      const int index = indices[static_cast<size_t>(slot)];
+      if (index < 0) continue;
+      const int coverW = widths[static_cast<size_t>(slot)];
+      const int coverH = heights[static_cast<size_t>(slot)];
+      if (index == selectedIndex) drawSelection(renderer, cursorX, g.shelfY[shelf] - coverH, coverW, coverH);
+      cursorX += coverW + kBookGap;
+    }
+  }
+}
+
 }  // namespace
 
 void Bookshelf::render(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
@@ -169,6 +222,13 @@ void Bookshelf::render(GfxRenderer& renderer, const int x, const int y, const in
   renderBookshelf(renderer, x, y, width, height, books.data(),
                   std::min(static_cast<int>(books.size()), kShelfCount * kBottomBookSlots), selectedIndex,
                   drawSelection);
+}
+
+void Bookshelf::renderSelection(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                                const int selectedIndex) {
+  const auto& books = RECENT_BOOKS.getBooks();
+  renderShelfSelection(renderer, x, y, width, height,
+                       std::min(static_cast<int>(books.size()), kShelfCount * kBottomBookSlots), selectedIndex);
 }
 
 void Bookshelf::preview(GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
