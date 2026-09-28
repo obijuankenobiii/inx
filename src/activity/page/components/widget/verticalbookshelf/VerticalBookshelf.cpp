@@ -35,13 +35,14 @@ struct Geometry {
   int maxBookHeight;
 };
 
-Geometry geometry(const int x, const int y, const int width, const int height) {
+Geometry geometry(const int x, const int y, const int width, const int height, const bool compact) {
   const int innerWidth = std::max(1, width - kOuterMargin * 2);
   const int usableTop = y + kTopPadding;
   const int bottomShelfY = y + height - kShelfFrontHeight - 2 - kBottomShelfLift;
   const int shelfSpan = std::max(40, bottomShelfY - usableTop);
   const int shelfSpacing = kShelfGap + kShelfFrontHeight;
-  const int maxBookHeight = std::max(24, (shelfSpan - 8 - shelfSpacing) / kShelfCount);
+  const int naturalBookHeight = (shelfSpan - 8 - shelfSpacing) / kShelfCount;
+  const int maxBookHeight = std::max(24, naturalBookHeight - (compact ? 4 : 0));
   return {x + kOuterMargin, innerWidth, {usableTop + 4 + maxBookHeight, bottomShelfY}, maxBookHeight};
 }
 
@@ -295,9 +296,10 @@ void renderShelf(GfxRenderer& renderer, const Geometry& g, const RecentBook* boo
 }
 
 void renderBookshelf(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                     const RecentBook* books, const int count, const int selectedIndex, const bool drawSelection) {
+                     const RecentBook* books, const int count, const int selectedIndex, const bool drawSelection,
+                     const bool compact) {
   if (width <= 0 || height <= 0) return;
-  const Geometry g = geometry(x, y, width, height);
+  const Geometry g = geometry(x, y, width, height, compact);
   for (int shelf = 0; shelf < kShelfCount; ++shelf) {
     renderShelf(renderer, g, books, count, shelf, selectedIndex, drawSelection);
     drawShelf(renderer, g, g.shelfY[shelf]);
@@ -305,9 +307,9 @@ void renderBookshelf(GfxRenderer& renderer, const int x, const int y, const int 
 }
 
 void renderShelfSelection(GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                          const int count, const int selectedIndex) {
+                          const int count, const int selectedIndex, const bool compact) {
   if (width <= 0 || height <= 0 || selectedIndex < 0 || selectedIndex >= count) return;
-  const Geometry g = geometry(x, y, width, height);
+  const Geometry g = geometry(x, y, width, height, compact);
 
   for (int shelf = 0; shelf < kShelfCount; ++shelf) {
     std::array<int, kBooksPerShelf> indices{};
@@ -378,14 +380,15 @@ void VerticalBookshelf::render(GfxRenderer& renderer, const int x, const int y, 
     return;
   }
   renderBookshelf(renderer, x, y, width, height, books.data(),
-                  std::min(static_cast<int>(books.size()), kTotalBooks), selectedIndex, drawSelection);
+                  std::min(static_cast<int>(books.size()), kTotalBooks), selectedIndex, drawSelection,
+                  renderer.deviceIsX3());
 }
 
 void VerticalBookshelf::renderSelection(GfxRenderer& renderer, const int x, const int y, const int width,
                                         const int height, const int selectedIndex) {
   const auto& books = RECENT_BOOKS.getBooks();
   renderShelfSelection(renderer, x, y, width, height, std::min(static_cast<int>(books.size()), kTotalBooks),
-                       selectedIndex);
+                       selectedIndex, renderer.deviceIsX3());
 }
 
 int VerticalBookshelf::nextSelectionIndex(const int currentIndex, const int count) {
@@ -403,7 +406,7 @@ void VerticalBookshelf::preview(GfxRenderer& renderer, const int x, const int y,
   std::array<RecentBook, kTotalBooks> books;
   for (int i = 0; i < kTotalBooks; ++i) books[static_cast<size_t>(i)] = RecentBook("", "", kTitles[i], "", 0.0f);
   renderer.rectangle.fill(x, y, width, height, false);
-  renderBookshelf(renderer, x, y, width, height, books.data(), kTotalBooks, 0, true);
+  renderBookshelf(renderer, x, y, width, height, books.data(), kTotalBooks, 0, true, renderer.deviceIsX3());
 }
 
 }  // namespace widget::verticalbookshelf

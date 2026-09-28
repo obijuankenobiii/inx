@@ -117,6 +117,10 @@ void ReaderButtonBindings::dispatch(EpubActivity& act, const uint8_t action) {
       act.pauseReadingStats();
       act.footnoteUi_.enter(act);
       break;
+    case SystemSetting::BTN_ACTION_GO_TO_PERCENT:
+      act.pauseReadingStats();
+      act.goToPercentUi_.enter(act);
+      break;
     case SystemSetting::BTN_ACTION_PAGE_REFRESH:
       act.renderer.displayBuffer(HalDisplay::MANUAL_REFRESH);
       act.updateRequired = true;

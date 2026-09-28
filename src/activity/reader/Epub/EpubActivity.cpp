@@ -738,6 +738,11 @@ void EpubActivity::loop() {
     return;
   }
 
+  if (goToPercentUi_.isActive()) {
+    goToPercentUi_.handleInput(*this);
+    return;
+  }
+
   if (annUi_.isActive()) {
     annUi_.handleInput(*this);
     if (updateRequired && annUi_.isActive()) {

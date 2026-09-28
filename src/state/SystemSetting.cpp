@@ -214,7 +214,8 @@ const char* SystemSetting::readerButtonActionLabel(const uint8_t action) {
                                         "Change Orientation",
                                         "Apply Preset",
                                         "Quick Actions",
-                                        "Footnotes"};
+                                        "Footnotes",
+                                        "Go to Percent"};
   if (action >= SystemSetting::READER_BUTTON_ACTION_COUNT) {
     return "None";
   }
