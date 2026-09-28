@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <vector>
 
 #include "../WidgetRender.h"
 #include "state/RecentBooks.h"
@@ -23,6 +25,8 @@ constexpr int kTopPadding = 4;
 constexpr int kBottomShelfLift = 20;
 constexpr int kCoverAspectWidth = 170;
 constexpr int kCoverAspectHeight = 250;
+constexpr int kLeanNumerator = 1;
+constexpr int kLeanDenominator = 10;
 
 struct Geometry {
   int left;
@@ -110,9 +114,122 @@ void drawSelection(const GfxRenderer& renderer, const int x, const int y, const 
   renderer.rectangle.render(x - pad, y - pad, width + pad * 2, height + pad * 2, true, false, false);
 }
 
-void drawBook(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
-              const int height, const bool selected) {
+int leanOffset(const int sourceY, const int height) {
+  return ((sourceY * 2 - height + 1) * kLeanNumerator) / (2 * kLeanDenominator);
+}
+
+int leanYOffset(const int sourceX, const int width) {
+  return -((sourceX * 2 - width + 1) * kLeanNumerator) / (2 * kLeanDenominator);
+}
+
+void drawLine(const GfxRenderer& renderer, int x0, int y0, int x1, int y1) {
+  const int dx = std::abs(x1 - x0);
+  const int sx = x0 < x1 ? 1 : -1;
+  const int dy = -std::abs(y1 - y0);
+  const int sy = y0 < y1 ? 1 : -1;
+  int error = dx + dy;
+  while (true) {
+    renderer.drawPixel(x0, y0, true);
+    if (x0 == x1 && y0 == y1) break;
+    const int twiceError = 2 * error;
+    if (twiceError >= dy) {
+      error += dy;
+      x0 += sx;
+    }
+    if (twiceError <= dx) {
+      error += dx;
+      y0 += sy;
+    }
+  }
+}
+
+void drawLeaningOutline(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
+                        const int padding) {
+  const int topOffset = leanOffset(0, height);
+  const int bottomOffset = leanOffset(height - 1, height);
+  const int leftYOffset = leanYOffset(0, width);
+  const int rightYOffset = leanYOffset(width - 1, width);
+  const int topLeftX = x + topOffset - padding;
+  const int topLeftY = y + leftYOffset - padding;
+  const int topRightX = x + width - 1 + topOffset + padding;
+  const int topRightY = y + rightYOffset - padding;
+  const int bottomLeftX = x + bottomOffset - padding;
+  const int bottomLeftY = y + height - 1 + leftYOffset + padding;
+  const int bottomRightX = x + width - 1 + bottomOffset + padding;
+  const int bottomRightY = y + height - 1 + rightYOffset + padding;
+  drawLine(renderer, topLeftX, topLeftY, topRightX, topRightY);
+  drawLine(renderer, topRightX, topRightY, bottomRightX, bottomRightY);
+  drawLine(renderer, bottomRightX, bottomRightY, bottomLeftX, bottomLeftY);
+  drawLine(renderer, bottomLeftX, bottomLeftY, topLeftX, topLeftY);
+}
+
+void drawLeaningSelectionDither(const GfxRenderer& renderer, const int x, const int y, const int width,
+                                const int height) {
+  constexpr int padding = 6;
+  const int topOffset = leanOffset(0, height);
+  const int bottomOffset = leanOffset(height - 1, height);
+  const int leftYOffset = leanYOffset(0, width);
+  const int rightYOffset = leanYOffset(width - 1, width);
+  const int minX = x + std::min(topOffset, bottomOffset) - padding;
+  const int minY = y + std::min(leftYOffset, rightYOffset) - padding;
+  const int maxX = x + width - 1 + std::max(topOffset, bottomOffset) + padding;
+  const int maxY = y + height - 1 + std::max(leftYOffset, rightYOffset) + padding;
+  support::drawDitherRect(renderer, minX, minY, maxX - minX + 1, maxY - minY + 1);
+}
+
+void drawLeaningSelection(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+  constexpr int padding = 6;
+  drawLeaningSelectionDither(renderer, x, y, width, height);
+  drawLeaningOutline(renderer, x, y, width, height, padding);
+}
+
+void drawLeaningBook(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
+                     const int height, const bool selected) {
   if (width <= 0 || height <= 0) return;
+  if (selected) drawLeaningSelectionDither(renderer, x, y, width, height);
+
+  renderer.rectangle.fill(x + 4, y + 4, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
+  renderer.rectangle.fill(x, y, width, height, false);
+  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, true, true, true);
+
+  std::vector<uint8_t> pixels(static_cast<size_t>(width) * static_cast<size_t>(height), 0);
+  for (int sourceY = 0; sourceY < height; ++sourceY) {
+    for (int sourceX = 0; sourceX < width; ++sourceX) {
+      pixels[static_cast<size_t>(sourceY) * static_cast<size_t>(width) + static_cast<size_t>(sourceX)] =
+          renderer.readPixel(x + sourceX, y + sourceY) ? 1 : 0;
+    }
+  }
+
+  const int topOffset = leanOffset(0, height);
+  const int bottomOffset = leanOffset(height - 1, height);
+  const int leftYOffset = leanYOffset(0, width);
+  const int rightYOffset = leanYOffset(width - 1, width);
+  const int clearX = x + std::min(topOffset, bottomOffset);
+  const int clearY = y + std::min(leftYOffset, rightYOffset);
+  const int clearWidth = width + std::abs(bottomOffset - topOffset);
+  const int clearHeight = height + std::abs(rightYOffset - leftYOffset);
+  renderer.rectangle.fill(clearX, clearY, clearWidth, clearHeight, false);
+
+  for (int sourceY = 0; sourceY < height; ++sourceY) {
+    const int offset = leanOffset(sourceY, height);
+    for (int sourceX = 0; sourceX < width; ++sourceX) {
+      if (pixels[static_cast<size_t>(sourceY) * static_cast<size_t>(width) + static_cast<size_t>(sourceX)] != 0) {
+        renderer.drawPixel(x + sourceX + offset, y + sourceY + leanYOffset(sourceX, width), true);
+      }
+    }
+  }
+
+  drawLeaningOutline(renderer, x, y, width, height, 0);
+  if (selected) drawLeaningOutline(renderer, x, y, width, height, 6);
+}
+
+void drawBook(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
+              const int height, const bool leaning, const bool selected) {
+  if (width <= 0 || height <= 0) return;
+  if (leaning) {
+    drawLeaningBook(renderer, book, x, y, width, height, selected);
+    return;
+  }
   if (selected) drawSelection(renderer, x, y, width, height);
   renderer.rectangle.fill(x + 4, y + 4, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
   renderer.rectangle.fill(x, y, width, height, false);
@@ -170,7 +287,9 @@ void renderShelf(GfxRenderer& renderer, const Geometry& g, const RecentBook* boo
     const int coverW = widths[static_cast<size_t>(slot)];
     const int coverH = heights[static_cast<size_t>(slot)];
     const int coverY = g.shelfY[shelf] - coverH;
-    drawBook(renderer, books[index], cursorX, coverY, coverW, coverH, drawSelection && index == selectedIndex);
+    const bool leaning = shelf == 0 && slot == kBooksPerShelf - 1;
+    drawBook(renderer, books[index], cursorX, coverY, coverW, coverH, leaning,
+             drawSelection && index == selectedIndex);
     cursorX += coverW + kBookGap;
   }
 }
@@ -235,7 +354,14 @@ void renderShelfSelection(GfxRenderer& renderer, const int x, const int y, const
       if (index < 0) continue;
       const int coverW = widths[static_cast<size_t>(slot)];
       const int coverH = heights[static_cast<size_t>(slot)];
-      if (index == selectedIndex) drawSelection(renderer, cursorX, g.shelfY[shelf] - coverH, coverW, coverH);
+    if (index == selectedIndex) {
+      const bool leaning = shelf == 0 && slot == kBooksPerShelf - 1;
+      if (leaning) {
+        drawLeaningSelection(renderer, cursorX, g.shelfY[shelf] - coverH, coverW, coverH);
+      } else {
+        drawSelection(renderer, cursorX, g.shelfY[shelf] - coverH, coverW, coverH);
+      }
+    }
       cursorX += coverW + kBookGap;
     }
   }
