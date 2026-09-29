@@ -72,6 +72,8 @@ class HalGPIO {
   unsigned long motionSensorStartedMs = 0;
   unsigned long motionLastGestureMs = 0;
 
+  void refreshX4Battery(bool force) const;
+
  public:
   static constexpr unsigned long BATTERY_POLL_MS = 1500;
   enum class MotionGesture : uint8_t { None, Previous, Next };

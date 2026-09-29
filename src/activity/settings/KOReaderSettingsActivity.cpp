@@ -12,6 +12,7 @@
 #include "KOReaderAuthActivity.h"
 #include "KOReaderCredentialStore.h"
 #include "activity/util/KeyboardEntryActivity.h"
+#include "activity/page/SubPage.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 #include "system/MenuNav.h"
@@ -163,7 +164,7 @@ void KOReaderSettingsActivity::render() {
   const auto screenHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  const int dividerY = INX_THEME.drawPageHeader(renderer, "KOReader Sync");
+  const int dividerY = SubPage::header(renderer, "KOReader Sync");
 
   int startY = dividerY;
   int visibleAreaHeight = screenHeight - startY - 60;
@@ -177,9 +178,9 @@ void KOReaderSettingsActivity::render() {
         renderer.rectangle.fill(0, itemY, screenWidth, LIST_ITEM_HEIGHT, static_cast<int>(GfxRenderer::FillTone::Ink));
       }
 
-      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+      int textY = itemY + (LIST_ITEM_HEIGHT - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
 
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, menuNames[i], !isSelected);
+      renderer.text.render(MONTSERRAT_10_FONT_ID, 20, textY, menuNames[i], !isSelected);
 
       const char* status = "";
       if (i == 0) {
@@ -195,13 +196,13 @@ void KOReaderSettingsActivity::render() {
       }
 
       if (strlen(status) > 0) {
-        int statusWidth = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, status);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - statusWidth - 40, textY, status,
+        int statusWidth = renderer.text.getWidth(MONTSERRAT_10_FONT_ID, status);
+        renderer.text.render(MONTSERRAT_10_FONT_ID, screenWidth - statusWidth - 40, textY, status,
                              !isSelected);
       }
 
       if (i != 3) {
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenWidth - 25, textY, "›", !isSelected);
+        renderer.text.render(MONTSERRAT_10_FONT_ID, screenWidth - 25, textY, "›", !isSelected);
       }
 
       renderer.line.render(0, itemY + LIST_ITEM_HEIGHT - 1, screenWidth, itemY + LIST_ITEM_HEIGHT - 1, true,
@@ -210,7 +211,7 @@ void KOReaderSettingsActivity::render() {
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-  renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

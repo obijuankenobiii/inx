@@ -7,7 +7,7 @@
 # ]
 # ///
 
-"""Regenerate the bundled Atkinson Hyperlegible and Literata font headers."""
+"""Regenerate the bundled Atkinson Hyperlegible font headers."""
 
 from __future__ import annotations
 
@@ -102,20 +102,16 @@ def main() -> int:
         # The UI's compact 8 pt face remains 1-bit. Reader faces are 1-bit at
         # 10 pt and 2-bit at 12 pt and above, matching the existing headers.
         name = "atkinson_hyperlegible_8_regular"
-        content = generate(name, 8, [sources[("atkinson_hyperlegible", "Regular")], sources[("literata", "Regular")]], False)
+        content = generate(name, 8, [sources[("atkinson_hyperlegible", "Regular")]], False)
         changed |= write_or_check(OUTPUT_DIR / f"{name}.h", content, args.check)
 
         for size in SIZES:
             for style in STYLES:
                 slug = SLUGS[style]
                 atkinson_name = f"atkinson_hyperlegible_{size}_{slug}"
-                atkinson_faces = [sources[("atkinson_hyperlegible", style)], sources[("literata", style)]]
+                atkinson_faces = [sources[("atkinson_hyperlegible", style)]]
                 content = generate(atkinson_name, size, atkinson_faces, size >= 12)
                 changed |= write_or_check(OUTPUT_DIR / f"{atkinson_name}.h", content, args.check)
-
-                literata_name = f"literata_{size}_{slug}"
-                content = generate(literata_name, size, [sources[("literata", style)]], True)
-                changed |= write_or_check(OUTPUT_DIR / f"{literata_name}.h", content, args.check)
 
     return 1 if args.check and changed else 0
 

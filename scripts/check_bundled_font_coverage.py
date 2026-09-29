@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-FONT_HEADER_RE = re.compile(r"^(?:atkinson_hyperlegible|literata)_\d+_(?:regular|bold|italic|bolditalic)\.h$")
+FONT_HEADER_RE = re.compile(r"^atkinson_hyperlegible_\d+_(?:regular|bold|italic|bolditalic)\.h$")
 INTERVAL_TABLE_RE = re.compile(
     r"static const EpdUnicodeInterval \w+Intervals\[\] = \{(?P<body>.*?)\n\};", re.DOTALL
 )
@@ -117,7 +117,7 @@ def main() -> int:
 
     headers = sorted(path for path in args.font_dir.glob("*.h") if FONT_HEADER_RE.fullmatch(path.name))
     if not headers:
-        print(f"error: no bundled Atkinson or Literata font headers found in {args.font_dir}", file=sys.stderr)
+        print(f"error: no bundled Atkinson font headers found in {args.font_dir}", file=sys.stderr)
         return 2
 
     failures = 0

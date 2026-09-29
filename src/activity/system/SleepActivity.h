@@ -27,8 +27,8 @@ class SleepActivity final : public Activity {
    * @param renderer Graphics renderer for drawing the sleep screen
    * @param mappedInput Input manager for handling wake-up events
    */
-  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("Sleep", renderer, mappedInput) {}
+  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromReader = false)
+      : Activity("Sleep", renderer, mappedInput), fromReader_(fromReader) {}
 
   /**
    * @brief Initializes and renders the sleep screen when activity becomes active.
@@ -39,6 +39,7 @@ class SleepActivity final : public Activity {
   void onEnter() override;
 
  private:
+  bool fromReader_ = false;
   /**
    * @brief Renders the default sleep screen with Corgi logo.
    *

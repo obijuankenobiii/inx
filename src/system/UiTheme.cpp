@@ -14,27 +14,16 @@
 #include "system/ScreenComponents.h"
 
 namespace {
-constexpr int kMainTabCount = 5;
-constexpr int kMainTabIconSize = 38;
-constexpr int kSelectedBorderWidth = 38;
-constexpr int kSelectedBorderHeight = 5;
-constexpr int kBottomTabIconNudgeY = -3;
-constexpr int kPageHeaderTopPadding = 5;
-constexpr int kPageHeaderBottomPadding = 5;
-constexpr int kPageHeaderDividerThickness = 2;
-constexpr int kMenuBatteryRightMargin = 80;
-constexpr int kBottomMenuClockLeftMargin = 20;
-
 int x3ChromeAdjustment() { return gpio.deviceIsX3() ? 2 : 0; }
 
 void drawMenuClockAndBattery(const GfxRenderer& renderer, const int top, const bool showBatteryPercentage) {
-  const int batteryX = renderer.getScreenWidth() - kMenuBatteryRightMargin;
+  const int batteryX = renderer.getScreenWidth() - UiLayout::MENU_BATTERY_RIGHT_MARGIN;
   ScreenComponents::drawMenuClockAndBattery(renderer, batteryX, top, showBatteryPercentage);
 }
 
 void drawLeftClockAndRightBattery(const GfxRenderer& renderer, const int top, const bool showBatteryPercentage) {
-  ScreenComponents::drawMenuClock(renderer, kBottomMenuClockLeftMargin, top);
-  ScreenComponents::drawBattery(renderer, renderer.getScreenWidth() - kMenuBatteryRightMargin, top,
+  ScreenComponents::drawMenuClock(renderer, UiLayout::BOTTOM_MENU_CLOCK_LEFT_MARGIN, top);
+  ScreenComponents::drawBattery(renderer, renderer.getScreenWidth() - UiLayout::MENU_BATTERY_RIGHT_MARGIN, top,
                                 showBatteryPercentage);
 }
 }  // namespace
@@ -75,21 +64,23 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
   const int screenWidth = renderer.getScreenWidth();
   const int tabY = mainTabBarY(renderer);
   const int tabH = mainTabBarHeight();
-  const int tabButtonWidth = (screenWidth / kMainTabCount) - 1;
+  const int tabButtonWidth = (screenWidth / UiLayout::MAIN_TAB_COUNT) - 1;
 
   if (mainTabsAtBottom()) {
     renderer.rectangle.fill(0, tabY, screenWidth, tabH, static_cast<int>(GfxRenderer::FillTone::Paper));
     renderer.line.render(0, tabY, screenWidth, tabY);
   }
 
-  for (int i = 0; i < kMainTabCount; ++i) {
+  for (int i = 0; i < UiLayout::MAIN_TAB_COUNT; ++i) {
     const int buttonX = i * tabButtonWidth;
     const bool isSelected = selectedIndex == i;
-    const int iconX = buttonX + (tabButtonWidth - kMainTabIconSize) / 2;
-    const int iconY = tabY + (tabH - kMainTabIconSize) / 2 + (mainTabsAtBottom() ? kBottomTabIconNudgeY : 5);
+    const int iconX = buttonX + (tabButtonWidth - UiLayout::MAIN_TAB_ICON_SIZE) / 2;
+    const int iconY = tabY + (tabH - UiLayout::MAIN_TAB_ICON_SIZE) / 2 +
+                      (mainTabsAtBottom() ? UiLayout::BOTTOM_TAB_ICON_NUDGE_Y : 5);
 
     auto drawTabIcon = [&](const uint8_t* icon) {
-      renderer.bitmap.icon(icon, iconX, iconY, kMainTabIconSize, kMainTabIconSize, BitmapRender::Orientation::None,
+      renderer.bitmap.icon(icon, iconX, iconY, UiLayout::MAIN_TAB_ICON_SIZE, UiLayout::MAIN_TAB_ICON_SIZE,
+                           BitmapRender::Orientation::None,
                            false);
     };
     switch (i) {
@@ -112,8 +103,9 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 
     if (isSelected) {
       const int selectedY = mainTabsAtBottom() ? tabY : tabY + tabH - 2;
-      const int selectedX = iconX + (kMainTabIconSize - kSelectedBorderWidth) / 2;
-      renderer.rectangle.fill(selectedX, selectedY, kSelectedBorderWidth, kSelectedBorderHeight,
+      const int selectedX = iconX + (UiLayout::MAIN_TAB_ICON_SIZE - UiLayout::MAIN_TAB_SELECTED_BORDER_WIDTH) / 2;
+      renderer.rectangle.fill(selectedX, selectedY, UiLayout::MAIN_TAB_SELECTED_BORDER_WIDTH,
+                              UiLayout::MAIN_TAB_SELECTED_BORDER_HEIGHT,
                               static_cast<int>(GfxRenderer::FillTone::Ink));
     }
 
@@ -122,7 +114,7 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 
   if (mainTabsAtBottom()) {
     drawLeftClockAndRightBattery(renderer, 10, showBatteryPercentage);
-    renderer.line.render(0, TOP_STATUS_HEIGHT, renderer.getScreenWidth(), TOP_STATUS_HEIGHT);
+    renderer.line.render(0, UiLayout::CONTENT_TOP, renderer.getScreenWidth(), UiLayout::CONTENT_TOP);
   } else {
     drawMenuClockAndBattery(renderer, renderer.getScreenHeight() - 30, showBatteryPercentage);
   }
@@ -130,30 +122,15 @@ void UiTheme::drawMainTabBar(const GfxRenderer& renderer, const int selectedInde
 
 int UiTheme::drawPageHeader(const GfxRenderer& renderer, const char* title, const int startY, const char* trailingText,
                             const int titleX) const {
-  const int pageWidth = renderer.getScreenWidth();
-  const int headerH = drawerPageHeaderHeight();
-  renderer.rectangle.fill(0, startY, pageWidth, headerH, false);
-  const int dividerY = startY + headerH;
-  renderer.rectangle.fill(0, dividerY, pageWidth, kPageHeaderDividerThickness, true);
-
-  const int paddedHeaderH = headerH - kPageHeaderTopPadding - kPageHeaderBottomPadding;
-  const int titleY = startY + kPageHeaderTopPadding +
-                     (paddedHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_14_FONT_ID)) / 2 + 4;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_14_FONT_ID, titleX, titleY, title, true, EpdFontFamily::BOLD);
-
-  if (trailingText && trailingText[0] != '\0') {
-    const int trailingFont = ATKINSON_HYPERLEGIBLE_10_FONT_ID;
-    const int trailingW = renderer.text.getWidth(trailingFont, trailingText);
-    const int trailingY =
-        startY + kPageHeaderTopPadding + (paddedHeaderH - renderer.text.getLineHeight(trailingFont)) / 2;
-    renderer.text.render(trailingFont, pageWidth - titleX - trailingW, trailingY, trailingText, true);
-  }
-
-  return dividerY;
+  (void)startY;
+  (void)titleX;
+  return ScreenComponents::drawSubPageHeader(renderer, title, trailingText);
 }
 
 void UiTheme::drawButtonHints(const GfxRenderer& renderer, const int fontId, const char* btn1, const char* btn2,
                               const char* btn3, const char* btn4) const {
+  // Hide-button-hints is enforced inside UiRender::buttonHints (global policy).
+  // Hub chrome: when main tabs sit on the bottom row, they replace the hint bar.
   if (!mainTabsAtBottom()) {
     renderer.ui.buttonHints(fontId, btn1, btn2, btn3, btn4);
   }

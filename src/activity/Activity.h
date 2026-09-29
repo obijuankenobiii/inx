@@ -95,4 +95,10 @@ class Activity {
    * ReaderActivity opts out because book readers have their own short-power behavior setting.
    */
   virtual bool allowGlobalPowerRefresh() { return true; }
+
+  /**
+   * True while a book (or other document) is actually open. Sleep-from-home must not
+   * load the last book's cover as if the reader had been opened.
+   */
+  virtual bool isReadingActivity() const { return false; }
 };

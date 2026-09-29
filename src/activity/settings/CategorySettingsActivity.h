@@ -18,6 +18,8 @@
 #include "../Menu.h"
 #include "activity/ActivityWithSubactivity.h"
 #include "state/SystemSetting.h"
+#include "activity/page/navigation/Menu.h"
+#include "system/UiLayout.h"
 #include "system/UiTheme.h"
 
 class SystemSetting;
@@ -37,6 +39,7 @@ enum class GroupType {
   DEVICE_ADVANCED,
   DEVICE_ACTIONS,
   IMAGE,
+  THEME,
 };
 
 struct ValueRange {
@@ -176,7 +179,10 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   bool updateRequired = false;
   bool halfRefreshOnLoadApplied_ = false;
   bool selectorOpen = false;
+  bool groupOpen = false;
   uint8_t selectorMode = 0;
+  GroupType detailGroup = GroupType::NONE;
+  int detailScroll = 0;
   int selectedIndex = 0;
   int scrollOffset = 0;
   int itemsPerPage = 0;
@@ -195,6 +201,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   const std::function<void()> onTabLibrary;
   const std::function<void()> onTabSync;
   const std::function<void()> onTabStatistics;
+  bool embedded = false;
 
   struct MenuEntry {
     const char* name;
@@ -207,7 +214,7 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
     std::function<void(int)> change;
   };
 
-  static constexpr size_t kGroupCount = static_cast<size_t>(GroupType::IMAGE) + 1;
+  static constexpr size_t kGroupCount = static_cast<size_t>(GroupType::THEME) + 1;
   static constexpr size_t groupIndex(const GroupType group) { return static_cast<size_t>(group); }
   bool isGroupExpanded(GroupType group) const { return groupExpanded_[groupIndex(group)]; }
 
@@ -250,6 +257,11 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   void applySelectedOption(MenuEntry& entry, int optionIndex);
   /** Toggles expansion state of a settings group. */
   void toggleGroup(GroupType group);
+  void openGroup(GroupType group);
+  void closeGroup();
+  void detailRows(std::vector<int>& rows) const;
+  bool groupInput();
+  void renderGroupPage();
 
   /** Handles tab-bar navigation to another top-level activity. */
   void navigateToSelectedMenu() override;
@@ -262,7 +274,8 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
                            std::function<void()> tabNavigateRecent = nullptr,
                            std::function<void()> tabNavigateLibrary = nullptr,
                            std::function<void()> tabNavigateSync = nullptr,
-                           std::function<void()> tabNavigateStatistics = nullptr)
+                           std::function<void()> tabNavigateStatistics = nullptr,
+                           bool embeddedMode = false)
       : ActivityWithSubactivity("CategorySettings", renderer, mappedInput),
         Menu(),
         categoryName(categoryName),
@@ -276,13 +289,17 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
         onTabRecent(std::move(tabNavigateRecent)),
         onTabLibrary(std::move(tabNavigateLibrary)),
         onTabSync(std::move(tabNavigateSync)),
-        onTabStatistics(std::move(tabNavigateStatistics)) {
+        onTabStatistics(std::move(tabNavigateStatistics)),
+        embedded(embeddedMode) {
     tabSelectorIndex = 2;
-    const int contentTop = mainContentTop() + mainHeaderHeight();
-    const int contentBottom = INX_THEME.mainTabsAtBottom()
-                                  ? mainContentBottom(renderer) - kBottomButtonHintsHeight
-                                  : renderer.getScreenHeight() - 80;
-    itemsPerPage = (contentBottom - contentTop) / UiTheme::DRAWER_LIST_ITEM_HEIGHT;
+    const int contentTop = embedded
+                               ? navigation::Menu::height + 20 + UiLayout::LIST_ITEM_HEIGHT + 10 + 30
+                               : mainContentTop() + mainHeaderHeight();
+    const int contentBottom = embedded
+                                  ? renderer.getScreenHeight() - navigation::Menu::bottomHeight - 10
+                                  : (INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) - kBottomButtonHintsHeight
+                                                                   : renderer.getScreenHeight() - 80);
+    itemsPerPage = (contentBottom - contentTop) / UiLayout::LIST_ITEM_HEIGHT;
     if (itemsPerPage < 1) itemsPerPage = 1;
 
     groupExpanded_.fill(false);
@@ -290,4 +307,15 @@ class CategorySettingsActivity final : public ActivityWithSubactivity, public Me
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  void renderEmbedded();
+  bool takeRenderRequest();
+  bool isDetailOpen() const { return isSubPageOpen() || isOverlayOpen(); }
+  bool isSubPageOpen() const { return embedded && (groupOpen || subActivity != nullptr); }
+  bool isOverlayOpen() const { return embedded && selectorOpen; }
+  bool isFirstItemSelected() const {
+    return embedded && !groupOpen && !selectorOpen && !subActivity && selectedIndex == 0;
+  }
+  void clearItemSelection() {
+    if (embedded && !groupOpen && !selectorOpen && !subActivity) selectedIndex = -1;
+  }
 };

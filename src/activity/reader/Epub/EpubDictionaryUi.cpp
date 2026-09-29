@@ -1,5 +1,6 @@
 #include "EpubDictionaryUi.h"
 
+#include <EpdFontFamily.h>
 #include <Epub/Page.h>
 #include <Epub/PageWordIndex.h>
 #include <GfxRenderer.h>
@@ -10,11 +11,17 @@
 #include <cstring>
 #include <new>
 
+#include <Arduino.h>
+#include <esp_task_wdt.h>
+
 #include "EpubActivity.h"
+#include "WordOverlayNav.h"
 #include "dictionary/DictionaryDefinitionLayout.h"
+#include "dictionary/DictionaryRegistry.h"
 #include "state/SavedDictionaryWords.h"
 #include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
+#include "system/FontManager.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
 
@@ -22,31 +29,69 @@ namespace {
 
 constexpr unsigned long kChordHoldMs = 600;
 constexpr int kHighlightLatticeStepPx = 2;
-constexpr unsigned long kNavEdgeDebounceMs = 130;
-constexpr unsigned long kNavRepeatInitialMs = 700;
-constexpr unsigned long kNavRepeatIntervalMs = 95;
 
 // Shared between performLookup() (to lay out definitionLines_ once, at the width it'll actually be
 // rendered at) and drawDefinitionPanel() (to size/draw the panel itself).
 constexpr int kDefinitionPanelMargin = 16;
 constexpr int kDefinitionPanelPad = 20;
 
-std::string stripSurroundingPunctuation(const std::string& s) {
-  size_t start = 0;
-  size_t end = s.size();
-  auto keep = [](unsigned char c) { return std::isalnum(c) || c == '\'' || c == '-'; };
-  while (start < end && !keep(static_cast<unsigned char>(s[start]))) {
-    ++start;
+bool sameWordIgnoreCase(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) {
+    return false;
   }
-  while (end > start && !keep(static_cast<unsigned char>(s[end - 1]))) {
-    --end;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+      return false;
+    }
   }
-  return s.substr(start, end - start);
+  return true;
+}
+
+std::string stripHtmlToPlain(const std::string& html) {
+  std::string out;
+  out.reserve(html.size());
+  bool inTag = false;
+  for (unsigned char c : html) {
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      if (!out.empty() && out.back() != ' ') {
+        out.push_back(' ');
+      }
+      continue;
+    }
+    if (!inTag) {
+      out.push_back(static_cast<char>(c));
+    }
+  }
+  return out;
 }
 
 }  // namespace
 
 EpubDictionaryUi::EpubDictionaryUi() = default;
+
+bool EpubDictionaryUi::fillWordsForPage(EpubActivity& act, const int spine, const int page,
+                                        std::vector<PageWordHit>& out) const {
+  out.clear();
+  if (!act.epub) {
+    return false;
+  }
+  auto pageObj = Section::loadCachedPage(act.epub->getCachePath(), spine, page);
+  if (!pageObj) {
+    return false;
+  }
+  const ViewportInfo info = act.calculateViewport();
+  const int fontId = act.bookSettings.getReaderFontId();
+  const int headerFontId = FontManager::getNextFont(fontId);
+  buildPageWordIndex(*pageObj, act.renderer, fontId, headerFontId, info.totalMarginLeft, info.totalMarginTop, out,
+                     nullptr, false);
+  markHyphenJoins(out);
+  return !out.empty();
+}
 
 void EpubDictionaryUi::tryChordEnter(EpubActivity& act) {
   if (!act.epub || !act.section || mode_) {
@@ -59,6 +104,11 @@ void EpubDictionaryUi::tryChordEnter(EpubActivity& act) {
     if (chordStartMs_ == 0) {
       chordStartMs_ = millis();
     }
+    // Start opening the dictionary while the chord is still held so Confirm is a RAM/SD seek,
+    // not a multi-second .idx scan. Warm open() is a no-op.
+    if (millis() - chordStartMs_ >= 80 && ESP.getFreeHeap() > 80000) {
+      ensureDictionaryOpen(act);
+    }
     if (!chordConsumed_ && millis() - chordStartMs_ >= kChordHoldMs) {
       enter(act);
       chordConsumed_ = true;
@@ -67,15 +117,6 @@ void EpubDictionaryUi::tryChordEnter(EpubActivity& act) {
     chordStartMs_ = 0;
     chordConsumed_ = false;
   }
-}
-
-bool EpubDictionaryUi::isDuplicateNavEdge(const int dir, const unsigned long now) {
-  if (lastNavEdgeDir_ == dir && (now - lastNavEdgeMs_) < kNavEdgeDebounceMs) {
-    return true;
-  }
-  lastNavEdgeMs_ = now;
-  lastNavEdgeDir_ = dir;
-  return false;
 }
 
 void EpubDictionaryUi::prepareWordGeometry(EpubActivity& act) {
@@ -96,6 +137,7 @@ void EpubDictionaryUi::prepareWordGeometry(EpubActivity& act) {
   }
   constexpr bool omitStoredWordStrings = false;
   buildPageWordIndex(*page, act.renderer, fontId, headerFontId, ml, mt, words_, &lineFirst_, omitStoredWordStrings);
+  markHyphenJoins(words_);
 }
 
 void EpubDictionaryUi::captureFramebuffer(EpubActivity& act) {
@@ -164,7 +206,6 @@ void EpubDictionaryUi::enter(EpubActivity& act) {
   releaseDefinitionMemory();
   focus_ = 0;
   lastNavEdgeDir_ = -1;
-  navRepeatDir_ = -1;
 
   prepareWordGeometry(act);
   if (words_.empty()) {
@@ -188,14 +229,10 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
   releaseDefinitionMemory();
   std::vector<PageWordHit>().swap(words_);
   std::vector<size_t>().swap(lineFirst_);
-  // dict_ holds the on-SD dictionary's in-RAM checkpoint index once opened (hundreds of entries for
-  // a large dictionary, tens of KB) - close it here instead of leaving it open for the rest of the
-  // reading session just because the user looked something up once. ensureDictionaryOpen() re-attempts
-  // opening (and re-scans the index) next time the user actually looks something up.
-  dict_.close();
-  dictOpenAttempted_ = false;
+  // Keep dict_ open for the rest of the book session: reopening rebuilds the checkpoint index with a
+  // full .idx scan, which is the cold-path cost we just paid on the first lookup. RAM held is tens of
+  // KB of checkpoints; reclaimed when the reader activity is destroyed (dict_ is a member).
   lastNavEdgeDir_ = -1;
-  navRepeatDir_ = -1;
   for (auto& ch : captureChunks_) {
     ch.reset();
   }
@@ -211,212 +248,362 @@ void EpubDictionaryUi::exit(EpubActivity& act) {
  *  capacity a big definition needed is actually returned instead of sitting reserved for reuse. */
 void EpubDictionaryUi::releaseDefinitionMemory() {
   std::string().swap(currentDefinition_);
+  std::string().swap(matchedHeadword_);
   std::vector<DefinitionBlock>().swap(definitionBlocks_);
   std::vector<DefinitionStyledLine>().swap(definitionLines_);
   definitionScrollLine_ = 0;
   definitionScrollable_ = false;
 }
 
-void EpubDictionaryUi::ensureDictionaryOpen() {
-  if (dictOpenAttempted_) {
+void EpubDictionaryUi::openFolder(const std::string& folderName) {
+  if (folderName.empty()) {
     return;
   }
-  dictOpenAttempted_ = true;
-  if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
-    Serial.printf("[%lu] [DICT] ensureDictionaryOpen: READER_SETTINGS.dictionaryFolder is empty\n", millis());
+  const std::string folder = std::string(DictionaryRegistry::kDictionariesRoot) + "/" + folderName;
+  if (dict_.isOpen() && dict_.folderPath() == folder) {
     return;
   }
-  const std::string folder = std::string("/dictionaries/") + READER_SETTINGS.dictionaryFolder;
-  const bool opened = dict_.open(folder);
-  Serial.printf("[%lu] [DICT] ensureDictionaryOpen: open('%s') -> %d\n", millis(), folder.c_str(), opened ? 1 : 0);
+  (void)dict_.open(folder);
+}
+
+void EpubDictionaryUi::ensureDictionaryOpen(EpubActivity& act) {
+  preferredFolder_ = resolvePreferredFolder(act);
+  if (preferredFolder_.empty()) {
+    Serial.printf("[%lu] [DICT] ensureDictionaryOpen: no dictionary folders found\n", millis());
+    return;
+  }
+  openFolder(preferredFolder_);
+  Serial.printf("[%lu] [DICT] ensureDictionaryOpen: preferred='%s' open=%d session='%s'\n", millis(),
+                preferredFolder_.c_str(), dict_.isOpen() ? 1 : 0, sessionFolder_.c_str());
+}
+
+std::string EpubDictionaryUi::resolvePreferredFolder(EpubActivity& act) {
+  std::string detected;
+  if (!words_.empty() && focus_ < words_.size()) {
+    const size_t start = focus_ > 6 ? focus_ - 6 : 0;
+    const size_t end = std::min(words_.size(), focus_ + 7);
+    std::vector<std::string> window;
+    window.reserve(end - start);
+    for (size_t i = start; i < end; ++i) {
+      window.push_back(StarDictLookup::stripSurroundingPunctuation(words_[i].text));
+    }
+    detected = DictionaryRegistry::detectLanguage(window, focus_ - start);
+  }
+  std::string bookLang;
+  if (act.epub) {
+    bookLang = act.epub->getLanguage();
+  }
+  return DictionaryRegistry::folderForLookup(detected, sessionFolder_, bookLang, READER_SETTINGS.dictionaryFolder);
+}
+
+void EpubDictionaryUi::setLangLabelFromFolder(const std::string& folderName) {
+  activeLangLabel_ = DictionaryRegistry::displayLabel(folderName, dict_.lang());
+  if (activeLangLabel_.empty() || activeLangLabel_ == "Auto") {
+    activeLangLabel_ = DictionaryRegistry::displayLabel(folderName, DictionaryRegistry::inferLangFromName(folderName));
+  }
+}
+
+void EpubDictionaryUi::layoutCurrentDefinition(EpubActivity& act, const bool truncated) {
+  (void)truncated;
+
+  std::vector<DefinitionBlock>().swap(definitionBlocks_);
+  const int textWidth = (act.renderer.getScreenWidth() - kDefinitionPanelMargin * 2) - kDefinitionPanelPad * 2;
+  if (ESP.getMaxAllocHeap() > 16000) {
+    std::string folder = sessionFolder_.empty() ? preferredFolder_ : sessionFolder_;
+    if (folder.empty() && dict_.isOpen()) {
+      const std::string& path = dict_.folderPath();
+      const size_t rootLen = std::strlen(DictionaryRegistry::kDictionariesRoot);
+      if (path.size() > rootLen + 1) {
+        folder = path.substr(rootLen + 1);
+      }
+    }
+    std::string target = DictionaryRegistry::targetLangFromFolder(folder);
+    if (target.empty()) {
+      target = DictionaryRegistry::inferLangFromName(folder);
+    }
+    if (target.empty()) {
+      target = "nl";
+    }
+    definitionLines_ =
+        layoutDictionaryCard(act.renderer, currentDefinition_, textWidth, target.c_str(), lookedUpWord_.c_str());
+  } else {
+    definitionLines_.clear();
+  }
+  if (definitionLines_.empty()) {
+    std::string plain = stripHtmlToPlain(currentDefinition_);
+    if (plain.empty()) {
+      plain = currentDefinition_;
+    }
+    if (!plain.empty()) {
+      const std::string clipped =
+          act.renderer.text.truncate(MONTSERRAT_10_FONT_ID, plain.c_str(), std::max(1, textWidth));
+      DefinitionStyledLine line;
+      line.fontId = MONTSERRAT_10_FONT_ID;
+      line.atoms.push_back(DefinitionTextAtom(clipped.empty() ? plain : clipped, EpdFontFamily::REGULAR, false, false));
+      definitionLines_.push_back(std::move(line));
+    }
+  }
+  definitionScrollLine_ = 0;
+}
+
+bool EpubDictionaryUi::lookupInFolder(EpubActivity& act, const std::string& folderName, const std::string& queryWord,
+                                      std::string& outDefinition, bool* outTruncated, const bool allowStem) {
+  if (folderName.empty() || queryWord.empty()) {
+    return false;
+  }
+  const std::string folder = std::string(DictionaryRegistry::kDictionariesRoot) + "/" + folderName;
+  const bool alreadyWarm = dict_.isOpen() && dict_.folderPath() == folder;
+  if (!alreadyWarm) {
+    act.readerPopup(StarDictLookup::needsIndexBuild(folder) ? "Indexing dictionary..." : "Opening dictionary...");
+  }
+  openFolder(folderName);
+  if (!dict_.isOpen()) {
+    return false;
+  }
+  return allowStem ? dict_.lookup(queryWord, outDefinition, outTruncated)
+                   : dict_.lookupExact(queryWord, outDefinition, outTruncated);
+}
+
+bool EpubDictionaryUi::tryUsefulLookup(EpubActivity& act, const std::string& folderName, const std::string& queryWord,
+                                       bool* outTruncated) {
+  auto accept = [&](std::string& def, const bool trunc) {
+    if (!definitionHasUsefulGloss(def)) {
+      return false;
+    }
+    currentDefinition_ = std::move(def);
+    matchedHeadword_ = dict_.lastHitHeadword();
+    if (outTruncated) {
+      *outTruncated = trunc;
+    }
+    return true;
+  };
+
+  auto tryOnce = [&](const bool allowStem) {
+    std::string def;
+    bool trunc = false;
+    if (!lookupInFolder(act, folderName, queryWord, def, &trunc, allowStem)) {
+      return false;
+    }
+    if (accept(def, trunc)) {
+      return true;
+    }
+    const std::string lemma = lemmaFromDefinition(def);
+    if (lemma.empty() || lemma == queryWord) {
+      return false;
+    }
+    std::string lemmaDef;
+    bool lemmaTrunc = false;
+    if (!lookupInFolder(act, folderName, lemma, lemmaDef, &lemmaTrunc, false)) {
+      return false;
+    }
+    return accept(lemmaDef, lemmaTrunc);
+  };
+
+  return tryOnce(true);
+}
+
+void EpubDictionaryUi::cycleDictionary(EpubActivity& act, const int delta) {
+  const auto folders = DictionaryRegistry::foldersInFallbackOrder(preferredFolder_);
+  if (folders.size() < 2) {
+    return;
+  }
+  std::string current;
+  if (dict_.isOpen() && dict_.folderPath().size() > std::strlen(DictionaryRegistry::kDictionariesRoot) + 1) {
+    current = dict_.folderPath().substr(std::strlen(DictionaryRegistry::kDictionariesRoot) + 1);
+  } else {
+    current = preferredFolder_;
+  }
+  int idx = 0;
+  for (size_t i = 0; i < folders.size(); ++i) {
+    if (folders[i] == current) {
+      idx = static_cast<int>(i);
+      break;
+    }
+  }
+  idx = (idx + delta + static_cast<int>(folders.size())) % static_cast<int>(folders.size());
+  bool truncated = false;
+  currentDefinition_.clear();
+  matchedHeadword_.clear();
+  const std::string& chosen = folders[static_cast<size_t>(idx)];
+  if (!tryUsefulLookup(act, chosen, lookedUpWord_, &truncated)) {
+    currentDefinition_ = "No definition found.";
+    matchedHeadword_.clear();
+  }
+  sessionFolder_ = chosen;
+  preferredFolder_ = chosen;
+  usedFallbackDict_ = false;
+  setLangLabelFromFolder(chosen);
+  layoutCurrentDefinition(act, truncated);
+  act.updateRequired = true;
+}
+
+std::string EpubDictionaryUi::dictionaryQueryFromFocus(EpubActivity& act, const bool keepLineBreakHyphen) {
+  if (words_.empty() || focus_ >= words_.size()) {
+    return {};
+  }
+  size_t lo = focus_;
+  size_t hi = focus_;
+  expandHyphenJoinRange(words_, focus_, lo, hi);
+  std::string text = joinedHyphenRangeText(words_, lo, hi, keepLineBreakHyphen);
+
+  if (lo == 0 && act.epub && act.section && act.section->currentPage > 0) {
+    std::vector<PageWordHit> prev;
+    if (fillWordsForPage(act, act.currentSpineIndex, act.section->currentPage - 1, prev) && !prev.empty() &&
+        prev.back().hyphenJoinNext) {
+      size_t plo = 0;
+      size_t phi = 0;
+      expandHyphenJoinRange(prev, prev.size() - 1, plo, phi);
+      std::string prefix = joinedHyphenRangeText(prev, plo, phi, keepLineBreakHyphen);
+      if (!keepLineBreakHyphen && !prefix.empty() && prefix.back() == '-') {
+        prefix.pop_back();
+      }
+      text = prefix + text;
+    }
+  }
+
+  if (hi + 1 == words_.size() && words_.back().hyphenJoinNext && act.epub && act.section) {
+    std::vector<PageWordHit> next;
+    bool haveNext = fillWordsForPage(act, act.currentSpineIndex, act.section->currentPage + 1, next);
+    if (!haveNext && act.currentSpineIndex + 1 < act.epub->getSpineItemsCount()) {
+      haveNext = fillWordsForPage(act, act.currentSpineIndex + 1, 0, next);
+    }
+    if (haveNext && !next.empty()) {
+      size_t nlo = 0;
+      size_t nhi = 0;
+      expandHyphenJoinRange(next, 0, nlo, nhi);
+      const std::string suffix = joinedHyphenRangeText(next, nlo, nhi, keepLineBreakHyphen);
+      if (!keepLineBreakHyphen && !text.empty() && text.back() == '-') {
+        text.pop_back();
+      }
+      text += suffix;
+    }
+  }
+  return text;
 }
 
 void EpubDictionaryUi::performLookup(EpubActivity& act) {
   if (words_.empty() || focus_ >= words_.size()) {
     return;
   }
-  lookedUpWord_ = stripSurroundingPunctuation(words_[focus_].text);
+  lookedUpWord_ = StarDictLookup::stripSurroundingPunctuation(dictionaryQueryFromFocus(act, false));
+  const std::string keptHyphen = StarDictLookup::stripSurroundingPunctuation(dictionaryQueryFromFocus(act, true));
   currentDefinition_.clear();
+  matchedHeadword_.clear();
   definitionScrollLine_ = 0;
   wordAlreadySaved_ = !lookedUpWord_.empty() && SAVED_WORDS.contains(lookedUpWord_);
+  esp_task_wdt_reset();
 
   bool truncated = false;
+  usedFallbackDict_ = false;
+  activeLangLabel_.clear();
   if (lookedUpWord_.empty()) {
     currentDefinition_ = "Nothing to look up.";
-  } else if (READER_SETTINGS.dictionaryFolder[0] == '\0') {
-    currentDefinition_ = "No dictionary selected. Pick one in Settings > Reader > Choose dictionary.";
+  } else if (ESP.getFreeHeap() < 28000) {
+    currentDefinition_ = "Not enough memory for dictionary lookup.";
   } else {
-    // Show the status popup FIRST, before any blocking work - opening the dictionary (first lookup
-    // only) and the SD scan itself can together take several seconds on a large dictionary, and both
-    // must happen after the popup is on screen for it to actually look instant. readerPopup() forces
-    // an immediate flush, same pattern as its other callers (e.g. "Deleting book...").
-    act.readerPopup("Looking up...");
-    ensureDictionaryOpen();
-    if (!dict_.isOpen()) {
-      currentDefinition_ = "Could not open the selected dictionary.";
-    } else if (!dict_.lookup(lookedUpWord_, currentDefinition_, &truncated)) {
-      currentDefinition_ = "No definition found.";
+    preferredFolder_ = resolvePreferredFolder(act);
+    esp_task_wdt_reset();
+    std::vector<std::string> folders = DictionaryRegistry::foldersForAutoLookup(preferredFolder_);
+    if (folders.empty()) {
+      currentDefinition_ = "No dictionary selected. Add StarDict folders under /dictionaries/.";
+    } else {
+      bool found = false;
+      auto tryFolders = [&](const std::vector<std::string>& list, const bool otherLang,
+                            const std::string& query) {
+        for (size_t i = 0; i < list.size(); ++i) {
+          truncated = false;
+          currentDefinition_.clear();
+          if (!tryUsefulLookup(act, list[i], query, &truncated)) {
+            esp_task_wdt_reset();
+            continue;
+          }
+          found = true;
+          usedFallbackDict_ = otherLang || i > 0;
+          if (!otherLang && i == 0) {
+            sessionFolder_ = list[i];
+          }
+          setLangLabelFromFolder(list[i]);
+          return;
+        }
+      };
+      tryFolders(folders, false, lookedUpWord_);
+      if (!found) {
+        const std::vector<std::string> all = DictionaryRegistry::foldersInFallbackOrder(preferredFolder_);
+        std::vector<std::string> rest;
+        rest.reserve(all.size());
+        for (const std::string& folder : all) {
+          if (std::find(folders.begin(), folders.end(), folder) == folders.end()) {
+            rest.push_back(folder);
+          }
+        }
+        tryFolders(rest, true, lookedUpWord_);
+      }
+      // Some dictionaries index the line-break hyphenated spelling instead of the joined word.
+      // Keep the normal joined lookup first, then retry the exact visible spelling only when it
+      // differs, so ordinary words retain the release branch's folder fallback behavior.
+      if (!found && !keptHyphen.empty() && keptHyphen != lookedUpWord_) {
+        tryFolders(folders, false, keptHyphen);
+        if (!found) {
+          const std::vector<std::string> all = DictionaryRegistry::foldersInFallbackOrder(preferredFolder_);
+          std::vector<std::string> rest;
+          rest.reserve(all.size());
+          for (const std::string& folder : all) {
+            if (std::find(folders.begin(), folders.end(), folder) == folders.end()) {
+              rest.push_back(folder);
+            }
+          }
+          tryFolders(rest, true, keptHyphen);
+        }
+      }
+      if (!found) {
+        currentDefinition_ = "No definition found.";
+        if (dict_.isOpen()) {
+          setLangLabelFromFolder(preferredFolder_);
+        }
+      }
     }
   }
-  if (truncated) {
-    // Back off from a cut that landed mid-UTF-8-codepoint (dictionaries are full of accented
-    // letters, IPA symbols, en/em dashes) so we never hand a malformed byte sequence to the parser.
-    while (!currentDefinition_.empty()) {
-      const auto last = static_cast<unsigned char>(currentDefinition_.back());
-      if ((last & 0xC0) == 0x80) {
-        currentDefinition_.pop_back();  // continuation byte - still mid-sequence
-        continue;
-      }
-      if (last >= 0xC0) {
-        currentDefinition_.pop_back();  // orphaned lead byte - its continuation got cut off
-      }
-      break;
-    }
-    currentDefinition_ += " \xE2\x80\xA6";
-  }
-  // Plain fallback messages above have no tags, so this is a no-op for them - it only does real work
-  // for an actual HTML definition. Keeps drawDefinitionPanel() dealing with a single block list always.
-  definitionBlocks_ = parseHtmlToBlocks(currentDefinition_);
-  // Laid out once here (not per-frame in drawDefinitionPanel) - see kMaxDefinitionRawBytes comment.
-  const int textWidth =
-      (act.renderer.getScreenWidth() - kDefinitionPanelMargin * 2) - kDefinitionPanelPad * 2;
-  definitionLines_ = layoutDefinitionBlocks(act.renderer, definitionBlocks_, textWidth);
+  layoutCurrentDefinition(act, truncated);
   showingDefinition_ = true;
   act.updateRequired = true;
 }
 
 bool EpubDictionaryUi::tryNavigationHoldRepeat(EpubActivity& act) {
-  using Btn = MappedInputManager::Button;
-  const MappedInputManager& m = act.mappedInput;
-  const unsigned long now = millis();
-
-  if (m.wasPressed(Btn::Left)) {
-    if (isDuplicateNavEdge(0, now)) {
-      return true;
-    }
-    moveFocusWord(-1);
-    navRepeatDir_ = 0;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
+  WordOverlayNav::EdgeState edge{lastNavEdgeMs_, lastNavEdgeDir_};
+  const int nav = WordOverlayNav::handleDpad(
+      act.mappedInput, edge, navRepeatDir_, navRepeatNextMs_, millis(),
+      [this](const int delta) { moveFocusWord(delta); },
+      [this](const int delta, const bool wrap) { moveFocusLine(delta, wrap); });
+  lastNavEdgeMs_ = edge.lastMs;
+  lastNavEdgeDir_ = edge.lastDir;
+  if (nav == 2) {
     act.updateRequired = true;
-    return true;
   }
-  if (m.wasPressed(Btn::Right)) {
-    if (isDuplicateNavEdge(1, now)) {
-      return true;
-    }
-    moveFocusWord(1);
-    navRepeatDir_ = 1;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Up)) {
-    if (isDuplicateNavEdge(2, now)) {
-      return true;
-    }
-    moveFocusLine(-1);
-    navRepeatDir_ = 2;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  if (m.wasPressed(Btn::Down)) {
-    if (isDuplicateNavEdge(3, now)) {
-      return true;
-    }
-    moveFocusLine(1);
-    navRepeatDir_ = 3;
-    navRepeatNextMs_ = now + kNavRepeatInitialMs;
-    act.updateRequired = true;
-    return true;
-  }
-  const bool leftHeld = m.isPressed(Btn::Left);
-  const bool rightHeld = m.isPressed(Btn::Right);
-  const bool upHeld = m.isPressed(Btn::Up);
-  const bool downHeld = m.isPressed(Btn::Down);
-  if (!leftHeld && !rightHeld && !upHeld && !downHeld) {
-    navRepeatDir_ = -1;
-    return false;
-  }
-  if (navRepeatDir_ < 0 || now < navRepeatNextMs_) {
-    return false;
-  }
-  if (navRepeatDir_ == 0 && leftHeld) {
-    moveFocusWord(-1);
-  } else if (navRepeatDir_ == 1 && rightHeld) {
-    moveFocusWord(1);
-  } else if (navRepeatDir_ == 2 && upHeld) {
-    // Auto-repeat covers 2 lines/tick (vs. 1 for the initial press) - holding Up/Down would
-    // otherwise take forever to cross a full page at kNavRepeatIntervalMs.
-    moveFocusLine(-1);
-    moveFocusLine(-1);
-  } else if (navRepeatDir_ == 3 && downHeld) {
-    moveFocusLine(1);
-    moveFocusLine(1);
-  } else {
-    navRepeatDir_ = -1;
-    return false;
-  }
-  navRepeatNextMs_ = now + kNavRepeatIntervalMs;
-  act.updateRequired = true;
-  return true;
+  return nav != 0;
 }
 
-/** Saves lookedUpWord_ to the global saved-words list (idempotent - a repeat Confirm on an
- *  already-saved word is a no-op). Just the word is stored, not the definition; the Recent activity's
- *  Dictionary list re-looks it up on open, so it stays correct even if the user switches dictionaries
- *  later - see SavedDictionaryWords.h. */
+/** Saves lookedUpWord_ plus the definition currently on screen. Idempotent — a repeat Confirm on an
+ *  already-saved word is a no-op. */
 void EpubDictionaryUi::saveCurrentWord(EpubActivity& act) {
   if (lookedUpWord_.empty() || wordAlreadySaved_) {
     return;
   }
-  if (SAVED_WORDS.add(lookedUpWord_, currentDefinition_)) {
+  std::string lang = DictionaryRegistry::primaryLanguageTag(dict_.lang());
+  if (lang.empty()) {
+    lang = DictionaryRegistry::inferLangFromName(sessionFolder_.empty() ? preferredFolder_ : sessionFolder_);
+  }
+  if (SAVED_WORDS.add(lookedUpWord_, currentDefinition_, lang)) {
     wordAlreadySaved_ = true;
     act.updateRequired = true;
   }
 }
 
 void EpubDictionaryUi::moveFocusWord(const int delta) {
-  if (words_.empty()) {
-    return;
-  }
-  if (delta < 0) {
-    if (focus_ > 0) {
-      focus_--;
-    }
-    return;
-  }
-  if (focus_ + 1 < words_.size()) {
-    focus_++;
-  }
+  WordOverlayNav::moveFocusWord(words_, focus_, delta);
 }
 
-void EpubDictionaryUi::moveFocusLine(const int delta) {
-  if (lineFirst_.empty() || words_.empty()) {
-    return;
-  }
-  size_t lineIdx = 0;
-  for (size_t i = 0; i < lineFirst_.size(); ++i) {
-    const size_t start = lineFirst_[i];
-    const size_t end = (i + 1 < lineFirst_.size()) ? lineFirst_[i + 1] : words_.size();
-    if (focus_ >= start && focus_ < end) {
-      lineIdx = i;
-      break;
-    }
-  }
-  if (delta < 0) {
-    if (lineIdx == 0) {
-      return;
-    }
-    lineIdx--;
-    focus_ = lineFirst_[lineIdx];
-  } else {
-    if (lineIdx + 1 >= lineFirst_.size()) {
-      return;
-    }
-    lineIdx++;
-    focus_ = lineFirst_[lineIdx];
-  }
+void EpubDictionaryUi::moveFocusLine(const int delta, const bool wrap) {
+  WordOverlayNav::moveFocusLine(words_, lineFirst_, focus_, delta, wrap);
 }
 
 void EpubDictionaryUi::handleInput(EpubActivity& act) {
@@ -452,6 +639,10 @@ void EpubDictionaryUi::handleInput(EpubActivity& act) {
     } else if (m.wasPressed(MappedInputManager::Button::Down)) {
       definitionScrollLine_ += kScrollLinesPerPress;
       act.updateRequired = true;
+    } else if (m.wasReleased(MappedInputManager::Button::Left)) {
+      cycleDictionary(act, -1);
+    } else if (m.wasReleased(MappedInputManager::Button::Right)) {
+      cycleDictionary(act, 1);
     }
     return;
   }
@@ -504,9 +695,14 @@ void EpubDictionaryUi::drawFocusHighlight(EpubActivity& act) {
   if (words_.empty() || focus_ >= words_.size()) {
     return;
   }
-  const PageWordHit& w = words_[focus_];
-  act.renderer.ui.fillSparseInkLatticeInRect(w.screenX, std::max(0, w.screenY), std::max(1, w.screenW),
-                                             std::max(3, w.screenH), kHighlightLatticeStepPx);
+  size_t lo = focus_;
+  size_t hi = focus_;
+  expandHyphenJoinRange(words_, focus_, lo, hi);
+  for (size_t i = lo; i <= hi && i < words_.size(); ++i) {
+    const PageWordHit& w = words_[i];
+    act.renderer.ui.fillSparseInkLatticeInRect(w.screenX, std::max(0, w.screenY), std::max(1, w.screenW),
+                                               std::max(3, w.screenH), kHighlightLatticeStepPx);
+  }
 }
 
 void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
@@ -517,12 +713,10 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
   const int panelX = margin;
   const int panelW = screenW - margin * 2;
   const int panelBottom = screenH - margin - 40;  // leave room for the button-hint row below
-  const int defaultPanelTop = screenH * 2 / 5;    // panel height used for short definitions
-  const int minPanelTop = margin;                 // panel can grow up to near the top of the screen
+  const int minPanelTop = margin;
 
-  const int titleFontId = ATKINSON_HYPERLEGIBLE_12_FONT_ID;
+  const int titleFontId = MONTSERRAT_12_FONT_ID;
   const int titleH = act.renderer.text.getLineHeight(titleFontId);
-  // definitionLines_ is computed once per lookup (performLookup()), not recomputed here every frame.
   const auto& styledLines = definitionLines_;
 
   int contentH = 0;
@@ -530,28 +724,62 @@ void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
     contentH += act.renderer.text.getLineHeight(sl.fontId) + sl.extraGapBeforePx;
   }
 
-  // Grow the panel to fit the content (up to minPanelTop), instead of always using the default size
-  // and truncating - only falls back to scrolling if the content doesn't fit even at max height.
-  constexpr int kTitleGapPx = 8;  // gap above and below the separator line under the title
+  constexpr int kTitleGapPx = 8;
   const int neededPanelH = pad * 2 + titleH + kTitleGapPx * 2 + contentH;
-  const int defaultPanelH = panelBottom - defaultPanelTop;
+  const int minPanelH =
+      pad * 2 + titleH + kTitleGapPx * 2 + act.renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID) * 2;
   const int maxPanelH = panelBottom - minPanelTop;
-  const int panelH = std::min(maxPanelH, std::max(defaultPanelH, neededPanelH));
+  const int panelH = std::min(maxPanelH, std::max(minPanelH, neededPanelH));
   const int panelTop = panelBottom - panelH;
 
   // Same sharp-corner white-fill + black-border panel style as the menu/settings drawers
-  // (MenuDrawer/SettingsDrawer background), not a rounded popup box.
+  // (reader/settings drawer background), not a rounded popup box.
   act.renderer.rectangle.fill(panelX, panelTop, panelW, panelH, false);
   act.renderer.rectangle.render(panelX, panelTop, panelW, panelH, true);
 
   int y = panelTop + pad + titleH;
-  act.renderer.text.render(titleFontId, panelX + pad, y - titleH, lookedUpWord_.c_str(), true, EpdFontFamily::BOLD);
-  if (wordAlreadySaved_) {
-    const int tagFontId = ATKINSON_HYPERLEGIBLE_8_FONT_ID;
-    const char* tag = "\xE2\x98\x85 Saved";  // "* Saved"
-    const int tagW = act.renderer.text.getWidth(tagFontId, tag);
-    const int tagY = y - titleH + (titleH - act.renderer.text.getLineHeight(tagFontId)) / 2;
-    act.renderer.text.render(tagFontId, panelX + panelW - pad - tagW, tagY, tag, true);
+  {
+    const int tagFontId = MONTSERRAT_8_FONT_ID;
+    std::string tag;
+    if (wordAlreadySaved_) {
+      tag = "\xE2\x98\x85 Saved";
+    }
+    if (!activeLangLabel_.empty() && activeLangLabel_ != "Auto") {
+      if (!tag.empty()) {
+        tag += "  ";
+      }
+      tag += activeLangLabel_;
+      if (usedFallbackDict_) {
+        tag += "?";
+      }
+    }
+    const int tagW = tag.empty() ? 0 : act.renderer.text.getWidth(tagFontId, tag.c_str());
+    const int tagGap = tag.empty() ? 0 : 10;
+    if (!tag.empty()) {
+      const int tagY = y - titleH + (titleH - act.renderer.text.getLineHeight(tagFontId)) / 2;
+      act.renderer.text.render(tagFontId, panelX + panelW - pad - tagW, tagY, tag.c_str(), true);
+    }
+
+    const int titleMaxW = std::max(1, panelW - pad * 2 - tagW - tagGap);
+    int x = panelX + pad;
+    const char* title = lookedUpWord_.c_str();
+    act.renderer.text.render(titleFontId, x, y - titleH, title, true, EpdFontFamily::BOLD);
+    x += act.renderer.text.getWidth(titleFontId, title, EpdFontFamily::BOLD);
+
+    if (!matchedHeadword_.empty() && !sameWordIgnoreCase(lookedUpWord_, matchedHeadword_)) {
+      const int lemmaFontId = MONTSERRAT_8_FONT_ID;
+      const int lemmaY = y - titleH + (titleH - act.renderer.text.getLineHeight(lemmaFontId)) / 2;
+      const char* sep = "  <  ";
+      const int sepW = act.renderer.text.getWidth(lemmaFontId, sep);
+      const int remaining = titleMaxW - (x - (panelX + pad));
+      if (remaining > sepW + 12) {
+        act.renderer.text.render(lemmaFontId, x, lemmaY, sep, true, EpdFontFamily::REGULAR);
+        x += sepW;
+        const std::string lemma =
+            act.renderer.text.truncate(lemmaFontId, matchedHeadword_.c_str(), std::max(1, remaining - sepW));
+        act.renderer.text.render(lemmaFontId, x, lemmaY, lemma.c_str(), true, EpdFontFamily::REGULAR);
+      }
+    }
   }
   y += kTitleGapPx;
   act.renderer.line.render(panelX + pad, y, panelX + panelW - pad, y, true, LineRender::Style::Dotted);
@@ -595,10 +823,12 @@ void EpubDictionaryUi::drawUiOverlay(EpubActivity& act) {
   act.renderer.setOrientation(GfxRenderer::Portrait);
   const char* back = showingDefinition_ ? "Close" : "Exit";
   const char* mid = showingDefinition_ ? (wordAlreadySaved_ ? "Saved" : "Save") : "Look up";
-  const auto labels = act.mappedInput.mapLabels(back, mid, "Prev", "Next");
-  act.renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  const char* leftHint = showingDefinition_ ? "Lang" : "Prev";
+  const char* rightHint = showingDefinition_ ? "Lang" : "Next";
+  const auto labels = act.mappedInput.mapLabels(back, mid, leftHint, rightHint);
+  act.renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   const bool showUpDown = !showingDefinition_ || definitionScrollable_;
-  act.renderer.ui.sideButtonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
+  act.renderer.ui.sideButtonHints(MONTSERRAT_10_FONT_ID, "", showUpDown ? "Up" : "", showUpDown ? "Down" : "");
   act.renderer.setOrientation(o);
   act.renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

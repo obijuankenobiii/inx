@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "state/SystemSetting.h"
+
 class GfxRenderer;
 
 /**
@@ -85,7 +87,7 @@ class ReaderSetting {
   uint8_t readerDirectionMapping = 4;  ///< SystemSetting::MAP_NONE
   uint8_t readerMenuButton = 0;        ///< SystemSetting::MENU_UP
 
-  uint8_t fontFamily = 0;                   ///< SystemSetting::LITERATA
+  uint8_t fontFamily = SystemSetting::MONTSERRAT;
   uint8_t fontSize = 1;                     ///< SystemSetting::SMALL
   uint8_t lineHeight = 100;                 ///< Reader line height, % of natural (10-200)
   uint8_t textSpace = 100;                  ///< Reader word spacing, % of natural (10-200)
@@ -96,7 +98,7 @@ class ReaderSetting {
   uint8_t refreshFrequency = 3;  ///< SystemSetting::REFRESH_15 (enum index, not the page count - see getRefreshFrequency())
   uint8_t hyphenationEnabled = 1;    ///< Hyphenation enabled
   uint8_t bionicReadingEnabled = 0;  ///< Bionic Reading enabled
-  /** Reading-guide overlay style: 0 = off, 1 = Grid (vertical lines at 1/3 and 2/3 of content width, a
+  /** Reading-guide overlay style: 0 = off, 1 = Grid (vertical lines at 25% and 75% of content width, a
    *  speed-reading aid), 2 = Notebook (horizontal ruled lines like notebook paper). */
   uint8_t readingGuideLinesEnabled = 0;
 

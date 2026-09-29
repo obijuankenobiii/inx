@@ -40,7 +40,7 @@ Serves the home page HTML interface.
 
 **Request:**
 ```bash
-curl http://xteink.local/
+curl http://inx.local/
 ```
 
 **Response:** HTML page (200 OK)
@@ -53,7 +53,7 @@ Serves the file browser HTML interface.
 
 **Request:**
 ```bash
-curl http://xteink.local/files
+curl http://inx.local/files
 ```
 
 **Response:** HTML page (200 OK)
@@ -66,7 +66,7 @@ Serves the browser-based device settings interface.
 
 **Request:**
 ```bash
-curl http://xteink.local/settings
+curl http://inx.local/settings
 ```
 
 **Response:** HTML page (200 OK)
@@ -79,7 +79,7 @@ Returns JSON with device status information.
 
 **Request:**
 ```bash
-curl http://xteink.local/api/status
+curl http://inx.local/api/status
 ```
 
 **Response (200 OK):**
@@ -111,7 +111,7 @@ Returns the current web-editable device settings.
 
 **Request:**
 ```bash
-curl http://xteink.local/api/settings
+curl http://inx.local/api/settings
 ```
 
 **OPDS fields in the response:**
@@ -132,7 +132,7 @@ Updates one or more settings. Send only the fields to change.
 
 **Request:**
 ```bash
-curl -X POST http://xteink.local/api/settings \
+curl -X POST http://inx.local/api/settings \
   -H "Content-Type: application/json" \
   -d '{"opdsServerUrl":"http://server:8080/opds","opdsUsername":"reader"}'
 ```
@@ -161,10 +161,10 @@ Returns a JSON array of files and folders in the specified directory.
 **Request:**
 ```bash
 # List root directory
-curl http://xteink.local/api/files
+curl http://inx.local/api/files
 
 # List specific directory
-curl "http://xteink.local/api/files?path=/Books"
+curl "http://inx.local/api/files?path=/Books"
 ```
 
 **Query Parameters:**
@@ -202,10 +202,10 @@ Uploads a file to the SD card via multipart form data.
 **Request:**
 ```bash
 # Upload to root directory
-curl -X POST -F "file=@mybook.epub" http://xteink.local/upload
+curl -X POST -F "file=@mybook.epub" http://inx.local/upload
 
 # Upload to specific directory
-curl -X POST -F "file=@mybook.epub" "http://xteink.local/upload?path=/Books"
+curl -X POST -F "file=@mybook.epub" "http://inx.local/upload?path=/Books"
 ```
 
 **Query Parameters:**
@@ -241,7 +241,7 @@ Creates a new folder on the SD card.
 
 **Request:**
 ```bash
-curl -X POST -d "name=NewFolder&path=/" http://xteink.local/mkdir
+curl -X POST -d "name=NewFolder&path=/" http://inx.local/mkdir
 ```
 
 **Form Parameters:**
@@ -274,10 +274,10 @@ Deletes a file or folder from the SD card.
 **Request:**
 ```bash
 # Delete a file
-curl -X POST -d "path=/Books/mybook.epub&type=file" http://xteink.local/delete
+curl -X POST -d "path=/Books/mybook.epub&type=file" http://inx.local/delete
 
 # Delete an empty folder
-curl -X POST -d "path=/OldFolder&type=folder" http://xteink.local/delete
+curl -X POST -d "path=/OldFolder&type=folder" http://inx.local/delete
 ```
 
 **Form Parameters:**
@@ -319,7 +319,7 @@ A WebSocket endpoint for high-speed binary file uploads. More efficient than HTT
 
 **Connection:**
 ```
-ws://xteink.local:81/
+ws://inx.local:81/
 ```
 
 **Protocol:**
@@ -356,7 +356,7 @@ Server -> "DONE"
 **Example with `websocat`:**
 ```bash
 # Interactive session
-websocat ws://xteink.local:81
+websocat ws://inx.local:81
 
 # Then type:
 START:mybook.epub:1234567:/Books
@@ -390,7 +390,7 @@ The device can operate in two network modes:
 
 ## Notes
 
-- These examples use `xteink.local`. If your network does not support mDNS or the address does not resolve, replace it with the specific **IP Address** displayed on your device screen (e.g., `http://192.168.1.102/`).
+- These examples use `inx.local`. If your network does not support mDNS or the address does not resolve, replace it with the specific **IP Address** displayed on your device screen (e.g., `http://192.168.1.102/`).
 - All paths on the SD card start with `/`
 - Trailing slashes are automatically stripped (except for root `/`)
 - The webserver uses chunked transfer encoding for file listings
@@ -403,6 +403,6 @@ For quick API checks without flashing a device, run the dashboard-only simulator
 CROSSPOINT_SIM_SD=./fs_ pio run -e simulator_web -t run_simulator
 ```
 
-After the simulated device starts a hotspot or local network server, replace `http://xteink.local` in the examples above with `http://127.0.0.1:8080`.
+After the simulated device starts a hotspot or local network server, replace `http://inx.local` in the examples above with `http://127.0.0.1:8080`.
 
 For full SDL/device UI simulator setup, see the [README](../README.md#simulator) and the [CrossPoint simulator project](https://github.com/crosspoint-reader/crosspoint-simulator).

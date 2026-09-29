@@ -7,6 +7,8 @@
 #include <EpdFontFamily.h>
 #include <GfxRenderer.h>
 
+#include <cctype>
+
 void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyFontId, const int headerFontId,
                         const int marginLeft, const int marginTop, std::vector<PageWordHit>& out,
                         std::vector<size_t>* lineStartsOut, const bool omitStoredWordStrings) {
@@ -41,22 +43,23 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
         const int baseX = elemX + marginLeft;
         const int baseY = elemY + marginTop;
         const int lineHeight = renderer.text.getLineHeight(bodyFontId);
-        tb.forEachWord(
-            [&](const size_t wi, const std::string& wtext, const uint16_t relX, const EpdFontFamily::Style st) {
-              PageWordHit h;
-              h.elementIndex = ei;
-              h.wordIndexInElement = wi;
-              h.fontId = bodyFontId;
-              if (!omitStoredWordStrings) {
-                h.text = wtext;
-              }
-              h.screenX = baseX + relX;
-              h.screenY = baseY;
-              h.screenW = std::max(1, renderer.text.getWidth(bodyFontId, wtext.c_str(), st));
-              h.screenH = lineHeight;
-              h.isDropCap = false;
-              out.push_back(std::move(h));
-            });
+        tb.forEachWord([&](const size_t wi, const std::string& wtext, const uint16_t relX,
+                           const EpdFontFamily::Style st, const std::string& footnoteTarget) {
+          PageWordHit h;
+          h.elementIndex = ei;
+          h.wordIndexInElement = wi;
+          h.fontId = bodyFontId;
+          if (!omitStoredWordStrings) {
+            h.text = wtext;
+          }
+          h.screenX = baseX + relX;
+          h.screenY = baseY;
+          h.screenW = std::max(1, renderer.text.getWidth(bodyFontId, wtext.c_str(), st));
+          h.screenH = lineHeight;
+          h.isDropCap = false;
+          h.footnoteTarget = footnoteTarget;
+          out.push_back(std::move(h));
+        });
         break;
       }
       case TAG_PageHeader: {
@@ -69,22 +72,23 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
         const int baseX = ph->xPos + marginLeft;
         const int baseY = ph->yPos + marginTop;
         const int lineHeight = renderer.text.getLineHeight(hdrFont);
-        tb.forEachWord(
-            [&](const size_t wi, const std::string& wtext, const uint16_t relX, const EpdFontFamily::Style st) {
-              PageWordHit h;
-              h.elementIndex = ei;
-              h.wordIndexInElement = wi;
-              h.fontId = hdrFont;
-              if (!omitStoredWordStrings) {
-                h.text = wtext;
-              }
-              h.screenX = baseX + relX;
-              h.screenY = baseY;
-              h.screenW = std::max(1, renderer.text.getWidth(hdrFont, wtext.c_str(), st));
-              h.screenH = lineHeight;
-              h.isDropCap = false;
-              out.push_back(std::move(h));
-            });
+        tb.forEachWord([&](const size_t wi, const std::string& wtext, const uint16_t relX,
+                           const EpdFontFamily::Style st, const std::string& footnoteTarget) {
+          PageWordHit h;
+          h.elementIndex = ei;
+          h.wordIndexInElement = wi;
+          h.fontId = hdrFont;
+          if (!omitStoredWordStrings) {
+            h.text = wtext;
+          }
+          h.screenX = baseX + relX;
+          h.screenY = baseY;
+          h.screenW = std::max(1, renderer.text.getWidth(hdrFont, wtext.c_str(), st));
+          h.screenH = lineHeight;
+          h.isDropCap = false;
+          h.footnoteTarget = footnoteTarget;
+          out.push_back(std::move(h));
+        });
         break;
       }
       case TAG_PageDropCap: {
@@ -120,4 +124,67 @@ void buildPageWordIndex(const Page& page, GfxRenderer& renderer, const int bodyF
         break;
     }
   }
+  markHyphenJoins(out);
+}
+
+bool isLineBreakHyphenPrefix(const std::string& text) {
+  if (text.size() < 2 || text.back() != '-') {
+    return false;
+  }
+  const unsigned char before = static_cast<unsigned char>(text[text.size() - 2]);
+  return std::isalpha(before) != 0 || before >= 0x80;
+}
+
+void markHyphenJoins(std::vector<PageWordHit>& words) {
+  if (words.empty()) {
+    return;
+  }
+  for (size_t i = 0; i + 1 < words.size(); ++i) {
+    if (!isLineBreakHyphenPrefix(words[i].text)) {
+      continue;
+    }
+    if (words[i + 1].screenY > words[i].screenY + 1) {
+      words[i].hyphenJoinNext = true;
+      words[i + 1].hyphenJoinPrev = true;
+    }
+  }
+  if (isLineBreakHyphenPrefix(words.back().text)) {
+    words.back().hyphenJoinNext = true;
+  }
+}
+
+void expandHyphenJoinRange(const std::vector<PageWordHit>& words, const size_t index, size_t& lo, size_t& hi) {
+  if (words.empty() || index >= words.size()) {
+    lo = 0;
+    hi = 0;
+    return;
+  }
+  lo = index;
+  hi = index;
+  while (lo > 0 && words[lo].hyphenJoinPrev) {
+    --lo;
+  }
+  while (hi + 1 < words.size() && words[hi].hyphenJoinNext) {
+    ++hi;
+  }
+}
+
+std::string joinedHyphenRangeText(const std::vector<PageWordHit>& words, const size_t lo, const size_t hi,
+                                  const bool keepLineBreakHyphen) {
+  std::string out;
+  if (words.empty() || lo > hi) {
+    return out;
+  }
+  for (size_t i = lo; i <= hi && i < words.size(); ++i) {
+    std::string token = words[i].text;
+    const bool joinToNext = i < hi && words[i].hyphenJoinNext;
+    if (!keepLineBreakHyphen && joinToNext && !token.empty() && token.back() == '-') {
+      token.pop_back();
+    }
+    if (i > lo && !(i > 0 && words[i - 1].hyphenJoinNext)) {
+      out += ' ';
+    }
+    out += token;
+  }
+  return out;
 }

@@ -136,7 +136,7 @@ constexpr int kJpegTwoBitSharpenThreshold = 18;
 constexpr int kJpegTwoBitSharpenPercent = 80;
 constexpr int kJpegTwoBitSharpenMax = 130;
 constexpr int kJpegTwoBitEdgeThreshold = 0;
-constexpr int kJpegTwoBitEdgeMaxDarken = 0;       // Reduced from 36
+constexpr int kJpegTwoBitEdgeMaxDarken = 36;      // Restored: was zeroed out, making darkEdge below a no-op
 constexpr int kJpegTwoBitHighlightThreshold = 5;  // Reduced from 8 - detect more highlights
 constexpr int kJpegTwoBitHighlightMaxLift = 50;   // Reduced from 100 - less over-lifting
 constexpr int kJpegTwoBitShadowStart = 1;         // Increased from 10
@@ -345,7 +345,8 @@ void drawQuantizedPixel(const GfxRenderer& renderer, const int x, const int y, c
 }  // namespace
 
 bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                        const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture) const {
+                        const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture,
+                        const bool cropFromTop) const {
   const uint32_t tRenderStart = millis();
   if (!jpegFile || targetWidth <= 0 || targetHeight <= 0 || isUnsupportedJpeg(jpegFile)) {
     return false;
@@ -381,7 +382,7 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
       cropSrcWidth = std::max(1, static_cast<int>(targetWidth / scale));
       cropSrcHeight = std::max(1, static_cast<int>(targetHeight / scale));
       srcOffsetX = std::max(0, (imageInfo.m_width - cropSrcWidth) / 2);
-      srcOffsetY = std::max(0, (imageInfo.m_height - cropSrcHeight) / 2);
+      srcOffsetY = cropFromTop ? 0 : std::max(0, (imageInfo.m_height - cropSrcHeight) / 2);
       outWidth = targetWidth;
       outHeight = targetHeight;
     } else {
@@ -645,14 +646,15 @@ bool JpegRender::render(FsFile& jpegFile, int x, int y, int targetWidth, int tar
 }
 
 bool JpegRender::fromPath(const std::string& path, int x, int y, int targetWidth, int targetHeight, bool cropToFill,
-                          const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture) const {
+                          const ImageRenderMode mode, const bool quality, JpegLevelCapture* capture,
+                          const bool cropFromTop) const {
   const uint32_t tOpenStart = millis();
   FsFile file;
   if (!SdMan.openFileForRead("JRG", path, file)) {
     return false;
   }
   const uint32_t tOpenEnd = millis();
-  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality, capture);
+  const bool ok = render(file, x, y, targetWidth, targetHeight, cropToFill, mode, quality, capture, cropFromTop);
   file.close();
   Serial.printf("[%lu] [IMG-TIMING] fromPath %s: open=%lums render=%lums\n", millis(), path.c_str(),
                 static_cast<unsigned long>(tOpenEnd - tOpenStart), static_cast<unsigned long>(millis() - tOpenEnd));

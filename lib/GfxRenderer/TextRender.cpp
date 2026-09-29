@@ -458,6 +458,25 @@ void TextRender::render(const int fontId, const int x, const int y, const char* 
   }
 }
 
+void TextRender::renderGray(const int fontId, const int x, const int y, const char* text, const bool black,
+                            const EpdFontFamily::Style style) const {
+  const int yPos = y + getFontAscenderSize(fontId);
+  int xpos = x;
+
+  if (text == nullptr || *text == '\0') {
+    return;
+  }
+  if (findFontFamily(gfx, fontId) == nullptr) {
+    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
+    return;
+  }
+  uint32_t cp;
+  int yCursor = yPos;
+  while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
+    renderChar(*findFontFamily(gfx, fontId), cp, &xpos, &yCursor, black, style, true);
+  }
+}
+
 int TextRender::renderScaled(const int fontId, const int x, const int y, const char* text, const uint8_t scalePct,
                              const bool black, const EpdFontFamily::Style style) const {
   if (text == nullptr || *text == '\0') {
@@ -512,7 +531,7 @@ void TextRender::centered(const int fontId, const int y, const char* text, const
 }
 
 void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, int* x, const int* y,
-                            const bool pixelState, const EpdFontFamily::Style style) const {
+                            const bool pixelState, const EpdFontFamily::Style style, const bool gray) const {
   EpdGlyph glyphStorage;
   const EpdGlyph* glyph = nullptr;
   const EpdFontData* fontData = fontFamily.getData(style);
@@ -587,7 +606,7 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
             }
           } else {
             const bool ink = read1BitRowPixel(rowBuf, width, glyphX);
-            if (ink) {
+            if (ink && (!gray || ((screenX + screenY) & 1) == 0)) {
               renderSolidTextPixel(gfx, screenX, screenY, pixelState);
             }
           }
@@ -619,7 +638,7 @@ void TextRender::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, 
           }
         } else {
           const bool ink = read1BitGlyphPixel(bitmap, width, height, glyphX, glyphY);
-          if (ink) {
+          if (ink && (!gray || ((screenX + screenY) & 1) == 0)) {
             renderSolidTextPixel(gfx, screenX, screenY, pixelState);
           }
         }

@@ -76,6 +76,7 @@ uint32_t cacheHash(const std::string& sourcePath, const int width, const int hei
   hash = fnv1aAddUint32(hash, static_cast<uint32_t>(visible.width));
   hash = fnv1aAddUint32(hash, static_cast<uint32_t>(visible.height));
   hash = fnv1aAdd(hash, options.cropToFill ? 1 : 0);
+  hash = fnv1aAdd(hash, options.cropFromTop ? 1 : 0);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.mode));
   hash = fnv1aAdd(hash, options.renderPlane);
   hash = fnv1aAdd(hash, static_cast<uint8_t>(options.roundedOutside));

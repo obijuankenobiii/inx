@@ -13,9 +13,15 @@
 
 #include "../util/KeyboardEntryActivity.h"
 #include "GfxRenderer.h"
+#include "ButtonMappingActivity.h"
+#include "FontManagerActivity.h"
 #include "QuickActionsSettingsActivity.h"
 #include "ReaderFontSettingsDraw.h"
 #include "ReaderPresetEditorActivity.h"
+#include "activity/page/components/global/PopUp.h"
+#include "activity/page/components/global/Toggle.h"
+#include "activity/page/SubPage.h"
+#include "images/Download.h"
 #include "state/ReaderPreset.h"
 #include "state/ReaderSetting.h"
 #include "state/SystemSetting.h"
@@ -45,25 +51,6 @@ const char* readerQualityLabel(const uint8_t quality) {
     default:
       return "Low";
   }
-}
-
-const char* xtcPowerLabel() {
-  return READER_SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? "Page Refresh" : "Next";
-}
-
-const char* xtcAutoTurnLabel() {
-  static char buf[12];
-  if (READER_SETTINGS.xtcPageAutoTurnSeconds == 0) {
-    return "Off";
-  }
-  snprintf(buf, sizeof(buf), "%u sec", READER_SETTINGS.xtcPageAutoTurnSeconds);
-  return buf;
-}
-
-const char* xtcRefreshLabel() {
-  static char buf[12];
-  snprintf(buf, sizeof(buf), "%u page%s", READER_SETTINGS.xtcRefreshFrequency, READER_SETTINGS.xtcRefreshFrequency == 1 ? "" : "s");
-  return buf;
 }
 
 const char* systemRefreshLabel() {
@@ -97,21 +84,21 @@ uint8_t ReaderSetting::* const kButtonActionFields[kButtonActionRowCount] = {
 const char* buttonActionRowLabel(const int idx, const bool x3) {
   switch (idx) {
     case 0:
-      return x3 ? "  Side Left (short)" : "  Side Up (short)";
+      return x3 ? "Side Left (short)" : "Side Up (short)";
     case 1:
-      return x3 ? "  Side Left (long)" : "  Side Up (long)";
+      return x3 ? "Side Left (long)" : "Side Up (long)";
     case 2:
-      return x3 ? "  Side Right (short)" : "  Side Down (short)";
+      return x3 ? "Side Right (short)" : "Side Down (short)";
     case 3:
-      return x3 ? "  Side Right (long)" : "  Side Down (long)";
+      return x3 ? "Side Right (long)" : "Side Down (long)";
     case 4:
-      return "  Front Left (short)";
+      return "Front Left (short)";
     case 5:
-      return "  Front Left (long)";
+      return "Front Left (long)";
     case 6:
-      return "  Front Right (short)";
+      return "Front Right (short)";
     case 7:
-      return "  Front Right (long)";
+      return "Front Right (long)";
     default:
       return "";
   }
@@ -130,25 +117,34 @@ ReaderPresetsActivity::ReaderPresetsActivity(GfxRenderer& renderer, MappedInputM
                                              std::function<void()> tabNavigateRecent,
                                              std::function<void()> tabNavigateLibrary,
                                              std::function<void()> tabNavigateSync,
-                                             std::function<void()> tabNavigateStatistics)
+                                             std::function<void()> tabNavigateStatistics,
+                                             bool embeddedMode,
+                                             bool presetsOnlyMode)
     : ActivityWithSubactivity("ReaderPresets", renderer, mappedInput),
       Menu(),
       onGoBack_(onGoBack),
       onTabRecent_(std::move(tabNavigateRecent)),
       onTabLibrary_(std::move(tabNavigateLibrary)),
       onTabSync_(std::move(tabNavigateSync)),
-      onTabStatistics_(std::move(tabNavigateStatistics)) {
+      onTabStatistics_(std::move(tabNavigateStatistics)),
+      embedded_(embeddedMode),
+      presetsOnly_(presetsOnlyMode) {
   tabSelectorIndex = 2;  // Settings tab
 }
 
 void ReaderPresetsActivity::onEnter() {
   READER_PRESETS.load();
   const int screenH = renderer.getScreenHeight();
-  const int listTop = mainHeaderDividerY();
-  const int contentBottom = INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) - kBottomButtonHintsHeight
-                                                         : screenH - 60;
+  const int listTop = embedded_ ? navigation::Menu::height + 20 + UiLayout::LIST_ITEM_HEIGHT + 10 + 30
+                                : mainHeaderDividerY();
+  const int contentBottom = embedded_ ? screenH - navigation::Menu::bottomHeight - 10
+                                      : (INX_THEME.mainTabsAtBottom() ? mainContentBottom(renderer) - kBottomButtonHintsHeight
+                                                                       : screenH - 60);
   itemsPerPage_ = std::max(1, (contentBottom - listTop) / kListItemHeight);
-  selectedRow_ = 0;
+  selectedRow_ = embedded_ ? -1 : 0;
+  detailSelectedRow_ = -1;
+  detailScrollOffset_ = 0;
+  detailSection_ = DetailSection::None;
   scrollOffset_ = 0;
   enteredHalfRefresh_ = false;
   render();
@@ -156,42 +152,72 @@ void ReaderPresetsActivity::onEnter() {
 
 void ReaderPresetsActivity::onExit() { exitActivity(); }
 
-// System section: 6 fixed rows - Text Anti-Aliasing, Refresh Frequency, Page Auto Turn, Image Quality,
-// Smart Refresh (Images), Quick Actions. Pulled out of the per-book/per-preset SettingsDrawer (the
+// System section: 6 fixed rows in the legacy activity - Text Anti-Aliasing, Refresh Frequency, Page Auto Turn,
+// Image Quality, Smart Refresh (Images), Quick Actions. The embedded activity keeps the first five rows flat;
+// Quick Actions lives inside the Buttons detail page. Pulled out of the per-book/per-preset SettingsDrawer (the
 // "═══ System ═══" and "═══ Image ═══" groups) into single global SystemSetting fields instead of
 // per-book overrides. Status Bar (Left/Middle/Right) is also a global field now (see
 // statusBarLeft/Middle/Right on SystemSetting) but stays UI-editable only from that same SettingsDrawer
 // (opened while reading), not duplicated here - so it's not listed as a row in this section. "Buttons"
 // is its own top-level, collapsible section (short/long press action for each of Up/Down/Left/Right -
-// see ReaderButtonBindings for the dispatch these configure), a sibling of System/XTC, sitting between
-// them: System, Buttons, XTC, Presets. Quick Actions (row 6) opens QuickActionsSettingsActivity, a
-// checklist of which READER_BUTTON_ACTION values a button mapped to BTN_ACTION_QUICK_ACTIONS pops up.
+// see ReaderButtonBindings for the dispatch these configure), alongside System. Quick Actions opens
+// QuickActionsSettingsActivity from the Buttons
+// detail page, a checklist of which READER_BUTTON_ACTION values a button mapped to BTN_ACTION_QUICK_ACTIONS pops up.
 constexpr int kSystemFixedRowCount = 6;
+// Embedded root rows mirror the Pro layout: the Font Manager entry occupies slot 1,
+// while the six actual system settings retain their original local row numbers.
+// The embedded Reader root contains the five global reader settings, the font manager,
+// and the Button & Gestures sub-page. Quick Actions belongs inside that sub-page.
+constexpr int kEmbeddedSystemRowCount = 6;
+
+int embeddedSystemLocalRow(const int row) {
+  return row == 0 ? 1 : row;
+}
+
+void renderOpenNavigationIcon(const GfxRenderer& renderer, const int screenW, const int itemY,
+                              const int rowHeight, const bool invert) {
+  constexpr int iconSize = 40;
+  const int iconX = screenW - kRowValueRightInset - iconSize;
+  const int iconY = itemY + (rowHeight - iconSize) / 2;
+  renderer.bitmap.iconScaled(Download, iconX, iconY, iconSize, iconSize, iconSize, iconSize,
+                             BitmapRender::Orientation::Rotate270CW, invert);
+}
 
 bool ReaderPresetsActivity::isSystemSettingRow(const int row) const {
+  if (presetsOnly_) return false;
+  if (embedded_ && detailSection_ == DetailSection::None) {
+    return row >= 0 && row < kEmbeddedSystemRowCount && !isFontManagerRow(row);
+  }
   return systemExpanded_ && row > systemHeaderRow() && row <= systemHeaderRow() + kSystemFixedRowCount;
 }
 
+bool ReaderPresetsActivity::isFontManagerRow(const int row) const {
+  return embedded_ && !presetsOnly_ && detailSection_ == DetailSection::None && row == 1;
+}
+
 int ReaderPresetsActivity::buttonsHeaderRow() const {
+  if (embedded_ && !presetsOnly_ && detailSection_ == DetailSection::None) {
+    return kEmbeddedSystemRowCount;
+  }
   return systemHeaderRow() + 1 + (systemExpanded_ ? kSystemFixedRowCount : 0);
 }
 
-bool ReaderPresetsActivity::isButtonsHeaderRow(const int row) const { return row == buttonsHeaderRow(); }
+bool ReaderPresetsActivity::isButtonsHeaderRow(const int row) const { return !presetsOnly_ && row == buttonsHeaderRow(); }
 
 bool ReaderPresetsActivity::isButtonActionRow(const int row) const {
-  return buttonsExpanded_ && row > buttonsHeaderRow() && row <= buttonsHeaderRow() + kButtonActionRowCount;
+  return !presetsOnly_ && buttonsExpanded_ && row > buttonsHeaderRow() && row <= buttonsHeaderRow() + kButtonActionRowCount;
 }
 
 bool ReaderPresetsActivity::isPowerButtonRow(const int row) const {
-  return buttonsExpanded_ && row == buttonsHeaderRow() + kButtonActionRowCount + 1;
+  return !presetsOnly_ && buttonsExpanded_ && row == buttonsHeaderRow() + kButtonActionRowCount + 1;
 }
 
 // Only Text Anti-Aliasing (systemLocalRow == 1) and Smart Refresh (systemLocalRow == 5) are plain
-// toggles; every other System/XTC row with more than 2 options opens the generic popup selector instead
+// toggles; every other System row with more than 2 options opens the generic popup selector instead
 // (see openSelectorForRow()) rather than cycling with Left/Right.
 void ReaderPresetsActivity::changeSystemSetting(const int row, const int delta) {
   (void)delta;
-  const int systemLocalRow = row - systemHeaderRow();
+  const int systemLocalRow = embedded_ ? embeddedSystemLocalRow(row) : row - systemHeaderRow();
   if (systemLocalRow == 1) {
     READER_SETTINGS.textAntiAliasing = !READER_SETTINGS.textAntiAliasing;
   } else if (systemLocalRow == 5) {
@@ -200,23 +226,65 @@ void ReaderPresetsActivity::changeSystemSetting(const int row, const int delta) 
   READER_SETTINGS.saveToFile();
 }
 
-int ReaderPresetsActivity::xtcHeaderRow() const {
+int ReaderPresetsActivity::addPresetRow() const {
+  if (presetsOnly_) return 0;
   return buttonsHeaderRow() + 1 + (buttonsExpanded_ ? kButtonActionRowCount + 1 : 0);
 }
 
-int ReaderPresetsActivity::addPresetRow() const { return xtcHeaderRow() + 1 + (xtcExpanded_ ? 4 : 0); }
+int ReaderPresetsActivity::presetRowsStart() const { return presetsOnly_ ? 1 : addPresetRow() + 1; }
 
-int ReaderPresetsActivity::presetRowsStart() const { return addPresetRow() + 1; }
+int ReaderPresetsActivity::rowCount() const {
+  if (embedded_ && !presetsOnly_) {
+    return kEmbeddedSystemRowCount + 1;  // Flat System rows, then the Buttons detail page.
+  }
+  return presetRowsStart() + READER_PRESETS.count();
+}
 
-int ReaderPresetsActivity::rowCount() const { return presetRowsStart() + READER_PRESETS.count(); }
+int ReaderPresetsActivity::detailRowCount() const {
+  switch (detailSection_) {
+    case DetailSection::System:
+      return kSystemFixedRowCount;
+    case DetailSection::Buttons:
+      return kButtonActionRowCount + 2;
+    case DetailSection::None:
+    default:
+      return 0;
+  }
+}
+
+int ReaderPresetsActivity::detailGlobalRow(const int row) const {
+  switch (detailSection_) {
+    case DetailSection::System:
+      return systemHeaderRow() + row + 1;
+    case DetailSection::Buttons:
+      return buttonsHeaderRow() + row + 1;
+    case DetailSection::None:
+    default:
+      return -1;
+  }
+}
+
+void ReaderPresetsActivity::openDetail(const DetailSection section) {
+  detailSection_ = section;
+  detailSelectedRow_ = -1;
+  detailScrollOffset_ = 0;
+  systemExpanded_ = section == DetailSection::System;
+  buttonsExpanded_ = section == DetailSection::Buttons;
+  updateRequired_ = true;
+}
+
+void ReaderPresetsActivity::closeDetail() {
+  detailSection_ = DetailSection::None;
+  detailSelectedRow_ = -1;
+  detailScrollOffset_ = 0;
+  systemExpanded_ = false;
+  buttonsExpanded_ = false;
+  updateRequired_ = true;
+}
 
 int ReaderPresetsActivity::presetIndexForRow(int row) const {
   const int start = presetRowsStart();
   return row < start ? -1 : row - start;
-}
-
-bool ReaderPresetsActivity::isXtcSettingRow(const int row) const {
-  return xtcExpanded_ && row > xtcHeaderRow() && row <= xtcHeaderRow() + 4;
 }
 
 void ReaderPresetsActivity::navigateToSelectedMenu() {
@@ -232,42 +300,63 @@ void ReaderPresetsActivity::navigateToSelectedMenu() {
 }
 
 void ReaderPresetsActivity::render() {
+  if (embedded_) {
+    updateRequired_ = true;
+  }
   const int screenW = renderer.getScreenWidth();
-  renderer.clearScreen(0xFF);
+  const int itemFont = systemFontId();
+  if (!embedded_) {
+    renderer.clearScreen(0xFF);
+  }
 
-  renderTabBar(renderer);
+  if (embedded_ && detailSection_ != DetailSection::None) {
+    // Detail pages own the whole settings content area. Clear here as well as in the parent Page
+    // render so a direct transition can never leave the previous flattened list underneath it.
+    renderer.clearScreen(0xFF);
+    renderDetail();
+    if (overlayOpen_) renderOverlay();
+    if (actionSelectorOpen_) renderActionSelectorOverlay();
+    return;
+  }
 
-  const int headerY = mainContentTop();
-  const int headerHeight = mainHeaderHeight();
-  const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_12_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_12_FONT_ID, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
+  int listTop = navigation::Menu::height + 20 + UiLayout::LIST_ITEM_HEIGHT + 10 + 30;
+  if (!embedded_) {
+    renderTabBar(renderer);
 
-  const char* back = "\xC2\xAB Back";
-  const int backW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, back);
-  const int backY = headerY + (headerHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - 20 - backW, backY, back, true);
-  const int headerDividerY = mainHeaderDividerY();
-  const int listTop = headerDividerY;
+    const int headerY = mainContentTop();
+    const int headerHeight = mainHeaderHeight();
+    const int titleY = headerY + (headerHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    renderer.text.render(itemFont, 20, titleY, "Reader Presets", true, EpdFontFamily::BOLD);
+
+    const char* back = "\xC2\xAB Back";
+    const int backW = renderer.text.getWidth(itemFont, back);
+    const int backY = headerY + (headerHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    renderer.text.render(itemFont, screenW - 20 - backW, backY, back, true);
+    listTop = mainHeaderDividerY();
+  }
+  const int headerDividerY = listTop;
 
   const int rows = rowCount();
-  const int xtcHeader = xtcHeaderRow();
   for (int i = 0; i < itemsPerPage_ && (i + scrollOffset_) < rows; i++) {
     const int rowIndex = i + scrollOffset_;
     const int itemY = listTop + i * kListItemHeight;
     const bool isSelected = (rowIndex == selectedRow_);
-    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
+    const bool hasNextRow = i + 1 < itemsPerPage_ && rowIndex + 1 < rows;
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(itemFont)) / 2;
 
-    if (rowIndex == systemHeaderRow()) {
+    if (!embedded_ && !presetsOnly_ && rowIndex == systemHeaderRow()) {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "System", isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, "System", isSelected ? 0 : 1);
       const char* tag = systemExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(itemFont, tag);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -275,56 +364,76 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      const char* label = "  Text Anti-Aliasing";
+      const char* label = "Text Anti-Aliasing";
       const char* value = nullptr;
       bool isToggle = true;
       bool toggleChecked = READER_SETTINGS.textAntiAliasing != 0;
-      const int systemLocalRow = rowIndex - systemHeaderRow();
+      const int systemLocalRow = embedded_ ? embeddedSystemLocalRow(rowIndex) : rowIndex - systemHeaderRow();
       if (systemLocalRow == 2) {
-        label = "  Refresh Frequency";
+        label = "Refresh Frequency";
         value = systemRefreshLabel();
         isToggle = false;
       } else if (systemLocalRow == 3) {
-        label = "  Page Auto Turn";
+        label = "Page Auto Turn";
         value = systemAutoTurnLabel();
         isToggle = false;
       } else if (systemLocalRow == 4) {
-        label = "  Image Quality";
+        label = "Image Quality";
         value = readerQualityLabel(READER_SETTINGS.readerImageGrayscale);
         isToggle = false;
       } else if (systemLocalRow == 5) {
-        label = "  Smart Refresh (Images)";
+        label = "Smart Refresh (Images)";
         toggleChecked = READER_SETTINGS.readerSmartRefreshOnImages != 0;
       } else if (systemLocalRow == 6) {
-        label = "  Quick Actions";
+        label = "Quick Actions";
         value = "Configure >";
         isToggle = false;
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
       if (isToggle) {
-        ReaderFontSettingsDraw::drawToggleCheckbox(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight,
-                                                   isSelected, toggleChecked);
+        Toggle::render(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight, toggleChecked, isSelected);
       } else {
-        const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-        renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+        const int valueW = renderer.text.getWidth(itemFont, value);
+        renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                              isSelected ? 0 : 1);
       }
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
-    if (isButtonsHeaderRow(rowIndex)) {
+    if (isFontManagerRow(rowIndex)) {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "Buttons", isSelected ? 0 : 1);
-      const char* tag = buttonsExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
-                           isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      renderer.text.render(itemFont, 20, textY, "Font Manager", isSelected ? 0 : 1);
+      renderOpenNavigationIcon(renderer, screenW, itemY, kListItemHeight, isSelected);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
+      continue;
+    }
+
+    if (!presetsOnly_ && isButtonsHeaderRow(rowIndex)) {
+      renderer.rectangle.fill(
+          0, itemY, screenW, kListItemHeight,
+          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
+      renderer.text.render(itemFont, 20, textY, "Button", isSelected ? 0 : 1);
+      if (embedded_) {
+        renderOpenNavigationIcon(renderer, screenW, itemY, kListItemHeight, isSelected);
+      } else {
+        const char* tag = buttonsExpanded_ ? "-" : "+";
+        const int tagW = renderer.text.getWidth(itemFont, tag);
+        renderer.text.render(itemFont, screenW - kRowValueRightInset - tagW, textY, tag,
+                             isSelected ? 0 : 1);
+      }
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -335,12 +444,14 @@ void ReaderPresetsActivity::render() {
       const int idx = rowIndex - buttonsHeaderRow() - 1;  // 0-7
       const char* label = buttonActionRowLabel(idx, renderer.deviceIsX3());
       const char* value = readerButtonActionLabel(READER_SETTINGS.*(kButtonActionFields[idx]));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -348,54 +459,16 @@ void ReaderPresetsActivity::render() {
       renderer.rectangle.fill(
           0, itemY, screenW, kListItemHeight,
           isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      const char* label = "  Power Button (short)";
+      const char* label = "Power Button (short)";
       const char* value = readerButtonActionLabel(READER_SETTINGS.btnPowerShortAction);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
+      renderer.text.render(itemFont, 20, textY, label, isSelected ? 0 : 1);
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value,
                            isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
-      continue;
-    }
-
-    if (rowIndex == xtcHeader) {
-      renderer.rectangle.fill(
-          0, itemY, screenW, kListItemHeight,
-          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "XTC", isSelected ? 0 : 1);
-      const char* tag = xtcExpanded_ ? "-" : "+";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
-                           isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
-      continue;
-    }
-
-    if (isXtcSettingRow(rowIndex)) {
-      renderer.rectangle.fill(
-          0, itemY, screenW, kListItemHeight,
-          isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
-      const char* label = "  Quality";
-      const char* value = readerQualityLabel(READER_SETTINGS.xtcImageQuality);
-      const int xtcLocalRow = rowIndex - xtcHeader;
-      if (xtcLocalRow == 2) {
-        label = "  Auto Page Turn";
-        value = xtcAutoTurnLabel();
-      } else if (xtcLocalRow == 3) {
-        label = "  Page Until Refresh";
-        value = xtcRefreshLabel();
-      } else if (xtcLocalRow == 4) {
-        label = "  Power Button";
-        value = xtcPowerLabel();
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, label, isSelected ? 0 : 1);
-      const int valueW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_10_FONT_ID, value);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, screenW - kRowValueRightInset - valueW, textY, value,
-                           isSelected ? 0 : 1);
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
       continue;
     }
 
@@ -405,11 +478,13 @@ void ReaderPresetsActivity::render() {
       } else {
         renderer.rectangle.fill(0, itemY, screenW, kListItemHeight, static_cast<int>(GfxRenderer::FillTone::Paper));
       }
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, "+ Add new preset", !isSelected,
+      renderer.text.render(itemFont, 20, textY, "+ Add new preset", !isSelected,
                            EpdFontFamily::REGULAR);
 
-      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                           LineRender::Style::Dotted);
+      if (hasNextRow) {
+        renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                             LineRender::Style::Dotted);
+      }
       continue;
     }
 
@@ -418,70 +493,145 @@ void ReaderPresetsActivity::render() {
         isSelected ? static_cast<int>(GfxRenderer::FillTone::Ink) : static_cast<int>(GfxRenderer::FillTone::Paper));
     const int presetIndex = presetIndexForRow(rowIndex);
     const std::string name = READER_PRESETS.nameOf(presetIndex);
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, 20, textY, name.c_str(), isSelected ? 0 : 1);
+    renderer.text.render(itemFont, 20, textY, name.c_str(), isSelected ? 0 : 1);
     if (presetIndex == 0) {
       const char* tag = "Default";
-      const int tagW = renderer.text.getWidth(ATKINSON_HYPERLEGIBLE_8_FONT_ID, tag);
-      renderer.text.render(ATKINSON_HYPERLEGIBLE_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
+      const int tagW = renderer.text.getWidth(MONTSERRAT_8_FONT_ID, tag);
+      renderer.text.render(MONTSERRAT_8_FONT_ID, screenW - kRowValueRightInset - tagW, textY, tag,
                            isSelected ? 0 : 1);
     }
-    renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
-                         LineRender::Style::Dotted);
+    if (hasNextRow) {
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, true,
+                           LineRender::Style::Dotted);
+    }
   }
-  renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
+  if (!embedded_) renderer.line.render(0, headerDividerY, screenW, headerDividerY, true);
 
-  if (INX_THEME.mainTabsAtBottom()) {
+  if (!embedded_ && INX_THEME.mainTabsAtBottom()) {
     // Bottom-tabs mode moves the tab bar to the screen bottom, where the classic button-hints row normally
     // goes, so redraw that same row just above the tab bar instead — matches CategorySettingsActivity.
     const int hintsAreaTop = mainContentBottom(renderer) - kBottomButtonHintsHeight;
     const int hintsY = hintsAreaTop + (kBottomButtonHintsHeight - 40) / 2;
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, "\xC2\xAB System", "Open", "", "", hintsY);
+    renderer.ui.buttonHints(itemFont, "\xC2\xAB System", "Open", "", "", hintsY);
   }
 
-  renderButtonHints(renderer, "\xC2\xAB Back", "Open", "", "");
+  if (!embedded_) {
+    renderButtonHints(renderer, "\xC2\xAB Back", "Open", "", "");
+  }
 
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-  enteredHalfRefresh_ = true;
+  // The parent Settings page owns the final display refresh. Draw popup content last so an
+  // embedded selector remains visible over the current settings list.
+  if (overlayOpen_) renderOverlay();
+  if (actionSelectorOpen_) renderActionSelectorOverlay();
+
+  if (!embedded_) {
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    enteredHalfRefresh_ = true;
+  }
+}
+
+void ReaderPresetsActivity::renderDetail() {
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+  const int itemFont = systemFontId();
+  const char* title = detailSection_ == DetailSection::System ? "System" : "Buttons";
+  const int listTop = SubPage::header(renderer, title);
+  const int visible = std::max(1, (screenH - listTop - 10) / kListItemHeight);
+  const int rows = detailRowCount();
+  const int maxScroll = std::max(0, rows - visible);
+  detailScrollOffset_ = std::max(0, std::min(detailScrollOffset_, maxScroll));
+
+  for (int i = 0; i < visible && detailScrollOffset_ + i < rows; ++i) {
+    const int localRow = detailScrollOffset_ + i;
+    const int itemY = listTop + i * kListItemHeight;
+    const bool selected = localRow == detailSelectedRow_;
+    const int textY = itemY + (kListItemHeight - renderer.text.getLineHeight(itemFont)) / 2;
+    const char* label = "";
+    const char* value = nullptr;
+    bool toggle = false;
+    bool checked = false;
+
+    if (detailSection_ == DetailSection::System) {
+      if (localRow == 0) {
+        label = "Text Anti-Aliasing";
+        toggle = true;
+        checked = READER_SETTINGS.textAntiAliasing != 0;
+      } else if (localRow == 1) {
+        label = "Refresh Frequency";
+        value = systemRefreshLabel();
+      } else if (localRow == 2) {
+        label = "Page Auto Turn";
+        value = systemAutoTurnLabel();
+      } else if (localRow == 3) {
+        label = "Image Quality";
+        value = readerQualityLabel(READER_SETTINGS.readerImageGrayscale);
+      } else if (localRow == 4) {
+        label = "Smart Refresh (Images)";
+        toggle = true;
+        checked = READER_SETTINGS.readerSmartRefreshOnImages != 0;
+      } else {
+        label = "Quick Actions";
+        value = "Configure >";
+      }
+    } else if (detailSection_ == DetailSection::Buttons) {
+      if (localRow < kButtonActionRowCount) {
+        label = buttonActionRowLabel(localRow, renderer.deviceIsX3());
+        value = readerButtonActionLabel(READER_SETTINGS.*(kButtonActionFields[localRow]));
+      } else if (localRow == kButtonActionRowCount) {
+        label = "Power Button (short)";
+        value = readerButtonActionLabel(READER_SETTINGS.btnPowerShortAction);
+      } else {
+        label = "Quick Actions";
+        value = "Configure >";
+      }
+    }
+
+    renderer.rectangle.fill(0, itemY, screenW, kListItemHeight,
+                           selected ? static_cast<int>(GfxRenderer::FillTone::Ink)
+                                    : static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.text.render(itemFont, 20, textY, label, !selected);
+    if (toggle) {
+      Toggle::render(renderer, screenW - kRowValueRightInset, itemY, kListItemHeight, checked, selected);
+    } else if (value) {
+      const int valueW = renderer.text.getWidth(itemFont, value);
+      renderer.text.render(itemFont, screenW - kRowValueRightInset - valueW, textY, value, !selected);
+    }
+    if (i + 1 < visible && detailScrollOffset_ + i + 1 < rows) {
+      renderer.line.render(0, itemY + kListItemHeight - 1, screenW, itemY + kListItemHeight - 1, !selected,
+                           LineRender::Style::Dotted);
+    }
+  }
 }
 
 void ReaderPresetsActivity::renderOverlay() {
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
-  const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
-
-  const int boxW = std::min(screenW - 60, 320);
-  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  const int overlayHeaderH = INX_THEME.drawerHeaderHeight() - 4;
-  const int boxH = overlayHeaderH + optionCount * rowH;
-  const int boxX = (screenW - boxW) / 2;
-  const int boxY = (screenH - boxH) / 2;
-
-  renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
-
-  const std::string title = READER_PRESETS.nameOf(overlayPresetIndex_);
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, title.c_str(), true, EpdFontFamily::BOLD);
-
-  for (int i = 0; i < optionCount; i++) {
-    const int rowY = boxY + overlayHeaderH + i * rowH;
-    const bool sel = (i == overlaySel_);
-    if (sel) {
-      renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-    const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, overlayOptionFor(overlayPresetIndex_, i),
-                         sel ? 0 : 1);
-    if (i + 1 < optionCount) {
-      renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
-    }
+  if (embedded_) {
+    updateRequired_ = true;
   }
+  const int optionCount = overlayOptionCountFor(overlayPresetIndex_);
+  std::vector<std::string> options;
+  options.reserve(static_cast<size_t>(optionCount));
+  for (int i = 0; i < optionCount; ++i) options.emplace_back(overlayOptionFor(overlayPresetIndex_, i));
+  const PopUpBounds box = PopUp::bounds(renderer, optionCount);
+  PopUp::background(renderer, box);
+  PopUp::title(renderer, box, READER_PRESETS.nameOf(overlayPresetIndex_));
+  PopUp::list(renderer, box, options, overlaySel_, 0);
+  PopUp::border(renderer, box);
 
-  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
+  if (!embedded_) {
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  }
+}
 
-  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
-  renderer.rectangle.render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, true);
+void ReaderPresetsActivity::renderEmbedded() {
+  if (!embedded_ || subActivity) return;
+  render();
+  updateRequired_ = false;
+}
 
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+bool ReaderPresetsActivity::takeRenderRequest() {
+  if (!embedded_ || subActivity || !updateRequired_) return false;
+  updateRequired_ = false;
+  return true;
 }
 
 void ReaderPresetsActivity::openGenericSelector(std::string title, std::vector<std::string> options,
@@ -492,8 +642,9 @@ void ReaderPresetsActivity::openGenericSelector(std::string title, std::vector<s
   actionSelectorOpen_ = true;
   actionSelectorSel_ =
       selectorOptions_.empty() ? 0 : std::max(0, std::min(currentIndex, static_cast<int>(selectorOptions_.size()) - 1));
-  constexpr int visibleRows = 6;
+  const int visibleRows = std::max(1, PopUp::bounds(renderer, static_cast<int>(selectorOptions_.size())).rows);
   actionSelectorScroll_ = std::max(0, actionSelectorSel_ - visibleRows / 2);
+  updateRequired_ = true;
 }
 
 void ReaderPresetsActivity::openSelectorForRow(const int row) {
@@ -525,7 +676,10 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
     return;
   }
 
-  const int systemLocalRow = isSystemSettingRow(row) ? row - systemHeaderRow() : -1;
+  const int systemLocalRow = isSystemSettingRow(row)
+                                 ? ((embedded_ && detailSection_ == DetailSection::None) ? embeddedSystemLocalRow(row)
+                                                                                         : row - systemHeaderRow())
+                                 : -1;
   if (systemLocalRow == 2) {
     // refreshFrequency stores the SystemSetting::REFRESH_FREQUENCY enum index (0-4), not the page count
     // itself - see SystemSetting::getRefreshFrequency() for the index->page-count mapping this must match.
@@ -557,55 +711,9 @@ void ReaderPresetsActivity::openSelectorForRow(const int row) {
                         });
     return;
   }
-  const int xtcLocalRow = isXtcSettingRow(row) ? row - xtcHeaderRow() : -1;
-  if (xtcLocalRow == 1) {
-    openGenericSelector("Quality", {"Low", "Medium", "High"}, READER_SETTINGS.xtcImageQuality, [](const int chosen) {
-      READER_SETTINGS.xtcImageQuality = static_cast<uint8_t>(chosen);
-      READER_SETTINGS.saveToFile();
-    });
-    return;
-  }
-  if (xtcLocalRow == 2) {
-    std::vector<std::string> options;
-    for (int sec = 0; sec <= 60; sec += 10) {
-      options.push_back(sec == 0 ? "Off" : (std::to_string(sec) + " sec"));
-    }
-    const int idx = READER_SETTINGS.xtcPageAutoTurnSeconds / 10;
-    openGenericSelector("Auto Page Turn", std::move(options), idx, [](const int chosen) {
-      READER_SETTINGS.xtcPageAutoTurnSeconds = static_cast<uint8_t>(chosen * 10);
-      READER_SETTINGS.saveToFile();
-    });
-    return;
-  }
-  if (xtcLocalRow == 3) {
-    static constexpr uint8_t values[] = {1, 5, 10, 15, 30};
-    std::vector<std::string> options = {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"};
-    int idx = 4;
-    for (int i = 0; i < 5; ++i) {
-      if (values[i] == READER_SETTINGS.xtcRefreshFrequency) {
-        idx = i;
-        break;
-      }
-    }
-    openGenericSelector("Page Until Refresh", std::move(options), idx, [](const int chosen) {
-      static constexpr uint8_t v[] = {1, 5, 10, 15, 30};
-      READER_SETTINGS.xtcRefreshFrequency = v[chosen];
-      READER_SETTINGS.saveToFile();
-    });
-    return;
-  }
-  if (xtcLocalRow == 4) {
-    const int idx = READER_SETTINGS.xtcShortPwrBtn == SystemSetting::XTC_POWER_PAGE_REFRESH ? 1 : 0;
-    openGenericSelector("Power Button", {"Next", "Page Refresh"}, idx, [](const int chosen) {
-      READER_SETTINGS.xtcShortPwrBtn = chosen == 1 ? SystemSetting::XTC_POWER_PAGE_REFRESH : SystemSetting::XTC_POWER_NEXT;
-      READER_SETTINGS.saveToFile();
-    });
-    return;
-  }
 }
 
 void ReaderPresetsActivity::handleActionSelectorInput() {
-  constexpr int visibleRows = 6;
   const int optionCount = static_cast<int>(selectorOptions_.size());
   if (optionCount == 0) {
     actionSelectorOpen_ = false;
@@ -626,6 +734,7 @@ void ReaderPresetsActivity::handleActionSelectorInput() {
     render();
     return;
   }
+  const int visibleRows = PopUp::bounds(renderer, optionCount).rows;
   if (mappedInput.wasPressed(MenuNav::itemPrev())) {
     actionSelectorSel_ = (actionSelectorSel_ - 1 + optionCount) % optionCount;
     if (actionSelectorSel_ < actionSelectorScroll_) actionSelectorScroll_ = actionSelectorSel_;
@@ -647,67 +756,22 @@ void ReaderPresetsActivity::handleActionSelectorInput() {
 }
 
 void ReaderPresetsActivity::renderActionSelectorOverlay() {
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
+  if (embedded_) {
+    updateRequired_ = true;
+  }
   const int optionCount = static_cast<int>(selectorOptions_.size());
-  constexpr int visibleRows = 6;
-  const int rows = std::min(visibleRows, optionCount);
-  if (rows <= 0) {
-    return;
-  }
-
-  const int boxW = std::min(screenW - 60, 320);
-  constexpr int rowH = UiTheme::DRAWER_LIST_ITEM_HEIGHT - 4;
-  const int overlayHeaderH = INX_THEME.drawerHeaderHeight() - 4;
-  const int boxH = overlayHeaderH + rows * rowH;
-  const int boxX = (screenW - boxW) / 2;
-  const int boxY = (screenH - boxH) / 2;
-
-  renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
-
-  const std::string shownTitle =
-      renderer.text.truncate(ATKINSON_HYPERLEGIBLE_10_FONT_ID, selectorTitle_.c_str(), boxW - 32, EpdFontFamily::BOLD);
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, shownTitle.c_str(), true,
-                       EpdFontFamily::BOLD);
-
-  const int maxScroll = std::max(0, optionCount - rows);
+  if (optionCount <= 0) return;
+  const PopUpBounds box = PopUp::bounds(renderer, optionCount);
+  const int maxScroll = std::max(0, optionCount - box.rows);
   actionSelectorScroll_ = std::max(0, std::min(actionSelectorScroll_, maxScroll));
+  PopUp::background(renderer, box);
+  PopUp::title(renderer, box, selectorTitle_);
+  PopUp::list(renderer, box, selectorOptions_, actionSelectorSel_, actionSelectorScroll_);
+  PopUp::border(renderer, box);
 
-  for (int i = 0; i < rows; ++i) {
-    const int optionIdx = actionSelectorScroll_ + i;
-    if (optionIdx >= optionCount) {
-      break;
-    }
-    const int rowY = boxY + overlayHeaderH + i * rowH;
-    const bool sel = (optionIdx == actionSelectorSel_);
-    if (sel) {
-      renderer.rectangle.fill(boxX + 1, rowY, boxW - 2, rowH, static_cast<int>(GfxRenderer::FillTone::Ink));
-    }
-    const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, selectorOptions_[optionIdx].c_str(),
-                         sel ? 0 : 1);
-    if (i + 1 < rows) {
-      renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
-    }
+  if (!embedded_) {
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
-
-  if (optionCount > rows) {
-    const int trackX = boxX + boxW - 10;
-    const int trackY = boxY + overlayHeaderH;
-    const int trackH = rows * rowH;
-    const int thumbH = std::max(8, trackH * rows / optionCount);
-    const int thumbY = trackY + actionSelectorScroll_ * std::max(1, trackH - thumbH) / maxScroll;
-    renderer.rectangle.fill(trackX, trackY, 2, trackH, true);
-    renderer.rectangle.fill(trackX - 2, thumbY, 6, thumbH, true);
-  }
-
-  renderer.line.render(boxX, boxY + overlayHeaderH, boxX + boxW, boxY + overlayHeaderH, true);
-
-  renderer.rectangle.render(boxX, boxY, boxW, boxH, true);
-  renderer.rectangle.render(boxX + 1, boxY + 1, boxW - 2, boxH - 2, true);
-
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
 void ReaderPresetsActivity::openEditor(int presetIndex) {
@@ -732,7 +796,25 @@ void ReaderPresetsActivity::openRenameKeyboard(int presetIndex) {
 }
 
 void ReaderPresetsActivity::activateSelectedRow() {
-  if (selectedRow_ == systemHeaderRow()) {
+  if (embedded_ && !presetsOnly_ && detailSection_ == DetailSection::None) {
+    if (isFontManagerRow(selectedRow_)) {
+      enterNewActivity(new FontManagerActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
+    } else if (isSystemSettingRow(selectedRow_)) {
+      const int systemLocalRow = embeddedSystemLocalRow(selectedRow_);
+      if (systemLocalRow == 1 || systemLocalRow == 5) {
+        changeSystemSetting(selectedRow_, 0);
+      } else {
+        openSelectorForRow(selectedRow_);
+      }
+    } else if (selectedRow_ == buttonsHeaderRow()) {
+      enterNewActivity(new ButtonMappingActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
+      return;
+    }
+    render();
+    return;
+  }
+
+  if (!presetsOnly_ && selectedRow_ == systemHeaderRow()) {
     systemExpanded_ = !systemExpanded_;
     clampSelectionToRowCount();
     render();
@@ -754,9 +836,7 @@ void ReaderPresetsActivity::activateSelectedRow() {
     return;
   }
   if (isButtonsHeaderRow(selectedRow_)) {
-    buttonsExpanded_ = !buttonsExpanded_;
-    clampSelectionToRowCount();
-    render();
+    enterNewActivity(new ButtonMappingActivity(renderer, mappedInput, [this]() { subFinished_ = true; }));
     return;
   }
   if (isButtonActionRow(selectedRow_)) {
@@ -765,17 +845,6 @@ void ReaderPresetsActivity::activateSelectedRow() {
     return;
   }
   if (isPowerButtonRow(selectedRow_)) {
-    openSelectorForRow(selectedRow_);
-    renderActionSelectorOverlay();
-    return;
-  }
-  if (selectedRow_ == xtcHeaderRow()) {
-    xtcExpanded_ = !xtcExpanded_;
-    clampSelectionToRowCount();
-    render();
-    return;
-  }
-  if (isXtcSettingRow(selectedRow_)) {
     openSelectorForRow(selectedRow_);
     renderActionSelectorOverlay();
     return;
@@ -844,7 +913,7 @@ void ReaderPresetsActivity::handleListInput() {
   if (mappedInput.wasPressed(MenuNav::itemPrev())) {
     const int rows = rowCount();
     if (rows > 0) {
-      selectedRow_ = (selectedRow_ - 1 + rows) % rows;
+      selectedRow_ = selectedRow_ < 0 ? rows - 1 : (selectedRow_ - 1 + rows) % rows;
       if (selectedRow_ < scrollOffset_) scrollOffset_ = selectedRow_;
       if (selectedRow_ >= scrollOffset_ + itemsPerPage_) scrollOffset_ = selectedRow_ - itemsPerPage_ + 1;
       scrollOffset_ = std::max(0, std::min(scrollOffset_, std::max(0, rows - itemsPerPage_)));
@@ -855,7 +924,7 @@ void ReaderPresetsActivity::handleListInput() {
   if (mappedInput.wasPressed(MenuNav::itemNext())) {
     const int rows = rowCount();
     if (rows > 0) {
-      selectedRow_ = (selectedRow_ + 1) % rows;
+      selectedRow_ = selectedRow_ < 0 ? 0 : (selectedRow_ + 1) % rows;
       if (selectedRow_ < scrollOffset_) scrollOffset_ = selectedRow_;
       if (selectedRow_ >= scrollOffset_ + itemsPerPage_) scrollOffset_ = selectedRow_ - itemsPerPage_ + 1;
       scrollOffset_ = std::max(0, std::min(scrollOffset_, std::max(0, rows - itemsPerPage_)));
@@ -889,6 +958,54 @@ void ReaderPresetsActivity::handleListInput() {
   }
 }
 
+void ReaderPresetsActivity::handleDetailInput() {
+  const int rows = detailRowCount();
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    closeDetail();
+    render();
+    return;
+  }
+
+  const bool previousPressed = mappedInput.wasPressed(MenuNav::itemPrev());
+  const bool nextPressed = mappedInput.wasPressed(MenuNav::itemNext());
+  if (previousPressed || nextPressed) {
+    if (rows <= 0) return;
+    if (detailSelectedRow_ < 0) {
+      detailSelectedRow_ = previousPressed ? rows - 1 : 0;
+    } else if (previousPressed) {
+      detailSelectedRow_ = (detailSelectedRow_ - 1 + rows) % rows;
+    } else {
+      detailSelectedRow_ = (detailSelectedRow_ + 1) % rows;
+    }
+
+    const int visible = std::max(1, (renderer.getScreenHeight() - (navigation::Menu::height + 20) - 10) /
+                                      kListItemHeight);
+    if (detailSelectedRow_ < detailScrollOffset_) detailScrollOffset_ = detailSelectedRow_;
+    if (detailSelectedRow_ >= detailScrollOffset_ + visible) {
+      detailScrollOffset_ = detailSelectedRow_ - visible + 1;
+    }
+    render();
+    return;
+  }
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && detailSelectedRow_ >= 0) {
+    if (detailSection_ == DetailSection::Buttons && detailSelectedRow_ == kButtonActionRowCount + 1) {
+      openQuickActionsScreen();
+      return;
+    }
+    const int globalRow = detailGlobalRow(detailSelectedRow_);
+    if (detailSection_ == DetailSection::System && (detailSelectedRow_ == 0 || detailSelectedRow_ == 4)) {
+      changeSystemSetting(globalRow, 0);
+      render();
+    } else if (detailSection_ == DetailSection::System && detailSelectedRow_ == 5) {
+      openQuickActionsScreen();
+    } else {
+      openSelectorForRow(globalRow);
+      render();
+    }
+  }
+}
+
 void ReaderPresetsActivity::finishSubActivity() {
   exitActivity();
   if (pendingRenameIndex_ >= 0) {
@@ -915,6 +1032,8 @@ void ReaderPresetsActivity::loop() {
     handleActionSelectorInput();
   } else if (overlayOpen_) {
     handleOverlayInput();
+  } else if (embedded_ && detailSection_ != DetailSection::None) {
+    handleDetailInput();
   } else {
     handleListInput();
   }

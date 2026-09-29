@@ -123,8 +123,8 @@ void QuickActionsMenuUi::render(EpubActivity& act) {
 
   renderer.rectangle.fill(boxX, boxY, boxW, boxH, false);
 
-  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-  renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 16, titleY, "Quick Actions", true,
+  const int titleY = boxY + (overlayHeaderH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+  renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 16, titleY, "Quick Actions", true,
                        EpdFontFamily::BOLD);
 
   clampScroll();
@@ -140,8 +140,8 @@ void QuickActionsMenuUi::render(EpubActivity& act) {
     }
 
     const char* label = SystemSetting::readerButtonActionLabel(actions_[static_cast<size_t>(actionIdx)]);
-    const int textY = rowY + (rowH - renderer.text.getLineHeight(ATKINSON_HYPERLEGIBLE_10_FONT_ID)) / 2;
-    renderer.text.render(ATKINSON_HYPERLEGIBLE_10_FONT_ID, boxX + 20, textY, label, sel ? 0 : 1);
+    const int textY = rowY + (rowH - renderer.text.getLineHeight(MONTSERRAT_10_FONT_ID)) / 2;
+    renderer.text.render(MONTSERRAT_10_FONT_ID, boxX + 20, textY, label, sel ? 0 : 1);
     if (i + 1 < rows) {
       renderer.line.render(boxX, rowY + rowH, boxX + boxW, rowY + rowH, !sel, LineRender::Style::Dotted);
     }

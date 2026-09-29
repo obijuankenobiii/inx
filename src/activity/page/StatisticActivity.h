@@ -10,30 +10,27 @@
 #include <utility>
 #include <vector>
 
-#include "../Activity.h"
-#include "../Menu.h"
+#include "Page.h"
 #include "state/Statistics.h"
 
 class Bitmap;
 
 /**
- * Activity for displaying reading statistics.
+ * Sub-page for displaying reading statistics.
  * First view is a global reading-stats summary; Up/Down steps through one book at a time.
  * On enter, global totals load only from `/.system/statistics.bin` for speed.
  * Confirm (Refresh) rescans per-book stats, recomputes aggregates, and writes that snapshot.
  */
-class StatisticActivity final : public Activity, public Menu {
+class StatisticActivity final : public Page {
  private:
   /** 0 = aggregated global overview; 1..N = one book (index N-1 in allBooksStats). */
   int viewIndex = 0;
-  bool updateRequired = false;
 
   std::vector<BookReadingStats> allBooksStats;
   std::vector<uint8_t> loadedBookStatsFlags_;
   GlobalReadingStats globalStats;
 
   const std::function<void()> onGoToRecent;
-  const std::function<void()> onSyncOpen;
 
   /**
    * Loads and sorts reading statistics for all books by most recently read.
@@ -56,29 +53,13 @@ class StatisticActivity final : public Activity, public Menu {
   std::pair<int, int> drawGlobalRecentThumbBlock(int x, int y, const std::string& bookPath,
                                                  const std::string& title) const;
 
-  void render();
-
   void renderSingleBookView(int bookIdx, int contentTop, int contentBottom) const;
 
   /** Global overview (view 0): each returns next Y after band height + Margin. */
-  int renderHeader(int y, int innerLeft, int innerRight, int innerW, int Margin) const;
   int renderRecent(int y, int innerLeft, int innerRight, int innerW, int Margin) const;
   int renderFirstGrid(int y, int innerLeft, int innerW, int Margin) const;
   int renderGuage(int y, int innerLeft, int innerRight, int Margin) const;
   void renderSecondGrid(int y, int innerLeft, int innerRight, int contentBottom) const;
-
-  /**
-   * Navigates to the selected tab.
-   * Tab indices: 0 = Home, 3 = Sync
-   */
-  void navigateToSelectedMenu() override {
-    if (tabSelectorIndex == 0 && onGoToRecent) {
-      onGoToRecent();
-    }
-    if (tabSelectorIndex == 3 && onSyncOpen) {
-      onSyncOpen();
-    }
-  }
 
  public:
   /**
@@ -87,21 +68,17 @@ class StatisticActivity final : public Activity, public Menu {
    * @param renderer Graphics renderer for display output
    * @param mappedInput Input manager for handling user input
    * @param onGoToRecent Callback function for navigating to the home activity
-   * @param onSyncOpen Callback function for opening the sync activity (optional)
    */
   explicit StatisticActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                             const std::function<void()>& onGoToRecent,
-                             const std::function<void()>& onSyncOpen = nullptr)
-      : Activity("Statistics", renderer, mappedInput),
-        Menu(),
-        onGoToRecent(onGoToRecent),
-        onSyncOpen(onSyncOpen),
-        viewIndex(0),
-        updateRequired(false) {
-    tabSelectorIndex = 4;
-  };
+                             const std::function<void()>& onGoToRecent)
+      : Page("Statistics", renderer, mappedInput), onGoToRecent(onGoToRecent), viewIndex(0) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
+
+ protected:
+  void menu() override;
+  void content() override;
+  bool back() override;
 };

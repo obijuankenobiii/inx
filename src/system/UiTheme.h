@@ -2,20 +2,23 @@
 
 #include <cstdint>
 
+#include "UiLayout.h"
+
 class GfxRenderer;
 
 class UiTheme {
  public:
   enum class MainTabPlacement : uint8_t { Top, Bottom };
 
-  static constexpr int DRAWER_LIST_ITEM_HEIGHT = 66;
-  static constexpr int MAIN_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
-  static constexpr int BOTTOM_TAB_BAR_HEIGHT = DRAWER_LIST_ITEM_HEIGHT - 6;
-  static constexpr int BOTTOM_CONTENT_PADDING = 5;
-  static constexpr int TOP_STATUS_HEIGHT = 36;
-  static constexpr int DRAWER_HEADER_HEIGHT = DRAWER_LIST_ITEM_HEIGHT;
-  static constexpr int DRAWER_PAGE_HEADER_HEIGHT = 79;
-  static constexpr int DRAWER_LIST_BOTTOM_PADDING = 12;
+  // Compatibility aliases. Shared values live in UiLayout.
+  static constexpr int DRAWER_LIST_ITEM_HEIGHT = UiLayout::LIST_ITEM_HEIGHT;
+  static constexpr int MAIN_TAB_BAR_HEIGHT = UiLayout::HEADER_HEIGHT;
+  static constexpr int BOTTOM_TAB_BAR_HEIGHT = UiLayout::TAB_BAR_HEIGHT;
+  static constexpr int BOTTOM_CONTENT_PADDING = UiLayout::CONTENT_BOTTOM_PADDING;
+  static constexpr int TOP_STATUS_HEIGHT = UiLayout::CONTENT_TOP;
+  static constexpr int DRAWER_HEADER_HEIGHT = UiLayout::HEADER_HEIGHT;
+  static constexpr int DRAWER_PAGE_HEADER_HEIGHT = UiLayout::PAGE_HEADER_HEIGHT;
+  static constexpr int DRAWER_LIST_BOTTOM_PADDING = UiLayout::LIST_BOTTOM_PADDING;
 
   static UiTheme& getInstance();
 

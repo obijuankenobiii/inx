@@ -56,16 +56,28 @@ class ZipFile {
 
  public:
   explicit ZipFile(const std::string& filePath) : filePath(filePath) {}
-  ~ZipFile() = default;
+  // FsFile does not close itself on destruction (DESTRUCTOR_CLOSES_FILE=0 in SdFatConfig.h), and every
+  // caller that only needs one read (e.g. Epub::readItemContentsToStream's `ZipFile(path).readFileToStream(...)`
+  // one-liner) relies on this destructor to release the handle - without it, each such call leaks one
+  // open SD file handle for the life of the process.
+  ~ZipFile() { close(); }
 
   bool isOpen() const { return !!file; }
   bool open();
   bool close();
   bool loadAllFileStatSlims();
+  /** Returns the central-directory entry names after loadAllFileStatSlims(). */
+  std::vector<std::string> fileNames() const;
   bool getInflatedFileSize(const char* filename, size_t* size);
 
   int fillUncompressedSizes(std::vector<SizeTarget>& targets, std::vector<uint32_t>& sizes);
 
   uint8_t* readFileToMemory(const char* filename, size_t* size = nullptr, bool trailingNullByte = false);
-  bool readFileToStream(const char* filename, Print& out, size_t chunkSize);
+  /**
+   * Streams an entry using optional caller-owned work buffers. Supplying all three buffers lets a
+   * multi-entry installer reuse its inflater, input buffer, and 32 KiB deflate dictionary.
+   */
+  bool readFileToStream(const char* filename, Print& out, size_t chunkSize,
+                        uint8_t* dictionaryBuffer = nullptr, void* inflatorBuffer = nullptr,
+                        uint8_t* inputBuffer = nullptr);
 };

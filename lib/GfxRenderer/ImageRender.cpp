@@ -71,6 +71,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
 bool ImageRender::renderDisplayCacheOnly(int x, int y, int width, int height, const Options& options) const {
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.cropFromTop = options.cropFromTop;
   cacheOptions.mode = options.mode;
   cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
@@ -89,6 +90,7 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
                          JpegLevelCapture* jpegCapture) const {
   ImageDisplayCacheOptions cacheOptions;
   cacheOptions.cropToFill = options.cropToFill;
+  cacheOptions.cropFromTop = options.cropFromTop;
   cacheOptions.mode = options.mode;
   cacheOptions.renderPlane = static_cast<uint8_t>(renderer_.getRenderMode());
   cacheOptions.roundedOutside = options.roundedOutside;
@@ -114,11 +116,12 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
       jpeg.replayCapture(*jpegCapture, options.mode);
       ok = true;
     } else {
-      ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.quality, jpegCapture);
+      ok = jpeg.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.quality, jpegCapture,
+                         options.cropFromTop);
     }
   } else if (format_ == Format::Png) {
     PngRender png(renderer_);
-    ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode);
+    ok = png.fromPath(path_, x, y, width, height, options.cropToFill, options.mode, options.cropFromTop);
   } else {
     FsFile file;
     if (!SdMan.openFileForRead("EHP", path_, file)) {
@@ -140,7 +143,8 @@ bool ImageRender::render(int x, int y, int width, int height, const Options& opt
           cropY = 1.0f - (imageRatio / targetRatio);
         }
       }
-      renderer_.bitmap.render(bitmap, x, y, width, height, cropX, cropY, options.roundedOutside, options.mode);
+      renderer_.bitmap.render(bitmap, x, y, width, height, cropX, cropY, options.roundedOutside, options.mode,
+                              options.cropFromTop);
     }
     file.close();
   }

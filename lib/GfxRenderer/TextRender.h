@@ -28,6 +28,9 @@ class TextRender {
                    EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   void render(int fontId, int x, int y, const char* text, bool black = true,
               EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  /** Renders text as a light checkerboard gray in the 1-bit framebuffer. */
+  void renderGray(int fontId, int x, int y, const char* text, bool black = true,
+                  EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getScaledWidth(int fontId, const char* text, uint8_t scalePct,
                      EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int renderScaled(int fontId, int x, int y, const char* text, uint8_t scalePct, bool black = true,
@@ -41,7 +44,7 @@ class TextRender {
 
  private:
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
-                  EpdFontFamily::Style style) const;
+                  EpdFontFamily::Style style, bool gray = false) const;
   void renderScaledChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                         EpdFontFamily::Style style, uint8_t scalePct) const;
   int getStreamingTextWidth(const EpdFontFamily& family, const char* text, EpdFontFamily::Style style) const;

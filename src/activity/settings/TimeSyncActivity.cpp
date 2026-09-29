@@ -14,6 +14,7 @@
 #include <ctime>
 
 #include "activity/network/WifiSelectionActivity.h"
+#include "activity/page/SubPage.h"
 #include "state/SystemSetting.h"
 #include "system/Fonts.h"
 #include "system/MappedInputManager.h"
@@ -46,7 +47,7 @@ void TimeSyncActivity::render() {
   renderer.clearScreen();
   const int h = renderer.getScreenHeight();
 
-  const int contentTop = INX_THEME.drawPageHeader(renderer, "Sync time");
+  const int contentTop = SubPage::header(renderer, "Sync time");
   const int centerY = contentTop + (h - contentTop - 80) / 2;
   const int titleY = centerY - 36;
   const int bodyY = centerY;
@@ -58,16 +59,16 @@ void TimeSyncActivity::render() {
     title = "Time sync failed";
   }
 
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_12_FONT_ID, titleY, title, true, EpdFontFamily::BOLD);
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_10_FONT_ID, bodyY, message.c_str(), true);
+  renderer.text.centered(MONTSERRAT_12_FONT_ID, titleY, title, true, EpdFontFamily::BOLD);
+  renderer.text.centered(MONTSERRAT_10_FONT_ID, bodyY, message.c_str(), true);
 
   char tz[16];
   SETTINGS.formatTimeZone(tz, sizeof(tz));
-  renderer.text.centered(ATKINSON_HYPERLEGIBLE_8_FONT_ID, bodyY + 32, tz, true);
+  renderer.text.centered(MONTSERRAT_8_FONT_ID, bodyY + 32, tz, true);
 
   if (state == State::DONE || state == State::FAILED) {
     const auto labels = mappedInput.mapLabels("\xC2\xAB Back", "Done", "", "");
-    renderer.ui.buttonHints(ATKINSON_HYPERLEGIBLE_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.ui.buttonHints(MONTSERRAT_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
   renderer.displayBuffer();

@@ -37,6 +37,10 @@ class ParsedText {
   std::list<uint16_t> wordImageW;
   std::list<uint16_t> wordImageH;
   bool hasInlineImages_ = false;
+  // Footnote/endnote link target per word (empty = not a footnote marker). Same lazy-backfill shape as the
+  // image lists above - stays empty until the first footnote-marker word is added.
+  std::list<std::string> wordFootnoteTargets;
+  bool hasFootnoteLinks_ = false;
   /** Widest natural (pre-alignment) line content width seen during layout; used to size CSS border rules. */
   uint16_t maxLineContentWidth_ = 0;
   TextBlock::Style style;
@@ -52,6 +56,9 @@ class ParsedText {
 
   uint16_t leftIndentWidth = 0;
   uint16_t leftIndentLineCount = 0;
+  /** Set while a streamed paragraph is mid-flight, so continuation passes don't re-resolve the first-line indent. */
+  bool paragraphContinues_ = false;
+
   void applyParagraphIndent(const GfxRenderer& renderer, int fontId);
   std::vector<size_t> computeLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth, int spaceWidth,
                                         std::vector<uint16_t>& wordWidths, int dropIndentW, int dropIndentLines);
@@ -78,7 +85,8 @@ class ParsedText {
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool smallCaps = false, bool underline = false,
-               bool joinPrevious = false, uint8_t verticalAlign = TextBlock::BASELINE, int16_t xOffset = 0);
+               bool joinPrevious = false, uint8_t verticalAlign = TextBlock::BASELINE, int16_t xOffset = 0,
+               std::string footnoteTarget = "");
   /** Appends an inline image that flows on the line as an atomic word of the given on-screen size. */
   void addImage(std::string cachePath, uint16_t displayW, uint16_t displayH);
   void setStyle(const TextBlock::Style style) { this->style = style; }
@@ -87,6 +95,7 @@ class ParsedText {
     cssTextIndentPx = -1;
     leftIndentWidth = 0;
     leftIndentLineCount = 0;
+    paragraphContinues_ = false;
   }
 
   void setLeftIndent(uint16_t width, uint16_t lineCount) {
