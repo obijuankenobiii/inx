@@ -47,6 +47,8 @@ class EpubDictionaryUi {
                       std::string& outDefinition, bool* outTruncated, bool allowStem = true);
   bool tryUsefulLookup(EpubActivity& act, const std::string& folderName, const std::string& queryWord, bool* outTruncated);
   void cycleDictionary(EpubActivity& act, int delta);
+  std::string dictionaryQueryFromFocus(EpubActivity& act, bool keepLineBreakHyphen);
+  bool fillWordsForPage(EpubActivity& act, int spine, int page, std::vector<PageWordHit>& out) const;
   void saveCurrentWord(EpubActivity& act);
   std::string resolvePreferredFolder(EpubActivity& act);
   void setLangLabelFromFolder(const std::string& folderName);

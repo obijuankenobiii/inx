@@ -74,6 +74,25 @@ std::string stripHtmlToPlain(const std::string& html) {
 
 EpubDictionaryUi::EpubDictionaryUi() = default;
 
+bool EpubDictionaryUi::fillWordsForPage(EpubActivity& act, const int spine, const int page,
+                                        std::vector<PageWordHit>& out) const {
+  out.clear();
+  if (!act.epub) {
+    return false;
+  }
+  auto pageObj = Section::loadCachedPage(act.epub->getCachePath(), spine, page);
+  if (!pageObj) {
+    return false;
+  }
+  const ViewportInfo info = act.calculateViewport();
+  const int fontId = act.bookSettings.getReaderFontId();
+  const int headerFontId = FontManager::getNextFont(fontId);
+  buildPageWordIndex(*pageObj, act.renderer, fontId, headerFontId, info.totalMarginLeft, info.totalMarginTop, out,
+                     nullptr, false);
+  markHyphenJoins(out);
+  return !out.empty();
+}
+
 void EpubDictionaryUi::tryChordEnter(EpubActivity& act) {
   if (!act.epub || !act.section || mode_) {
     return;
@@ -118,6 +137,7 @@ void EpubDictionaryUi::prepareWordGeometry(EpubActivity& act) {
   }
   constexpr bool omitStoredWordStrings = false;
   buildPageWordIndex(*page, act.renderer, fontId, headerFontId, ml, mt, words_, &lineFirst_, omitStoredWordStrings);
+  markHyphenJoins(words_);
 }
 
 void EpubDictionaryUi::captureFramebuffer(EpubActivity& act) {
@@ -417,11 +437,56 @@ void EpubDictionaryUi::cycleDictionary(EpubActivity& act, const int delta) {
   act.updateRequired = true;
 }
 
+std::string EpubDictionaryUi::dictionaryQueryFromFocus(EpubActivity& act, const bool keepLineBreakHyphen) {
+  if (words_.empty() || focus_ >= words_.size()) {
+    return {};
+  }
+  size_t lo = focus_;
+  size_t hi = focus_;
+  expandHyphenJoinRange(words_, focus_, lo, hi);
+  std::string text = joinedHyphenRangeText(words_, lo, hi, keepLineBreakHyphen);
+
+  if (lo == 0 && act.epub && act.section && act.section->currentPage > 0) {
+    std::vector<PageWordHit> prev;
+    if (fillWordsForPage(act, act.currentSpineIndex, act.section->currentPage - 1, prev) && !prev.empty() &&
+        prev.back().hyphenJoinNext) {
+      size_t plo = 0;
+      size_t phi = 0;
+      expandHyphenJoinRange(prev, prev.size() - 1, plo, phi);
+      std::string prefix = joinedHyphenRangeText(prev, plo, phi, keepLineBreakHyphen);
+      if (!keepLineBreakHyphen && !prefix.empty() && prefix.back() == '-') {
+        prefix.pop_back();
+      }
+      text = prefix + text;
+    }
+  }
+
+  if (hi + 1 == words_.size() && words_.back().hyphenJoinNext && act.epub && act.section) {
+    std::vector<PageWordHit> next;
+    bool haveNext = fillWordsForPage(act, act.currentSpineIndex, act.section->currentPage + 1, next);
+    if (!haveNext && act.currentSpineIndex + 1 < act.epub->getSpineItemsCount()) {
+      haveNext = fillWordsForPage(act, act.currentSpineIndex + 1, 0, next);
+    }
+    if (haveNext && !next.empty()) {
+      size_t nlo = 0;
+      size_t nhi = 0;
+      expandHyphenJoinRange(next, 0, nlo, nhi);
+      const std::string suffix = joinedHyphenRangeText(next, nlo, nhi, keepLineBreakHyphen);
+      if (!keepLineBreakHyphen && !text.empty() && text.back() == '-') {
+        text.pop_back();
+      }
+      text += suffix;
+    }
+  }
+  return text;
+}
+
 void EpubDictionaryUi::performLookup(EpubActivity& act) {
   if (words_.empty() || focus_ >= words_.size()) {
     return;
   }
-  lookedUpWord_ = StarDictLookup::stripSurroundingPunctuation(words_[focus_].text);
+  lookedUpWord_ = StarDictLookup::stripSurroundingPunctuation(dictionaryQueryFromFocus(act, false));
+  const std::string keptHyphen = StarDictLookup::stripSurroundingPunctuation(dictionaryQueryFromFocus(act, true));
   currentDefinition_.clear();
   matchedHeadword_.clear();
   definitionScrollLine_ = 0;
@@ -443,11 +508,12 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
       currentDefinition_ = "No dictionary selected. Add StarDict folders under /dictionaries/.";
     } else {
       bool found = false;
-      auto tryFolders = [&](const std::vector<std::string>& list, const bool otherLang) {
+      auto tryFolders = [&](const std::vector<std::string>& list, const bool otherLang,
+                            const std::string& query) {
         for (size_t i = 0; i < list.size(); ++i) {
           truncated = false;
           currentDefinition_.clear();
-          if (!tryUsefulLookup(act, list[i], lookedUpWord_, &truncated)) {
+          if (!tryUsefulLookup(act, list[i], query, &truncated)) {
             esp_task_wdt_reset();
             continue;
           }
@@ -460,7 +526,7 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
           return;
         }
       };
-      tryFolders(folders, false);
+      tryFolders(folders, false, lookedUpWord_);
       if (!found) {
         const std::vector<std::string> all = DictionaryRegistry::foldersInFallbackOrder(preferredFolder_);
         std::vector<std::string> rest;
@@ -470,7 +536,24 @@ void EpubDictionaryUi::performLookup(EpubActivity& act) {
             rest.push_back(folder);
           }
         }
-        tryFolders(rest, true);
+        tryFolders(rest, true, lookedUpWord_);
+      }
+      // Some dictionaries index the line-break hyphenated spelling instead of the joined word.
+      // Keep the normal joined lookup first, then retry the exact visible spelling only when it
+      // differs, so ordinary words retain the release branch's folder fallback behavior.
+      if (!found && !keptHyphen.empty() && keptHyphen != lookedUpWord_) {
+        tryFolders(folders, false, keptHyphen);
+        if (!found) {
+          const std::vector<std::string> all = DictionaryRegistry::foldersInFallbackOrder(preferredFolder_);
+          std::vector<std::string> rest;
+          rest.reserve(all.size());
+          for (const std::string& folder : all) {
+            if (std::find(folders.begin(), folders.end(), folder) == folders.end()) {
+              rest.push_back(folder);
+            }
+          }
+          tryFolders(rest, true, keptHyphen);
+        }
       }
       if (!found) {
         currentDefinition_ = "No definition found.";
@@ -612,9 +695,14 @@ void EpubDictionaryUi::drawFocusHighlight(EpubActivity& act) {
   if (words_.empty() || focus_ >= words_.size()) {
     return;
   }
-  const PageWordHit& w = words_[focus_];
-  act.renderer.ui.fillSparseInkLatticeInRect(w.screenX, std::max(0, w.screenY), std::max(1, w.screenW),
-                                             std::max(3, w.screenH), kHighlightLatticeStepPx);
+  size_t lo = focus_;
+  size_t hi = focus_;
+  expandHyphenJoinRange(words_, focus_, lo, hi);
+  for (size_t i = lo; i <= hi && i < words_.size(); ++i) {
+    const PageWordHit& w = words_[i];
+    act.renderer.ui.fillSparseInkLatticeInRect(w.screenX, std::max(0, w.screenY), std::max(1, w.screenW),
+                                               std::max(3, w.screenH), kHighlightLatticeStepPx);
+  }
 }
 
 void EpubDictionaryUi::drawDefinitionPanel(EpubActivity& act) {
