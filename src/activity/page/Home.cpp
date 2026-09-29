@@ -91,6 +91,7 @@ Home::Home(GfxRenderer& renderer, MappedInputManager& mappedInput)
 void Home::onEnter() {
   Page::onEnter();
   invalidateGridPageBuffer();
+  invalidateRecentPopupPageBuffer();
   invalidateShortcutPageBuffer();
   sidebarOpen = false;
   tabSelectorIndex = 0;
@@ -106,10 +107,15 @@ void Home::onEnter() {
 
 void Home::onExit() {
   invalidateGridPageBuffer();
+  invalidateRecentPopupPageBuffer();
   invalidateShortcutPageBuffer();
   if (gridPageBuffer_) {
     std::free(gridPageBuffer_);
     gridPageBuffer_ = nullptr;
+  }
+  if (recentPopupPageBuffer_) {
+    std::free(recentPopupPageBuffer_);
+    recentPopupPageBuffer_ = nullptr;
   }
   Page::onExit();
 }
@@ -188,6 +194,7 @@ void Home::loop() {
     recentPopupPath_ = books[static_cast<size_t>(index)].path;
     recentPopupAction_ = 0;
     confirmLongPressProcessed_ = true;
+    storeRecentPopupPageBuffer();
     requestRender();
     return;
   }
@@ -251,6 +258,7 @@ void Home::loop() {
       const int index = std::max(0, std::min(recentIndex_, recentCount - 1));
       recentPopupPath_ = books[static_cast<size_t>(index)].path;
       recentPopupAction_ = 0;
+      storeRecentPopupPageBuffer();
       requestRender();
     }
     confirmLongPressProcessed_ = false;
@@ -337,6 +345,11 @@ int Home::bottom() const { return renderer.getScreenHeight() - navigation::Menu:
 void Home::content() {
   const int contentHeight = std::max(0, bottom() - top());
   if (contentHeight <= 0) {
+    return;
+  }
+
+  if (!recentPopupPath_.empty() && restoreRecentPopupPageBuffer()) {
+    renderRecentPopup();
     return;
   }
 
@@ -438,6 +451,32 @@ bool Home::restoreShortcutPageBuffer() {
   return true;
 }
 
+bool Home::storeRecentPopupPageBuffer() {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) return false;
+
+  if (!recentPopupPageBuffer_) {
+    recentPopupPageBuffer_ = static_cast<uint8_t*>(std::malloc(renderer.getBufferSize()));
+    if (!recentPopupPageBuffer_) return false;
+  }
+  memcpy(recentPopupPageBuffer_, frameBuffer, renderer.getBufferSize());
+  recentPopupPageBufferValid_ = true;
+  return true;
+}
+
+bool Home::restoreRecentPopupPageBuffer() {
+  if (!recentPopupPageBufferValid_ || !recentPopupPageBuffer_) return false;
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) return false;
+  memcpy(frameBuffer, recentPopupPageBuffer_, renderer.getBufferSize());
+  return true;
+}
+
+void Home::invalidateRecentPopupPageBuffer() {
+  recentPopupPageBufferValid_ = false;
+}
+
 void Home::invalidateShortcutPageBuffer() {
   shortcutPageBufferValid_ = false;
 }
@@ -502,6 +541,7 @@ bool Home::recentPopupInput() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     recentPopupPath_.clear();
     recentPopupAction_ = 0;
+    invalidateRecentPopupPageBuffer();
     invalidateGridPageBuffer();
     ignoreBackReleaseAfterPopup_ = true;
     requestRender();
@@ -509,12 +549,22 @@ bool Home::recentPopupInput() {
   }
   if (mappedInput.wasPressed(itemPrevButton())) {
     recentPopupAction_ = std::max(0, recentPopupAction_ - 1);
-    requestRender();
+    if (restoreRecentPopupPageBuffer()) {
+      renderRecentPopup();
+      renderer.displayBuffer();
+    } else {
+      requestRender();
+    }
     return true;
   }
   if (mappedInput.wasPressed(itemNextButton())) {
     recentPopupAction_ = std::min(2, recentPopupAction_ + 1);
-    requestRender();
+    if (restoreRecentPopupPageBuffer()) {
+      renderRecentPopup();
+      renderer.displayBuffer();
+    } else {
+      requestRender();
+    }
     return true;
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
@@ -526,11 +576,13 @@ bool Home::recentPopupInput() {
       const std::string path = recentPopupPath_;
       recentPopupPath_.clear();
       recentPopupAction_ = 0;
+      invalidateRecentPopupPageBuffer();
       onGoToDescription(path);
       return true;
     }
     recentPopupPath_.clear();
     recentPopupAction_ = 0;
+    invalidateRecentPopupPageBuffer();
     requestRender();
     return true;
   }

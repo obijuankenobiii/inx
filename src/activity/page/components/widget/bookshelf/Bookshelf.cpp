@@ -88,17 +88,38 @@ void drawSelection(const GfxRenderer& renderer, const int x, const int y, const 
   renderer.rectangle.render(x - pad, y - pad, width + pad * 2, height + pad * 2, true, false, false);
 }
 
+int fakePageHeight(const int height) {
+  return std::max(8, std::min(32, height / 16));
+}
+
+void drawFakePages(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+  if (width < 8 || height < 6) return;
+  renderer.rectangle.fill(x, y, width, height, static_cast<int>(GfxRenderer::FillTone::Paper));
+  renderer.rectangle.render(x, y, width, height, true);
+  renderer.rectangle.fill(x, y, 3, height, static_cast<int>(GfxRenderer::FillTone::Ink));
+  for (int lineY = y + 3; lineY < y + height - 1; lineY += 3) {
+    renderer.rectangle.fill(x + 4, lineY, std::max(1, width - 6), 1,
+                            static_cast<int>(GfxRenderer::FillTone::Gray));
+  }
+}
+
 void drawBook(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
               const int height, const bool selected) {
   if (width <= 0 || height <= 0) return;
   if (selected) drawSelection(renderer, x, y, width, height);
 
+  const int pageHeight = fakePageHeight(height);
+  const int bodyY = y + pageHeight;
+  const int bodyHeight = std::max(8, height - pageHeight);
+
   // A small offset shadow and crisp border give the covers a physical depth on
   // the shelf while keeping the source thumbnail fully visible.
   renderer.rectangle.fill(x + 4, y + 4, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
   renderer.rectangle.fill(x, y, width, height, false);
-  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, true, true, true);
-  renderer.rectangle.render(x, y, width, height, true, false, false);
+  support::drawThumbnail(renderer, book, x, bodyY, width, bodyHeight, MONTSERRAT_10_FONT_ID, false, true, true,
+                         true);
+  drawFakePages(renderer, x, y, width, pageHeight);
+  renderer.rectangle.render(x, bodyY, width, bodyHeight, true, false, false);
 }
 
 void renderBookshelf(GfxRenderer& renderer, const int x, const int y, const int width, const int height,

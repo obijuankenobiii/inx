@@ -26,6 +26,7 @@
 #include "images/Hamburger.h"
 #include "images/LibraryViewGrid.h"
 #include "images/LibraryViewList.h"
+#include "images/LibraryViewThumb.h"
 #include "images/CarretFilled.h"
 #include "images/Refresh.h"
 #include "images/SortAsc.h"
@@ -119,7 +120,8 @@ Library::Library(GfxRenderer& renderer, MappedInputManager& mappedInput, std::st
       grid_(renderer, items_),
       list_(renderer, items_, [this](const LibraryIndex::Book& item) {
         return favoritePaths_.find(item.path) != favoritePaths_.end();
-      }) {
+      }),
+      thumbnail_(renderer, items_) {
   tabSelectorIndex = 1;
   selectedHeaderButton_ = 3;
 }
@@ -155,7 +157,10 @@ void Library::onEnter() {
   stateFilter_ = StateFilter::NONE;
   allBooksMode_ = false;
   authorFolder_.clear();
-  viewMode_ = SETTINGS.libraryMode == SystemSetting::LIBRARY_LIST ? ViewMode::LIST : ViewMode::GRID;
+  viewMode_ = SETTINGS.libraryMode == SystemSetting::LIBRARY_LIST
+                  ? ViewMode::LIST
+                  : (SETTINGS.libraryMode == SystemSetting::LIBRARY_THUMBNAIL ? ViewMode::THUMBNAIL
+                                                                                 : ViewMode::GRID);
   sortMode_ = SETTINGS.librarySortEnabled && SETTINGS.librarySortMode <= static_cast<uint8_t>(SortMode::AUTHOR_ZA)
                   ? static_cast<SortMode>(SETTINGS.librarySortMode)
                   : SortMode::TITLE_AZ;
@@ -361,8 +366,7 @@ void Library::loop() {
     }
     if (mappedInput.wasPressed(nextItemButton)) {
       const int count = static_cast<int>(items_.size());
-      const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                        : views::library::List::itemsPerPage();
+      const int pageSize = itemsPerPage();
       const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
       if (selectedItemIndex_ + 1 >= count) {
         if (currentPage_ + 1 < pageCount) {
@@ -404,8 +408,7 @@ void Library::loop() {
     }
     if (mappedInput.isPressed(nextItemButton)) {
       if (mappedInput.getHeldTime() >= kItemJumpHoldMs && millis() >= nextItemJumpMs_) {
-        const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                          : views::library::List::itemsPerPage();
+        const int pageSize = itemsPerPage();
         const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
         if (currentPage_ + 1 < pageCount) {
           movePage(1);
@@ -559,7 +562,10 @@ void Library::center() const {
     }
     renderer.bitmap.icon(icon, x, y, buttonSize, buttonSize, orientation, selected);
   };
-  drawButton(viewMode_ == ViewMode::GRID ? LibraryViewGrid : LibraryViewList, 0);
+  const uint8_t* viewIcon = viewMode_ == ViewMode::GRID
+                                ? LibraryViewGrid
+                                : (viewMode_ == ViewMode::THUMBNAIL ? LibraryViewThumb : LibraryViewList);
+  drawButton(viewIcon, 0);
   const bool descending = sortMode_ == SortMode::TITLE_ZA || sortMode_ == SortMode::GROUP_ZA ||
                           sortMode_ == SortMode::AUTHOR_ZA;
   drawButton(descending ? SortDesc : SortAsc, 1);
@@ -772,8 +778,7 @@ void Library::loadIndexedItems(const bool resetPaging) {
     }
   }
 
-  const int visiblePageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                          : views::library::List::itemsPerPage();
+  const int visiblePageSize = itemsPerPage();
   const bool ascending = sortMode_ == SortMode::TITLE_AZ || sortMode_ == SortMode::GROUP_AZ ||
                          sortMode_ == SortMode::AUTHOR_AZ;
   const bool groupSort = sortMode_ == SortMode::GROUP_AZ || sortMode_ == SortMode::GROUP_ZA;
@@ -913,6 +918,8 @@ void Library::content() {
   if (canBufferPage()) {
     if (viewMode_ == ViewMode::LIST) {
       list_.render(-1, 0);
+    } else if (viewMode_ == ViewMode::THUMBNAIL) {
+      thumbnail_.render(-1, 0);
     } else {
       grid_.render(-1, 0);
     }
@@ -922,6 +929,8 @@ void Library::content() {
   const int selectedIndex = headerFocused_ ? -1 : selectedItemIndex_;
   if (viewMode_ == ViewMode::LIST) {
     list_.render(selectedIndex, 0);
+  } else if (viewMode_ == ViewMode::THUMBNAIL) {
+    thumbnail_.render(selectedIndex, 0);
   } else {
     grid_.render(selectedIndex, 0);
   }
@@ -936,6 +945,8 @@ void Library::afterRender() {
     pageBufferValid_ = false;
     if (viewMode_ == ViewMode::LIST) {
       list_.render(selectedItemIndex_, 0);
+    } else if (viewMode_ == ViewMode::THUMBNAIL) {
+      thumbnail_.render(selectedItemIndex_, 0);
     } else {
       grid_.render(selectedItemIndex_, 0);
     }
@@ -949,6 +960,8 @@ void Library::afterRender() {
   pageBufferStartIndex_ = currentPage_;
   if (viewMode_ == ViewMode::LIST) {
     list_.renderSelection(selectedItemIndex_);
+  } else if (viewMode_ == ViewMode::THUMBNAIL) {
+    thumbnail_.renderSelection(selectedItemIndex_, 0);
   } else {
     grid_.renderSelection(selectedItemIndex_, 0);
   }
@@ -957,6 +970,12 @@ void Library::afterRender() {
 bool Library::canBufferPage() const {
   return indexLoaded_ && !items_.empty() && !headerFocused_ && !sidebarOpen_ && !sortOpen_ && !filterOpen_ &&
          popupItemIndex_ < 0 && !isIndexing_;
+}
+
+int Library::itemsPerPage() const {
+  if (viewMode_ == ViewMode::LIST) return views::library::List::itemsPerPage();
+  if (viewMode_ == ViewMode::THUMBNAIL) return views::library::Thumbnail::itemsPerPage();
+  return views::library::Grid::itemsPerPage();
 }
 
 bool Library::storePageBuffer() {
@@ -999,6 +1018,8 @@ bool Library::tryFastSelection(const int nextIndex) {
   if (!restorePageBuffer()) return false;
   if (viewMode_ == ViewMode::LIST) {
     list_.renderSelection(nextIndex);
+  } else if (viewMode_ == ViewMode::THUMBNAIL) {
+    thumbnail_.renderSelection(nextIndex, 0);
   } else {
     grid_.renderSelection(nextIndex, 0);
   }
@@ -1022,8 +1043,7 @@ bool Library::moveSelectedItem(const int delta) {
 
 bool Library::movePage(const int direction) {
   if (direction == 0) return false;
-  const int pageSize = viewMode_ == ViewMode::GRID ? views::library::Grid::itemsPerPage()
-                                                   : views::library::List::itemsPerPage();
+  const int pageSize = itemsPerPage();
   const int pageCount = (totalItemCount_ + pageSize - 1) / pageSize;
   const int targetPage = currentPage_ + (direction < 0 ? -1 : 1);
   if (targetPage < 0 || targetPage >= pageCount) return false;
@@ -1050,16 +1070,25 @@ void Library::handleHeaderConfirm() {
       startIndexing();
       break;
     default:
-      // Grid view is the only view currently rendered; its toggle is reserved
-      // for the next migration step.
+      // Keep the header focus cycle closed if it ever receives an out-of-range
+      // button index after a settings migration.
       requestRender();
       break;
   }
 }
 
 void Library::toggleViewMode() {
-  viewMode_ = viewMode_ == ViewMode::GRID ? ViewMode::LIST : ViewMode::GRID;
-  SETTINGS.libraryMode = viewMode_ == ViewMode::LIST ? SystemSetting::LIBRARY_LIST : SystemSetting::LIBRARY_GRID;
+  if (viewMode_ == ViewMode::GRID) {
+    viewMode_ = ViewMode::THUMBNAIL;
+  } else if (viewMode_ == ViewMode::THUMBNAIL) {
+    viewMode_ = ViewMode::LIST;
+  } else {
+    viewMode_ = ViewMode::GRID;
+  }
+  SETTINGS.libraryMode = viewMode_ == ViewMode::LIST
+                             ? SystemSetting::LIBRARY_LIST
+                             : (viewMode_ == ViewMode::THUMBNAIL ? SystemSetting::LIBRARY_THUMBNAIL
+                                                                   : SystemSetting::LIBRARY_GRID);
   SETTINGS.saveToFile();
   selectedItemIndex_ = 0;
   loadIndexedItems();

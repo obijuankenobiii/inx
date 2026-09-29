@@ -39,6 +39,9 @@ class Home final : public Page {
   bool storeGridPageBuffer();
   bool storeShortcutPageBuffer();
   bool restoreShortcutPageBuffer();
+  bool storeRecentPopupPageBuffer();
+  bool restoreRecentPopupPageBuffer();
+  void invalidateRecentPopupPageBuffer();
   void invalidateShortcutPageBuffer();
   void invalidateGridPageBuffer();
 
@@ -54,7 +57,9 @@ class Home final : public Page {
   std::string recentPopupPath_;
   widget::Recent recentWidget;
   uint8_t* gridPageBuffer_ = nullptr;
+  uint8_t* recentPopupPageBuffer_ = nullptr;
   bool gridPageBufferValid_ = false;
+  bool recentPopupPageBufferValid_ = false;
   bool shortcutPageBufferValid_ = false;
   bool gridBufferBuilding_ = false;
   int gridPageBufferBookCount_ = -1;

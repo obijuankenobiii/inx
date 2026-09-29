@@ -15,6 +15,7 @@
 #include "util/LibraryIndex.h"
 #include "views/Library/Grid.h"
 #include "views/Library/List.h"
+#include "views/Library/Thumbnail.h"
 
 /** Library page shell; the legacy library body will be migrated into this page incrementally. */
 class Library final : public Page {
@@ -45,8 +46,9 @@ class Library final : public Page {
   std::unordered_set<std::string> favoritePaths_;
   views::library::Grid grid_;
   views::library::List list_;
+  views::library::Thumbnail thumbnail_;
   bool indexLoaded_ = false;
-  enum class ViewMode { GRID, LIST };
+  enum class ViewMode { GRID, LIST, THUMBNAIL };
   enum class SortMode { TITLE_AZ, TITLE_ZA, GROUP_AZ, GROUP_ZA, AUTHOR_AZ, AUTHOR_ZA };
   enum class FilterTab { TITLE, TYPE, OPTIONS };
   enum class StateFilter { NONE, FAVORITES, READING, FINISHED, AUTHOR };
@@ -139,6 +141,7 @@ class Library final : public Page {
   bool restorePageBuffer();
   void invalidatePageBuffer();
   bool canBufferPage() const;
+  int itemsPerPage() const;
   int buttonX(int index) const;
   int buttonY() const;
 };

@@ -367,6 +367,7 @@ class SystemSetting {
   enum LIBRARY_MODE {
     LIBRARY_LIST = 0,  ///< Compact list browser
     LIBRARY_GRID = 1,  ///< 3x4 icon grid browser
+    LIBRARY_THUMBNAIL = 2,  ///< Inx-pro 2x2 thumbnail browser
     LIBRARY_MODE_COUNT
   };
 

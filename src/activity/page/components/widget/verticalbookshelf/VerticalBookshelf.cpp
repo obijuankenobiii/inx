@@ -1,6 +1,7 @@
 #include "VerticalBookshelf.h"
 
 #include <GfxRenderer.h>
+#include <SDCardManager.h>
 
 #include <algorithm>
 #include <array>
@@ -145,7 +146,7 @@ void drawLine(const GfxRenderer& renderer, int x0, int y0, int x1, int y1) {
 }
 
 void drawLeaningOutline(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
-                        const int padding) {
+                        const int padding, const bool includeTop = true) {
   const int topOffset = leanOffset(0, height);
   const int bottomOffset = leanOffset(height - 1, height);
   const int leftYOffset = leanYOffset(0, width);
@@ -158,7 +159,7 @@ void drawLeaningOutline(const GfxRenderer& renderer, const int x, const int y, c
   const int bottomLeftY = y + height - 1 + leftYOffset + padding;
   const int bottomRightX = x + width - 1 + bottomOffset + padding;
   const int bottomRightY = y + height - 1 + rightYOffset + padding;
-  drawLine(renderer, topLeftX, topLeftY, topRightX, topRightY);
+  if (includeTop) drawLine(renderer, topLeftX, topLeftY, topRightX, topRightY);
   drawLine(renderer, topRightX, topRightY, bottomRightX, bottomRightY);
   drawLine(renderer, bottomRightX, bottomRightY, bottomLeftX, bottomLeftY);
   drawLine(renderer, bottomLeftX, bottomLeftY, topLeftX, topLeftY);
@@ -184,14 +185,131 @@ void drawLeaningSelection(const GfxRenderer& renderer, const int x, const int y,
   drawLeaningOutline(renderer, x, y, width, height, padding);
 }
 
+int fakePageHeight(const int width, const int height) {
+  // Match the reference proportions: a front cover has a shallow page edge,
+  // while a narrow standing spine has a tall visible page block.
+  if (width * 2 > height) return std::max(8, std::min(32, height / 16));
+  return std::max(10, std::min(height / 3, width));
+}
+
+bool hasThumbnail(const RecentBook& book) {
+  const std::string cache = support::cachePathFor(book);
+  for (const char* extension : {"thumb.jpg", "thumb.png", "thumb.bmp"}) {
+    const std::string path = cache + "/" + extension;
+    if (SdMan.exists(path.c_str())) return true;
+  }
+  return false;
+}
+
+void drawMissingSpineTitle(const GfxRenderer& renderer, const RecentBook& book, const int x, const int y,
+                           const int width, const int height) {
+  if (width <= 0 || height <= 0) return;
+
+  const int font = MONTSERRAT_8_FONT_ID;
+  const std::string title = support::titleFor(book);
+  const int availableLength = std::max(1, height - 8);
+  const std::string shown = renderer.text.truncate(font, title.c_str(), availableLength);
+  const int textLength = renderer.text.getWidth(font, shown.c_str());
+  const int lineHeight = renderer.text.getFontAscenderSize(font);
+  const int textX = x + std::max(0, (width - lineHeight) / 2);
+  const int textY = y + (height + textLength) / 2;
+  renderer.text.rotated90CW(font, textX, textY, shown.c_str(), true, EpdFontFamily::REGULAR);
+}
+
+void drawBookShadow(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+  if (width <= 0 || height <= 0) return;
+  const bool narrowSpine = width * 2 <= height;
+  if (narrowSpine) {
+    const int shadowHeight = std::max(1, height - 10);
+    renderer.rectangle.fill(x + 4, y + height - shadowHeight, width, shadowHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Gray));
+    return;
+  }
+  renderer.rectangle.fill(x + 4, y + 4, width, std::max(1, height - 4),
+                          static_cast<int>(GfxRenderer::FillTone::Gray));
+}
+
+void drawBookBody(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
+                 const int height) {
+  if (width <= 0 || height <= 0) return;
+  const bool narrowSpine = width * 2 <= height;
+  if (narrowSpine && !hasThumbnail(book)) {
+    renderer.rectangle.fill(x, y, width, height, false);
+    drawMissingSpineTitle(renderer, book, x, y, width, height);
+    return;
+  }
+  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, true, true, true);
+}
+
+void drawFakePages(const GfxRenderer& renderer, const int x, const int y, const int width, const int pageHeight,
+                   const int totalHeight) {
+  if (width < 8 || pageHeight < 6) return;
+  const int pageX = x;
+  const int pageWidth = std::max(4, width);
+  // Front-facing covers show the page edges horizontally. Narrow vertical
+  // spines show the page grooves vertically, as in the supplied reference.
+  if (width * 2 > totalHeight) {
+    renderer.rectangle.fill(pageX, y, pageWidth, pageHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.render(pageX, y, pageWidth, pageHeight, true);
+    renderer.rectangle.fill(pageX, y, 3, pageHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    for (int lineY = y + 3; lineY < y + pageHeight - 1; lineY += 3) {
+      renderer.rectangle.fill(pageX + 4, lineY, std::max(1, pageWidth - 6), 1,
+                              static_cast<int>(GfxRenderer::FillTone::Gray));
+    }
+  } else {
+    constexpr int topBandHeight = 5;
+    constexpr int bottomBandHeight = 4;
+    const int sideRail = std::max(3, std::min(5, width / 10 + 1));
+    const int stripeY = y + topBandHeight;
+    const int stripeHeight = std::max(2, pageHeight - topBandHeight - bottomBandHeight);
+    const int stripeX = pageX + sideRail;
+    const int stripeWidth = std::max(2, pageWidth - sideRail * 2);
+
+    renderer.rectangle.fill(pageX, y, pageWidth, topBandHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(stripeX, stripeY, stripeWidth, stripeHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Paper));
+    renderer.rectangle.fill(pageX, stripeY, sideRail, pageHeight - topBandHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    renderer.rectangle.fill(pageX + pageWidth - sideRail, stripeY, sideRail,
+                            pageHeight - topBandHeight, static_cast<int>(GfxRenderer::FillTone::Ink));
+    renderer.rectangle.fill(stripeX, y + pageHeight - bottomBandHeight, stripeWidth, bottomBandHeight,
+                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    // Small corner blocks give the lower U-shaped join the stepped detail of
+    // a real page edge instead of a perfectly square right angle.
+    const int cornerSize = std::max(2, std::min(3, sideRail));
+    const int cornerY = y + pageHeight - bottomBandHeight - cornerSize + 1;
+    renderer.rectangle.fill(stripeX, cornerY, cornerSize, cornerSize,
+                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    renderer.rectangle.fill(stripeX + stripeWidth - cornerSize, cornerY, cornerSize, cornerSize,
+                            static_cast<int>(GfxRenderer::FillTone::Ink));
+    static constexpr int stripeSteps[] = {3, 4, 2, 5, 3, 4, 3, 2, 5, 3};
+    static constexpr int stripeWidths[] = {1, 2, 1, 1, 2, 1, 1, 2, 1, 1};
+    int lineX = stripeX + 2;
+    int stripe = 0;
+    while (lineX < stripeX + stripeWidth - 1) {
+      renderer.rectangle.fill(lineX, stripeY + 2, stripeWidths[stripe], std::max(1, stripeHeight - 4),
+                              static_cast<int>(GfxRenderer::FillTone::Gray));
+      lineX += stripeSteps[stripe];
+      stripe = (stripe + 1) % (sizeof(stripeSteps) / sizeof(stripeSteps[0]));
+    }
+  }
+}
+
 void drawLeaningBook(GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int width,
                      const int height, const bool selected) {
   if (width <= 0 || height <= 0) return;
   if (selected) drawLeaningSelectionDither(renderer, x, y, width, height);
 
-  renderer.rectangle.fill(x + 4, y + 4, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
+  const int pageHeight = fakePageHeight(width, height);
+  const int bodyY = y + pageHeight;
+  const int bodyHeight = std::max(8, height - pageHeight);
+  drawBookShadow(renderer, x, y, width, height);
   renderer.rectangle.fill(x, y, width, height, false);
-  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, true, true, true);
+  drawBookBody(renderer, book, x, bodyY, width, bodyHeight);
+  drawFakePages(renderer, x, y, width, pageHeight, height);
 
   std::vector<uint8_t> pixels(static_cast<size_t>(width) * static_cast<size_t>(height), 0);
   for (int sourceY = 0; sourceY < height; ++sourceY) {
@@ -220,7 +338,7 @@ void drawLeaningBook(GfxRenderer& renderer, const RecentBook& book, const int x,
     }
   }
 
-  drawLeaningOutline(renderer, x, y, width, height, 0);
+  drawLeaningOutline(renderer, x, y, width, height, 0, false);
   if (selected) drawLeaningOutline(renderer, x, y, width, height, 6);
 }
 
@@ -232,11 +350,14 @@ void drawBook(GfxRenderer& renderer, const RecentBook& book, const int x, const 
     return;
   }
   if (selected) drawSelection(renderer, x, y, width, height);
-  renderer.rectangle.fill(x + 4, y + 4, width, height, static_cast<int>(GfxRenderer::FillTone::Gray));
+  const int pageHeight = fakePageHeight(width, height);
+  const int bodyY = y + pageHeight;
+  const int bodyHeight = std::max(8, height - pageHeight);
+  drawBookShadow(renderer, x, y, width, height);
   renderer.rectangle.fill(x, y, width, height, false);
-  support::drawThumbnail(renderer, book, x, y, width, height, MONTSERRAT_10_FONT_ID, false, true, true,
-                         true);
-  renderer.rectangle.render(x, y, width, height, true, false, false);
+  drawBookBody(renderer, book, x, bodyY, width, bodyHeight);
+  drawFakePages(renderer, x, y, width, pageHeight, height);
+  renderer.rectangle.render(x, y + pageHeight, width, height - pageHeight, true, false, false);
 }
 
 void renderShelf(GfxRenderer& renderer, const Geometry& g, const RecentBook* books, const int count,
