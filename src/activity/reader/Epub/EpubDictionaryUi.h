@@ -36,9 +36,8 @@ class EpubDictionaryUi {
   void prepareWordGeometry(EpubActivity& act);
   void captureFramebuffer(EpubActivity& act);
   void moveFocusWord(int delta);
-  void moveFocusLine(int delta);
+  void moveFocusLine(int delta, bool wrap);
   bool tryNavigationHoldRepeat(EpubActivity& act);
-  bool isDuplicateNavEdge(int dir, unsigned long now);
   void drawFocusHighlight(EpubActivity& act);
   void drawDefinitionPanel(EpubActivity& act);
   void performLookup(EpubActivity& act);
